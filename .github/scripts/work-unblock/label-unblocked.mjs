@@ -8,8 +8,7 @@
 // opened first (owner Q95). Every fact is read from the API now, never from the event
 // payload, except the closed issue's labels: one carrying SWEEP_LABEL is the
 // marker, and a listed human closing it runs the sweep below at once, not the
-// close path, unless a listed human closed it under SWEEP_KICK_DEBOUNCE_MIN
-// before. No model.
+// close path. No model.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
@@ -358,13 +357,13 @@ export const SWEEP_MARGIN_MIN = 15;
 export const STRANDED_HOURS = 3;
 // The marker issue's label: a listed human closing an issue that carries it
 // runs the sweep at once instead of waiting for the schedule (the hub reopens
-// and closes it after a rate-limit breaker clears). The only copy of the
-// name; work-unblock.yml's header names it in prose and reads nothing.
+// and closes it after a rate-limit breaker clears). That sweep re-fires at
+// once only issues the kill switch stopped at broker-check; one stopped at a
+// token mint still waits limits.reset-clamp-min. A second kick is one more
+// sweep: runs queue one at a time, and a re-fired issue's newer label holds it.
+// The only copy of the name; work-unblock.yml's header names it in prose and
+// reads nothing.
 export const SWEEP_LABEL = "work-unblock-sweep";
-// A marker close this soon after an earlier one by a listed human only logs:
-// a sweep reads every closed and agent-ready issue, and a breaker clear is
-// when the API budget is tightest.
-export const SWEEP_KICK_DEBOUNCE_MIN = 5;
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -570,18 +569,6 @@ async function sweepSince({ actions, repo, now, runId }) {
   } catch (error) {
     return { since: widest, why: `the last sweep could not be read (${escapeCommand(error?.message ?? error)})` };
   }
-}
-
-// The time of an earlier close of the marker issue by a listed human within
-// SWEEP_KICK_DEBOUNCE_MIN before this one, or null. That close's run is ahead
-// of this one in the job's queue, so its sweep covers this close.
-async function recentKick({ github, repo, number, closedAt, humans }) {
-  const from = closedAt - SWEEP_KICK_DEBOUNCE_MIN * 60_000;
-  const prior = (await paginate(github, `/repos/${repo}/issues/${number}/events`)).find((event) => {
-    const at = Date.parse(event?.created_at);
-    return event?.event === "closed" && humans.has(event.actor?.id) && at >= from && at < closedAt;
-  });
-  return prior ? prior.created_at : null;
 }
 
 // The issues closed at or after `since`. The listing's `since` filters on the
@@ -2147,15 +2134,9 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const kick = !scheduled && labelNames(event.issue).some((name) => name.toLowerCase() === SWEEP_LABEL);
     const sweep = scheduled || kick;
     if (kick) {
-      const number = Number(event.issue.number);
-      const parsed = Date.parse(event.issue.closed_at);
-      const closedAt = Number.isFinite(parsed) ? parsed : now;
-      const prior = await recentKick({ github, repo, number, closedAt, humans });
-      if (prior) {
-        console.log(`label-unblocked: marker #${number} was also closed at ${escapeCommand(prior)}, under ${SWEEP_KICK_DEBOUNCE_MIN} minutes before; that run's sweep covers this one, nothing read or labeled`);
-        return 0;
-      }
-      console.log(`::notice title=work-unblock::sweep-kick marker=#${number} closed=${new Date(closedAt).toISOString()} started=${new Date(now).toISOString()}`);
+      const closedAt = Date.parse(event.issue.closed_at);
+      const closed = Number.isFinite(closedAt) ? ` closed=${new Date(closedAt).toISOString()}` : "";
+      console.log(`::notice title=work-unblock::sweep-kick marker=#${Number(event.issue.number)}${closed} started=${new Date(now).toISOString()}`);
     }
     if (sweep) {
       const latch = budgetLatch("github-token");

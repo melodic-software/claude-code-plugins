@@ -29,9 +29,10 @@ name: work-unblock
 # `work-unblock-sweep` (SWEEP_LABEL in the script), runs that sweep at once
 # instead of the close path, behind the same closer check: the hub reopens and
 # closes it after a rate-limit breaker clears, so issues the kill switch
-# stopped are re-fired without waiting for the schedule. A second marker close
-# within five minutes of a listed human's earlier one only logs. Each kick logs
-# a `sweep-kick` notice with the close time.
+# stopped at broker-check are re-fired without waiting for the schedule (one
+# stopped at a token mint still waits limits.reset-clamp-min). A second kick
+# is one more sweep, queued behind the first; it re-fires no issue twice. Each
+# kick logs a `sweep-kick` notice with the close time.
 #
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);

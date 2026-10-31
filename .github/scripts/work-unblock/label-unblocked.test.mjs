@@ -29,7 +29,6 @@ import {
   refsMergedComment,
   infraComment,
   skipText,
-  SWEEP_KICK_DEBOUNCE_MIN,
   SWEEP_LABEL,
 } from "./label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -4811,30 +4810,46 @@ test("the sweep rewrites the split-pending comment of an open-sub-issue parent w
 
 // The sweep kick: a listed human closing the marker issue (labeled
 // SWEEP_LABEL, read from the payload) runs the scheduled sweep at once, after
-// the same closer check as any close; an earlier marker close by a listed
-// human under SWEEP_KICK_DEBOUNCE_MIN before makes it only log.
+// the same closer check as any close. A second kick is one more sweep.
 const MARKER = 50;
 const KICK_AT = "2026-10-16T11:59:00Z";
 const SWEEP_LISTING = `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`;
 const markerEvent = (labels = [SWEEP_LABEL], extra = {}) => ({ issue: issue(MARKER, { state: "closed", labels, at: KICK_AT }), ...extra });
-const markerClose = (minutesBefore, actor = OWNER) => ({ event: "closed", actor, created_at: new Date(Date.parse(KICK_AT) - minutesBefore * 60_000).toISOString() });
-// This run's record for the closer check, and no earlier scheduled sweep.
-function kickActions() {
+// This run's record for the closer check; any other read goes to `fallback`,
+// or answers no earlier scheduled sweep.
+function kickActions(fallback) {
   const own = ownRun();
-  return async (method, path) => (path === `/repos/${REPO}/actions/runs/${RUN_ID}` ? own(method, path) : { workflow_runs: [], jobs: [] });
+  return async (method, path, ...rest) =>
+    path === `/repos/${REPO}/actions/runs/${RUN_ID}` ? own(method, path) : fallback ? fallback(method, path, ...rest) : { workflow_runs: [], jobs: [] };
 }
 const kick = ({ event = markerEvent(), env = {}, ...args }) => main({ now: NOW, env: envFor(event, env), actions: kickActions(), ...args });
 
 test("a listed human closing the marker issue runs the sweep, with a sweep-kick notice", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  const { github, calls } = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], blocking: [issue(20)], issues: { 20: issue(20) }, blockedBy: { 20: [issue(10, { state: "closed" })] }, comments: { 20: [note()] }, events: { [MARKER]: [markerClose(0)] } });
+  const { github, calls } = world({
+    // The marker's own close is in the swept window too.
+    closedList: [closedAt(10, "2026-10-16T11:30:00Z"), issue(MARKER, { state: "closed", labels: [SWEEP_LABEL], at: KICK_AT })],
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note()] },
+  });
   assert.equal(await kick({ github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
   assert.ok(calls.includes(SWEEP_LISTING));
-  // The marker blocks nothing: its own close is never run as a blocker's.
-  assert.ok(!calls.some((call) => call.includes(`/issues/${MARKER}/dependencies/`)));
+  // The marker blocks nothing: no write touches it.
+  assert.deepEqual(writes(calls).filter((call) => new RegExp(`/issues/${MARKER}(/|$| )`).test(call)), []);
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} closed=2026-10-16T11:59:00.000Z started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
+});
+
+test("a sweep-kick notice leaves out a close time that does not parse", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github } = sweptDependent();
+  const event = { issue: { ...issue(MARKER, { state: "closed", labels: [SWEEP_LABEL] }), closed_at: "not a time" } };
+  assert.equal(await kick({ github, event }), 0);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
 });
 
 test("a close of an issue without the marker label keeps the close path and lists no closed issues", async () => {
@@ -4842,7 +4857,6 @@ test("a close of an issue without the marker label keeps the close path and list
   assert.equal(await main({ now: NOW, env: envFor({ issue: issue(10, { state: "closed", labels: ["bug"] }) }), github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
   assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed`)));
-  assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/10/events`)));
 });
 
 test("a marker close by a bot sender, or by a closer or re-runner who is not a listed human, reads nothing", async () => {
@@ -4857,19 +4871,33 @@ test("a marker close by a bot sender, or by a closer or re-runner who is not a l
   }
 });
 
-test("a marker close under the debounce after a listed human's earlier one only logs; an older or unlisted earlier close does not hold it", async () => {
-  for (const [name, earlier, sweeps] of [
-    ["listed human, 2 minutes before", markerClose(2), false],
-    ["listed human, just inside the debounce", markerClose(SWEEP_KICK_DEBOUNCE_MIN), false],
-    ["listed human, past the debounce", markerClose(SWEEP_KICK_DEBOUNCE_MIN + 1), true],
-    ["unlisted account, 2 minutes before", markerClose(2, { id: 1234, login: "someone-else" }), true],
-  ]) {
-    const { github, calls } = world({ closedList: [closedAt(10, "2026-10-16T11:30:00Z")], blocking: [issue(20)], issues: { 20: issue(20) }, blockedBy: { 20: [issue(10, { state: "closed" })] }, comments: { 20: [note()] }, events: { [MARKER]: [earlier, markerClose(0)] } });
-    assert.equal(await kick({ github }), 0, name);
-    assert.equal(calls.includes(SWEEP_LISTING), sweeps, name);
-    assert.deepEqual(writes(calls), sweeps ? [labeled(20)] : [], name);
-    if (!sweeps) {
-      assert.deepEqual(calls, [`GET /repos/${REPO}/issues/${MARKER}/events?per_page=100&page=1`], name);
-    }
-  }
+test("two back-to-back marker closes each sweep, and the issue the kill switch stopped at broker-check is re-fired once", async () => {
+  const kickOn = (fake) =>
+    kick({
+      github: fake.github,
+      actions: kickActions(fake.github),
+      jobLog: (repo, id, options) => fake.github("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options),
+    });
+  // The first kick re-fires the stopped issue: its breaker record, then the
+  // App's remove and re-add.
+  const first = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await kickOn(first), 0);
+  tripped(first.calls);
+  const posted = writes(first.calls)[0];
+  const record = JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+  // The second kick, queued behind it, sees what the first left: the record
+  // and the re-add, with no lane run since. It sweeps and writes nothing.
+  const second = stalledRun({
+    jobs: BROKER_REFUSED,
+    logs: CHECK_KILLED,
+    comments: [note(), { id: 71, body: record, user: LANES_BOT, created_at: "2026-10-16T11:59:30Z" }],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:59:30Z" },
+      added("2026-10-16T11:59:31Z"),
+    ],
+  });
+  assert.equal(await kickOn(second), 0);
+  assert.ok(second.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=open&labels=agent-ready`)));
+  assert.deepEqual(writes(second.calls), []);
 });
