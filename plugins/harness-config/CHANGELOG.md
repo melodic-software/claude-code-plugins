@@ -5,6 +5,22 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.0] - 2026-10-31
+
+### Added
+
+- `/harness-config:draft-auto-mode-rules`, `/harness-config:audit-permission-state` and `/harness-config:audit-permission-grants` take an optional `--unattended` modifier, accepted anywhere in their arguments. With it, the run records its native offer (`/auto-mode-setup` or `/permissions`) in its output instead of asking; without it, the run asks. The argument hints list it, and neither audit passes it to its script.
+
+## [2.3.0] - 2026-10-31
+
+### Added
+
+- `time_units` setting (boolean, default off) that turns time units back on in `/harness-config:audit-automation-gaps` plan sizes: a `userConfig` option, and a key in `<home>/harness-config.yaml` that wins over it.
+
+### Changed
+
+- `/harness-config:audit-automation-gaps` sizes each PASS or CONDITIONAL implementation plan as Small, Medium or Large instead of an effort estimate. It states minutes, hours, days or weeks only when the new `time_units` option is on, and quotes a time budget the user states in the user's words.
+
 ## [2.2.3] - 2026-10-31
 
 ### Changed

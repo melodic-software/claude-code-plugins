@@ -3,8 +3,7 @@
 // that fails to read is recorded in `gaps` and the others still run. Every
 // list is bounded, and `get` spends the run's call budget.
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
-import { escalationActivity, escalationRoute } from "../pr-unblock/escalation-routes.mjs";
-import { failingChecks } from "../pr-unblock/gate-source.mjs";
+import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unblock/escalation-routes.mjs";
 import { parseBudget, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 
 export const LIMITS = {
@@ -29,8 +28,7 @@ export const LIMITS = {
   // first: one GraphQL query lists the first stalledPulls with each one's
   // newest 100 comments and the open count; at most stalledCommentRounds more
   // queries read 100 older comments for every PR whose newest name no stop on
-  // its head; at most stalledChecks check-run reads in all (a fix-ci
-  // resolution check's listing pages count among them). So the source
+  // its head; at most stalledChecks check-run reads in all. So the source
   // spends at most 1 + 2 + 20 of CALL_BUDGET. stalledPulls covers every open
   // pull request at today's count; past it, a gap leaves signal 10 unread
   // rather than missing a stop.
@@ -69,28 +67,18 @@ const restComment = (node) => ({
 });
 // An attempt of the activity on the head: any of its check runs but a skip,
 // which a select job posts without running the activity (a stop's own
-// lane-stopped, a held awaiting-human, or not-applicable).
+// lane-stopped, a held awaiting-human, not-applicable, or stop-resolved).
 const attempted = (run) => !(run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped:"));
-// A select job that finds the stop gone on its head (stop-resolved) skips
-// not-applicable and report-stop-status posts success over the failing
-// status, which this job cannot read. On a non-draft pull request (the slot's
-// only not-applicable miss for both activities is `draft: [false]`,
-// pr-pipeline.yaml) the address-feedback select skips not-applicable only
-// when it is resolved (address-feedback.mjs select). fix-ci's also skips it
-// with no fixable failure, so it counts only when the head's checks read
-// whole, every one completed, none failing (fix-ci-context.mjs select's own
-// rule) now; one that skipped while checks were still running and went green
-// later reads as resolved too, though no success was posted.
-const NOT_APPLICABLE = "Skipped: not-applicable";
-const RESOLVES = new Set(["address-feedback", "fix-ci"]);
-const CHECK_PAGES = 3;
+// A select job that finds the stop gone on its head skips stop-resolved and
+// report-stop-status posts success over the failing status, which this job
+// cannot read, so that skip stands for the success.
 export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance-check-upstream-drift"];
 // Pull-request and merge-group runs hold no lane token, and a merge-group
 // failure is counted as an ejection instead.
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
 // The test-suite runs hold no lane token either, and their failure annotations
 // name tests, some of them for rate limits; signal 1 reads main's suite.
-const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-windows.yml"]);
+const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-platforms.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
@@ -405,8 +393,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // Open pull requests whose head carries a stop the pr-unblock lane routed to
   // a failing status (its lane-stopped comment, by the lanes App, names the
   // PR's current head) with no attempt of that activity started on the head
-  // since the comment's last edit, and no stop-resolved skip ending it
-  // (NOT_APPLICABLE above): its per-head retries are spent. Any PR, not only
+  // since the comment's last edit, and no stop-resolved skip ending it:
+  // its per-head retries are spent. Any PR, not only
   // the lanes App's: fix-ci adopts owners'. The status itself needs
   // statuses: read, which this job's token lacks, so the comment and the
   // activity's check runs stand for it.
@@ -417,7 +405,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const listed = await queryRepo(
       graphql,
       repo,
-      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number isDraft headRefOid comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number headRefOid comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
     );
     if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
     const total = listed.pullRequests.totalCount ?? 0;
@@ -426,7 +414,6 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
     const pulls = (listed.pullRequests?.nodes ?? []).map((node) => ({
       number: node.number,
-      draft: node.isDraft === true,
       head: { sha: node.headRefOid },
       comments: (node.comments?.nodes ?? []).map(restComment),
       older: node.comments?.pageInfo?.hasPreviousPage ? node.comments.pageInfo.startCursor : null,
@@ -496,26 +483,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         checks += 1;
         const runs = (await get(`/repos/${repo}/commits/${head}/check-runs?check_name=${encodeURIComponent(`pr-unblock / ${stop.activity}`)}&filter=all&per_page=100`)).check_runs ?? [];
         const since = runs.filter((run) => Date.parse(run.started_at) > Date.parse(stop.stoppedAt));
-        if (since.some(attempted)) continue;
-        if (RESOLVES.has(stop.activity) && !pull.draft && since.some((run) => run.conclusion === "neutral" && run.output?.title === NOT_APPLICABLE)) {
-          if (stop.activity === "address-feedback") continue;
-          const listed = [];
-          let whole = false;
-          for (let page = 1; page <= CHECK_PAGES; page += 1) {
-            if (checks >= LIMITS.stalledChecks) {
-              gaps.push(`stalled stops: over ${LIMITS.stalledChecks} check-run reads; #${pull.number} and later not judged`);
-              return;
-            }
-            checks += 1;
-            const batch = (await get(`/repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`)).check_runs ?? [];
-            listed.push(...batch);
-            if (batch.length < 100) {
-              whole = true;
-              break;
-            }
-          }
-          if (whole && listed.every((run) => run.status === "completed") && failingChecks(listed).length === 0) continue;
-        }
+        if (since.some((run) => attempted(run) || run.output?.title === STOP_RESOLVED)) continue;
         data.stalledStops.push({ pr: pull.number, head, ...stop });
       }
     }

@@ -1,6 +1,6 @@
 ---
 description: "Forward-looking guidance and hand-holding over the GitHub settings/admin plane: how to design, configure, and set up any coverage area (rulesets, billing budgets, security model, Actions policy, webhooks, PATs, apps, and more), grounded in live gh state and freshly fetched official GitHub docs. Use when: 'how should I configure X', 'help me set up Y', 'walk me through Z', 'what's the recommended way to', 'design our org's Actions policy'. NOT for current-state review or drift ('what is', 'what drifted', 'are these consistent'). That is the audit skill. Bare invocation performs zero mutations. Guidance and proposals only, never recall presented as grounded."
-argument-hint: "[topic] [--apply]"
+argument-hint: "[--unattended] [topic] [--apply]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -24,6 +24,8 @@ Route the request through the area router at `${CLAUDE_PLUGIN_ROOT}/reference/ar
   area keys.
 - A topic spanning several areas is fine. Name the areas involved and advise across them.
 - No topic given: ask what the user wants to design or set up. Do not pick one.
+- `--unattended`, anywhere in the arguments, is not the topic: it is the caller declaring that nobody is present,
+  which governs the `/install-github-app` offer under "Boundary". Take it out before mapping.
 
 ## 2. Ground every recommendation
 
@@ -88,7 +90,8 @@ repository, offer it to the person: If /install-github-app is available in your 
 it registers gated; records in
 [reference/native-install-github-app.md](reference/native-install-github-app.md)), you can run it
 instead of or alongside this skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
-and app access. An unattended run records the offer in its output instead of asking.
+and app access. When the caller passes `--unattended`, the run records the
+offer in its output instead of asking; without that flag it asks.
 
 **Mutation gate.** `/install-github-app` changes the repository outside this skill's gate. This
 skill never runs it on the person's behalf, and `--apply` never stands in for it.

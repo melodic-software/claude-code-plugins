@@ -676,11 +676,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
     await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
-    await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose").catch(() => {});
+    await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose", {timeout: 2000}).catch(() => {});
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
     await page.fill("#noteText", "second note"); await page.click("[data-sendnote]");
     ok("a save while a wake is in flight says queued, Claude is busy", await until(() => /Queued, Claude is busy/.test((document.getElementById("noteToast") || {}).textContent || ""), 4000), await text("#noteToast"));
-    await page.click("#flyClose").catch(() => {});
+    await page.click("#flyClose", {timeout: 2000}).catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16
     await page.setViewportSize({width: 1400, height: 860}); await tap("#sumBtn", 300);

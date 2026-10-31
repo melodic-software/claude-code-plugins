@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [2.3.0] - 2026-10-31
+
+### Added
+
+- `/session-flow:orient`, `/session-flow:continue-in-background` and `/session-flow:audit-sessions` take an optional `--unattended` modifier, accepted anywhere in their arguments. With it, the run records its native suggestion (`/recap`; `/background`, `/fork` or `/subtask`; `/insights`) in its output instead of asking; without it, the run asks. The argument hints list it.
+
+### Changed
+
+- `/session-flow:audit-sessions`'s argument hint shortens its action set to `[sweep…]` to stay within the 100-character budget; the Arguments line gives the full set.
+
 ## [2.2.0] - 2026-10-31
 
 ### Added

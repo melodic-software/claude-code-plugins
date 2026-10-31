@@ -2,7 +2,7 @@
 // lanes App opened, or a trusted actor opened (an App's at once, a person's
 // once idle; the base config's `adoption` section), whose head's lanes failed
 // (the `ci-lanes` commit status ci-status records, not ci-status itself, which
-// a review-lane hold or a pending review also fails) or whose pr-test-windows
+// a review-lane hold or a pending review also fails) or whose pr-test-platforms
 // run failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
@@ -23,14 +23,14 @@
 // A head at the cap gets one `::warning::` and goes into the dispatch record
 // (dispatch-record.mjs), so later runs skip it before any read; the next push
 // makes a new head.
-// A head whose lanes passed but whose pr-test-windows run failed is a
+// A head whose lanes passed but whose pr-test-platforms run failed is a
 // candidate too. A head is skipped while a re-run of its tested run is
 // queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
 // RERUN_DUE_MINUTES; a lost first attempt's too), and when its tested run
 // ended cancelled with no check on the head that fix-ci-context counts as
 // failing (its failingChecks, over the same check-run read), which would only
-// post not-applicable; a check cancelled past its time limit counts, read from
+// post a skip; a check cancelled past its time limit counts, read from
 // its annotations (#9828); a real
 // failure (a test, lint or typecheck step), an infra failure that failed
 // again, and a run or field that cannot be read go to fix-ci, with the cause
@@ -53,6 +53,7 @@ import {
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
+import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
@@ -70,23 +71,23 @@ export const DEFAULTS = Object.freeze({
   // a failed one, which the per-head cap and the restarts retry.
   stopCheckName: "pr-unblock / apply-patch",
   // The run whose failure counts: pr-require-checks when its lanes failed,
-  // else the advisory pr-test-windows, which ci-status does not aggregate but
+  // else the advisory pr-test-platforms, which ci-status does not aggregate but
   // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
-  advisoryWorkflow: ".github/workflows/pr-test-windows.yml",
+  advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
-  // Failed or not-applicable fix-ci runs one head gets across base moves:
+  // Failed or nothing-to-fix fix-ci runs one head gets across base moves:
   // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
   maxRunsPerHead: 3,
 });
 
-// The neutral check fix-ci-not-run posts when fix-ci-context found no failing
+// The neutral checks fix-ci-not-run posts when fix-ci-context found no failing
 // check to fix (report-check-run's `Skipped: <reason>` title).
-const NOT_APPLICABLE = "Skipped: not-applicable";
+const NOTHING_TO_FIX = new Set(["Skipped: not-applicable", STOP_RESOLVED]);
 // The neutral check a run skipped on a held PR posts.
 const HELD_SKIP = "Skipped: awaiting-human";
 
@@ -214,7 +215,7 @@ const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" &&
 // then, or that the kill switch stopped (paused) may be retried; any other
 // run (going, pushed a fix, escalated) handles the head.
 const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP);
-const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && NOTHING_TO_FIX.has(run.title)));
 
 // The number of counted fix-ci model runs when every attempt may be retried
 // and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
@@ -402,14 +403,14 @@ export function skipReason(
   if (!lanesFailed(node) && !advisory) {
     return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
-  // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
+  // node.requiredRun, the head's tested pr-require-checks run (pr-test-platforms
   // when only an advisory check failed) and its latest jobs, and, when that run
   // ended cancelled, node.headCheckRuns, every REST check run on the head, are
   // attached by dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
-      return "ci-lanes passed and no pr-test-windows run failed";
+      return "ci-lanes passed and no pr-test-platforms run failed";
     }
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {

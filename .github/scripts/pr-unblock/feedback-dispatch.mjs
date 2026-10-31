@@ -84,6 +84,18 @@
 // first idle adopted owner PR whose reviewed head has no round yet, or whose
 // round's stop no thread holds any more (sweepIdleOwner), since that PR's own
 // review completion found it active.
+//
+// Before those, the tick takes a fix request nothing else would start: no
+// review run follows a reply on a head, and an earlier round's check run holds
+// the head. sweepFixRequest sends each open lanes App PR into main with an
+// unresolved thread the reviewer bot opened, whose newest fix request by a
+// trusted person with write access came after the head's newest
+// address-feedback check run, with that request's time as requestSince: as
+// notesSince does for a pr-verify note, it stops the check runs started by
+// then counting, but a limit stop keeps its reset hold, and the round is not
+// sent for a pr-verify FAIL. A head with SWEEP_HEAD_CAP rounds or releases, or
+// a run of the activity created since the request, is left alone.
+//
 // A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
 //
@@ -129,7 +141,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -190,10 +202,10 @@ export async function ownerSkip({ api, pull, adoption, now }) {
 
 // The tick whose completion starts the sweep.
 export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
-// Releasing rounds at one head after which the sweep stops sending it
-// (judgment: a third round with no model turn points at a cause a retry does
-// not clear; the select job's round cap, address-feedback.mjs
-// DEFAULT_MAX_ROUNDS, may end it sooner).
+// Releasing rounds at one head, or rounds for a fix request (sweepFixRequest),
+// after which the sweep stops sending it (judgment: a third round with no model
+// turn points at a cause a retry does not clear; the select job's round cap,
+// address-feedback.mjs DEFAULT_MAX_ROUNDS, may end it sooner).
 export const SWEEP_HEAD_CAP = 3;
 
 const startOf = (run) => Date.parse(run.started_at ?? "");
@@ -217,37 +229,64 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
   return SHA.test(sha) ? sha : "";
 }
 
-// An unresolved thread, read in full, that the select job keeps: threadAuthors
-// accepts it and its review is on a marker-confirmed head (onReviewedHead).
-// `heads` is reviewedHeads of the PR's issue comments.
-export function hasWorkableThread(threads, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
-  return threads.some((thread) => {
-    if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
-      return false;
-    }
-    const nodes = thread.comments.nodes;
-    const authors = threadAuthors(
-      nodes.map((node) => ({
-        authorId: node.author?.databaseId,
-        createdAt: node.createdAt,
-        body: node.body,
-        lastEditedAt: node.lastEditedAt,
-        editorId: node.editor?.databaseId,
-      })),
-      { reviewerId, reviewerIds, appId, trustedHumans, requesters, fixers },
-    );
-    const review = nodes[0]?.pullRequestReview;
-    return (
-      authors !== null &&
-      onReviewedHead({
-        authors,
-        firstAuthorId: nodes[0].author?.databaseId,
-        review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
-        heads,
-      })
-    );
-  });
+// threadAuthors' answer for an unresolved thread, read in full, that the select
+// job keeps: it accepts the thread and its review is on a marker-confirmed
+// head (onReviewedHead). `heads` is reviewedHeads of the PR's issue comments.
+function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
+  if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
+    return null;
+  }
+  const nodes = thread.comments.nodes;
+  const authors = threadAuthors(
+    nodes.map((node) => ({
+      authorId: node.author?.databaseId,
+      createdAt: node.createdAt,
+      body: node.body,
+      lastEditedAt: node.lastEditedAt,
+      editorId: node.editor?.databaseId,
+    })),
+    { reviewerId, reviewerIds, appId, trustedHumans, requesters, fixers },
+  );
+  const review = nodes[0]?.pullRequestReview;
+  const kept =
+    authors !== null &&
+    onReviewedHead({
+      authors,
+      firstAuthorId: nodes[0].author?.databaseId,
+      review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
+      heads,
+    });
+  return kept ? authors : null;
 }
+
+export const hasWorkableThread = (threads, options) => threads.some((thread) => keptAuthors(thread, options) !== null);
+
+// When the newest fix request by one of `fixers` was posted in a thread the
+// select job keeps and the reviewer bot opened, in ms, or null. Direction may
+// sit on any head (onReviewedHead), so no reviewed head is needed.
+function newestFixRequest(threads, { fixers, ...options }) {
+  const times = threads.flatMap((thread) => {
+    const authors = keptAuthors(thread, { ...options, fixers, heads: new Set() });
+    if (authors?.[0].author !== "reviewer") {
+      return [];
+    }
+    return thread.comments.nodes
+      .filter((node, i) => authors[i].direction === true && fixers.has(node.author?.databaseId) && isFixRequest(node.body))
+      .map((node) => Date.parse(node.createdAt ?? ""));
+  });
+  const readable = times.filter(Number.isFinite);
+  return readable.length > 0 ? Math.max(...readable) : null;
+}
+
+// fixRequesters over a PR's threads, as listReviewThreads reads them.
+const threadFixers = ({ threads, trustedHumans, permission }) =>
+  fixRequesters({
+    comments: threads.flatMap((thread) =>
+      thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
+    ),
+    trustedHumans,
+    permission,
+  });
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
 // Its pull_request_target run follows a label coming off a PR (see main).
@@ -302,6 +341,7 @@ export async function dispatchFeedback({
   now = Date.now(),
   record = emptyRecord(),
   notesSince = null,
+  requestSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
   // verify-cap.mjs verifyCapReader: the cap refusal, or null.
@@ -329,7 +369,8 @@ export async function dispatchFeedback({
     return skip(`run ${upstreamRunId} is not a completed same-repository review run`);
   }
   const head = upstream.head_sha;
-  if (notesSince === null && isHandled(record, settings.checkName, head)) {
+  const cutoff = notesSince ?? requestSince;
+  if (cutoff === null && isHandled(record, settings.checkName, head)) {
     return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
   }
   const title = (number) => runTitle(settings.activity, number);
@@ -415,13 +456,7 @@ export async function dispatchFeedback({
       gated = gate.source !== "lane-escalation";
       why = `${gate.source}: ${gate.reason}`;
     }
-    const fixers = await fixRequesters({
-      comments: threads.flatMap((thread) =>
-        thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
-      ),
-      trustedHumans,
-      permission: api.getPermission,
-    });
+    const fixers = await threadFixers({ threads, trustedHumans, permission: api.getPermission });
     const requesters = gated ? fixers : null;
     // On an ungated head, any unresolved thread dispatches, even one the select
     // job will not keep (a reviewer the lane does not act on, a review of an
@@ -469,8 +504,10 @@ export async function dispatchFeedback({
   }
   if (!passOnly) {
     // NaN compares false, so a run with no readable start still counts.
-    const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
-    let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
+    const sinceNotes = (run) => cutoff === null || !(Date.parse(run.started_at ?? "") <= cutoff);
+    // A fix request does not lift a limit stop's reset hold.
+    const counts = (run) => sinceNotes(run) || (requestSince !== null && limitResetsAt(run, resolved.limits) !== null);
+    let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(counts);
     // A round whose reply job skipped no-model-turn (decided from the scan
     // job's outputs and the select job's head) handled nothing, and one that
     // skipped finding-stands left a thread for the next round at this head:
@@ -571,14 +608,20 @@ export async function dispatchFeedback({
 const LOST_CONNECTION = new Set(["ECONNRESET", "UND_ERR_SOCKET"]);
 const connectionLost = (error) => error?.name === "TypeError" && error.message === "fetch failed" && LOST_CONNECTION.has(error.cause?.code);
 
-// The sweep: the first open lanes App PR into main whose head's newest
-// reply check took a releasing skip, under SWEEP_HEAD_CAP such checks, that
-// dispatchFeedback dispatches for the head's newest completed review run.
+// The sweep: the first open lanes App PR into main with a fix request newer
+// than its head's last round (sweepFixRequest), else the first whose head's
+// newest reply check took a releasing skip, under SWEEP_HEAD_CAP such checks,
+// that dispatchFeedback dispatches for the head's newest completed review run.
 // Returns dispatchFeedback's result with that run's id, or null.
 export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest };
   const listed = await openPulls(context);
   const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
+  const requested = await sweepPulls(context, (pull) => sweepFixRequest({ ...context, pull }), pulls);
+  if (requested !== null) {
+    return requested;
+  }
+  log("sweep: no head with a fix request newer than its last round");
   const dispatched = await sweepPulls(context, (pull) => sweepOne({ ...context, pull }), pulls);
   if (dispatched !== null) {
     return dispatched;
@@ -753,16 +796,52 @@ async function sweepOne(context) {
   return released && !capped ? dispatchAtHead(context) : null;
 }
 
+// A head whose newest fix request came after its newest address-feedback check
+// run, or which has none, under SWEEP_HEAD_CAP rounds and releases, with no run
+// of the activity for the PR created since the request. That last holds a
+// round that ended before posting its check, so a request is sent once. A PR
+// with no such thread costs one read.
+async function sweepFixRequest(context) {
+  const { api, pull, appSenderId, log, settings, rest } = context;
+  const number = pull.number;
+  const head = pull.head.sha;
+  const trustedHumans = rest.trustedHumans ?? new Set();
+  const threads = await api.listReviewThreads(number);
+  const fixers = await threadFixers({ threads, trustedHumans, permission: api.getPermission });
+  const requestSince = newestFixRequest(threads, { reviewerId: settings.reviewerId, reviewerIds: rest.reviewerIds, appId: appSenderId, trustedHumans, fixers });
+  if (requestSince === null) {
+    return null;
+  }
+  const rounds = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  // NaN compares false, so a run with no readable start still counts.
+  if (rounds.some((run) => !(startOf(run) <= requestSince))) {
+    log(`skip: #${number}: head ${head} has a ${settings.checkName} check run since its newest fix request`);
+    return null;
+  }
+  if (rounds.length >= SWEEP_HEAD_CAP || (await releaseState(context)).capped) {
+    log(`skip: #${number}: head ${head} reached the sweep's cap, so its fix request waits for a push`);
+    return null;
+  }
+  const sent = (await api.listWorkflowRuns(settings.workflow)).find(
+    (run) => run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < requestSince),
+  );
+  if (sent) {
+    log(`skip: #${number}: ${settings.workflow} run ${sent.id} for ${settings.activity} started after its newest fix request`);
+    return null;
+  }
+  return dispatchAtHead(context, { requestSince });
+}
+
 // dispatchFeedback for a PR's head with the head's newest completed review run
 // as the upstream, with that run's id; null when it has none or nothing is sent.
-async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }) {
+async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }, options = {}) {
   const head = pull.head.sha;
   const upstream = await reviewRunAt({ api, head, repository, settings });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
     return null;
   }
-  const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream });
+  const dispatched = await dispatchFeedback({ ...rest, ...options, api, repository, appSenderId, log, settings, upstream });
   return dispatched === null ? null : { ...dispatched, upstreamRunId: upstream.id };
 }
 

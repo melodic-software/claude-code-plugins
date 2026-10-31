@@ -24,7 +24,10 @@
 # 41025494621 and 41029147192, and the six planning surface*.test.sh rows
 # 2026-10-31 from the TIME lines of whole-suite main runs 41152418272,
 # 41155134524, 41155547615, 41156806410, 41157904887, 41161299347, 41166490299,
-# 41168736310, 41170732066 and 41172804312. A shell suite runs from the moment
+# 41168736310, 41170732066 and 41172804312, and surface-journey.test.sh again
+# 2026-10-31 from whole-suite main runs 41199079392, 41200659367, 41201359701,
+# 41202468872, 41204767979, 41206938075, 41209305383 and 41211887017. A shell
+# suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts the mean of the listed suites of its runner, rounded and at
@@ -456,7 +459,7 @@ plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/shared/tests/ui-a.test.sh 187
 plugins/planning/shared/tests/ui-b.test.sh 219
 plugins/planning/shared/tests/ui-c.test.sh 174
-plugins/planning/surface/surface-journey.test.sh 164
+plugins/planning/surface/surface-journey.test.sh 141
 plugins/planning/surface/surface-page.test.sh 85
 plugins/planning/surface/surface-ui-c-ledger.test.sh 24
 plugins/planning/surface/surface-ui-c-listen.test.sh 72
