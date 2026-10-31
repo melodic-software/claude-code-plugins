@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: vd-transcript-default-root-command
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: shows-transcript-command
+    type: regex
+    pattern: 'run\.mjs\b(?:[^\n]|\\\n)*?\btranscript/run-transcript\.js\b(?:[^\n]|\\\n)*?7zZy1QTvokM'
+    flags: 'i'
+    target: last_message
+  - name: no-work-root-flag
+    type: regex
+    pattern: 'run\.mjs\b(?:[^\n]|\\\n)*?--work-root\b(?:[^\n]|\\\n)*?run-transcript\.js'
+    match: not_contains
+    flags: 'i'
+    target: last_message
+  - name: transcript-under-work
+    type: regex
+    pattern: '\.work/youtube-watch/[^\s`''"/]+/transcript\.txt'
+    target: last_message
+  - name: no-download
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?run-watch\.js|(?:[^"\\]|\\.)*?\b(?:curl|wget)\b(?:[^"\\]|\\.)*?(?:youtube\.com|youtu\.be)|(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n))?[ \t]*(?:[\w./~-]*/)?yt[-_]dlp\b(?![ \t]+(?:--version|--help)\b)(?!(?:[^"\\]|\\.)*?--skip-download))'
+    min: 0
+    max: 0
+    arm: both

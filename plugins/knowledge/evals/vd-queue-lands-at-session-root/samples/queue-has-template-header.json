@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Video digest watch queue\n\n| # | URL | video-id | title | channel | slug | status | notes |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+    },
+    {
+      "answer": "|#|URL|video-id|title|channel|slug|status|notes|\n|---|---|---|---|---|---|---|---|\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Queue\n\n- https://www.youtube.com/watch?v=7zZy1QTvokM\n- https://youtu.be/MlQ8GZvPWJA\n"
+    },
+    {
+      "answer": "| URL | status |\n| --- | --- |\n"
+    }
+  ]
+}

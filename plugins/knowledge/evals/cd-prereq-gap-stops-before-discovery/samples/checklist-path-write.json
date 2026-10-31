@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/mcp-getting-started/course-digest-checklist.md", "content": "# Checklist"}}]},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/eval/run/cwd/.work/getting-started-with-model-context-proto/course-digest-checklist.md", "content": "# Checklist"}}], "why": "40-character slug"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/eval/run/cwd/.work/dometrain/mcp-getting-started-charlesworth/course-digest-checklist.md", "content": "# Checklist"}}], "why": "nested epic slice"},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/eval/run/cwd/.work/getting-started-with-model-context-protocol/course-digest-checklist.md", "content": "# Checklist"}}], "why": "43-character slug"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "course-digest-checklist.md", "content": "# Checklist"}}], "why": "not under .work"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/eval/run/cwd/courses/dometrain/mcp-getting-started/course-digest-checklist.md", "content": "# Checklist"}}], "why": "course dir, not .work"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/Getting_Started/course-digest-checklist.md", "content": "# Checklist"}}], "why": "not kebab-case"}
+  ]
+}

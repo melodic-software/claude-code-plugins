@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: setup-install-deps-shared-provisioner
+graders:
+  - name: provisions-video-digest
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?setup-deps\.mjs)(?=(?:[^"\\]|\\.)*?video-digest/extraction)'
+    min: 1
+  - name: provisions-course-digest
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?setup-deps\.mjs)(?=(?:[^"\\]|\\.)*?course-digest/extraction)'
+    min: 1
+  - name: reports-reprobe
+    type: llm
+    focus: trace
+    arm: both
+    criteria: 'PASS only if all hold: (1) after the setup-deps.mjs provisioner calls, the trace shows a probe of the installed state (such as a check of node_modules/@melodic/video-digestion or of a chromium build under ms-playwright), and the final reply states the node-deps and Chromium results from that probe, not only from the provisioners'' exit codes; (2) the reply does not claim the dependencies were provisioned when that probe shows them absent or a provisioner failed; (3) if yt-dlp is missing, as the user says or a probe shows, the reply gives a platform install command for it and runs none, and if a probe shows yt-dlp present, saying so is fine. FAIL otherwise.'
+  - name: no-system-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:apt(?:-get)?|brew|winget|choco|dnf|yum|pacman|snap|pipx)[ \t]+install\b|\bpip3?[ \t]+install\b|\buv[ \t]+tool[ \t]+install\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-ingestion-run
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:extraction/run\.mjs|run-(?:transcript|watch)\.js)'
+    min: 0
+    max: 0
+    arm: both

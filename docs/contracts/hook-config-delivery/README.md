@@ -136,8 +136,8 @@ fails the build on any `${user_config.*}` token inside a plugin hook configurati
 LSP server configs are out of scope. Substitution there is sanctioned and unaffected by fact 3.
 
 The gate flags **every** hook-config use, including a would-be channel D, because D's premise is
-unproven. A ratified D adoption (after the Open-gaps probe) is recorded in
-`scripts/hook-userconfig-argv-allowlist.txt`; stale allowlist entries fail the gate.
+unproven. A ratified D adoption (after the Open-gaps probe) adds an exemption for that hook config
+to the gate in the same change.
 
 ## Open gaps
 
@@ -146,8 +146,8 @@ unproven. A ratified D adoption (after the Open-gaps probe) is recorded in
   [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)) and
   upstream discussion, not doc-stated and not yet probed: the verification probe declared
   optional keys only. Cheap to settle. Add a `required:true` key to the probe plugin and rerun the
-  unset-key test. Until then D stays in the matrix as unproven and the CI gate has no allowlist
-  entries.
+  unset-key test. Until then D stays in the matrix as unproven and the CI gate exempts no hook
+  config.
 
 ## Adopters
 

@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: cd-prereq-gap-stops-before-discovery
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: stops-on-missing-prereq
+    type: llm
+    focus: last_message
+    arm: both
+    criteria: "PASS only if the reply names at least one course-digest prerequisite that is missing or failed (for example the course-extraction node dependencies, Playwright Chromium, ffmpeg, ImageMagick, or the Phase 1 browser tool) and says the run stopped or cannot start course discovery until it is fixed, telling the person what to install or run. FAIL if the reply says course discovery ran, presents a module or lesson list as discovered from the course page, says extraction started, or carries on past the failed prerequisite without stopping."
+  - name: no-chrome-mcp
+    type: regex
+    pattern: '\btabs_context_mcp\b|\bclaude-in-chrome[ \t]+MCP\b|\bmcp__claude-in-chrome'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: checklist-path-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?![^"]*?(?<![^"/])\.work/(?:[a-z0-9-]{1,40}/){1,2}course-digest-checklist\.md")[^"]*?course-digest-checklist\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: checklist-path-shell
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:cp|tee|mv|install|touch)\b|>(?!>?[ \t]*(?:&|/dev/null))))(?:[^"\\]|\\.)*?(?:(?<![a-z0-9-])[a-z0-9-]{41,}/course-digest-checklist\.md|(?<![\w.-])(?<!\.work/)(?!\.work/)[\w.-]+/[\w-]+/course-digest-checklist\.md|(?<![\w./-])course-digest-checklist\.md)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-extraction
+    type: tool_used
+    tool: Bash
+    input_match: '(?:extract-course|discover-resources|download-resources|build-course-json)\.js'
+    min: 0
+    max: 0
+    arm: both

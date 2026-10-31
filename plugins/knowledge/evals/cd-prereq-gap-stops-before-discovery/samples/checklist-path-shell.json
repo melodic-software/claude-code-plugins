@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p .work/mcp-getting-started && cp templates/checklist.md .work/mcp-getting-started/course-digest-checklist.md", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp /plugin/skills/course-digest/templates/checklist.md /eval/cwd/.work/dometrain/mcp-getting-started/course-digest-checklist.md", "description": "run"}}], "why": "nested epic slice"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .work/getting-started-with-model-context-protocol/course-digest-checklist.md", "description": "run"}}], "why": "read, not a write"},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p .work/getting-started-with-model-context-protocol && cp templates/checklist.md .work/getting-started-with-model-context-protocol/course-digest-checklist.md", "description": "run"}}], "why": "43-character slug"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp templates/checklist.md course-digest-checklist.md", "description": "run"}}], "why": "bare cwd"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp templates/checklist.md courses/mcp-getting-started/course-digest-checklist.md", "description": "run"}}], "why": "not under .work"}
+  ]
+}

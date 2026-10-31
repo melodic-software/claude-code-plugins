@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" upstream-src/acme-internal-skills --commit 20ec14aa9bffde96b1db193ad4b3fae436d4ea1e",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" docs/upstream",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh repo view acme/internal-skills --json visibility",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}
