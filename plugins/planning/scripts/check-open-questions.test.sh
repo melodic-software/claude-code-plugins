@@ -1023,6 +1023,84 @@ expect_exit "--surface without --procedure -> 2" 2 --ledger "$surface_ledger" --
 expect_exit "--surface without --brief -> 2" 2 --ledger "$surface_ledger" --procedure --surface "$surface_dir"
 expect_exit "a missing --surface dir -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --procedure --surface "$TMP/no-surface"
 
+# 61. --procedure grades the Step-exit checkboxes and the assumption sweep's
+#     dispositions. The reported failure: a sweep returned an undecided `decision`
+#     item, the session settled it with an uncited fact, and the gate passed.
+# sweep_ledger <Step 2 exit line> <sweep section body, or '' for no section>
+sweep_ledger() {
+  local path
+  path="$(mktemp "$TMP/sweep-XXXXXX.md")"
+  {
+    printf '# /interview Checklist\n\n## Steps\n\n- [x] Step 2: rounds\n%s\n\n## Open-question register\n\n' "$1"
+    printf '%s\n' '- Q1 | answered | round 1 | Who writes? | admin' '- Q2 | answered | round 2 | Who sets the size? | the triage lane' '- Q3 | answered | round 2 | Q1 or Q2? | both hold'
+    printf '\n## Self-answered facts\n\n'
+    printf '%s\n' '- F1 | answered-from-codebase | Which queue library? | BullMQ 5 | package.json:14 "bullmq": "^5.1.0"' '- F2 | answered-from-history | Who sets the size? | the triage lane | decided 2026-10-17'
+    if [[ -n "$2" ]]; then printf '\n## Assumption sweep\n\n%s\n' "$2"; fi
+  } >"$path"
+  printf '%s' "$path"
+}
+ticked='- [x] Step 2 exit: Assumption sweep'
+sweep_ok="$(sweep_ledger "$ticked" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2
+- S2 | sweep 1 | hidden-default | fact | Q1 recommendation, queue library | F1
+- S3 | sweep 1 | hedged | decision | Q1 resolution | deferred: confirmation restate
+- S4 | sweep 1 | hedged | decision | Q2 resolution | Q2
+- sweep 2 | register through Q2
+- S1 | sweep 2 | contradiction | decision | Q1 and Q2 | Q3')"
+expect_exit "every sweep item dispositioned -> 0" 0 --ledger "$sweep_ok" --procedure
+expect_stdout "a dispositioned sweep reports procedure=ok" "status=clean procedure=ok" --ledger "$sweep_ok" --procedure
+
+unticked="$(sweep_ledger '- [ ] Step 2 exit: Assumption sweep' '')"
+expect_exit "an unchecked Step-exit box under --procedure -> 1" 1 --ledger "$unticked" --procedure
+expect_stdout "an unchecked Step-exit box reports procedure=fail" "status=incomplete procedure=fail" --ledger "$unticked" --procedure
+if [[ "$(stderr_of --ledger "$unticked" --procedure)" == *"line 6: Step-exit checkbox is unchecked: Step 2 exit"* ]]; then pass "the unchecked Step-exit box is named by line"; else fail "the unchecked Step-exit box is named by line"; fi
+expect_exit "an unchecked Step-exit box without --procedure -> 0" 0 --ledger "$unticked"
+expect_exit "a Step 2 exit ticked SKIPPED with no sweep section -> 0" 0 --ledger "$(sweep_ledger '- [x] Step 2 exit: Assumption sweep SKIPPED: lock' '')" --procedure
+no_section="$(sweep_ledger "$ticked" '')"
+expect_exit "a ticked Step 2 exit with no sweep section -> 1" 1 --ledger "$no_section" --procedure
+if [[ "$(stderr_of --ledger "$no_section" --procedure)" == *"no '## Assumption sweep' section"* ]]; then pass "the missing sweep section is named"; else fail "the missing sweep section is named"; fi
+
+# expect_sweep_defect <label> <sweep body> <stderr substring>
+expect_sweep_defect() {
+  local path err
+  path="$(sweep_ledger "$ticked" "$2")"
+  expect_exit "$1 -> 1" 1 --ledger "$path" --procedure
+  err="$(stderr_of --ledger "$path" --procedure)"
+  if [[ "$err" == *"$3"* ]]; then pass "$1 is named on stderr"; else fail "$1 is named on stderr (stderr: '$err')"; fi
+}
+expect_sweep_defect "a decision item settled by a fact" '- S1 | sweep 1 | undecided | decision | Q2, size carrier | F2' "sweep 1 S1 is a decision item settled by F2"
+expect_sweep_defect "a fact item settled by an unquoted F-line" '- S1 | sweep 1 | undecided | fact | Q2, size carrier | F2' "whose basis does not quote its source"
+expect_sweep_defect "a fact item naming a missing F-line" '- S1 | sweep 1 | undecided | fact | Q2 | F9' "names F9, which has no line"
+expect_sweep_defect "a sweep item with no disposition" '- S1 | sweep 1 | undecided | fact | Q2 |' "sweep 1 S1 has no disposition"
+expect_sweep_defect "a sweep item naming a missing register row" '- S1 | sweep 1 | undecided | decision | Q2 | Q7' "names Q7, which has no register row"
+expect_sweep_defect "a decision item deferred outside the register" '- S1 | sweep 1 | undecided | decision | Q2 | deferred: later' "deferred outside the register"
+expect_sweep_defect "a decision item pointed at the row it was found in" '- S1 | sweep 1 | undecided | decision | Q2 recommendation | Q2' "names Q2, the row it was found in"
+through_q3='- sweep 1 | register through Q3'
+expect_sweep_defect "a decision item pointed at an older answered row" "$through_q3
+- S1 | sweep 1 | undecided | decision | Q3 recommendation, size carrier | Q1" "names Q1, which is not above Q3, the last row before sweep 1"
+expect_sweep_defect "a decision item pointed at a row below one its source names" "$through_q3
+- S1 | sweep 1 | contradiction | decision | Q1 and Q3 | Q2" "names Q2, which is not above Q3"
+expect_sweep_defect "a decision item pointed at an answered row above its source" "$through_q3
+- S1 | sweep 1 | hidden-default | decision | Q1 recommendation, who moderates comments | Q3" "names Q3, which is not above Q3"
+expect_sweep_defect "an artifact-sourced decision item pointed at an answered row" "$through_q3
+- S1 | sweep 1 | hidden-default | decision | docs/moderation.md, who moderates | Q2" "names Q2, which is not above Q3"
+expect_sweep_defect "a sweep with no high-water line" '- S1 | sweep 1 | undecided | decision | Q1 recommendation | Q2' "sweep 1 has no '- sweep 1 | register through Q<N>' line above it"
+expect_sweep_defect "a high-water line below a row the source names" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q2 recommendation | Q3' "source names Q2, above Q1"
+expect_sweep_defect "a high-water line naming a missing row" '- sweep 1 | register through Q9' "names Q9, which has no register row"
+expect_sweep_defect "a duplicate high-water line" '- sweep 1 | register through Q1
+- sweep 1 | register through Q2
+- none' "duplicate high-water line for sweep 1"
+expect_sweep_defect "a hedged decision item settled by a fact" '- S1 | sweep 1 | hedged | decision | Q1 resolution | F1' "sweep 1 S1 is a decision item settled by F1"
+expect_sweep_defect "a gap in a sweep's S ids" '- S1 | sweep 1 | undecided | decision | Q1 | Q2
+- S3 | sweep 1 | inherited | fact | C1 | F1' "sweep 1 has no row for S2"
+expect_sweep_defect "a sweep section with no item" '_Nothing recorded._' "records no item"
+expect_exit "a sweep that returned nothing says '- none' -> 0" 0 --ledger "$(sweep_ledger "$ticked" '- none')" --procedure
+stray_sweep_row="$(sweep_ledger '- [x] Step 2 exit: Assumption sweep SKIPPED: lock' '')"
+printf '%s\n' '- S1 | sweep 1 | undecided | decision | Q2 | Q2' >>"$stray_sweep_row"
+expect_exit "a sweep row outside the sweep section -> 1" 1 --ledger "$stray_sweep_row" --procedure
+if [[ "$(stderr_of --ledger "$stray_sweep_row" --procedure)" == *"sweep row outside the '## Assumption sweep' section"* ]]; then pass "the stray sweep row is named"; else fail "the stray sweep row is named"; fi
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1

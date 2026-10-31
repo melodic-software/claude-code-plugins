@@ -352,7 +352,19 @@ Report one line per step, in the order they ran, each with exactly one outcome:
 
 The lines are the hold check, `base-merge`, `plan-evidence`, `code-review`, `security-review`,
 `verify`, the push, the CI-run wait (found, or timed out), the hold re-check, the flip, the ready-run
-confirmation (found, or toggled draft and ready once with its outcome), and the digest (skipped, offered, built, or not
-available). Above them, one line for where the step list came from: the reader's `source`, and for
-`fail-closed` its reason. Then choose who watches the PR from here, per
+confirmation (found, or toggled draft and ready once with its outcome), the digest (skipped, offered, built, or not
+available), and the confirm verdict. Above them, one line for where the step list came from: the
+reader's `source`, and for `fail-closed` its reason. Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).
+
+The confirm verdict line is the `/verification:confirm` verdict recorded for the PR worktree's
+HEAD, the head 2.5.4 flipped. Print it with the command below and report its output as written:
+the verdict (`CONFIRMED`, `NEEDS WORK` or `NOT VERIFIED`) with each `MISSING` or `PARTIAL` item, or
+that no verdict is recorded for this head. A verdict recorded for an earlier head does not count.
+The line is advisory: it is read after the flip, so a `NEEDS WORK` verdict or a missing one never
+holds the PR in draft, and the `verify` gate's record for the head is a separate file this command
+never reads or writes.
+
+```bash
+PR_TREE=$(bash "<skill-dir>/scripts/pr-worktree.sh" --pr "$PR_NUMBER") || exit 1; bash "<skill-dir>/scripts/confirm-verdict.sh" show --head "$(git -C "$PR_TREE" rev-parse HEAD)"
+```

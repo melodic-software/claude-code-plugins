@@ -11,11 +11,11 @@ workflow change after auto-merge is armed.
 
 - The copies: `scripts/sync-hold-floor.py --check` finds `HOLD_PATH_CLASSES`,
   `COST_PATHS`, the review callers' `hold-paths` and ci-status's
-  `hold_patterns` as it writes them from `babysit_risk.FLOOR_CLASSES` and
+  `hold_patterns` as it writes them from the effective floor and
   `COST_PATHS`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
-  matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
+  matches over `babysit_risk.Floor.high` (its `trust` and `gate` globs), case
   variants included; an `enforcement` path is the gate's (`review-path:`),
   and a trusted path off the floor holds only for a configured glob. Every module the floor actions load is on the
   floor, every pr-merge script as `gate` or, for the scripts that apply the
@@ -23,7 +23,7 @@ workflow change after auto-merge is armed.
   the holds, `babysit_merge*` as `trust`. The review
   callers' `hold-paths` and ci-status's exempt-author `hold_patterns` each
   match every floor entry, whatever its class. The gate's trusted-author
-  lift (`babysit_risk.AUTHOR_REVIEW_FLOOR`) is exactly the `gate` class, and
+  lift (`babysit_risk.Floor.author_review`) is exactly the `gate` class, and
   `pathHold`, which judges only lanes App pull requests, holds all of it.
 - The cost paths: the same paths matched as `babysit_risk.COST_PATHS` (`glob_match` folds case and covers what sits under a glob).
 - The cost decision: `costDecision` accepts the same comments as
@@ -63,6 +63,11 @@ import babysit_merge_policy as policy
 import babysit_risk as risk
 
 ROOT = pathlib.Path(__file__).resolve().parents[6]
+# This repository's effective floor: the built-in rows joined to its config.
+ROWS = policy.floor_paths_in(
+    (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+FLOOR = risk.floor_for(ROWS)
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
 # The floor actions' entry points and the floored scripts that enforce the
 # floor (owner decision Q-ENFORCE (A)): every module they load is code main
@@ -103,7 +108,9 @@ IMPORT = re.compile(
 # The trusted-actor list is held outside the floor table: the trust gate
 # rates it HIGH, and every review caller's hold-paths lists it first.
 def floor_or_trust_gate(path: str) -> bool:
-    return path == risk.TRUSTED_ACTORS_PATH or any(risk.glob_match(g, path) for g in risk.FLOOR)
+    return path == risk.TRUSTED_ACTORS_PATH or any(
+        risk.glob_match(g, path) for g in FLOOR.all
+    )
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -151,7 +158,7 @@ def py_runs(text: str) -> list[str]:
 def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "babysit_risk.py"]
     # A floor entry for a script not in this tree yet runs nothing here.
-    floored = {g for g in risk.FLOOR if g.endswith(".mjs") and (ROOT / g).is_file()}
+    floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | set(js_files)):
         # Quoted paths only: a floored module's strings, not its prose.
         for path, _ in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
@@ -302,7 +309,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     so the merge gate is the widest of the three, never the narrowest."""
 
     def test_each_sample_path_is_held_by_all_three_or_none(self) -> None:
-        globs = [TRUSTED_ACTORS_GLOB, *risk.FLOOR]
+        globs = [TRUSTED_ACTORS_GLOB, *FLOOR.all]
         paths = sorted({p for g in globs for p in _glob_samples(g)})
         python = [any(risk.glob_match(g, p) for g in globs) for p in paths]
         node = subprocess.run(
@@ -360,16 +367,14 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 117)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 50)
         self.assertEqual(
-            {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
+            {kind for _, kind in FLOOR.classes}, {"trust", "gate", "enforcement"}
         )
         for path, held, configured in zip(
             FLOOR_PATHS, answer["held"], answer["configured"], strict=True
         ):
             with self.subTest(path):
-                on_floor = any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                on_floor = any(risk.glob_match(g, path) for g in FLOOR.high)
                 self.assertEqual(held, on_floor)
                 self.assertEqual(
                     configured,
@@ -385,13 +390,13 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     ) -> None:
         # Owner direction 2026-10-27: the Python gate lets a trusted person's
         # own gate-path lines clear on a clean security review
-        # (risk.AUTHOR_REVIEW_FLOOR). The native holds judge only the lanes
+        # (FLOOR.author_review). The native holds judge only the lanes
         # App's pull requests (ci-status skips every other author), so they
         # keep holding every one of those globs for a person.
         # Owner decision Q11 (A) keeps the review's own surface (the gated
         # workflows, the main-run review's scripts, the agent settings and
         # instruction files) out of the lift.
-        gate = [g for g, kind in risk.FLOOR_CLASSES if kind == "gate"]
+        gate = [g for g, kind in FLOOR.classes if kind == "gate"]
         surface = {
             ".github/scripts/pr-review-main/**",
             "**/.claude/**",
@@ -406,14 +411,14 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "docs/standards/**",
         }
         self.assertEqual(
-            list(risk.AUTHOR_REVIEW_FLOOR),
+            list(FLOOR.author_review),
             [
                 g
                 for g in gate
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(risk.AUTHOR_REVIEW_FLOOR), 14)
+        self.assertEqual(len(FLOOR.author_review), 14)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -422,7 +427,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn("is not the lanes App's; pr-merge's gate or a person", step)
 
     def test_the_person_floor_is_the_same_list(self) -> None:
-        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk.HIGH_FLOOR, entry
+        # HOLD_PATH_FLOOR (merge-holds.mjs) is babysit_risk `Floor.high`, entry
         # for entry and in order: the trust and gate globs a person clears.
         script = (
             "import { HOLD_PATH_FLOOR } from %s; console.log(JSON.stringify(HOLD_PATH_FLOOR));"
@@ -434,8 +439,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
-        self.assertEqual(len(risk.HIGH_FLOOR), 67)
+        self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
+        self.assertEqual(len(FLOOR.high), 67)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -452,7 +457,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
 
     def test_the_floor_holds_the_code_that_acts_on_a_stop_route(self) -> None:
@@ -465,7 +470,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
-                    held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
+                    held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
 
     def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
@@ -482,7 +487,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             and ".fixture." not in f.name
         )
         self.assertIn(".github/scripts/pr-merge/who.mjs", scripts)
-        held = {g for g, kind in risk.FLOOR_CLASSES if kind in risk.PERSON_CLASSES}
+        held = {g for g, kind in FLOOR.classes if kind in risk.PERSON_CLASSES}
         for path in scripts:
             with self.subTest(path):
                 self.assertIn(path, held)
@@ -495,7 +500,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(any(risk.glob_match(g, path) for g in FLOOR.all))
                 # babysit_merge*, and the scorer and binder that compute the
                 # security review's clear condition, are the gate's own code,
                 # a person's; the rest is enforcement, which a clean security
@@ -506,10 +511,10 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                     "babysit_review_evidence.py",
                 }
                 self.assertEqual(held, gate)
-                self.assertEqual(path in risk.REVIEW_FLOOR, not gate)
+                self.assertEqual(path in FLOOR.review, not gate)
         # Nothing else of that directory: the floor tracks the closure.
         self.assertEqual(
-            sorted(g for g in risk.FLOOR if g.startswith(f"{scripts}/")), files
+            sorted(g for g in FLOOR.all if g.startswith(f"{scripts}/")), files
         )
 
 
@@ -616,7 +621,7 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
         )
         for name, (patterns, match) in lists.items():
             self.assertTrue(patterns, name)
-            for entry in risk.FLOOR:
+            for entry in FLOOR.all:
                 with self.subTest(list=name, entry=entry):
                     self.assertTrue(any(match(p, entry) for p in patterns))
 
@@ -1569,6 +1574,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                             based,
                             dismissal,
                             trees,
+                            floor=FLOOR,
                         ),
                     ],
                     js,
@@ -1683,25 +1689,23 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
         ):
             with self.subTest(name):
                 self.assertEqual(js, expected)
-                self.assertEqual(policy.ungated_since(merges, hold_paths), expected)
+                self.assertEqual(policy.ungated_since(merges, hold_paths, floor=FLOOR), expected)
                 self.assertEqual(
                     policy.approval_carry(
-                        None, None, _OLD, set(), merges, None, None, None, hold_paths
-                    ),
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR),
                     expected,
                 )
         # A stale dismissal must be by a commit the push made.
         docs = _pushed(["docs/a.md"])
         self.assertTrue(
-            policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, [])
+            policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, [], floor=FLOOR)
         )
         self.assertFalse(
             policy.approval_carry(
-                None, None, _OLD, set(), docs, None, "c" * 40, None, []
-            )
+                None, None, _OLD, set(), docs, None, "c" * 40, None, [], floor=FLOOR)
         )
         # No hold paths read: only the base-merge path decides.
-        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None))
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, floor=FLOOR))
 
 
 # Every local file a hold-path file loads: the floor entries' JS closure and
@@ -1725,7 +1729,7 @@ def tracked() -> set[str]:
 def loaded_closure() -> list[str]:
     workflows = sorted(
         g
-        for g in risk.FLOOR
+        for g in FLOOR.all
         if g.startswith(".github/workflows/") and (ROOT / g).is_file()
     )
     files: set[str] = set(workflows)
@@ -1814,8 +1818,17 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
                 self.assertTrue(
                     any(
                         risk.glob_match(g, path)
-                        for g in (*risk.FLOOR, *policy.CARRY_REFUSES)
+                        for g in (*FLOOR.all, *policy.CARRY_REFUSES)
                     ),
                     f"{path} is loaded by a hold path but neither held nor in CARRY_REFUSES",
                 )
-                self.assertFalse(policy.ungated_since(_pushed([path]), []), path)
+                self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR), path)
+
+    def test_the_carry_reads_the_config_rows_from_its_floor(self) -> None:
+        # The caller's hold paths are empty, and CARRY_REFUSES does not cover
+        # this path: only `floor` holds a config row.
+        path = "docs/standards/REVIEW.md"
+        self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR))
+        self.assertTrue(
+            policy.ungated_since(_pushed([path]), [], floor=risk.floor_for())
+        )

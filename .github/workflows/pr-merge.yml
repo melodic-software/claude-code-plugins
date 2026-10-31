@@ -69,25 +69,28 @@ on:
   # each one it reads as listed. A pull_request_target run reads only the PR
   # its event names (EVENT_PR); the schedule reads every one.
 
-  # A label was removed, the PR body changed, or a draft became ready. An
-  # event starts a run only when it can make its PR mergeable sooner. Adding a label can only add a hold, which the next
-  # run sees anyway, so it starts none; a body edit can unblock (a new
-  # closing-issue line, a removed `Hold:` line). pull_request_target runs
-  # this file as it is on main, not the PR's copy, so a PR cannot change
-  # what this lane does; the job below never checks out the PR's code.
+  # A label came off. This run's completion starts pr-feedback-dispatch.yml,
+  # the only thing that decides again a lanes App head the human gate skipped
+  # once needs-human comes off, so `unlabeled` stays. No other PR event starts
+  # a run; the schedule picks up each change. Adding a label can only add a
+  # hold. A person's ready or rename restarts their PR's idle clock, so the
+  # gate would refuse it. An event run never arms a lane PR, and `ci-status`
+  # runs on a body edit and fails on a hold. pull_request_target runs this
+  # file as it is on main, not the PR's copy, so a PR cannot change what this
+  # lane does; the job below never checks out the PR's code.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [unlabeled, edited, ready_for_review]
+    types: [unlabeled]
 
   # A person can start a run by hand (Actions tab, "Run workflow") to retry a
   # PR that looks stuck. Only a run on main does anything.
   workflow_dispatch: {}
 
   # Every 15 minutes the lane looks at every candidate. This is how it sees
-  # checks or reviews that finished, a review thread resolved, or a PR dropped
-  # from the merge queue. It does not wake on each CI or review completion:
-  # those arrive faster than runs finish, which would overflow the
-  # concurrency queue below. Its summary also lists candidates that are still
-  # blocked and have not changed for over 24 hours.
+  # checks or reviews that finished, a review thread resolved, a body or ready
+  # change, or a PR dropped from the merge queue. It does not wake on each CI or
+  # review completion: those arrive faster than runs finish, which would
+  # overflow the concurrency queue below. Its summary also lists candidates that
+  # are still blocked and have not changed for over 24 hours.
   schedule:
     - cron: "11,26,41,56 * * * *"
 
@@ -1953,9 +1956,9 @@ jobs:
   # into main that carries no hold, and turns it off on
   # one that now carries a hold (a `Hold:` line, do-not-merge, the human-gated
   # label). Every event is a wake-up: the script lists the pull requests
-  # itself. A listed human's edit, unlabel or ready disarms at once; the
-  # schedule arms a new pull request and catches what the events missed.
-  # Only the scheduled run and a hand-started one arm, on
+  # itself. A listed human's unlabel wakes a run; an edit or ready change
+  # disarms at the next scheduled run, which also arms a new pull request and
+  # catches what the events missed. Only the scheduled run and a hand-started one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
   # pr-merge's gate would take at the head, with no hold on the gate's risk
   # score (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,

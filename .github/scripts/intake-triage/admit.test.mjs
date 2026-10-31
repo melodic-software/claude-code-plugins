@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -2476,7 +2476,7 @@ describe("size split sub-issues", () => {
 
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
-    const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
+    const blocker = { number: PARENT, body: "- [ ] #31\n- [ ] #32", state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
     const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
     // A split made by hand: a listed human linked each sub-issue.
     const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
@@ -2851,6 +2851,57 @@ describe("trustedSplitChild agrees with admission", () => {
       parentLink: { number: 5, repository_url: "https://api.github.com/repos/o/r" },
     });
     assert.equal(await trustedSplitChild(github, "o/r", 8, humans, APP, RULES["task-list"]), true);
+  });
+});
+
+// splitParentClosed holds the App's close of a split parent to the same rule
+// as the close itself.
+describe("splitParentClosed", () => {
+  const humans = new Set([HUMAN]);
+  const repository_url = "https://api.github.com/repos/o/r";
+  const child = (number, state_reason = "completed") => ({ number, state: "closed", state_reason, closed_by: { id: HUMAN }, repository_url });
+  const app = { id: APP, login: "melodic-automation-lanes[bot]" };
+  const record = (parts = [[1], [2]], filed = [31, 32]) => ({ user: app, created_at: "2026-10-16T00:00:00Z", body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts, order: [], filed })}` });
+  const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+  const closed = ({ body = "- [ ] One\n- [ ] Two", comments = [record()], children = [child(31), child(32)] } = {}) => {
+    const github = async (method, path) => (path.includes("/sub_issues") ? children : path.includes("/comments") ? comments : path.includes("/events") ? [link(31), link(32)] : []);
+    return splitParentClosed({
+      github,
+      repository: "o/r",
+      issue: { number: 30, body, labels: [], state: "closed", state_reason: "completed", closed_by: { id: APP } },
+      isApp: (actor) => actor?.id === APP,
+      humans,
+      trusted: async () => true,
+    });
+  };
+
+  test("every sub-issue completed and every item covered counts", async () => {
+    assert.equal(await closed(), true);
+    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [] }), true);
+    assert.equal(await closed({ body: "- [x] One\n- [x] Two", comments: [] }), true);
+  });
+  test("a sub-issue closed as not planned, as a duplicate or with no reason does not count", async () => {
+    for (const reason of ["not_planned", "duplicate", null]) {
+      assert.equal(await closed({ children: [child(31), child(32, reason)] }), false, String(reason));
+    }
+  });
+  test("a split record that leaves an item out does not count", async () => {
+    assert.equal(await closed({ comments: [record([[1], [3]])] }), false, "a gap in the parts");
+    assert.equal(await closed({ body: "- [ ] One\n- [ ] Two\n- [ ] Three" }), false, "an item past the parts");
+    assert.equal(await closed({ comments: [record([[1], [2]], [31, 33])] }), false, "a filed number that is no sub-issue");
+  });
+  test("an item a listed human left on the parent does not count", async () => {
+    const stays = { user: { id: HUMAN }, created_at: "2026-10-17T00:00:00Z", body: "- [ ] The broker change stays here." };
+    assert.equal(await closed({ comments: [record(), stays] }), false);
+    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [stays] }), false, "split by hand");
+  });
+  test("an item in a listed human's comment last written before the split record was split with the rest", async () => {
+    const carried = { user: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", body: "- [ ] A line a part holds." };
+    assert.equal(await closed({ comments: [carried, record()] }), true);
+    assert.equal(await closed({ comments: [{ ...carried, updated_at: "2026-10-17T00:00:00Z" }, record()] }), false, "edited since");
+  });
+  test("a split by hand with no task list does not count", async () => {
+    assert.equal(await closed({ body: "## Acceptance\n\n- Prose only.", comments: [] }), false);
   });
 });
 

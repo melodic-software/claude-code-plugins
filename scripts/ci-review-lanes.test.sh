@@ -63,11 +63,11 @@ else
   ok "step fails the job on its exit code"
 fi
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
-read -r job_line lanes_line agg_line <<<"$order"
-if [[ -n "${agg_line:-}" && "$job_line" -lt "$lanes_line" && "$lanes_line" -lt "$agg_line" ]]; then
-  ok "step sits in ci-status before the aggregate, so ci-lanes is written when it fails"
+read -r job_line agg_line lanes_line <<<"$order"
+if [[ -n "${lanes_line:-}" && "$job_line" -lt "$agg_line" && "$agg_line" -lt "$lanes_line" ]]; then
+  ok "step sits in ci-status after the aggregate, so a contract-only run's hold is not cut short by a review still running"
 else
-  fail "step is not inside ci-status before the aggregate (lines: $order)"
+  fail "step is not inside ci-status after the aggregate (lines: $order)"
 fi
 
 # The exempt ids are the trusted-actor list's Dependabot, release App and
@@ -461,7 +461,7 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
 expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
-  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a kill-switch stop with the review listed as skipped fails" 1 "a kill switch was on when it started" "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"

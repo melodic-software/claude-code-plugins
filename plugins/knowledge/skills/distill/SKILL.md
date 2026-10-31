@@ -1,5 +1,5 @@
 ---
-description: "Technical book (PDF or EPUB file) or an author's published web corpus (essays, posts) distilled into concept-organized reference files for a named target skill, a few chapters or pieces per session; writes skill reference files only. Use when the user provides a PDF or EPUB path, asks to turn a book into a skill, asks to distill an author's published essays into a skill, or continues a book distillation from its continuation prompt. A single docs page goes to /knowledge:docpage-digest."
+description: "Technical book (PDF or EPUB file) distilled into concept-organized reference files for a named target skill, a few chapters per session. Use when the user provides a PDF or EPUB path, asks to turn a book into a skill, or continues a book distillation from its continuation prompt. A single docs page goes to /knowledge:docpage-digest."
 argument-hint: "[path to PDF/EPUB] [target skill name]"
 user-invocable: true
 disable-model-invocation: false
