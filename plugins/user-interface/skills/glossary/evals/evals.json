@@ -1,0 +1,157 @@
+{
+  "skill_name": "glossary",
+  "evals": [
+    {
+      "id": 1,
+      "name": "name-the-effect",
+      "prompt": "What's the word for when a menu opens and kind of grows out of the button you clicked, instead of just appearing in the middle of itself?",
+      "expected_output": "The skill reads for the sensation and answers with the term first: an origin-aware animation, with the transform origin set at the trigger. It gives a one-line definition and names a close alternate (scale in) with the line between them.",
+      "files": [],
+      "expectations": [
+        "The answer leads with the term origin-aware animation, or names the transform origin set at the trigger",
+        "The answer gives a one-line definition of the term",
+        "The answer names at least one close alternate term and says how it differs",
+        "The answer writes no animation code"
+      ],
+      "difficulty": "routine",
+      "source": "reference/motion.md movement-and-transforms (Origin-aware animation, Transform origin), written for this suite"
+    },
+    {
+      "id": 2,
+      "name": "kerning-not-tracking",
+      "prompt": "In our logo the A and the V look too far apart, but every other letter is spaced fine. What is it called when you adjust just the space between those two letters?",
+      "expected_output": "The skill answers kerning: the space between one specific pair of letters. It tells it apart from tracking (letter spacing applied evenly across a run of text), and does not coin a term.",
+      "files": [],
+      "expectations": [
+        "The answer names kerning as the term",
+        "The answer says kerning adjusts the space between a specific pair of letters",
+        "The answer names tracking or letter spacing as the near-synonym and says it applies evenly across a whole run of text",
+        "The answer does not invent a new term"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's reverse lookup and near-synonym rule; kerning versus tracking is the standard typographic distinction, written for this suite"
+    },
+    {
+      "id": 3,
+      "name": "clip-versus-mask",
+      "prompt": "For a before and after image reveal, should I be asking for a clip or a mask? I think they're the same thing.",
+      "expected_output": "The skill separates the two terms on the axis that differs: a clip cuts the element to a shape with a hard edge, a mask hides or reveals parts with a shape or gradient and can have soft edges. It names the before and after slider as the term for the draggable divider.",
+      "files": [],
+      "expectations": [
+        "The answer says clip and mask are not the same",
+        "The answer says a clip has a hard edge and a mask can have soft or gradient edges",
+        "The answer names the before and after slider, or says either can drive a before and after reveal"
+      ],
+      "difficulty": "routine",
+      "source": "reference/motion.md polish (Clip, Mask, Before / after slider), written for this suite"
+    },
+    {
+      "id": 4,
+      "name": "no-term-fits-asks-for-image",
+      "prompt": "You know that thing some apps do where the whole screen sort of breathes and the colors drift when it's idle? I don't know how else to describe it. What's it called?",
+      "expected_output": "The skill names the closest terms it holds (an idle animation, an ambient float or pulse) and labels them an approximation, does not coin a new term, and asks for a reference image, a recording or a link to an example to pin it down.",
+      "files": [],
+      "expectations": [
+        "The answer names a close existing term such as idle animation, ambient motion, float or pulse",
+        "The answer says the term is an approximation or the closest match",
+        "The answer asks for a reference image, a screen recording or a link to an example",
+        "The answer does not present a coined term as an established name"
+      ],
+      "difficulty": "hard",
+      "why_hard": "A vague description pulls the model toward a confident invented label; the case needs the closest real term marked as approximate and a request for a reference",
+      "source": "the skill's no-term-fits rule and reference/motion.md looping-and-ambient, written for this suite"
+    },
+    {
+      "id": 5,
+      "name": "optimistic-update",
+      "prompt": "When I click the heart on a post it turns red right away, even though the request to save the like hasn't come back yet. If the request fails it flips back. Is there a name for doing it that way?",
+      "expected_output": "The skill answers optimistic update: the interface shows the result before the server confirms, and rolls back if the request fails. It names the boundary against waiting for the server (a pessimistic update with a pending state).",
+      "files": [],
+      "expectations": [
+        "The answer leads with the term optimistic update",
+        "The answer says the interface updates before the server confirms and rolls back if the request fails",
+        "The answer names the contrasting approach of waiting for the server's confirmation before updating",
+        "The answer writes no implementation code"
+      ],
+      "difficulty": "routine",
+      "source": "reference/interaction.md interaction (Optimistic update), written for this suite"
+    },
+    {
+      "id": 6,
+      "name": "tracking-not-kerning",
+      "prompt": "The uppercase section labels in our sidebar look cramped, every letter is jammed against the next one. What do I ask for? Is that a kerning fix?",
+      "expected_output": "The skill answers tracking, not kerning: tracking is letter spacing applied evenly across the whole run of text, which is what uppercase labels need; kerning adjusts one specific pair of characters. It may phrase the request as adding a small amount of tracking to the uppercase labels only.",
+      "files": [],
+      "expectations": [
+        "The answer names tracking (letter spacing) as the term",
+        "The answer says this is not kerning, and that kerning adjusts one specific pair of characters",
+        "The answer says tracking applies evenly across the whole run of text",
+        "The answer scopes the change to the uppercase labels rather than all text"
+      ],
+      "difficulty": "routine",
+      "source": "reference/typography.md typography (Tracking, Kerning) and the skill's feel-request rule, written for this suite"
+    },
+    {
+      "id": 7,
+      "name": "layout-thrashing-strict",
+      "prompt": "Our accordion animates its height property from 0 to auto on every frame and it stutters on cheap phones. A teammate says that's layout thrashing. Is that the right word for it?",
+      "expected_output": "The skill says no, in the strict sense: layout thrashing is forcing synchronous layout repeatedly by reading layout from script right after writing style changes. Animating height re-runs layout every frame, which is a layout-triggering animation, not thrashing. It may name jank or dropped frames as the visible symptom.",
+      "files": [],
+      "expectations": [
+        "The answer says animating height every frame is not layout thrashing in the strict sense",
+        "The answer defines layout thrashing as repeated forced synchronous layout from script reads that follow style writes",
+        "The answer calls the height animation a layout-triggering animation or says it re-runs layout every frame",
+        "The answer does not agree that the teammate's use of the term is correct"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The looser meaning is common, so the model is pulled toward agreeing with the teammate; the case needs the strict definition and the layout-triggering-animation name",
+      "source": "reference/rendering-performance.md performance (Layout thrashing), written for this suite"
+    },
+    {
+      "id": 8,
+      "name": "spring-response",
+      "prompt": "In the spring settings for our sheet animation there's a parameter called response. Is that just the duration in seconds by another name?",
+      "expected_output": "The skill defines response as how quickly the spring tries to reach its target, the designer-facing spring parameter, and explains that each platform maps it to a different parameter, pointing at the platform docs for which one. It does not flatly say response is a duration.",
+      "files": [],
+      "expectations": [
+        "The answer defines response as how quickly the spring tries to reach its target",
+        "The answer calls response the designer-facing spring parameter, as against raw stiffness",
+        "The answer does not say flatly that response is the same as a duration",
+        "The answer says the response maps to a different parameter per platform and points at the platform docs"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The easy flat answer 'yes, it is the duration' fails; the case needs the base definition plus the per-platform difference",
+      "source": "reference/easing-and-springs.md spring-animations (Response), written for this suite"
+    },
+    {
+      "id": 9,
+      "name": "feel-request-snappier",
+      "prompt": "The dropdown in our app feels sluggish. I just want it to feel snappier. What should I actually ask for?",
+      "expected_output": "The skill turns the feel request into named terms the build request can carry: a shorter duration, an ease-out curve (not ease-in) or a stiffer spring, and possibly an origin-aware animation from the trigger. Each term comes with its definition, and the answer suggests a request that names them instead of 'snappier'.",
+      "files": [],
+      "expectations": [
+        "The answer names at least two motion terms that carry the feel, such as duration, ease-out, easing or spring stiffness",
+        "The answer gives a one-line definition for each term it names",
+        "The answer suggests a rewritten request that names the terms instead of the word snappier",
+        "The answer writes no animation code"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's feel-request rule and reference/easing-and-springs.md easing (Ease-out, Ease-in), written for this suite"
+    },
+    {
+      "id": 10,
+      "name": "project-name-wins",
+      "prompt": "Our design system doc says: \"Toasts are called Notices in this product. Use the Notice component for every temporary message.\" What's the term for the little message that pops up at the bottom and goes away on its own?",
+      "expected_output": "The skill answers with the project's name first, Notice, and gives the general term beside it (toast: a temporary notification that auto-dismisses), with its boundary against an inline alert that stays in the page.",
+      "files": [],
+      "expectations": [
+        "The answer leads with Notice, the project's name for the thing",
+        "The answer gives toast as the general term beside the project name",
+        "The answer defines the toast as a temporary notification that dismisses itself",
+        "The answer does not tell the user to rename Notice to toast"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's precedence rule and reference/components.md components (Toast), written for this suite"
+    }
+  ]
+}
