@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T14:00:00Z\", \"five_hour_pct\": null, \"seven_day_pct\": null, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": null}\n```",
+      "why": "the hand-derived sample"
+    },
+    {
+      "answer": "usage_sample:\n```json\n{\n  \"at\": \"2026-10-30T14:00:00Z\",\n  \"five_hour_pct\": null,\n  \"seven_day_pct\": null,\n  \"five_hour_delta_pct\": null,\n  \"seven_day_delta_pct\": null\n}\n```\nCycle report: nothing to do.",
+      "why": "pretty-printed with a report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T14:00:00Z\", \"five_hour_pct\": 34.0, \"seven_day_pct\": 52.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": null}\n```",
+      "why": "stale reading copied"
+    },
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T14:00:00Z\", \"five_hour_pct\": 30.0, \"seven_day_pct\": 50.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": null}\n```",
+      "why": "previous reading carried forward"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
