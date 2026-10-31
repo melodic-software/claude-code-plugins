@@ -135,11 +135,19 @@
 // starting at an offset that moves with the run number (rotated), so labels
 // past the cap are read on a later run.
 //
+// The session-builder queue label (needs-session, each `label` that
+// escalation-routes.json names) comes off with no comment when the lanes App
+// added it last and each lane stop routed to it since then has its failing
+// status cleared on that stop's head: a same-head retry landed and
+// report-escalation.sh `clear` posted success (sessionVerdict). At most
+// CLEARS_PER_RUN a run.
+//
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
 //   CHECKS_TOKEN         the job's own token (checks: read, actions: read), for
 //                        the head's pr-require-checks runs and check runs,
-//                        which the lane token cannot read
+//                        and a lane stop's head statuses, which the lane
+//                        token cannot read
 //   GITHUB_REPOSITORY    owner/repo
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
@@ -193,7 +201,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, REVIEW_LANES } from "./merge-holds.mjs";
+import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -1457,6 +1465,105 @@ async function threadsSettled(github, repo, number, since, readAt, label) {
   return opened === undefined ? undefined : `a review thread was opened by ${opened.user?.login ?? "an account"} while its reads ran`;
 }
 
+// THE SESSION-BUILDER QUEUE LABEL. A fail-routed stop whose escalation-routes.json
+// entry names a `label` (needs-session) puts it on before its lane-stopped
+// comment, and report-escalation.sh `clear` posts success over the stop's
+// failing status when a same-head retry lands, which leaves the label on.
+// Every label the table names is a session label.
+export const SESSION_LABELS = Object.freeze([...new Set(Object.values(ROUTES).map((entry) => entry?.label).filter((label) => typeof label === "string"))]);
+const STOP_ACTIVITY = /^<!-- pr-unblock:lane-stopped activity=([a-z]+(?:-[a-z]+)*) -->$/;
+const STOP_HEAD = /^- Head: `([0-9a-f]{40})`$/m;
+// report-escalation.sh's status context for an activity.
+const stopContext = (activity) => (activity === "resolve-conflicts" ? "pr-unblock/conflict" : `pr-unblock/${activity}`);
+
+// Whether the session label `label` on `number` comes off, or { reason }
+// saying why it stays. It comes off only when the lanes App added it last,
+// and every lanes App lane-stopped comment (one per activity, edited in
+// place) written or edited since then whose reason routes to `label` names a
+// head whose newest status for that activity's context, by
+// github-actions[bot], is `success`: the stop that added it was cleared on
+// that same head. A stop since the label whose reason or head does not parse,
+// none at all, or a status read that fails keeps it. A later head carries no
+// status, so a stop on an older head keeps it for a session. `checks` (the
+// job token) reads the statuses; the lanes App token holds no statuses
+// permission.
+async function sessionVerdict({ github, checks, repo, number, label, bot }) {
+  const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
+  const { labeled, since } = labelHistory(timeline, label, new Set());
+  if (!isApp(labeled?.actor, bot)) {
+    return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
+  }
+  const stops = new Map();
+  for (const item of timeline) {
+    const activity = item.event === "commented" && isApp(item.user, bot) ? STOP_ACTIVITY.exec(lines(item.body)[0])?.[1] : undefined;
+    if (activity !== undefined) {
+      stops.set(activity, item);
+    }
+  }
+  const why = [];
+  for (const [activity, item] of stops) {
+    if (Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < since) {
+      continue;
+    }
+    const body = String(item.body);
+    const reason = REASON.exec(body)?.[1];
+    const head = STOP_HEAD.exec(body)?.[1];
+    if (reason === undefined || head === undefined || escalationActivity(reason) !== activity) {
+      return { reason: `the ${activity} stop since ${label} went on names no reason, head or activity this script can read` };
+    }
+    if (ROUTES[reason].label !== label) {
+      continue;
+    }
+    const context = stopContext(activity);
+    let statuses;
+    try {
+      statuses = await readStatuses(checks, repo, head);
+    } catch (error) {
+      console.log(`::warning title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
+      return { reason: `the statuses of ${head} did not read` };
+    }
+    const newest = statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
+    if (newest?.state !== "success") {
+      return { reason: `${reason} still fails ${context} at ${head} (${newest?.state ?? "no status"})` };
+    }
+    why.push(`${reason} no longer fails ${context} at ${head}`);
+  }
+  return why.length === 0 ? { reason: `no lane stop routed to ${label} since it went on` } : { reason: null, why: why.join("; ") };
+}
+
+// Takes each session label off where sessionVerdict finds its stop cleared,
+// at most CLEARS_PER_RUN a label a run. No comment: the label queues a
+// session and holds nothing a person must see lifted. The failures counted.
+async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
+  let failed = 0;
+  for (const label of SESSION_LABELS) {
+    const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
+      (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
+    );
+    let cleared = 0;
+    for (const { number } of rotated(held, runNumber)) {
+      if (cleared >= CLEARS_PER_RUN) {
+        console.log(`clear-escalations: #${number} ${label} not checked: ${CLEARS_PER_RUN} cleared this run`);
+        continue;
+      }
+      try {
+        const result = await sessionVerdict({ github, checks, repo, number, label, bot });
+        if (result.reason !== null) {
+          console.log(`clear-escalations: #${number} ${label} kept: ${result.reason}`);
+          continue;
+        }
+        await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
+        cleared += 1;
+        console.log(`clear-escalations: #${number} ${label} cleared: ${result.why}`);
+      } catch (error) {
+        failed += 1;
+        reportError(number, error);
+      }
+    }
+  }
+  return failed;
+}
+
 // The ids whose push is a trusted move: every `human` of trusted-actors.json,
 // matched by id. Not the lanes App: every lane that sets check-trusted-trigger's
 // denied-actor-ids denies its sender id, and its own push must not clear its
@@ -1550,6 +1657,7 @@ export async function main({ env = process.env, github, checks, verify, reader }
         reportError(number, error);
       }
     }
+    failed += await clearSessionLabels({ github, checks, repo, bot, runNumber: Number(env.GITHUB_RUN_NUMBER) });
     return failed === 0 ? 0 : 1;
   } catch (error) {
     console.log(`::error title=clear-escalations::${escapeCommand(error?.message ?? error)}`);
