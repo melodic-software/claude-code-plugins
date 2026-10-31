@@ -1029,8 +1029,20 @@ the rules that only tighten in
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary and
-  read-back records stay human-close. The wrapper finds these issues by author (the agent identity
+  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  of its commits names a pull request it reverts and the lanes App enqueued that pull request or
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
+  or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
+  `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
+  `<!-- red-main-revert culprit=<sha> -->`, through that commit's `(#N)` subject. Every canary push
+  run, whatever it concluded and on every attempt, reads every commit the push brought, a
+  merge-queue batch included: main's first-parent range since the previous canary push run's head,
+  at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
+  history, read from main's full history. A revert commit any revert record already lists, in any
+  state, is skipped, so a commit is filed once and never again after a person closes its record. A
+  reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
@@ -2203,8 +2215,16 @@ an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. A model error, an output that fails the schema, a
+account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
+`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`,
+`capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+in the trusted pull request body, which the author reports and the writer reads as data only (`null`
+with no such line or a withheld body). With no capture summary the writer records `no-app` ("no app
+check ran"); a summary it cannot read, that fails its schema, or whose text matches a shared
+credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
+no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
+lasts. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since

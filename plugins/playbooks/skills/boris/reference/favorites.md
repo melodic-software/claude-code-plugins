@@ -145,10 +145,10 @@ Source: https://x.com/bcherny/status/2038454353787519164
 Use for large code migrations and other parallelizable work.
 
 - **Pointer**: for how many subagents `/batch` splits a change across, see
-  [Fan out across files](https://code.claude.com/docs/en/best-practices#fan-out-across-files)
-  (under [Automate and scale](https://code.claude.com/docs/en/best-practices#automate-and-scale)).
+  [Run sessions in parallel](https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel)
+  (under [Let Claude run without you](https://code.claude.com/docs/en/best-practices#let-claude-run-without-you)).
   Boris's "dozens, hundreds, even thousands" from the thread no longer matches that page.
-- **As of**: 2026-10-18
+- **As of**: 2026-10-30
 - **Recheck trigger**: that section changes the subagent range or how `/batch` fans out.
 
 See also: [Section 30: /batch](workflows.md#30-batch-parallel-code-migrations)

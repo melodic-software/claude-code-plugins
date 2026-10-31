@@ -148,7 +148,7 @@ while the plan is still being corrected. The checking script is the same kind as
 aimed at the plan instead of the output.
 
 - **Pointer**: for verifying work, see
-  [Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work);
+  [Give Claude a check to run](https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run);
   for feedback loops and executable code in skills, see
   [Workflows and feedback loops](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#workflows-and-feedback-loops)
   and

@@ -146,12 +146,12 @@ when the question is whether finished work is sound.
   hacking under anti-cheating prompts. Pointers:
   <https://arxiv.org/abs/2510.20270> (impossible-task results by prompt
   variant) and
-  <https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work>.
-  As of 2026-10-16. Recheck when that docs section or the paper is revised.
+  <https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run>.
+  As of 2026-10-30. Recheck when that docs section or the paper is revised.
 - **Scope any red team to correctness and the stated requirements.** Topic:
   padded adversarial findings. Pointer:
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>.
-  As of 2026-10-16. Recheck when that section drops or changes its scoping
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>.
+  As of 2026-10-30. Recheck when that section drops or changes its scoping
   callout.
 - **Ask for a specialist's work, never a persona.** Topic: expert-persona
   prompting and accuracy. Pointers: <https://arxiv.org/abs/2512.05858> and
