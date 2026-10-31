@@ -545,19 +545,35 @@ for title in 'pr-unblock address-feedback #0' 'pr-unblock address-feedback 42' '
   TITLE=$title unblock_case "run name '$title' names no PR" 0 "the upstream run names no pull request"
   if grep -q "^api " "$TMP_ROOT/log"; then fail "a run name with no PR reaches no API: $(paste -sd"|" "$TMP_ROOT/log")"; else ok "a run name with no PR reaches no API"; fi
 done
-for c in failure skipped ''; do
-  STUB_UNBLOCK_JOBS="$(unblock_jobs "$c")" unblock_case "a pr-unblock run whose report-stop-status is '${c:-absent}' re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
-  check_reran 0 "a run that wrote no status (${c:-absent}) re-runs nothing"
-  check_calls 1 "it stops after the run's jobs (${c:-absent})"
+# unblock_jobs <report-stop-status conclusion>, or no such job: the run wrote no status.
+for c in failure skipped 'no conclusion'; do
+  STUB_UNBLOCK_JOBS="$(unblock_jobs "${c/no conclusion/}")" unblock_case "a pr-unblock run whose report-stop-status has $c re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
+  check_reran 0 "a run whose report-stop-status has $c re-runs nothing"
+  check_calls 1 "it stops after the run's jobs ($c)"
 done
-# A stop re-posted in the state ci-status already read changes nothing.
-STUB_STATUSES="[$(status pr-unblock/address-feedback failure "$EARLY"),$(status pr-unblock/address-feedback failure "$LATER")]"
-STUB_JOBS="$(cijob completed "2026-10-23T09:55:00Z")" unblock_case "a failure re-posted over a failure ci-status read re-runs nothing" 0 "in the state ci-status read when it started"
-check_reran 0 "failure to failure is no change"
-STUB_STATUSES="[$(status pr-unblock/address-feedback failure "$EARLY"),$(status pr-unblock/address-feedback success "$LATER")]"
-STUB_JOBS="$(cijob completed "2026-10-23T09:55:00Z")" unblock_case "a success over a failure ci-status read re-runs it" 0 "Re-running ci-status (job 77)"
+STUB_UNBLOCK_JOBS='{"jobs":[]}' unblock_case "a pr-unblock run with no report-stop-status job re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
+check_reran 0 "a run with no report-stop-status job re-runs nothing"
+check_calls 1 "it stops after the run's jobs (no such job)"
+# Statuses come newest first, as GitHub lists them. A stop re-posted on the
+# context ci-status already read stopped changes nothing.
+STARTED=2026-10-23T09:55:00Z
+STUB_STATUSES="[$(status pr-unblock/address-feedback failure "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a failure re-posted over a failure ci-status read re-runs nothing" 0 "are those ci-status read when it started"
+check_reran 0 "failure to failure on one context is no change"
+STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a success over a failure ci-status read re-runs it" 0 "Re-running ci-status (job 77)"
 check_reran 1 "failure to success re-runs"
-STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER")]"
+# Per context: address-feedback stopped then cleared before ci-status
+# started, fix-ci stopped before it and cleared after. The newest status
+# overall is a success both before and after; the stopped set is not.
+STUB_STATUSES="[$(status pr-unblock/fix-ci success "$LATER"),$(status pr-unblock/address-feedback success 2026-10-23T09:40:00Z),$(status pr-unblock/fix-ci failure 2026-10-23T09:30:00Z),$(status pr-unblock/address-feedback failure 2026-10-23T09:20:00Z)]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a context cleared after ci-status read it stopped re-runs it" 0 "Re-running ci-status (job 77)"
+check_reran 1 "the stopped set, not the newest status, decides"
+# A status inside the 60 s margin around ci-status's start may be unread.
+STUB_STATUSES="[$(status pr-unblock/address-feedback success 2026-10-23T09:54:30Z),$(status pr-unblock/address-feedback failure 2026-10-23T09:00:00Z)]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a status inside the margin re-runs ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a possibly unread status re-runs"
+STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
 # The head moving between the first PR read and the one before the re-run is left alone.
 STUB_PR_SEQ="$(pr)
 $(pr open "${HEAD//0/e}")" unblock_case "a head that moved while ci-status was read is left alone" 0 "#42 is closed or no longer at $HEAD; nothing to re-run."
@@ -572,8 +588,9 @@ approval_case "a listed person's approval re-runs ci-status" 0 "Re-running ci-st
 check_reran 1 "the approval's re-run is recorded"
 check_calls 6 "an approval reads both lanes, the runs, the jobs, the PR and the run again"
 if [[ "$(grep -c '/actions/workflows/pr-review-\(security-\)\?hosted.yml/runs?' "$TMP_ROOT/log")" == 2 ]]; then ok "both review lanes are read"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
-REVIEW_ATTEMPT=2 approval_case "a re-run of the relay re-runs ci-status" 0 "the re-run is not recorded"
-if [[ "$(cat "$TMP_ROOT/out")" == "job-id=77" && ! -e "$TMP_ROOT/record.json" ]]; then ok "a relay re-run's re-run is unrecorded"; else fail "outputs: $(paste -sd'|' "$TMP_ROOT/out")"; fi
+REVIEW_ATTEMPT=2 approval_case "a re-run of the relay re-runs nothing" 0 "Relay attempt 2 names its re-runner, not the reviewer; nothing to re-run."
+check_reran 0 "nothing is re-run for a relay re-run"
+if grep -q "^api " "$TMP_ROOT/log"; then fail "a relay re-run reached the API"; else ok "a relay re-run reaches no API"; fi
 RERUNNER=$STRANGER approval_case "an unlisted reviewer's approval does nothing" 0 "not a person on the trusted-actor list"
 check_reran 0 "nothing is re-run for an unlisted reviewer"
 if grep -q "^api " "$TMP_ROOT/log"; then fail "an unlisted reviewer reaches no API: $(paste -sd"|" "$TMP_ROOT/log")"; else ok "an unlisted reviewer reaches no API"; fi
