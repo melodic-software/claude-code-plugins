@@ -4,9 +4,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, spawnReader, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -26,9 +28,9 @@ function reader(done) {
 
 const answer = (report) => ({ status: 0, stdout: `noise\n${JSON.stringify({ head: HEAD, detail: null, ...report })}\n`, stderr: "" });
 
-test("a pull request the reader refuses verify:repeated-fail at the head is capped, with the FAILed heads", () => {
+test("a pull request the reader refuses verify:repeated-fail at the head is capped, with the FAILed heads", async () => {
   const { read, calls } = reader(answer({ refusal: "verify:repeated-fail", detail: CAPPED }));
-  assert.equal(read({ number: 42, head: HEAD, base: BASE }), `verify:repeated-fail: ${CAPPED}`);
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), `verify:repeated-fail: ${CAPPED}`);
   assert.deepEqual(
     calls.map(({ command, args }) => [command, args]),
     [["python3", [VERIFY_SCRIPT, "evidence", "--repo", REPO, "--base-sha", BASE, "42", HEAD]]],
@@ -36,13 +38,13 @@ test("a pull request the reader refuses verify:repeated-fail at the head is capp
   assert.ok(calls[0].timeout > 0);
 });
 
-test("an allow is not the cap, and says nothing", () => {
+test("an allow is not the cap, and says nothing", async () => {
   const { read, lines } = reader(answer({ refusal: null }));
-  assert.equal(read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
   assert.deepEqual(lines, []);
 });
 
-test("any other refusal is not the cap: the round runs, with a warning naming the reader's detail", () => {
+test("any other refusal is not the cap: the round runs, with a warning naming the reader's detail", async () => {
   for (const [refusal, detail] of [
     ["verify:fail", `a FAIL at ${HEAD}`],
     ["verify:earlier-fail", "an earlier head FAILed"],
@@ -50,7 +52,7 @@ test("any other refusal is not the cap: the round runs, with a warning naming th
     ["verify:unreadable", "run of pr-verify-42-x-fail: gh: Bad credentials (HTTP 401)"],
   ]) {
     const { read, lines } = reader(answer({ refusal, detail }));
-    assert.equal(read({ number: 42, head: HEAD, base: BASE }), null, refusal);
+    assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null, refusal);
     assert.equal(lines.length, 1, refusal);
     assert.match(lines[0], /^::warning::#42: /, refusal);
     assert.ok(lines[0].includes(refusal) && lines[0].includes(detail), lines[0]);
@@ -59,27 +61,27 @@ test("any other refusal is not the cap: the round runs, with a warning naming th
 
 // Gap: an address-feedback round is sent for the FAIL at its head, so every
 // such round warned that the reader refused verify:fail.
-test("a refusal the round expects warns nothing; any other still warns, and the cap still caps", () => {
+test("a refusal the round expects warns nothing; any other still warns, and the cap still caps", async () => {
   const quiet = reader(answer({ refusal: "verify:fail", detail: `a FAIL at ${HEAD}` }));
-  assert.equal(quiet.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
+  assert.equal(await quiet.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
   assert.deepEqual(quiet.lines, []);
   const other = reader(answer({ refusal: "verify:earlier-fail", detail: "an earlier head FAILed" }));
-  assert.equal(other.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
+  assert.equal(await other.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
   assert.equal(other.lines.length, 1);
   assert.match(other.lines[0], /^::warning::#42: .*verify:earlier-fail/);
   const capped = reader(answer({ refusal: "verify:repeated-fail", detail: CAPPED }));
-  assert.equal(capped.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), `verify:repeated-fail: ${CAPPED}`);
+  assert.equal(await capped.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), `verify:repeated-fail: ${CAPPED}`);
 });
 
 // Gap: the reader's stderr, where its listing misses go
 // (babysit_verify_evidence.py `Reader._incremental`), was dropped, so a
 // round skipped for a listing that outran the limit showed no cause.
-test("the reader's stderr is logged on one line, its listing misses first", () => {
+test("the reader's stderr is logged on one line, its listing misses first", async () => {
   const miss = (stage, listed) =>
     `babysit-listing-miss {"base_age_seconds": 900, "fresh": 120, "kept": 10300, "listed": ${listed}, "pages": 2, "stage": "${stage}", "total_count": 10450}`;
   const stderr = [miss("incremental", 10420), miss("top-up", 10449), 'babysit-gh-calls {"total": 107}', ""].join("\n");
   const { read, lines } = reader({ ...answer({ refusal: null }), stderr });
-  assert.equal(read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
   assert.equal(lines.length, 1);
   assert.ok(lines[0].startsWith("#42: the verifier reader's stderr: 3 line(s), 2 babysit-listing-miss: "), lines[0]);
   assert.ok(lines[0].includes(miss("incremental", 10420)) && lines[0].includes(miss("top-up", 10449)), lines[0]);
@@ -87,19 +89,19 @@ test("the reader's stderr is logged on one line, its listing misses first", () =
 
   // With no miss, the last line; a timed-out read still logs what it wrote.
   const plain = reader({ ...answer({ refusal: null }), stderr: "first\nlast line\n" });
-  plain.read({ number: 42, head: HEAD, base: BASE });
+  await plain.read({ number: 42, head: HEAD, base: BASE });
   assert.deepEqual(plain.lines, ["#42: the verifier reader's stderr: 2 line(s), 0 babysit-listing-miss: last line"]);
   const killed = reader({ status: null, stdout: "", stderr: `${miss("incremental", 10420)}\n`, error: new Error("spawnSync python3 ETIMEDOUT") });
-  assert.equal(killed.read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(await killed.read({ number: 42, head: HEAD, base: BASE }), null);
   assert.equal(killed.lines.length, 2);
   assert.ok(killed.lines[0].includes(miss("incremental", 10420)), killed.lines[0]);
   assert.match(killed.lines[1], /^::warning::#42: .*ETIMEDOUT/);
   const silent = reader({ status: null, stdout: "", stderr: null, error: new Error("spawnSync python3 ETIMEDOUT") });
-  silent.read({ number: 42, head: HEAD, base: BASE });
+  await silent.read({ number: 42, head: HEAD, base: BASE });
   assert.equal(silent.lines.length, 1);
 });
 
-test("a read that fails, does not parse or answers for another head runs the round as before, with a warning", () => {
+test("a read that fails, does not parse or answers for another head runs the round as before, with a warning", async () => {
   for (const done of [
     { status: 1, stdout: "", stderr: "gh: rate limited" },
     { status: null, stdout: "", stderr: "", error: new Error("spawnSync python3 ETIMEDOUT") },
@@ -107,38 +109,38 @@ test("a read that fails, does not parse or answers for another head runs the rou
     answer({ refusal: "verify:repeated-fail", head: "c".repeat(40) }),
   ]) {
     const { read, lines } = reader(done);
-    assert.equal(read({ number: 42, head: HEAD, base: BASE }), null);
+    assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
     assert.match(lines.join("\n"), /^::warning::#42: /m);
   }
 });
 
-test("without a base commit the reader takes its own cap default", () => {
+test("without a base commit the reader takes its own cap default", async () => {
   const { read, calls } = reader(answer({ refusal: "verify:repeated-fail" }));
-  assert.equal(read({ number: 42, head: HEAD, base: undefined }), "verify:repeated-fail");
+  assert.equal(await read({ number: 42, head: HEAD, base: undefined }), "verify:repeated-fail");
   assert.deepEqual(calls[0].args, [VERIFY_SCRIPT, "evidence", "--repo", REPO, "42", HEAD]);
 });
 
 // Gap: a cap reached only through other pull requests' FAILs is hidden when
 // one of their runs cannot be read. That read skips the round, failing
 // closed, but never records the head as handled.
-test("a sibling FAIL run the reader cannot read skips the round, for this run only", () => {
+test("a sibling FAIL run the reader cannot read skips the round, for this run only", async () => {
   const { read } = reader(answer({ refusal: "verify:unreadable", detail: SIBLING_UNREADABLE }));
-  const got = read({ number: 42, head: HEAD, base: BASE });
+  const got = await read({ number: 42, head: HEAD, base: BASE });
   assert.equal(got, `verify:unreadable: ${SIBLING_UNREADABLE}`);
   assert.equal(final(got), false);
   assert.equal(final(`verify:repeated-fail: ${CAPPED}`), true);
   // Another unreadable answer (the pull request's own run) is not the cap.
   const own = reader(answer({ refusal: "verify:unreadable", detail: "run of pr-verify-42-x-fail" }));
-  assert.equal(own.read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(await own.read({ number: 42, head: HEAD, base: BASE }), null);
 });
 
 // Gap: a listing that does not fit in this caller's 120 s limit returned an
 // exit-0 `verify:unreadable` the round ran past with no word. It hides the
 // cap as a sibling read does, so it skips the round the same way.
-test("a listing that does not fit in the caller's limit skips the round, for this run only, naming why", () => {
+test("a listing that does not fit in the caller's limit skips the round, for this run only, naming why", async () => {
   const detail = `${DEADLINE_UNREADABLE}: repository artifacts: 10450 artifacts in 105 pages need 112 s`;
   const { read, lines } = reader(answer({ refusal: "verify:unreadable", detail }));
-  const got = read({ number: 42, head: HEAD, base: BASE });
+  const got = await read({ number: 42, head: HEAD, base: BASE });
   assert.equal(got, `verify:unreadable: ${detail}`);
   assert.equal(final(got), false);
   assert.deepEqual(lines, []);
@@ -147,7 +149,10 @@ test("a listing that does not fit in the caller's limit skips the round, for thi
 // Both dispatchers' FAIL-cap reads take the listing pr-merge carried
 // (listing-carry.mjs) as the first read's base, and share one saved listing
 // across every pull request of the job, as pr-merge.yml's gate does; without
-// them each read lists every artifact of the repository.
+// them each read lists every artifact of the repository. The carry costs
+// listing-carry.mjs's calls (5 or 6 a run, its api-calls notices on
+// 2026-10-30), so it is fetched on the job's first FAIL-cap read, not by a
+// step every run pays for.
 const READER = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
 const readerEnv = (name) => {
   const match = new RegExp(`^${name} = "([A-Z_]+)"$`, "m").exec(READER);
@@ -177,46 +182,128 @@ for (const [workflow, dispatchName] of [
   ["pr-feedback-dispatch.yml", "Dispatch address-feedback"],
   ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"],
 ]) {
-  test(`${workflow}: every FAIL-cap read starts from pr-merge's carried listing and shares one saved listing`, () => {
+  test(`${workflow}: the carried listing is fetched on the first FAIL-cap read only, and every read shares one saved listing`, async () => {
     const steps = dispatchSteps(workflow);
-    const names = steps.map((s) => s.name);
-    const carry = steps.find((s) => s.block.includes("node .base/.github/scripts/pr-merge/listing-carry.mjs"));
-    assert.ok(carry, "a step restores pr-merge's listing through listing-carry.mjs");
+    assert.deepEqual(
+      steps.filter((s) => s.block.includes("run: node .base/.github/scripts/pr-merge/listing-carry.mjs")).map((s) => s.name),
+      [],
+      "no step fetches the carry before the dispatch knows it reads a FAIL cap",
+    );
     const dispatch = steps.find((s) => s.name === dispatchName);
     assert.ok(dispatch, dispatchName);
-    assert.ok(names.indexOf(carry.name) < names.indexOf(dispatch.name), "the carry is restored before the dispatch reads");
-    assert.match(carry.block, /\n {8}continue-on-error: true\n/, "a failed restore never stops the dispatch");
-    const carryEnv = stepEnv(carry.block);
-    assert.equal(carryEnv.ACTIONS_TOKEN, "${{ github.token }}");
 
     const LISTING = readerEnv("LISTING_ENV");
     const CARRY = readerEnv("LISTING_CARRY_ENV");
     const env = stepEnv(dispatch.block);
     assert.ok(env.VERIFY_EVIDENCE_SCRIPT, "the dispatch builds its FAIL-cap reader");
-    // The reader the dispatch builds hands both files to every spawn.
-    const seen = [];
+    assert.equal(env.GITHUB_TOKEN, "${{ github.token }}", "the carry is fetched with the job's token");
+    const order = [];
     const read = verifyCapReader(env, {
       spawn: (command, args, options) => {
-        seen.push(options.env);
+        order.push(["read", options.env]);
         return answer({ refusal: null });
       },
+      carry: (carryEnv) => order.push(["carry", carryEnv]),
       log: () => {},
     });
-    read({ number: 1, head: HEAD, base: BASE });
-    read({ number: 2, head: HEAD, base: BASE });
-    assert.equal(seen.length, 2);
+    assert.deepEqual(order, [], "building the reader fetches nothing");
+    await read({ number: 1, head: HEAD, base: BASE });
+    await read({ number: 2, head: HEAD, base: BASE });
+    assert.deepEqual(
+      order.map(([kind]) => kind),
+      ["carry", "read", "read"],
+    );
+    assert.equal(order[0][1][CARRY], "/runner/temp/verify-listing-carry.json");
     const NO_WAITS = readerEnv("NO_INCREMENTAL_WAITS_ENV");
-    for (const spawned of seen) {
+    for (const [, spawned] of order.slice(1)) {
       // A carried listing's waits and a whole listing outlast VERIFY_CAP_TIMEOUT_MS.
       assert.equal(spawned[NO_WAITS], "1", "a miss on the carried listing lists every page at once");
-      assert.equal(spawned[CARRY], carryEnv.BABYSIT_VERIFY_LISTING_CARRY, "the reader takes the file listing-carry.mjs wrote");
+      assert.equal(spawned[CARRY], "/runner/temp/verify-listing-carry.json", "the reader takes the file listing-carry.mjs wrote");
       assert.equal(spawned[LISTING], "/runner/temp/verify-listing.json", "one saved listing for the job's pull requests");
-      assert.notEqual(spawned[LISTING], spawned[CARRY]);
     }
   });
 }
 
-test("the sibling and caller-limit details, the FAIL refusal and the listing-miss prefix are the reader's", () => {
+test("a carry that fails is fetched once, warns, and the reads go on without it", async () => {
+  let fetched = 0;
+  const lines = [];
+  const reads = [];
+  const read = verifyCapReader(
+    { GITHUB_REPOSITORY: REPO, BABYSIT_VERIFY_LISTING_CARRY: "/runner/temp/verify-listing-carry.json" },
+    {
+      spawn: (command, args) => {
+        reads.push(args.at(-2));
+        return answer({ refusal: "verify:repeated-fail", detail: CAPPED });
+      },
+      carry: () => {
+        fetched += 1;
+        throw new Error("HTTP 502");
+      },
+      log: (line) => lines.push(line),
+    },
+  );
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), `verify:repeated-fail: ${CAPPED}`);
+  assert.equal(await read({ number: 43, head: HEAD, base: BASE }), `verify:repeated-fail: ${CAPPED}`);
+  assert.equal(fetched, 1);
+  assert.deepEqual(reads, ["42", "43"]);
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::warning::the carried artifact listing was not fetched \(HTTP 502\)/);
+});
+
+test("with no carry file named, no carry is fetched", async () => {
+  let fetched = 0;
+  const read = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => answer({ refusal: null }), carry: () => (fetched += 1), log: () => {} });
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(fetched, 0);
+});
+
+// Gap: the reader ran under spawnSync, which held the event loop for up to
+// VERIFY_CAP_TIMEOUT_MS. Four pr-feedback-dispatch runs on 2026-10-30
+// (41146193308, 41146199013, 41146309867, 41146347019) were killed at that
+// limit and then failed `fetch failed` on the dispatch, two runs at each of
+// two heads, each paying 143 to 209 calls.
+const SLOW = `import json, sys, time
+time.sleep(float(sys.argv[1]) if sys.argv[1] != "evidence" else 0.5)
+print(json.dumps({"head": sys.argv[-1], "refusal": None, "detail": None}))
+`;
+const slowScript = () => {
+  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
+  const path = join(dir, "slow.py");
+  writeFileSync(path, SLOW);
+  return path;
+};
+
+test("the reader runs without holding the event loop: a timer fires while it reads", async () => {
+  const read = verifyCapReader({ ...process.env, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: slowScript() }, { log: () => {} });
+  let ticks = 0;
+  const timer = setInterval(() => (ticks += 1), 20);
+  try {
+    assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
+  } finally {
+    clearInterval(timer);
+  }
+  assert.ok(ticks >= 5, `the timer fired ${ticks} times during a 0.5 s read`);
+});
+
+test("a reader past its limit is killed and answers ETIMEDOUT, as spawnSync did", async () => {
+  const started = Date.now();
+  const done = await spawnReader("python3", [slowScript(), "30", HEAD], { env: process.env, timeout: 300 });
+  assert.ok(Date.now() - started < 10_000, "the child was killed, not waited out");
+  assert.equal(done.status, null);
+  assert.match(done.error.message, /ETIMEDOUT/);
+});
+
+test("a reader that exits non-zero answers its status and stderr, with no error", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
+  const path = join(dir, "fail.py");
+  writeFileSync(path, 'import sys\nprint("gh: rate limited", file=sys.stderr)\nsys.exit(3)\n');
+  const done = await spawnReader("python3", [path], { env: process.env, timeout: 10_000 });
+  assert.equal(done.status, 3);
+  assert.equal(done.error, undefined);
+  assert.equal(done.stderr.trim(), "gh: rate limited");
+});
+
+test("the sibling and caller-limit details, the FAIL refusal and the listing-miss prefix are the reader's", async () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
   assert.ok(source.includes(`DEADLINE_UNREADABLE = "${DEADLINE_UNREADABLE}"`));
@@ -227,9 +314,9 @@ test("the sibling and caller-limit details, the FAIL refusal and the listing-mis
 // babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its
 // listing to the limit this caller kills it at, and names the caller when a
 // listing cannot fit, rather than being killed with no reason.
-test("the reader is told the limit it is killed at, and who kills it", () => {
+test("the reader is told the limit it is killed at, and who kills it", async () => {
   const { read, calls } = reader(answer({ refusal: null }));
-  read({ number: 42, head: HEAD, base: BASE });
+  await read({ number: 42, head: HEAD, base: BASE });
   assert.equal(calls[0].timeout, 120_000);
   assert.equal(VERIFY_CAP_TIMEOUT_MS, 120_000);
   assert.equal(calls[0].env.BABYSIT_VERIFY_DEADLINE_SECONDS, "120");

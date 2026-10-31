@@ -19,7 +19,16 @@
 // with a warning naming it, unless the caller expects that refusal (a FAIL
 // at the head of a round sent for that FAIL). Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
-import { spawnSync } from "node:child_process";
+//
+// The reader runs as a child process the event loop keeps serving. Under
+// spawnSync a read killed at the limit was followed by a dispatch POST that
+// failed with `fetch failed` (suspected: idle connections the blocked loop
+// left unserved), so the next run at that head paid for the read again.
+// The listing pr-merge carried (listing-carry.mjs) is fetched on the first
+// read only, so a run that skips before any read spends none of its calls.
+import { execFile } from "node:child_process";
+
+import { main as carryListing } from "../pr-merge/listing-carry.mjs";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 export const CAPPED = "verify:repeated-fail";
@@ -41,6 +50,31 @@ const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
 // timeout-minutes (10) leaves room for a few (judgment).
 export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
+// The reader's stdout and stderr, kept whole (judgment: a report line and a
+// few log lines, far below this).
+const MAX_BUFFER = 64 * 1024 * 1024;
+
+// `command` run as a child process, answered in spawnSync's shape (status,
+// stdout, stderr, error) without blocking the event loop; past `timeout` ms
+// it is killed, and the error names ETIMEDOUT as spawnSync's does.
+export function spawnReader(command, args, { env, timeout }) {
+  return new Promise((resolve) => {
+    execFile(command, args, { encoding: "utf8", env, timeout, killSignal: "SIGTERM", maxBuffer: MAX_BUFFER }, (error, stdout, stderr) => {
+      if (!error) {
+        resolve({ status: 0, stdout, stderr });
+        return;
+      }
+      const status = typeof error.code === "number" ? error.code : null;
+      const timedOut = error.killed === true && error.signal === "SIGTERM";
+      resolve({ status, stdout, stderr, error: timedOut ? new Error(`${command} ETIMEDOUT after ${timeout} ms`) : status === null ? error : undefined });
+    });
+  });
+}
+
+// listing-carry.mjs, run in this process with the job's token, once: it
+// writes BABYSIT_VERIFY_LISTING_CARRY or warns and writes nothing.
+const fetchCarry = (env) => carryListing({ env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN } });
+
 // The reader's waits between incremental reads of a carried listing
 // (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after
 // them do not fit in that limit, and a killed read is not the cap, so a miss
@@ -84,9 +118,18 @@ function stderrSummary(stderr) {
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 // `expected`: refusals the round is sent for, which warn nothing.
-export function verifyCapReader(env, { spawn = spawnSync, log = (line) => console.log(line) } = {}) {
+// `carry`: fetches the listing pr-merge carried, before the first read only,
+// when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
+export function verifyCapReader(env, { spawn = spawnReader, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   env = { ...env, ...NO_INCREMENTAL_WAITS };
-  return ({ number, head, base, expected = [] }) => {
+  let carried = null;
+  return async ({ number, head, base, expected = [] }) => {
+    if (env.BABYSIT_VERIFY_LISTING_CARRY) {
+      carried ??= Promise.resolve()
+        .then(() => carry(env))
+        .catch((error) => log(`::warning::the carried artifact listing was not fetched (${oneLine(error?.message ?? error)}); the reader lists every page`));
+      await carried;
+    }
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
     if (SHA.test(String(base ?? ""))) {
       args.push("--base-sha", base);
@@ -94,7 +137,7 @@ export function verifyCapReader(env, { spawn = spawnSync, log = (line) => consol
     // The reader sizes its listing to this kill limit and names this caller
     // when a listing cannot fit (babysit_verify_evidence.py DEADLINE_ENV).
     const readerEnv = { ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
+    const done = await spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
     const said = stderrSummary(done.stderr);
     if (said) {
       log(`#${number}: the verifier reader's stderr: ${said}`);
