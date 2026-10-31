@@ -16,5 +16,13 @@
     "polyglot",
     "verification",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "turn_end_result_gate": {
+      "type": "string",
+      "title": "Turn-end result gate",
+      "description": "What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only.",
+      "default": "advisory"
+    }
+  }
 }
