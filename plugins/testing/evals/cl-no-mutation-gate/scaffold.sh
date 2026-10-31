@@ -39,3 +39,4 @@ git -c user.name=dev -c user.email=dev@example.invalid commit -q -m "Add invoice
 git update-ref refs/remotes/origin/main HEAD
 git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 git checkout -q -b chore/billing-tests
+printf '/.*\n' >>.git/info/exclude

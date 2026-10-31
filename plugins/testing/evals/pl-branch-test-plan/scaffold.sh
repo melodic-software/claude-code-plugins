@@ -112,3 +112,4 @@ PY
 
 git -c user.name=dev -c user.email=dev@example.invalid add -A
 git -c user.name=dev -c user.email=dev@example.invalid commit -q -m "Add report export and duration parsing"
+printf '/.*\n' >>.git/info/exclude

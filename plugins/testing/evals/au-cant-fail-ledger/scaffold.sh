@@ -39,3 +39,4 @@ PY
 git init -q -b main
 git -c user.name=dev -c user.email=dev@example.invalid add -A
 git -c user.name=dev -c user.email=dev@example.invalid commit -q -m "Add ledger"
+printf '/.*\n' >>.git/info/exclude

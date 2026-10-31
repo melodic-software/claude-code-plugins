@@ -3,7 +3,7 @@ description: "A branch adds a duration parser, an export endpoint, a container r
 tags: [testing, plan, outcome, hard, source-skill-contract]
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: "A test plan that reads the changed files, puts property tests (round trip or invariants) beside examples on parse_duration, integration tests on the export endpoint and the container registration, and lists src/models/types.py under not testing with a reason. It writes no test."
 ---
 /testing:plan this branch, compared with main, changes:
