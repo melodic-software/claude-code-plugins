@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T12:00:00Z\", \"five_hour_pct\": null, \"seven_day_pct\": 63.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": 1.5}\n```",
+      "why": "the hand-derived sample"
+    },
+    {
+      "answer": "usage_sample:\n```json\n{\n  \"at\": \"2026-10-30T12:00:00Z\",\n  \"five_hour_pct\": null,\n  \"seven_day_pct\": 63.0,\n  \"five_hour_delta_pct\": null,\n  \"seven_day_delta_pct\": 1.5\n}\n```\nCycle report: nothing to do.",
+      "why": "pretty-printed with a report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T12:00:00Z\", \"five_hour_pct\": 0.0, \"seven_day_pct\": 63.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": 1.5}\n```",
+      "why": "absent window fabricated as 0"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
