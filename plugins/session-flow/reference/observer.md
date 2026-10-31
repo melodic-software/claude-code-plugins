@@ -100,7 +100,9 @@ The defaults are the `observer_analysis_model` and `observer_analysis_effort` `d
 pass an empty value when the option is unset, and `observer.py` reads the manifest. The current
 defaults were chosen for faithful findings: in a four-session local pilot against Haiku 5.5 high,
 Sonnet 5.5 medium and Sonnet 5.5 high, they missed the fewest important findings and invented the
-fewest events.
+fewest events. The model is a full ID on purpose, so it does not move when an alias does: see
+[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
+2026-10-31; recheck on a new model release, by rerunning that pilot.
 
 The run always passes `--effort`, even at the default, and also passes
 `--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,

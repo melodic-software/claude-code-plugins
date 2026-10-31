@@ -158,7 +158,7 @@ and review criteria, or delegate to a fresh-context reviewer.
     [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec)
   - **As of**: 2026-10-30
   - **Recheck trigger**: a re-read of that section no longer supporting the preference above
-- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
+- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback (this preference is this repository's judgment, not an upstream rule),
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
 - **Effort:** judging a diff for defects, where a missed defect ships
