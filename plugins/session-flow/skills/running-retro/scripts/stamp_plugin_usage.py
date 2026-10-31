@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -31,9 +32,7 @@ def read_usage(session_id: str, session_data_dir: str) -> dict | None:
             [
                 sys.executable,
                 str(_PARSER),
-                "--sessions",
                 session_id,
-                "--base",
                 session_data_dir,
             ],
             capture_output=True,
@@ -42,7 +41,7 @@ def read_usage(session_id: str, session_data_dir: str) -> dict | None:
             timeout=_PARSE_TIMEOUT_SECONDS,
             check=False,
         )
-        usage = json.loads(run.stdout)["sessions"][0]["data"]["plugin_usage"]
+        usage = json.loads(run.stdout)["data"]["plugin_usage"]
     except (OSError, subprocess.SubprocessError, ValueError, LookupError, TypeError):
         return None
     return usage if isinstance(usage, dict) else None
@@ -61,9 +60,16 @@ def stamp(ledger: Path, usage: dict) -> bool:
         line for line in match[1].split("\n") if not line.startswith("plugin_usage:")
     ]
     lines.append(f"plugin_usage: {json.dumps(usage, ensure_ascii=False)}")
-    ledger.write_text(
-        "---\n" + "\n".join(lines) + "\n---\n" + text[match.end() :], encoding="utf-8"
-    )
+    fresh = ledger.with_name(f"{ledger.name}.stamp")
+    try:
+        fresh.write_text(
+            "---\n" + "\n".join(lines) + "\n---\n" + text[match.end() :],
+            encoding="utf-8",
+        )
+        os.replace(fresh, ledger)
+    except OSError:
+        fresh.unlink(missing_ok=True)
+        return False
     return True
 
 

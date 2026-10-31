@@ -1237,6 +1237,20 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIn("first", text)
             self.assertIn("second", text)
 
+    def test_a_failed_stamp_write_leaves_the_ledger_whole(self):
+        import stamp_plugin_usage
+
+        with tempfile.TemporaryDirectory() as d:
+            ledger = Path(d) / "x-running-retro-t.md"
+            text = "---\nsession_id: sid\n---\n\nfindings\n"
+            ledger.write_text(text, encoding="utf-8")
+            with mock.patch.object(
+                stamp_plugin_usage.os, "replace", side_effect=OSError(28, "full")
+            ):
+                self.assertFalse(stamp_plugin_usage.stamp(ledger, {"skills": {}}))
+            self.assertEqual(text, ledger.read_text(encoding="utf-8"))
+            self.assertEqual([ledger], list(Path(d).iterdir()))
+
     def test_unstamped_append_still_keeps_the_findings(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
