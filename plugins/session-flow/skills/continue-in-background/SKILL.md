@@ -1,6 +1,6 @@
 ---
 description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg (or --cloud) session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
-argument-hint: "[--cloud] [file|prompt] [topic] [purpose...]"
+argument-hint: "[--unattended] [--cloud] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-**Arguments.** `[--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
+**Arguments.** `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
 
 ## Context. Gather first
 
@@ -43,8 +43,10 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[--cloud] [file|prompt] [topic] [purpose...]`, all optional and positional.
-A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
+`$ARGUMENTS` carries `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`, all optional,
+the non-flag tokens positional. `--unattended`, anywhere in the arguments, is the caller declaring
+that nobody is present (it governs the offer under "Boundary") and is consumed first; the bare word
+in a purpose is purpose text. A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
 rest has the same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
 otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
 everything after the topic token is optional natural-language purpose text ("what will the next
@@ -430,8 +432,9 @@ you can run it to detach this session as it is. If /fork is available in your se
 gated, per the same paragraph and records), you can run it to copy this session into a background
 session. If /subtask is available in your session (gate basis: gated, per the same paragraph and
 records), you can run it for a side task whose result should come back here. Prefer this skill
-when the continuation should start clean from a durable save-point. An unattended run
-records the offer in its output instead of asking.
+when the continuation should start clean from a durable save-point. When the caller passes
+`--unattended`, the run records the offer in its output instead of asking;
+without that flag it asks.
 
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit
 request. It never runs a native command on the person's behalf.
