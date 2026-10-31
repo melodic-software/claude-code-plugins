@@ -1,0 +1,124 @@
+{
+  "skill": "docs-naming:audit-file-names",
+  "plugin": "docs-naming",
+  "skill_dir": "plugins/docs-naming/skills/audit-file-names",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors: docs-naming:generate-file-name-gate (emitting a standalone CI checker and tests that enforce the rule going forward); docs-naming:realign-file-names (applying an existing FN- rename plan one accepted file at a time); docs-naming:setup (user-invoked only; verifying or writing the docs-naming configuration: casing regex, tiers, layers); naming:name-it-better (inventing candidate names for something whose name is still undecided); docs-hygiene:rename-references (sweeping stale references after a single rename the user already decided or made); docs-hygiene:audit-noise (noise in markdown content such as stale citations, ghost refs and residue, not file names). audit-file-names owns the read-only inventory of doc file names that break the configured rule, a proposed name and classified references per offender, case-collision refusal, and the written plan realign consumes.",
+  "competitors": [
+    "docs-naming:generate-file-name-gate",
+    "docs-naming:realign-file-names",
+    "docs-naming:setup",
+    "naming:name-it-better",
+    "docs-hygiene:rename-references",
+    "docs-hygiene:audit-noise"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check every markdown file under docs/ for names that don't match our casing convention, and show me what each should become."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We have Getting_Started.md sitting next to api-reference.md. How inconsistent is our docs folder naming overall?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before anyone renames the guides folder, I want a plan: the offenders, their new names, and every place that links to them."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Would lowercasing the doc filenames under handbook/ clash with anything? A couple differ only by case."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Scan the docs and knowledge folders for filename violations. Read-only; write up the plan."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How many docs have off-convention filenames, and how many links would a cleanup need to fix?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Inventory the doc filenames in this repo against the rule in docs-naming.yaml."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce the FN findings for docs/ so we can review them before touching anything."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our doc filenames are a mix of every case imaginable. Map out what a rename would involve."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Apply the plan you wrote; start with FN-77aa01de."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a CI check that blocks badly named docs from merging."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Configure docs-naming to use snake_case for the reference tier."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I just renamed overview.md to intro.md; sweep for anything still mentioning overview.md."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find ghost refs and historical citations in our markdown."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run through the rename findings and let me accept each one."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What should I call this new doc about deployment rollback? Give me options."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Emit the naming checker and its tests into tools/."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which casing rule is in effect for docs here, and is the team layer tracked?"
+    }
+  ]
+}
