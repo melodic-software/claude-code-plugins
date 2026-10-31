@@ -10,6 +10,7 @@ conventions (rules for code under `services/billing` only), Rotating the webhook
 (ten steps, done about twice a year), and Pull requests. Judge the final reply.
 
 PASS only if all of these hold:
+
 1. The Safety rules stay in CLAUDE.md (always loaded). The reply does not propose moving
    them to a skill, a path-scoped rule, or a doc read on demand.
 2. The Billing service conventions go to a surface that loads only for billing work: a

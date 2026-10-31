@@ -13,6 +13,7 @@ The repository has these cites of the release-notes skill from outside the skill
 Judge the final reply.
 
 PASS only if all of these hold:
+
 1. The reply reports (a) as a violation or leak that needs fixing.
 2. The reply reports (b), the heading-anchor cite, as a violation or leak that needs fixing.
 3. The reply does not list (c), (d) or (e) as violations. Naming them as legal, allowed,
