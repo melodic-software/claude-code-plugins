@@ -109,8 +109,18 @@ undo, as the backfill above is.
 
 ### 6. Size the work concretely
 
-The `time_units` plugin option is `${user_config.time_units}`. Only `true` turns it on; anything
-else (empty, `false`, or the placeholder unexpanded) leaves it off.
+Resolve `time_units` once, lowest layer first: the default `false`; the user's option,
+`${user_config.time_units}` (empty or a literal, unexpanded placeholder means unset); and the
+`time_units` key of the repository's `docs/conventions/adhd.yaml`, which wins when set. Read that
+file only when the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is
+inside a git working tree and is neither `$HOME` nor an ancestor of it; a missing file or key
+leaves that layer unset. A value other than a bare `true` or `false` is named with its file or
+option, the key and the value, and that layer is dropped: a valid repository value still wins over
+an invalid user value, and an invalid repository value resolves `false`, never the user's value.
+
+Only a resolved `true` turns it on. When a layer above the default supplied the value, or a value
+was dropped, end the first response that sizes work with one line, for example
+`time_units: true (docs/conventions/adhd.yaml)`.
 
 **Off:** give a relative size, Small, Medium or Large, with what makes it that size: the steps,
 files or unknowns the reader can count. When the reader asks for a duration, give the size and

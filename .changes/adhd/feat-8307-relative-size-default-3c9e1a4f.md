@@ -8,5 +8,5 @@ bump: minor
 
 ### Added
 
-- `time_units` `userConfig` option (boolean, default off) that turns time units back on in `/adhd:shape` estimates.
+- `time_units` setting (boolean, default off) that turns time units back on in `/adhd:shape` estimates: a `userConfig` option, and a key in `docs/conventions/adhd.yaml` that wins over it, validated by the new `schemas/adhd.schema.json`.
 - The `sh-estimate-and-list-cap` eval grades a relative size and no time units, in place of a concrete time estimate.

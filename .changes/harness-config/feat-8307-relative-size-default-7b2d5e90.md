@@ -8,4 +8,4 @@ bump: minor
 
 ### Added
 
-- `time_units` `userConfig` option (boolean, default off) that turns time units back on in `/harness-config:audit-automation-gaps` plan sizes.
+- `time_units` setting (boolean, default off) that turns time units back on in `/harness-config:audit-automation-gaps` plan sizes: a `userConfig` option, and a key in `<home>/harness-config.yaml` that wins over it.

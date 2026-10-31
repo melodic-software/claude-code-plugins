@@ -317,9 +317,18 @@ For each candidate, provide:
   A `PASS` or `CONDITIONAL` without a plan cannot be persisted, because the plan is precisely what
   `--implement` reads back in a later session
 
-**Size.** The `time_units` plugin option is `${user_config.time_units}`. Only `true` turns it on;
-anything else (empty, `false`, or the placeholder unexpanded) leaves it off. State the resolved
-value, `on` or `off`, at the top of the report.
+**Size.** Resolve `time_units` once, lowest layer first: the default `false`; the user's option,
+`${user_config.time_units}` (empty or a literal, unexpanded placeholder means unset); and the
+`time_units` key of `<home>/harness-config.yaml`, which wins when set. `<home>` is what
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"` prints, else `docs/conventions`; its
+exit 5 (the root is `$HOME`, an ancestor of it, or not a git working tree) skips that layer, and a
+missing file or key leaves it unset. A value other than a bare `true` or `false` is named with its
+file or option, the key and the value, and that layer is dropped: a valid repository value still
+wins over an invalid user value, and an invalid repository value resolves `false`, never the
+user's value.
+
+Only a resolved `true` turns it on. State the resolved value, `on` or `off`, and the layer that
+supplied it at the top of the report.
 
 - **Off:** Small, Medium or Large, with what makes it that size (files, moving parts, unknowns).
 - **On:** an estimate in minutes, hours, days, weeks or a named span such as an afternoon, with

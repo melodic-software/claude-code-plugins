@@ -123,12 +123,15 @@ between the plugins to enforce this. It is a usage guideline.)
 
 ## Configuration
 
-One optional `userConfig` option and no setup skill or external tools. Enable
-the plugin and invoke `/adhd:shape` or `/adhd:clarify`.
+One optional setting and no setup skill or external tools. Enable the plugin
+and invoke `/adhd:shape` or `/adhd:clarify`.
 
 **`time_units`** (default off). Off, `/adhd:shape` sizes work relatively and
 states no minutes, hours, days or weeks in an estimate. On, it may estimate in
-time units. A time budget you state is kept in your words either way.
+time units. A time budget you state is kept in your words either way. Set it
+per user with the `userConfig` option, or for a repository with a `time_units`
+key in `docs/conventions/adhd.yaml` (schema: `schemas/adhd.schema.json`), which
+wins over the option.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

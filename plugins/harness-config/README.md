@@ -245,8 +245,9 @@ first shipper is this marketplace's `guardrails` plugin.
 
 One `userConfig` option, `time_units` (default off): off, `audit-automation-gaps` sizes each
 implementation plan as Small, Medium or Large; on, it may state the size in time units. A time
-budget you state is kept in your words either way. One tracked consumer-project file,
-`audit-pass`'s suppression record, above.
+budget you state is kept in your words either way. A `time_units` key in
+`<home>/harness-config.yaml` sets it for a repository and wins over the option. That file is the
+one tracked consumer-project file; it also holds `audit-pass`'s suppression record, above.
 Persistent plugin state: `audit-pass` writes its run reports and manifests under
 `${CLAUDE_PLUGIN_DATA}`, which resolves under `~`, outside a target below the home directory and
 inside one at or above it. `audit-instructions` keeps its run files under
