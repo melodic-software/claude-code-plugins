@@ -1176,6 +1176,8 @@ merge:
         class: gate
       - glob: ".github/scripts/pr-merge/rate-stop.bash"
         class: gate
+      - glob: ".github/scripts/pr-merge/retry-call.bash"
+        class: gate
       - glob: ".github/scripts/pr-merge/refire-refused.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/rotation.mjs"

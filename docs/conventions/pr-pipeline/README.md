@@ -3130,6 +3130,13 @@ then ends red at its first step and sends nothing to GitHub. This holds for any 
 rest of that run, even once the reset has passed: a run is short and the next scheduled run starts
 the sweep again, so stopping is safe and costs at most one sweep.
 
+The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-call.bash`: at most
+three tries, waiting out a recorded rate stop or a capped, fully jittered backoff, within 60 s of
+waits in all. Each try reads `gh pr list` and the open count, and passes only when the two agree
+and the listing is under its limit. A listing still unknown after that ends the step green with a
+`::notice::` hold: the job lists, gates, files and merges nothing, and the next scheduled run lists
+again. A failed read and a past-budget rate stop no longer end this job red.
+
 ## WIP cap
 
 The optional `wip` block sizes the issue lane's work in progress from the lane merge rate. The WIP

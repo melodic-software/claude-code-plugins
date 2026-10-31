@@ -1,7 +1,7 @@
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
 // wait on the candidate listing or the gate loop (#8299; a GraphQL 502 on the
 // listing once held back every re-dispatch), the listing retries a failed
-// `gh pr list` and fails with one clear error, the run logs its API cost
+// `gh pr list` and an unknown listing holds the job green, the run logs its API cost
 // through the shared action, and the run cache carries the verdict reads that
 // never change to the next run.
 import assert from "node:assert/strict";
@@ -91,14 +91,15 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
 // fails its first `failures` calls and then answers `prs` (by default one pull
-// request of the lanes App's), with `.base` pointing at this checkout,
+// request of the lanes App's) and whose open-count read answers `total` (by
+// default as many as `prs`; null fails it), with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
 const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
 const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR) => {
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
@@ -106,12 +107,14 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
     writeFileSync(join(dir, "prs.json"), JSON.stringify(prs));
     writeFileSync(
       join(bin, "gh"),
-      `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
+      `#!/usr/bin/env bash\n` +
+        `if [ "$1" = api ]; then ${total === null ? 'echo "HTTP 502: Bad Gateway" >&2; exit 1' : `echo ${total}; exit 0`}; fi\n` +
+        `echo "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
         `cat "${dir}/prs.json"\n`,
     );
-    writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/sleeps"\n`);
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
     if (edit === undefined) {
@@ -153,6 +156,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
       stdout: result.stdout,
       stderr: result.stderr,
       calls: Number(read("calls") || 0),
+      sleeps: read("sleeps").split("\n").filter(Boolean).map(Number),
       args: read("args"),
       candidates: read("candidates.json"),
       listed: numbers("candidates.json"),
@@ -172,6 +176,62 @@ test("the listing retries a failed gh pr list", () => {
   // Three tries of the one list.
   assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
+  assert.doesNotMatch(run.output, /held/);
+  // Two capped waits with full jitter, in place of the fixed 15 s and 30 s.
+  assert.equal(run.sleeps.length, 2);
+  assert.ok(run.sleeps[0] <= 15 && run.sleeps[1] <= 30, String(run.sleeps));
+});
+
+// Unknown holds the job: green, a notice, and no count or candidate for any
+// later step (each hold below; the steps' gates are the next test's).
+const assertHeld = (run) => {
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^::notice title=Merge lane hold::/m);
+  assert.doesNotMatch(run.stdout, /^::error title=GitHub rate limit::gh pr list/m);
+  assert.match(run.output, /^held=true$/m);
+  assert.doesNotMatch(run.output, /^count=/m);
+  assert.equal(run.prefiltered, false);
+  assert.equal(run.candidates, "");
+};
+
+test("a listing with pull requests missing from a 200 holds the job, and the next complete read clears it", () => {
+  const degraded = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2);
+  assertHeld(degraded);
+  // A count that moved between the two reads gets the retries before it holds.
+  assert.equal(degraded.calls, 3);
+  assert.match(degraded.stderr, /gh pr list holds 1 of 2 open pull requests/);
+  const next = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 1);
+  assert.equal(next.status, 0, next.stderr);
+  assert.doesNotMatch(next.stdout, /::notice title=Merge lane hold::/);
+  assert.doesNotMatch(next.output, /held/);
+  assert.match(next.output, /^count=1$/m);
+  assert.deepEqual(next.listed, [7]);
+});
+
+test("a repeated pull request does not stand in for a missing one", () => {
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, [listed(7, "app/melodic-automation-lanes"), listed(7, "app/melodic-automation-lanes")], 2));
+});
+
+test("a listing whose open count cannot be read holds the job", () => {
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, LANES_PR, null));
+});
+
+// Everything after the listing that reads, writes or files waits on the hold,
+// directly or through a step that does; only the two cleanup steps do not.
+test("no step after the listing acts on a held listing", () => {
+  const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1);
+  assert.ok(after.length > 20);
+  const cleanup = ["Log the API budget at job end", "Revoke the lane token"];
+  const gated = new Set();
+  for (const { name, block } of after) {
+    if (cleanup.includes(name)) continue;
+    const condition = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${block}\n`)?.[1] ?? "";
+    const id = /\n {8}id: (\S+)/.exec(block)?.[1];
+    const direct = condition.includes("steps.candidates.outputs.held != 'true'");
+    const follows = [...gated].some((other) => new RegExp(`steps\\.${other}\\.(outcome|outputs)`).test(condition));
+    assert.ok(direct || follows, `${name}: ${condition}`);
+    if (id) gated.add(id);
+  }
 });
 
 // GitHub Support's audit item 7: one listing of every open pull request into
@@ -255,12 +315,10 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-test("a listing that may be cut short stops red", () => {
+test("a listing that may be cut short holds the job", () => {
   const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
-  const run = runListing(0, undefined, undefined, {}, undefined, many);
-  assert.equal(run.status, 1);
-  assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests/m);
-  assert.equal(run.prefiltered, false);
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, many));
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, many, 1500));
 });
 
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
@@ -283,23 +341,21 @@ test("the mode step outputs merge.lane-prs as resolve-config resolved it, and th
   assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
 });
 
-// A rate limit is never retried, gh's bare 429 message included.
-test("a rate-limited listing stops red after one call, a bare HTTP 429 included", () => {
+// A stop past the budget is not slept: one call, gh's bare 429 message included.
+test("a rate-limited listing holds the job after one call, a bare HTTP 429 included", () => {
   for (const failure of ["gh: Too Many Requests (HTTP 429)", "API rate limit exceeded for installation ID 1. (HTTP 403)"]) {
     const run = runListing(3, undefined, undefined, {}, failure);
-    assert.equal(run.status, 1, failure);
+    assertHeld(run);
     assert.equal(run.calls, 1, failure);
-    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list was rate limited \(every pool until /m, failure);
-    assert.equal(run.prefiltered, false);
+    assert.deepEqual(run.sleeps, [], failure);
+    assert.match(run.stdout, /^::notice title=Merge lane hold::.*every pool until /m, failure);
   }
 });
 
-test("the listing fails with one clear error after three failed tries", () => {
+test("the listing holds the job after three failed tries", () => {
   const run = runListing(3);
-  assert.equal(run.status, 1);
+  assertHeld(run);
   assert.equal(run.calls, 3);
-  assert.match(run.stdout, /^::error::gh pr list failed 3 times/m);
-  assert.equal(run.prefiltered, false);
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
@@ -1311,7 +1367,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
-  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success'\n/);
+  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success' && steps\.candidates\.outputs\.held != 'true'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.
