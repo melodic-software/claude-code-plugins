@@ -116,6 +116,7 @@ Extraction pipeline uses a **provider adapter pattern**. Platform-specific code 
 extraction/
   adapters/
     adapter-contract.js       # JSDoc interface + validation + factory
+    registry.js               # Static platform-id to adapter map; an unknown id resolves to no adapter and fails closed
     dometrain.js              # Thin adapter: composes mux (player) + clerk (auth)
     teachable.js              # Thin adapter: composes hotmart (player) + teachable-sso (auth)
   lib/
