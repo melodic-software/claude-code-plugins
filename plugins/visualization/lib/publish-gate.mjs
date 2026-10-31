@@ -126,12 +126,12 @@ const BLOCKING = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
 const WARN_PATTERN = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
 const WARN_ONE = WARN_PATTERN && new RegExp(WARN_PATTERN.source, WARN_PATTERN.flags.replace("g", ""));
 const WARN_ALL = WARN_PATTERN && new RegExp(WARN_PATTERN.source, `${WARN_PATTERN.flags.replace("g", "")}g`);
-// Markup and escapes only. scanLeak reads bytes as latin1, so each byte of a UTF-8 character is
-// its own code point: findSecret's NFKC and invisible-character passes still run on that text,
-// but on code points such as 0xAD, 0xA0 and 0xBD that ordinary UTF-8 continuation bytes produce,
-// so counting them here would block a plain assignment on any line of non-ASCII text. A real UTF-8 look-alike (a zero-width
-// space E2 80 8B, a fullwidth letter EF BD xx) reaches those passes as two or three latin1 code
-// points they leave alone, so the leak scan does not fold it: a credential hidden that way passes.
+// Markup and escapes only. classify reads latin1, so each byte of a UTF-8 character is its own
+// code point: findSecret's NFKC and invisible-character passes still run on that text, but on
+// code points such as 0xAD, 0xA0 and 0xBD that ordinary UTF-8 continuation bytes produce, so
+// counting them here would block a plain assignment on any line of non-ASCII text. A real UTF-8
+// look-alike reaches those passes as latin1 code points they leave alone; scanLeak's UTF-8 pass
+// is what folds it.
 const folds = (line) => /<[^<>]*>|&#?\w+;|\\u[0-9a-f]{4}|\\[^\sA-Za-z0-9/."']/i.test(line);
 const credential = (label) => ({ block: label, credential: true });
 
@@ -218,16 +218,23 @@ export function deeperLeak(text, diff = false) {
 }
 
 /**
- * Every pass over `bytes`, read as latin1: `{block, credential}` naming the
- * first blocking label (credential true when it asks for rotation),
- * `{warn: true}` for a plain assignment alone, else `{}`. Never the match.
+ * Every pass over `bytes`: `{block, credential}` naming the first blocking
+ * label (credential true when it asks for rotation), `{warn: true}` for a
+ * plain assignment alone, else `{}`. Never the match. Latin1 keeps every byte
+ * for the byte patterns. A UTF-8 reading then gives NFKC and the invisible
+ * strip real characters, for credential formats only, so a look-alike blocks
+ * and non-ASCII text beside a plain assignment still only warns.
  */
 export function scanLeak(bytes, { diff = false } = {}) {
-  const text = Buffer.from(bytes).toString("latin1");
+  const buffer = Buffer.from(bytes);
+  const text = buffer.toString("latin1");
   const { block, credential: format, warn } = classify(text);
   if (block) return { block, credential: format };
   const deep = deeperLeak(text, diff);
   if (deep) return credential(deep);
+  const decoded = buffer.toString("utf8");
+  const hidden = decoded !== text && firstHit(BLOCKING, decoded);
+  if (hidden) return credential(hidden[0]);
   return warn ? { warn: true } : {};
 }
 
