@@ -2,9 +2,9 @@
   "skill": "knowledge:map-corpus",
   "plugin": "knowledge",
   "skill_dir": "plugins/knowledge/skills/map-corpus",
-  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, course-digest, docpage-digest, video-digest.",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: distill, course-digest, docpage-digest, video-digest.",
   "competitors": [
-    "knowledge:book-distill",
+    "knowledge:distill",
     "knowledge:course-digest",
     "knowledge:docpage-digest",
     "knowledge:video-digest"

@@ -1,0 +1,10 @@
+{
+  "name": "@melodic/node-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "description": "Shared launcher and dependency installer for the knowledge plugin's extraction packages"
+}

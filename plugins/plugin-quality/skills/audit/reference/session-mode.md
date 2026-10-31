@@ -43,21 +43,19 @@ ends, so a `session` run inside the live session does not find them from the obs
 
 Run at session end, over what the session used.
 
-1. **Locate the parser (reuse, no second parser).** `parse_transcript.py` is owned by
-   `/session-flow:retro`. It sits at `skills/retro/scripts/parse_transcript.py` inside the
-   session-flow plugin. Find the installed copy by searching the installed plugins for that
-   relative path under a `session-flow` directory (the install layout is Claude Code's, so this
-   states no path), taking the highest version when several match, and confirm it with
-   `<python> <path> --help` (exit 0; the parser needs Python 3.10+).
-   No hit, or a non-zero exit: say the parser is absent and stop; the operator can still run
+1. **Find the ledger.** Session-flow's running-retro ledger is a documented artifact: the file
+   in the running-retro ledger directory (default `.work/running-retros/`) matching
+   `*-running-retro-*.md` whose frontmatter `session_id` is this session. `/session-flow:running-retro`
+   not available: say the session-usage capability is missing and stop; the operator can still run
    `/plugin-quality:audit <plugin>:<component>` by name.
-2. **Parse this session.** `<python> <path> <session_id> <session-data-dir>`, with the session
-   data directory resolved as `/session-flow:retro` "Paths" resolves it. Read
-   `data.plugin_usage`: `skills` maps `<plugin>:<skill>` to an invocation count, from the
-   model's Skill tool calls and the operator's typed `/<plugin>:<skill>` commands. Discovery is by
+2. **Read `plugin_usage`.** The ledger's frontmatter key `plugin_usage` is one line of JSON:
+   `skills` maps `<plugin>:<skill>` to an invocation count, from the model's Skill tool calls and
+   the operator's typed `/<plugin>:<skill>` commands, as of the last checkpoint. Discovery is by
    skill invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot
-   be attributed to a plugin. A missing `plugin_usage` key means the found parser predates it: say
-   so and stop.
+   be attributed to a plugin. No ledger, or no such key: tell the operator to run
+   `/session-flow:running-retro` and re-run this mode, name the by-name form above, and stop. An
+   armed observer writes the ledger only after the session ends, so inside the live session the
+   key comes from a checkpoint.
 3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. Drop
    this audit's own row unless the operator adds it back. A plugin whose hooks ran but whose
    skills did not is added by hand at the confirm step.
@@ -66,14 +64,11 @@ Run at session end, over what the session used.
    applied unconfirmed while an operator is present.
 5. **Feed the pipeline.** The confirmed list is the resolved target list of the SKILL's Target
    resolution: one packet per target, steps 1 to 3 per target, steps 4 to 6 once over the union.
-   When the session's running-retro ledger (found by `session_id`) exists, add it to each
-   target's step-1 evidence as a source of transcript excerpts. An armed observer writes it only
-   after the session ends, so a run inside the live session has it only from an in-session
-   `/session-flow:running-retro` checkpoint. The audit never waits for the ledger and never
-   fabricates one; without it the evidence is the transcript itself.
+   Add the ledger to each target's step-1 evidence as a source of transcript excerpts. The audit
+   never waits for a ledger and never fabricates one.
 
 Unattended, the discovered list stands as the confirmed list. Record it in `evidence.md` as
-auto-resolved with its source (the parser run), the same treatment step 4 gives a safe default.
+auto-resolved with its source (the ledger), the same treatment step 4 gives a safe default.
 
 ## Evidence bar
 

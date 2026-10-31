@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.8] - 2026-10-31
+
+### Changed
+
+- `stateless` offers `/memory` as a suggest sentence, `If /memory is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
 ## [2.0.7] - 2026-10-31
 
 ### Changed

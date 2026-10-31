@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/upgrade.md:3 rule-curly-artifacts (unicode artifact) It’s. docs/upgrade.md:5 rule-curly-artifacts “fast mode”. Read-only; run fix to straighten them.",
+      "why": "both lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/upgrade.md:5 rule-curly-artifacts.",
+      "why": "line 3 missing"
+    },
+    {
+      "answer": "Curly quotes are fine typography here; no findings.",
+      "why": "dismissed"
+    }
+  ]
+}

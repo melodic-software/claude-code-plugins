@@ -1,0 +1,123 @@
+{
+  "skill": "code-tidying:tidy-diff",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/tidy-diff",
+  "ranking_note": "Authored from the before description at merge base 222041a038c4027dd6769cfa304a6b0a2758e72a, frozen before any after-version run; protocol per /playbooks:skill-authoring skill-criteria step 3. validate and score read the listing at skill_dir in the working tree, so run them against the version being measured. Positives turn on the discriminators: a caller-named file-and-line list, before the commit, no branch or base ref, an unattended lane. Negatives aim one near-miss at each model-invoked competitor (setup is user-invoked only), plus the commit step that follows this skill and a cleanup of the session's own diff, which the bundled simplify owns.",
+  "competitors": [
+    "code-tidying:tidy",
+    "code-tidying:batch-simplify",
+    "code-tidying:dissolve-comments",
+    "code-tidying:audit-comment-residue",
+    "code-tidying:audit-dead-code"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here is lines.tsv with the hunks I touched in api/handlers.py; clean up just those lines, then I'll commit."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I make the commit, polish only the lines I changed. The ranges are in changed.tsv."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "HEAD is detached here and there's no base branch to diff against. Tidy the hunks listed in /tmp/hunks.tsv and don't stage anything."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Issue lane step: run the pre-commit tidy over rows.tsv with a budget of 15 turns."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My change touches src/cache.ts lines 40-58 and docs/cache.md lines 3-9. Tidy those ranges only, nothing else in the files."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run tidy-diff on the added-lines output I saved to scope.tsv."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The working tree has my uncommitted fix; here's the file:line list of what I added. Make those lines cleaner before the single commit goes up."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Unattended worker: given hunks.tsv, apply safe simplifications and drop pointless comments in only those lines, and report what you left as proposals."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tighten the prose in the markdown lines I edited (listed in lines.tsv) and tidy the code lines too, ahead of committing."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Pick an area of the repo and do a few behavior-neutral refactors, then open a PR for them."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify everything that changed on this branch over the last two weeks, grouped by language."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This module is drowning in agent-written comments. Strip the useless ones across the whole file and rename things so the rest can go."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Flag comments in my code that only make sense if you've read the chat or the ticket, without editing anything."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which exported functions in this TypeScript package does nothing call anymore?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Commit my staged changes with a conventional commit message."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look over the code you just wrote in this session and simplify it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Sweep the whole services/ directory for simplification opportunities."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review this pull request for correctness bugs and leave comments."
+    }
+  ]
+}

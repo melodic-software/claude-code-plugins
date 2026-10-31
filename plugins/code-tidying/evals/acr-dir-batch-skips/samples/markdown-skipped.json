@@ -5,12 +5,23 @@
     },
     {
       "answer": "NOTES.md is markdown, so it is skipped here; /docs-hygiene:audit-noise covers it."
+    },
+    {
+      "answer": "Skipped: NOTES.md (markdown; /docs-hygiene:audit-noise covers it).\nIt holds an aside to Priya saying the deploy script used to rsync everything."
     }
   ],
   "fail": [
     {
       "answer": "Stale or narrative comments in scripts/:\n- NOTES.md: \"As you asked, Priya, the deploy script used to rsync everything\" (conversational)\n- deploy.sh line 5: \"we switched from rsync to scp\" (history)\n- deploy.sh line 10: \"Copied from the ops runbook script.\" (origin)\n- gen_client.py line 8: \"renamed from ApiClient\" (history)",
       "why": "audited the markdown file"
+    },
+    {
+      "answer": "NOTES.md was skipped.\n\n| Tier | Shape | Line | Excerpt |\n|------|-------|------|---------|\n| 1 | conversational-antecedent | 3 | \"As you asked, Priya\" |",
+      "why": "says skipped, then reports the markdown line as a finding row"
+    },
+    {
+      "answer": "NOTES.md is markdown, which this skill skips; flagging it anyway:\n- NOTES.md: \"As you asked, Priya, the deploy script used to rsync everything\" (conversational)",
+      "why": "says skipped, then reports the markdown line as a finding bullet"
     }
   ]
 }

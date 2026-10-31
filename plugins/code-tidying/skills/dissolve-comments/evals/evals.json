@@ -100,7 +100,7 @@
     {
       "id": 9,
       "name": "does-not-treat-heredoc-body-as-comments",
-      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell test script that writes a fixture with cat >\"$F\" <<'EOF' whose body includes the lines '# used to buffer; now flushes' and '# as you asked, retry three times', followed by EOF. Above a later command the script has a real restating comment '# print the result' over 'echo \"$result\"'. The tooling probe reports pygments present.)",
+      "prompt": "/code-tidying:dissolve-comments\n\n(The uncommitted diff contains a shell test script that writes a fixture with cat >\"$F\" <<'EOF' whose body includes the lines '# used to buffer; now flushes' and '# as you asked, retry three times', followed by EOF. Above a later command the script has a real restating comment '# print the result' over 'echo \"$result\"'. The tooling probe reports pygments present and tree-sitter present for bash.)",
       "narration": true,
       "expectations": [
         "Does not classify, count, or delete any line inside the heredoc body, because those lines are string data the script writes, not comments",

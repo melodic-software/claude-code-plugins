@@ -6,7 +6,7 @@
  * Example:
  *   node build-course-json.js \
  *     --course-url "https://www.courses.example.tech/courses/enrolled/2518872" \
- *     --output-dir "<library-dir>/courses/<instructor>/<course-slug>"
+ *     --output-dir "<work-root>/courses/<platform>/<slug>"
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";

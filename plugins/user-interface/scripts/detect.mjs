@@ -358,14 +358,38 @@ const fromFileOr = (file, args) => (file ? readFileSync(file, "utf8") : claude(a
 // skill detect onto the skills directories, so a team row must not reach outside them.
 const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 const nameOf = (detect) => (detect.includes("@") ? detect.slice(0, detect.lastIndexOf("@")) : detect);
+/** The plugin or skill name a row's id names: `name@market` for a plugin, `/plugin:skill` or `/skill`. */
+const idName = (row) => (row.kind === "plugin" ? nameOf(row.id) : row.id.match(/^\/([^:]+)/)?.[1]);
+
+/** Why the routing-as-data team-file limit refuses a merged team row, one `rule: reason` string
+ * per broken rule ([] admits it); the rule names match user-experience's team-policy.mjs. `present`
+ * is the row's own presence from its kind and detect, null when the installed list is unreadable.
+ * Team values appear in reasons as JSON strings. */
+function teamRowRejections(row, bundled, present) {
+  const id = JSON.stringify(row.id);
+  const sameId = bundled.filter((b) => b.id === row.id);
+  const base = sameId.find((b) => b.concern === row.concern);
+  const reasons = [];
+  if (!sameId.length) {
+    const ownName = ["plugin", "skill"].includes(row.kind) && idName(row) === nameOf(row.detect);
+    if (present === null) reasons.push(`id-matches-bundled-or-installed: id ${id} matches no bundled row, and the installed list could not be read to check it against`);
+    else if (!(ownName && present)) reasons.push(`id-matches-bundled-or-installed: id ${id} matches no bundled row and no installed plugin or skill`);
+  }
+  if (row.kind === "tool" && base?.kind !== "tool") reasons.push(`no-new-tool-rows: a team file may not add a kind: tool row (${row.concern} ${id})`);
+  const same = base ?? sameId[0];
+  const changed = same ? ["kind", "detect", "account"].filter((k) => row[k] !== same[k]) : [];
+  if (changed.length) reasons.push(`bundled-id-keeps-kind-detect-account: a team row may not change ${changed.join(", ")} of bundled id ${id}`);
+  return reasons;
+}
 
 /** The routes with the resolved team `routing` applied, per the routing-as-data Team layer: a row
- * with a bundled concern plus id overrides it key by key, a new one adds a row, and `disable` and
- * `deny` skip. checkRouting has already dropped invalid entries. Returns {rows, skipped, notes}:
- * `skipped` lists each route a team entry removed, with the team file as its source, and `notes` the
- * disclosures (a degraded team file, a merged row that fails the row schema). `routingProblems` is
- * checkRouting's count. */
-function applyRouting(bundled, cfg, routingProblems) {
+ * with a bundled concern plus id overrides it key by key, a new one adds a row, each only when
+ * teamRowRejections admits it, and `disable` and `deny` skip. checkRouting has already dropped
+ * invalid entries. Returns {rows, skipped, notes}: `skipped` lists each route a team entry removed,
+ * with the team file as its source, and `notes` the disclosures (a degraded team file, a merged row
+ * that fails the row schema or the team-file limit). `routingProblems` is checkRouting's count;
+ * `presence` maps a row list to each row's own presence. */
+function applyRouting(bundled, cfg, routingProblems, presence) {
   const team = cfg.layers.find((l) => l.name === "team");
   const notes = [];
   if (cfg.home_error) notes.push(`${cfg.home_error}; built-in routes used, with no team overrides or deny floor`);
@@ -383,15 +407,25 @@ function applyRouting(bundled, cfg, routingProblems) {
   const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
   const key = (r) => `${r.concern}\0${r.id}`;
   const byKey = new Map(bundled.map((r) => [key(r), r]));
+  const refuse = (row, errors) => notes.push(`${source}: row ${row.concern} ${row.id} not applied: ${errors.join("; ")}`);
+  const candidates = [];
   (routing.rows ?? []).forEach((row, i) => {
     const merged = { ...byKey.get(key(row)), ...row };
     const errors = validate(full, merged, `routing.rows[${i}]`);
     if (["skill", "plugin"].includes(merged.kind) && typeof merged.detect === "string" && !DETECT_NAME.test(merged.detect)) {
       errors.push(`routing.rows[${i}].detect: must be a plugin or skill name, not a path`);
     }
-    if (errors.length) notes.push(`${source}: row ${merged.concern} ${merged.id} not applied: ${errors.join("; ")}`);
-    else byKey.set(key(merged), merged);
+    if (errors.length) refuse(merged, errors);
+    else candidates.push(merged);
   });
+  if (candidates.length) {
+    const present = presence([...bundled, ...candidates]).slice(bundled.length);
+    candidates.forEach((merged, i) => {
+      const failed = teamRowRejections(merged, bundled, present[i]);
+      if (failed.length) refuse(merged, failed);
+      else byKey.set(key(merged), merged);
+    });
+  }
   const disabled = new Set((routing.disable ?? []).map(key));
   const deny = new Set(routing.deny ?? []);
   const rows = [];
@@ -408,14 +442,23 @@ function applyRouting(bundled, cfg, routingProblems) {
 const project = projectSignals();
 const { rows: bundled } = JSON.parse(readFileSync(ROUTING, "utf8"));
 const { resolved, routingProblems } = opts.config ? config() : {};
-const routing = resolved ? applyRouting(bundled, resolved, routingProblems) : { rows: bundled };
-const found = installed(routing.rows, {
-  pluginRoot: ROOT,
-  home: opts.home,
-  projectDir: opts.project,
-  projectMcpServers: project.mcp_servers,
-  pluginList: () => fromFileOr(opts["plugin-list-json"], ["plugin", "list", "--json"]),
-  mcpList: () => fromFileOr(opts["mcp-list"], ["mcp", "list"]),
-});
+/** A reader that runs once: installed() is asked twice when a team file adds rows. */
+const once = (read) => {
+  let text;
+  return () => (text ??= read());
+};
+const lists = {
+  pluginList: once(() => fromFileOr(opts["plugin-list-json"], ["plugin", "list", "--json"])),
+  mcpList: once(() => fromFileOr(opts["mcp-list"], ["mcp", "list"])),
+};
+const detectRows = (rows) => installed(rows, { pluginRoot: ROOT, home: opts.home, projectDir: opts.project, projectMcpServers: project.mcp_servers, ...lists });
+/** Each row's presence (true, false, or null when unknown) from its own kind and detect: installed()
+ * answers by id, so each row gets an id no other row shares, keeping its prefix for the skill shape. */
+const presence = (rows) => {
+  const { installed: ids } = detectRows(rows.map((r, i) => ({ ...r, id: `${r.id}\u0000${i}` })));
+  return rows.map((r, i) => (ids ? ids.includes(`${r.id}\u0000${i}`) : null));
+};
+const routing = resolved ? applyRouting(bundled, resolved, routingProblems, presence) : { rows: bundled };
+const found = detectRows(routing.rows);
 const { rows: routes, skipped, notes } = routing;
 console.log(JSON.stringify({ project, ...found, ...(resolved && { config: resolved, routes, skipped, ...(notes.length && { routing_notes: notes }) }) }));

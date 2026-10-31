@@ -112,6 +112,9 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
       return first ? [{ number: 7, pull_request: {} }] : [];
     }
+    if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-session`) {
+      return [];
+    }
     if (method === "GET" && route === `/repos/${REPO}/issues/7/timeline`) {
       if (first) {
         seen.timeline += 1;

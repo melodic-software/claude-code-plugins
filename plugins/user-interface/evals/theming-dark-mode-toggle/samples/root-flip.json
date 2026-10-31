@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --surface: oklch(1 0 none);\n  --ink: oklch(0.2 0 none);\n}\n[data-theme=\"dark\"] {\n  --surface: oklch(0.2 0 none);\n  --ink: oklch(0.98 0 none);\n}\n.header, .card { background: var(--surface); color: var(--ink); }\n.button { background: var(--ink); color: var(--surface); }",
+      "why": "one variable set flipped at the root under the attribute the toggle sets, every component reads it"
+    },
+    {
+      "answer": ":root {\n  color-scheme: light dark;\n  --surface: light-dark(#ffffff, #171717);\n  --ink: light-dark(#111111, #fafafa);\n}\n[data-theme=\"light\"] { color-scheme: light; }\n[data-theme=\"dark\"] { color-scheme: dark; }\n.header, .card { background: var(--surface); color: var(--ink); }\n.button { background: var(--ink); color: var(--surface); }",
+      "why": "light-dark() tokens switched through color-scheme, which the toggle sets through the theme attribute"
+    },
+    {
+      "answer": ":root { --bg: #ffffff; --fg: #111111; }\n@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) { --bg: #171717; --fg: #fafafa; }\n}\n:root[data-theme=\"dark\"] { --bg: #171717; --fg: #fafafa; }\n.header, .card { background: var(--bg); color: var(--fg); }\n.button { background: var(--fg); color: var(--bg); }",
+      "why": "an OS default beside a root attribute the toggle sets"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".dark .header { background: #171717; color: #fafafa; }\n.dark .card { background: #171717; color: #fafafa; }\n.dark .button { background: #fafafa; color: #171717; }",
+      "why": "a dark color rule per component"
+    },
+    {
+      "answer": ".card { --bg: #ffffff; background: var(--bg); }\n.dark .card { --bg: #171717; }\n.header { --bg: #ffffff; background: var(--bg); }\n.dark .header { --bg: #171717; }",
+      "why": "near miss: variables, but redefined per component under the dark selector"
+    },
+    {
+      "answer": ":root { --bg: #ffffff; --fg: #111111; }\n@media (prefers-color-scheme: dark) {\n  :root { --bg: #171717; --fg: #fafafa; }\n}\n.header, .card { background: var(--bg); color: var(--fg); }\n.button { background: var(--fg); color: var(--bg); }",
+      "why": "near miss: root variables flipped only inside a prefers-color-scheme query, so the toggle cannot switch them"
+    },
+    {
+      "answer": ":root {\n  color-scheme: light dark;\n  --surface: light-dark(#ffffff, #171717);\n  --ink: light-dark(#111111, #fafafa);\n}\n.header, .card { background: var(--surface); color: var(--ink); }\n.button { background: var(--ink); color: var(--surface); }",
+      "why": "light-dark() tokens with no selector that sets color-scheme, so only the OS setting switches them"
+    },
+    {
+      "answer": "<div className=\"card bg-white dark:bg-neutral-900 text-black dark:text-white\">...</div>",
+      "why": "dark: utility overrides on each component"
+    },
+    {
+      "answer": "Put the colors in CSS variables and swap them on the root when the theme changes.",
+      "why": "the flip only in prose, no CSS"
+    }
+  ]
+}

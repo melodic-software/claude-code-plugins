@@ -186,8 +186,11 @@ severity cannot be calibrated from context, ask one question rather than invent 
 - **This skill**: a five-field report for a defect in the person's code, grounded in their
   repository, filed nowhere unless they ask.
 
-When the defect is in Claude Code itself (the CLI, a built-in command, a bundled skill), offer the
-person `/bug` instead of or alongside this skill; an unattended run records the offer in its output
+When the defect is in Claude Code itself (the CLI, a built-in command, a bundled skill), offer it to
+the person: If /bug is available in your session (gate basis: not gated in the extraction, though a
+host may lack it; records in
+[context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)), you
+can run it instead of or alongside this skill; an unattended run records the offer in its output
 instead of asking. Never run `/bug` on the person's behalf: it packages session history for someone
 outside this repository, and only the person decides what goes and where. Never assume `/bug` is
 present in their host.

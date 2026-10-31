@@ -282,6 +282,85 @@ assert_exit "release of the main worktree is usage (exit 2)" 2 "$?"
 run_claim release "$UNRELATED" --repo-dir "$REPO" --session-id rel-own
 assert_exit "release of a non-worktree path is environment (exit 5)" 5 "$?"
 
+# --- handover: handoff, a new session id, then resume ---------------------------
+
+# The helper armed the lock for the session that wrote the handoff; /clear
+# then starts a new session id in the same terminal.
+git -C "$REPO" worktree add -q "$EXT/wt-hand" -b feat/hand
+HAND_REASON="$(HOSTNAME=testhost bash -c 'source "$1"; worktree_lock_reason worktree-create.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" hand-old)"
+git -C "$REPO" worktree lock --reason "$HAND_REASON" "$EXT/wt-hand"
+run_claim check-enter "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new
+assert_exit "before handover, the resumed session meets a foreign claim (exit 4)" 4 "$?"
+
+run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "handover from the session the lock names succeeds" 0 "$?"
+assert_contains "handover prints a reason naming the new session" "$OUT" "session hand-new since"
+assert_contains "handover keeps the creator the old reason named" "$OUT" "worktree-create.sh:"
+hand_stanza=$(stanza_for wt-hand)
+assert_contains "the tree is still locked after handover" "$hand_stanza" "locked"
+assert_not_contains "the old session no longer holds the lock" "$hand_stanza" "session hand-old since"
+
+run_claim check-enter "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new
+assert_exit "after handover, the resumed session's check-enter exits 0" 0 "$?"
+run_claim check-enter "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-old
+assert_exit "after handover, the old session's check-enter is foreign (exit 4)" 4 "$?"
+
+run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "a repeated handover to the same session is a no-op (exit 0)" 0 "$?"
+
+run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-old --to hand-thief
+assert_exit "handover refuses when the lock names another session (exit 4)" 4 "$?"
+assert_contains "the refusal prints the current reason" "$ERR" "session hand-new since"
+assert_contains "the refused handover left the lock in place" "$(stanza_for wt-hand)" "session hand-new since"
+
+git -C "$REPO" worktree add -q "$EXT/wt-hand-helper" -b feat/hand-helper
+git -C "$REPO" worktree lock --reason "$HELPER_REASON" "$EXT/wt-hand-helper"
+run_claim handover "$EXT/wt-hand-helper" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "handover refuses a lock that names no session (exit 4)" 4 "$?"
+assert_contains "the session-less reason is untouched" "$(stanza_for wt-hand-helper)" "$HELPER_REASON"
+
+git -C "$REPO" worktree add -q "$EXT/wt-hand-bare" -b feat/hand-bare
+run_claim handover "$EXT/wt-hand-bare" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "handover of an unlocked tree is unclaimed (exit 3)" 3 "$?"
+git -C "$REPO" worktree lock "$EXT/wt-hand-bare"
+run_claim handover "$EXT/wt-hand-bare" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "handover of a lock with no reason is refused (exit 4)" 4 "$?"
+
+# A re-lock that fails puts the old reason back. The stub fails only the lock
+# that would name the new session, so the restoring lock reaches real git.
+git -C "$REPO" worktree add -q "$EXT/wt-hand-roll" -b feat/hand-roll
+ROLL_REASON="$(HOSTNAME=testhost bash -c 'source "$1"; worktree_lock_reason worktree-claim.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" roll-old)"
+git -C "$REPO" worktree lock --reason "$ROLL_REASON" "$EXT/wt-hand-roll"
+ROLL_BIN="$TEST_TMPDIR/roll-bin"
+mkdir -p "$ROLL_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  # shellcheck disable=SC2016  # the $3/$4/$6 belong to the generated stub, not here.
+  printf 'if [[ "${3:-}" == worktree && "${4:-}" == lock && "${6:-}" == *"session roll-new since"* ]]; then\n'
+  printf '  echo "stub git: worktree lock refused" >&2\n'
+  printf '  exit 1\n'
+  printf 'fi\n'
+  printf 'exec %q "$@"\n' "$REAL_GIT"
+} >"$ROLL_BIN/git"
+chmod +x "$ROLL_BIN/git"
+PATH="$ROLL_BIN:$PATH_SAVED"
+run_claim handover "$EXT/wt-hand-roll" --repo-dir "$REPO" --session-id roll-old --to roll-new
+roll_rc=$?
+PATH="$PATH_SAVED"
+assert_exit "a failed re-lock is environment (exit 5)" 5 "$roll_rc"
+assert_contains "a failed re-lock restores the old reason" "$(stanza_for wt-hand-roll)" "$ROLL_REASON"
+
+CLAUDE_SESSION_ID=hand-new run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --to hand-next
+assert_exit "handover without --session-id is usage, whatever CLAUDE_SESSION_ID holds (exit 2)" 2 "$?"
+run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new
+assert_exit "handover without --to is usage (exit 2)" 2 "$?"
+run_claim handover "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new --to 'bad id'
+assert_exit "handover with a malformed --to is usage (exit 2)" 2 "$?"
+run_claim check-enter "$EXT/wt-hand" --repo-dir "$REPO" --session-id hand-new --to hand-next
+assert_exit "--to outside handover is usage (exit 2)" 2 "$?"
+run_claim handover "$REPO" --repo-dir "$REPO" --session-id hand-old --to hand-new
+assert_exit "handover of the main worktree is usage (exit 2)" 2 "$?"
+
 # --- stale: read-only stale-lock detector -------------------------------------
 
 CFG="$TEST_TMPDIR/harness-config"

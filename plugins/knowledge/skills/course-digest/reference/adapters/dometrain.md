@@ -12,7 +12,7 @@ Video player is NOT a standard `<video>` element. It's a web component with a sh
 
 ## Course structure extraction (Phase 1)
 
-Sidebar contains full curriculum. Read page with `read_page` and look for:
+Sidebar contains full curriculum. Take an accessibility snapshot of the page with the browser tool (SKILL.md Prerequisites) and look for:
 
 **Modules:** Each module is a section with a heading followed by a progress indicator like `(2/8)`.
 

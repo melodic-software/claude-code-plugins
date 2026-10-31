@@ -1128,6 +1128,8 @@ assert_present 'discipline.md defines the HIGH (single source) level' \
   'skills/research/context/discipline.md' '^- \*\*HIGH \(single source\)\*\*'
 assert_present 'discipline.md lets a flagged claim ground a code edit with the flag carried' \
   'skills/research/context/discipline.md' 'may ground a code edit'
+assert_present 'an authoritative paper'"'"'s reported result can carry the flag' \
+  'skills/research/context/discipline.md' '^\*\*A paper'"'"'s reported result can be a content claim\.\*\*.*authoritative on its topic'
 assert_present 'discipline.md keeps behavior claims at two corroborators' \
   'skills/research/context/discipline.md' '^\*\*A behavior claim is not a content claim\.\*\*'
 assert_present 'the corroboration rule points at the exception' \
@@ -1146,7 +1148,7 @@ assert_present 'gotchas name the repost trap' \
   'skills/research/context/gotchas.md' '^- \*\*Counting a repost as the second source\.\*\*'
 assert_present 'the deep tier keeps the flag through the synthesis' \
   'skills/research/context/deep-tier.md' 'keeps its `single source` flag'
-for name in single-source-content-claim-passes-flagged non-anthropic-first-party-content-claim-passes-flagged behavior-claim-from-one-page-is-a-gap; do
+for name in single-source-content-claim-passes-flagged non-anthropic-first-party-content-claim-passes-flagged behavior-claim-from-one-page-is-a-gap authoritative-paper-reports-claim-passes-flagged non-authoritative-paper-reports-claim-is-a-gap; do
   assert_present "research evals grade $name" 'skills/research/evals/evals.json' "\"name\": \"$name\""
 done
 single_owners="$(surface | xargs grep -lE -- "^$single_heading$" 2>/dev/null | wc -l | tr -d ' ')"
