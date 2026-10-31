@@ -1174,6 +1174,18 @@ def human_blocking_logins(
     )
 
 
+def vetoing_logins(items: Iterable[tuple[str, str, str]]) -> list[str]:
+    """The logins, sorted, whose newest (login, time, body) item with text
+    says "do not merge"."""
+    newest: dict[str, tuple[str, str]] = {}
+    for login, at, body in items:
+        if body.strip() and (login not in newest or at >= newest[login][0]):
+            newest[login] = (at, body)
+    return sorted(
+        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    )
+
+
 def human_veto_logins(
     repo: str,
     number: int,
@@ -1192,18 +1204,12 @@ def human_veto_logins(
     MEMBER or COLLABORATOR counts: on a public repository anyone else's
     comment holds nothing.
     """
-    newest: dict[str, tuple[str, str]] = {}
-    for login, at, body, association in _human_comments(
-        repo, number, reviews, review_comments, actor_config
-    ):
-        if association not in merge_policy.BLOCKER_ASSOCIATIONS:
-            continue
-        if not body.strip():
-            continue
-        if login not in newest or at >= newest[login][0]:
-            newest[login] = (at, body)
-    return sorted(
-        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    return vetoing_logins(
+        (login, at, body)
+        for login, at, body, association in _human_comments(
+            repo, number, reviews, review_comments, actor_config
+        )
+        if association in merge_policy.BLOCKER_ASSOCIATIONS
     )
 
 
@@ -3986,7 +3992,7 @@ def close_capped(
     label hold it open, and the issue's hold labels
     (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
     a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
-    member's blocking comment; an unreadable one holds) keeps it open first,
+    member's veto; an unreadable one holds) keeps it open first,
     as enable-auto-merge.mjs decide() does. An unreadable human-gated label
     raises `PostMergeReadError`: a default could miss the mapped one."""
     if hold := merge_policy.entry_hold(
@@ -3996,6 +4002,7 @@ def close_capped(
         self_logins=inputs.get("self_logins") or frozenset(),
         permission=inputs.get("permission"),
         queued=False,
+        authority=inputs.get("authority"),
     ):
         return {"closed": False, "reason": f"held: {hold}"}
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
@@ -4315,6 +4322,7 @@ def unattended_writes(
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
+                        authority=inputs.get("authority"),
                     ) or (
                         _queued_verify_hold(verifier, n)
                         if verifier is not None and n != number

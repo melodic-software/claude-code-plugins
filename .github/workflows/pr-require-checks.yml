@@ -1052,6 +1052,8 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           config: .editorconfig-checker.json
+          # The Node.js release keyring: binary, a byte-exact upstream copy.
+          exclude: (^|/)\.github/actions/setup-pinned-node/pubring\.kbx$
 
       # The path-scoped readers gate on the filter group of what they read:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
