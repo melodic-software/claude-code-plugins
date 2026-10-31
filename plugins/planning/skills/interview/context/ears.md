@@ -50,3 +50,14 @@ Follow [`<plugin-root>/context/authoring-formats.md`](../../../context/authoring
 "Resolution ladder" (`<plugin-root>` per SKILL.md "Spoke paths"; `<project-root>` is the project
 root SKILL.md "Acceptance-criteria capture" renders). This skill takes no format argument. Default
 and every degrade: `free-text`, untagged plain-bullet criteria, exactly today's shape.
+
+Before reading `AGENTS.md`, `CLAUDE.md` or any `authoring-formats/README.md` for this key, run the
+ladder's step-2 resolver, dropping `--root "<project-root>"` when the project root is unset:
+
+```bash
+bash "<plugin-root>/lib/resolve-convention-home.sh" --root "<project-root>"
+```
+
+Read `authoring-formats/README.md` only under the home it prints, even when another copy exists
+elsewhere: the pointer line names which home counts. A non-zero exit is a step-6 degrade to
+`free-text` with its cause named, never a reason to hand-parse the root file instead.
