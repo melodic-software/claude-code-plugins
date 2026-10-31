@@ -3,6 +3,14 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.16] - 2026-10-31
+
+### Changed
+
+- `/visualization:present` and `/visualization:visualize` tell the user which layer supplied
+  `medium`, or "shipped default" when no layer set it. The deck's publish gate in `check-deck.mjs`
+  is unchanged.
+
 ## [0.12.15] - 2026-10-30
 
 ### Changed

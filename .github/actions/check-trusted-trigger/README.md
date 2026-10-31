@@ -199,9 +199,12 @@ condition 1 and the actor and author parts of condition 2).
   re-run, or within ten minutes of an upload whose re-run then failed, takes that attempt and is
   vouched for; that includes a same-repository PR branch's workflow granted `actions: write`. It
   re-runs only that run at that head, and `sender`, `workflow_run.actor` and the PR author must
-  still be listed. The recorder records only when the review run that started it is at attempt 1
-  or was re-run by an actor listed as `kind: human` in the default branch's list; another
-  re-runner's re-run of ci-status goes ahead unrecorded and is refused here. This check does not
+  still be listed. The recorder records only when the review run that started it is at attempt 1,
+  was re-run by an actor listed as `kind: human` in the default branch's list, or is the lost-run
+  reconciler's attempt 2 whose `reconcile-rerun-<run id>-2-<head_sha>` record passes the
+  reconciler re-run check above, unchanged (`reconcilerRecordVouches`, run through
+  `reconciler-record.mjs`); another re-runner's re-run of ci-status goes ahead unrecorded and is
+  refused here. This check does not
   repeat that one: the record's listing names neither the review run nor its re-runner.
 
   Residuals: whether one run can write another run's artifacts is unverified, as for the

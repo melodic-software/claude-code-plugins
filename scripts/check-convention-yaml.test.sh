@@ -287,6 +287,17 @@ new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentatio
   put docs/conventions/alpha.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
 run_sut
 if [[ $RC -eq 0 && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a repository bound to Documentation still has docs/conventions/pr-pipeline.yaml checked"
+new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put Documentation/keep.md '# prose' &&
+  put docs/conventions/pr-pipeline.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/pr-pipeline.yaml: does not validate"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="N2c: a home bound through a symlink exits 1"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Real/alpha.yaml 'reject: true'
+ln -s Real "$repo/Alias"
+put AGENTS.md "$(region_for Alias)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"through a symlink"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
 label="a cross-plugin schema is found under the bound home"
 new_repo && put Documentation/beta.yaml 'mode: on' && put Documentation/beta/beta.schema.json '{}' &&
   put AGENTS.md "$(region_for Documentation)"
