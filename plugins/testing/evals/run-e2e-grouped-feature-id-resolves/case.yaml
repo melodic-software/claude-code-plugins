@@ -6,7 +6,7 @@ expected_outcome: "The run takes own driving (app-control not installed, unatten
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/testing:run-e2e unattended billing/export\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/billing/export/csv.py. Do not launch, install or run anything. Since nothing runs here, report each entry point as not driven, with the reason. Name the feature file this run reads for the scenario and write the report lines the run would produce, then stop."
+  prompt: "/testing:run-e2e --unattended billing/export\n\nContext, not part of the scenario: the app-control plugin is not installed. This branch changes only shop/billing/export/csv.py. Do not launch, install or run anything. Since nothing runs here, report each entry point as not driven, with the reason. Name the feature file this run reads for the scenario and write the report lines the run would produce, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 12
   timeout_seconds: 300

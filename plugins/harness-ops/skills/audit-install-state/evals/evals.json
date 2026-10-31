@@ -125,13 +125,13 @@
     },
     {
       "id": 11,
-      "name": "unattended-token-not-a-root",
-      "prompt": "/harness-ops:audit-install-state unattended",
-      "expected_output": "Reads 'unattended' as the skill's own token, not a root path: audits the default root ($CLAUDE_CONFIG_DIR, else ~/.claude), runs install_state.py without 'unattended' in its argv and without --root, and records the person-invoked /doctor suggestion in the report's final section instead of asking whether to run it.",
+      "name": "unattended-flag-not-a-root",
+      "prompt": "/harness-ops:audit-install-state --unattended",
+      "expected_output": "Reads '--unattended' as the skill's own flag, not a root path: audits the default root ($CLAUDE_CONFIG_DIR, else ~/.claude), runs install_state.py without '--unattended' in its argv and without --root, and records the person-invoked /doctor suggestion in the report's final section instead of asking whether to run it.",
       "files": [],
       "expectations": [
-        "Output audits the default root and does not treat 'unattended' as a directory or pass it as --root",
-        "Output does not pass 'unattended' to install_state.py",
+        "Output audits the default root and does not treat '--unattended' as a directory or pass it as --root",
+        "Output does not pass '--unattended' to install_state.py",
         "Output records the /doctor suggestion in the final section of the report without asking the user whether to run it"
       ]
     }
