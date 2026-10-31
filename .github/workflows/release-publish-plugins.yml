@@ -20,8 +20,9 @@ name: release-publish-plugins
 # commit it was cut from; fragments main added since then ride the next
 # release. It also rebuilds one that is not current, conflicted, or failing
 # ci-status on a base behind main; a push run leaves that to a later run while
-# ci-status is pending, since each rebuild cancels the release pull request's
-# running checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2,
+# ci-status is pending or a GitHub Actions check run on the head has not
+# completed, since each rebuild cancels the release pull request's running
+# checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2,
 # and the 2026-10-17, 2026-10-20 and 2026-10-31 amendments). Neither action
 # rebuilds one in the merge queue:
 # .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.

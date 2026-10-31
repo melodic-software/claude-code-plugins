@@ -2,7 +2,7 @@
 
 - Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild),
   2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments) and
-  2026-10-31 (a push run rebuilds unless ci-status is pending), see the amendments below
+  2026-10-31 (a push run rebuilds unless checks are running), see the amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -359,20 +359,31 @@ previous rule made every release stale before its checks finished, so each sched
 rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
 pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.
 
-## Amendment (2026-10-31): a push run rebuilds unless ci-status is pending
+## Amendment (2026-10-31): a push run rebuilds unless checks are running
 
 A push run now rebuilds an open release pull request on the same conditions as a scheduled run,
-unless its GitHub Actions `ci-status` reads pending (`ci-status.sh`: no run yet, or one not
-completed). While it is pending the push run defers to the next scheduled run, as every push run
-did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
+unless its checks are running: its GitHub Actions `ci-status` reads pending (`ci-status.sh`: no run
+yet, or one not completed), or any GitHub Actions check run on the head has not completed
+(`ci-status.sh --unfinished`). While either holds the push run defers to a later run, as every push
+run did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
 "current" rule stands.
 
-The 2026-10-20 rule existed because a rebuild cancels running checks. Once a full run's `ci-status`
-has completed, a rebuild cancels nothing the gate needs: `pr-test-windows.yml` is not in
-`ci-status.needs`, so its cancelled run gates nothing. A release ejected from the queue still waited
-up to three hours for the next scheduled run. A pending read still defers, so fragments landing
-faster than the checks finish cannot cancel them run after run. A failed read of `ci-status` in
-`decide-rebuild.sh` stops the run, on every event. The owner decided this on 2026-10-31.
+`ci-status` alone cannot show a full run in flight: it has no run from that full run until the lanes
+finish. The release build's own pull request edit starts a contract-only run, whose `ci-status` can
+fail with `superseded by full run` at its yield ceiling, so a completed red can stand on the head
+while the lanes run. The release token reads the check-run list already: the queue step reads this
+endpoint with it.
+
+Advisory lanes count, since the read takes every GitHub Actions check run, so a slow one such as
+`pr-test-windows.yml` also defers a rebuild. Between two jobs of a run a head can show no unfinished
+check run for some seconds. A push read landing there rebuilds; the accepted worst case is one
+cancelled run, because the new head reads pending until its own `ci-status` completes.
+
+The 2026-10-20 rule existed because a rebuild cancels running checks. With every check run
+completed there is nothing to cancel, yet a release ejected from the queue waited up to three hours
+for the next scheduled run. A running check still defers, so fragments landing faster than the
+checks finish cannot cancel them run after run. A failed read in `decide-rebuild.sh` stops the run.
+The owner decided this on 2026-10-31.
 
 The 2026-10-17 amendment's "every run" now includes every fragment push: while main keeps moving, a
 failing release pull request is rebuilt by each fragment push that finds its checks finished. A

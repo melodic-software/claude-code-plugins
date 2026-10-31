@@ -5,7 +5,9 @@
 # counts as current.
 # Canned gh responses follow the shapes the script reads: `gh pr list --json`
 # rows, GraphQL PullRequest.isInMergeQueue, and the REST check-runs list
-# (FAKE_RUNS, else one GitHub Actions run concluding FAKE_CI).
+# (FAKE_RUNS, else one GitHub Actions run concluding FAKE_CI; a run with no name
+# is ci-status). FAKE_PAGE_SIZE sets the list's page size, FAKE_UNFINISHED=fail
+# fails only the read that names no check.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,15 +29,16 @@ check() {
   if [[ $2 == "$3" ]]; then ok "$1"; else not_ok "$1: expected [$2], got [$3]"; fi
 }
 
-# The stub gh answers the three reads decide-rebuild.sh makes and applies
-# --jq through jq, as gh does.
+# The stub gh answers the reads decide-rebuild.sh makes and applies --jq through
+# jq once per page, as gh does; only --paginate reads past the first page.
 mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 echo "$*" >>"$GH_LOG"
-jq_expr=. prev=
+jq_expr=. prev= paginate=
 for a in "$@"; do
   [ "$prev" = --jq ] && jq_expr=$a
+  [ "$a" = --paginate ] && paginate=yes
   prev=$a
 done
 case "$1 $2" in
@@ -45,10 +48,19 @@ case "$1 $2" in
   json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
 api\ repos/*)
   if [[ ${FAKE_RUNS:-} == fail ]]; then exit 1; fi
+  if [[ ${FAKE_UNFINISHED:-} == fail && $2 != *check_name=* ]]; then exit 1; fi
   runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
-  # Filter on app_id as the API does, when the query asks for it.
+  # Filter on app_id and check_name as the API does, when the query asks for them.
   app=$(sed -n 's/.*[?&]app_id=\([0-9]*\).*/\1/p' <<<"$2")
-  json=$(jq -c --arg app "$app" '{check_runs: [.[] | select($app == "" or (.app.id | tostring) == $app)]}' <<<"$runs") ;;
+  name=$(sed -n 's/.*[?&]check_name=\([^&]*\).*/\1/p' <<<"$2")
+  all=$(jq -c --arg app "$app" --arg name "$name" '[.[] | select(($app == "" or (.app.id | tostring) == $app) and ($name == "" or (.name // "ci-status") == $name))]' <<<"$runs")
+  size=${FAKE_PAGE_SIZE:-100} page=0
+  while
+    jq -c --argjson from "$((page * size))" --argjson to "$(((page + 1) * size))" '{check_runs: .[$from:$to]}' <<<"$all" | jq -r "$jq_expr"
+    page=$((page + 1))
+    [[ $paginate == yes ]] && (($(jq length <<<"$all") > page * size))
+  do :; done
+  exit 0 ;;
 *) exit 9 ;;
 esac
 jq -r "$jq_expr" <<<"$json"
@@ -254,6 +266,58 @@ echo '# push: current'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0
 check 'push current: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
+
+# lane <status> [app id]: one check run of a lane, not ci-status.
+lane() { printf '{"name":"test-bash","started_at":"2026-10-18T01:00:00Z","status":"%s","conclusion":%s,"app":{"id":%s}}' "$1" "$([[ $1 == completed ]] && echo '"success"' || echo null)" "${2:-15368}"; }
+red="$(run "$t1" failure)"
+
+echo '# push: ci-status completed red while a lane runs'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red,$(lane in_progress)]"
+check 'push red+lane running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+check 'push red+lane running: reads only GitHub Actions runs' 1 "$(grep -c 'check-runs?app_id=15368&filter=latest' "$TMP/gh.log" || true)"
+
+echo '# push: ci-status completed red while a lane waits for a runner'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red,$(lane queued)]"
+check 'push red+lane queued: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+
+echo '# push: main changed a file it changes while a lane runs'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
+check 'push stale+lane running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+
+echo '# push: only another app has a run in progress'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red,$(lane in_progress 99)]"
+check 'push other app running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+echo '# push: every run completed'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red,$(lane completed)]"
+check 'push all completed: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+echo '# push: the run in progress is on a later page'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_PAGE_SIZE=2 FAKE_RUNS="[$red,$(lane completed),$(lane completed),$(lane in_progress)]"
+check 'push page crossed, lane running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+
+echo '# push: every run completed, across pages'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_PAGE_SIZE=2 FAKE_RUNS="[$red,$(lane completed),$(lane completed),$(lane completed)]"
+check 'push page crossed, all completed: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+echo '# push: the check-run list read fails'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red]" FAKE_UNFINISHED=fail
+check 'push list read failure: non-zero exit' 1 "$((RC != 0))"
+check 'push list read failure: no rebuild written' '' "$(val rebuild)"
+
+echo '# schedule: main changed a file it changes while a lane runs'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
+check 'schedule stale+lane running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+check 'schedule stale+lane running: reads no check runs' 0 "$(grep -c 'check-runs' "$TMP/gh.log" || true)"
 
 echo '# workflow_dispatch: main changed a file it changes'
 new_fixture no

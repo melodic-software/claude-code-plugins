@@ -14,7 +14,8 @@
 #            ride the next release (ADR 0048, The release pull request and the
 #            2026-10-20 amendment)
 #   deferred true when a push run would have rebuilt an open one while its
-#            ci-status is pending: each rebuild cancels the release pull
+#            ci-status is pending or any GitHub Actions check run on its head
+#            has not completed: each rebuild cancels the release pull
 #            request's running checks, so a later run decides again: a fragment
 #            push once they finish, or the next scheduled or dispatched run
 #            (ADR 0048, 2026-10-31 amendment). Absent otherwise.
@@ -26,15 +27,20 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # rebuild <head> <ci> <annotation> <why>: rebuild, or on a push with <head>'s
-# ci-status pending leave it to a later run. <ci> is a ci-status already read,
-# or empty. A failed read stops the run, so it never cancels checks it could
-# not see.
+# ci-status pending or any of its check runs unfinished leave it to a later run.
+# <ci> is a ci-status already read, or empty. A failed read stops the run, so it
+# never cancels checks it could not see.
 rebuild() {
-  local head=$1 ci=$2 annotation=$3 why=$4
-  if [[ $GITHUB_EVENT_NAME == push && -z $ci ]]; then
-    ci="$("$here/ci-status.sh" "$head")"
+  local head=$1 ci=$2 annotation=$3 why=$4 unfinished=""
+  if [[ $GITHUB_EVENT_NAME == push ]]; then
+    if [[ -z $ci ]]; then
+      ci="$("$here/ci-status.sh" "$head")"
+    fi
+    if [[ $ci != pending ]]; then
+      unfinished="$("$here/ci-status.sh" --unfinished "$head")"
+    fi
   fi
-  if [[ $ci == pending ]]; then
+  if [[ $ci == pending || -n $unfinished ]]; then
     echo "::notice::$why; its checks are running or have not started, so a later run decides again."
     printf 'rebuild=false\ndeferred=true\n' >>"$GITHUB_OUTPUT"
   else
