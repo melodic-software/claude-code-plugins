@@ -65,9 +65,13 @@ version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort; }
 # where the sides' other edits do.
 set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"version\": \"" v "\"") { done = 1 } 1'; }
 
+# cp below would write through a link, out of the checkout.
+linked() { [[ -L $1/CHANGELOG.md || -L $1/.claude-plugin/plugin.json ]]; }
+
 resolve() {
   local dir=$1 manifest=$1/.claude-plugin/plugin.json changelog=$1/CHANGELOG.md
   local b p m new added side
+  linked "$dir" && return 1
   b=$(version_at "$base" "$manifest") p=$(version_at "$pr" "$manifest") m=$(version_at "$main" "$manifest")
   semver "$b" || return 1
   local bM=${BASH_REMATCH[1]} bm=${BASH_REMATCH[2]} bp=${BASH_REMATCH[3]}
@@ -116,7 +120,8 @@ resolve() {
 fragment_mode=" $(git show "$main:scripts/fragment-plugins.txt" 2>/dev/null | sed 's/#.*//' | tr -s ' \t\r\n' ' ') "
 
 while IFS= read -r dir; do
-  [[ -n $dir && -f $dir/.claude-plugin/plugin.json && -f $dir/CHANGELOG.md ]] || continue
+  [[ -n $dir ]] || continue
+  linked "$dir" || [[ -f $dir/.claude-plugin/plugin.json && -f $dir/CHANGELOG.md ]] || continue
   if [[ $fragment_mode == *" ${dir##*/} "* ]]; then
     echo "left for manual resolution: $dir is in fragment mode; take main's plugin.json and CHANGELOG.md and move the PR's entry into a changelog fragment" >&2
     status=1

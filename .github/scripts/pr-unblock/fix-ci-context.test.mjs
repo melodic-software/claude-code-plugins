@@ -40,7 +40,7 @@ function fakeApi(overrides = {}) {
     12: { id: 12, run_id: 900, head_sha: HEAD },
   };
   return {
-    getPull: async () => overrides.pull ?? { state: "open", head: { sha: HEAD } },
+    getPull: async () => overrides.pull ?? { state: "open", head: { sha: HEAD, repo: { full_name: "o/r" } } },
     listPullCommits: async () => overrides.commits ?? [],
     listCommitCheckRuns: async () => {
       if (overrides.checkRunsError) {
@@ -73,7 +73,14 @@ function fakeApi(overrides = {}) {
   };
 }
 
-const selectWith = (api, maxRounds = 3) => select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds });
+const selectWith = (api, maxRounds = 3) => select({ api, pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds });
+
+test("a head outside this repository stops before any output", async () => {
+  for (const repo of [{ full_name: "fork/r" }, null]) {
+    const api = fakeApi({ pull: { state: "open", head: { sha: HEAD, repo } } });
+    await assert.rejects(selectWith(api), /head is not in this repository/);
+  }
+});
 
 // One unresolved thread on HEAD, opened by `author` in review 500, which the
 // reviewed-head marker confirms, with `replies` after it.
@@ -129,7 +136,7 @@ test("a review-findings read that fails leaves no findings and still proceeds wi
     throw new Error("POST graphql returned 502");
   };
   const lines = [];
-  const result = await select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
+  const result = await select({ api, pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.review_findings, []);
   assert.deepEqual(result.file.checks.map((check) => check.name), ["lint-shell"]);
@@ -322,7 +329,7 @@ test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a 
     "cancelled with no time-limit note": fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled")], annotations: { 12: CANCEL_ONLY } }),
     "a re-run still in progress": fakeApi({ checkRuns: [run(11, "lint-shell", null, { status: "in_progress" })] }),
     "a cut-short listing": fakeApi({ checkRuns: [run(14, "lint-shell", "success")], complete: false }),
-    closed: fakeApi({ pull: { state: "closed", head: { sha: HEAD } }, checkRuns: [] }),
+    closed: fakeApi({ pull: { state: "closed", head: { sha: HEAD, repo: { full_name: "o/r" } } }, checkRuns: [] }),
     held: gatedApi({ login: "kyle-sexton", id: HUMAN, type: "User" }, "feedback-disputed"),
   };
   for (const [name, api] of Object.entries(cases)) {
@@ -350,7 +357,7 @@ test("a check listing that fails to read throws, so main writes no outputs and r
 });
 
 test("a closed pull request is skipped", async () => {
-  const result = await selectWith(fakeApi({ pull: { state: "closed", head: { sha: HEAD } } }));
+  const result = await selectWith(fakeApi({ pull: { state: "closed", head: { sha: HEAD, repo: { full_name: "o/r" } } } }));
   assert.equal(result.decision, "skip");
 });
 
@@ -359,7 +366,7 @@ test("a closed pull request is skipped", async () => {
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
 const gatedApi = (actor, reason) => {
   const api = fakeApi({
-    pull: { state: "open", head: { sha: HEAD }, labels: [{ name: "needs-human" }] },
+    pull: { state: "open", head: { sha: HEAD, repo: { full_name: "o/r" } }, labels: [{ name: "needs-human" }] },
     issueComments: [
       {
         user: APP_USER,
@@ -534,7 +541,7 @@ test("a head with no lane stop gives a weaken-required stop its fresh round, wit
 });
 
 test("the round after a weaken retry stop carries the brief, no PR text, and has no retry left", async () => {
-  const pull = { state: "open", head: { sha: HEAD }, title: "feat: print the new banner", body: "x".repeat(5000) };
+  const pull = { state: "open", head: { sha: HEAD, repo: { full_name: "o/r" } }, title: "feat: print the new banner", body: "x".repeat(5000) };
   const result = await selectWith(fakeApi({ pull, stopRuns: [LANE_STOP], statuses: [weakenStatus({ state: "success", description: "The lane ran again on this head and did not stop" }), weakenStatus()] }));
   assert.equal(result.weakenRetry, false);
   assert.equal(result.modelRung, "1");
