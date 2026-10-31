@@ -14,6 +14,7 @@
 #
 # Exit: always 0. Anything unreadable sets nothing and leaves it to the broker.
 set -uo pipefail
+: "${GITHUB_REPOSITORY:?}" "${GITHUB_OUTPUT:?}"
 
 leave() {
   echo "::notice::$1; the token broker decides"
