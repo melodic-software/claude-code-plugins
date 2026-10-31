@@ -23,11 +23,11 @@ Before writing an assertion, name where its expected value comes from:
 - a value computed by hand, outside the code under test;
 - a known fixture whose content the test did not derive from the code.
 
-If the only way to get the value is to run the code under test, or to repeat its algorithm in the
-test, there is no independent source, and there is no unit test to write. Test at a level that
-has one (a property, a round trip against a specified format, an end-to-end outcome), or leave the
-code untested and say so. Never copy the code's actual output into the expected value: it turns the
-test into a recording of whatever the code did.
+If the only way to get the value is to run the code under test or repeat its algorithm in the
+test, there is no independent source and no unit test to write. Test at a level that has one (a
+property, a round trip against a specified format, an end-to-end outcome), or leave the code
+untested and say so. Never copy the code's actual output into the expected value: that records
+whatever the code did.
 
 ### A test you wrote from code you just wrote
 
@@ -62,18 +62,18 @@ benchmark functions. As of 2026-10-06. Recheck when Hypothesis renames or drops 
 
 When code is replaced, migrated or ported, or pinned before a refactor, the old implementation or
 output recorded from it is the independent source for the new code, so copying that output is
-allowed here. Such a test is a pin: it proves sameness, not correctness, and keeps any bug the old
-code had. Name it as a pin, and before trusting it break the code under test on purpose and watch
-the pin fail. The record is in §4.
+allowed. Such a test is a pin: it proves sameness, not correctness, and keeps any bug the old code
+had. Name it a pin, and before trusting it break the code under test on purpose and watch it
+fail. The record is in §4.
 
 ### A canned response names its source
 
 A stub, fake or recording standing in for an unmanaged dependency (§2) feeds values the code acts
-on, so each canned response names where it came from: a recorded real response replayed read-only
-in CI, the provider's published schema or sandbox, or a contract test both sides run. A response
-written from the same guess about the API as the code passes on the shared mistake. Recordings are
-editable files, so one is independent only while the implementer cannot rewrite it; a re-recorded
-or hand-edited one is a new claim to review. Consumer-driven contract tools such as Pact need the
+on, so each canned response names its source: a recorded real response replayed read-only in CI,
+the provider's published schema or sandbox, or a contract test both sides run. A response written
+from the same guess about the API as the code passes on the shared mistake. A recording is
+independent only while the implementer cannot rewrite it; a re-recorded or hand-edited one is a new
+claim to review. Consumer-driven contract tools such as Pact need the
 provider to run them too, which rules them out for public third-party APIs.
 
 Verification record. Claim: a contract test checks that calls to a test double return what the
@@ -121,8 +121,8 @@ section or its Summary changes.
 ## 4. Refactoring stays inside the loop
 
 Red, green, then refactor, every cycle, one test at a time. Refactoring is not a phase after all
-the tests are written, and writing every test on the list before any implementation is a mistake:
-bulk tests check imagined behavior. Keep the test list; turn one item into a test at a time.
+the tests are written, and writing every listed test before any implementation is a mistake: bulk
+tests check imagined behavior. Keep the test list; turn one item into a test at a time.
 
 Verification record. Claim: Canon TDD is five steps (list, one test, make it pass, "Optionally
 refactor to improve the implementation design", repeat until the list is empty), and "copying
@@ -193,7 +193,7 @@ Also judgment only:
 - a hand-copied inventory (an export list, a manifest, declared capability flags) compared to the
   source: a change detector, unless the list is an external contract (`cant-fail-ok: <why>`), and a
   capability flag is tested by exercising what it promises;
-- a test kept alive only to preserve an export, global or wrapper that no production caller uses.
+- a test kept alive only to preserve an export, global or wrapper that no production caller uses;
 - an absence check with no paired presence case: every assertion checks that a value the subject
   returns or changes is empty or missing (`toEqual([])`, `toBeUndefined`, `is None`,
   `Assert.Empty`), and no case in the test (or its table) shows the same code producing it for
@@ -203,7 +203,7 @@ Also judgment only:
   `expect(validateOrder(noSku).errors).toEqual(['sku required'])`. When the absence is the contract
   and a paired presence case already exists, keep the test; do not delete or rewrite an absence
   assertion for its shape alone. A mock-interaction absence stays under `rule-mock-only-oracle` and
-  §2.
+  §2;
 - assertions that never reach the subject: the subject is never called, or it is called but every
   assertion reads only values the test built (its own literals, fixtures or mocks). Fix: assert what
   the subject returns or changes. `/testing:write`'s hollow-out run shows it: swap the subject's

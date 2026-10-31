@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: cl-no-mutation-gate
+context:
+  scaffold_script: scaffold.sh
