@@ -542,6 +542,21 @@
         "The Step 5 handoff recommends /planning:questionnaire for the deferred retention-window question, alongside the next pipeline step, not in place of it",
         "The run does not invoke /planning:questionnaire or send anything to the DBA itself"
       ]
+    },
+    {
+      "id": 39,
+      "name": "reused-address-stated-literally-and-owner-confirmed",
+      "prompt": "/planning:interview me Add a monthly cost budget with email alerts for the production cloud account.\n\n[Session state: an engineering session in the terminal lane. The survey read `infra/Pulumi.production.yaml:14`, `budgetContactEmail: alerts-old@example.com`, the contact address of an existing budget. Round 3's Q11 recommended \"create the budget now, alerts to the existing budget's address\" and never showed the address. The user replied \"accept all\" to round 3, and Q11 is `answered`. No ledger row, recommendation or Brief draft states `alerts-old@example.com`. The frontier is now empty, so the assumption sweep runs.]",
+      "expected_output": "The sweep returns an `unstated-value` item worded like \"Q11 relies on the existing budget's address but never states it\", even though the user accepted Q11: \"accept all\" accepted a value the user never saw. The skill writes it as a register row at the next contiguous `Q<N>` asking the user to confirm the literal address, recommending `alerts-old@example.com` with its source `infra/Pulumi.production.yaml:14`. Because a contact address is an owner-reserved fact, finding the value in config does not settle it: the run returns to Step 2, does not lock the contract, and nothing is created with the address until the user confirms that literal.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The sweep returns an `unstated-value` item sourced to Q11 that says Q11 relies on the existing budget's address but never states it",
+        "The user's \"accept all\" is not treated as confirming the address",
+        "The item becomes a register row at the next contiguous `Q<N>` (no `S<N>` id in the register) asking the user to confirm the literal address",
+        "The new question states the literal `alerts-old@example.com` and cites `infra/Pulumi.production.yaml:14` as where it was read, never only \"the existing budget's address\"",
+        "The address found in config is not stated as a settled fact with no register row; the run returns to Step 2 and does not lock the contract while that row is `open`"
+      ]
     }
   ]
 }
