@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {"answer": [], "why": "no Edit call"},
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Program.cs", "old_string": "            default:", "new_string": "            case \"branch\" when args.Length > 1 && args[1] == \"start\":\n                return BranchStartCommand.Run(args[2..]);\n            default:"}}],
+      "why": "wires the command in with no process code"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Infrastructure/ProcessRunner.cs", "old_string": "RedirectStandardError = true,", "new_string": "RedirectStandardError = true,\n            RedirectStandardInput = false,\n        };\n        var unused = new ProcessStartInfo(file) {"}}],
+      "why": "an edit inside the helper itself"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "old_string": "// old: Process.Start(\"git\")", "new_string": "var r = ProcessRunner.Run(\"git\", \"push\");"}}],
+      "why": "removes a direct process start; only the new text counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Commands/CommitCommand.cs", "old_string": "var result = ProcessRunner.Run(\"git\", \"commit\", \"-m\", $\"{type}: {message}\");", "new_string": "using var result = Process.Start(\"git\", $\"commit -m \\\"{type}: {message}\\\"\");"}}],
+      "why": "replaces a helper call with a direct process start"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "old_string": "// TODO", "new_string": "var psi = new ProcessStartInfo(\"git\");"}}],
+      "why": "near miss: a second process helper added by edit, absolute path"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Core/Infrastructure/ProcessRunner.cs", "old_string": "// TODO", "new_string": "var psi = new ProcessStartInfo(file);"}}],
+      "why": "near miss: the helper's file name and folder, in another project"
+    }
+  ]
+}

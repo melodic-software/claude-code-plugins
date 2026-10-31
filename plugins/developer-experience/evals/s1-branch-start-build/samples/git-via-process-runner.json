@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "using Tarnquill.Cli.Infrastructure;\n\nnamespace Tarnquill.Cli.Commands;\n\npublic static class BranchStartCommand\n{\n    public static int Run(string[] args)\n    {\n        var fetch = ProcessRunner.Run(\"git\", \"fetch\", \"origin\", \"main\");\n        return fetch.ExitCode == 0 ? 0 : 1;\n    }\n}\n"}}],
+      "why": "the new command runs git through the shared helper"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var push = ProcessRunner.Run( \"git\", \"push\", \"-u\", \"origin\", branch);\n"}},
+        {"tool": "Write", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Infrastructure/ForgeClient.cs", "content": "public static class ForgeClient { }\n"}}
+      ],
+      "why": "absolute path, a space after the parenthesis, and a second file"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var psi = new ProcessStartInfo(\"git\") { ArgumentList = { \"push\" } };\nusing var p = Process.Start(psi);\n"}}],
+      "why": "near miss: starts git itself instead of through ProcessRunner.Run"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var result = ProcessRunner.Run(\"curl\", \"-X\", \"POST\", url);\n"}}],
+      "why": "near miss: uses the helper, but not for git"
+    },
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/Tarnquill.Cli/Program.cs", "old_string": "default:", "new_string": "case \"branch\": return BranchStartCommand.Run(args[2..]);\n            default:"}}],
+      "why": "answer to a different question: only wires the command into Program.cs"
+    }
+  ]
+}

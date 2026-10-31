@@ -1,5 +1,34 @@
 # Changelog for the PR pipeline convention
 
+## [8.18.2] - 2026-10-31
+
+### Changed
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml no longer run a step that fetches pr-merge's
+  carried artifact listing on every run. `verify-cap.mjs` runs `listing-carry.mjs` (provenance
+  checks unchanged, the same 2-minute limit and its own api-calls notice) on the job's first
+  FAIL-cap read only, so a run that skips before any FAIL-cap read spends none of the carry's
+  calls. A failed fetch warns, and the reader lists every page as before.
+
+### Fixed
+
+- `ci-status` no longer tries to turn off an armed pull request's auto-merge on a push: turning
+  it off needs `contents: write`, which the lanes App's arming token holds and `ci-status`'s
+  `GITHUB_TOKEN` deliberately lacks, so the mutation could not succeed. The merge queue's check for
+  a pr-verify pass at the exact head it merges is what holds a new head.
+
+## [8.18.1] - 2026-10-31
+
+### Fixed
+
+- Only a `CRITICAL` security finding holds a pull request for a person, as the owner decided on
+  #11020. In pr-unblock's address-feedback, a disputed `IMPORTANT` security-review finding goes to
+  the adjudicator instead of `feedback-disputed`, and one the fresh fixer's round leaves open fails
+  the head as `feedback-not-converging` instead of `feedback-round-cap`. A `dependencies` flag
+  rated below `CRITICAL` that `hardRequire` does not settle ends `feedback-unadjudicated`, a
+  failing status. pr-merge's `clear-escalations` no longer keeps `feedback-not-landed` for an open
+  `IMPORTANT` thread; a `CRITICAL` or unreadable one still keeps it.
+
 ## [8.18.0] - 2026-10-31
 
 ### Added

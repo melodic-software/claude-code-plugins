@@ -1,7 +1,5 @@
 ---
 type: tool_used
 tool: Write
-input_match: '"content"\s*:\s*"(?:[^"\\]|\\.)*/srv/finance-share'
-min: 0
-max: 0
+input_match: '"content"\s*:\s*"(?=(?:[^"\\]|\\.)*?## [Aa]cceptance [Cc]riteria)(?!(?:[^"\\]|\\.)*?/srv/finance-share)'
 ---

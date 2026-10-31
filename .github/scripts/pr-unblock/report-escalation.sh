@@ -6,7 +6,7 @@
 # file, and never writes to the branch.
 #
 # - route `hold` (only the owner's three reasons: an intent or design
-#   question, a HIGH or CRITICAL security or billing risk, a person's own
+#   question, a CRITICAL security risk or a billing risk, a person's own
 #   thread or hold): hands the PR to a person with one machine-marked comment
 #   holding the reason, the resume key and how to resume, plus the
 #   human-gated role label. A reason the table does not list holds too, with

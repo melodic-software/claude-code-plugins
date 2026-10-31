@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
-import { main } from "./select-trusted-text.mjs";
+import { isDecisionComment, main } from "./select-trusted-text.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -446,4 +446,22 @@ test("a PR number that is not a positive integer exits non-zero", async () => {
   const { code, written } = await filter(load(), { prNumber: "42?x=1" });
   assert.equal(code, 1);
   assert.equal(written, undefined);
+});
+
+// The agent App's sessions may be listed as a bot so a trigger accepts them
+// (#7711); neither its account nor an App-posted comment counts as a decision.
+test("a Decision recorded comment from the agent App's bot, or posted through an App, is not a decision", () => {
+  const humans = new Set([153232337]);
+  const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
+  const AGENT = { id: 349594692, login: "melodic-agent[bot]", type: "Bot" };
+  const VIA_AGENT = { id: 5519429, slug: "melodic-agent", name: "Melodic Agent" };
+  const decision = (user, app) => ({
+    comment: { user, performed_via_github_app: app, body: "**Decision recorded.** Admit it." },
+    lastEditedAt: null,
+    lastEditorId: null,
+  });
+  assert.equal(isDecisionComment(decision(OWNER, null), humans), true);
+  assert.equal(isDecisionComment(decision(AGENT, VIA_AGENT), humans), false);
+  assert.equal(isDecisionComment(decision(AGENT, null), humans), false);
+  assert.equal(isDecisionComment(decision(OWNER, VIA_AGENT), humans), false);
 });
