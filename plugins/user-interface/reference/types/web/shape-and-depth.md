@@ -258,7 +258,7 @@ overlay; rebuild it with `mask-image`.
 
 Every image gets a `1px` low-opacity outline for consistent depth. Light mode: black at 10%. Dark
 mode: white at 10%. Never a tinted neutral (slate, zinc, `#111827`) and never the accent color: a
-tinted line inherits whatever surface sits behind it and ends up looking like grime along the edge
+tinted line inherits whatever surface sits behind it and ends up as a muddy edge
 instead of a clean boundary.
 
 Photos and screenshots should carry the same edge treatment as every other surface: a 1px
