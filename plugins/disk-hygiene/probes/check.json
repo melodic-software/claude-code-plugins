@@ -1,0 +1,126 @@
+{
+  "skill": "disk-hygiene:check",
+  "plugin": "disk-hygiene",
+  "skill_dir": "plugins/disk-hygiene/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-ops:prerequisites (fleet-wide missing-tool report), guardrails:check and bash-format:check (other plugins' hook prerequisite checks), skill-quality:check-prerequisites (skill-quality's own tools), skill-quality:check (skill lint), disk-hygiene:audit and disk-hygiene:clean (directory scans) and machine-health:audit (workstation health). check owns disk-hygiene's own prerequisites (node, bash, Python, launcher registration) and installs nothing, so an install request is a negative. Hook-notice probes simulate the notice as text in the request.",
+  "competitors": [
+    "harness-ops:prerequisites",
+    "guardrails:check",
+    "bash-format:check",
+    "skill-quality:check-prerequisites",
+    "skill-quality:check",
+    "disk-hygiene:audit",
+    "disk-hygiene:clean",
+    "machine-health:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Hook notice: \"disk-hygiene: no usable python found, the engine gate cannot run.\" What's wrong here?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run /disk-hygiene:check."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I trust it to block risky deletes, confirm disk-hygiene's safety gate is really active here."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does this box have node, bash and a new enough Python for the disk-hygiene hooks?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the disk-hygiene hook launcher registered correctly on this machine?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Got a session-start warning that disk-hygiene can't find python. Diagnose it without installing anything."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which Python does the disk-hygiene plugin pick up on Windows, and is it recent enough?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sanity-check disk-hygiene's tool requirements before I run a cleanup."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why might the disk-hygiene protection not be firing? Check its dependencies."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "A hook says shellcheck is missing for bash-format; check that it resolves."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which external tools do my enabled plugins need, and which are missing on this machine?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The guardrails hook says jq is missing; verify node and jq resolve for it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install Python 3.12 for me so the disk-hygiene hooks start working."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan ~/Downloads for leftover junk I can delete."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check that skill-quality's own prerequisites resolve before I lint anything."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Lint this SKILL.md and validate its frontmatter."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Delegate a report-only leftover scan of /srv/data to a subagent."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a machine health check on my workstation."
+    }
+  ]
+}
