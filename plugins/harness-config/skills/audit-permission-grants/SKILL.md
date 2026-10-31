@@ -1,6 +1,6 @@
 ---
 description: "Audit Claude Code permission grants (allowed-tools frontmatter and permissions.allow in every settings scope) for portability and auto-mode durability: dropped interpreter wildcards, machine-specific paths, literal substitution tokens, inert plugin self-grants. Report-only. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', or a guarded helper is denied despite an allow rule. Effective state: audit-permission-state."
-argument-hint: "[unattended] [frontmatter|settings|plugins|all]"
+argument-hint: "[frontmatter|settings|plugins|all] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit permission grants for portability and auto-mode durability
 ---
 
-**Arguments.** `[unattended] [frontmatter|settings|plugins|all]`. default: all
+**Arguments.** `[frontmatter|settings|plugins|all] [--unattended]`. default: all
 
 ## Purpose
 
@@ -43,7 +43,7 @@ applied to its output:
 - `plugins`: plugin `settings.json` self-grant (P3) only
 - `all`: everything (default)
 
-A leading `unattended` is not a filter: the caller declares nobody is present, which changes only
+`--unattended`, anywhere in the arguments, is not a filter: the caller declares nobody is present, which changes only
 the `/permissions` offer (see "Boundary" below). Take it out before reading the filter, and never
 pass it to the detector.
 
@@ -166,8 +166,8 @@ the person: If /permissions is available in your session (gate basis: not gated 
 though a host may lack it; records in [reference/native-surfaces.md](reference/native-surfaces.md)),
 you can run it instead of or alongside editing the file by hand. A grant
 in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. When
-the caller passes `unattended` as the first argument, the run records the offer in its output
-instead of asking; without that argument it asks.
+the caller passes `--unattended`, the run records the offer in its output
+instead of asking; without that flag it asks.
 
 **Mutation gate.** `/permissions` writes whichever scope the person edits. This skill never runs
 it on the person's behalf.

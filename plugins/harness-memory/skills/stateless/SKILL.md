@@ -1,6 +1,6 @@
 ---
 description: "Inspect and turn off Claude Code's auto memory, the notes Claude writes itself per repo under ~/.claude/projects/PROJECT/memory/. Use when: 'make Claude stateless', 'stop Claude remembering', 'disable auto memory', 'turn off auto-memory', 'purge/clear/delete auto memory', 'wipe what Claude saved about this repo', 'does Claude have saved memories'. Actions: status (default, memory + settings across all scopes), disable (autoMemoryEnabled:false + CLAUDE_CODE_DISABLE_AUTO_MEMORY), purge (destructive delete, confirm-gated). Auto-memory only, not CLAUDE.md/rules (use /harness-memory:audit) and not transcripts/history."
-argument-hint: "[unattended] [status|disable|purge]"
+argument-hint: "[status|disable|purge] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Inspect, disable, or purge Claude Code's per-repo auto memory
 ---
 
-**Arguments.** `[unattended] [status|disable|purge]`. Default: status
+**Arguments.** `[status|disable|purge] [--unattended]`. Default: status
 
 ## Auto-memory snapshot
 
@@ -49,7 +49,7 @@ section before acting on a load-bearing fact.
 
 ## Argument parsing
 
-Take out a leading `unattended` first: it is the caller declaring that nobody is present, which
+Take out `--unattended` first, wherever it appears: it is the caller declaring that nobody is present, which
 governs the `/memory` offer under "Boundary". Match the rest against this table.
 
 | Argument | Action |
@@ -106,8 +106,8 @@ extraction, though a host may lack it; records in
 [reference/native-memory.md](reference/native-memory.md)), you can run it instead of or alongside
 this skill. Prefer this skill
 when precedence across scopes matters, when the env var is set, or for a durable disable or a
-purge. When the caller passes `unattended` as the first argument, the run records the offer in its
-output instead of asking; without that argument it asks.
+purge. When the caller passes `--unattended`, the run records the offer in its
+output instead of asking; without that flag it asks.
 
 **Mutation gate.** `/memory` writes whatever the person changes in its dialog; this skill never
 runs it on the person's behalf. A `/memory` toggle can be overridden by `CLAUDE_CODE_DISABLE_AUTO_MEMORY`,

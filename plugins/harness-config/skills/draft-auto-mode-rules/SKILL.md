@@ -1,6 +1,6 @@
 ---
 description: "Draft a paste-ready `autoMode` classifier block by interviewing the user about what should and should not be auto-approved, each entry in the shape the classifier reads well and every section keeping `$defaults`. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', 'add an auto-mode rule for X', 'my auto mode rules are too vague', 'rewrite this classifier entry', or an audit shows rules dropped or ignored. Prints only, never writes a settings file."
-argument-hint: "[unattended] [environment|allow|soft_deny|hard_deny]"
+argument-hint: "[environment|allow|soft_deny|hard_deny] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -60,8 +60,8 @@ and varying by platform; records in
 instead of or alongside this skill to have the `environment` section drafted from your sessions
 and saved for you; this interview then covers the allow and deny sections. If they take it, run
 Phase 1 again after it saves so the draft builds on what it wrote. When the caller passes
-`unattended` as the first argument, the run records the offer in its output instead of asking;
-without that argument it asks.
+`--unattended`, the run records the offer in its output instead of asking;
+without that flag it asks.
 
 **Mutation gate.** `/auto-mode-setup` writes user settings when the person confirms its draft. This
 skill writes nothing and never chains into that command on the person's behalf.
@@ -74,7 +74,7 @@ in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
 
 The draft is built from **the interview plus the effective merge** (`audit-permission-state`), and
 nothing else. An optional argument, `environment`, `allow`, `soft_deny`, or `hard_deny`, names one
-section to focus the interview on. A leading `unattended` is not a section: it is the caller
+section to focus the interview on. `--unattended`, anywhere in the arguments, is not a section: it is the caller
 declaring that nobody is present, which governs the `/auto-mode-setup` offer under "Routing". Take
 it out first, then read the rest.
 

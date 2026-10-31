@@ -1,7 +1,7 @@
 ---
 description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /toolchain:check and /toolchain:lint, STOPs if broken), then outcome verification. Does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use when: 'verify changes', 'prove this works', 'did we build the right thing', 'is this done', 'check my work', 'did the fix actually work'; for quick mechanical-only checks use /toolchain:check, for measurable-improvement claims use /verification:measure."
 user-invocable: true
-argument-hint: "[unattended] [outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]"
+argument-hint: "[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]"
 disable-model-invocation: false
 effort: high
 metadata:
@@ -9,7 +9,7 @@ metadata:
   summary: Prove the change achieved its intended outcome with evidence
 ---
 
-**Arguments.** `[unattended] [outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
+**Arguments.** `[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
 
 ## Repository context. Gather first
 
@@ -62,7 +62,7 @@ There is **no standalone "mechanical pass" mode**. That role belongs to `/toolch
 
 ## Mode dispatch
 
-Parse `$ARGUMENTS` for a mode keyword first, then an ecosystem filter. A leading `unattended` is
+Parse `$ARGUMENTS` for a mode keyword first, then an ecosystem filter. `--unattended`, anywhere in the arguments, is
 consumed before both: the caller declaring that nobody is present, which governs the `/verify`
 offer under "Routing".
 
@@ -259,8 +259,7 @@ product source), offer it to the person at the end of the run, beside the report
 If /verify is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
 entry hides it; records in [reference/native-verify.md](reference/native-verify.md)), you can run
 it alongside this skill to drive the change end to end. Skip the offer for a diff touching
-only tests, docs, or code with no runtime surface. When the caller passes `unattended` as the
-first argument, the run records the offer in its output instead of asking; without that argument
+only tests, docs, or code with no runtime surface. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag
 it asks. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
 
 **Mutation gate.** `/verify` may write a project verify skill on first use. This skill never
