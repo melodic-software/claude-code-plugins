@@ -154,7 +154,9 @@ The ceiling for a per-batch formatter row is 1 s median per fire, so the row shi
 rewrite case is `markdownlint-cli2` itself, one Node process per root.
 
 With the option unset, its default, the `Stop` row starts bash and the check script on every
-turn end. That path's spawn count and wall time are not measured yet.
+turn end. On a clean tree that costs 20 spawns (11 creations, 9 execs) and 45.6 ms mean against
+25.3 ms with the option `false` (WSL2 Ubuntu, `hyperfine -N`, 60 runs each), held at 20 spawns in
+`.performance/ratchets.json`.
 
 ## Install
 
