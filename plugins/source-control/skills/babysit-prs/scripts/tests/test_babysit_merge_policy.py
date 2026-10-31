@@ -280,6 +280,20 @@ class ReadConfigAt(unittest.TestCase):
             ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
         )
 
+    def test_a_cap_over_the_ceiling_fails_closed_at_one(self) -> None:
+        over = policy.MAX_IN_FLIGHT_CEILING + 1
+        config_fake(
+            self, PIPELINE.replace("merge:\n", f"merge:\n  max-in-flight: {over}\n")
+        )
+        head = policy.read_config_at(REPO, SHA)
+        self.assertEqual(
+            policy._run_max_in_flight(REPO, "main", SHA, head, shared=False),
+            (1, "default-branch"),
+        )
+        self.assertTrue(any(str(over) in note for note in head.notes))
+        base = dataclasses.replace(head, max_in_flight=10, notes=())
+        self.assertEqual(policy.stricter_config(base, head).max_in_flight, 1)
+
     def test_max_in_flight_defaults_to_one_and_reads_a_count(self) -> None:
         for text, expected, noted in (
             (PIPELINE, 1, False),
