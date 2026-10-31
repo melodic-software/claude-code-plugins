@@ -1,5 +1,33 @@
 # Changelog for the PR pipeline convention
 
+## [8.25.1] - 2026-10-31
+
+### Fixed
+
+- The entry-hold check on a capped lane pull request and a queued lane entry counts a member's newest comment saying "do not merge", not any comment with blocking text, matching the arm path.
+
+## [8.25.0] - 2026-10-31
+
+### Changed
+
+- `resolve-issue` lists `plugins/planning/scripts/repin-digests.sh` as a `verify-script`, so the
+  issue lane can re-pin a planning interview digest without a host session. The script runs
+  nothing from the checkout: it reads the test file and the files the test pins as data and
+  computes each digest with its own base copy's helpers. `tests/repin.sh` also runs the test, so it
+  stays off the list, and the pull request's CI still runs the test.
+
+### Fixed
+
+- `pr-verify` judges a diff of any realistic size. It splits a diff into as many chunks of at most
+  300000 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each
+  with its own judge step, and the head still passes only when every chunk and the final judge do. A
+  file over 300000 bytes, or a diff that needs more than 12 chunks, still ends the run with no
+  verdict and an error naming the file, or the diff's size and the chunk count.
+
+- `pr-run-activity-read.yml` passes turns, max turns, models and profile to `report-check-run`, as
+  the write runner does. A read activity that ended well has no failure class, so it posted no lane
+  record at all, and its check run could not be read for turns or models.
+
 ## [8.24.0] - 2026-10-31
 
 ### Added
