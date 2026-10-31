@@ -37,6 +37,21 @@ For any course digest run (multi-phase content acquisition + distillation + repo
 node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --library-dir '${user_config.library_dir}'
 ```
 
+**Paid content stays private.** Course material is paid content kept for personal use, so it never
+lands where a commit could publish it. Every action but `status` checks the work root right after
+resolving it, before any write, the checklist included:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs" "<work-root>"
+```
+
+The JSON line it prints names the work root's `visibility`:
+
+- `public` or `unknown`: stop before writing anything. Tell the person that course material is
+  paid content kept for personal use, and to set this plugin's `library_dir` to their private
+  corpus checkout (for example `${KNOWLEDGE_CORPUS_DIR}`) or to run from a private repository.
+- `private`, `internal` or `local` (no remote, so nothing is published): proceed.
+
 Two paths per course, both under `<work-root>`:
 
 - `<work-root>/.work/<slug>/course-digest-checklist.md` is the phase checklist, a working file. `<work-root>/.work/` self-ignores (a `.gitignore` containing `*`) and is never committed; nested `<epic>/<slug>/` sub-slices are sanctioned there.
@@ -100,11 +115,11 @@ extraction in the background; it resumes by rerunning the same command:
 
 ```bash
 # Run in the background so the extraction does not hold a foreground call
-nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <path> > extraction.log 2>&1 &
+nohup node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" extract-course.js --course-dir <course-dir> > <course-dir>/extraction.log 2>&1 &
 echo $!  # save PID
 
 # Monitor progress periodically
-tail -20 extraction.log
+tail -20 <course-dir>/extraction.log
 
 # Check run report after completion
 cat <course-dir>/run-report.json

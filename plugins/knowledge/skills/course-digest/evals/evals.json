@@ -77,6 +77,20 @@
         "Flags any recommendation that research reveals is outdated with a ⚠ STALE marker instead of adopting it silently",
         "Does NOT integrate the course recommendation into repo files without first completing verification"
       ]
+    },
+    {
+      "id": 7,
+      "name": "public-work-root-stops-before-any-write",
+      "prompt": "/knowledge:course-digest https://dometrain.com/course/getting-started-with-model-context-protocol/\n\nlibrary_dir is unset, and the session runs in a checkout of a public GitHub repository: the visibility check prints {\"visibility\":\"public\"} for the work root.",
+      "expected_output": "Resolves the work root, runs the visibility check on it, and stops before writing anything, the phase checklist under .work/ included. Explains that course material is paid content kept for personal use and tells the person to set library_dir to their private corpus checkout or to run from a private repository.",
+      "files": [],
+      "expectations": [
+        "Runs the visibility check on the work root before the first write",
+        "Writes no file under the work root: no checklist under .work/ and no courses/ directory",
+        "Says course material is paid content kept for personal use",
+        "Tells the person to set library_dir to a private corpus checkout or to run from a private repository",
+        "Does not begin Phase 1 extraction"
+      ]
     }
   ]
 }
