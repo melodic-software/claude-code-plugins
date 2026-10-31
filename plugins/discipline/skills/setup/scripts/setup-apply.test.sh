@@ -67,17 +67,17 @@ check 'lever_scope reads back as non-trivial' test "$(bash "$READER" "$f" lever_
 check 'fresh write creates no other file' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 
 # Same value again: nothing changes.
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" lever_scope=non-trivial
 check 'an unchanged value reports already configured and leaves the file' \
-  test "$CODE" -eq 0 -a "$(settings "$f")" = "$before" -a -n "$(grep -F 'already configured' <<<"$OUT")"
+  test "$CODE" -eq 0 -a "$(cat "$f")" = "$before" -a -n "$(grep -F 'already configured' <<<"$OUT")"
 
 # Existing file, different value, no --yes: diff printed, nothing written.
 repo="$(new_repo)"
 f="$repo/docs/conventions/discipline.yaml"
 mkdir -p "$repo/docs/conventions"
 printf '# team pick\nlever_scope: deterministic\n' >"$f"
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" lever_scope=non-trivial
 check 'an existing file that would change exits 3 without --yes' test "$CODE" -eq 3
 if [[ "$OUT" == *"-lever_scope: deterministic"* && "$OUT" == *"+lever_scope: non-trivial"* ]]; then pass 'the refusal prints the diff'; else fail 'the refusal prints the diff'; fi
@@ -131,7 +131,7 @@ shape_case() { # shape_case <label> <refuse|replace> <warning text> <file conten
   f="$repo/docs/conventions/discipline.yaml"
   mkdir -p "$repo/docs/conventions"
   printf '%s' "$content" >"$f"
-  before="$(settings "$f")"
+  before="$(cat "$f")"
   run "$repo" --check
   if [[ "$CODE" -eq 1 && "$OUT" == *"WARN"*"$warning"* && "$OUT" != *PASS* ]]; then pass "--check warns on $label"; else fail "--check warns on $label"; fi
   run "$repo" --yes lever_scope=non-trivial

@@ -62,9 +62,9 @@ expect 'no other file is created' test "$(find "$repo" -path "$repo/.git" -prune
 expect 'no temp file is left behind' test -z "$(find "$repo/docs" -name '.*.tmp')"
 
 # The same value again changes nothing.
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" compress_articles=cut
-expect 'an unchanged value reports already configured' test "$CODE" -eq 0 -a "$(settings "$f")" = "$before"
+expect 'an unchanged value reports already configured' test "$CODE" -eq 0 -a "$(cat "$f")" = "$before"
 [[ "$OUT" == *"already configured"* ]] || bad 'already configured message'
 
 # An existing file that would change: diff without --yes, write with it.
@@ -80,10 +80,11 @@ run "$repo" --yes compress_articles=cut
 expect 'with --yes the change is written and the comment kept' test "$CODE" -eq 0 -a "$(settings "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
 
 # A key given twice on the command line, with the file present: one line, file unchanged.
+before="$(cat "$f")"
 run "$repo" --yes compress_articles=keep compress_articles=cut
 expect 'a key given twice with the file present exits 1' test "$CODE" -eq 1
 if one_line; then ok 'that refusal is one line'; else bad 'that refusal is one line'; fi
-expect 'the file is unchanged after that refusal' test "$(settings "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
+expect 'the file is unchanged after that refusal' test "$(cat "$f")" = "$before"
 
 # Bad input with no file: value outside the list, empty value, unknown key, a key twice.
 repo="$(repo_new)"
@@ -109,7 +110,7 @@ shape() { # shape <label> <refuse|replace> <content>
   file="$r/$REL"
   mkdir -p "$r/docs/conventions"
   printf '%s' "$content" >"$file"
-  before="$(settings "$file")"
+  before="$(cat "$file")"
   run "$r" --check
   expect "--check warns on $label" test "$CODE" -eq 1
   [[ "$OUT" == WARN* ]] || bad "--check output for $label starts with WARN"

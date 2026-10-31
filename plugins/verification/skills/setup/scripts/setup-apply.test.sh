@@ -82,11 +82,11 @@ assert_eq "case 2: a value already in place exits 0" "0" "$?"
 assert_contains "case 2: it says already configured" "$out" "already configured"
 
 # --- Case 3: a change to an existing file needs --yes ------------------------
-before="$(settings "$(yaml_of "$R1")")"
+before="$(cat "$(yaml_of "$R1")")"
 out="$(run --root "$R1" proof_level=strict)"
 assert_eq "case 3: a change without --yes exits 3" "3" "$?"
 assert_contains "case 3: the diff shows the new line" "$out" "+proof_level: strict"
-assert_eq "case 3: the file is unchanged without --yes" "$before" "$(settings "$(yaml_of "$R1")")"
+assert_eq "case 3: the file is unchanged without --yes" "$before" "$(cat "$(yaml_of "$R1")")"
 run --root "$R1" --yes proof_level=strict >/dev/null
 assert_eq "case 3: the change with --yes exits 0" "0" "$?"
 assert_eq "case 3: the file holds the new value on its own line" "1" "$(grep -cx 'proof_level: strict' "$(yaml_of "$R1")")"
@@ -144,13 +144,13 @@ check_warns "an unknown key" $'proof_level: strict\nproof_levels: live\n'
 # --- Case 7: apply refuses a result that would not validate ------------------
 R7="$(new_root c7)"
 printf 'proof_level: strict\nproof_level: strict\n' >"$(yaml_of "$R7")"
-before="$(settings "$(yaml_of "$R7")")"
+before="$(cat "$(yaml_of "$R7")")"
 run --root "$R7" --yes proof_level=live >/dev/null
 assert_eq "case 7: apply over a duplicate key exits 1" "1" "$?"
 assert_eq "case 7: the duplicate-key file is unchanged" "$before" "$(cat "$(yaml_of "$R7")")"
 R7B="$(new_root c7b)"
 printf 'proof_level:\n  - true\n' >"$(yaml_of "$R7B")"
-before="$(settings "$(yaml_of "$R7B")")"
+before="$(cat "$(yaml_of "$R7B")")"
 run --root "$R7B" --yes proof_level=live >/dev/null
 assert_eq "case 7: apply over a block list exits 1" "1" "$?"
 assert_eq "case 7: the block-list file is unchanged" "$before" "$(cat "$(yaml_of "$R7B")")"

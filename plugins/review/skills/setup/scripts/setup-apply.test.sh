@@ -82,11 +82,11 @@ assert_eq "case 2: a value already in place exits 0" "0" "$?"
 assert_contains "case 2: it says already configured" "$out" "already configured"
 
 # --- Case 3: a change to an existing file needs --yes ------------------------
-before="$(settings "$(yaml_of "$R1")")"
+before="$(cat "$(yaml_of "$R1")")"
 out="$(run --root "$R1" ratchet_offer=true)"
 assert_eq "case 3: a change without --yes exits 3" "3" "$?"
 assert_contains "case 3: the diff shows the new line" "$out" "+ratchet_offer: true"
-assert_eq "case 3: the file is unchanged without --yes" "$before" "$(settings "$(yaml_of "$R1")")"
+assert_eq "case 3: the file is unchanged without --yes" "$before" "$(cat "$(yaml_of "$R1")")"
 run --root "$R1" --yes ratchet_offer=true >/dev/null
 assert_eq "case 3: the change with --yes exits 0" "0" "$?"
 assert_eq "case 3: the file holds the new value on its own line" "1" "$(grep -cx 'ratchet_offer: true' "$(yaml_of "$R1")")"
@@ -144,13 +144,13 @@ check_warns "an unknown key" $'ratchet_offer: true\nratchet_offers: false\n'
 # --- Case 7: apply refuses a result that would not validate ------------------
 R7="$(new_root c7)"
 printf 'ratchet_offer: true\nratchet_offer: true\n' >"$(yaml_of "$R7")"
-before="$(settings "$(yaml_of "$R7")")"
+before="$(cat "$(yaml_of "$R7")")"
 run --root "$R7" --yes ratchet_offer=false >/dev/null
 assert_eq "case 7: apply over a duplicate key exits 1" "1" "$?"
 assert_eq "case 7: the duplicate-key file is unchanged" "$before" "$(cat "$(yaml_of "$R7")")"
 R7B="$(new_root c7b)"
 printf 'ratchet_offer:\n  - true\n' >"$(yaml_of "$R7B")"
-before="$(settings "$(yaml_of "$R7B")")"
+before="$(cat "$(yaml_of "$R7B")")"
 run --root "$R7B" --yes ratchet_offer=false >/dev/null
 assert_eq "case 7: apply over a block list exits 1" "1" "$?"
 assert_eq "case 7: the block-list file is unchanged" "$before" "$(cat "$(yaml_of "$R7B")")"
@@ -627,7 +627,7 @@ out="$(run --root "$R26" --check)"
 assert_contains "case 26: --check reports fanout_diversity" "$out" "PASS fanout_diversity: model"
 R26B="$(new_root c26b)"
 printf 'ratchet_offer: true\n' >"$(yaml_of "$R26B")"
-before="$(settings "$(yaml_of "$R26B")")"
+before="$(cat "$(yaml_of "$R26B")")"
 out="$(run --root "$R26B" --yes fanout_diversity=models)"
 assert_eq "case 26: fanout_diversity=models exits 1" "1" "$?"
 assert_eq "case 26: the refusal is one line" "1" "$(printf '%s\n' "$out" | grep -c .)"

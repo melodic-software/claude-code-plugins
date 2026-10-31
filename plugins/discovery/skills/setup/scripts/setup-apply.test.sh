@@ -54,16 +54,16 @@ if [[ "$(bash "$READER" "$f" explore_output)" == "explain" ]]; then pass 'the wr
 if [[ "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1 ]]; then pass 'fresh write creates no other file'; else fail 'fresh write creates no other file'; fi
 
 # Same value again: nothing changes.
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" explore_output=explain
-if [[ "$CODE" -eq 0 && "$OUT" == *"already configured"* && "$(settings "$f")" == "$before" ]]; then pass 'an unchanged value reports already configured and leaves the file'; else fail 'an unchanged value reports already configured and leaves the file'; fi
+if [[ "$CODE" -eq 0 && "$OUT" == *"already configured"* && "$(cat "$f")" == "$before" ]]; then pass 'an unchanged value reports already configured and leaves the file'; else fail 'an unchanged value reports already configured and leaves the file'; fi
 
 # Existing file, different value, no --yes: diff printed, nothing written.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf '# team pick\nexplore_output: auto\n' >"$repo/docs/conventions/discovery.yaml"
 f="$repo/docs/conventions/discovery.yaml"
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" explore_output=change-prep
 if [[ "$CODE" -eq 3 ]]; then pass 'an existing file that would change exits 3 without --yes'; else fail 'an existing file that would change exits 3 without --yes'; fi
 if [[ "$OUT" == *"-explore_output: auto"* && "$OUT" == *"+explore_output: change-prep"* ]]; then pass 'the refusal prints the diff of the change'; else fail 'the refusal prints the diff of the change'; fi
@@ -130,7 +130,7 @@ shape_case() { # shape_case <label> <refuse|replace> <file content>
   f="$repo/docs/conventions/discovery.yaml"
   mkdir -p "$repo/docs/conventions"
   printf '%s' "$content" >"$f"
-  before="$(settings "$f")"
+  before="$(cat "$f")"
   run "$repo" --check
   if [[ "$CODE" -eq 1 && "$OUT" == *WARN* && "$OUT" != *"(unset)"* ]]; then pass "--check warns on $label"; else fail "--check warns on $label"; fi
   run "$repo" --yes explore_output=change-prep

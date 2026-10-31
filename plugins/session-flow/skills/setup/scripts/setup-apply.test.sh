@@ -64,16 +64,16 @@ assert_true 'fresh write creates the file' test -f "$f"
 assert_true 'the written value reads back as respawn' [ "$(bash "$READER" "$f" worker_continuation)" = respawn ]
 assert_true 'fresh write creates no other file' [ "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1 ]
 assert_true 'fresh write leaves no temp file' [ -z "$(find "$repo/docs" -name '*.tmp')" ]
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" worker_continuation=respawn
 assert_true 'an unchanged value reports already configured' out_has 'already configured'
-assert_true 'an unchanged value leaves the file' [ "$(settings "$f")" = "$before" ]
+assert_true 'an unchanged value leaves the file' [ "$(cat "$f")" = "$before" ]
 
 # Existing file that would change: diff, then --yes.
 repo="$(new_repo)"
 f="$repo/$REL"
 seed "$repo" '# team pick\nworker_continuation: resume\n'
-before="$(settings "$f")"
+before="$(cat "$f")"
 run "$repo" worker_continuation=respawn
 assert_true 'an existing file that would change exits 3 without --yes' code_is 3
 assert_true 'the refusal prints the diff' out_has '+worker_continuation: respawn'
@@ -127,7 +127,7 @@ for doc in 'worker_continuation: resume\nworker_continuation: respawn\n' \
   'stray:\n  a: b\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(settings "$repo/$REL")"
+  before="$(cat "$repo/$REL")"
   run "$repo" --check
   assert_true "--check flags $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   run "$repo" --yes worker_continuation=respawn
@@ -166,7 +166,7 @@ assert_true 'the replacement reads back as resume' [ "$(bash "$READER" "$repo/$R
 # A key given twice on the command line is refused, with or without a file.
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\n'
-before="$(settings "$repo/$REL")"
+before="$(cat "$repo/$REL")"
 run "$repo" --yes worker_continuation=respawn worker_continuation=resume
 assert_true 'a key given twice is refused against an existing file' code_is 1
 assert_true 'a key given twice leaves the existing file unchanged' [ "$(cat "$repo/$REL")" = "$before" ]
@@ -283,7 +283,7 @@ done
 for doc in 'review_mining_prs: [20]\n' 'review_mining_prs: ""\n' 'encode_policy:\n  - strongest-first\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(settings "$repo/$REL")"
+  before="$(cat "$repo/$REL")"
   run "$repo" --yes review_mining_prs=30
   assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
@@ -320,7 +320,7 @@ done
 for doc in 'wip_commit: [true]\n' 'wip_commit: ""\n' 'wip_commit:\n  on: true\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(settings "$repo/$REL")"
+  before="$(cat "$repo/$REL")"
   run "$repo" --yes wip_commit=true
   assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
