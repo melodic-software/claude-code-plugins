@@ -323,7 +323,8 @@ item's claim comment. Every later step runs as it does attended, with one differ
 present to answer an ask, so pass `--unattended` to each skill a later step invokes that takes it: `/debugging:debug --unattended`,
 `/implementation:implement-dispatch --unattended`,
 `/source-control:pull-request create --pushed --worktree <path> --unattended`, and
-`/source-control:babysit-prs --unattended`.
+`/source-control:babysit-prs --unattended`. `unattended-callers.test.mjs` beside this file fails
+when one of these calls, or a CI-mode call above, drops the flag.
 
 ### Step 4: Staleness pre-check
 
