@@ -15,6 +15,7 @@
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -69,6 +70,15 @@ export function isClean(repo) {
   return git(repo.top, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]) === "";
 }
 
+function updateIndex(top, flags, paths, env) {
+  if (paths === "") return;
+  execFileSync("git", ["-C", top, "update-index", ...flags, "-z", "--stdin"], {
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...env },
+    input: paths,
+    stdio: ["pipe", "ignore", "ignore"],
+  });
+}
+
 // The tree id of the working tree as described at the top of this file.
 export function treeHash(repo) {
   const scratch = mkdtempSync(join(tmpdir(), "toolchain-tree-"));
@@ -86,18 +96,40 @@ export function treeHash(repo) {
     const env = { GIT_INDEX_FILE: index };
     // An untracked nested repository is listed as `dir/`, which update-index refuses; the tree
     // leaves it out.
-    const paths = git(repo.top, ["ls-files", "-z", "--modified", "--deleted", "--others", "--exclude-standard"], env)
+    const listed = git(repo.top, ["ls-files", "-z", "--modified", "--deleted", "--others", "--exclude-standard"], env)
       .split("\0")
-      .filter((path) => path !== "" && !path.endsWith("/"))
-      .map((path) => `${path}\0`)
-      .join("");
-    if (paths !== "") {
-      execFileSync("git", ["-C", repo.top, "update-index", "--add", "--remove", "--info-only", "-z", "--stdin"], {
-        env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", ...env },
-        input: paths,
-        stdio: ["pipe", "ignore", "ignore"],
-      });
+      .filter((path) => path !== "" && !path.endsWith("/"));
+    // A tracked file that is now a directory is listed by its old path, which update-index refuses
+    // even with --replace; its entry is removed first. A submodule entry is a directory by design.
+    const nowDirs = listed.filter((path) => {
+      try {
+        return lstatSync(join(repo.top, path)).isDirectory();
+      } catch {
+        return false;
+      }
+    });
+    const removed = new Set();
+    if (nowDirs.length > 0) {
+      const dirSet = new Set(nowDirs);
+      for (const line of git(repo.top, ["ls-files", "-z", "--stage", "--", ...nowDirs], {
+        ...env,
+        GIT_LITERAL_PATHSPECS: "1",
+      }).split("\0")) {
+        const match = /^(\d+) \S+ \d+\t(.*)$/s.exec(line);
+        if (match && match[1] !== "160000" && dirSet.has(match[2])) removed.add(match[2]);
+      }
+      updateIndex(repo.top, ["--force-remove"], [...removed].map((path) => `${path}\0`).join(""), env);
     }
+    // --replace lets a tracked directory that is now a file drop the entries under it.
+    updateIndex(
+      repo.top,
+      ["--add", "--remove", "--replace", "--info-only"],
+      listed
+        .filter((path) => !removed.has(path))
+        .map((path) => `${path}\0`)
+        .join(""),
+      env,
+    );
     return git(repo.top, ["write-tree", "--missing-ok"], env).trim();
   } finally {
     rmSync(scratch, { recursive: true, force: true });

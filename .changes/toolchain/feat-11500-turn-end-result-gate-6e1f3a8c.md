@@ -11,7 +11,8 @@ bump: minor
   recorded no result.
 - `/toolchain:check` and check-mode `/toolchain:lint` record their Overall line for the tree they
   ran on, through `scripts/record-result.mjs`, unless an ecosystem filter narrowed the run. A
-  record counts only for that exact tree, so any later edit voids it.
+  record counts only for that exact tree, so any later edit voids it, including an unstaged swap
+  of a tracked file for a directory or a directory for a file.
 - The `turn_end_result_gate` option, read from user or managed settings only: `advisory` (the
   default) warns and blocks nothing, `enforce` also blocks the stop once on a recorded `FAIL`,
   and `off` prints nothing. `enforce` never blocks on `INCOMPLETE`, `STOPPED`, a missing or

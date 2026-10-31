@@ -211,5 +211,35 @@ expect "record refuses an unknown skill" "1" \
 expect "record outside a repository exits 2" "2" \
   "$(node "$RECORD" --dir "$WORK" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
 
+# An unstaged change that swaps a tracked file for a directory, or a directory for a file, hashes
+# to the tree `git add -A` would stage.
+LIB="$INSTALL/lib/tree-result.mjs"
+hash_of() { node --input-type=module -e "import { repository, treeHash } from '$LIB'; console.log(treeHash(repository(process.argv[1])));" "$1" 2>/dev/null; }
+staged_tree() { (export GIT_INDEX_FILE="$WORK/staged-index" && cp "$1/.git/index" "$GIT_INDEX_FILE" && git -C "$1" add -A && git -C "$1" write-tree && rm -f "$GIT_INDEX_FILE"); }
+swap_repo() { # <dir>: a repository with a tracked file `f` and a tracked directory `d/`
+  git init -q -b main "$1"
+  printf 'f\n' >"$1/f"
+  mkdir -p "$1/d"
+  printf 'x\n' >"$1/d/x"
+  printf 'y\n' >"$1/d/y"
+  git -C "$1" add -A
+  git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m seed
+}
+S="$WORK/swap-file-to-dir"
+swap_repo "$S"
+rm "$S/f"
+mkdir "$S/f"
+printf 'inner\n' >"$S/f/inner"
+expect "a tracked file replaced by a directory hashes to the staged tree" "$(staged_tree "$S")" "$(hash_of "$S")"
+expect "a file-to-directory swap records a result" "0" \
+  "$(node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+S="$WORK/swap-dir-to-file"
+swap_repo "$S"
+rm -r "$S/d"
+printf 'now a file\n' >"$S/d"
+expect "a tracked directory replaced by a file hashes to the staged tree" "$(staged_tree "$S")" "$(hash_of "$S")"
+expect "a directory-to-file swap records a result" "0" \
+  "$(node "$RECORD" --dir "$S" --skill check --overall "Overall: PASS" >/dev/null 2>&1; echo $?)"
+
 echo "result-gate: $PASS passed, $FAIL failed"
 ((FAIL == 0))
