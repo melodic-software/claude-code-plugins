@@ -2,11 +2,6 @@
 bump: patch
 ---
 
-### Changed
-
-- `/improvement:find` and `/improvement:improve` bodies are shorter, with every rule, gate and pointer kept. Eval passes on opus and sonnet showed no loss against the previous text.
-- `/improvement:improve`'s description leads with what it produces (one small PR) and drops a sentence that repeated it; `/improvement:find`'s description opens with a noun phrase. Every quoted trigger phrase stays.
-
 ### Added
 
 - Seven outcome eval cases: four for `/improvement:improve` (dry-run diff, no-argument ask, a target that already meets its standard, an instruction embedded in a target file) and three for `/improvement:find` (instrument-first, docs routed to their owning lane, an implement request handed to the pipeline). Fixtures and offline grader samples are included.

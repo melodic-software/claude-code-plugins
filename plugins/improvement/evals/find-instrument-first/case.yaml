@@ -25,7 +25,7 @@ graders:
     arm: both
   - name: top-candidate-instruments
     type: regex
-    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))[\s\S]){0,600}?\b(?:instrument|add (?:timing|tracing|metrics|telemetry|latency|logging|spans?)|baseline|measure (?:first|checkout|latency|the|each|where|how)|capture (?:timing|latency|durations?))'
+    pattern: '^[ \t]*(?:\|\s*\**#?1\**\s*\||[-*]?\s*\**#?1[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?1\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))[\s\S]){0,600}?\b(?:instrument|add (?:timing|tracing|metrics|telemetry|latency|logging|spans?)|baseline|measure(?: it| this| that| them)? (?:first|before|checkout|latency|the|each|where|how)|capture (?:timing|latency|durations?)|time (?:`?buildSummary|checkout|each|every|the (?:checkout|whole|pricing|inventory|calls?|requests?|fetch))|(?:record|track|log) (?:timings?|latency|durations?)|start (?:by|with) measuring)'
     flags: 'im'
     arm: both
   - name: records-evidence-gaps

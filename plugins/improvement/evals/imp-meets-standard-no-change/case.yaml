@@ -25,6 +25,6 @@ graders:
     arm: both
   - name: says-meets-named-standard
     type: regex
-    pattern: '(?:(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)(?<!doesn\x27t\s)\b(?:meets|satisfies|complies with|conforms to|already follows|compliant with|in line with|no gaps? (?:against|from|relative to))\b[^\n]{0,160}?javascript\.md|javascript\.md[^\n]{0,160}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:meets|met|satisfied|complies|conforms|no gaps?|nothing to (?:fix|change|improve)|zero (?:gaps|candidates)|fully compliant|no violations?)\b)'
+    pattern: '(?:(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)(?<!doesn\x27t\s)\b(?:meets|satisfies|complies with|conforms to|already follows|compliant with|in line with|no gaps? (?:against|from|relative to))\b[^\n]{0,160}?javascript\.md|javascript\.md[^\n]{0,160}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:meets|met|satisfied|complies|conforms|no gaps?|nothing to (?:fix|change|improve)|zero (?:gaps|candidates)|fully compliant|no violations?)\b|(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:already (?:meets|follows|complies with|conforms to|satisfies|passes)|meets (?:every|all|each|the|its|your)\b|found nothing to fix|nothing to fix)[\s\S]{0,600}?javascript\.md|javascript\.md[\s\S]{0,600}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:already (?:meets|follows|complies with|conforms to|satisfies|passes)|meets (?:every|all|each|the|its|your)\b|found nothing to fix|nothing to fix))'
     flags: 'i'
     arm: both
