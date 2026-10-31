@@ -98,9 +98,11 @@ Precedence, top-down, first hit decides:
    ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
    too: a false positive fails closed.
 3. Cost hit → refuse, terms matched as whole words in the title or body outside fenced code
-   blocks and inline code spans, which name jobs and files, not charges. A charge term always
-   refuses: billing, billed, spending limit, subscription (but not a subscription login or usage of the
-   subscribed model vendor's subscription, which are model usage, not cost; a change to or
+   blocks and inline code spans, which name jobs and files, not charges; a backslash-escaped
+   backtick opens no span. Intake admission reads narrower and adds a check of its own, below this
+   list. A charge term always
+   refuses: billing, billed, spending limit, subscription (but not a subscription login, usage of the
+   subscribed model vendor's subscription, or a measured pass run on the subscription, which are model usage, not cost; a change to or
    purchase of that subscription, and another vendor's subscription usage, still refuse), SKU, retention, a larger or self-hosted runner, seat, Codespaces,
    a paid plan, top-up, auto-renew, auto-reload, extra usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
    public, where the forge's standard hosted runner minutes are free. A spend word (cost,
@@ -117,6 +119,19 @@ Precedence, top-down, first hit decides:
    covers it, and that check is a person's, not the evaluator's.
 4. Any `work-class:` label present → refuse, label left untouched.
 5. A rule matches → admit; otherwise refuse.
+
+Intake admission applies the same charge terms, without the spend words, to what the issue will
+do rather than to its background: the title, the task items of the body and of each text pr-verify
+reads as spec, and the sections of the body under a heading the definition's `work_headings` names,
+each up to the next heading at its level or shallower (`#` headings only). A body with no task
+line and no such heading is read whole. A charge named only under another heading, on a body with
+a task line or such a heading, does not refuse there. The evaluator keeps reading the whole title
+and body.
+
+Because code is not read, intake also holds an issue, for the owner, when an edit moved a charge
+term from prose into code: a comparison of adjacent revisions of the body or of a trusted comment
+with a task line, and of title renames, for a term the text still holds in code. The hold names the
+edit and the term. A deleted revision, or an edit history that does not read, holds too.
 
 A rule matches only when every term of the shared predicate holds, each read from provider
 metadata or lane output, never from text an agent controls:
