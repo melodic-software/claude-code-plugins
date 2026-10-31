@@ -20,13 +20,14 @@ from a completed, successful one. Any other artifact is ignored.
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
-  decides, FAILs of other pull requests in this repository that are still
-  open and close one of its issues (its closing issues, or its `Refs:`
-  issue) count too, at their own heads, and so does every FAIL of an open
-  pull request whose name carries one of those issues, a `Refs:` pull
-  request's FAILs among them (a FAIL among them whose run cannot be read is
-  `verify:unreadable`). A merged or closed pull request's FAILs never count,
-  nor does a FAIL, read or not, uploaded before the newest capped-close record
+  decides, FAILs of other pull requests in this repository that are not
+  merged, nor a closed lanes App attempt (`_counts`), and close one of its
+  issues (its closing issues, or its `Refs:` issue) count too, at their own
+  heads, and so does every FAIL of such a pull request whose name carries one
+  of those issues, a `Refs:` pull request's FAILs among them (a FAIL among
+  them whose run cannot be read is `verify:unreadable`). A merged pull
+  request's or a closed lanes App attempt's FAILs never count, nor does a
+  FAIL, read or not, uploaded before the newest capped-close record
   (`_attempt_floor`) on every one of those issues it is for, so each fresh
   attempt starts its own count;
 - a counted FAIL at the head, under any pull request number: `verify:fail`,
@@ -460,7 +461,7 @@ ISSUE_FIELDS = (
     "comments(first:100){totalCount nodes{databaseId createdAt updatedAt lastEditedAt "
     "body author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number state repository{nameWithOwner}}}"
+    "nodes{number state author{...actor} repository{nameWithOwner}}}"
 )
 # The issue parts `_closing_issues` reads whole: a cut list refuses.
 ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
@@ -1139,8 +1140,8 @@ class Reader:
     # A pass run's `updated_at`, its completion (`_superseded`).
     _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
-    # Whether a pull request no issue lists is open (`_elsewhere`).
-    _open: dict[int, bool] = field(default_factory=dict)
+    # Whether a pull request no issue lists counts (`_elsewhere`).
+    _counted: dict[int, bool] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -2418,19 +2419,19 @@ class Reader:
     ) -> tuple[dict[Any, Any], set[str]]:
         """The live issues (`_closing_issues`: closing, or the `Refs:` one),
         and the heads of counted FAILs of the other pull requests for them
-        that are still open: those that close one of them, and those whose
-        FAIL names carry one of them (`named_issues`: a `Refs:` pull
+        that still count (`_counts`): those that close one of them, and those
+        whose FAIL names carry one of them (`named_issues`: a `Refs:` pull
         request's FAILs count only so), from the listing already read. A
-        merged or closed pull request's FAILs never count, so each fresh
-        attempt starts its own count (owner decision 2026-10-29), and of an
-        open one's only those uploaded after the newest capped-close record
-        (`_attempt_floor`) on at least one issue they are for: a record on
-        one issue ends no attempt at another. A pull request no issue lists
-        has its own state read, once per `Reader` and only when one of its
-        FAILs could count, a failed read raising `_Unreadable`. A FAIL of an
-        open one whose run cannot be read (`unread_prs`, by upload time)
-        raises `_Unreadable` (`SIBLING_UNREADABLE`) unless it predates the
-        record on every issue that pull request is for."""
+        merged pull request's or a closed lanes App attempt's FAILs never
+        count, so each fresh attempt starts its own count (owner decision
+        2026-10-29), and of any other only those uploaded after the newest
+        capped-close record (`_attempt_floor`) on at least one issue they are
+        for: a record on one issue ends no attempt at another. A pull request
+        no issue lists has its own state read, once per `Reader` and only when
+        one of its FAILs could count, a failed read raising `_Unreadable`. A
+        FAIL of a counted one whose run cannot be read (`unread_prs`, by
+        upload time) raises `_Unreadable` (`SIBLING_UNREADABLE`) unless it
+        predates the record on every issue that pull request is for."""
         live = self._closing_issues(number)
         closers = {n: self._closers(issue) for n, issue in live.items()}
         floors = {n: self._attempt_floor(issue) for n, issue in live.items()}
@@ -2466,29 +2467,44 @@ class Reader:
             for pr_n, issues in for_issues.items()
             if any(after(unread_prs.get(pr_n, []), n) for n in issues)
         }
-        listed = {
-            p: state for states in closers.values() for p, state in states.items()
-        }
-        others = {p for p, state in listed.items() if state == "OPEN"}
+        listed = {p: on for states in closers.values() for p, on in states.items()}
+        others = {p for p, counted in listed.items() if counted}
         for other in sorted((heads.keys() | unread) - listed.keys() - {number}):
-            if other not in self._open:
+            if other not in self._counted:
                 try:
                     pull = merge_policy.pull_request(self.repo, other)
                 except merge_policy.PolicyReadError as exc:
                     raise _Unreadable(f"#{other} state: {exc}") from exc
-                self._open[other] = pull.get("state") == "open"
-            if self._open[other]:
+                user = json_object(pull.get("user"))
+                self._counted[other] = self._counts(
+                    "MERGED" if pull.get("merged_at") else str(pull.get("state")).upper(),
+                    {
+                        "__typename": user.get("type"),
+                        "login": _bot_login(str(user.get("login") or "")),
+                    },
+                )
+            if self._counted[other]:
                 others.add(other)
         others.discard(number)
         if others & unread:
             raise _Unreadable(SIBLING_UNREADABLE)
         return live, set().union(*(heads.get(n, set()) for n in others))
 
-    def _closers(self, issue: Any) -> dict[int, Any]:
-        """Each pull request in this repository that closes `issue`: its state
-        (`OPEN`, `CLOSED` or `MERGED`)."""
+    def _counts(self, state: Any, author: Any) -> bool:
+        """Whether a pull request in `state` (`OPEN`, `CLOSED` or `MERGED`)
+        by `author` still counts toward another's cap: unless it merged, or
+        was a lanes App attempt that closed, whoever closed it. Closing any
+        other pull request resets nothing, or its author could re-roll the
+        verifier by closing and reopening."""
+        return state == "OPEN" or (
+            state == "CLOSED" and not _by_lane(author, self.agent_identity)
+        )
+
+    def _closers(self, issue: Any) -> dict[int, bool]:
+        """Each pull request in this repository that closes `issue`, and
+        whether it still counts (`_counts`)."""
         return {
-            node["number"]: node.get("state")
+            node["number"]: self._counts(node.get("state"), node.get("author"))
             for node in map(
                 json_object,
                 json_object(issue.get("closedByPullRequestsReferences")).get("nodes"),
@@ -2499,11 +2515,11 @@ class Reader:
 
     def _attempt_floor(self, issue: Any) -> datetime | None:
         """The newest capped-close record on `issue` the lanes App wrote and
-        nobody else edited (`_capped_records`): the only close of an attempt
-        that counts, as the lane closes its own pull requests for other
+        nobody else edited (`_capped_records`): the only close that ends every
+        attempt so far, as the lane closes its own pull requests for other
         reasons and anyone can open and close one that names the issue. FAILs
-        of an open pull request uploaded before it judged an attempt that is
-        over. A time that cannot be read is left out, so it lowers nothing."""
+        uploaded before it judged an attempt that is over. A time that cannot
+        be read is left out, so it lowers nothing."""
         times = []
         for stamp in _capped_records(issue, self.agent_identity):
             try:
@@ -3757,11 +3773,11 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     attempt-less record spends nothing."""
     named = set()
     for c in comments:
-        if (
-            str(json_object(c.get("user")).get("login") or "").lower()
-            == identity.lower()
-            and (pr := _started_attempt(c.get("body"))) is not None
-        ):
+        if str(
+            json_object(c.get("user")).get("login") or ""
+        ).lower() == identity.lower() and (
+            pr := _started_attempt(c.get("body"))
+        ) is not None:
             named.add(pr)
     return len(named - {number})
 
@@ -3862,7 +3878,9 @@ def capped_close(
     # toggles only when no lanes App removal followed the record, and puts
     # agent-ready back only when the newest removal is that one
     # (`_lane_removals`).
-    plan: list[tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]] = []
+    plan: list[
+        tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]
+    ] = []
     for issue in issues:
         comments = postmerge._paginated(
             f"repos/{repo}/issues/{issue}/comments?per_page=100", f"#{issue} comments"
