@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Two rounds of closer-but-not-quite is the evidence: another prompt will land close again.\n- Gap: how irregular the tear looks is a call only your eye can make.\n- Tool: a dial-in generator at /lab/torn-edge that simulates the tear with fibers, rendered at cover size.\n- Controls: tear depth, jaggedness, fiber density, fiber length, seed.\n- Export: Save writes src/config/torn-edge.json, which the cover imports with the render function.",
+      "why": "pitch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here's a new SVG path with more irregular tears: <path d='M0 0 L...'/>",
+      "why": "another direct attempt"
+    }
+  ]
+}

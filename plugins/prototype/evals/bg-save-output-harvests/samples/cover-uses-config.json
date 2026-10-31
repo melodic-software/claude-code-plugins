@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "import edge from '../config/torn-edge.json';",
+      "why": "import"
+    },
+    {
+      "answer": "<path d=\"...\"/> {/* seed 4127 */}",
+      "why": "static export noting seed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export default function ReportCover() { return <div className=\"cover-edge\" />; }",
+      "why": "unchanged"
+    }
+  ]
+}

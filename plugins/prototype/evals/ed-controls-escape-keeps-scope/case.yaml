@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-controls-escape-keeps-scope
+description: "head contract (Q8, owner 2026-10-30): a leading `--` ends the actions, so a scope that begins with the word 'controls' gets the normal plan. Written from plugins/prototype/skills/explore-directions/SKILL.md, the `<scope>` row of the Arguments table."
+tags: [explore-directions, arguments]
+runs: 3
+expected_outcome: "The reply plans layout variants for the thermostat app's controls page (route, host, variant keys, states) before building, and does not treat 'controls' as an action that asks which variant to put on a control panel."
+execution:
+  prompt: "/prototype:explore-directions -- controls page for the smart-thermostat app (heating schedule, mode, fan speed). There's no app yet. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

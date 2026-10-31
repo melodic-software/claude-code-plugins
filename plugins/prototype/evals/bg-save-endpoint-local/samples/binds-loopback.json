@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"content\":\"server: { host: '127.0.0.1' }\"}",
+      "why": "vite host"
+    },
+    {
+      "answer": "{\"command\":\"server.listen(5174, \\\"127.0.0.1\\\")\"}",
+      "why": "listen"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"content\":\"server: { host: true }\"}",
+      "why": "all interfaces"
+    },
+    {
+      "answer": "binds `127.0.0.1`",
+      "why": "prose only"
+    }
+  ]
+}

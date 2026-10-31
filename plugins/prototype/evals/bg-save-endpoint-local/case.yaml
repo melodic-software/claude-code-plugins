@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: bg-save-endpoint-local
+description: "Head contract (new skill), build step 7: the save endpoint exists only in the dev server, binds 127.0.0.1, and rejects a request whose Origin is not the tool's own."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "The built tool's save endpoint binds to 127.0.0.1 and checks the request's Origin header before writing the config."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:build-generator wavy hand-drawn section dividers for the marketing site. I've asked twice and they always come out too uniform. Skip the back-and-forth: state the pitch and build the tool now."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 80
+  timeout_seconds: 1200

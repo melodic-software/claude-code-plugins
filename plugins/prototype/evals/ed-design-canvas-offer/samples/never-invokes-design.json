@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prototype:pressure-test"
+          }
+        }
+      ],
+      "why": "other skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "invoked design"
+    }
+  ]
+}

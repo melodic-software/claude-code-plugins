@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"content\":\"if (req.headers.origin !== allowed) { res.statusCode = 403; }\"}",
+      "why": "origin check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"content\":\"server.middlewares.use('/__lab/save', save)\"}",
+      "why": "no check"
+    },
+    {
+      "answer": "rejects a request whose `Origin` is not the tool's own",
+      "why": "prose only"
+    }
+  ]
+}

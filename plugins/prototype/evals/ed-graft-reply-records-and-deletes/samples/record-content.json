@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# /shipments layout\nVerdict: graft.\n- steal: delivery-date cards from B\n- steal: region filter from C\n- skip: A (Ledger) because the table hides the delivery date\nLeft behind: A's bulk export button and C's map canvas.\n\nscreen: /shipments\n- [ ] Layout: B's delivery-date cards with C's region filter (graft)\n- [ ] empty: shows the no-parcels message and a track-a-parcel action\n- [ ] Test ids: shipments-parcel-card, shipments-empty, shipments-region-filter",
+      "why": "full record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Winner: variant B, mostly.",
+      "why": "collapsed note"
+    }
+  ]
+}
