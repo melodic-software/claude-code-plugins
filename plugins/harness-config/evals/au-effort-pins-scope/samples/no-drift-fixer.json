@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unrelated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/fix-plugin-drift.sh\" --yes",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "applies a fix"
+    }
+  ]
+}

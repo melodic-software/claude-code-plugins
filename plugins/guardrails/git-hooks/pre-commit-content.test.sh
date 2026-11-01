@@ -8,7 +8,7 @@
 # commit keep each file's own findings; a merge in progress is judged like any
 # commit; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
-# test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
+# test-scope: plugins/guardrails/git-hooks/content-scan.sh plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 # test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/reference-verify.sh
 # test-scope: plugins/guardrails/hooks/abort-boundary.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/hook-utils.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
 # test-scope: plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/hooks/yaml-subset.awk
@@ -340,7 +340,7 @@ expect "a scan whose tools all succeed passes through the shims" "0|" "$(check_f
 new_repo
 status="$(node "$INSTALL" copy --scope local --entry pre-commit-content --repo "$REPO")"
 expect "the vendored installer installs the entry" '[{"entry":"pre-commit-content","status":"installed"}]' "$status"
-for a in secret-patterns.sh hardcoded-path-patterns.sh machine-path-patterns.sh; do
+for a in content-scan.sh secret-patterns.sh hardcoded-path-patterns.sh machine-path-patterns.sh; do
   expect "the $a asset is installed beside the copy" yes \
     "$(test -f "$REPO/.git/hooks/guardrails/$a" && echo yes)"
 done

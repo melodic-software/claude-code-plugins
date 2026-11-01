@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ap-non-git-target-refused
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-not-git
+    type: regex
+    pattern: '\bnot\s+(?:inside\s+|in\s+|within\s+)?a\s+git\b|\bno\s+git\s+repo|\bisn''?t\s+(?:inside\s+|in\s+)?a\s+git\b|\bnon-git\b|\bnot\s+a\s+repository\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: names-suppression-cost
+    type: regex
+    pattern: '\bsuppress'
+    flags: 'i'
+    target: 'last_message'
+  - name: no-lane-dispatched
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill":"(?:harness-config:)?audit(?:-instructions|-permission-state|-permission-grants)?"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-lease
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\blease\s+acquire\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
