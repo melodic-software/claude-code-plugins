@@ -3177,7 +3177,10 @@ refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
+number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
+still closes. A sub-issue closed as not planned, as a duplicate or with no reason
 leaves the parent open. A split record covers the done-when when its parts number every item and
 match the filed sub-issues; a split by hand when its body has a task list whose open items each
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
