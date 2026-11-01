@@ -636,6 +636,7 @@ jobs:
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    cache-mode: read
     permissions:
       contents: read
       issues: read # resolve-config reads the issue's labels for labels-absent

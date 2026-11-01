@@ -1,0 +1,6 @@
+---
+type: regex
+pattern: '^(?![\s\S]*?(?:(?:^|\n)[ \t>*_-]*(?:\*\*)?Context(?:\*\*)?[ \t]*:(?:\*\*)?(?:(?![ \t]*(?:\n|$))(?:(?!(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d))[^\n])+(?=\n|$)|(?:[ \t]*\n(?:[ \t]*\n)?|[^\n]*?(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d)[^\n]*\n)(?:(?![ \t>*_-]*(?:\*\*)?(?:❓|➡|My recommendation|Recommendation\b|Proposal\b|Basis\b|Checked against|Alternatives\b|Source[ \t]*:|Inference\b|Flips if|Withheld\b|Commits you to|Q\d+[.):]))[^\n]*?(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d)[^\n]*\n)*(?![ \t>*_-]*(?:\*\*)?(?:❓|➡|My recommendation|Recommendation\b|Proposal\b|Basis\b|Checked against|Alternatives\b|Source[ \t]*:|Inference\b|Flips if|Withheld\b|Commits you to|Q\d+[.):]))(?![ \t]*(?:\n|$))(?:(?!(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d))[^\n])+(?=\n|$))|(?:^|\n)[^A-Za-z0-9\n]*Q\d+[.):](?:(?!\n[ \t>*_-]*(?:\*\*)?Context(?:\*\*)?[ \t]*:)[\s\S])*?\n[ \t>*_-]*(?:\*\*)?(?:➡|My recommendation)))[\s\S]*?(?:^|\n)[ \t>*_-]*(?:\*\*)?Context(?:\*\*)?[ \t]*:(?:\*\*)?(?:[^\n]*?(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d)|[ \t]*\n(?:[ \t]*\n)?[^\n]*?(?:https?://|\]\(|[\w./-]+\.[A-Za-z]\w*:\d|\bjudgment\b|\buser, round \d))'
+flags: i
+arm: both
+---
