@@ -5,6 +5,7 @@ runs: 3
 max_turns: 15
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
+env: {EVAL_PLAYWRIGHT_SKIP_PYDEPS: "1"}
 expected_outcome: "The reply gives playwright-cli commands that open a named session, then run state-load on the saved github.json under the playwright-cli state directory, then go to the settings page; it never runs state-save"
 ---
 
