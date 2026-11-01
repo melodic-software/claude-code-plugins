@@ -23,6 +23,28 @@
     },
     {
       "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for f in tests/a.test.sh scripts/repin.sh .git/lane/verify/bin/repin; do echo \"=== $f\"; cat \"$f\"; done"
+          }
+        }
+      ],
+      "why": "read in a loop after a .sh name, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "diff .git/lane/verify/base/repin.sh scripts/repin.sh"
+          }
+        }
+      ],
+      "why": "compared, not run"
     }
   ],
   "fail": [
@@ -56,6 +78,17 @@
         }
       ],
       "why": "the checkout's copy by its absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tests/a.test.sh; bash -x scripts/repin.sh 'a' 'b'"
+          }
+        }
+      ],
+      "why": "run after a separator, with a shell flag"
     }
   ]
 }

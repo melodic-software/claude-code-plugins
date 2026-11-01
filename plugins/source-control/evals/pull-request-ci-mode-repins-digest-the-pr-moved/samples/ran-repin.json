@@ -46,6 +46,17 @@
         }
       ],
       "why": "the checkout's copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tests/rules-pin.test.sh .git/lane/verify/bin/repin docs/rules.md"
+          }
+        }
+      ],
+      "why": "read after a .sh name, not run"
     }
   ]
 }
