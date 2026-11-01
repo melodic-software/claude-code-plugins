@@ -1,0 +1,136 @@
+{
+  "skill": "skill-quality:check-prerequisites",
+  "plugin": "skill-quality",
+  "skill_dir": "plugins/skill-quality/skills/check-prerequisites",
+  "ranking_note": "Authored from the before description at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are skill-quality:check (lints a skill: frontmatter, caps, evals.json and the shared listing budget), harness-ops:prerequisites (a fleet-wide report of the external tools every enabled plugin declares), toolchain:check-prerequisites (the same tool check for the toolchain plugin's build and lint tools), instruction-placement:check-prerequisites (the same tool check for the instruction-placement plugin), markdown-format:check (whether markdownlint-cli2 and node resolve for the markdown hook) and evals:validate (static validation of a plugin eval suite before a run). check-prerequisites owns a read-only report of whether the external tools the skill-quality plugin itself declares resolve on this machine, installing nothing.",
+  "competitors": [
+    "skill-quality:check",
+    "harness-ops:prerequisites",
+    "toolchain:check-prerequisites",
+    "instruction-placement:check-prerequisites",
+    "markdown-format:check",
+    "evals:validate"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The skill lint script just died saying a command wasn't found. Does this machine have everything skill-quality needs?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I trust that my SKILL.md lint actually ran, confirm skill-quality's tools are installed here."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of the binaries skill-quality depends on are missing on this box? Don't install anything, just tell me."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "measure-invocation.sh bailed out with 'jq: not found'. Check what else skill-quality is missing."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "New laptop. Can skill-quality run here, or is it missing tools?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the dependency check for skill-quality and show me which tools resolve and which don't."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My skill check came back suspiciously clean. Could it be that skill-quality is missing a tool and skipped steps? Verify its prerequisites."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do I have node and whatever else the skill-quality scripts call on my PATH?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The listing-budget script errored out before printing anything. Is skill-quality's toolset complete on this machine?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Report the status of skill-quality's declared external tools on this host, read-only."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint my new SKILL.md and tell me if the frontmatter and description length pass."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Across all the plugins I have enabled, which external tools are missing on this machine?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The build skill stopped because dotnet couldn't be found. Check whether the toolchain plugin has all its tools."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "A hook notice said markdownlint-cli2 is missing. Is my markdown formatter set up?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check my plugin eval cases and graders will load before I pay for a run."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The rules index drift hook didn't seem to run. Are instruction-placement's tools available here?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Validate the evals.json in my skill against the schema."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a machine-wide list of every formatter and CLI my installed plugins expect, and flag the absent ones."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is our shared skill listing over its budget yet?"
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Before I trust the lint results from toolchain:lint, confirm the linters that plugin relies on are installed."
+    }
+  ]
+}
