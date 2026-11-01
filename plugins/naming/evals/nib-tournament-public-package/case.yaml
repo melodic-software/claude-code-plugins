@@ -20,6 +20,6 @@ graders:
     target: last_message
   - name: names-runners-up
     type: regex
-    pattern: '\brunners?[- ]up\b|(?:`[^`\n]*spec-[^`\n]*`[\s\S]*?){3}'
+    pattern: '\brunners?[- ]up\b|(?:(?:^|\n)[ \t]*(?:\||\d+[.)])[^\n]*`[^`\n]+`[\s\S]*?){3}'
     flags: 'i'
     target: last_message

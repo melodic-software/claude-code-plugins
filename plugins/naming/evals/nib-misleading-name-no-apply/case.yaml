@@ -7,7 +7,6 @@ graders:
     type: tool_used
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
-    arm: 'both'
   - name: no-edit
     type: tool_used
     tool: 'Edit'

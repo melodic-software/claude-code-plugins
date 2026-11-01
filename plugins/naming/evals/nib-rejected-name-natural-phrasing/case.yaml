@@ -7,7 +7,6 @@ graders:
     type: tool_used
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
-    arm: 'both'
   - name: fans-out-three
     type: tool_used
     tool: 'Agent'
