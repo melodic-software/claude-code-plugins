@@ -205,6 +205,7 @@ jobs:
       fallback-ready: ${{ steps.fallback.outputs.ready }}
       posted: ${{ steps.posted.outputs.posted }}
       allowed: ${{ steps.posted.outputs.allowed }}
+      handed-off: ${{ steps.posted.outputs.handed-off }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -220,7 +221,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-docs
-        run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh posted allowed handed-off
 
       # Whether the third call can run, never the token. fix-docs-subscription passes it
       # on as fallback-ready, so with the token empty its subscription leg
@@ -232,11 +233,14 @@ jobs:
         run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
 
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when the broker allowed fix-docs and fix-docs posted no check, which
-  # a credit stop or an empty key leaves as a handoff with no upload, lane
-  # record or check. fix-docs posts nothing on a decline (post-decline: false),
-  # so the broker's allow keeps a kill switch or a refusal from starting a
-  # second leg. Its start reads only fix-docs-handoff, and it holds the OAuth
+  # only when the broker allowed fix-docs, fix-docs posted no check, and
+  # fix-docs handed off: a credit stop or an empty key, whose run job succeeds
+  # with its scan job skipped, leaving no upload, lane record or check.
+  # fix-docs posts nothing on a decline (post-decline: false), so the broker's
+  # allow keeps a kill switch or a refusal from starting a second leg, and the
+  # handoff keeps a trigger decline or a supersede (the PR head moved after
+  # fix-docs-head read it, so a second leg would supersede too) from starting
+  # one: their scan job runs. Its start reads only fix-docs-handoff, and it holds the OAuth
   # token alone. fallback: handoff labels the lane record without reading a
   # fix-docs output: only the run job knows whether it was a credit stop or an
   # empty key, and head code can forge that.
@@ -245,7 +249,8 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.fix-docs.result != 'skipped'
       && needs.fix-docs-handoff.outputs.posted != 'true'
-      && needs.fix-docs-handoff.outputs.allowed == 'true' }}
+      && needs.fix-docs-handoff.outputs.allowed == 'true'
+      && needs.fix-docs-handoff.outputs.handed-off == 'true' }}
     permissions:
       contents: read
       pull-requests: read
