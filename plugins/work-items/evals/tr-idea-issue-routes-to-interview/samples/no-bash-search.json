@@ -58,6 +58,39 @@
         }
       ],
       "why": "filters the seam's read of the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1' 2>&1 | grep labels"
+          }
+        }
+      ],
+      "why": "filters the seam read with stderr merged"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1' >&2"
+          }
+        }
+      ],
+      "why": "sends the seam read to stderr"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1' &>/dev/null"
+          }
+        }
+      ],
+      "why": "discards the seam read output"
     }
   ],
   "fail": [
@@ -170,6 +203,28 @@
         }
       ],
       "why": "a .work prefix that is not the item store"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls src 2>&1"
+          }
+        }
+      ],
+      "why": "lists the source with stderr merged"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1' 2>&1; grep -rn plugin src"
+          }
+        }
+      ],
+      "why": "greps the source after a redirected seam read"
     }
   ]
 }

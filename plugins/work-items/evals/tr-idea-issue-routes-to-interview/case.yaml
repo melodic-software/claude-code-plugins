@@ -38,10 +38,15 @@ graders:
     min: 0
     max: 0
     arm: both
+  # Scope: the no-bash-search pattern splits a command into segments on ;, &&, ||, a lone &
+  # (not the & of a redirect such as 2>&1, >&2 or &>/dev/null), ( and an escaped newline. It
+  # does not parse heredoc bodies or quoting, so a search word inside a heredoc --body line
+  # after a store read can still count; a search in the same segment as a store path stays
+  # exempt. Check further layout findings against real recorded answers before changing it.
   - name: no-bash-search
     type: tool_used
     tool: Bash
-    input_match: '(?:"command":"|[;&(]|\\n)(?!(?:[^;&\\]|\\[^n])*(?:(?<![=\w.-])\.work-items\b|/work-items/|work-item-tracker\.sh))(?:[^;&\\]|\\[^n])*?(?:(?:(?<=[ \t"(;&|])|(?<=\\[nt]))(?:(?:grep|rg|ag)[ \t]|find[ \t]+[./~]|git[ \t]+(?:grep|log)\b)|(?:(?<=[ \t/"])|(?<=\\[nt]))src(?![\w-]))'
+    input_match: '(?:"command":"|[;(]|(?<!>)&(?!>)|\\n)(?!(?:[^;&\\]|(?<=>)&|&(?=>)|\\[^n])*(?:(?<![=\w.-])\.work-items\b|/work-items/|work-item-tracker\.sh))(?:[^;&\\]|(?<=>)&|&(?=>)|\\[^n])*?(?:(?:(?<=[ \t"(;&|])|(?<=\\[nt]))(?:(?:grep|rg|ag)[ \t]|find[ \t]+[./~]|git[ \t]+(?:grep|log)\b)|(?:(?<=[ \t/"])|(?<=\\[nt]))src(?![\w-]))'
     min: 0
     max: 0
     arm: both
