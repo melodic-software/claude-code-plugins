@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: use-boundary-visual-form
+graders:
+  - name: no-playground-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:playgrounds:use|playground(?::playground)?)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-install-push
+    type: regex
+    pattern: 'playground@claude-plugins-official'
+    flags: 'i'
+    match: not_contains
+    target: last_message
