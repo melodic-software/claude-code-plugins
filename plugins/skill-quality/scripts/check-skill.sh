@@ -160,7 +160,9 @@
 #  30. Skill size: description above 419 chars or body above 160 lines
 #      (Pocock's measured max; his medians print as INFO), or either grown vs
 #      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
-#      skipped with an INFO when no base resolves or the skill is new)
+#      skipped with an INFO when no base resolves or the skill is new); and
+#      SKILL.md above the 5k-token router cap, estimated as bytes / 4 over the
+#      whole file (WARN)
 #  31. A `${user_config.KEY}` token used as the subject of a condition ("When
 #      `${user_config.x}` is true") with no inline fallback for the unexpanded
 #      token, in SKILL.md or any skill `.md` prose (FAIL where a baseline
@@ -572,6 +574,16 @@ POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
+# Check 30: the router cap. SKILL.md is a router under 5k tokens
+# (`/playbooks:skill-authoring` reference/skill-criteria.md, `## Body`), a house
+# setting. It matches what compaction keeps: Claude Code re-attaches the first
+# 5,000 tokens of each invoked skill after a summary. Pointer:
+# https://code.claude.com/docs/en/skills#skill-content-lifecycle. As of:
+# 2026-11-01. Recheck trigger: that section moving its per-skill figure. The
+# count is an estimate (bytes / 4, rounded down, over the whole file), the same
+# estimate harness-memory's instruction-load-stats.sh uses; no tokenizer runs,
+# and it reads file bytes, not the rendered output `!` injections can grow.
+ROUTER_TOKEN_CAP=5000
 
 FAILED=0
 WARNINGS=0
@@ -2503,7 +2515,8 @@ fi
 # constants), and on growth of either against the base ref. The base ref is
 # CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
 # or origin/main; with neither, or for a skill new at that ref, the growth half
-# is skipped with an INFO. Never a FAIL.
+# is skipped with an INFO. Also WARNs on a SKILL.md whose estimated tokens pass
+# ROUTER_TOKEN_CAP. Never a FAIL.
 body_lines() { # SKILL.md text on stdin; lines after the closing frontmatter fence
   awk 'NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
     fm { if (/^---[[:space:]]*$/) fm = 0; next }
@@ -2516,6 +2529,12 @@ note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock media
   warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
 ((BODY_LINES > POCOCK_BODY_MAX)) &&
   warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
+SKILL_MD_TOKENS=$(($(wc -c <"$SKILL_MD") / 4))
+if ((SKILL_MD_TOKENS > ROUTER_TOKEN_CAP)); then
+  warn "SKILL.md is ~$SKILL_MD_TOKENS tokens (bytes/4, estimate), above the $ROUTER_TOKEN_CAP-token router cap: move each action to a file under actions/ and bulk to reference files (/playbooks:skill-authoring, Body)"
+else
+  note "SKILL.md ~$SKILL_MD_TOKENS/$ROUTER_TOKEN_CAP tokens (bytes/4, estimate)"
+fi
 
 SIZE_BASE=""
 SIZE_BASE_LABEL=""

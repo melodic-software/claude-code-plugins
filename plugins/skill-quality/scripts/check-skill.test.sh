@@ -5411,6 +5411,33 @@ if grep -q 'INFO: no HEAD version (new skill): size growth skipped' <<<"$out" &&
 else
   fail "check 30 should skip growth for a new skill: $out"
 fi
+# The router cap: 5000 tokens estimated as bytes / 4 rounded down, so 20003
+# bytes is 5000 tokens (at the cap) and 20004 bytes is 5001 (over it).
+# router_skill <name> <total bytes>
+router_skill() {
+  local head pad
+  head=$'---\ndescription: "Do a thing. Use when: \'a thing\' is needed."\ndisable-model-invocation: false\n---\n'
+  mkdir -p "$SKILLS/$1"
+  printf -v pad '%*s' "$(($2 - ${#head} - 1))" ''
+  printf '%s%s\n' "$head" "${pad// /x}" >"$SKILLS/$1/SKILL.md"
+}
+router_skill router-at-cap 20003
+out="$(run router-at-cap 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'router cap' <<<"$out" &&
+  grep -q 'INFO: SKILL.md ~5000/5000 tokens (bytes/4, estimate)' <<<"$out"; then
+  pass "check 30 stays quiet on a SKILL.md at exactly 5000 estimated tokens"
+else
+  fail "check 30 should be quiet at the router cap and print the INFO line (rc=$rc): $out"
+fi
+router_skill router-over-cap 20004
+out="$(run router-over-cap 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: SKILL.md is ~5001 tokens (bytes/4, estimate), above the 5000-token router cap' <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a SKILL.md above 5000 estimated tokens"
+else
+  fail "check 30 should WARN above the router cap, exit 0 (rc=$rc): $out"
+fi
 
 # Check 31: a settings token as the subject of a condition with no fallback.
 # The flagged and passing shapes are the ones the check's spec names: the

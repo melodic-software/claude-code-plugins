@@ -111,11 +111,18 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   mode selection, when to ask instead of proceed, a stop or destructive-action gate) keeps each
   rule and its reason. Tighten its prose only with an eval case behind every edge the cut
   touches. Judgment sections take the concise style in full.
+- **SKILL.md is a router under 5k tokens.** It holds the standing rules and routes each action to
+  one file under `actions/` (`actions/<action>.md`), which the agent reads only when that action
+  runs. Evals cover every skill. 5k tokens is a house setting, set to equal the per-skill budget
+  compaction re-attaches (skill content lifecycle, [Sources](#sources)), so content past it,
+  routing included, is lost after a summary. `/skill-quality:check` estimates the count and warns
+  above it (check 30).
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
-  skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
-  splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
-  the body), while every extra model-invoked skill adds a description to the always-loaded listing (a user-invoked one stays out of it). Split only when the parts
-  change independently or answer different requests.
+  skill by progressive disclosure (an `actions/` file per action, reference files, scripts)
+  instead of splitting it. Depth costs nothing until it's used (a file read then meets the
+  deletion test like the body), while every extra model-invoked skill adds a description to the
+  always-loaded listing (a user-invoked one stays out of it). A split is the exception: make one
+  only when the parts change independently or answer different requests.
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
@@ -235,7 +242,8 @@ them before a run.
 judgment (a reviewer reads) or attestation (the author states it).
 
 - Frontmatter and body: description caps (mechanical, checks 2 and 2b); "Use when" phrasing
-  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); skill-internal paths resolve
+  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); SKILL.md under the 5k-token
+  router cap (mechanical, check 30, a warning); skill-internal paths resolve
   with forward slashes (mechanical, check 5); spoke directories referenced from the hub
   (mechanical, check 15); `## Contents` on a long spoke (mechanical, check 26); explicit
   `disable-model-invocation` (mechanical, check 24); gotchas surface (mechanical, check 11);
@@ -268,8 +276,9 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
   [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle); the
   fresh-session loop at
   [Evaluate and iterate on a skill](https://code.claude.com/docs/en/skills#evaluate-and-iterate-on-a-skill).
-  As of 2026-10-06. Recheck: the listing cap, the listing budget, an invocation default, or the
-  user-invoked context rule changes.
+  As of 2026-10-06; the skill content lifecycle's per-skill re-attach figure read
+  2026-11-01. Recheck: the listing cap, the listing budget, an invocation default, the
+  user-invoked context rule, or the per-skill re-attach figure changes.
 - **Platform best practices**: description cap at
   [YAML frontmatter requirements](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#yaml-frontmatter-requirements);
   voice at

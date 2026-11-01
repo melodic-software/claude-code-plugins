@@ -118,7 +118,7 @@ Parse `$ARGUMENTS`:
      base ref, missing gotchas surface, action-router without evals, orphan
      spokes, an injection with no `shell:` whose commands only *look* portable, an injected
      command carrying no `|| <fallback>`, same-context judgment language with no fresh-eyes
-     declaration or a stale exemption directive). A dropped-trigger warning is a review item: confirm the description still names
+     declaration or a stale exemption directive, a SKILL.md above the 5k-token router cap). A dropped-trigger warning is a review item: confirm the description still names
      the intent each dropped phrase carried, or restore the phrase.
 4. For a multi-skill run, the script's own last line is the rollup `N passed, M failed`. Surface it
    verbatim. The action is complete when every `FAIL:` line and that rollup are reported.
