@@ -15,6 +15,10 @@
     {
       "answer": "fleet/beta: `pull --ff-only`\nfleet/alpha: check out the default branch (main)",
       "why": "prose rows, beta first"
+    },
+    {
+      "answer": "fleet/alpha: checkout-default; fleet/beta: ff-only. Should I apply?",
+      "why": "both rows on one line, split by a semicolon"
     }
   ],
   "fail": [
@@ -29,6 +33,10 @@
     {
       "answer": "fleet/alpha: Switch to the default branch, then `pull --ff-only`. Should I apply?",
       "why": "one row only, prose form whose ff-only belongs to alpha"
+    },
+    {
+      "answer": "fleet/alpha: Switch to the default branch, then `pull --ff-only` (fleet/beta is already current). Should I apply?",
+      "why": "one row only; beta is named on alpha's row without an action of its own"
     },
     {
       "answer": "Actions: checkout-default, ff-only. Should I apply?",
