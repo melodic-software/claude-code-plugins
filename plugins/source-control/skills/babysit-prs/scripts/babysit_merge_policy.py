@@ -3120,6 +3120,13 @@ def _same_modes(merges: Any, trees: Any) -> bool:
     return True
 
 
+def _skill_scripts(skill: str) -> str:
+    """The glob over a skill's `scripts/` directory, the skill named as
+    `plugin:skill`."""
+    plugin, name = skill.split(":")
+    return f"plugins/{plugin}/skills/{name}/scripts/**"
+
+
 # The code a hold-path file loads that is no hold path itself (merge-holds.mjs
 # CARRY_REFUSES, the same list): a push that touches one stops an approval
 # carrying (`ungated_since`); test_merge_holds_sync.py derives that closure.
@@ -3131,18 +3138,18 @@ CARRY_REFUSES: tuple[str, ...] = (
     "docs/conventions/pr-pipeline/**",
     "scripts/**",
     "lib/**",
-    "plugins/source-control/skills/babysit-prs/scripts/**",
+    _skill_scripts("source-control:babysit-prs"),
     "plugins/performance/scripts/**",
-    "plugins/harness-ops/skills/inventory/scripts/**",
-    "plugins/ai-briefing/skills/generate/scripts/**",
-    "plugins/harness-config/skills/audit-permission-state/scripts/**",
-    "plugins/knowledge/skills/course-digest/scripts/**",
-    "plugins/knowledge/skills/video-digest/scripts/**",
+    _skill_scripts("harness-ops:inventory"),
+    _skill_scripts("ai-briefing:generate"),
+    _skill_scripts("harness-config:audit-permission-state"),
+    _skill_scripts("knowledge:course-digest"),
+    _skill_scripts("knowledge:video-digest"),
     "plugins/skill-quality/scripts/**",
     "plugins/source-control/scripts/**",
-    "plugins/testing/skills/check-visual-parity/scripts/**",
+    _skill_scripts("testing:check-visual-parity"),
     ".github/recurring-schedule.json",
-    "plugins/evals/skills/validate/scripts/**",
+    _skill_scripts("evals:validate"),
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
     "plugins/work-items/tools/work-item-tracker/**",

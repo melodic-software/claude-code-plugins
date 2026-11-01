@@ -110,4 +110,4 @@ python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
 `run` resumes: it skips runs already graded without error and stops after the first
 usage-limit exclusion, so the same command continues after a reset. Each arm and reader
 gets its own result file in plugin eval's schema. Compare two of them with
-`plugins/evals/skills/plugin-eval/scripts/noise-report.py <after> --baseline <before> --margin 0.05`.
+`/evals:plugin-eval`'s `scripts/noise-report.py <after> --baseline <before> --margin 0.05`.

@@ -393,6 +393,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-refine.yml", "gate"],
   [".github/workflows/pr-require-checks.yml", "gate"],
   [".github/workflows/pr-review-approved.yml", "gate"],
+  [".github/workflows/pr-review-comment-relay.yml", "gate"],
   [".github/workflows/pr-review-hosted.yml", "gate"],
   [".github/workflows/pr-review-main.yml", "gate"],
   [".github/workflows/pr-review-security-hosted.yml", "gate"],

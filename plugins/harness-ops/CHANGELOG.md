@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.2] - 2026-11-01
+
+### Fixed
+
+- `/harness-ops:morning-brief` drops a lane-outcome record marked `"handoff":true` before it classes a lane run, so a run whose first leg handed off is counted once, by the leg that carried it, in the failure-class, limit-stop, turn-headroom and model-usage lines.
+
 ## [5.2.1] - 2026-11-01
 
 ### Fixed

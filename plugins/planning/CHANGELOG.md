@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.0] - 2026-11-01
+
+### Added
+
+- **Plan: prototype evidence.** The plan template has a `### Prototype evidence` section. It holds one row per prototype the plan consumes, filled from that prototype's durable note: the branch and commit SHA, or the local path with `not pushed: <reason>`, and what the prototype left unproven. The build-technique step says to fill it, and to omit it when the plan consumes no prototype. A new eval case, `plan-prototype-evidence-listed`, checks that a consumed spike's branch, SHA and unproven point appear in that section.
+
 ## [0.135.1] - 2026-11-01
 
 ### Changed
