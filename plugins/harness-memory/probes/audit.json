@@ -1,0 +1,123 @@
+{
+  "skill": "harness-memory:audit",
+  "plugin": "harness-memory",
+  "skill_dir": "plugins/harness-memory/skills/audit",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-memory:stateless (status, disable and purge of auto memory only, where audit checks the whole instruction and memory layer against a docs-derived checklist), harness-config:audit-instructions (report-only hunt for stale, misstated or conflicting text, reaching skills, agents and hook text too), instruction-placement:audit (content on the wrong surface, such as conventions to demote to path-scoped rules), docs-hygiene:write-for-agents (writing or trimming agent-loaded markdown) and session-flow:handoff (a save-point for clear-and-resume). audit owns the checklist audit, fix, checklist update and report over CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules and auto memory.",
+  "competitors": [
+    "harness-memory:stateless",
+    "harness-config:audit-instructions",
+    "instruction-placement:audit",
+    "docs-hygiene:write-for-agents",
+    "session-flow:handoff"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check our CLAUDE.md against what the Claude Code docs recommend and tell me what's off."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a health check on this repo's memory files: the rules folder, CLAUDE.md, and my personal local overrides file."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just upgraded Claude Code. Go through our instruction files and see whether any of them need updating."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our root AGENTS.md has grown huge. Review it against the official guidance and fix what you can."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a report on the state of .claude/rules and the auto-memory notes for this project."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I edited a bunch of rules files yesterday; audit the instruction layer now."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Grade our CLAUDE.md setup against the documented best practices and apply the safe fixes."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the AGENTS.md at the repo root in good shape per Anthropic's docs?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Refresh the checklist you grade memory files against from the current docs, then re-run it."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn off auto memory for this repo."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which conventions in CLAUDE.md only apply to test files and should become scoped rules?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a note to AGENTS.md that we deploy with Pulumi."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our skills and hook messages describe old Claude Code behavior. Find the stale bits."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Checkpoint this session so a fresh one can resume it."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Delete what Claude has saved about me in this project's memory folder."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "My @docs/style.md import in CLAUDE.md isn't loading. Why?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draft a new .claude/rules file for our SQL migration conventions."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find conventions buried in docs/ that agents should actually be loading."
+    }
+  ]
+}
