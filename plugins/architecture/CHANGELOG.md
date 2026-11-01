@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.1] - 2026-11-01
+
+### Changed
+
+- The `improve` boundaries lens offers `/corrections:codify findings <file>` for its findings file, in place of `/review:audit-enforceability`, and the bundled enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as a reader.
+
 ## [1.3.0] - 2026-11-01
 
 ### Added

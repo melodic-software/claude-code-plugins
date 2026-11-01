@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Runs the node probes through Bash and reports a PASS/FAIL row for node. Installs nothing and stops.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
