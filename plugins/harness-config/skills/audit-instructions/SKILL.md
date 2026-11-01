@@ -166,7 +166,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
   Normalization stops in that case by aborting the run with an error that names the exact
   argument to pass (`--target-model <version>`), a non-interactive abort, never a mid-run prompt,
-  and never a silent guess that a family alias means its newest version. When the ambiguous value is a documented
+  and never a silent guess that a family alias means its newest version, which would misfire the
+  exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
   family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
   user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5-5`;
