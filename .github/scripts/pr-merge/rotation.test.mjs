@@ -96,6 +96,17 @@ test("main reads the newest trusted run's cursor and rewrites the candidates in 
   assert.deepEqual(result.order, [30, 10, 20]);
 });
 
+test("the newest run is the highest id, whatever order created_at lists them in", async () => {
+  // Run 7 was created an hour before run 8 but stamped an hour ahead, so the
+  // API lists it first (2026-11-01 08:00-09:00Z).
+  const result = await run({
+    pages: [[wf(999, "schedule"), wf(7, "schedule"), wf(8, "schedule")]],
+    cursors: { 7: '{"last": 20}', 8: '{"last": 10}' },
+  });
+  assert.deepEqual(result.downloads, [8]);
+  assert.deepEqual(result.order, [20, 30, 10]);
+});
+
 test("a pull_request_target run's cursor is never read", async () => {
   const result = await run({
     pages: [[wf(5, "pull_request_target"), wf(4, "pull_request"), wf(3, "workflow_dispatch", "feature"), wf(2, "schedule", "main", ".github/workflows/other.yml")]],
@@ -112,8 +123,8 @@ test("the lookup pages through main's runs, then stops at its bounds", async () 
   assert.deepEqual(found.downloads, [9]);
   assert.deepEqual(found.order, [20, 30, 10]);
   // Ten trusted runs without a cursor end the search before an eleventh is asked.
-  const runs = Array.from({ length: 11 }, (_, i) => wf(100 + i, "schedule"));
-  const bounded = await run({ pages: [runs], cursors: { 110: '{"last": 10}' } });
+  const runs = Array.from({ length: 11 }, (_, i) => wf(110 - i, "schedule"));
+  const bounded = await run({ pages: [runs], cursors: { 100: '{"last": 10}' } });
   assert.equal(bounded.calls.filter((path) => path.includes("/artifacts")).length, 10);
   assert.deepEqual(bounded.downloads, []);
   // Never more than two pages.
