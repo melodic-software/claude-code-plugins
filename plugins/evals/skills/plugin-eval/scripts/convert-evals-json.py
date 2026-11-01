@@ -120,7 +120,7 @@ BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\
 NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
 # A hard-wrapped line joins the next unless that line starts a block (blank
 # line, list item, heading, quote or table row).
-WRAP = re.compile(r"[ \t]*\n[ \t]*(?![\n\-*#>|]|\d+\.)")
+WRAP = re.compile(r"[ \t]*\n(?![ \t]*(?:[\n\-*#>|]|\d+\.))[ \t]*")
 
 
 def body_needs_bash(text):

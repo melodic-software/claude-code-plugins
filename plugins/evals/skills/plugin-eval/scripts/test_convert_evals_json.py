@@ -336,6 +336,17 @@ class ConvertTest(ConverterTestCase):
         )
         self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
 
+    def test_an_indented_item_or_blank_line_is_not_joined_to_a_negation(self):
+        for skill, body in (
+            ("nested", "- Do not edit the config\n  - run the check through Bash"),
+            ("spaced", "Do not edit the file\n  \nRun the tests through Bash."),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Check.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
     def test_a_plain_skill_keeps_the_base_tools(self):
         tools = self.converted_tools(
             "alpha", "---\ndescription: Summarize.\n---\n\nSummarize the doc.\n"
