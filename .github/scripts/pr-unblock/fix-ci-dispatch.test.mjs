@@ -1433,6 +1433,27 @@ test("an escalated head whose rollup shows a passed fix-ci check is retried once
   assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
 });
 
+// Run 41217248303's refusal, on the push job instead of its report job: the
+// model's patch never landed, so the passed fix-ci check does not handle the
+// head. Any other push job failure still does.
+test("a head whose apply-patch failed on a token refusal is retried; any other apply-patch failure is not", async () => {
+  const head = "7".padStart(40, "a");
+  const passed = { title: "Passed: 1 commit", completedAt: "2026-10-22T08:50:00Z" };
+  const failed = check("pr-unblock / apply-patch", "FAILURE", { title: "Failed" });
+  const rollup = [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", passed), failed];
+  const fixCi = { ...toRest(check("pr-unblock / fix-ci", "SUCCESS", passed)), started_at: "2026-10-22T08:40:00Z", external_id: "pr-unblock:fix-ci:41217248303:1" };
+  const stop = (summary) => {
+    const rest = toRest(failed);
+    return { ...rest, output: { ...rest.output, summary }, started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:41217248303:1" };
+  };
+  const refused = stop("The run job did not succeed: lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock-dispatch.yml differs from refs/heads/main");
+  const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [refused]]]) });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
+  const other = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop("The run job did not succeed.")]]]) });
+  assert.deepEqual(other.api.calls.dispatch, []);
+  assert.ok(other.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), other.lines.join("\n"));
+});
+
 // A re-run is the same run id at its next attempt (external_id
 // `<lane>:<activity>:<run id>:<run attempt>`), so a stop marks only the
 // attempt it followed.

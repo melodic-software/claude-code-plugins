@@ -1,0 +1,68 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:audit-derivability",
+            "args": "docs/agents/module-map.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "src/**/*.ts"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-derivability"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/agents/module-map.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:audit-noise"
+          }
+        }
+      ],
+      "why": "sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-agents"
+          }
+        }
+      ],
+      "why": "writer sibling"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: gen-x-url-unfetched
+graders:
+  - name: asks-x-text
+    type: regex
+    pattern: '\b(?:paste|share|send|provide|copy|forward|give me)\b[^\n]{0,80}?\b(?:text|content|contents|wording|what (?:it|the (?:post|tweet)) says)\b'
+    flags: 'i'
+    target: last_message
+  - name: x-url-kept
+    type: regex
+    pattern: '\bnorthwind_cto/status/1849200000000000001\b'
+    flags: 'i'
+    target: last_message
+  - name: no-x-fetch
+    type: tool_used
+    tool: 'WebFetch'
+    input_match: '"url":"(?:[^"\\]|\\.)*?(?:\b(?:x|twitter|fxtwitter|vxtwitter|fixupx|fixvx|xtomd|threadreaderapp)\.com\b|\bnitter\b)'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -216,6 +216,16 @@ Show failing output below the table. Truncated to key error lines, not the full 
 
 **Consumer overrides:** a consumer who still puts code-changing autofixes in `fix-cmd` keeps that behavior under `--fix` (their file wins). Prefer migrating those verbs into `code-fix-cmd` so bare `--fix` stays format-only. Bundled portable defaults already split the two.
 
+### 5. Record the result
+
+After a check-mode report, record its Overall line for the tree it ran on, in its own Bash call, with the line exactly as reported inside single quotes (write a `'` in it as `'\''`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill lint --dir "$REPO_ROOT" --overall '<the Overall line>'
+```
+
+The plugin's Stop hook reads it at turn end the same way it reads `/toolchain:check`'s record. Record nothing for `--fix` or `--code-fix`: the fix changes the tree, so the check that would count is the next check-mode run. Skip it too when an ecosystem filter narrowed the run (`all` and a caller's changed-file list do not narrow it), and when the run stopped at "No changes found". A failed record (exit 2) changes nothing in the report; say it was not recorded.
+
 ## Edge cases
 
 - **No git changes but `/toolchain:lint all`**: run all applicable ecosystems (useful after rebase or pull)

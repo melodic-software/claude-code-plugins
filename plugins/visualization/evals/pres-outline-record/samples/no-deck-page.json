@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "I can't create a deck here, so here is the outline, which is the record of the deck.\n\n# Moving Support to a Follow-the-Sun Rota\n\n**Sections**\n- Why: one sentence on the overnight backlog.\n- Plan: one sentence on the three-region rota.\n- Ask: one sentence on the hiring approval.\n\n## Slide 1: The overnight gap\n- Tickets opened after 18:00 wait a median 9 hours for a first reply.\n- Notes: Open with the customer complaint from the Lisbon account.\n\n## Slide 2: Three regions, one queue\n- Dublin, Manila and Austin each cover an 8-hour block.\n- Notes: Stress that nobody works nights.\n\n## Slide 3: What we need\n- Approve 4 hires in Manila by December.\n- Notes: Finance has already seen the budget line."
+    },
+    {
+      "answer": "No Slides Artifact type is available in this session, so I'm delivering the outline only.\n\n**Title:** Moving Support to a Follow-the-Sun Rota\n\nSections: Problem (overnight tickets wait too long). Proposal (three regions share one queue). Decision (approve the Manila hires).\n\n### 1. The overnight gap\nText: Median first reply for tickets after 18:00 is 9 hours.\nSpeaker notes: Start with the Lisbon complaint.\n\n### 2. Three regions, one queue\nText: Dublin, Manila, Austin, 8 hours each.\nSpeaker notes: No night shifts for anyone.\n\n### 3. The ask\nText: 4 Manila hires by December.\nSpeaker notes: Budget already reviewed by finance."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't create a deck here, so here is the outline, which is the record of the deck.\n\n# Moving Support to a Follow-the-Sun Rota\n\n**Sections**\n- Why: one sentence on the overnight backlog.\n- Plan: one sentence on the three-region rota.\n- Ask: one sentence on the hiring approval.\n\n## Slide 1: The overnight gap\n- Tickets opened after 18:00 wait a median 9 hours for a first reply.\n- Notes: Open with the customer complaint from the Lisbon account.\n\n## Slide 2: Three regions, one queue\n- Dublin, Manila and Austin each cover an 8-hour block.\n- Notes: Stress that nobody works nights.\n\n## Slide 3: What we need\n- Approve 4 hires in Manila by December.\n- Notes: Finance has already seen the budget line.\n\nI also built the deck as a page you can open:\n\n```html\n<!doctype html>\n<html><body><section><h1>The overnight gap</h1></section></body></html>\n```"
+    },
+    {
+      "answer": "Since there's no Slides type, here is slides/s1.html:\n\n```html\n<section class=\"slide\"><h2>The overnight gap</h2><p>9 hours</p></section>\n```"
+    }
+  ]
+}

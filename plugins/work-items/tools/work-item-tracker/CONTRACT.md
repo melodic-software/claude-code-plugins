@@ -220,15 +220,19 @@ repository permission, and marks the label `trusted` only when that permission i
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
 as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). Each row carries the
 application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
-GraphQL `lastEditedAt`, since REST carries no edit time) and reports it as `body_edit`;
+GraphQL `lastEditedAt`, since REST carries no edit time: the
+[issue event types](https://docs.github.com/en/rest/using-the-rest-api/issue-event-types) list no
+body-edit event, and `renamed` covers only the title, as of 2026-10-31, recheck trigger: that list
+adds a body-edit event) and reports it as `body_edit`;
 `after_admission` is `true` when that edit is later than the latest `at` of the named labels,
 because a body rewritten after the labeler read it is not the body the labeler admitted.
 `admitted` is `true` only when every named label is trusted and `after_admission` is `false`; a
 trusted re-application after the edit admits the edited body. A label with no application event,
 an actor with no usable login, and a permission read that fails or returns no permission each
 yield an untrusted row with its `reason`; a failed or empty edit-time read sets `after_admission`
-to `null` with its `reason` and refuses; a failed timeline read exits with the mapped code and
-emits no result. The work-loop
+to `null` with its `reason` and refuses, which the work-loop escalates to human attention once,
+as it does an edit after admission, rather than refusing it again each cycle; a failed timeline
+read exits with the mapped code and emits no result. The work-loop
 admission gate admits an item only on exit `0` with `admitted: true`, so an adapter that declares
 no `label-provenance` key (the gate reads an absent key as `false`, exit `6`) fails closed. Only
 the GitHub adapter implements it today.

@@ -8,6 +8,11 @@
 # where it is installed, the shell that rejects a bashism a bash-backed sh lets
 # through.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/resolve-convention-pattern.sh plugins/guardrails/lib/git-hooks/install.mjs
+# test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh
+# test-scope: plugins/guardrails/hooks/abort-boundary.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/hook-utils.sh plugins/guardrails/hooks/run-guards.sh
+# test-scope: plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/lib/git-hooks/check-lib.sh
+# test-scope: plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+# test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT GIT_EDITOR
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.

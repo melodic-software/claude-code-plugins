@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/a"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.md"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: bg-ui-layout-routes-to-explore
+description: "Head contract (new skill), diagnosis route: product UI with a few nameable directions goes to /prototype:explore-directions, not a generator."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "The skill treats the settings-page layout as a product-UI question with nameable directions and invokes /prototype:explore-directions instead of pitching or building a generator."
+execution:
+  prompt: "/prototype:build-generator layout for our account settings page: tabs down the side, one long scrolling page, or a step-by-step wizard?"
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

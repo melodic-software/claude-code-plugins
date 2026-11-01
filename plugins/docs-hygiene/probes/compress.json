@@ -1,0 +1,124 @@
+{
+  "skill": "docs-hygiene:compress",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/compress",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the noise audit, the SSOT extraction skill, the terseness corrector, the AI-tell audit, the agent-doc writing skill and the startup context audit (a stand-in for the built-in /compact).",
+  "competitors": [
+    "docs-hygiene:audit-noise",
+    "docs-hygiene:extract-ssot",
+    "discipline:tighten-your-output",
+    "ai-slop:audit",
+    "docs-hygiene:write-for-agents",
+    "context-budget:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Tighten this markdown guide; keep every rule and number, just drop the fluff."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This onboarding doc is twice as long as it needs to be. Make it shorter without changing what it says."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a dry run: show me what you would cut from docs/runbook.md, but don't edit it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I rewrote a skill to be terser. Check whether the new version lost anything the old one said."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Strip the hedging and filler out of CONTRIBUTING.md."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make this README shorter but keep all its instructions and thresholds."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Compare before/ and after/ of my skill rewrite and label what was removed versus moved."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Cut the wordiness from these rule files, keeping every qualifier intact."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Preview how much shorter you could make the architecture doc, read-only."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Squeeze the prose in docs/setup.md down; examples and limits must survive."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My context window is nearly full; compact this conversation."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find stale citations and ghost references in our markdown."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The same setup paragraph is copied in four docs; consolidate it into one source."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check this post for AI-writing tells like em dashes and chatbot phrases."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "You're being too verbose in your replies. Be more concise from here on."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Prune our AGENTS.md to what an agent cannot work out from the repo."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which of my installed tools eat the most context before I type anything?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "A constant's value appears in six docs; make one file own it and have the rest cite it."
+    }
+  ]
+}

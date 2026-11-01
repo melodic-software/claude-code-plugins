@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Rename audit: review → code-review (identifier mode)\n\nStill needs changing:\n- README.md:3 `/review` → `/code-review` (certain)\n- docs/architecture.md:4 link path `.claude/skills/review/SKILL.md` (certain)\n- .claude/rules/stages.md:3 paths glob `{plan,review,ship}` (certain; the rule no longer loads for the skill)\n- .claude/agents/shipper.md:3 description chain `plan → review → ship` (certain)\n- docs/workflow.md:9 `| 2. review |` (chain-context, confirm)\n\nLeft alone:\n- CHANGELOG.md:5 1.4.0 entry: frozen history.\n- README.md:5 and docs/workflow.md:12: the English verb \"review\", not the skill.",
+      "why": "all five forms with buckets"
+    },
+    {
+      "answer": "Stragglers:\n1. README.md line 3: `/review`\n2. docs/architecture.md line 4: ../.claude/skills/review/SKILL.md\n3. .claude/rules/stages.md line 3: `{plan,review,ship}` glob\n4. .claude/agents/shipper.md line 3: plan → review → ship\n5. docs/workflow.md line 9: numbered row `2. review` (ambiguous, likely the skill)\n\nOrdinary prose (\"Maintainers review…\", \"Ask a teammate to review…\") is the verb; not proposed. CHANGELOG.md is not listed: past entries stay as written.",
+      "why": "numbered list with line numbers"
+    },
+    {
+      "answer": "- .claude/agents/shipper.md (description)\n- docs/workflow.md (table)\n- .claude/rules/stages.md (glob)",
+      "why": "minimal list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Found with a search for /review:\n- README.md:3 `/review`\n- docs/architecture.md:4 `.claude/skills/review/SKILL.md`\n- CHANGELOG.md:5 `/review`\nUpdate all three to code-review.",
+      "why": "token-only search misses the glob, row and chain"
+    },
+    {
+      "answer": "Stale: README.md, docs/architecture.md, .claude/rules/stages.md glob. CHANGELOG left alone.",
+      "why": "misses workflow row and shipper chain"
+    },
+    {
+      "answer": "To rename a skill, move its folder and update the name field in its frontmatter.",
+      "why": "answers a different question"
+    }
+  ]
+}

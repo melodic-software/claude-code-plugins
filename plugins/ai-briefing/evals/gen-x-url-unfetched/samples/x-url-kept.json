@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Source: <https://x.com/northwind_cto/status/1849200000000000001> (user-provided, not fetched)",
+      "why": "full URL"
+    },
+    {
+      "answer": "[CTO post on X](x.com/northwind_cto/status/1849200000000000001)",
+      "why": "no scheme"
+    },
+    {
+      "answer": "Cited: twitter.com/northwind_cto/status/1849200000000000001",
+      "why": "twitter host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The X link was removed from the briefing because X is not a permitted source.",
+      "why": "URL dropped"
+    },
+    {
+      "answer": "Source: https://northwind.example/blog/atlas-2",
+      "why": "different URL"
+    }
+  ]
+}

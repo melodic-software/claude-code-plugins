@@ -15,8 +15,8 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
   quick decision guide answers the most common questions with no file load.
 - **`/evals:design [app | skill <name>]`** is the action skill that interviews for measurable
   success criteria first, then scaffolds a criteria doc plus a graded eval suite in your repo: a
-  `cases.jsonl` + README for an LLM application, or an `evals/evals.json` (marketplace schema
-  shape) for a Claude Code skill you author. Grading-hygiene gate before finishing (different
+  `cases.jsonl` + README for an LLM application, or `case.yaml` cases in the plugin's `evals/`
+  directory for a Claude Code skill you author. Grading-hygiene gate before finishing (different
   grader model, constrained verdicts, sample-check the grader, stated re-run cost).
 - **`/evals:plugin-eval [preflight | validate | run | read <json> | ci | init]`**: guided practice
   around the `claude plugin eval` command. Preflight reports the CLI version against the floor the
@@ -41,10 +41,12 @@ preflights the machine and the target, validates the case files, prices the suit
 and reads the delta out of the result JSON. `/evals:validate` is the zero-spend half of the same
 work.
 
-Two eval formats coexist and are not interchangeable. The CLI reads a plugin's `evals/` tree
-(`prompt.md` plus `graders/*.md`, or `case.yaml`). A Claude Code skill's own `evals/evals.json`, the
-format `/evals:design` scaffolds, belongs to Anthropic's `skill-creator` plugin, which runs it;
-`skill-quality` (this marketplace) statically validates it when installed.
+The CLI reads a plugin's `evals/` tree (`prompt.md` plus `graders/*.md`, or `case.yaml`). That is
+the format `/evals:design` writes for a skill, and the one `claude plugin eval init` writes for a
+whole plugin; `/evals:validate` checks it. Anthropic's `skill-creator` plugin has its own JSON
+eval format, which the CLI does not read; convert those cases to the suite layout to run them here.
+`skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
+cases into its `evals/` suite and removes the converted files.
 
 ## Upstream sync
 

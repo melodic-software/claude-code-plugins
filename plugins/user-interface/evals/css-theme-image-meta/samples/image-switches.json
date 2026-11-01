@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".hero { background-image: url(/img/hero-light.svg); }\n[data-theme=\"dark\"] .hero { background-image: url(/img/hero-dark.svg); }\n@media (prefers-color-scheme: dark) { :root:not([data-theme]) .hero { background-image: url(/img/hero-dark.svg); } }",
+      "why": "own rule under the switch and the OS setting"
+    },
+    {
+      "answer": ":root { color-scheme: light dark; }\n[data-theme=\"dark\"] { color-scheme: dark; }\n[data-theme=\"light\"] { color-scheme: light; }\n.hero { background-image: light-dark(url(/img/hero-light.svg), url(/img/hero-dark.svg)); }\n\nThe image form of light-dark() is newer than the color form; check its support for your targets.",
+      "why": "light-dark() images with the support caveat"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@media (prefers-color-scheme: dark) { .hero { background-image: url(/img/hero-dark.svg); } }",
+      "why": "follows the OS only; the switch cannot change the image"
+    },
+    {
+      "answer": ":root { color-scheme: light dark; }\n[data-theme=\"dark\"] { color-scheme: dark; }\n.hero { background-image: light-dark(url(/img/hero-light.svg), url(/img/hero-dark.svg)); }",
+      "why": "near miss: light-dark() images with no support caveat"
+    }
+  ]
+}

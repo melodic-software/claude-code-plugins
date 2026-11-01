@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: viz-ambiguous-code
+graders:
+  - name: asks-one-question
+    type: regex
+    pattern: '\?[\s\S]*$'
+    target: last_message
+  - name: recommended-first
+    type: regex
+    pattern: '^(?:(?!^[ \t]*(?:\d+[.)]|[-*+]|\(?[A-Da-d][.)]))[\s\S])*?^[ \t]*(?:1[.)]|[-*+]|\(?[Aa][.)])[ \t][^\n]*recommend'
+    flags: im
+    target: last_message
+  - name: renders-nothing
+    type: regex
+    pattern: '├──|└──|```mermaid|^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-+:?[ \t]*\|'
+    flags: m
+    match: not_contains
+    target: last_message

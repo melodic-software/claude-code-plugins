@@ -1,0 +1,160 @@
+{
+  "skill": "user-interface:design",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/design",
+  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. user-interface:write-animation builds one animation, so a request to animate a menu (neg-train-06) goes there. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here.",
+  "competitors": [
+    "planning:design",
+    "prototype:explore-directions",
+    "user-interface:write-css",
+    "user-interface:audit",
+    "session-flow:recommend-skills",
+    "user-interface:write-animation"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What props should our shared Button take? Right now people pass colors and padding straight in."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Tabs component takes one big config array. Should it be split into parts like Tabs.List and Tabs.Panel instead?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do I let the date input work with its own internal state but also be driven from a parent form when needed?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Agents keep inventing a ghost variant on our buttons. How should the component's variants be set up so that stops?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which headless library should our React app build its dialogs and menus on? We don't have one yet."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Select only takes value and onChange, so teams that just want it to work have to wire state up. What should the API be?"
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Lay out the parts and props for an Accordion component other teams will reuse across the app."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a DESIGN.md for this repo so coding agents use our tokens and existing components."
+    },
+    {
+      "id": "pos-train-09",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This settings page layout feels off. Which skill should I run on it first, and what comes after?"
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the props on the new Card we're adding to the design system before other teams start using it."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should our link-styled button render a real anchor tag, and how do consumers swap the element it renders?"
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our Input uses isDisabled and handleChange while Select uses disabled and onChange. Help me make the component props consistent."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is it fine for our design-system Modal to take title, body and footerButtons as props, or is there a better shape?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Document our components so agents stop making up their own variants of them."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should the public interface of our payments SDK look like before we write the plan?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me model the types for order states so illegal transitions can't compile."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where should the boundary sit between the scheduler package and the worker pool?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mock up three different layouts for the pricing page so I can compare them."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Let's work out what the repository interface for the orders module should expose."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Animate the menu opening from its trigger."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Design the event contract the billing service publishes to its consumers."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the CSS for the card's hover and focus states."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Talk me through how to split this monorepo's shared code into packages."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review the UI changes on my branch for problems before I merge them."
+    }
+  ]
+}

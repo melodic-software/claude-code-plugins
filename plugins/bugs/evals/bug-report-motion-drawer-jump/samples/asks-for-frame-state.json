@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "One question before I write it up: can you capture the frame where the drawer jumps? A frame-state export (`/app-control:drive capture --kind animation` records one) gives the transform and opacity values at that frame, with their from and to values and progress, and the speed it was recorded at.",
+      "why": "asks for a frame-state export"
+    },
+    {
+      "answer": "# Bug: `SettingsDrawer` snaps to fully open when closed mid-opening\n\n**Severity**: low\n**Suggested fix location**: `apps/web/src/components/SettingsDrawer.tsx` (no patch)\n\n## Steps to reproduce\n\n1. Open the settings drawer.\n2. Press the close button before it finishes opening.\n\n## Expected behavior\n\nThe drawer closes from where it is.\n\n## Actual behavior\n\nThe panel snaps to fully open, then slides out.\n\n## Notes\n\n- Needs reporter confirmation: the values at the frame where it jumps (the panel's transform, its from and to values and progress) and the playback speed it was seen at.",
+      "why": "lists the frame values and the speed under Notes as evidence still needed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Could you attach a screenshot, or a few still frames of the jump? That will let the fixer see the snap.",
+      "why": "near miss: asks for evidence, but stills miss the timing"
+    },
+    {
+      "answer": "Please attach a screen recording of the drawer closing so the fixer can watch the jump.",
+      "why": "asks for a video, which cannot be read"
+    },
+    {
+      "answer": "# Bug: `SettingsDrawer` jumps when closed mid-opening\n\n**Severity**: low\n\n## Steps to reproduce\n\n1. Open the drawer and close it at once.\n\n## Expected behavior\n\nA smooth close.\n\n## Actual behavior\n\nIt snaps open, then slides out.",
+      "why": "asks for no evidence about the motion"
+    }
+  ]
+}

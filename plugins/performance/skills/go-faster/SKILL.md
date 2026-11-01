@@ -1,7 +1,7 @@
 ---
 description: "Background sweep of the whole AI-assisted development process (this session's work, git, hooks, the rest of the setup) for ways to go faster without losing accuracy, returning evidenced findings ranked by measured size and speedups to adopt now; edits no repository file or setting. Use when: 'go faster', 'how can we go faster', 'speed up this session', 'what is slowing us down', 'whole-process speed sweep'. Skip: ranking candidates already in hand is /performance:target."
 user-invocable: true
-argument-hint: "[unattended]"
+argument-hint: "[--unattended]"
 disable-model-invocation: false
 shell: bash
 metadata:
@@ -9,8 +9,9 @@ metadata:
   summary: Whole-process speed sweep with evidenced, ranked findings and adopt-now speedups
 ---
 
-**Arguments.** `[unattended]`. e.g. /performance:go-faster, or /performance:go-faster unattended
-from a scheduled run.
+**Arguments.** `[--unattended]`. e.g. /performance:go-faster, or /performance:go-faster --unattended
+from a scheduled run. `--unattended`, anywhere in the arguments, is the caller declaring that
+nobody is present. The bare word `unattended` is not this flag and leaves the run attended.
 
 ## Purpose
 
@@ -87,7 +88,8 @@ setup scan only." and continue with `EVIDENCE` false.
 It prints `RUN`; exit 3 is `write-denied`: release the lock (Step 4) and report its `cannot write`
 line. Dispatch the `performance:go-faster-sweeper` agent with a prompt carrying `PY`,
 `ROOT` (`${CLAUDE_PLUGIN_ROOT}`), `RUN`, `DATA`, `SESSION`, `TRANSCRIPT`, `MODE` and `EVIDENCE`,
-each on its own line. `MODE` is `unattended` when the argument says so, else `attended`.
+each on its own line. `MODE` is `unattended` when the caller passed `--unattended`, else `attended`;
+`--mode` takes the same value. The flag itself reaches neither `findings.py` nor the sweeper.
 
 - **Attended**: do not wait on the sweeper where the session lets it run in the background. Tell
   the user in one line that the sweep is running, and carry on with the work in hand. Present at

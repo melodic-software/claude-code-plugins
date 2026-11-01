@@ -54,6 +54,20 @@ export const SECRET_PATTERNS = Object.freeze([
   ["upload token", /\bpgup_[A-Za-z0-9_-]{20,}/],
 ]);
 
+// The secret patterns read on each pair of adjacent lines joined, so a credential a line break
+// splits still matches. Left out of every pair pass: the OpenAI key (any sk- and 20 token
+// characters), since an sk- word ending a line joins the next line's first word; and the R2 key
+// pair (a 32-hex and a 64-hex token), since adjacent md5 and sha256 lines pair. The gate's pair
+// pass (findSecret) keeps the assignment, since any label from it keeps a view local or refuses
+// the host; the leak scan's split-line pass (straddles) leaves it out too, since it only warns
+// on it. publish-gate.test.mjs checks the labels against SECRET_PATTERNS, so a renamed one fails
+// loudly there. Loading never throws on a missing label: the leak scan runs a gate whose list
+// lacks the assignment (callers.test.mjs).
+export const WARN_ONLY = "password or secret assignment";
+export const UNJOINABLE = Object.freeze(["OpenAI key", "R2 key pair"]);
+const GATE_JOINABLE = SECRET_PATTERNS.filter(([label]) => !UNJOINABLE.includes(label));
+const JOINABLE = GATE_JOINABLE.filter(([label]) => label !== WARN_ONLY);
+
 /** Machine paths and hostnames: a hit sends a hosted page to the private host. Only these shapes are caught. */
 export const MACHINE_PATTERNS = Object.freeze([
   ["home path", /\/home\/[a-z_][\w.-]*\/|\/Users\/[^/\s"'<>]+\/|\b[A-Za-z]:\\+Users\\+|\/mnt\/[a-z]\/Users\/|(?<![\w.~-])\/root\//i],
@@ -63,8 +77,9 @@ export const MACHINE_PATTERNS = Object.freeze([
   ["private hostname", /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:local|internal|lan)\b(?![.-])/i],
 ]);
 
-// The builder's page stamp carries a 64-hex digest, which would otherwise pair with any 32-hex token.
-const STAMP = /<!-- rv-gen:[\w.-]+ sha256:[0-9a-f]{64} -->/g;
+// The builders' page stamps carry a 64-hex digest, which would otherwise pair with any 32-hex token.
+// Only their own names match, since what this removes no pattern reads.
+const STAMP = /<!-- rv-gen:(?:escape-helper-v\d+|view-builder-interactive) sha256:[0-9a-f]{64} -->/g;
 
 const ENTITIES = Object.freeze({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " });
 const codePoint = (n) => (Number.isFinite(n) && n <= 0x10ffff ? String.fromCodePoint(n) : "");
@@ -98,18 +113,31 @@ export const normalize = (text) => {
   return folded.replace(/\\([^\sA-Za-z0-9/."'])/g, "$1");
 };
 
-/** The first of `patterns` in `text` or its folded copy, as [label, 1-based line], or null. `fold` stands in for normalize. */
-export const firstHit = (patterns, text, fold = normalize) => {
-  const lines = String(text ?? "").split(/\r?\n/).map((line) => line.replace(STAMP, ""));
-  const normalized = lines.map(fold);
+const linesOf = (text) => String(text ?? "").split(/\r?\n/).map((line) => line.replace(STAMP, ""));
+const firstIn = (patterns, lines, normalized) => {
   for (let i = 0; i < lines.length; i += 1) {
     for (const [label, re] of patterns) if (re.test(lines[i]) || (normalized[i] !== lines[i] && re.test(normalized[i]))) return [label, i + 1];
   }
   return null;
 };
+const pairs = (lines) => lines.slice(1).map((line, i) => lines[i] + line);
 
-/** The first credential-shaped pattern in `text`, as [label, 1-based line], or null. Never the match itself. */
-export const findSecret = (text) => firstHit(SECRET_PATTERNS, text);
+/** The first of `patterns` in `text` or its folded copy, as [label, 1-based line], or null. `fold` stands in for normalize. */
+export const firstHit = (patterns, text, fold = normalize) => {
+  const lines = linesOf(text);
+  return firstIn(patterns, lines, lines.map(fold));
+};
+
+/**
+ * The first credential-shaped pattern in `text`, as [label, 1-based line], or null. Never the match itself.
+ * When no line matches alone, the GATE_JOINABLE patterns read each pair of adjacent lines joined, raw
+ * and normalized, and a hit names the pair's first line.
+ */
+export const findSecret = (text) => {
+  const lines = linesOf(text);
+  const normalized = lines.map(normalize);
+  return firstIn(SECRET_PATTERNS, lines, normalized) ?? firstIn(GATE_JOINABLE, pairs(lines), pairs(normalized));
+};
 
 /** The first machine path or hostname in `text`, as [label, 1-based line], or null. Never the match itself. */
 export const findMachine = (text) => firstHit(MACHINE_PATTERNS, text);
@@ -119,8 +147,7 @@ export const findMachine = (text) => firstHit(MACHINE_PATTERNS, text);
 // The lanes' leak scan: the read runner's scan job runs it on what a run
 // leaves, and work-resolve-issue.yml's run-checks job on a reused branch.
 // A credential format blocks and asks for rotation. The one broad label, an
-// assignment that may be a test fixture, only warns, and only on a plain line.
-export const WARN_ONLY = "password or secret assignment";
+// assignment that may be a test fixture (WARN_ONLY, above), only warns, and only on a plain line.
 export const HIDDEN = "assignment hidden by markup or escapes";
 const BLOCKING = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
 const WARN_PATTERN = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
@@ -157,7 +184,9 @@ const classifyLine = (line) => {
   return { warn: true };
 };
 
-// findSecret on the whole text runs too, and any credential label from it blocks.
+// The secret patterns run line by line on the whole text too, and any credential label from them
+// blocks. Lines are not joined here: deeperLeak joins them, raw only, with a diff's hunk prefixes
+// removed first.
 const classify = (text) => {
   let warn = false;
   for (const line of text.split(/\r?\n/)) {
@@ -165,7 +194,7 @@ const classify = (text) => {
     if (result.block) return result;
     warn ||= Boolean(result.warn);
   }
-  const whole = findSecret(text);
+  const whole = firstHit(SECRET_PATTERNS, text);
   if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
   return { warn };
 };
@@ -174,17 +203,14 @@ const classify = (text) => {
 // - UTF-16LE: the text with its NUL bytes removed, so a token written two
 //   bytes a character reads as one; a space in place of each NUL would split it.
 // - Split lines: each pair of adjacent lines joined with no separator, counting
-//   only a match that straddles the join of a pattern neither line matches
-//   alone. The OpenAI key pattern (any sk- and 20 token characters) and the R2
-//   key pair pattern (a 32-hex and a 64-hex token on one line) are left out:
-//   an sk- word ending a line joins the next line's first word, and adjacent
-//   md5 and sha256 lines pair. In a diff the pair is hunk lines with their +,
+//   only a match that straddles the join of a JOINABLE pattern neither line
+//   matches alone. In a diff the pair is hunk lines with their +,
 //   - or space prefix removed and the file headers dropped, or a token split
 //   inside an added hunk would join as "...ab+cd..." and never match.
 const straddles = (left, right) => {
   const joined = left + right;
-  for (const [label, re] of BLOCKING) {
-    if (label === "OpenAI key" || label === "R2 key pair" || re.test(left) || re.test(right)) continue;
+  for (const [label, re] of JOINABLE) {
+    if (re.test(left) || re.test(right)) continue;
     for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace("g", "")}g`))) {
       if (match.index < left.length && match.index + match[0].length > left.length) return label;
     }
@@ -196,7 +222,7 @@ const credentialIn = (text) => {
     const raw = BLOCKING.find(([, re]) => re.test(line));
     if (raw) return raw[0];
   }
-  const found = findSecret(text);
+  const found = firstHit(SECRET_PATTERNS, text);
   return found && found[0] !== WARN_ONLY ? found[0] : null;
 };
 const HUNK_HEADER = /^(?:\+\+\+|---) /;

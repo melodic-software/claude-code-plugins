@@ -442,7 +442,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "repos/{repo}/actions/workflows/{x}/dispatches" <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
@@ -812,7 +812,8 @@ jobs:
     # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    # 45 leaves about a minute before the loop, then the longer of the
+    # 45 leaves about two minutes before the loop, the listing's 60 s of retry
+    # waits among them, then the longer of the
     # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
     # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
     # it is always gated first), plus one read's own timeout, the escalation
@@ -1089,12 +1090,19 @@ jobs:
           if [ "$DEPENDABOT" != off ]; then
             authors+=(app/dependabot)
           fi
-          # A 5xx from the API fails one call; three tries, then one clear
-          # error instead of jq and the prefilter failing on empty input. A
-          # rate limit is never retried: calling on while limited risks a ban.
+          # A failed read, a rate stop past the budget, or a 200 that fails the
+          # completeness check leaves the listing unknown: this step ends green
+          # with a notice and `held`, the steps that need the listing wait on
+          # `listed`, and the next scheduled run is the probe. Only the sweep
+          # summary and cost run on `held`: no step lists, demotes, files or
+          # dequeues, and a failed lane merge waits for a run that lists. 60 s of
+          # waits covers the documented minute of a secondary limit; a longer
+          # stop gains little over the next run. A listing that reaches the
+          # limit ends the step red with no retry: another try reads the same.
           # gh goes through the shared rate guard (api-budget.bash).
           . .base/.github/actions/log-api-budget/api-budget.bash
           . .base/.github/scripts/pr-merge/rate-stop.bash
+          . .base/.github/scripts/pr-merge/retry-call.bash
           api_budget_wrap_gh github-token
           listing="$RUNNER_TEMP/listing.json"
           # One list of every open pull request into main (GraphQL), kept
@@ -1102,26 +1110,40 @@ jobs:
           # call per author.
           limit=1000
           echo '[]' >"$listing"
-          if [ "${#authors[@]}" -gt 0 ]; then
-            for attempt in 1 2 3; do
-              if gh pr list --repo "$REPO" --base main --state open --limit "$limit" \
-                --json id,number,headRefOid,isDraft,updatedAt,labels,body,author >"$listing" 2>"$RUNNER_TEMP/list-stderr"; then
-                break
-              fi
-              cat "$RUNNER_TEMP/list-stderr" >&2
-              stop=$(rate_stop_from "$RUNNER_TEMP/list-stderr" "gh pr list")
-              if [ -n "$stop" ]; then
-                echo "::error title=GitHub rate limit::gh pr list was rate limited ($stop); nothing more is sent, and the next scheduled run lists again"
-                exit 1
-              fi
-              if [ "$attempt" = 3 ]; then
-                echo "::error::gh pr list failed 3 times; no candidates listed, the gate does not run"
-                exit 1
-              fi
-              sleep $((attempt * 15))
-            done
+          # A listing as long as the limit may be cut short whatever a count
+          # says, so it leaves the retry at once and ends the step red below.
+          # Under the limit, gh pr list --json prints no total, so the same
+          # connection's totalCount is read after it.
+          listing_full='' listing_fault=''
+          list_open_prs() {
+            local total held
+            listing_fault=
+            gh pr list --repo "$REPO" --base main --state open --limit "$limit" \
+              --json id,number,headRefOid,isDraft,updatedAt,labels,body,author >"$listing" || return 1
+            held=$(jq 'map(.number) | unique | length' "$listing") || return 1
+            if [ "$held" -ge "$limit" ]; then
+              listing_full=true
+              return 0
+            fi
+            # shellcheck disable=SC2016 # GraphQL variables, not shell ones
+            total=$(gh api graphql --jq .data.repository.pullRequests.totalCount -f owner="${REPO%/*}" -f name="${REPO#*/}" \
+              -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
+                pullRequests(states: OPEN, baseRefName: "main") { totalCount } } }') || return 1
+            if [ "$held" != "$total" ]; then
+              listing_fault="count mismatch"
+              echo "gh pr list holds $held of $total open pull requests" >&2
+              return 1
+            fi
+          }
+          if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
+            # The reason reaches a public issue: fixed text, never a call's stderr.
+            reason="$retry_call_unknown${listing_fault:+ ($listing_fault)}"
+            echo "::notice title=Merge lane hold::the open pull requests are unknown ($reason); this job gates, merges, re-readies, re-fires, files, dequeues and clears nothing; it still writes the sweep summary; the next scheduled run lists again"
+            echo "held=true" >>"$GITHUB_OUTPUT"
+            echo "held-reason=$reason" >>"$GITHUB_OUTPUT"
+            exit 0
           fi
-          if [ "$(jq length "$listing")" -ge "$limit" ]; then
+          if [ -n "$listing_full" ]; then
             echo "::error::gh pr list returned $limit pull requests, so the listing may be cut short; no candidates listed, the gate does not run"
             exit 1
           fi
@@ -1141,6 +1163,7 @@ jobs:
           jq -c '[.[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
               labels: [.labels[].name]}] | unique_by(.number)' "$RUNNER_TEMP/authored.json" >"$RUNNER_TEMP/drafts.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
+          echo "listed=true" >>"$GITHUB_OUTPUT"
 
       # The gate loop below can stop at its time budget, so it starts after
       # the last candidate the previous loop reached (the
@@ -1152,7 +1175,7 @@ jobs:
       # PR_MERGE_READS_PATH (rotation.mjs sharedReads); each still picks and
       # checks its own run and file.
       - name: Start after the candidate the last run reached
-        if: steps.candidates.outcome == 'success'
+        if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
@@ -1168,7 +1191,7 @@ jobs:
       # steps could upload it. Any error leaves no map, and the gate downloads
       # each untied FAIL. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
       - name: Read the head refs the last run kept
-        if: steps.candidates.outcome == 'success'
+        if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
@@ -1192,7 +1215,7 @@ jobs:
       # .github/scripts/pr-merge/carry-run-cache.mjs. Any error
       # leaves the run cache empty, and the gate reads GitHub.
       - name: Read the verdict reads the last run kept
-        if: steps.candidates.outcome == 'success'
+        if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -1203,7 +1226,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
 
       - name: Start the run cache from them
-        if: steps.candidates.outcome == 'success'
+        if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -1218,7 +1241,7 @@ jobs:
       # .github/scripts/pr-merge/listing-carry.mjs and
       # babysit_verify_evidence.py `Reader._incremental`.
       - name: Read the artifact listing the last run kept
-        if: steps.candidates.outcome == 'success'
+        if: steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -1234,7 +1257,7 @@ jobs:
       # adds the ones it proves. Any error leaves no file, and the checks read
       # each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
       - name: Read the lane records the last run kept
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
@@ -1243,9 +1266,10 @@ jobs:
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
-      # The post-merge check, read-only, on every run whether or not any PR is
-      # a candidate: after the queue lands the last lane PR there is none, yet
-      # that merge still needs its full CI run to be verified. It looks only
+      # The post-merge check, read-only, on every run that listed, whether or
+      # not any PR is a candidate: after the queue lands the last lane PR
+      # there is none, yet that merge still needs its full CI run to be
+      # verified. It looks only
       # at PRs this lane put in the merge queue itself; merges by a person or
       # by another App (a release PR, say) are not the lane's to check.
       # It runs before the gate, which reuses its answer for every candidate
@@ -1253,9 +1277,11 @@ jobs:
       # (--postmerge-result); a PR that merges during the run is in the
       # gate's own `dispatch` output. The post-merge-dispatch job runs the
       # same check to start the full run an earlier merge needs, so neither a
-      # failed listing nor a long gate loop holds that run back. Read-only,
-      # so it reads with this job's own token, off the lane App's quota; only
-      # --remediate below needs the lane token.
+      # failed listing nor a long gate loop holds that run back. A held
+      # listing skips this step and the record below: that job's check of
+      # this run stands, and the next run that lists files any record.
+      # Read-only, so it reads with this job's own token, off the lane App's
+      # quota; only --remediate below needs the lane token.
       # The same check of this run's post-merge-dispatch job, with the same
       # inputs, is reused instead when it judged (exit 0, 1 or 5), the check's
       # code here reads as at the commit it ran, and the lane room's reuse
@@ -1269,6 +1295,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
           && needs.post-merge-dispatch.result != 'skipped'
+          && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1279,7 +1306,7 @@ jobs:
 
       - name: Check earlier lane merges
         id: post-merge
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -1337,8 +1364,13 @@ jobs:
       # permission, so the re-run and dispatch --remediate also attempts fail
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
+      # A held listing skips it, as it skips the check above: the job files
+      # and dequeues nothing, and the next run that lists records the failed
+      # merge and dequeues the lane's entries.
       - name: Record a failed lane merge
-        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
@@ -1372,7 +1404,7 @@ jobs:
       # request at its current head is marked ready here: one comments read
       # per such draft.
       - name: Re-ready a draft a whole-review request left
-        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.report-only == 'false' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.mode.outputs.report-only == 'false' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1395,7 +1427,7 @@ jobs:
       # saved for the gate's first candidate. Any error gates every
       # candidate. Rules: babysit_merge_skip.py.
       - name: Skip refusals whose inputs have not changed
-        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1444,7 +1476,7 @@ jobs:
       # back to the capped rotation, never deferred again.
       - name: Run the merge gate on each candidate
         id: gate
-        if: steps.lane-token.outputs.token != '' && steps.candidates.outcome == 'success'
+        if: steps.lane-token.outputs.token != '' && steps.candidates.outputs.listed == 'true'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The verdict reader's Actions calls, the review-evidence reads
@@ -1736,11 +1768,12 @@ jobs:
 
       # The same verdicts as data for the lane trend chart, since the API
       # cannot read a step summary: the pr-merge-summary artifact, and one log
-      # line of refusal counts by reason. The key is split here so this
-      # script, which the log echoes, never matches a grep for it. Rules:
-      # .github/scripts/pr-merge/sweep-summary.mjs.
+      # line of refusal counts by reason. A held listing has no verdicts and
+      # still writes one, with listing_held, so a monitor sees the run. The key
+      # is split here so this script, which the log echoes, never matches a
+      # grep for it. Rules: .github/scripts/pr-merge/sweep-summary.mjs.
       - name: Count the sweep's refusals
-        if: always() && steps.gate.outcome != 'skipped'
+        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
         timeout-minutes: 1
         env:
@@ -1750,6 +1783,8 @@ jobs:
           LIVE: ${{ steps.mode.outputs.live }}
           GATE_OUTCOME: ${{ steps.gate.outcome }}
           LIMITED: ${{ steps.gate.outputs.rate-limited }}
+          LISTING_HELD: ${{ steps.candidates.outputs.held }}
+          LISTING_HELD_REASON: ${{ steps.candidates.outputs.held-reason }}
           SUMMARY_PATH: ${{ runner.temp }}/pr-merge-summary.json
           HELD_PATH: ${{ runner.temp }}/held.json
           CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
@@ -1760,9 +1795,10 @@ jobs:
           # The read goes through the wrapped gh, so the job-end notice counts it.
           . .base/.github/actions/log-api-budget/api-budget.bash
           api_budget_wrap_gh github-token
-          # After the gate's rate-limit stop, no read: the start stays unknown.
+          # After the gate's rate-limit stop or a held listing, no read: the
+          # start stays unknown.
           RUN_STARTED_AT=
-          if [ "$LIMITED" != true ]; then
+          if [ "$LIMITED" != true ] && [ "$LISTING_HELD" != true ]; then
             RUN_STARTED_AT=$(gh api "repos/$REPO/actions/runs/$GITHUB_RUN_ID" --jq .run_started_at) || RUN_STARTED_AT=
           fi
           export RUN_STARTED_AT
@@ -1770,7 +1806,7 @@ jobs:
           jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
 
       - name: Upload the sweep's verdicts
-        if: always() && steps.gate.outcome != 'skipped'
+        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1805,7 +1841,8 @@ jobs:
       # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
-      # is report-only or after the gate's rate-limit stop. A PR from a branch
+      # is report-only, after the gate's rate-limit stop, or on a listing that
+      # held or ended red. A PR from a branch
       # merge.refire-skip-branches names (one a workflow rebuilds) is left
       # alone. A PR that changed since the listing, or whose branch a fresh
       # read shows moved or gone after a 409 or 422 on the ref update, is a
@@ -1819,6 +1856,7 @@ jobs:
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
           && steps.gate.outputs.rate-limited != 'true'
+          && steps.candidates.outputs.listed == 'true'
         env:
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1841,7 +1879,8 @@ jobs:
       # job's own token and the base trusted-actor list), after a comment naming the reason
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
-      # while the lane is report-only or after the gate's rate-limit stop.
+      # while the lane is report-only, after the gate's rate-limit stop, or on a
+      # listing that held or ended red.
       # Under merge.lane-prs native, a label enable-auto-merge set at the
       # current head is judged again with the gate's reader, at most three
       # reads a run of up to four minutes each, sharing the gate step's run
@@ -1858,6 +1897,7 @@ jobs:
           && steps.lane-token.outputs.token != ''
           && steps.mode.outputs.report-only == 'false'
           && steps.gate.outputs.rate-limited != 'true'
+          && steps.candidates.outputs.listed == 'true'
         timeout-minutes: 15
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -1911,13 +1951,15 @@ jobs:
       # this job sent (the api-calls count; the rise in a pool's shared
       # counter is not this job's cost), `unknown` when the job-end step
       # wrote none, the candidates listed, how many the gate reached before
-      # it ended, and how many it skipped as unchanged.
+      # it ended, and how many it skipped as unchanged. A held listing's line
+      # ends `listing-held=true`, its counts past the tokens' unknown.
       - name: Write the sweep cost
-        if: always() && steps.gate.outcome != 'skipped'
+        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
         env:
           CALLS: ${{ steps.budget-end.outputs.calls }}
           CANDIDATES: ${{ steps.candidates.outputs.count }}
+          LISTING_HELD: ${{ steps.candidates.outputs.held }}
         run: |
           lane=unknown github_token=unknown
           for count in $CALLS; do
@@ -1930,6 +1972,7 @@ jobs:
             '($s[0] | map(select(has("carried") | not)) | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
           skipped=$(jq '[.[] | select(has("carried"))] | length' "$RUNNER_TEMP/pr-merge-summary.json" 2>/dev/null) || skipped=unknown
           line="sweep-calls=$lane github-token-calls=$github_token candidates=${CANDIDATES:-unknown} reached=$reached skipped=$skipped"
+          [ "$LISTING_HELD" != true ] || line="$line listing-held=true"
           echo "$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 
@@ -2565,7 +2608,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "repos/{repo}/actions/workflows/{x}/dispatches" <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")

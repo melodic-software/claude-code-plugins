@@ -129,6 +129,11 @@ test("the model's jobs can only read, and the one writer runs no model", () => {
     assert.match(route, /^ {4}permissions: \{\}$/m, job);
     assert.doesNotMatch(route, /run-claude-cli|secrets\.|actions\/checkout@|uses:/, job);
   }
+  // The trigger job reads with the key leg's grants, holds no secret and runs
+  // no model.
+  const trigger = jobText("trigger");
+  assert.deepEqual(grantsOf(trigger).map(([, scope, level]) => `${scope}:${level}`), grantsOf(jobText(KEY)).map(([, scope, level]) => `${scope}:${level}`));
+  assert.doesNotMatch(trigger, /run-claude-cli|secrets\./);
   const record = jobText("record");
   assert.deepEqual(grantsOf(record).map(([, scope, level]) => `${scope}:${level}`), ["checks:write"]);
   assert.doesNotMatch(record, /run-claude-cli|secrets\.|actions\/checkout@/);
@@ -732,7 +737,13 @@ test("each chunk's review leaves a lane record", () => {
 });
 
 test("it checks out main only, and runs local actions from that checkout", () => {
-  assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length);
+  // One checkout per leg, and the trigger job's of the tip, like the key leg's.
+  assert.equal(text.match(/uses: actions\/checkout@/g).length, LEGS.length + 1);
+  const triggerCheckout = jobText("trigger").split(/\n(?=      - name: )/).filter((s) => /uses: actions\/checkout@/.test(s));
+  assert.equal(triggerCheckout.length, 1);
+  assert.match(triggerCheckout[0], /^ {10}ref: refs\/heads\/main$/m);
+  assert.match(triggerCheckout[0], /^ {10}path: \.base$/m);
+  assert.match(triggerCheckout[0], /^ {10}persist-credentials: false$/m);
   for (const job of LEGS) {
     const checkouts = STEPS[job].filter((s) => /uses: actions\/checkout@/.test(s.block));
     assert.equal(checkouts.length, 1, job);
@@ -793,7 +804,7 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     // The tree is git's, the head and base the trigger gate's: never the model's.
     const write = step("Write the verdict", job);
     assert.match(write, /TREE_SHA: \$\{\{ steps\.diff\.outputs\.tree \}\}/);
-    assert.match(write, /HEAD_SHA: \$\{\{ steps\.gate\.outputs\.head-sha \}\}/);
+    assert.match(write, /HEAD_SHA: \$\{\{ steps\.trigger\.outputs\.head-sha \}\}/);
     // The verdict is written only when every chunk's review truly
     // succeeded (the reconciler holds a lost run once it starts), and a
     // handed-off leg writes none.
@@ -808,10 +819,65 @@ test("the verdict uploads once, after it is written, under the writer's name", (
 });
 
 test("only a lane-source pull request is reviewed, by the gate's own predicate", () => {
-  const select = step("Select a lane-source pull request");
-  assert.match(select, /import babysit_review_evidence as ev/);
-  assert.match(select, /ev\.lane_source\(p\)/);
-  assert.match(step("Write the diff"), /^ {8}if: steps\.select\.outputs\.review == 'true'$/m);
+  const triggerSelect = jobText("trigger").split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Select a lane-source pull request\n"));
+  assert.ok(triggerSelect, "the trigger job selects");
+  for (const select of [triggerSelect, ...LEGS.map((job) => step("Select a lane-source pull request", job))]) {
+    assert.match(select, /import babysit_review_evidence as ev/);
+    assert.match(select, /ev\.lane_source\(p\)/);
+    // The files read goes through the api-budget gh wrapper, so it is counted.
+    assert.match(select, /\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true\n {10}gh api --paginate /);
+  }
+  for (const job of LEGS) assert.match(step("Write the diff", job), /^ {8}if: steps\.trigger\.outputs\.review == 'true'$/m);
+});
+
+// The trigger job gates and reads the files once per run; the key leg takes
+// its result only from the same run attempt, as fixed-shape values, and
+// gates itself otherwise (a lane re-run alone keeps an earlier attempt's
+// trigger job). The later legs always gate themselves.
+test("the key leg takes the trigger job's gate only from this attempt, and every value has a fixed shape", () => {
+  const trigger = jobText("trigger");
+  assert.equal(needsOf(KEY), "trigger");
+  const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(trigger)[1];
+  assert.deepEqual(
+    [...outputs.matchAll(/^ {6}([a-z-]+): (.*)$/gm)].map(([, name, value]) => `${name}=${value}`),
+    [
+      "run-attempt=${{ github.run_attempt }}",
+      "proceed=${{ steps.gate.outputs.proceed }}",
+      "review=${{ steps.select.outputs.review }}",
+      "pr-number=${{ steps.gate.outputs.pr-number }}",
+      "head-sha=${{ steps.gate.outputs.head-sha }}",
+      "base-sha=${{ steps.gate.outputs.base-sha }}",
+    ],
+  );
+  assert.doesNotMatch(trigger, /head-ref/);
+  // Its gate is the legs' gate, skipped under the kill switch or when both lanes are off.
+  const gateOf = (block) => block.split(/\n(?=      - name: )/).find((s) => s.startsWith("      - name: Check the trigger\n"));
+  const triggerGate = gateOf(trigger);
+  assert.match(triggerGate, /^ {8}if: steps\.kill\.outputs\.proceed == 'true' && \(vars\.CLAUDE_REVIEW_DISABLED != 'true' \|\| vars\.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'\)$/m);
+  const gateWith = (block) => block.slice(block.indexOf("        uses: ")).replace(/\n\n {6}#[\s\S]*$/, "");
+  assert.equal(gateWith(triggerGate), gateWith(step("Check the trigger")));
+  // Its calls reach the api-budget notice.
+  assert.match(trigger, /- name: Log the API budget\n {8}if: always\(\)\n/);
+  // The key leg gates itself only when the trigger job is from another attempt.
+  assert.match(step("Check the trigger"), /^ {8}if: steps\.switch\.outputs\.proceed == 'true' && needs\.trigger\.outputs\.run-attempt != github\.run_attempt$/m);
+  for (const job of [SUB, FB]) assert.match(step("Check the trigger", job), /^ {8}if: steps\.switch\.outputs\.proceed == 'true'$/m);
+  for (const job of LEGS) {
+    const take = step("Take the gate's result", job);
+    assert.ok(index("Select a lane-source pull request", job) < index("Take the gate's result", job), job);
+    assert.match(take, /^ {8}if: steps\.switch\.outputs\.proceed == 'true'$/m);
+    assert.equal(input(take, "CARRIED"), job === KEY ? "${{ needs.trigger.outputs.run-attempt == github.run_attempt }}" : '"false"', job);
+    // Every value is checked against a fixed shape before it leaves the step.
+    assert.ok(take.includes("$review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$"), job);
+    // The values reach the script only through env, never interpolated.
+    assert.doesNotMatch(take.slice(take.indexOf("        run: |")), /\$\{\{/, job);
+    // Past it, the leg reads the gate's values only through it.
+    const after = STEPS[job].slice(index("Take the gate's result", job) + 1).map((s) => s.block).join("\n");
+    assert.doesNotMatch(after, /steps\.(gate|select)\.|needs\.trigger\./, job);
+  }
+  for (const name of ["PROCEED", "REVIEW", "PR", "HEAD", "BASE"]) {
+    const key = { PROCEED: "proceed", REVIEW: "review", PR: "pr-number", HEAD: "head-sha", BASE: "base-sha" }[name];
+    assert.equal(input(step("Take the gate's result"), `CARRIED_${name}`), `\${{ needs.trigger.outputs.${key} }}`);
+  }
 });
 
 // The review lanes' credential order, read from their callers' `secrets:`
@@ -1019,6 +1085,10 @@ test("every later leg repeats the key leg's steps but for its credential and why
       .replace(/^( {10}SECRET_NAME: ).*$/m, "$1X")
       .replace(new RegExp(`^( {10})(?:${CREDENTIAL_INPUTS.join("|")}): `, "m"), "$1credential: ")
       .replace(/^ {10}LATER_PRESENT: .*\n/m, "")
+      // The key leg's take on the trigger job's gate (its own test above).
+      .replace(/ && needs\.trigger\.outputs\.run-attempt != github\.run_attempt$/m, "")
+      .replace(/^ {10}# The trigger job's result, only from this run attempt\.\n/m, "")
+      .replace(/^ {10}CARRIED(?:_[A-Z]+)?: .*\n/gm, "")
       .replace(/^ {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/m, "")
       .replace(/\n {10}# Why this leg ran, for the lane's one record\.\n {10}fallback-reason: [^\n]*/, "")
       .replace(/ && steps\.handoff\.outcome != 'success'|and handed nothing on\n {6}# fails here,|fails here,/g, "");

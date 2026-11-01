@@ -9,7 +9,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, writeData } from "./replay.mjs";
+import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, UPSTREAM_JOBS, writeData } from "./replay.mjs";
 import { tempDir } from "../../../../lib/test-tmp.mjs";
 
 const CASES = loadCases();
@@ -84,7 +84,7 @@ test("each diff is a well-formed git diff under 400 lines", () => {
   }
 });
 
-test("every case lays out the five data files through the real filters", async () => {
+test("every case lays out the six data files through the real filters", async () => {
   const dir = tempDir("pr-verify-probe-test-");
   try {
     for (const [index, testCase] of CASES.entries()) {
@@ -99,6 +99,9 @@ test("every case lays out the five data files through the real filters", async (
       assert.equal(context.pr.body, testCase.spec.pr.body, testCase.id);
       assert.equal(context.items.filter((item) => item.kind === "linked-issue").length, 1, testCase.id);
       assert.equal(read("spec.json")[0].author_type, "User");
+      const upstream = read("upstream-jobs.json");
+      assert.deepEqual(upstream.jobs, UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })), testCase.id);
+      assert.ok(Number.isSafeInteger(upstream.run_id) && upstream.run_id > 0, testCase.id);
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

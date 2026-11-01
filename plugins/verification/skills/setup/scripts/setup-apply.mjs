@@ -3,7 +3,7 @@
 // docs/conventions/verification.yaml, against schemas/verification.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
 //
 // --ref reads the file as committed at a 40-hex commit id or origin/<name>, so
@@ -17,6 +17,7 @@ import { run } from "../../../lib/setup-apply.mjs";
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 run({
   plugin: "verification",
+  provenance: true,
   schema: join(PLUGIN, "schemas", "verification.schema.json"),
   reader: join(PLUGIN, "lib", "parse-concern-value.sh"),
   ref: true,

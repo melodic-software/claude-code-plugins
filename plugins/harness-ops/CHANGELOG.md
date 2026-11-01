@@ -3,6 +3,39 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.0] - 2026-11-01
+
+### Added
+
+- `/harness-ops:plugins sync` now forward-updates the project and local install records of every other present path, a home directory and a linked worktree included, by running `claude plugin update` from that path, and reads each record back. It stops a path when its `.claude/` settings change across a call. The `Divergences` count no longer sends `converge` a pin that `sync` updated or could update, and the `User-home project records` row lists only the records `update` could not move ([#7458](https://github.com/melodic-software/claude-code-plugins/issues/7458)).
+- `fleet-state.sh` reports a new `projectEnabledEntry` field per project/local record, and the sync digest a new `other_paths` field, rendered as the `Updated in other paths`, `Not moved in other paths` and `Would update in other paths` rows.
+
+### Fixed
+
+- `converge` now takes each project's `enabledPlugins` entry from `fleet-state.sh`'s new `projectEnabledEntry` field instead of reading the settings file, and still tells an explicit `false` from no entry.
+
+## [5.0.0] - 2026-10-31
+
+### Changed
+
+- `/harness-ops:audit-install-state`, `/harness-ops:audit-performance` and `/harness-ops:audit-skill-visibility` take `--unattended` in place of the bare word `unattended`, accepted anywhere in their arguments. Each skill still takes the flag out before running its engine script, whose parser does not accept it. The bare word stops the run and names `--unattended`, so it never reaches `audit-install-state`'s root slot. The argument hints list `--unattended`, and the `audit-install-state` eval passes the flag.
+
+## [4.22.1] - 2026-10-31
+
+### Fixed
+
+- plugins `reset-refresh.sh refresh`: on Git Bash, where there is no `pgrep`, the running-session check reads `tasklist.exe` for `claude.exe` instead of refusing every run.
+
+## [4.22.0] - 2026-10-31
+
+### Changed
+
+- The read-only `audit` action of `/harness-ops:plugins` is now its own skill,
+  `/harness-ops:plugins-audit`, which the model may start. `/harness-ops:plugins` keeps `sync` and
+  `converge` and stays user-only, because `sync` can update committed plugin pins in every
+  repository on disk. `/harness-ops:plugins audit` now points to the new skill instead of running
+  the dry run.
+
 ## [4.21.0] - 2026-10-31
 
 ### Added

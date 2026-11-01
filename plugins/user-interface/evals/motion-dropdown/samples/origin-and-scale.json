@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.account-menu {\n  transform-origin: top left;\n  opacity: 0;\n  transform: scale(0.95);\n  transition: opacity 180ms var(--ease-out, ease-out), transform 180ms var(--ease-out, ease-out), display 180ms allow-discrete;\n}\n.account-menu:dir(rtl) { transform-origin: top right; }\n.account[data-open] .account-menu { opacity: 1; transform: scale(1); }\n@starting-style { .account[data-open] .account-menu { opacity: 0; transform: scale(0.95); } }\n```",
+      "why": "scales in from 0.95 with opacity 0 out of display: none, origin at the top-left where it meets the trigger, mirrored for right-to-left"
+    },
+    {
+      "answer": "```css\n.account-menu {\n  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top);\n  opacity: 0;\n  translate: 0 -4px;\n  scale: 0.97;\n  transition: opacity 150ms ease-out, scale 150ms ease-out, translate 150ms ease-out, display 150ms allow-discrete;\n}\n.account[data-open] .account-menu { opacity: 1; translate: 0 0; scale: 1; }\n@starting-style { .account[data-open] .account-menu { opacity: 0; translate: 0 -4px; scale: 0.97; } }\n```",
+      "why": "a library origin variable with a top fallback, a 0.97 start and a small nudge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.account-menu { opacity: 0; transform: scale(0); transition: opacity 200ms ease-out, transform 200ms ease-out; }\n.account[data-open] .account-menu { opacity: 1; transform: scale(1); }\n```",
+      "why": "enters from scale(0)"
+    },
+    {
+      "answer": "```css\n.account-menu {\n  transform-origin: center;\n  opacity: 0;\n  transform: scale(0.95);\n  transition: opacity 180ms ease-out, transform 180ms ease-out;\n}\n.account[data-open] .account-menu { opacity: 1; transform: scale(1); }\n```",
+      "why": "near miss: the right scale, but it grows from its own center"
+    },
+    {
+      "answer": "```css\n.account-menu { opacity: 0; transform: scale(0.95); transition: opacity 180ms ease-out, transform 180ms ease-out; }\n.account[data-open] .account-menu { opacity: 1; transform: scale(1); }\n```\n\nThe menu should scale out of the trigger.",
+      "why": "near miss: no transform-origin in the CSS, the trigger origin only in prose"
+    }
+  ]
+}

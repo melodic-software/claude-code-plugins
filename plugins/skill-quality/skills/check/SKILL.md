@@ -13,8 +13,9 @@ metadata:
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
 `check-skill.sh`. Thirty checks with no model invocation, so results are reproducible in CI or a
-pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
-JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
+pre-commit hook. The `validate-evals` action checks a skill's existing `<skill>/evals/evals.json`
+(new evals are `case.yaml` suite cases, which `/evals:validate` checks) against the bundled JSON
+schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
 warnings) that goes beyond structure without ever running a model-graded eval. The `listing-budget` action runs `check-listing-budget.sh`, a separate, always-advisory
 report on the SHARED listing budget every loaded skill draws from together (a different, cross-skill
@@ -128,8 +129,14 @@ that line before editing, since it may be an illustrative example path rather th
 
 ## Action: validate-evals
 
+This action reads only the skill-creator JSON file a skill may still carry. A skill's new evals
+are `case.yaml` cases in its plugin's `evals/` directory: `/evals:design skill <name>` writes them
+and `/evals:validate` checks them. Point an author adding evals there. Check 14 still looks only
+for the JSON file, so where a gate runs `check --require-evals` (this marketplace's changed-skill
+CI does), a skill with suite cases alone fails there until check 14 reads suite cases; say so.
+
 1. Locate `<skills-root>/<skill-name>/evals/evals.json`. If absent, report that the skill ships no
-   evals (not a failure, because evals are warranted, not mandatory).
+   skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate`'s.
 2. Read the bundled schema at
    [`${CLAUDE_PLUGIN_ROOT}/reference/evals.schema.json`](../../reference/evals.schema.json) and the
    skill's `evals.json`.
@@ -159,8 +166,8 @@ that line before editing, since it may be an illustrative example path rather th
    If `jq` is absent the script exits 2. Report that the quality lint was skipped for that
    reason; the schema verdict from steps 3-4 still stands.
 
-`validate-evals` checks structure and lint only. It cannot tell whether a claim needs a no-skill
-baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval` runs it.
+`validate-evals` checks structure and lint only. A suite case runs with and without the plugin,
+and `/evals:plugin-eval` reads the delta.
 
 ## Action: listing-budget
 

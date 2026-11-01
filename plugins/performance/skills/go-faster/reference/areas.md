@@ -343,7 +343,7 @@ them live when a command's output, or the files you find, do not match the entry
   names and rerun /performance:go-faster". ab.sh exits 1: `no-data`, reason "spawn timing failed:
   <its first stderr line>; an arm lost or gained sample rows, so the run cannot be compared".
   ab.sh prints an OUTLIER line: `no-data`, reason "spawn timing unstable: <the OUTLIER line>;
-  rerun /performance:go-faster unattended while the machine is idle".
+  rerun /performance:go-faster --unattended while the machine is idle".
 - **Guard**: none.
 - **Catalog**: [catalog/windows-machine.md](catalog/windows-machine.md) rows with area
   `bash-windows`; [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
@@ -561,8 +561,10 @@ them live when a command's output, or the files you find, do not match the entry
 
 - **Source**: subagent calls and Workflow-tool agents in this session's transcript, from the
   `session-work` counts.
-- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name), `subagents` and
-  the `workflows` block when present.
+- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name; see
+  [sub-agents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned),
+  as of 2026-10-31; recheck when that section stops listing the old name), `subagents` and the
+  `workflows` block when present.
 - **Owner**: none.
 - **Record**: with subagent calls, a measured finding, unit `wait-ms`, value the summed `wait_ms`
   of those tools, title naming the call count and `subagents`, tier E1, workload `transcript

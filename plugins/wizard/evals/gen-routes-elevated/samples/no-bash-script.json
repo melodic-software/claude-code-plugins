@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/swap-portal.ps1",
+            "content": "#requires -Version 7.0"
+          }
+        }
+      ],
+      "why": "ps1 not sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/scripts/swap-portal.sh",
+            "content": "#!/usr/bin/env bash"
+          }
+        }
+      ],
+      "why": "bash wizard"
+    }
+  ]
+}

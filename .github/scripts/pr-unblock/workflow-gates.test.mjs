@@ -265,6 +265,8 @@ test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a
       "github.event.workflow_run.conclusion": "success",
       "github.event.workflow_run.repository.full_name": repo,
       "github.event.workflow_run.head_repository.full_name": repo,
+      // Not gated on a lanes App branch: a person's PR needs its ci-status re-run too.
+      "github.event.workflow_run.head_branch": "feat/x",
       ...overrides,
     });
   assert.equal(runs(), true);
@@ -279,8 +281,71 @@ test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a
   assert.equal(runs({ "github.event.workflow_run.event": "push" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
   assert.equal(runs({ "github.ref": "refs/heads/feat/x" }), false);
-  // Not gated on a lanes App branch: a person's PR needs its ci-status re-run too.
-  assert.doesNotMatch(gate, /head_branch/);
+});
+
+// A pr-unblock run (its status write starts no workflow) and a relayed
+// approval change what ci-status reads, so each re-runs it too.
+test("pr-feedback-dispatch.yml re-runs ci-status after a pr-unblock dispatch on main or a relayed review", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "rerun-ci-status");
+  const repo = "melodic-software/claude-code-plugins";
+  const base = {
+    "github.ref": "refs/heads/main",
+    "github.repository": repo,
+    "github.event.workflow_run.conclusion": "success",
+    "github.event.workflow_run.repository.full_name": repo,
+    "github.event.workflow_run.head_repository.full_name": repo,
+  };
+  const unblock = (o = {}) =>
+    evaluate(gate, {
+      ...base,
+      "github.event.workflow_run.path": ".github/workflows/pr-unblock.yml",
+      "github.event.workflow_run.event": "workflow_dispatch",
+      "github.event.workflow_run.head_branch": "main",
+      ...o,
+    });
+  assert.equal(unblock(), true);
+  assert.equal(unblock({ "github.event.workflow_run.conclusion": "failure" }), true);
+  assert.equal(unblock({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.head_branch": "feat/x" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.event": "pull_request" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  const review = (o = {}) =>
+    evaluate(gate, {
+      ...base,
+      "github.event.workflow_run.path": ".github/workflows/pr-review-approved.yml",
+      "github.event.workflow_run.event": "pull_request_review",
+      "github.event.workflow_run.head_branch": "feat/x",
+      ...o,
+    });
+  assert.equal(review(), true);
+  // A review that is not an approval skips the relay's job, so its run is skipped.
+  assert.equal(review({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(review({ "github.event.workflow_run.event": "pull_request" }), false);
+  assert.equal(review({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const upstreams = text.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
+  for (const name of ["pr-unblock", "pr-review-approved"]) assert.ok(upstreams.includes(name), `${name} is a workflow_run upstream`);
+});
+
+// The relay starts a runner only for an approval of a same-repository PR.
+test("pr-review-approved.yml relays only an approval of a same-repository PR, with no permission", () => {
+  const gate = jobIf("pr-review-approved.yml", "relay");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (o = {}) =>
+    evaluate(gate, {
+      "github.repository": repo,
+      "github.event.review.state": "approved",
+      "github.event.pull_request.head.repo.full_name": repo,
+      ...o,
+    });
+  assert.equal(runs(), true);
+  for (const state of ["commented", "changes_requested", "dismissed"]) {
+    assert.equal(runs({ "github.event.review.state": state }), false, state);
+  }
+  assert.equal(runs({ "github.event.pull_request.head.repo.full_name": "fork/repo" }), false);
+  const text = readFileSync(new URL("../../workflows/pr-review-approved.yml", import.meta.url), "utf8");
+  assert.match(text, /\non:\n  pull_request_review:\n    types: \[submitted\]\n\npermissions: \{\}\n/);
 });
 
 const UNBLOCK = "pr-unblock.yml";
@@ -760,6 +825,26 @@ function cronMinutes(file) {
 
 const DISPATCHER = "pr-unblock-dispatch.yml";
 
+// A write token the broker would refuse is decided before the select jobs, so
+// no later job, publish-feedback and apply-dependency-verdict included, starts.
+for (const [file, jobs] of [
+  ["pr-unblock.yml", ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"]],
+  ["pr-refine.yml", ["fix-docs-head"]],
+]) {
+  test(`${file}: a dispatcher on an older copy of its file starts no first job`, () => {
+    const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+    assert.match(text, /\n {2}dispatcher-current:\n(?: {4}.*\n| {6}.*\n|\n)*? {8}run: bash \.base\/\.github\/scripts\/pr-unblock\/dispatcher-current\.sh\n/);
+    const blocks = text.slice(text.indexOf("\njobs:\n")).split(/\n {2}(?=[a-z-]+:\n)/).slice(1);
+    const starts = blocks.filter((block) => !/^ {4}needs:/m.test(block)).map((block) => block.split(":")[0]);
+    assert.deepEqual(starts, ["dispatcher-current"], "every other job waits on a job");
+    for (const job of jobs) {
+      const block = new RegExp(`\\n  ${job}:\\n    needs: dispatcher-current\\n    if: >-\\n((?: {6}.*\\n)+)`).exec(text);
+      assert.ok(block, `${job} needs dispatcher-current`);
+      assert.match(block[1], /needs\.dispatcher-current\.outputs\.stale != 'true'/, job);
+    }
+  });
+}
+
 test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first push or scheduled attempt", () => {
   const gate = stepIf(DISPATCHER, "Check the trigger");
   const runs = (event, attempt, kill = "true") =>
@@ -924,6 +1009,17 @@ function stepBlock(file, job, name) {
   return block.slice(start, end === -1 ? undefined : end);
 }
 
+// A step's `run: |` script, indentation removed.
+function stepScript(step) {
+  const at = step.findIndex((line) => line === "        run: |");
+  assert.notEqual(at, -1, "the step has a run: | script");
+  return step
+    .slice(at + 1)
+    .filter((line) => line.startsWith("          ") || line === "")
+    .map((line) => line.slice(10))
+    .join("\n");
+}
+
 // While the switch is on, every pr-verify run fails at its own kill step and
 // carries no verdict; the reconciler re-runs that run itself. Only a run that
 // finished, and so may hold a verdict, is recorded by failing this job.
@@ -938,13 +1034,7 @@ test("post-verify-notes fails at the kill switch only for a pr-verify run that s
 });
 
 test("post-verify-notes names a deferred verdict exactly as recoverDeferred reads it", () => {
-  const step = stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict");
-  const at = step.findIndex((line) => line === "        run: |");
-  const script = step
-    .slice(at + 1)
-    .filter((line) => line.startsWith("          ") || line === "")
-    .map((line) => line.slice(10))
-    .join("\n");
+  const script = stepScript(stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict"));
   const dir = mkdtempSync(join(tmpdir(), "deferred-name-"));
   try {
     for (const [fail, pass, verdict] of [["a".repeat(40), "", "fail"], ["", "b".repeat(40), "pass"]]) {
@@ -961,5 +1051,66 @@ test("post-verify-notes names a deferred verdict exactly as recoverDeferred read
     assert.notEqual(bad.status, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The dispatcher sends only same-repository PRs, but a hand dispatch can name
+// any PR. The step runs against a stub gh that applies the step's own --jq
+// filter to a PR payload, printing a null as the empty line gh prints.
+for (const [job, written] of [
+  ["resolve-conflicts-select", "\ndefault-base=true\n"],
+  ["address-feedback-select", "\n"],
+  ["review-dependency-select", "\n"],
+]) test(`pr-unblock.yml: ${job} stops on a head outside this repository, before any sha output`, () => {
+  const script = stepScript(stepBlock(UNBLOCK, job, "Read the PR head"));
+  const repo = "melodic-software/claude-code-plugins";
+  const sha = "a".repeat(40);
+  const dir = mkdtempSync(join(tmpdir(), "pr-head-"));
+  try {
+    writeFileSync(join(dir, "gh"), '#!/usr/bin/env bash\nexec jq -r "$4 | . // \\"\\"" "$PR_PAYLOAD"\n', { mode: 0o755 });
+    const read = (name, headRepo) => {
+      const payload = join(dir, `${name}.json`);
+      const output = join(dir, `${name}.output`);
+      writeFileSync(payload, JSON.stringify({ head: { sha, repo: headRepo }, base: { ref: "main" } }));
+      writeFileSync(output, "");
+      const run = spawnSync("bash", ["-e", "-c", script], {
+        env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output },
+        encoding: "utf8",
+      });
+      return { status: run.status, stdout: run.stdout, written: readFileSync(output, "utf8") };
+    };
+    const own = read("own", { full_name: repo });
+    assert.equal(own.status, 0, own.stdout);
+    assert.equal(own.written, `sha=${sha}${written}`);
+    for (const [name, headRepo] of [["fork", { full_name: "fork/claude-code-plugins" }], ["deleted-fork", null]]) {
+      const refused = read(name, headRepo);
+      assert.equal(refused.status, 1, name);
+      assert.match(refused.stdout, /^::error::the PR's head is not in this repository$/m, name);
+      assert.equal(refused.written, "", `${name} writes no output`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// With no head-sha output, no later job posts a status on that head.
+for (const [activity, select] of [
+  ["resolve-conflicts", "resolve-conflicts-select"],
+  ["address-feedback", "address-feedback-select"],
+  ["review-dependency", "review-dependency-select"],
+  ["fix-ci", "fix-ci-context"],
+]) test(`pr-unblock.yml: ${activity}-not-run posts nothing with no head-sha output`, () => {
+  const { gate } = jobGate(UNBLOCK, `${activity}-not-run`);
+  for (const proceed of ["", "false"]) {
+    assert.equal(
+      evaluate(gate, {
+        "inputs.activity": activity,
+        [`needs.${select}.outputs.proceed`]: proceed,
+        [`needs.${select}.outputs.skip-reason`]: "",
+        [`needs.${select}.outputs.head-sha`]: "",
+      }),
+      false,
+      proceed,
+    );
   }
 });

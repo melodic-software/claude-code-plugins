@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Something else: write each case as its own directory under plugins/release-tools/evals/ with a case.yaml, using /evals:design skill release-notes, and check them with /evals:validate.",
+      "why": "the suite layout with the file name"
+    },
+    {
+      "answer": "Use `case.yaml` cases in the plugin's evals/ directory.",
+      "why": "backticked file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Yes: create skills/release-notes/evals/evals.json with skill_name and an evals array, then run validate-evals release-notes.",
+      "why": "near miss: the JSON file"
+    },
+    {
+      "answer": "Write a case yaml per case.",
+      "why": "near miss: no file name"
+    },
+    {
+      "answer": "Release notes usually group changes by type.",
+      "why": "answers a different question"
+    }
+  ]
+}

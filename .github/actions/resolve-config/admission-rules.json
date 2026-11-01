@@ -7,6 +7,7 @@
   "sizes": ["small", "medium"],
   "uncertainty": ["known", "knowable"],
   "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "wontfix", "host-run", "attended"],
+  "cordoned-milestones": ["After zero"],
   "task-list": "- [ ] ",
   "size-split": { "on-decline": "subset", "max-parts": 10 }
 }

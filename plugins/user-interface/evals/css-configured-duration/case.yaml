@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: css-configured-duration
-description: "Hard (the prompt asks for the longest a modal may take): a team-configured animation.duration_ms.large of 400 is honored over the 500ms default"
+description: "Hard (the prompt asks for the longest a modal may take): a team-configured animation.duration_ms.large of 400 is honored over the 300ms default"
 tags: [write-css, rule-duration, config, hard]
 runs: 3
-expected_outcome: "The modal and backdrop transitions last at most 400ms, the team's configured large duration in docs/conventions/user-interface.yaml, not the 500ms default, and the reply may name the configured value as the reason"
+expected_outcome: "The modal and backdrop transitions last at most 400ms, and the modal's longest duration is the team's 400ms, the configured large duration in docs/conventions/user-interface.yaml, not the 300ms default; the reply may name the configured value as the reason"
 context:
   scaffold_script: scaffold.sh
 execution:

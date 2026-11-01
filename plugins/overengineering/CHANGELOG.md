@@ -3,6 +3,12 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-31
+
+### Changed
+
+- `/overengineering:audit` and `/overengineering:delta` take only `--unattended`, accepted anywhere in their arguments; the bare word `unattended` stops the run and names `--unattended`. `delta` forwards `--unattended` to `audit`, the recurring-wiring examples pass it, and the argument hints list it before the layers.
+
 ## [0.7.1] - 2026-10-30
 
 ### Changed

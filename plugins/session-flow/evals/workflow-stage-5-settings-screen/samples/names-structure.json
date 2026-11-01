@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Next stage: 5. Design.\n\nFor this screen, design the flow first with /user-experience:structure (where the settings sit and how a member reaches them), then the screen itself with /user-interface:design, before the technical design.",
+      "why": "names the flow skill as the stage 5 step"
+    },
+    {
+      "answer": "I won't skip the flow work.\n- Flow and navigation: `/user-experience:structure`\n- Screens: `/user-interface:design`",
+      "why": "the line with a negation does not name the skill; another line does"
+    },
+    {
+      "answer": "First the flow, not just the API: /user-experience:structure, then /user-interface:design.",
+      "why": "a negation word that is not about the skill sits more than 15 characters before it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Next stage: 5. Design. Settle the settings API contract and the data model for per-channel preferences, then plan.",
+      "why": "technical design only, no flow skill named"
+    },
+    {
+      "answer": "You don't need /user-experience:structure here; go straight to /user-interface:design.",
+      "why": "negated"
+    },
+    {
+      "answer": "Map the flow with /user-experience:structure-flow, then design the screens.",
+      "why": "near miss: a different name sharing the prefix"
+    },
+    {
+      "answer": "You won't need /user-experience:structure here.",
+      "why": "negated with won't"
+    }
+  ]
+}

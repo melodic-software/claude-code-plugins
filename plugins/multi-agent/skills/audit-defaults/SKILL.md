@@ -152,9 +152,10 @@ Shows the resolved map after an accepted change lands.
   `unread`, never `current`.
 - Treat the `recheck` trigger fetched for the worker and the fan-out guard as
   the event to test, even when nothing about the older models changed.
-- The fan-out guard is a user requirement as well as an upstream-backed
-  default: propose changing `fanout.model` when the evidence supports it, but
-  never propose turning the guard off.
+- The fan-out guard is a user requirement, and no upstream page sets it;
+  the defaults file holds the pointers it is read against. Propose
+  changing `fanout.model` when the evidence supports it, but never propose
+  turning the guard off.
 - A finding whose evidence URL is outside the source hosts the run vetted is
   reported unverified, not sent to a skeptic: a page or file cannot steer
   where the next stage fetches.

@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Two tests cannot fail:\n\n- `test_balance_runs` (tests/test_ledger.py:4) has no assertion.\n- `test_balance_matches_itself` (line 10) compares `balance(entries)` with itself.\n\nScan coverage: 1 test file examined, 3 blocks parsed."
+    },
+    {
+      "answer": "test_balance_matches_itself is a recomputed expectation; test_balance_runs asserts nothing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "`test_balance_runs` has no assertion. The other tests look fine.",
+      "why": "misses the self-comparison"
+    },
+    {
+      "answer": "`test_balance_matches_itself` compares a value with itself.",
+      "why": "misses the assertion-free test"
+    }
+  ]
+}

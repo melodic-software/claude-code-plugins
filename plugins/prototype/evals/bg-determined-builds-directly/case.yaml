@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: bg-determined-builds-directly
+description: "Head contract (new skill): a fully determined artifact has no judgment call left, so the skill builds it directly and makes no generator."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "src/header.css gains a 1px solid #e5e7eb divider under the header, no lab route or generator file is created, and the reply says a tool would be overhead because nothing is left to decide."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:build-generator a 1px solid #e5e7eb divider line under the page header in src/header.css"
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

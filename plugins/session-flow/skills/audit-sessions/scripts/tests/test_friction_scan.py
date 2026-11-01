@@ -260,6 +260,97 @@ def test_next_tool_is_read_per_file_and_only_for_hook_denials():
 
 
 @pytest.mark.parametrize(
+    "decision",
+    [
+        {"decision": "accept", "source": "user_temporary"},
+        {"decision": "reject", "source": "config", "reasonType": "rule"},
+    ],
+)
+def test_a_repeated_tool_result_record_is_one_event_and_counts_as_a_duplicate(decision):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", "Bash", command="git push"))
+    repeated = denial_record("x", kind=None, decision=decision, use_id="t1")
+    scan.add(repeated)
+    scan.add(repeated)
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [
+        ("prompt-approved" if decision["decision"] == "accept" else "denied", "t1"),
+    ]
+    assert sum(scan.counts.values()) == 1
+    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    assert (block["duplicates_dropped"], block["events"][0]["tool_use_id"]) == (1, "t1")
+
+
+def test_a_denial_repeated_across_result_records_is_one_event():
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    record = {"type": "result", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "h1", "tool_input": {"command": "rm -rf b"}}]}
+    scan.add(record)
+    scan.add(record)
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [("denied", "h1")]
+    assert scan.duplicates == 1
+
+
+def test_a_result_denial_after_its_tool_result_denial_counts_as_a_duplicate():
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("h2", "Bash", command="git push"))
+    scan.add(denial_record("denied", kind=None, decision={"decision": "reject", "source": "config", "reasonType": "rule"}, use_id="h2"))
+    scan.add({"type": "result", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "h2", "tool_input": {"command": "git push"}}]})
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [("denied", "h2")]
+    assert scan.duplicates == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "command", "polling"),
+    [
+        ("Monitor", "tail -f /tmp/task-output.log", 0),
+        ("Monitor", "gh run watch 123 --exit-status", 0),
+        ("Monitor", "while true; do gh pr view 7 --json state; sleep 30; done", 1),
+        ("Bash", "sleep 60; gh pr view 7 --json state", 1),
+        ("Bash", "gh pr view 7 --json state", 0),
+    ],
+)
+def test_polling_calls_counts_poll_loops_not_event_waits(name, command, polling):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", name, command=command))
+    assert scan.perf["polling_calls"] == polling
+
+
+CONFLICT_TEXT = "Auto-merging a.py\nCONFLICT (content): Merge conflict in a.py\nAutomatic merge failed; fix conflicts and then commit the result."
+
+
+@pytest.mark.parametrize(
+    ("name", "tool_input", "conflicts"),
+    [
+        ("Bash", {"command": "git merge origin/main"}, 1),
+        ("Bash", {"command": "git fetch origin && git -C /w/repo rebase origin/main"}, 1),
+        ("Bash", {"command": "git --no-pager stash pop"}, 1),
+        ("PowerShell", {"command": "git cherry-pick abc123"}, 1),
+        ("PowerShell", {"command": "& \"C:\\Program Files\\Git\\bin\\git.exe\" -C \"my repo\" merge main"}, 1),
+        ("Bash", {"command": "git -c rebase.autoStash=true pull --rebase"}, 1),
+        ("Bash", {"command": "git -P --git-dir /w/repo/.git revert HEAD"}, 1),
+        ("Bash", {"command": "/usr/bin/git am 0001.patch"}, 1),
+        ("Monitor", {"command": "git merge origin/main"}, 0),
+        ("Bash", {"command": "git-lfs pull"}, 0),
+        ("Bash", {"command": "gh pr merge 7 --squash"}, 0),
+        ("Bash", {"command": "cat merge.log"}, 0),
+        ("Bash", {"command": "grep -n CONFLICT notes.md"}, 0),
+        ("Bash", {"command": "git merge-base HEAD origin/main"}, 0),
+        ("Bash", {"command": "gh run view 123 --log"}, 0),
+        ("Read", {"file_path": "/w/repo/merge.log"}, 0),
+    ],
+)
+def test_merge_conflicts_counts_only_git_commands_that_can_conflict(name, tool_input, conflicts):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", name, **tool_input))
+    scan.add({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": CONFLICT_TEXT}]}})
+    assert scan.perf["merge_conflicts"] == conflicts
+
+
+@pytest.mark.parametrize(
     ("decision", "kinds"),
     [
         ({"decision": "accept", "source": "user_temporary"}, ["prompt-approved"]),

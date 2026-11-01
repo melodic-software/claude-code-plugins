@@ -327,6 +327,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/lane-records.mjs", "gate"],
   [".github/scripts/pr-merge/last-report.mjs", "gate"],
   [".github/scripts/pr-merge/rate-stop.bash", "gate"],
+  [".github/scripts/pr-merge/retry-call.bash", "gate"],
   [".github/scripts/pr-merge/refire-refused.mjs", "gate"],
   [".github/scripts/pr-merge/rotation.mjs", "gate"],
   [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
@@ -389,6 +390,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/workflows/pr-merge.yml", "gate"],
   [".github/workflows/pr-refine.yml", "gate"],
   [".github/workflows/pr-require-checks.yml", "gate"],
+  [".github/workflows/pr-review-approved.yml", "gate"],
   [".github/workflows/pr-review-hosted.yml", "gate"],
   [".github/workflows/pr-review-main.yml", "gate"],
   [".github/workflows/pr-review-security-hosted.yml", "gate"],
@@ -1532,6 +1534,10 @@ export const HUMAN_MERGE_HOLD = "human-merge-hold";
 // only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
+// The label a pr-verify fail puts on a person's pull request; a pass at a new
+// commit removes it.
+export const PR_VERIFY_FAILED_LABEL = "pr-verify-failed";
+
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
 // human-gated label, `pr-verify-failed`, HUMAN_MERGE_HOLD and
 // OUTSIDE_ACTOR_LABEL, one reason each. `labels` are
@@ -1545,8 +1551,8 @@ export function labelHolds(labels, tracker, number) {
   return [
     names.has("do-not-merge") && `#${number} carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge.`,
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
-    names.has("pr-verify-failed") &&
-      `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+    names.has(PR_VERIFY_FAILED_LABEL) &&
+      `#${number} carries '${PR_VERIFY_FAILED_LABEL}': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
     names.has(HUMAN_MERGE_HOLD) &&
       `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
     names.has(OUTSIDE_ACTOR_LABEL) &&

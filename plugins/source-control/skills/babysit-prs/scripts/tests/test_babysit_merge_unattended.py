@@ -3317,6 +3317,13 @@ class TheQueueSweepIsSharedPerRun(Unattended):
         self.assertEqual(self.hold_reads.count(5), 2)
         self.assertEqual(self.log, [])  # kept both times, never dequeued
 
+    def test_each_entry_is_judged_under_the_runs_authority(self) -> None:
+        seen: list[dict[str, Any]] = []
+        self.hold_hook = lambda kwargs: seen.append(kwargs)
+        self.candidates(1)
+        self.assertTrue(seen)
+        self.assertEqual({kw.get("authority") for kw in seen}, {policy.LOCAL_BABYSIT})
+
     def test_without_the_file_every_candidate_judges_every_entry(self) -> None:
         with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": ""}):
             self.candidates(2)

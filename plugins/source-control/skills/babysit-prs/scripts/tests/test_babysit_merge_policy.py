@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The unattended merge policy readers.
 
 Every reader fails closed: an unreadable answer is off, refuse or not clear,
@@ -2751,6 +2752,40 @@ class EntryHold(unittest.TestCase):
             }
         ]
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def member_says(self, *bodies: str) -> None:
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/pulls/5/comments?per_page=100"] = [
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "created_at": f"2026-10-12T10:0{minute}:00Z",
+                "body": body,
+            }
+            for minute, body in enumerate(bodies)
+        ]
+
+    def lane_hold(self) -> str | None:
+        return policy.entry_hold(REPO, 5, IDENTITY, authority=policy.PR_MERGE)
+
+    def test_the_lane_keeps_an_entry_a_member_only_mentions_blocking_in(self) -> None:
+        # enable-auto-merge arms on the veto rule, so any wider hold here
+        # dequeues and re-arms the entry every run (#11519).
+        self.member_says("A team that wants blocking sets `enforce`.")
+        self.assertIsNone(self.lane_hold())
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_the_lane_holds_a_members_newest_veto(self) -> None:
+        self.member_says("looks fine", "don't merge this")
+        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_the_lane_lets_a_member_lift_their_own_veto(self) -> None:
+        self.member_says("don't merge this", "go ahead")
+        self.assertIsNone(self.lane_hold())
+
+    def test_an_empty_review_item_does_not_lift_a_lane_veto(self) -> None:
+        self.member_says("don't merge this", "  ")
+        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
         # #7339 item 4: this repository is public, so anyone can comment.

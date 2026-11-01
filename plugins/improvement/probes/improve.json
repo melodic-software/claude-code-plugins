@@ -1,0 +1,125 @@
+{
+  "skill": "improvement:improve",
+  "plugin": "improvement",
+  "skill_dir": "plugins/improvement/skills/improve",
+  "ranking_note": "Authored from the before descriptions at commit fd862a49b848e143ec31bebc054c01d31150a26a, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are improvement:find (a ranked list of options, never edits), code-tidying:tidy (structure-only lane hunt), debugging:debug (an observed failure), architecture:improve (module-level friction and a redesign interview), docs-hygiene:compress (shortening markdown without meaning loss), naming:name-it-better (fresh name candidates) and performance:go-faster (speed of the development process). improve owns finding one gap in a named target against written standards or current upstream guidance and shipping it as one small PR.",
+  "competitors": [
+    "improvement:find",
+    "code-tidying:tidy",
+    "debugging:debug",
+    "architecture:improve",
+    "docs-hygiene:compress",
+    "naming:name-it-better",
+    "performance:go-faster"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you make the OrderValidator class better? One focused PR is fine."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our CONTRIBUTING guide drifted from the conventions in docs/standards. Bring it back in line."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Update the HttpClient usage in the payments service to what Microsoft recommends today."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Grab something small in the auth module that's below our bar and ship a fix for it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Speed up the CSV export endpoint and open a PR with the change."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Polish up the search feature against our coding standards, just the single most valuable change."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a dry run on the caching layer: what one change would you make, and why?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "That function we were just discussing, tighten it up with a security focus."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Nightly routine: take the notifications package, pick one gap and fix it unattended."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me a ranked list of what's worth improving in this repo, with sizes, and don't edit anything."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The login page throws a 500 when the email has a plus sign. Figure out why."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hunt the next tidy lane and ship a structure-only refactor PR."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Shorten this onboarding doc without dropping any of its rules or thresholds."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should I call this class that both parses and validates invoices?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Survey the whole codebase and tell me where the highest-value work is across code, config and product."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find modules whose interfaces are almost as complex as their implementation, then design the worst one two ways."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our nightly job got three times slower since Tuesday. Track down what changed."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How can this whole Claude Code workflow go faster without losing accuracy?"
+    }
+  ]
+}

@@ -2,6 +2,12 @@
 # The SessionStart row that names /guardrails:setup apply install-git-hooks when this clone
 # lacks the guardrails git-hook entries: run as hooks.json declares it, in a fresh clone,
 # with the option off, and with every entry declined.
+# test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json plugins/guardrails/lib/prerequisites.mjs plugins/guardrails/hooks/hooks.json
+# test-scope: plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh
+# test-scope: plugins/guardrails/hooks/abort-boundary.sh plugins/guardrails/hooks/cli-flag-verify.sh plugins/guardrails/hooks/hook-utils.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
+# test-scope: plugins/guardrails/hooks/run-guards.sh plugins/guardrails/hooks/skill-reference-verify.sh plugins/guardrails/hooks/stale-path-verify.sh plugins/guardrails/lib/git-hooks/check-lib.sh
+# test-scope: plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+# test-scope: plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/verification/cli-flag-cache.sh plugins/guardrails/lib/verification/verify-cli-flag.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

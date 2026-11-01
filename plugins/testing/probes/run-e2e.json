@@ -1,0 +1,35 @@
+{
+  "skill": "testing:run-e2e",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/run-e2e",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target verification:confirm (build, test, lint and outcome), playwright:playwright (browser mechanics), app-control:drive (readiness and trace capture), toolchain:check (build and test) and testing:check-visual-parity (pixel baselines). The bundled run skill is also a rival but has no plugin directory, so it is not listed.",
+  "competitors": [
+    "verification:confirm",
+    "playwright:playwright",
+    "app-control:drive",
+    "toolchain:check",
+    "testing:check-visual-parity"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "I changed the checkout API and the cart page. Start the app and actually walk through a purchase, and grab screenshots and responses as proof."},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "Smoke-test the MCP server I just built: launch it, call each tool, and show me the responses."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Unit tests pass, but does signup really work in the running app? Click through it and capture evidence."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "Check the new /reports endpoint against the dev server from request to response, including the server logs."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Before I ship this hook script, run it for real against a sample input and show me what it outputs."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "Bring up the docker compose stack, exercise the login and logout flows in the browser, and save screenshots."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "can you run the app and confirm the dark mode toggle actually does something?"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "Spin up the server and hit the new search API with a few real queries; paste the responses."},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "Do a live run-through of the onboarding wizard after my changes and record what you see."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "I refactored the CLI library. Install it locally and smoke test the main commands."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "Verify this change is done: build, tests, lint, and check it matches the plan."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Use playwright-cli to mock the /api/users response with a 500 and grab a trace."},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "Did the header shift by any pixels after my refactor? Compare it to the baseline."},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Run the build and unit tests for the changed files."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Which features of our app can be driven right now? Just tell me what's reachable."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "What's the capital of Australia?"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Prove the fix achieved its goal: build, test, lint, then confirm it does what the issue asked."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Save the browser auth state from playwright-cli so later sessions start logged in."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Take before and after PNG images of the settings modal and count the differing pixels."},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Does the project still compile?"}
+  ]
+}

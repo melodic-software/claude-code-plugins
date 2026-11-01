@@ -3,7 +3,7 @@
 Single source of truth for everything in this marketplace derived from
 [vojtaholik/good-css](https://github.com/vojtaholik/good-css), MIT, a curated list of modern CSS
 techniques for agents. The `user-interface` plugin's `/user-interface:write-css` skill absorbed its
-47 techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
+techniques and vendors its CSS linter. Provenance lives here and in the plugin CHANGELOG, never
 in skill files, where it is agent-facing noise.
 
 **Pinned upstream state:** `main@92d436ba1937d1b1407c47e35abb3e199eaace2e` (committed 2026-10-10,
@@ -18,6 +18,14 @@ commit). Files read, by `git hash-object` blob SHA at the pin:
 
 `skills/good-css/SKILL.md` and its generated `references/` were read for structure; the skill does
 not ship, wrap or depend on them.
+
+`motion.md`, `show-and-hide.md`, `scroll-and-viewport.md` and `interaction.md` also carry recipes
+from another source (`reduced-motion-swap`, `hover-that-keeps-its-hit-area`,
+`popover-that-scales-from-its-trigger`, `popover-inside-a-modal`,
+`full-height-that-browser-chrome-cannot-cover`, `gesture-surface-that-claims-only-its-axis`,
+`nothing-wider-than-the-viewport`, `scrollbars-styled-only-inside-small-scrollers`,
+`menu-items-that-fade-at-the-container-edge`, `card-with-a-distinct-link`); their provenance is
+`docs/upstream/aiforui-course.md`, not this record.
 
 - **Pointer**: when re-auditing the techniques, fetch
   <https://github.com/vojtaholik/good-css/blob/main/PRACTICES.md> live and diff it against the pin
@@ -64,6 +72,7 @@ is ours; upstream has no configuration surface.
 - **"References"** and the per-entry `Borrowed from:`, `Background:`, `Docs:` and `Source:` credit
   lines: credits are recorded in the table below, never in skill files.
 - **The is-agentic check**: no check, record or dependency for is-agentic.com.
+- **`whole-card-clickable-from-one-link`** (technique 28): replaced by the course rule in [`aiforui-course.md`](aiforui-course.md). A card takes a distinct link; a stretched link survives only as a labeled carve-out for tiles no one selects text in, without the `:has()` ring or the z-index lift.
 - The site, specimen harness, `scripts/build-skill.js` and the plugin manifest: presentation and
   packaging only.
 
@@ -92,10 +101,10 @@ spellings, so the spell check is off for the table.
 
 | # | Upstream slug | Upstream section | Our reference file | Credits |
 |---|---|---|---|---|
-| 1 | `the-reset` | Foundations | `foundations.md` | Travis Arnold, @souporserious on X, 2025-04-02, "2025 CSS Reset" · Ayomidé Daniel, @aydahnizzy on X, 2025-10-10, for the font rules · `text-wrap: pretty` on everything is a house rule · Kevin Powell, 3 modern CSS properties to add to your reset, 2026-04-02, for `svh` and the gutter · Emil Kowalski, mobile-native skill, for the touch rules · Chris Coyier, The Downsides of scrollbar-gutter: stable, 2025-12-03 · Ahmad Shadeed, Defensive CSS, for `overflow-wrap` and the `flex: none` rule |
+| 1 | `the-reset` | Foundations | `foundations.md` | Travis Arnold, @souporserious on X, 2025-04-02, "2025 CSS Reset" · Ayomidé Daniel, @aydahnizzy on X, 2025-10-10, for the font rules · `text-wrap: pretty` on everything is a house rule · Kevin Powell, 3 modern CSS properties to add to your reset, 2026-04-02, for `svh` and the gutter · Emil Kowalski, mobile-native skill, for the touch rules · Chris Coyier, The Downsides of scrollbar-gutter: stable, 2025-12-03 · Ahmad Shadeed, Defensive CSS, for `overflow-wrap` and the `flex: none` rule. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 2 | `logical-properties` | Foundations | `foundations.md` | Ahmad Shadeed, Digging Into CSS Logical Properties, 2021-03-10 |
 | 3 | `oklch-color` | Foundations | `foundations.md` | Andrey Sitnik and Travis Turner (Evil Martians), OKLCH in CSS: why we moved from RGB and HSL · Björn Ottosson, A perceptual color space for image processing |
-| 4 | `one-set-of-color-tokens-for-light-and-dark` | Foundations | `foundations.md` | IP, @ipwanciu on X, 2025-10-30 |
+| 4 | `one-set-of-color-tokens-for-light-and-dark` | Foundations | `foundations.md` | IP, @ipwanciu on X, 2025-10-30. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 5 | `fluid-sizes-with-clamp` | Foundations | `foundations.md` | Kyrylo Silin, @kyrylo on X, 2026-05-10 · James Gilyead and Trys Mudford, Utopia · Adrian Roselli, Responsive Type and Zoom · Maxwell Barvian, Addressing Accessibility Concerns With Using Fluid Type, 2023-11-07, for the 2.5 limit |
 | 6 | `one-fluid-scale-for-type-and-space` | Foundations | `foundations.md` | James Gilyead, Designing with fluid type scales, 2020-02-01, for the two scales · Trys Mudford, CSS-only fluid modular type scales, 2020-02-02, and Fluid custom properties, 2020-02-03 · James Gilyead, Designing with a fluid space palette, 2021-03-16, for space pairs. Utopia prints one finished `clamp()` per step from a calculator, because CSS had no powers in 2020. With `pow()` the browser does that math. |
 | 7 | `content-grid-with-breakouts` | Layout | `layout.md` | Kevin Powell, A new approach to container and wrapper classes, 2023-11-09 · Ryan Mulligan, Layout Breakouts with CSS Grid · Stephanie Eckles, SmolCSS breakout grid |
@@ -109,22 +118,22 @@ spellings, so the spell check is off for the table.
 | 15 | `section-spacing-that-depends-on-its-neighbors` | Spacing and shape | `spacing-and-shape.md` | house pattern, used on production CMS sites · Kevin Powell, The adjacent sibling combinator · Jen Simmons, Using :has() as a CSS Parent Selector and much more, 2022-08-18 |
 | 16 | `space-between-siblings-set-by-the-parent` | Spacing and shape | `spacing-and-shape.md` | Heydon Pickering and Andy Bell, The Stack, Every Layout · Heydon Pickering, Axiomatic CSS and Lobotomized Owls, 2014-10-21 · Andy Bell, My favourite 3 lines of CSS, 2023-02-06. Both authors keep the margin form everywhere. This version uses `gap` in components. |
 | 17 | `push-one-item-away-with-an-auto-margin` | Spacing and shape | `spacing-and-shape.md` | Heydon Pickering and Andy Bell, The Stack, section "Splitting the stack", and The Cover, Every Layout. The Cover gives every child a margin and removes it at both ends. `gap` does that in one declaration. |
-| 18 | `concentric-nested-radius` | Spacing and shape | `spacing-and-shape.md` | Chris Coyier, The Classic Border Radius Advice, Plus an Unusual Trick, 2024-05-13, which quotes Jhey Tompkins's version |
+| 18 | `concentric-nested-radius` | Spacing and shape | `spacing-and-shape.md` | Chris Coyier, The Classic Border Radius Advice, Plus an Unusual Trick, 2024-05-13, which quotes Jhey Tompkins's version. The recipe takes the outer radius as input and subtracts the parent's border width and padding, floored at zero; the inner-token form stays as a rule. |
 | 19 | `long-text-that-wraps-truncates-or-clamps` | Text and media | `text-and-media.md` | Ahmad Shadeed, Defensive CSS, the tips Long content and Minimum content size in flexbox · Ahmad Shadeed, Handling Short And Long Content In CSS, 2020-12-16 |
 | 20 | `image-box-that-holds-any-upload` | Text and media | `text-and-media.md` | Ahmad Shadeed, Defensive CSS, the tips Image distortion, Image inner border and Default flexbox stretching. This version draws the inner edge with an outline where his adds an element · Heydon Pickering and Andy Bell, The Frame, Every Layout, which wraps the media. On `img`, `video` and `iframe` the rule goes on the element. |
 | 21 | `tabular-numbers` | Text and media | `text-and-media.md` | Rauno Freiberg, Web Interface Guidelines · Vercel Web Interface Guidelines |
 | 22 | `label-centered-on-its-letters-with-text-box` | Text and media | `text-and-media.md` | Stripe, which ships it on its buttons at stripe.com. There the button is a flex container, so the declaration has no effect and uneven padding does the centering. The first rule above is the fix. |
 | 23 | `icon-sized-by-the-text-beside-it` | Text and media | `text-and-media.md` | Andy Bell, How I build a button component, 2024-09-18, for `cap` and `flex: none`, and LH units are cool, 2023-12-13 · Heydon Pickering and Andy Bell, The Icon, Every Layout |
-| 24 | `one-focus-ring-with-focus-visible` | Interaction | `interaction.md` | Stephanie Eckles, Modern CSS Upgrades To Improve Accessibility, 2021-04-09, and Smol Focus Styles · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07 |
-| 25 | `hover-styles-only-where-hover-exists` | Interaction | `interaction.md` | Emil Kowalski, mobile-native skill and emil-design-eng skill · Rauno Freiberg, Web Interface Guidelines |
+| 24 | `one-focus-ring-with-focus-visible` | Interaction | `interaction.md` | Stephanie Eckles, Modern CSS Upgrades To Improve Accessibility, 2021-04-09, and Smol Focus Styles · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 25 | `hover-styles-only-where-hover-exists` | Interaction | `interaction.md` | Emil Kowalski, mobile-native skill and emil-design-eng skill · Rauno Freiberg, Web Interface Guidelines. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 | 26 | `press-feedback` | Interaction | `interaction.md` | Emil Kowalski, emil-design-eng skill and mobile-native skill |
-| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list. |
-| 28 | `whole-card-clickable-from-one-link` | Interaction | `interaction.md` | Heydon Pickering, Cards, for the stretched `::after` · Stripe, for moving the focus ring to the card with `:has()` |
+| 27 | `hit-area-larger-than-the-visual` | Interaction | `interaction.md` | Emil Kowalski, Agents with Taste, for the rule · Vercel Web Interface Guidelines. The `inset` formula was written for this list. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 28 | `whole-card-clickable-from-one-link` | Interaction | `interaction.md` | Heydon Pickering, Cards, for the stretched `::after` · Stripe, for moving the focus ring to the card with `:has()`. Superseded by `card-with-a-distinct-link`; see "Not carried" above. |
 | 29 | `has-for-parent-and-page-state` | Interaction | `interaction.md` | Jen Simmons, Using :has() as a CSS Parent Selector and much more, 2022-08-18 · Josh W. Comeau, The Undeniable Utility Of CSS :has, 2024-09-09 · Chris Coyier, Scroll-Locked Dialogs, 2024-02-19 |
 | 30 | `form-feedback-with-user-invalid` | Interaction | `interaction.md` | Kevin Powell, Improve forms with :user-valid and :user-invalid, 2025-02-20, and Use these CSS features instead of JavaScript, 2026-09-23 |
 | 31 | `textarea-that-grows-with-its-content` | Interaction | `interaction.md` | Jhey Tompkins, @jh3yy on X, 2026-10-01 |
 | 32 | `opt-in-motion` | Motion | `motion.md` | Josh W. Comeau, Accessible Animations in React with "prefers-reduced-motion" · Kevin Powell, 3 super small changes to improve your CSS, 2023-03-07 |
-| 33 | `motion-tokens` | Motion | `motion.md` | Emil Kowalski, emil-design-eng skill and 7 Practical Animation Tips |
+| 33 | `motion-tokens` | Motion | `motion.md` | Emil Kowalski, emil-design-eng skill and 7 Practical Animation Tips. Superseded in part: the permanent-exit `--ease-in` curve, the `page` role and the exit factor follow `docs/upstream/aiforui-course.md` |
 | 34 | `transition-a-custom-property-with-property` | Motion | `motion.md` | Stripe, on the stripe.com home page and its sales contact page |
 | 35 | `shadow-change-that-fades-and-does-not-repaint` | Motion | `motion.md` | Stripe, on its resource cards · Tobias Ahlin, How to animate box-shadow, for the older form of the idea |
 | 36 | `cross-document-view-transitions` | Motion | `motion.md` | Jen Simmons and James Craig, Two lines of Cross-Document View Transitions code you can use on every website today, 2025-05-21 · Bramus Van Damme, Cross-document view transitions for multi-page applications |
@@ -135,10 +144,10 @@ spellings, so the spell check is off for the table.
 | 41 | `reveal-with-clip-path` | Show and hide | `show-and-hide.md` | Stripe, in the navigation menu on stripe.com. The `visibility` part was added for this list. |
 | 42 | `carousel-on-native-scroll` | Scroll and viewport | `scroll-and-viewport.md` | Steve Sewell, Build buttery smooth carousels with pure CSS like Nike. This version swaps his `scrollIntoView()` for `scrollBy()`, which can only scroll the carousel and never the page. |
 | 43 | `scroll-area-between-a-fixed-header-and-footer` | Scroll and viewport | `scroll-and-viewport.md` | Ahmad Shadeed, Defensive CSS, the tips Scrollbars on demand, Scrollbar gutter, Scroll chaining and Minimum content size in flexbox. He gives the four declarations one by one, and the panel around them is added here. |
-| 44 | `styles-that-apply-only-when-a-scroller-overflows` | Scroll and viewport | `scroll-and-viewport.md` | Stripe, in the navigation on stripe.com · Bramus Van Damme, Detect if an element can scroll or not with only CSS |
-| 45 | `anchor-targets-that-clear-a-sticky-header` | Scroll and viewport | `scroll-and-viewport.md` | Kevin Powell, Stop fixed navigations covering content on scroll, 2022-06-02, and Use these CSS features instead of JavaScript, 2026-09-23 |
-| 46 | `no-rubber-band-bounce-on-desktop` | Scroll and viewport | `scroll-and-viewport.md` | wits, @witsdev on X, 2026-09-30, describing how Vercel gates it behind `pointer: fine` · Jhey Tompkins, @jh3yy on X, for the `any-pointer` version · Emil Kowalski, mobile-native skill, for the inner containers |
-| 47 | `content-clear-of-the-notch` | Scroll and viewport | `scroll-and-viewport.md` | Emil Kowalski, mobile-native skill |
+| 44 | `styles-that-apply-only-when-a-scroller-overflows` | Scroll and viewport | `scroll-and-viewport.md` | Stripe, in the navigation on stripe.com · Bramus Van Damme, Detect if an element can scroll or not with only CSS. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 45 | `anchor-targets-that-clear-a-sticky-header` | Scroll and viewport | `scroll-and-viewport.md` | Kevin Powell, Stop fixed navigations covering content on scroll, 2022-06-02, and Use these CSS features instead of JavaScript, 2026-09-23. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 46 | `no-rubber-band-bounce-on-desktop` | Scroll and viewport | `scroll-and-viewport.md` | wits, @witsdev on X, 2026-09-30, describing how Vercel gates it behind `pointer: fine` · Jhey Tompkins, @jh3yy on X, for the `any-pointer` version · Emil Kowalski, mobile-native skill, for the inner containers. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
+| 47 | `content-clear-of-the-notch` | Scroll and viewport | `scroll-and-viewport.md` | Emil Kowalski, mobile-native skill. Text since reshaped by the course record, [`aiforui-course.md`](aiforui-course.md). |
 
 <!-- spellchecker:on -->
 

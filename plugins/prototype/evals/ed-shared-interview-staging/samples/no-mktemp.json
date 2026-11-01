@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "none"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p interview-data/staging/r1"
+          }
+        }
+      ],
+      "why": "mkdir"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "d=$(mktemp -d \"${TMPDIR:-/tmp}/explore-directions-XXXXXX\"); echo \"$d\""
+          }
+        }
+      ],
+      "why": "mktemp"
+    }
+  ]
+}

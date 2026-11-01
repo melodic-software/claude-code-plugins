@@ -113,19 +113,56 @@ describe("work root", () => {
   });
 });
 
+describe("user_config tokens and the git environment", () => {
+  const broken = path.join(base, "broken-git");
+
+  before(() => {
+    mkdirSync(path.join(broken, "nested"), { recursive: true });
+    writeFileSync(path.join(broken, ".git"), "gitdir: missing\n");
+  });
+
+  it("falls back for a value that is exactly one unsubstituted user_config token", () => {
+    assert.equal(cli(main, ["--library-dir", "${user_config.other_key}"]).stdout, `${main}\n`);
+  });
+
+  it("fails loud on an unsubstituted user_config token inside a larger value and prints no root", () => {
+    for (const value of ["${user_config.library_dir}/sub", "corpus/${user_config.library_dir}"]) {
+      const r = cli(main, ["--library-dir", value]);
+      assert.equal(r.status, 1, value);
+      assert.equal(r.stdout, "", value);
+      assert.match(r.stderr, /unsubstituted/, value);
+    }
+  });
+
+  it("ignores an inherited GIT_DIR and GIT_WORK_TREE that name another checkout", () => {
+    const r = cli(outside, [], { GIT_DIR: path.join(main, ".git"), GIT_WORK_TREE: main });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `${outside}\n`);
+  });
+
+  it("fails where a .git exists but git cannot read it, from the directory or below it", () => {
+    for (const cwd of [broken, path.join(broken, "nested")]) {
+      const r = cli(cwd, []);
+      assert.equal(r.status, 1, cwd);
+      assert.equal(r.stdout, "", cwd);
+      assert.match(r.stderr, /git could not read the repository/, cwd);
+    }
+  });
+});
+
 describe("progress key", () => {
   it("matches the base derivation's hand-computed value for a fixed path", () => {
     // printf '%s' /srv/work/api | sha256sum | cut -c1-8 -> 0b860e31
     assert.equal(progressKey("/srv/work/api"), "api-0b860e31");
   });
 
-  it("is byte-identical to the base derivation for the main checkout", () => {
+  it("is byte-identical to the base derivation for the main checkout", { skip: process.platform === "win32" }, () => {
     const r = cli(path.join(main, "docs"), ["--progress-key"]);
     assert.equal(r.status, 0, r.stderr);
     assert.equal(r.stdout, `claude-code-plugins-${baseHash(main)}\n`);
   });
 
-  it("gives a linked worktree its own key", () => {
+  it("gives a linked worktree its own key", { skip: process.platform === "win32" }, () => {
     const key = cli(worktree, ["--progress-key"]).stdout;
     assert.equal(key, `api-worktree-${baseHash(worktree)}\n`);
     assert.notEqual(key, cli(main, ["--progress-key"]).stdout);

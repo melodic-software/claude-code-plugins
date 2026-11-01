@@ -1,0 +1,73 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:extract-ssot",
+            "args": "plan commit-subject"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "72"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "extract-ssot",
+            "args": "identify commit-subject"
+          }
+        }
+      ],
+      "why": "bare name, identify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-agents"
+          }
+        }
+      ],
+      "why": "sibling agent-doc skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:compress"
+          }
+        }
+      ],
+      "why": "sibling compress skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:point-dont-copy"
+          }
+        }
+      ],
+      "why": "near-miss competitor"
+    }
+  ]
+}

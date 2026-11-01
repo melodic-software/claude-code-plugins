@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Tool | Result |\n|---|---|\n| node | PASS (v22.4.0) |\n| jq | FAIL: not on PATH |\n\nI don't install from this check. To install jq, run `/testing:setup apply`."
+    },
+    {
+      "answer": "jq resolves; nothing to do. If you want the installer, it is /testing:setup apply."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "jq is missing. I installed it with apt.",
+      "why": "installs, no route named"
+    },
+    {
+      "answer": "jq is missing. Install it with your package manager.",
+      "why": "no setup apply route"
+    }
+  ]
+}

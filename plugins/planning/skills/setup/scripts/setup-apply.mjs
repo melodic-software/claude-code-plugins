@@ -3,7 +3,7 @@
 // docs/conventions/planning.yaml, against schemas/planning.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check
 //
 // Each key is written exactly as the schema names it, so a quoted key with
@@ -17,6 +17,7 @@ import { run, wholeFileReport } from "../../../lib/setup-apply.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 run({
   plugin: "planning",
+  provenance: true,
   schema: join(HERE, "..", "..", "..", "schemas", "planning.schema.json"),
   reader: join(HERE, "parse-concern-value.sh"),
   exactKeyNames: true,

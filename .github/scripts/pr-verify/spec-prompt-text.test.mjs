@@ -18,9 +18,26 @@ test("the final judge reads the spec under the chunk verifiers' words", () => {
   }
 });
 
-test("the final judge is told what a cut leaves out", () => {
-  assert.match(spec, /`notes_left_out` above 0/);
+test("nothing a chunk reports is cut from the final judge", () => {
+  assert.doesNotMatch(spec, /notes_left_out|A cut can hide/);
   for (const text of [spec, flat("./chunk-note.md")]) assert.doesNotMatch(text, /leaves? (it |the path )?out|a count of the files/);
+});
+
+test("a verifier is told every line is readable, so no prose or data part is passed unread", () => {
+  assert.match(chunk, /`\\ continued:`/);
+  assert.doesNotMatch(chunk, /line cut short/);
+  // A binary lockfile or compiled code still fails; an image does not.
+  assert.ok(chunk.includes("a workflow, an action, a script, a hook, compiled code or a library, or a file a workflow, script or hook runs"));
+  assert.match(chunk, /takes the side of the line it continues/);
+  assert.match(chunk, /a package or plugin manifest, a lockfile, or agent or skill instructions/);
+});
+
+test("a denied read voids only a pass, and a refs judgment reads the context whole", () => {
+  for (const text of [chunk, spec]) {
+    assert.match(text, /a denied read voids a `pass` or `pass-notes`/);
+    assert.doesNotMatch(text, /a denied read voids the verdict/);
+  }
+  assert.match(spec, /When an entry's `spec_kind` is `refs`, it is listed whole/);
 });
 
 test("a chunk verifier is told to read across chunks, and no text says it cannot", () => {

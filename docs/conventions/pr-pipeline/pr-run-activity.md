@@ -751,11 +751,14 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    (`fix-docs`, `resolve-issue`) or with `prepare: review-threads` (`address-feedback`, which also gets the
    review-thread tool: [`prepare: review-threads`](#prepare-review-threads)), and fails red on
    any other prepare mode, and on `checks`, `self-checks` or `verify-scripts` outside the
-   no-prepare patch skill. That skill's check and verify-script wrappers are the ones
-   [Skill activities](#skill-activities) describes, staged for `.lane/checks` and `.lane/verify`,
-   which the run job makes read-only after the copy, named there in their `Bash` rules and the
-   preamble, and denied to `Edit`, `Write` and `NotebookEdit`. An issue lane's skill also gets
-   `.lane/git/git-read`, read-only and denied to the file tools, as its one way to git:
+   no-prepare patch skill, `verify-scripts` under `prepare: ci-context` excepted: that skill's Bash
+   is bare, so its wrappers get no rule of their own, and the preamble tells the skill to run those
+   scripts only through them: an instruction, not a rule. That skill's check and verify-script
+   wrappers are the ones [Skill activities](#skill-activities) describes, staged for
+   `.lane/checks` and `.lane/verify`, which the run job makes read-only after the copy, named
+   there in their `Bash` rules and the preamble, and denied to `Edit`, `Write` and
+   `NotebookEdit`. An issue lane's skill also gets `.lane/git/git-read`, read-only and denied to
+   the file tools, as its one way to git:
    `Bash(<workspace>/.lane/git/git-read *)` runs only `git status`, `diff`, `log` and `show`, with
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
@@ -821,9 +824,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
 `GIT_NO_REPLACE_OBJECTS=1`.
 
 1. `resolve-conflicts-select` runs only default-branch-tip code with a read-only token. It reads
-   the PR head, resolves the slot (`applied-by-supported: patch`), pins the default branch tip as
-   the round's base, checks the head out with full history and no persisted credentials, and runs
-   `prepare.sh`: it escalates `repeat-cap` before merging, runs
+   the PR head, failing with no head output when the head is in another repository, resolves the
+   slot (`applied-by-supported: patch`), pins the default branch tip as the round's base, checks
+   the head out with full history and no persisted credentials, and runs `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
    `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
@@ -915,7 +918,7 @@ App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by
 A round of review-thread answers is five jobs of `pr-unblock.yml`, so no model ever holds a write
 token, and the broker mints one token per job (one with both `contents: write` and
 `pull-requests: write` could enqueue a PR). `address-feedback-select` runs only base code with a
-read-only token. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
+read-only token, and fails with no head output when the head is in another repository. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
 and `applied-by` `patch` and `feedback-replies`, called on this read file twice
 ([Two calls on one credential each](#two-calls-on-one-credential-each)); it posts and commits
 nothing. The push job, `apply-feedback-patch`, is the write file's
@@ -945,7 +948,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
-   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. A
+   thread holding a `review-threads.reviewer-ids` bot's comment and no such human's direction is
+   kept only when a `human` on that list wrote the `@codex` request behind that bot's review, and
+   no one else wrote one, since the bot's previous review. With no such request, the review is
+   automatic: the pull request's opening and each ready-for-review event since then must be by
+   such a `human` or the lanes App. Otherwise the thread is left alone, logged
+   `codex-request-untrusted` or `codex-request-not-found`. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
    `direction: true` the replies after the escalation, or with no escalation every human comment
    from the first such fix request on,
@@ -1297,8 +1306,8 @@ also apply the [registry provenance](README.md#registry-provenance) gate, and th
 warns of a [classifier gap](README.md#classifier-gaps).
 
 1. pr-unblock's `review-dependency-select` job, which runs only default-branch-tip code with a
-   read-only token, reads the PR head, resolves the slot (`applied-by-supported: patch
-   dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
+   read-only token, reads the PR head, failing with no head output when the head is in another
+   repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
    `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
@@ -1459,7 +1468,13 @@ its fallback call on the role's OAuth token after the key call hands off
    read-only, denies Edit and Write there and on the staged plugin, and grants the skill Bash,
    Edit, Write and Agent with the web tools denied: the job holds no write token, and the skill
    reruns the failing checks. The launcher's preamble names the file, since run-claude-cli takes
-   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)).
+   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)). Each
+   of the activity's `verify-scripts` is staged as its base copy behind a wrapper under
+   `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run
+   those scripts only through the wrappers. Nothing enforces that: Bash, Edit and Write stay open,
+   so the skill could run the checkout's copy or edit a digest by hand. The controls are review of
+   the patch and apply-patch's `ci-context` patch rules, which refuse workflow, settings and
+   similar paths but admit a test file.
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
@@ -2405,6 +2420,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
   `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
+- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at that run's head
+  differs from the tip's, which the broker would refuse as `workflow-modified`. The caller's
+  `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any select job, so
+  nothing runs and the run ends green with no check and no stop, and the next dispatcher finds the
+  head unhandled. A read it cannot make leaves the run to the broker.
 
 ## Bounds
 

@@ -1,0 +1,122 @@
+{
+  "skill": "visualization:visualize",
+  "plugin": "visualization",
+  "skill_dir": "plugins/visualization/skills/visualize",
+  "ranking_note": "Authored blind from the before descriptions at commit c181a0a1ed5e77a441700aabd8881d2c9cadd6cf, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. The competitor is the other model-invoked visualization skill.",
+  "competitors": [
+    "visualization:present"
+  ],
+  "competitor_dirs": {
+    "visualization:present": "plugins/visualization/skills/present"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you diagram how a request moves through our auth middleware, from login to token refresh?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "visualize this"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me the folder layout of src/ as a tree so I can see where everything lives."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Plot the p95 latency numbers I pasted above across the last 12 weeks. Just something I can eyeball here in the terminal."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put Postgres, DynamoDB, and SQLite next to each other for our use case so I can compare them at a glance."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draw me a picture of how these classes inherit from each other."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's the clearest way to show this retry/backoff state machine visually? Go ahead and make it."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sketch the module dependency graph for packages/core."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn the benchmark results from that last run into a quick bar chart I can open in my browser."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make an ASCII drawing of our deploy pipeline stages."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make slides from these release notes for Thursday's all-hands."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The y-axis on my revenue chart is unreadable and the colors clash. Fix the palette and the tick labels."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rewrite this RFC section in plain English. It's too dense for the new hires."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Open my claude.ai/design project 'Onboarding Flow v2' and update the hero section copy."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn this postmortem into a 10-slide presentation for leadership."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Bump the legend font size and switch the line colors to colorblind-safe ones in the latency chart we already built."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain this jargon-heavy design doc paragraph in simpler words."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "In my claude.ai/design project 'Billing Dashboard', change the button styles to match our brand."
+    }
+  ]
+}

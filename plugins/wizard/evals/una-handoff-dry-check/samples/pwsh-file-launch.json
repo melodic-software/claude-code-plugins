@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "From an elevated PowerShell 7: `pwsh -File .\\retire-distro.ps1`",
+      "why": "plain"
+    },
+    {
+      "answer": "pwsh -NoProfile -File C:\\ops\\retire-distro.ps1 -WhatIf",
+      "why": "with -NoProfile"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Right-click retire-distro.ps1 and choose Run with PowerShell.",
+      "why": "5.1 launch"
+    },
+    {
+      "answer": "I ran `pwsh -File retire-distro.ps1 -Test`; it stopped at the elevation check as expected.",
+      "why": "describes own dry run only"
+    }
+  ]
+}

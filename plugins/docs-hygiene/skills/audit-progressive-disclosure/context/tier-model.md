@@ -8,17 +8,15 @@
 - [Pointer-quality criteria (what makes a spoke reachable)](#pointer-quality-criteria-what-makes-a-spoke-reachable)
 - [Boundaries this audit honors](#boundaries-this-audit-honors)
 
-The reference layer behind `/docs-hygiene:audit-progressive-disclosure`. The hub's shapes table
-cites these facts; read this file when adjudicating a finding that needs the exact number, the
-routing rule, or the pointer criteria.
+The reference layer behind `/docs-hygiene:audit-progressive-disclosure`'s shapes table.
 
 **Citation posture.** Every number and rule below is this audit's own setting, in our words; the
-pages behind them are pointed at, never quoted. Items marked *(Anthropic-prescribed)* are settings
-we take from official Anthropic pages: cite them as Anthropic's prescription, not as independently
-verified consensus, and read the wording at the pointer. Items marked *(corroborated)* carry
-independent first-hand corroboration (practitioner measurement, independent implementations,
-cross-vendor convergence). Items marked *(community)* come from a single non-official source and
-are advisory color only.
+pages behind them are pointed at, never quoted. *(Anthropic-prescribed)* items are settings taken
+from official Anthropic pages: cite them as Anthropic's prescription, not as independently verified
+consensus, and read the wording at the pointer. *(corroborated)* items carry independent
+first-hand corroboration (practitioner measurement, independent implementations, cross-vendor
+convergence). *(community)* items come from a single non-official source and are advisory color
+only.
 
 ## The three tiers
 
@@ -40,9 +38,9 @@ and upstream ownership overrides the local treatment (the finding stays): see
 | Number | Bounds | Status |
 |---|---|---|
 | SKILL.md line cap | Value: `/playbooks:skill-authoring` `## Body`; `/skill-quality:check` enforces it. The split trigger fires when a file is **approaching** the cap, not only past it | Anthropic-prescribed |
-| <5k tokens | Our target SKILL.md body size, taken from the platform token-budget guidance | Anthropic-prescribed |
+| <5k tokens | Our target SKILL.md body size, from the platform token-budget guidance | Anthropic-prescribed |
 | 200 lines | Our per-CLAUDE.md target; we read a longer file as costing context and adherence | Anthropic-prescribed; stricter 80–150 community practice exists but is not official |
-| Per-skill metadata cost | Always-loaded listing cost per skill; we treat it as small but nonzero, so skill count matters. Value at the pointer | Anthropic-prescribed; corroborated (~80 median measured) |
+| Per-skill metadata cost | Always-loaded listing cost per skill; small but nonzero, so skill count matters. Value at the pointer | Anthropic-prescribed; corroborated (~80 median measured) |
 | Description caps | `description` alone, and `description` + `when_to_use` in the listing: `/playbooks:skill-authoring` `## Descriptions`; `/skill-quality:check` enforces both. Truncation is tail-first, so the key use case goes first | Anthropic-prescribed |
 | Skill-listing budget | A share of the context window; we treat an overflow as dropping descriptions, never names. Fraction, setting and drop order at the pointer | Anthropic-prescribed; corroborated |
 | MEMORY.md load limit | We treat content past the limit as not loaded. Values at the pointer | Anthropic-prescribed |
@@ -94,9 +92,8 @@ disagree on the reference-file length above which a TOC is expected.
    per-directory file *(Anthropic-prescribed)*.
 5. **Workflow complexity**: a long, many-step workflow → its own file, read per task
    *(Anthropic-prescribed)*.
-6. **Adherence symptoms**: a rule the model keeps skipping, which we read as a sign the file has
-   grown past what it can hold *(Anthropic-prescribed; a behavioral trigger, visible in use, not in
-   the file)*.
+6. **Adherence symptoms**: a rule the model keeps skipping, read as a sign the file has grown past
+   what it can hold *(Anthropic-prescribed; a behavioral trigger, visible in use, not in the file)*.
 
 - **Pointer**: for separate files loaded only when needed, see
   [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns)
@@ -109,7 +106,7 @@ disagree on the reference-file length above which a TOC is expected.
 - **Recheck trigger**: one of those sections stops supporting the trigger that cites it.
 
 Mixed-concern signals *(corroborated)*: one category per skill (a skill that straddles several
-is a confused one), one topic per rules file, cross-file contradiction as a smell, one topic per
+is confused), one topic per rules file, cross-file contradiction as a smell, one topic per
 file with no co-mingling (Microsoft guidance, independent convergence), and the case-study
 direction that refactoring a mixed 600-line instruction file into 50–150-line topic docs
 measurably improves task success (single case study; direction corroborated, percentages
@@ -122,7 +119,7 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
 1. **Direct from the hub** (depth rule: `/playbooks:skill-authoring` `## Reference files`): we treat a chained pointer as inviting a partial
    preview read of the deeper file instead of a full read.
 2. **Condition attached**: the pointer states WHEN to read the target ("For a schema change:
-   read MIGRATIONS.md"); a bare link is one Claude may never follow.
+   read MIGRATIONS.md"); Claude may never follow a bare link.
 3. **Intent marked**: execute vs read ("Run `fetch.py` to pull the rows" vs "Read `fetch.py`
    for the retry rules").
 4. **Self-describing target name**: `retry_policy.md`, not `notes2.md` / `helper` / `utils`;
@@ -148,8 +145,7 @@ A pointer is good when *(Anthropic-prescribed unless noted)*:
 
 Description-as-trigger (the always-loaded pointer to a skill body): name the skill's job AND the
 situations that call for it, third person, key use case first (tail-first truncation strips
-trailing keywords; the cap is `/playbooks:skill-authoring` `## Descriptions`). A when-NOT-to-use clause in descriptions is *(community)* guidance, so
-surface it as advisory color only, never as an official requirement.
+trailing keywords; the cap is `/playbooks:skill-authoring` `## Descriptions`). A when-NOT-to-use clause in descriptions is *(community)* guidance: surface it as advisory color only, never as an official requirement.
 
 **Observed-navigation diagnostics** *(Anthropic-prescribed method)*: repeatedly re-read spoke →
 promote its content to the hub; never-read spoke → demote, re-signal, or delete; failed

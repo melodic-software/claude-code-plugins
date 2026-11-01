@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/src/config/torn-edge.json"
+          }
+        }
+      ],
+      "why": "read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "never read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/src/lab/torn-edge/TornEdgeLab.jsx"
+          }
+        }
+      ],
+      "why": "read panel only"
+    }
+  ]
+}

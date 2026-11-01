@@ -37,7 +37,8 @@
 # locations or a claude.ai Owner role. This script writes nothing, anywhere.
 #
 # Prerequisites:
-#   jq   required for correctness — exits 2 at the entry point when absent.
+#   jq   required for correctness: exits 2 at the entry point when absent,
+#        naming the install command for this platform when it finds one.
 #   reg  optional platform integration (Windows managed policy). Absent or
 #        failing: warn visibly, mark that surface `skipped`, keep every other
 #        result.
@@ -90,17 +91,23 @@ case "${1:-}" in
 *) ;;
 esac
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required" >&2
-  exit 2
-fi
-
 # `${BASH_SOURCE[0]%/*}` rather than `dirname`: `cd` and `pwd` are builtins, so
 # plugin-root resolution needs nothing on PATH. A missing external tool here
 # would leave PLUGIN_ROOT empty, the source would fail, and every managed surface
 # would report `absent` — a reader claiming no policy is deployed because it
 # could not load its own library is the worst failure this script can have.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+
+if ! command -v jq >/dev/null 2>&1; then
+  # shellcheck source=../../../lib/jq-install-hint.sh
+  if [[ -r "$PLUGIN_ROOT/lib/jq-install-hint.sh" ]] && source "$PLUGIN_ROOT/lib/jq-install-hint.sh"; then
+    jqhint::missing_message permission-state.sh "${PERMISSION_STATE_OSTYPE-${OSTYPE:-}}" >&2
+  else
+    echo "ERROR: jq required" >&2
+  fi
+  exit 2
+fi
+
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
   echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing, so managed policy cannot be located" >&2
@@ -532,8 +539,27 @@ else
   note "User scope not read: neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved."
 fi
 
-emit_json_scope project settings "$PROJECT_ROOT/.claude/settings.json"
-emit_json_scope local settings "$LOCAL_ROOT/.claude/settings.local.json"
+# A session started in the home directory, outside any repository, has the home
+# directory as its project root, so the project path IS the user file. Reading
+# it again would report one file under two scopes and run project-only checks
+# (C2) on keys that are legal in user settings. `-ef` sees through symlinks and
+# differently spelled paths but is false for a file that does not exist, so the
+# string test covers a missing one.
+same_file() { [[ "$1" -ef "$2" || "$1" == "$2" ]]; }
+
+emit_file_scope() {
+  # emit_file_scope <scope> <path>
+  local scope="$1" path="$2"
+  if [[ -n "$USER_CONFIG_ROOT" ]] && same_file "$path" "$USER_CONFIG_ROOT/settings.json"; then
+    emit "$scope" settings not-applicable "$path"
+    note "$scope scope skipped: $path is the user settings file (as when a session starts in the home directory, outside a repository), so it is reported once, as user, and no $scope-scope checks run on it."
+    return 0
+  fi
+  emit_json_scope "$scope" settings "$path"
+}
+
+emit_file_scope project "$PROJECT_ROOT/.claude/settings.json"
+emit_file_scope local "$LOCAL_ROOT/.claude/settings.local.json"
 note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings() helper always reads the file from the starting directory; that is the helper's behavior, not a session property, and no documented environment variable identifies an Agent SDK or headless run, so this reader does not detect either."
 
 # Cloud sessions read a different scope set, and the user scope this reader just

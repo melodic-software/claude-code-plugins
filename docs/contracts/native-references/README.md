@@ -300,8 +300,10 @@ In order, the section carries:
    restates the step as the full procedure). Each state names the axis line `settings or
    environment, plan, platform or provider, host surface` and the enable path.
 6. A note that the wrapped body enters context once and stays there.
-7. The bare `unattended` argument, declared by the caller, under which the skill records
-   instead of asks and never invokes a mutating surface.
+7. The `--unattended` flag, accepted anywhere in the arguments and passed by the caller, under
+   which the skill records instead of asks and never invokes a mutating surface. Its spelling
+   and placement follow
+   [`skill-argument-shape`](../skill-argument-shape/README.md).
 
 ## The suggest sentence
 

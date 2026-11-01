@@ -30,7 +30,8 @@ as of 2026-10-04, recheck trigger: the endpoint's role mapping changes), so befo
 `label-provenance` operation over the item's `work-class:` label and its autonomous-eligible role
 label, and refuses the item for that cycle on a triage or read labeler, a missing `labeled` event,
 or a failed read ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate",
-labeler precondition). A provider adapter without that operation refuses every labeled item, so
+labeler precondition); a refusal only on the body edit time, edited after admission or unread, is
+escalated once instead. A provider adapter without that operation refuses every labeled item, so
 triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
 
 ## Human-floor classes exclude the autonomous-eligible role label

@@ -36,8 +36,8 @@ or "none">
 Not read: <anything skipped and why; or "nothing">
 ```
 
-**Model and effort.** `opus` keeps the reader at least as strong as the text trying to steer it;
-`medium` bounds one file's read. The Read-only cage is what contains an obeyed plant; this framing
+**Model and effort.** We chose `opus` so the reader holds up against text trying to steer it, and
+`medium` to bound one file's read; no upstream page sets either. The Read-only cage is what contains an obeyed plant; this framing
 is what keeps it from being obeyed.
 
 - **Pointer:** for how a `tools` list withholds tools from a subagent, see

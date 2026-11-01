@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Install the page clock before you navigate, so the counter's script starts on the controlled clock:\n\n```js\nasync page => {\n  await page.clock.install({ time: 0 });\n  await page.goto('http://127.0.0.1:4173/');\n  const now = await page.evaluate(() => Date.now());\n  await page.clock.pauseAt(now + 1000);\n  // step with runFor and sample each frame\n}\n```",
+      "why": "the clock is installed before goto"
+    },
+    {
+      "answer": "Before `goto`, register an init script that pauses each CSS animation as it starts:\n\n```js\nawait page.addInitScript(() => {\n  addEventListener('animationstart', e => { for (const a of e.target.getAnimations()) a.pause(); }, true);\n});\n```\nThe hero's entrance is then still at its first frames when the page has loaded.",
+      "why": "an init script registered before navigation holds the entrance"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```js\nasync page => {\n  await page.goto('http://127.0.0.1:4173/');\n  await page.clock.install({ time: 0 });\n  await page.clock.pauseAt(1000);\n}\n```\nThen step with runFor.",
+      "why": "near miss: the right clock calls, but installed after goto, once the intro has started"
+    },
+    {
+      "answer": "Start a screen recording, reload the page, and scrub the video frame by frame in your player.",
+      "why": "a video only"
+    },
+    {
+      "answer": "Use your animation recorder's page-load mode; it reloads with recording on.",
+      "why": "names a product's mode without saying how the capture is armed"
+    }
+  ]
+}

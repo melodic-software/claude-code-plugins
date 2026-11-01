@@ -77,6 +77,11 @@ case "$method $endpoint" in
   echo '{}'
   ;;
 "GET repos/o/r/commits/"*"/statuses?per_page=100")
+  if [[ -f $STUB/fail_statuses ]]; then
+    echo '{"message":"API rate limit exceeded","status":"403"}'
+    printf 'gh: API rate limit exceeded (HTTP 403)\n100%% used\n' >&2
+    exit 1
+  fi
   cat "$STUB/statuses.json" 2>/dev/null || echo '[]'
   ;;
 "POST repos/o/r/statuses/"*)
@@ -639,6 +644,17 @@ clear_case fix-ci "[{\"context\":\"pr-unblock/fix-ci\",\"state\":\"error\",\"cre
 has "clear: an error status is cleared as ci-status fails on it" 'context=pr-unblock/fix-ci' "$STUB/calls"
 clear_case fix-ci "[{\"context\":\"pr-unblock/other\",\"state\":\"success\",\"creator\":$GHA}][{\"context\":\"pr-unblock/fix-ci\",\"state\":\"failure\",\"creator\":$GHA}]"
 check "clear: a failure on a later page is cleared" "POST repos/o/r/statuses/$HEAD_A" "$(grep '^POST' "$STUB/requests")"
+setup '[]' '[]'
+: >"$STUB/fail_statuses"
+set +e
+(cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t GITHUB_REPOSITORY=o/r HEAD_SHA="$HEAD_A" \
+  ACTIVITY=fix-ci "$SUT" clear) >"$STUB/out" 2>&1
+RC=$?
+set -e
+check "clear: a refused status read fails" 1 "$RC"
+has "clear: a refused status read is annotated with gh's message, one line" \
+  "::error::cannot read the statuses of $HEAD_A: gh: API rate limit exceeded (HTTP 403)%0A100%25 used" "$STUB/out"
+check "clear: a refused status read posts nothing" 0 "$(grep -c '^POST' "$STUB/requests" || true)"
 has "clear: reads every page" '--paginate' "$STUB/calls"
 clear_case fix-ci '[]'
 check "clear: no status, nothing posted" 0 "$(writes)"

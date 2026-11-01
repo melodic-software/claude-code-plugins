@@ -558,7 +558,7 @@ test("pr-verify still names its judge step as the reconciler reads it, in every 
     assert.equal(names[judge], JUDGE_STEP, name);
     assert.equal(names[judge - 1], JUDGE_PREDECESSOR, name);
     assert.ok(judge < names.indexOf("Upload the verdict"), name);
-    // The verdict is written only on the judge step's true outcome.
+    // The verdict is written only once a judgment finished.
     const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
     assert.equal(writes.length, 1, name);
     assert.match(writes[0], /\n[ ]+if: \$\{\{ !cancelled\(\) && \(steps\.chunk-fail\.outputs\.fail == 'true' \|\| /, name);

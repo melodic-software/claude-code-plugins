@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "toast.error(\"You're the only admin. Make another member an admin, then leave the team.\");",
+      "why": "says what happened and what to do next"
+    },
+    {
+      "answer": "Before: `toast.error(\"An error occurred\")`\n\nAfter:\n\n```jsx\ntoast.error(\"You can't leave while you're the last admin\", {\n  description: \"Promote someone to admin in Team settings first.\",\n});\n```",
+      "why": "the quoted before block keeps the generic string, but the proposed toast names the cause and the fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "toast.error(\"Something went wrong. Please try again.\");",
+      "why": "generic error that names no cause"
+    },
+    {
+      "answer": "toast.error(\"You can't leave this team because you're its only admin.\");",
+      "why": "near miss: names the cause but gives no next step"
+    },
+    {
+      "answer": "Change the toast to explain that they're the last admin and need to promote someone first.",
+      "why": "the fix only in prose, no revised toast"
+    }
+  ]
+}

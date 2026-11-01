@@ -153,13 +153,16 @@ bookkeeping must never lower it for the phase implementation too. The binding is
 model-config row the pointer below names: a phase brief is scoped, day-to-day engineering work, and
 the phase verifier that checks it runs at `high`.
 
-- **Pointer:** the `medium` row of
+- **Pointer:** what each alias resolves to, per provider, in
+  [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
+  the `medium` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task);
   what effort a subagent runs at without the pin, in the `effort` row of
   [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
   and that plus the Agent tool's per-call `effort` and its rank over this pin, in
   [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
-- **As of:** 2026-10-11.
-- **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
-  what a subagent's effort follows, the precedence, or which spawns honor a per-call `effort`.
+- **As of:** 2026-10-31.
+- **Recheck trigger:** next model release, the aliases section changes how an alias resolves, or
+  the subagents `effort` row or effort section changes what a subagent's effort follows, the
+  precedence, or which spawns honor a per-call `effort`.

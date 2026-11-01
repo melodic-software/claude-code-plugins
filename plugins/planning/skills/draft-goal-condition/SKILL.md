@@ -50,7 +50,9 @@ see the result. When either is missing, prompt once instead.
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a
   prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or orchestration worth codifying as a
-  rerunnable script) → a dynamic workflow. This row composes with `/goal`: the workflow does the
+  rerunnable script; for the scale each approach fits, see
+  [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow), as of
+  2026-10-31; recheck when that section's comparison table changes) → a dynamic workflow. This row composes with `/goal`: the workflow does the
   parallel work, the goal sets the hard completion requirement. Route away from drafting only when
   the intent wants the fan-out and *no* across-turn completion condition; when it wants both, draft
   the condition here and say the workflow rides alongside it.
@@ -78,7 +80,10 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
   workflow lever reaches all paid plans (on Pro it is switched on from the **Dynamic workflows**
   row in `/config`), while the standing setting needs a model that offers `xhigh` effort.
 - **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of
-  every non-fork subagent (the filter is on `https://code.claude.com/docs/en/sub-agents`;
+  every non-fork subagent (the filter is in
+  [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
+  2026-10-31; recheck when `Workflow` leaves that list or a fork stops keeping the main session's
+  tools;
   `/discovery:research`, if enabled, selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
   loop lanes' workers, for instance) cannot be the workflow row; recommend it only where the

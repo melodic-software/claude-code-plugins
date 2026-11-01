@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The parser is absent. Stopping. Audit by name with `/plugin-quality:audit source-control:commit`.",
+      "why": "example target, no count"
+    },
+    {
+      "answer": "1. Install session-flow.\n2. Rerun.",
+      "why": "steps"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| source-control:commit | 3 |",
+      "why": "a row"
+    },
+    {
+      "answer": "toolchain:check ran 2 times",
+      "why": "prose count"
+    },
+    {
+      "answer": "3x source-control:commit",
+      "why": "count first"
+    }
+  ]
+}

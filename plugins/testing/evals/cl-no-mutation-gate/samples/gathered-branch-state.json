@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no state gathered"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "tests/billing/test_invoice.py"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ]
+}

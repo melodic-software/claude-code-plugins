@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "# Merge rules\n\nNever merge a pull request whose required checks are red, including when only one check is red.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Merge rules\n\nNever merge a pull request whose required checks are red.\n",
+      "why": "reverted the PR's change to match the old pin"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
