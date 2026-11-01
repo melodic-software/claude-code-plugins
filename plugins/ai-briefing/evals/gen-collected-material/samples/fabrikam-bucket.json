@@ -23,6 +23,18 @@
     {
       "answer": "## Fabrikam\n\n**Empty: no items in the window.** The full Ledger changelog was read; its two entries came before the window.",
       "why": "bold empty line under the heading"
+    },
+    {
+      "answer": "## Fabrikam\n_Nothing in the window. The last Ledger release, 3.0.2, came out on 2026-09-05, before it._",
+      "why": "italic placeholder: underscore before Nothing"
+    },
+    {
+      "answer": "## Fabrikam\n\n_None._",
+      "why": "italic None with underscore after the period"
+    },
+    {
+      "answer": "**Fabrikam**\n_No releases this week_",
+      "why": "italic, underscore right after releases"
     }
   ],
   "fail": [
@@ -45,6 +57,18 @@
     {
       "answer": "## Fabrikam\n\n**Ledger 3.1.0** (2026-09-02): spreadsheet Q&A.\n\n**Contoso**\n\nNothing: feed unreadable.",
       "why": "empty wording belongs to the next bold bucket"
+    },
+    {
+      "answer": "## Fabrikam\n\n- MEDIUM: Ledger 3.1 drops the legacy is_empty_sheet flag (2026-09-02)",
+      "why": "empty inside a snake_case identifier"
+    },
+    {
+      "answer": "## Fabrikam\n\n- LOW: Ledger adds a nonempty_cells option (2026-10-22)",
+      "why": "none and empty inside nonempty_cells"
+    },
+    {
+      "answer": "## Fabrikam\n\n- MEDIUM: Ledger 3.1 released\n\n## Contoso\n\n_Nothing: feed unreadable._",
+      "why": "italic empty wording belongs to the next bucket"
     }
   ]
 }
