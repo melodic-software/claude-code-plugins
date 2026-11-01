@@ -1,0 +1,121 @@
+{
+  "skill": "harness-config:audit-permission-state",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-permission-state",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice B (#11561); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-permission-grants, draft-auto-mode-rules, audit; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit-permission-grants",
+    "harness-config:draft-auto-mode-rules",
+    "harness-config:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "which permission rules are live right now once you combine user, project, local and managed settings? show me where each one comes from"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have Bash(rm *) denied in my user settings and allowed in the project settings. which one actually wins here?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "turning on auto mode tomorrow. which of my current allow rules get dropped once it's on?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is our org's managed policy even being read on this machine? I don't see any of its deny rules taking effect."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "for this repo, list every rule that's live once all the settings files combine, and say which file wins when two of them disagree"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Claude asked me before running `git push` even though I'm sure I allowed it somewhere. trace which scope is overriding it"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "dump the final permission picture after all the settings layers merge. read only please, don't edit anything"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "what can claude do without asking me in this project, with every settings scope taken into account?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "settings.local.json, .claude/settings.json and ~/.claude/settings.json all have permissions blocks. reconcile them and tell me the net result"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does a deny in managed settings beat an allow I put in settings.local.json? Show me using our real files, and mark any allow that auto mode would ignore."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "my allow rule Bash(python3 ~/tools/*.py) has my home dir baked in. find other rules like that which won't work on someone else's machine"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "the allowed-tools line in my skill frontmatter uses ${CLAUDE_SKILL_DIR} literally. is that grant shaped right?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "cut down on the approval prompts I get for read-only commands by adding an allowlist to the project settings"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "move the Bash(docker ps) permission from my user settings into the project settings file"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "write me classifier rules for auto mode that block force pushes but auto-approve npm installs"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "after updating claude code, check my settings files, hooks and env vars against the current docs for anything deprecated or broken"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "i just want to click through and delete a few allow rules interactively"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "are there hooks we should add to block dangerous shell commands instead of relying only on deny rules?"
+    }
+  ]
+}

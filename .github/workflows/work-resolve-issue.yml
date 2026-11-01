@@ -234,9 +234,11 @@ jobs:
         with:
           tokens: github-token
 
-  # The lanes App's agent-ready label (work-unblock's) starts a run like a
-  # listed human's; the App's other labels never start one. No step of this
-  # lane adds agent-ready, so a run cannot start another.
+  # The lanes App's agent-ready label (work-unblock's, or report-outcome's
+  # re-fire of a run that stopped on stale workflow files) starts a run like a
+  # listed human's; the App's other labels never start one. Only that re-fire
+  # adds agent-ready in this lane, at most limits.limit-stops-per-issue times
+  # since a person last added it or a run last reported.
   resolve-issue:
     needs: [admit, pick-slot]
     if: >-
@@ -427,6 +429,42 @@ jobs:
     secrets:
       fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether a call stopped on stale workflow files (it waited in its slot past
+  # a change to this file or the write runner on main, so no model ran), read
+  # from this run's jobs by handoff-evidence.sh, never from a call's output.
+  # Only a run that started no skill and reused no branch is read. On true,
+  # report-outcome re-fires the issue at once on main's files instead of
+  # leaving it to work-unblock's hourly sweep. A failed read re-fires nothing.
+  resolve-issue-stale:
+    needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback]
+    if: >-
+      ${{ !cancelled() && needs.admit.outputs.proceed == 'true' && needs.resolve-issue.result != 'skipped'
+      && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') != 'true'
+      && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      contents: read # the default branch tip's handoff-evidence.sh
+    outputs:
+      stale: ${{ steps.stale.outputs.stale }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether a resolve-issue call stopped on stale workflow files
+        id: stale
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: resolve-issue resolve-issue-subscription resolve-issue-fallback
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh stale
 
   # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
   # resolve) takes no model turn, so the run leaves no outcome and every job
@@ -824,7 +862,7 @@ jobs:
           echo "checks=$record" >>"$GITHUB_OUTPUT"
 
   report-outcome:
-    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch, run-checks]
+    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, resolve-issue-stale, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this
     # file through the read runner's issue-fields job, which checks it and
@@ -838,10 +876,17 @@ jobs:
     # included; !cancelled() runs this whether that job failed or skipped.
     # A kill switch that stopped apply-issue-patch dropped this run's patch,
     # so this skips and work-unblock re-fires the issue as a breaker trip.
+    # A call that stopped on stale workflow files (resolve-issue-stale) runs
+    # this with dimension-skip workflow-stale: it re-fires the issue at once.
+    # The broker mints for this report job though the run's files are stale
+    # while each main change to them is recent (pr-run-activity.md, Broker
+    # reasons); when it refuses, the run ends red and work-unblock's sweep
+    # re-fires the stale stop as before.
     if: >-
-      ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
+      ${{ !cancelled() && (((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       || (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '') != '')
-      && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch' }}
+      && needs.apply-issue-patch.outputs.skip-reason != 'kill-switch'
+      || needs.resolve-issue-stale.outputs.stale == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -856,6 +901,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
+      dimension-skip: ${{ needs.resolve-issue-stale.outputs.stale == 'true' && 'workflow-stale' || '' }}
       reuse-branch: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-reuse-branch || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-reuse-branch || '' }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
       collect-refused: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-collect-refused || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-collect-refused || '' }}
@@ -865,5 +911,5 @@ jobs:
         ${{ needs.apply-issue-patch.outputs.escalation-reason
         || needs.apply-issue-patch.result == 'failure' && 'patch-apply-failed' || '' }}
       # The selected read call's lane lease, ended once the PR is open; every
-      # other call's lease its own read runner ended.
-      lease-comment-id: ${{ needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id || '' }}
+      # other call's lease, a stale stop's included, its own read runner ended.
+      lease-comment-id: ${{ needs.resolve-issue-stale.outputs.stale != 'true' && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.lease-comment-id) || '' }}

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "While auto mode is active, Bash(python3 *) and Bash(npx *) are dropped (interpreter wildcard, package-manager runner); Bash(pytest) and Bash(ruff check .) carry over. Nothing is edited: the dropped rules are restored when the session leaves auto mode. This only applies to a session that enters auto mode; a `claude -p` run or an Enterprise plan starts in Manual and never makes the transition."
+    },
+    {
+      "answer": "Two of your four allow rules still work once a session enters auto mode, and two are set aside. All four come from the project file `.claude/settings.json`. No other settings file has any permission rules.\n\n| Rule | In auto mode | Why |\n| --- | --- | --- |\n| `Bash(pytest)` | **Still works** | Exact command, nothing broad |\n| `Bash(ruff check .)` | **Still works** | Exact command, nothing broad |\n| `Bash(python3 *)` | **Set aside** | Lets Python run any script or code |\n| `Bash(npx *)` | **Set aside** | Lets `npx` download and run any package |\n\nThe run read every scope it looked for (`status=read`), so it isn't missing anything. It found no deny or ask rules and no conflicts.\n\n**Limits on this answer:**\n- **It only matters if a session actually enters auto mode.** Sessions start in Manual, and never make this switch, under `claude -p` or the Agent SDK, on Enterprise plans or API keys, on Bedrock, Google Cloud or Foundry, on the first session after an install or upgrade, or when `disableAutoMode` is `\"disable\"`. Auto mode is the starting mode on Pro, Max and Team plans in the terminal or VS Code.\n- **The two rules come back on their own.** They return when the session leaves auto mode, and nothing in your settings files changes.\n- **Command-line settings aren't covered.** The result reflects your settings files only. If `autoMode.classifyAllShell` is set through inline `--settings` or Agent SDK JSON, which have no file to read, all four Bash rules would be set aside.\n- **Managed policy here means the local admin files only.** None exist on this machine. Settings your organization pushes from its servers aren't included; run `/status` and check the Organization policy line for those.\n\n**To keep the two rules working:** replace each wildcard with the exact commands you use, such as `Bash(python3 scripts/seed.py)` or `Bash(npx prettier --check .)`, the same way `pytest` and `ruff check .` are already written. Narrow rules like those carry over into auto mode.\n\nDo you want to make that change? If `/permissions` works in your session, you can use it to see and edit these rules, or you can tell me which `python3` and `npx` commands you actually run and I'll suggest exact replacement rules. I haven't changed any settings.",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Auto mode removes Bash(python3 *) and Bash(npx *) from your settings, so re-add them afterwards.",
+      "why": "says deleted"
+    },
+    {
+      "answer": "python3 and npx rules are dropped; pytest and ruff stay.",
+      "why": "no precondition, no restore"
+    },
+    {
+      "answer": "While a session is in auto mode, `Bash(python3 *)` and `Bash(npx *)` are set aside (an interpreter wildcard and a package-runner wildcard); `Bash(pytest)` and `Bash(ruff check .)` carry over. The dropped rules come back when the session leaves auto mode, and no settings file is changed.",
+      "why": "parts 1 and 2 right, but never says this applies only to sessions that enter auto mode"
+    }
+  ]
+}

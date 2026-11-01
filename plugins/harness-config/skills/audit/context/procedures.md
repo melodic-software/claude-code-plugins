@@ -94,7 +94,7 @@ added, and neither is mechanical:
    before permission rules, so nothing is suppressed there.)
 
 *Moving* an existing deny rule from local to project stays mechanical, since it is bug #8961 placement,
-not a policy change. That is why the two rows are graded differently.
+not a policy change.
 
 ## The findings artifact and the suppression record
 
