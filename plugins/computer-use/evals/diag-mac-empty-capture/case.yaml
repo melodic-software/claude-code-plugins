@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: ladder-four-rungs
     type: regex
-    pattern: '^(?=[\s\S]*\bscreen ?savers?\b)(?=[\s\S]*\b(?:locked|lock|lock screen|secure desktop)\b)(?=[\s\S]*\b(?:asleep|sleep|sleeping|sleeps|powered (?:off|down)|display (?:is )?off)\b)(?=[\s\S]*(?:\bauto\b|\bpinned\b|switch_display))'
+    pattern: '^(?=[\s\S]*\bscreen ?savers?\b)(?=[\s\S]*(?:\b(?:un)?locked\b|\bsecure desktop\b|\block screen (?:is |was )?(?:up|on|showing|active)\b))(?=[\s\S]*(?:\b(?:asleep|sleeping|awake)\b|\b(?:go|goes|went|gone|going) to sleep\b|\bpowered (?:off|down)\b|\bdisplay (?:is |was |has )?(?:turned |gone |switched )?off\b))(?=[\s\S]*(?:\bauto\b|\bpinned\b|switch_display))'
     flags: 'i'
     target: last_message
   - name: zoom-recaptures

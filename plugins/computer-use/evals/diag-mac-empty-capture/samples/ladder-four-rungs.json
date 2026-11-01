@@ -25,6 +25,10 @@
     {
       "answer": "Wake the display and reset switch_display to auto.",
       "why": "no screensaver or lock rung"
+    },
+    {
+      "answer": "This is environment state. Most likely a screensaver is running; a screensaver is not a lock and not display sleep. You used switch_display earlier, so reset it to auto and retry.",
+      "why": "rung 1's not-a-lock, not-display-sleep sentence, with no lock or sleep check"
     }
   ]
 }
