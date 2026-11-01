@@ -25,10 +25,7 @@
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment, and neither do passes that all
 //   started before the spec last changed (`specChanged`): the head is judged
-//   again, with reason `spec-changed`, nor do the newest passes of a pull
-//   request turned too old, but younger than a FAIL's retention less a
-//   margin, when they do not all come from runs created after it turned too
-//   old (`tooOld`): judged again with reason `too-old`.
+//   again, with reason `spec-changed`.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
@@ -60,7 +57,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { issuesSuffix, isVerdictName, NAME, retentionDays } from "./write-verdict.mjs";
+import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
@@ -401,9 +398,6 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
         ? [own + suffix].filter(isVerdictName)
         : [];
   const passes = [];
-  // Each counted pass's run creation time, which a re-attempt keeps
-  // (`tooOld`, babysit_verify_evidence `_judged_since`).
-  const passCreated = [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
     const created = [];
@@ -416,53 +410,18 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
       if (run !== null && verdict === "fail" && name === own && issues === undefined) {
         created.push(Date.parse(run.created_at ?? ""));
       } else if (run !== null && verdict === "fail") {
-        return { fail: true, passes, passCreated };
+        return { fail: true, passes };
       } else if (run !== null) {
         passes.push(run.run_started_at);
-        passCreated.push(run.created_at);
       }
     }
     if (created.length > 0) {
       // NaN for any missing time, which relinkedByPeople refuses.
       const earliest = Math.min(...created);
-      return { fail: false, passes, passCreated, ownFail: Number.isNaN(earliest) ? "" : new Date(earliest).toISOString() };
+      return { fail: false, passes, ownFail: Number.isNaN(earliest) ? "" : new Date(earliest).toISOString() };
     }
   }
-  return { fail: false, passes, passCreated };
-}
-
-// babysit_verify_evidence.TOO_OLD_DAYS: past it the gate refuses
-// `verify:too-old` unless a pass at the head comes from a pr-verify run
-// created since (test_verify_rules_sync.py keeps the two equal).
-export const TOO_OLD_DAYS = 80;
-// babysit_verify_evidence.FAIL_RETENTION_MARGIN in days: a fresh pass clears
-// too-old only while the pull request is younger than a FAIL's retention
-// (retentionDays("fail")) less this, so its first FAILs still count.
-export const FAIL_RETENTION_MARGIN_DAYS = 2;
-const DAY_MS = 86_400_000;
-
-// The age, in milliseconds after creation, past which a fresh pass no longer
-// clears too-old (babysit_verify_evidence.judged_until).
-export const judgedUntilMs = () => (retentionDays("fail", false) - FAIL_RETENTION_MARGIN_DAYS) * DAY_MS;
-
-// Whether the pull request created at `createdAt` is too old at `now`, still
-// young enough for a fresh pass to clear it, and the passes of the run that
-// started last (`passStarts`, every one when a start time is missing) do not
-// all come from runs created after it turned too old (`passCreated`, a
-// re-attempt keeps it): babysit_verify_evidence `_judged_since`. The gate
-// refuses such a head `verify:too-old`, so it is judged again, with reason
-// `too-old`. A missing creation time judges nothing again: the gate refuses
-// it whatever a pass says.
-export function tooOld(passStarts, passCreated, createdAt, now = Date.now()) {
-  const born = Date.parse(createdAt ?? "");
-  const at = born + TOO_OLD_DAYS * DAY_MS;
-  if (Number.isNaN(born) || now <= at || now >= born + judgedUntilMs()) {
-    return false;
-  }
-  const starts = passStarts.map((time) => Date.parse(time ?? ""));
-  const last = Math.max(...starts);
-  const newest = starts.some(Number.isNaN) ? passCreated : passCreated.filter((_, i) => starts[i] === last);
-  return newest.length === 0 || !newest.every((time) => Date.parse(time ?? "") > at);
+  return { fail: false, passes };
 }
 
 // Whether every counted pass at the head started before the live spec last
@@ -599,7 +558,7 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], now = Date.now() }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -652,7 +611,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("not-a-passing-run");
   }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
-  let { fail, passes, passCreated, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs });
+  let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs });
   if (fail) {
     return skip("already-judged");
   }
@@ -666,7 +625,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
       return skip("already-judged");
     }
-    ({ fail, passes, passCreated } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true }));
+    ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true }));
     if (fail) {
       return skip("already-judged");
     }
@@ -701,10 +660,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   // the head is judged again against the spec as it is now. A pass that still
   // stands decides as a FAIL would, so the FAIL named with this PR's issues
   // (read only now: the name records them) is looked up only past it.
-  // So is a head of a pull request turned too old with no pass made since
-  // (`tooOld`), which the gate refuses `verify:too-old` until one is.
-  const stale = passes.length > 0 && tooOld(passes, passCreated, pull.created_at, now);
-  if (passes.length > 0 && !stale && !specChanged(passes, { ...spec, bodyEditedAt })) {
+  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
@@ -713,7 +669,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   return {
     proceed: true,
-    reason: ownFail !== undefined ? "relinked" : stale ? "too-old" : passes.length > 0 ? "spec-changed" : "ok",
+    reason: ownFail !== undefined ? "relinked" : passes.length > 0 ? "spec-changed" : "ok",
     relinkSinceHead: ownFail !== undefined || (await relinkedSince(github, repository, pull.number, run.head_commit?.timestamp)),
     prNumber: pull.number,
     headSha: head,

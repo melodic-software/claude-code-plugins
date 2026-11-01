@@ -323,14 +323,14 @@
       "id": 23,
       "name": "inherited-constraint-asked-not-assumed",
       "prompt": "/planning:interview me Build the v2 exports endpoint. Start from the exports topic's Brief, which we locked last month as a starting point; it says \"no new runtime dependencies\". This topic's research output recommends adding a streaming CSV library.",
-      "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the contract relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names the constraint ids it was checked against.",
+      "expected_output": "The prior Brief's constraint is recorded in the constraint ledger as `inherited`, not `confirmed`. Because the contract relies on it, it is asked as a register row at ask-time; the user's answer flips it to `confirmed` or drops it. The research recommendation is a candidate, never a recommendation, until re-derived against the constraint ledger, and it conflicts with the inherited row, so the skill surfaces the conflict rather than recommending the library. Every recommendation names, in words, the constraints it was checked against.",
       "files": [],
       "expectations": [
         "The prior Brief's \"no new runtime dependencies\" is recorded as an `inherited` constraint row, not `confirmed`",
         "The inherited constraint is asked as a register row at ask-time rather than treated as binding",
         "The research output's library is presented as a candidate re-derived against the constraint ledger, not as the recommendation",
         "The conflict between the candidate and the inherited constraint is surfaced to the user",
-        "Every recommendation carries a `Checked against:` line naming constraint ids or `none`"
+        "Every recommendation carries a `Checked against:` line naming each constraint in words, not by bare id, or `none`"
       ]
     },
     {
@@ -387,7 +387,7 @@
       "expectations": [
         "The open recommendations are checked against the constraint ledger before any round-3 question is shown",
         "Q7's recommendation, which rests on the archived design C2 excludes, is not shown as written: it is revised with old, new and why, or marked \"not yet researched\"",
-        "A revised Q7 names C2 on its `Checked against:` line",
+        "A revised Q7 names the constraint C2 records, in words, on its `Checked against:` line",
         "The run says that the re-check changed Q7",
         "Q8 is shown with its recommendation unchanged",
         "Neither Q7 nor Q8 is resolved by the re-check; both stay open until the user answers"

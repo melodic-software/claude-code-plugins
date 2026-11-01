@@ -1,0 +1,140 @@
+{
+  "skill": "codebase-health:audit",
+  "plugin": "codebase-health",
+  "skill_dir": "plugins/codebase-health/skills/audit",
+  "ranking_note": "Authored from the before description at origin/main commit 87399737d6, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling codebase-health:setup is in this plugin (user-invoked only); the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "codebase-health:setup",
+    "review:doc-drift-detector",
+    "session-flow:reanchor",
+    "discipline:recheck-against-upstream",
+    "attribution:audit",
+    "harness-config:audit",
+    "instruction-placement:delta",
+    "overengineering:delta",
+    "bugs:scan",
+    "docs-hygiene:audit-derivability"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are our docs still accurate about how the build works? Check every claim in them against what the build scripts actually do."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The README and the CI config disagree about which Node version we support. Find everything in the repo that's out of date like that."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a full health check of the Larkspur repo: the written guides, the settings files, the source and the design notes. Tell me where they've drifted apart. Don't change anything yet."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Only look at the documentation this time: go through the docs folder and verify each statement against the source, and rate how bad each mismatch is."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our architecture doc says the billing service never calls the ledger directly. Audit whether the code, config and diagrams still match what we wrote down."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check services/ingest for drift: the env vars its docs list, the defaults in its config files, and what the code really reads."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "It's been six months since anyone checked. Sweep the whole Quillmark codebase for stale docs, dead config keys and comments that lie, then hand the findings off to get fixed."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Just the config side please: are the settings in our YAML files and docker-compose still consistent with what the app code expects?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before the release, give me a read-only report of every place the CONTRIBUTING guide, the Makefile and the actual code tell different stories, ranked by severity."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We refactored the plugin loader last month. Verify the docs and the design notes against the code and list what no longer holds."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up the codebase health config for this repo so the audit knows which directories to skip."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go through docs/ and tell me which pages shouldn't exist at all because an agent could just work them out from the code."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I'm resuming from yesterday's handoff. Has main moved since then, and are the PRs it mentions still open?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check our Terraform provider setup against the current official HashiCorp docs and tell me if the vendor changed anything we rely on."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hunt for bugs in the payment retry code that nobody has hit yet."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix the one misspelled word in the second paragraph of the README; I already know which line it is on."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find paragraphs in our guides that were copied from the Kubernetes docs without a link, and flag verification stamps that have expired."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit my Claude Code settings.json, hooks and permission rules for mistakes."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Re-run last month's enforcement audit and show only which hooks and CI gates changed verdict since then."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a new getting-started guide for the Ferrowind CLI covering install and first run."
+    }
+  ]
+}

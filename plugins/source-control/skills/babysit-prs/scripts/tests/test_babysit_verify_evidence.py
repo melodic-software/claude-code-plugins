@@ -2048,11 +2048,10 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
-    def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
-        # Artifacts last 90 days here; a pull request is refused
-        # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
-        # expired FAIL never lifts the cap of a pull request still judged.
-        self.assertLess(ve.TOO_OLD_DAYS, 90)
+    def test_a_fresh_pass_clears_an_old_pull_request_whose_fails_expired(self) -> None:
+        # Owner decision 2026-11-01: a fresh pass at the head of
+        # a pull request past TOO_OLD_DAYS allows it, so FAILs that expired
+        # past the 90-day retention no longer count toward its cap.
         expired = passing(
             *(
                 artifact(named(sha, "fail"), i, expired=True)
@@ -2061,12 +2060,11 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
         )
         evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
-        self.assertEqual(evidence.refusal, "verify:too-old")
-        self.assertFalse(evidence.needs_human)
+        self.assertIsNone(evidence.refusal)
 
-    def test_a_too_old_pull_request_still_names_its_own_fails(self) -> None:
-        # The capped close quotes them for the fresh attempt: the age refusal
-        # comes before the listing loop, so they are read for it alone. A
+    def test_fail_findings_with_no_judgment_name_its_own_fails(self) -> None:
+        # The capped close quotes them for the fresh attempt; with no
+        # judgment read first they come from the listing (`_own_fails`). A
         # sibling's FAIL and a foreign run's are not this pull request's.
         fake = passing(
             artifact(named(EARLIER, "fail"), 2),
@@ -2093,11 +2091,7 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
         ):
             reader = ve.Reader(REPO, "main", now=NOW)
-            evidence = reader.evidence(
-                PR, HEAD, pull(created_at="2026-07-27T23:00:00Z")
-            )
             findings = reader.fail_findings(PR)
-        self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertEqual(
             [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
         )
@@ -2331,40 +2325,28 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
 
 
 class AnOldPullRequestIsRefused(unittest.TestCase):
-    def test_older_than_80_days_is_too_old(self) -> None:
-        evidence = read(passing(), pull(created_at="2026-07-27T23:00:00Z"))
+    def test_older_than_80_days_with_no_verdict_is_too_old(self) -> None:
+        evidence = read(FakeGitHub([], {}), pull(created_at="2026-07-27T23:00:00Z"))
         self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertFalse(evidence.needs_human)
 
-    # Created 2026-07-22: too old from 2026-10-10, and a fresh PASS clears it
-    # until 2026-10-18 (FAIL_RETENTION_DAYS less the margin); NOW is 10-16.
-    AGED = "2026-07-22T00:00:00Z"
-
-    def test_a_pass_made_after_it_turned_too_old_clears_it(self) -> None:
-        # The head's PASS run was created 2026-10-15, a judgment made since.
-        old = pull(created_at=self.AGED)
-        self.assertIsNone(read(passing(), old).refusal)
-
-    def test_a_pass_made_before_it_turned_too_old_does_not(self) -> None:
-        old = pull(created_at=self.AGED)
-        stale = passing(runs={1: judged(1, "2026-10-07T00:00:00Z")})
-        self.assertEqual(read(stale, old).refusal, "verify:too-old")
-
-    def test_past_the_fail_retention_ceiling_no_pass_clears_it(self) -> None:
-        # Created 2026-07-19: 89 days at NOW, past 90 less 2, so its first
-        # FAILs may be gone and even a fresh PASS leaves it too old.
-        self.assertEqual(ve.FAIL_RETENTION_DAYS, 90)
-        old = pull(created_at="2026-07-19T00:00:00Z")
-        self.assertEqual(read(passing(), old).refusal, "verify:too-old")
-
-    def test_a_fresh_pass_still_meets_the_other_rules(self) -> None:
-        # The age is cleared; a FAIL at the head still refuses.
-        old = pull(created_at=self.AGED)
-        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
-        self.assertEqual(read(fake, old).refusal, "verify:fail")
-
-    def test_a_too_old_refusal_is_no_longer_standing(self) -> None:
+    def test_a_fresh_pass_at_the_head_clears_it(self) -> None:
+        # Owner decision 2026-11-01: the lane re-runs the
+        # verifier at the head, and its fresh pass clears verify:too-old.
+        self.assertIsNone(
+            read(passing(), pull(created_at="2026-07-27T23:00:00Z")).refusal
+        )
+        self.assertNotIn(ve.TOO_OLD, ve.VERIFY_FINAL)
         self.assertNotIn(ve.TOO_OLD, ve.STANDING)
+
+    def test_a_fail_at_the_head_stays_a_fail(self) -> None:
+        # A FAIL at an old pull request's head goes to a fix round as on any
+        # other pull request, not to the age refusal.
+        fake = passing(
+            artifact(named(HEAD, "fail"), 2), runs={2: judged(2, OLDER_START)}
+        )
+        evidence = read(fake, pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:fail")
 
     def test_79_days_is_judged(self) -> None:
         self.assertIsNone(
@@ -4747,14 +4729,26 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(self.escalation_writes(), [])
         self.assertNotIn("escalation", out["unattended"]["writes"])
 
-    def test_the_cap_and_an_old_pull_request_close_for_a_fresh_attempt(self) -> None:
-        # Owner rule 2026-10-27: neither is an intent, design or security
-        # question, so neither gets a person's label. Owner decision
+    def test_an_old_pull_request_waits_for_a_fresh_pass_and_is_not_closed(self) -> None:
+        # Owner decision 2026-11-01: the lost-run reconciler
+        # re-runs the verifier at the head, whose fresh pass clears it.
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        with mock.patch.object(ve, "capped_close") as close:
+            code, out = self.lane()
+        self.assert_no_merge(code)
+        close.assert_not_called()
+        self.assertEqual(out["unattended"]["reason"], "verify:too-old")
+        self.assertIs(out["unattended"]["verify"]["needsHuman"], False)
+        self.assertEqual(self.escalation_writes(), [])
+
+    def test_the_cap_closes_for_a_fresh_attempt(self) -> None:
+        # Owner rule 2026-10-27: it is no intent, design or security
+        # question, so it gets no person's label. Owner decision
         # 2026-10-29: the gate closes the pull request for a fresh attempt at
         # its issue (capped_close, which judges it again and checks the
         # author), under merge.verify-cap-attempts.
         self.config = dataclasses.replace(self.config, verify_cap_attempts=2)
-        for refusal in ("verify:repeated-fail", "verify:too-old"):
+        for refusal in ("verify:repeated-fail",):
             with self.subTest(refusal):
                 self.verdicts[unattended.PR] = evidence(refusal)
                 with mock.patch.object(

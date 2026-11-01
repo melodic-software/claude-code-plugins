@@ -1,0 +1,71 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "content": "- [x] Phase 0"
+          }
+        }
+      ],
+      "why": "checklist copied into task notes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "old_string": "- [ ] Phase 1",
+            "new_string": "- [x] Phase 1"
+          }
+        }
+      ],
+      "why": "ticking the checklist"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/README.md",
+            "content": "# ledger-api"
+          }
+        }
+      ],
+      "why": "rewrites README"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/package.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "rewrites package.json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/test/serve.test.js",
+            "content": "test()"
+          }
+        }
+      ],
+      "why": "adds a test"
+    }
+  ]
+}

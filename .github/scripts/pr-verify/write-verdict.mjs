@@ -515,9 +515,8 @@ export function artifactName(verdict) {
 // (babysit_verify_evidence `_superseded`), which the merge gate still reads
 // at a later head of the same change, so it keeps a FAIL's 90 days. A FAIL,
 // or anything else, keeps 90 days, the maximum: the merge gate counts an
-// earlier FAIL until judged_until, this retention less FAIL_RETENTION_MARGIN
-// (babysit_verify_evidence.py), and carry-run-cache.mjs RETENTION_DAYS
-// matches it.
+// earlier FAIL while its artifact lasts (babysit_verify_evidence.py), and
+// carry-run-cache.mjs RETENTION_DAYS matches it.
 export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }

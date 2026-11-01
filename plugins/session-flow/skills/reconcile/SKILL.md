@@ -74,8 +74,12 @@ sessions in the same project. Read-only, because it cannot control them.
      running**, surfaced by name with the worker that launched it; stopping it
      goes through the kill gate like any other. The worker is not reported
      retired while one of its tasks is pending that confirmation.
-   Reconcile **this session's own** ledger only. A spawned subagent owns an
-   internal task list the parent cannot see, do not attempt to reconcile it.
+   Reconcile **this session's own** ledger only. A spawned subagent that holds
+   a task list of its own keeps it out of the parent's view; do not attempt to
+   reconcile it. Whether a subagent has the task-tracking tools at all is
+   [tools reference: task-tracking tools in subagents and agent teams](https://code.claude.com/docs/en/tools-reference#task-tracking-tools-in-subagents-and-agent-teams)'s
+   to state (as of 2026-11-01; recheck when that section changes which
+   sessions or models have them).
 4. **Sibling-session liveness, read-only inventory.** Report, but do not
    touch, other sessions in this project. Resolve the project's session-data
    directory per the retro skill's "Paths"

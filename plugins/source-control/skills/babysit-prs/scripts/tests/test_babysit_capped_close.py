@@ -14,7 +14,6 @@ import pathlib
 import subprocess
 import sys
 import unittest
-from datetime import UTC, datetime
 from typing import Any
 from unittest import mock
 
@@ -28,9 +27,6 @@ HEAD = "a" * 40
 FAILED = ["1" * 40, "2" * 40, "3" * 40]
 PR = 50
 ISSUE = 7
-NOW = datetime(2026, 10, 30, tzinfo=UTC)
-# Too old since 2026-09-19, past `TOO_OLD_GRACE` at NOW.
-CREATED = "2026-07-01T00:00:00Z"
 
 
 class StubReader:
@@ -46,7 +42,6 @@ class StubReader:
     ) -> None:
         self.repo = REPO
         self.agent_identity = BOT
-        self.now = NOW
         self.refusal = refusal
         self.issues = issues
         self.link = link
@@ -105,10 +100,8 @@ class World:
         author: str = BOT,
         state: str = "open",
         head: str = HEAD,
-        created: str = CREATED,
     ) -> None:
         self.pr = {
-            "created_at": created,
             "state": state,
             "head": {"sha": head},
             "user": {"login": author},
@@ -475,18 +468,10 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             ],
         )
 
-    def test_too_old_closes_too(self) -> None:
-        self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
-
-    def test_too_old_waits_the_grace_for_pr_verify_to_judge_again(self) -> None:
-        # Too old since 2026-10-29T12:00, half a day before NOW.
-        world = World(created="2026-08-10T12:00:00Z")
-        result = world.run(StubReader(refusal=ve.TOO_OLD))
-        self.assertFalse(result["closed"])
-        self.assertIn("pr-verify judges its head again first", result["reason"])
-        self.assertEqual(world.writes, [])
-        # The FAIL cap does not wait.
-        self.assertTrue(World(created="2026-08-10T12:00:00Z").run()["closed"])
+    def test_too_old_closes_nothing(self) -> None:
+        # Owner decision 2026-11-01: a fresh pass at the head
+        # clears it, so the pull request stays open for that judgment.
+        self.assertFalse(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
 
     def test_review_rounds_not_converging_close_for_a_fresh_attempt(self) -> None:
         world = World()

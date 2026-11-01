@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Why the screenshot looks soft\n\nThis is expected. Every screenshot is downscaled to a fixed pixel budget of about 1.2 megapixels, and there is no setting that changes it. Your 2560x1440 display arrives as roughly 1456x816.\n\n## What to do\n\n1. Use the `zoom` action on the gutter and the status bar. It re-captures that region at full resolution, so the line numbers become readable.\n2. If you need it on every screenshot, raise the editor's font size.\n3. Don't drop the display to 1280x720. The budget is a pixel count, not a scale factor, so a smaller display or monitor gives you the same ~1.2 MP with less on it, and no sharper text.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Short answer: no setting, and don't lower your resolution.**\n\n**Cause.** Claude Code downscales every screenshot automatically to about 1.2 megapixels. The target is a pixel count, so it is not tunable.\n\n**Fix.** Zoom in on the gutter with the zoom action: it takes a fresh full-resolution capture of just that area. Clicks still use the coordinates of the full screenshot.\n\n**Why not 1280x720.** Dropping to 1280x720 only removes information before the downscale; it won't make text sharper. A smaller monitor buys the same budget with less on it.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "| Question | Answer |\n|---|---|\n| Is there a resolution setting? | No. The downscale targets a fixed budget (~1.2 MP) and nothing configures it. |\n| How do I read the line numbers? | `zoom` the gutter region; it re-captures at full resolution. |\n| Should I drop to 1280x720? | No, keep 2560x1440. A lower resolution only removes detail earlier. |\n| Smaller monitor? | Same pixel count, less on screen. Not sharper. |",
+      "why": "table reply that echoes the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Screenshots are compressed as JPEG; retry and it may come out sharper. Use `zoom` on the gutter.",
+      "why": "wrong cause"
+    },
+    {
+      "answer": "Open Settings > Computer use > Screenshot quality and pick High.",
+      "why": "invents a setting"
+    }
+  ]
+}

@@ -17,30 +17,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads, tooOld } from "./resolve-pr.mjs";
-
-// Created 2026-07-25, too old from 2026-10-13 (TOO_OLD_DAYS 80), cleared by a
-// fresh pass until 2026-10-21 (90-day FAIL retention less 2 days).
-test("tooOld judges a head again only past the age with no pass made since", () => {
-  const created = "2026-07-25T00:00:00Z";
-  const now = Date.parse("2026-10-19T00:00:00Z");
-  const OLD = "2026-10-01T00:00:00Z";
-  const FRESH = "2026-10-14T00:00:00Z";
-  assert.equal(tooOld([OLD], [OLD], created, now), true);
-  // The newest-started run decides, as the gate's `_newest`.
-  assert.equal(tooOld([OLD, FRESH], [OLD, FRESH], created, now), false);
-  // A re-attempt of an old run starts later but keeps its creation time.
-  assert.equal(tooOld([FRESH], [OLD], created, now), true);
-  assert.equal(tooOld([FRESH, OLD], [OLD, FRESH], created, now), true);
-  // A missing start time weighs every pass.
-  assert.equal(tooOld([null, FRESH], [FRESH, OLD], created, now), true);
-  assert.equal(tooOld([null, FRESH], [FRESH, FRESH], created, now), false);
-  assert.equal(tooOld([OLD], [null], created, now), true);
-  // Not yet too old, past the FAIL retention ceiling, or no creation time.
-  assert.equal(tooOld([OLD], [OLD], created, Date.parse("2026-10-12T00:00:00Z")), false);
-  assert.equal(tooOld([OLD], [OLD], created, Date.parse("2026-10-21T00:00:00Z")), false);
-  assert.equal(tooOld([OLD], [OLD], undefined, now), false);
-});
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";

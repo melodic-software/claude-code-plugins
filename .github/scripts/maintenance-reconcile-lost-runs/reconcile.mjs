@@ -43,12 +43,13 @@
 //   whose spec nobody touched since the pass; the same read, run first against
 //   the head's earliest checks run, keeps the pass reads off heads whose spec
 //   nobody touched since then. Once per passed checks run, as attempt 2 is never
-//   touched again; an edit or label later starts a new attempt-1 run. A head
-//   of a pull request older than resolve-pr's TOO_OLD_DAYS, but young enough
-//   for a fresh pass to count, whose checks run is inside RERUN_WINDOW_DAYS,
-//   skips the pre-filter and is re-run the same way when resolve-pr answers `too-old`
-//   (no pass there from a run created since it turned too old), so a fresh
-//   PASS can clear the gate's `verify:too-old`.
+//   touched again; an edit or label later starts a new attempt-1 run.
+// - Too old: the same passed run, inside GitHub's re-run window, on a pull
+//   request created more than TOO_OLD_DAYS ago whose head has no counted
+//   verdict (its pass expired: resolve-pr's `ok`). The gate refuses it
+//   `verify:too-old` until a fresh pass at the head; the recorded re-run
+//   starts pr-verify, which judges the head. A head a spec re-run takes is
+//   left to it.
 // - Switch: a lanes App PR whose newest pr-require-checks run failed, at
 //   attempt 1, only in ci-status, with ci-status's note that the lanes kill
 //   switch was on (KILL_SWITCH_NOTE). ci-status fails every lanes App PR while
@@ -167,7 +168,7 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
-import { judgedUntilMs, refsIssue, resolvePull, specFromBodyApps, TOO_OLD_DAYS } from "../pr-verify/resolve-pr.mjs";
+import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import {
@@ -223,6 +224,10 @@ export const REVIEW_SWITCHES = new Map([
 // GitHub re-runs a run up to 30 days after its initial run
 // (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 export const RERUN_WINDOW_DAYS = 30;
+// babysit_verify_evidence.py TOO_OLD_DAYS: past it, the gate refuses a pull
+// request with no counted verdict at its head `verify:too-old`
+// (reconcile.test.mjs keeps the two equal).
+export const TOO_OLD_DAYS = 80;
 // The CI workflows a recorded lane runs after on workflow_run. A re-run that
 // makes attempt 2 of one is recorded too: the lane trusts that attempt's
 // github-actions[bot] only through its record. A later attempt gets none, and
@@ -461,7 +466,7 @@ const lostNow = (item, r, since) => {
   if (item.kind === "verdict") {
     return isStoppedVerdict(r, since);
   }
-  if (item.kind === "spec") {
+  if (item.kind === "spec" || item.kind === "too-old") {
     return isPassedChecks(r);
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
@@ -629,21 +634,6 @@ const issueMoved = (issue, after) => {
 // any of those times is after its newest pass started, or when anything it
 // needs cannot be read in full. It decides nothing: resolve-pr's
 // `specChanged` still decides skip or re-run.
-// resolve-pr's reasons for judging a judged head again that a re-run of its
-// passed checks starts: a spec changed under the pass, and a pull request
-// turned too old with no pass made since.
-const REJUDGE_REASONS = new Set(["spec-changed", "too-old"]);
-
-// Whether a fresh pass could still clear the gate's `verify:too-old` for the
-// pull request and a re-run of `checks` can start one: it turned too old by
-// `now` but is younger than a FAIL's retention less the margin (resolve-pr
-// `tooOld`, babysit_verify_evidence `judged_until`), and the checks run was
-// created inside GitHub's re-run window. A missing time is neither.
-export const aged = (pull, checks, now) => {
-  const age = now - Date.parse(pull?.created_at ?? "");
-  return age > TOO_OLD_DAYS * 86_400_000 && age < judgedUntilMs() && now - Date.parse(checks?.created_at ?? "") < RERUN_WINDOW_DAYS * 86_400_000;
-};
-
 export async function prefilterSpec(call, repo, candidates) {
   if (candidates.length === 0) {
     return [];
@@ -719,8 +709,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
   const specCandidates = [];
-  // Heads of pull requests turned too old (`aged`), judged with no pre-filter.
-  const agedCandidates = [];
+  // Passed heads of pull requests past TOO_OLD_DAYS, inside the re-run window.
+  const tooOld = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
   let upstream;
   // Read once, on the first upstream-stopped review: why its re-run waits, or
@@ -900,14 +890,12 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       // checks run here was created: a spec untouched since then is untouched
       // since every pass. Not the newest checks run, which a label or body
       // edit after the pass starts (pr-verify.yml concurrency).
-      // A pull request turned too old skips the spec pre-filter: resolve-pr
-      // judges its head again when no pass there was made since (`too-old`),
-      // which the gate needs to clear `verify:too-old`.
-      if (set.length === 0 && judgeSpec && isPassedChecks(checks) && aged(pull, checks, now)) {
-        agedCandidates.push({ pull, checks });
-      } else if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
+      if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         const earliest = Math.min(...own.filter((r) => RECORDED_UPSTREAMS.has(r.path)).map((r) => Date.parse(r.created_at)));
         passed.push({ pull, checks, starts: [Number.isNaN(earliest) ? null : new Date(earliest).toISOString()] });
+        if (now - Date.parse(pull.created_at) > TOO_OLD_DAYS * 86_400_000 && now - Date.parse(checks.created_at) < RERUN_WINDOW_DAYS * 86_400_000) {
+          tooOld.push({ pull, checks });
+        }
       }
       if (set.length > 0) {
         ready.push(set.map(withRecord));
@@ -932,11 +920,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
-  // Only a candidate whose spec moved after its pass, or whose pull request
-  // turned too old, gets resolve-pr's full read.
-  for (const { pull, checks } of [...(await prefilterSpec(call, repo, specCandidates)), ...agedCandidates]) {
+  // Only a candidate whose spec moved after its pass gets resolve-pr's full read.
+  for (const { pull, checks } of await prefilterSpec(call, repo, specCandidates)) {
     try {
-      if (REJUDGE_REASONS.has((await judgeSpec(checks.id)).reason)) {
+      if ((await judgeSpec(checks.id)).reason === "spec-changed") {
         ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
       }
     } catch (error) {
@@ -944,6 +931,24 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         throw error;
       }
       say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+    }
+  }
+  // A pull request past TOO_OLD_DAYS whose head has no counted verdict (an
+  // expired pass): the gate refuses it `verify:too-old` until a fresh pass at
+  // the head, so its passed checks run is re-run once, recorded, and
+  // pr-verify judges the head (resolve-pr's `ok`). A head a spec re-run
+  // already takes is skipped.
+  const specPrs = new Set(ready.flat().filter((item) => item.kind === "spec").map((item) => item.pr));
+  for (const { pull, checks } of tooOld.filter(({ pull }) => !specPrs.has(pull.number))) {
+    try {
+      if ((await judgeSpec(checks.id)).reason === "ok") {
+        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
+      }
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      say(`#${pull.number}: its verdict could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
   // Spec re-runs join the CI sets in the PRs' merge-critical order. A PR
@@ -1191,7 +1196,9 @@ async function act({ repo, call, say, since, sleep, items }) {
       say(
         item.kind === "spec"
           ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: its spec changed after the pass`
-          : item.kind === "review"
+          : item.kind === "too-old"
+            ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: the pull request is past ${TOO_OLD_DAYS} days and its head has no verdict`
+            : item.kind === "review"
             ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
@@ -1319,7 +1326,6 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           laneIdentity: env.LANE_IDENTITY,
           ownerIds: [...trusted.ids],
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
-          now,
         });
     }
     let settled = new Map();

@@ -148,7 +148,8 @@ context_of() {
 # status, and SESSION_REASONS, a change the lane cannot make (a protected
 # path, a weakened required check after its fresh fixer round, a check the
 # rung-up retry could not fix, a dependency update the review could not
-# finish), also put the PR in the session-builder
+# finish, a review thread the lane left open with no verdict to settle it),
+# also put the PR in the session-builder
 # queue with needs-session instead of in front of a person.
 HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
   feedback-question-intent feedback-question-design feedback-question-security
@@ -156,10 +157,11 @@ HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
-  dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned)
+  dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
+  feedback-untaken-threads feedback-unadjudicated)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
-  feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
+  feedback-incomplete feedback-stood-open feedback-publish-failed
   dependency-invalid
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"

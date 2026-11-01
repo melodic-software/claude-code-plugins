@@ -1435,6 +1435,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let facts = String(q.facts || "").replace(/\r/g, "");
     const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
     if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
+    if (String(q.context || "").trim()) h += '<section class="blk" id="qContext"><h4>Context</h4>' + mdHtml(q.context) + "</section>"; // what drives the decision, read before the recommendation
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' + // the Rec row under Decide carries the whole recommendation (#5815), so the card does not repeat it
       (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
     if (q.commits && q.commits.length) {

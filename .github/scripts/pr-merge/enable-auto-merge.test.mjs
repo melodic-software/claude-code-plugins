@@ -706,9 +706,10 @@ test("a floor path no configured glob names is commented on and labeled human-ga
 // a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
 // (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
 // changed spec is the lanes'. Owner decision 2026-10-29: the repeated-FAIL
-// cap and an old pull request, which never clear for it, close it for a
-// fresh attempt at its issue, with no note and no person's label.
-test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request close for a fresh attempt", async () => {
+// cap, which never clears for it, closes it for a fresh attempt at its
+// issue, with no note and no person's label. Owner decision 2026-11-01
+//: an old pull request waits for a fresh pass at its head.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap closes for a fresh attempt and an old pull request waits", async () => {
   const refused = (refusal, needsHuman, detail = null) => ({ refusal, needsHuman, detail, head: HEAD, ineligible: null, reviews: null });
   const failed = `fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3`;
   const { notes, closed, lines } = await run([
@@ -723,12 +724,10 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the cap a
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
-  assert.deepEqual(closed, [
-    { number: 3, holds: ["do-not-merge", "needs-human"] },
-    { number: 4, holds: ["do-not-merge", "needs-human"] },
-  ]);
+  assert.deepEqual(closed, [{ number: 3, holds: ["do-not-merge", "needs-human"] }]);
   assert.ok(lines.some((line) => line.includes(`#3 closed for a fresh attempt (${refusing(`verify:repeated-fail: ${failed}`)})`)));
 });
 
@@ -768,7 +767,7 @@ test("a capped pull request the close leaves open or fails on gets the lane's no
 
 // Report-only closes nothing.
 test("report-only names the close it would make and closes nothing", async () => {
-  const capped = { refusal: "verify:too-old", needsHuman: false, detail: "created x", head: HEAD, ineligible: null, reviews: null };
+  const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: "fails at 3 heads", head: HEAD, ineligible: null, reviews: null };
   const { closed, lines } = await run([pull(4, { verdict: capped })], { REPORT_ONLY: "true" });
   assert.deepEqual(closed, []);
   assert.ok(lines.some((line) => line.includes("#4 would close for a fresh attempt (report-only)")));

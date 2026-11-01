@@ -49,8 +49,7 @@
 //   (evidenceHold). It holds on every refusal but the three a pass decides
 //   (verify:missing, verify:spec-changed, verify:untrusted-spec, which
 //   verdictHold and linkHold judge here): the FAIL classes, verify:unreadable,
-//   verify:too-old (no PASS made since the pull request turned too old) and
-//   any refusal this module does not know. A report that
+//   verify:too-old and any refusal this module does not know. A report that
 //   does not read, or is for another head, holds. The same approval lifts it.
 // - A changed issue link, when a link file is given with the verdicts: the
 //   pass binds only while the live link is the one its verdict judged
@@ -1405,9 +1404,8 @@ export function verdictHold(records, repo, branch = "main") {
 const PASS_REFUSALS = Object.freeze(["verify:missing", "verify:spec-changed", "verify:untrusted-spec"]);
 
 // Why the reader's report for `head` holds it, or null: a refusal outside
-// PASS_REFUSALS (a FAIL class, verify:unreadable, verify:too-old, which the
-// reader returns only without a PASS made since, or one this module does not
-// know) holds, and so does a report that does not read or
+// PASS_REFUSALS (a FAIL class, verify:unreadable, verify:too-old or one this
+// module does not know) holds, and so does a report that does not read or
 // names another head.
 export function evidenceHold(report, head) {
   if (
