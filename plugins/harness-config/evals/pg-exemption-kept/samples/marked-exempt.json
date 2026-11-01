@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Exempt? yes (CLAUDE.md: deliberate broad grant)"
+    },
+    {
+      "answer": "1 finding, all exempted by consumer declaration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "This rule is dropped in auto mode.",
+      "why": "no annotation"
+    }
+  ]
+}

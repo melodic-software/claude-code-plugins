@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Premature: no database exists yet."
+    },
+    {
+      "answer": "There is no Postgres dependency, schema or connection string; the database is absent from this repo."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "REJECT: CLI equivalent exists (psql).",
+      "why": "a different gate"
+    }
+  ]
+}

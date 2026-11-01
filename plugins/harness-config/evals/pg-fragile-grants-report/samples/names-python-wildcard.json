@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| P1 | warning | .claude/settings.json | `Bash(python3 *)` is dropped in auto mode |"
+    },
+    {
+      "answer": "Bash(python3 *) is an interpreter wildcard."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Bash(pytest) is narrow and fine.",
+      "why": "a different rule"
+    }
+  ]
+}
