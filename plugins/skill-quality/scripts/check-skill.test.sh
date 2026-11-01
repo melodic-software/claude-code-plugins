@@ -416,7 +416,8 @@ else
   fail "block-scalar trigger drop should warn without failing (rc=$rc): $out"
 fi
 
-# 9. An unquoted `Use when:` list warns (drop-protection gap surfaced) but passes.
+# 9. An unquoted `Use when:` list passes with no trigger-phrasing warning:
+#    check 3 tracks its items, so check 12 has no quoting gap to report.
 make_skill unq-skill '---
 name: unq-skill
 description: "Do the thing. Use when: you need it, or someone asks."
@@ -432,10 +433,63 @@ None known.
 '
 out="$(run unq-skill 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'not single-quoted' <<<"$out"; then
-  pass "unquoted Use-when triggers warn (drop-protection gap surfaced)"
+if [[ $rc -eq 0 ]] && ! grep -q 'WARN:.*Use when' <<<"$out"; then
+  pass "unquoted Use-when triggers pass without a quoting warning"
 else
-  fail "unquoted triggers should warn without failing (rc=$rc): $out"
+  fail "unquoted triggers should pass with no Use-when warning (rc=$rc): $out"
+fi
+
+# 9a. Dropping a committed unquoted `Use when:` item WARNS and passes: check 3
+#     tracks each comma-separated item of the clause, not only 'quoted' ones.
+make_skill unq-drop '---
+name: unq-drop
+description: "Do the thing. Use when you need it, a build breaks, or someone asks. Other prose: x."
+---
+
+## Purpose
+
+Committed baseline carrying three unquoted Use-when items.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add unq-drop'
+make_skill unq-drop '---
+name: unq-drop
+description: "Do the thing. Use when you need it, or someone asks. Other prose: y."
+---
+
+## Purpose
+
+Working tree drops the unquoted build-breaks item.
+'
+out="$(run unq-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: dropped trigger keyword' <<<"$out" &&
+  grep -qF "'a build breaks'" <<<"$out" &&
+  ! grep -qF "'you need it'" <<<"$out" && ! grep -qF "'someone asks'" <<<"$out" &&
+  ! grep -q 'Other prose' <<<"$out"; then
+  pass "dropped unquoted Use-when item warns, names only that item, and passes (check 3)"
+else
+  fail "dropped unquoted trigger should warn naming only that item (rc=$rc): $out"
+fi
+
+# 9a2. Quoting a committed unquoted item keeps it tracked: no drop warning.
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'unq-drop: two unquoted items'
+make_skill unq-drop '---
+name: unq-drop
+description: "Do the thing. Use when '"'"'you need it'"'"', or someone asks. Other prose: y."
+---
+
+## Purpose
+
+Working tree quotes the first item.
+'
+out="$(run unq-drop 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'dropped trigger keyword' <<<"$out"; then
+  pass "quoting a formerly unquoted Use-when item is not a drop (check 3)"
+else
+  fail "quoting an unquoted item should not warn as dropped (rc=$rc): $out"
 fi
 
 # 9b. Single-quoted triggers in when_to_use alone satisfy check 12 (#1451).
