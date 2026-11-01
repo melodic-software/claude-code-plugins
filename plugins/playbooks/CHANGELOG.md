@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.3] - 2026-11-01
+
+### Fixed
+
+- The skill-authoring criteria say the marketplace's spoke gate covers both the plugin-root and the skill-dir substitution variables, now that `scripts/check-spoke-plugin-root.sh` searches spokes for both ([#11750](https://github.com/melodic-software/claude-code-plugins/issues/11750)).
+
 ## [0.25.2] - 2026-11-01
 
 ### Fixed

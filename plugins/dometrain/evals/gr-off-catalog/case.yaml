@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: gr-off-catalog
+graders:
+  - name: 'no-grounding'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:dometrain:)?grounding"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-setup-pointer'
+    type: 'regex'
+    pattern: '\bdometrain:setup\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'gives-sumif'
+    type: 'regex'
+    pattern: '\bSUMIFS?\s*\('
+    flags: 'i'
+    target: 'last_message'

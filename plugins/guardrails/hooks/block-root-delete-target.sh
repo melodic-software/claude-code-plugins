@@ -61,6 +61,12 @@
 # is established. A decoder sink asks no path question: it is refused
 # outright.
 #
+# GIT CLEAN IS NOT JUDGED HERE. block-dangerous-git owns a forced `git clean`
+# and blocks it outside the exceptions that guard documents. This guard has no
+# `git clean` arm, so one guard decides the command; the name appears below
+# only in the refusal messages that tell the agent not to retry a delete with
+# it.
+#
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
 # remove what the find's start points hold, so each start point is judged as
@@ -6614,6 +6620,24 @@ for rdt_b in $'\002' $'\003' $'\004' $'\005' $'\006' $'\007' $'\010' $'\013' \
     break
   fi
 done
+# 1 while a literal `$` reaches the command as written; 0 inside text that an
+# expanding outer string handed to rdt_ps_nested, where `"... '$env:TEMP'"`
+# expanded `$env:TEMP` before the inner single quotes were read. 0 throughout
+# when the command holds a quoting form rdt_ps_walk does not read (a `<#` block
+# comment, an `@"` or `@'` here-string, a byte outside ASCII, which may be a
+# quote character, or a `$(` or `${` alongside a `"`, since a `$( ... )` inside
+# a double-quoted string is a full script whose own quotes do not close the
+# string, and a `${name}` inside one reads its name to the first `}`, past any
+# `"`, while the walk closes the string at the next `"`): the walk can then be
+# out of step with PowerShell's, and a `$` it marks literal may sit inside a
+# string PowerShell expands.
+rdt_ps_lit_kept=1
+# shellcheck disable=SC2329  # invoked through hook::_c_locale
+rdt_ps_quote_gap() {
+  [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]] ||
+    [[ ( "$COMMAND" == *\$\(* || "$COMMAND" == *\$\{* ) && "$COMMAND" == *'"'* ]]
+}
+hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
 # rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
 # when the token is not a unique prefix of one. Token includes the leading
@@ -6695,11 +6719,12 @@ rdt_ps_cmd_split_to() {
 # as RDT_PS_LIT (#6626). A word whose every `$` is literal is judged as the
 # path it names (provenance 4), after a trailing Win32 stream suffix
 # (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is dropped, because that
-# suffix names the file or directory before it. That literal reading only
-# ADDS a judgment: the word is still judged the way it was before #6626, with
-# every `$` read as an expansion, so a target refused then (`'$env:TEMP'`,
-# `'$HOME\x'`) is refused still. A word holding any `$` PowerShell expands is
-# read only the old way.
+# suffix names the file or directory before it. Such a word is read only that
+# way, so `'$env:TEMP'` and `'$HOME\x'` name the paths they spell, unless an
+# expanding outer string held it (rdt_ps_lit_kept is 0): then it is also judged
+# with every `$` read as an expansion, since the outer string expanded them
+# before the inner single quotes were read. A word holding any `$` PowerShell
+# expands is read only as an expansion.
 rdt_ps_operand() {
   local w="$1" lit="" re_stream
   [[ -z "$RDT_PS_LIT" && "$w" == *'$'* ]] && rdt_block "control-bytes" "$w"
@@ -6713,6 +6738,10 @@ rdt_ps_operand() {
         [[ "$lit" =~ ^[A-Za-z]$ ]] && lit+=":"
       fi
       lit="${lit//"$RDT_PS_LIT"/\$}"
+      if ((rdt_ps_lit_kept)); then
+        rdt_check_operand "$lit" 4
+        return 0
+      fi
     fi
     w="${w//"$RDT_PS_LIT"/\$}"
   fi
@@ -6886,9 +6915,10 @@ rdt_ps_ri_check() {
       *) ;;
       esac
     else
-      # Matched with every `$` as written, literal or not, as before #6626.
+      # A literal `$(` (`'$(x)'`) names a path, not a subexpression, unless an
+      # expanding outer string held it (rdt_ps_operand).
       __vm="$__v"
-      [[ -n "$RDT_PS_LIT" ]] && __vm="${__v//"$RDT_PS_LIT"/\$}"
+      [[ -n "$RDT_PS_LIT" ]] && ((!rdt_ps_lit_kept)) && __vm="${__v//"$RDT_PS_LIT"/\$}"
       case "$__vm" in
       /s | /s/q | /q/s | /sq | /qs) ;;
       '('* | '$('*) rdt_block "pipeline-target" "$__vm" ;;
@@ -7227,10 +7257,16 @@ rdt_ps_call_arg() {
 # rdt_ps_nested <text>: PowerShell text a statement runs (an Invoke-Expression
 # string, a pwsh -Command, a decoded -EncodedCommand), walked as statements of
 # its own. A `$` the outer walk read as literal is a `$` again here, because the
-# text expands it when it runs. Nesting depth and the text read in total are
-# bounded as eval and child shells are in the Bash lane, and the bound refuses.
+# text expands it when it runs. Nested text is always also read as an expansion
+# (rdt_ps_lit_kept is 0 for its walk): it may come from an expanding string,
+# which expanded a `$` single-quoted inside it already, and the outer string's
+# escapes are gone from it, so it can hold a quoting form rdt_ps_quote_gap never
+# saw in the command (`` <`# `` becomes `<#`, `` @`" `` becomes `@"`). Decoded
+# -EncodedCommand text is read the same way, which only refuses more. Nesting depth
+# and the text read in total are bounded as eval and child shells are in the
+# Bash lane, and the bound refuses.
 rdt_ps_nested() {
-  local __t="$1"
+  local __t="$1" rdt_ps_lit_kept=0
   [[ -n "$RDT_PS_LIT" ]] && __t="${__t//"$RDT_PS_LIT"/\$}"
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"

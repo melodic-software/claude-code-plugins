@@ -780,7 +780,9 @@ export async function applyRefinement({ github, repository, number, appId, human
     return { outcome: "needs-decision", redispatch: false };
   }
   // Admission parks a refusal no person must answer at status: confirmed
-  // (admit.mjs): it resumes like the App's own needs-decision below.
+  // (admit.mjs): it resumes like the App's own needs-decision below. Only a
+  // parked issue resumes here: an App refinement never lifts a person's own
+  // confirmation, which intake-reenter lifts on that person's decision.
   if (admissionParked(labels, comments, appId)) {
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };

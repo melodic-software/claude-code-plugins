@@ -91,9 +91,9 @@ supported operator lever). A whole-tree scan runs the per-file engine on every c
 `$CANT_FAIL_SCAN_JOBS` files at a time, with the serial run's output. Ecosystems, each defined by an
 adapter file in `adapters/`: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test, Playwright),
 Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`, Reqnroll
-`*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`: xUnit, NUnit,
-MSTest), Bash (`*.test.sh` harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go
-(`*_test.go`).
+`*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`, and any other
+`*.cs` file holding a test attribute such as `[Fact]`: xUnit, NUnit, MSTest), Bash (`*.test.sh`
+harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go (`*_test.go`).
 
 Forward a `--file <path>` argument to the script's `--file` mode: it scans that one file, and its
 coverage block's `adapter:` line names the claiming adapter, or `adapter: none (...)` with the

@@ -4053,7 +4053,7 @@ jobs:
       # gh-read.sh, so each step that sources that file reads through it.
       # Its read floor and limit cap are github-token's read-floor and
       # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
-      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
+      # (log-api-budget.test.mjs checks), as the shell wrapper reads no file.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -4929,6 +4929,7 @@ jobs:
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -5934,6 +5935,36 @@ jobs:
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
+      # ONLY A LANES APP PULL REQUEST IN THE QUEUE NEEDS PR-MERGE'S CARRIED
+      # READS: the lanes-hold step is their one reader, and it exits at its
+      # author check for every other author. This step reads the queued pull
+      # request through pr_read with the args the pr-unblock and lanes-hold
+      # steps read it with, so their reads answer from the cache and the job
+      # makes no more REST calls than before. `lanes` is `false` only when
+      # the read proves an author that is not the lanes App (the lanes-hold
+      # step's own test); an unread pull, ref or id leaves it unset, and the
+      # two carry steps run as before.
+      - name: Read whether the queued pull request is the lanes App's
+        id: queued_author
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          if [ -z "$pr" ] || [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] || ! pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr") ||
+            ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null 2>&1; then
+            echo "The queued pull request's author is not read here; the carry steps run."
+            exit 0
+          fi
+          if jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "lanes=true" >>"$GITHUB_OUTPUT"
+            echo "#$pr is the lanes App's; the carry steps run."
+          else
+            echo "lanes=false" >>"$GITHUB_OUTPUT"
+            echo "#$pr is not the lanes App's; the carry steps are skipped."
+          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -5951,10 +5982,11 @@ jobs:
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
       # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      # reader. Both steps skip a queued pull request the step above proved
+      # is not the lanes App's. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -5965,7 +5997,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -6162,6 +6194,14 @@ jobs:
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A pull request's author never changes, so the payload's (a re-run
+          # replays it) answers the author test without a read; a merge group
+          # names none.
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          # The head the broker step read the file list at: its pages stand in
+          # for the live list only while the live pull still has this head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -6214,6 +6254,14 @@ jobs:
               sleep $((attempt * 5))
             done
           }
+          # On a pull request event a well-formed payload author that is not
+          # the lanes App ends the step before any read; any other payload
+          # falls through to the live read and its test below.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [[ ${PR_AUTHOR_ID:-} =~ ^[1-9][0-9]*$ && -n ${PR_AUTHOR_TYPE:-} ]] &&
+            { [ "$PR_AUTHOR_ID" != "$LANES_APP_ID" ] || [ "$PR_AUTHOR_TYPE" != Bot ]; }; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
           pull=$(READER=pr_read read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
           if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
             echo "::error::the author of #$pr could not be read."
@@ -6277,8 +6325,17 @@ jobs:
             exit 1
           }
           export PATH_HOLDS
-          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
-            --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          # On a pull request event the broker step above read every page of
+          # this list live in this job and left it; read it again when that
+          # step could not, its pages do not parse, or the live pull's head is
+          # no longer the event's (a push since). The count check below holds
+          # either way.
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
+            [[ ! ${PR_HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] || [ "$(jq -r '.head.sha // ""' <<<"$pull")" != "$PR_HEAD_SHA" ] ||
+            ! jq -c '.[] | [.filename, .previous_filename, .status]' "$RUNNER_TEMP/pr-files.json" >"$RUNNER_TEMP/files.jsonl" 2>/dev/null; then
+            read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+              --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          fi
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
           if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."

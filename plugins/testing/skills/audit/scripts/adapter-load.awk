@@ -12,11 +12,15 @@
 #   - `key: value`, `key:` opening a block map or block list, dotted keys
 #   - block list items `- value`, one-line flow lists `[a, 'b']`
 #   - plain or single-quoted scalars ('' is a literal quote), # comments
-# Every list field is a list of EREs except files (basename globs),
-# equality.call2 (helper names matched as substrings), equality.receiver
-# (<wrapper>.<matcher>, as in expect.toBe), equality.pipeline (literal
-# matchers after a pipe, as in `Should -Be`; a space matches any run of blanks)
-# and rules_off (rule slugs).
+# Every list field is a list of EREs except files and claim_by_content.files
+# (basename globs), equality.call2 (helper names matched as substrings),
+# equality.receiver (<wrapper>.<matcher>, as in expect.toBe), equality.pipeline
+# (literal matchers after a pipe, as in `Should -Be`; a space matches any run of
+# blanks) and rules_off (rule slugs).
+#
+# claim_by_content.files names more files the adapter claims, each only when
+# its content matches a claim_by_content.any_regex; an adapter sets both or
+# neither.
 #
 # language picks the lexer: js, cs, python, bash, pwsh or go. block_model is
 # indent for python, brace or file for bash (file: the whole file is one test,
@@ -85,11 +89,11 @@
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files claim_by_content.files claim_by_content.any_regex detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
-  split("detect assertion mock equality", t, " ")
+  split("claim_by_content detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
+  split("claim_by_content.any_regex detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
   split("additional_test_blocks", t, " ")
@@ -212,6 +216,8 @@ function check_value(key, v) {
   if (index(v, "\t") > 0) die("tab in value of " key)
   if (key in RESERVED) die(key " is reserved and not implemented yet")
   if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
+  # An empty pattern would leave grep with no -e, reading the path as its pattern.
+  if (key == "claim_by_content.any_regex" && v == "") die("empty claim_by_content.any_regex item")
   # The config rules read a Playwright config, which no test adapter claims.
   if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle)$/)
     die("rules_off entries are test-body rule slugs such as recomputed-derived, got: " v)
@@ -401,13 +407,16 @@ END {
     nr++; R_F[nr] = BY_ID[x[1]]; R_K[nr] = x[2]; R_V[nr] = x[3]
   }
   for (fi = 1; fi <= nf; fi++) {
-    lang = ""; bm = ""; hf = 0; hts = 0
+    lang = ""; bm = ""; hf = 0; hts = 0; hcf = 0; hcr = 0
     for (j = 1; j <= nr; j++) if (R_F[j] == fi) {
       if (R_K[j] == "language") lang = R_V[j]
       if (R_K[j] == "block_model") bm = R_V[j]
       if (R_K[j] == "files") hf = 1
+      if (R_K[j] == "claim_by_content.files") hf = hcf = 1
+      if (R_K[j] == "claim_by_content.any_regex") hcr = 1
       if (R_K[j] == "test_start") hts = 1
     }
+    if (hcf != hcr) die_file(fi, "claim_by_content needs both files and any_regex")
     # A claimed file with no test matcher parses zero blocks and reads clean.
     # The file model makes the whole file one block, so it needs no matcher.
     if (hf && !hts && bm != "file") die_file(fi, "claims files but has no test_start")

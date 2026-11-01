@@ -6,6 +6,7 @@
 # affected-tests mapping reaches this suite from any of them.
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # test-scope: plugins/testing/hooks/hooks.json
+# test-scope: plugins/mutation-testing/scripts/fixtures/dotnet-test-selection/*
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
@@ -1233,6 +1234,27 @@ assert_contains "an unclaimed file names no adapter" "$out" "adapter: none"
 printf 'public class ATests\n{\n    [Fact]\n    public void A()\n    {\n        Assert.True(true);\n    }\n}\n' >"$PREC/ATests.cs"
 run_file --file "$PREC/ATests.cs"
 assert_contains "no detect match prefers the claimant with no detect list" "$out" "adapter: cs-xunit"
+
+# --- claim by content: a C# file no files: glob names ------------------------
+# The mutation-testing fixture's *Specs.cs and *TestsExtra.cs hold [Fact] tests.
+DTS="$SCRIPT_DIR/../../../../mutation-testing/scripts/fixtures/dotnet-test-selection"
+for f in tests/Shop.Tests/CalculatorTestsExtra.cs tests/Shop.Specs/DiscountSpecs.cs tests/Shop.Specs/OtherSpecs.cs; do
+  run_file --file "$DTS/$f"
+  assert_contains "a [Fact] in ${f##*/} claims it for cs-xunit" "$out" "adapter: cs-xunit"
+done
+run_file --file "$DTS/src/Shop/Calculator.cs"
+assert_contains "a C# file with no test attribute stays unclaimed" "$out" "adapter: none (no adapter claims this file)"
+run_scan "$DTS"
+assert_contains "the tree scan enumerates the four C# test files and not the source" "$out" "csharp 4,"
+printf 'using NUnit.Framework;\npublic class OrderSpecs\n{\n    [Test]\n    public void A()\n    {\n        Assert.That(1, Is.EqualTo(1));\n    }\n}\n' >"$PREC/OrderSpecs.cs"
+run_file --file "$PREC/OrderSpecs.cs"
+assert_contains "a content-claimed NUnit file goes to cs-nunit by detect" "$out" "adapter: cs-nunit"
+load_yaml cc.yaml $'id: cc\nlanguage: cs\ntest_start: [x]\nclaim_by_content:\n  files: [\'*.cs\']\n'
+assert_exit "loader rejects claim_by_content.files without any_regex (exit 2)" 2 "$rc"
+assert_contains "loader names the missing half" "$err" "claim_by_content needs both files and any_regex"
+load_yaml ce.yaml $'id: ce\nlanguage: cs\ntest_start: [x]\nclaim_by_content:\n  files: [\'*.cs\']\n  any_regex: [\'\']\n'
+assert_exit "loader rejects an empty claim_by_content.any_regex item (exit 2)" 2 "$rc"
+assert_contains "loader names the empty pattern" "$err" "empty claim_by_content.any_regex item"
 
 # --- bash lexer: the masker keeps sync, or the file reports nothing -----------
 # A desynced masker hides every later assertion, which under the file model is

@@ -3846,7 +3846,12 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
   const { createRequire } = await import("node:module");
   const outputs = {};
   const core = { setFailed: (message) => assert.fail(message), info: () => {}, setOutput: (name, value) => (outputs[name] = value) };
-  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root } });
+  // The base's act-turns.mjs, which the copy step stages with its hash.
+  const module = fileURLToPath(new URL("../../scripts/lib/act-turns.mjs", import.meta.url));
+  const sha256 = createHash("sha256").update(readFileSync(module)).digest("hex");
+  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, {
+    env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root, ACT_TURNS_MODULE: module, ACT_TURNS_SHA256: sha256 },
+  });
   assert.ok(/^[1-9][0-9]*$/.test(outputs.turns), outputs.turns);
   assert.ok(outputs.models, "the run's models are an output");
   const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
@@ -7413,4 +7418,41 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
     }
   }
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
+});
+
+// A job that runs on a main-scoped event and checks out, runs or feeds a model
+// PR, issue or lane-branch content restores the Actions cache but never saves
+// to it, so that content cannot plant an entry a main run later restores.
+test("every job that runs or reads untrusted head content has a read-only Actions cache", () => {
+  const readOnly = {
+    "pr-run-activity-read.yml": ["run", "scan", "summary"],
+    "pr-run-activity-write.yml": ["run"],
+    "work-resolve-issue.yml": ["run-checks"],
+    "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
+    "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
+    "eval-browser-dispatch.yml": ["eval"],
+    "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
+    "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
+    "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+  };
+  for (const [file, names] of Object.entries(readOnly)) {
+    const { jobs } = workflow(file);
+    for (const name of names) {
+      assert.ok(jobs[name], `${file} has no job ${name}`);
+      assert.ok(["read", "none"].includes(jobs[name]["cache-mode"]), `${file}: ${name}`);
+    }
+  }
+});
+
+// A caller's explicit cache-mode caps the called workflow, and a callee job
+// declaring more than the cap stops the run before it starts. The runners'
+// head jobs declare read, so no caller may set none or write-only.
+test("no caller of a lane runner caps its cache below read", () => {
+  for (const file of workflowFiles()) {
+    for (const [name, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (/pr-run-activity-(read|write)\.yml$/.test(job.uses ?? "")) {
+        assert.ok(!["none", "write-only"].includes(job["cache-mode"]), `${file}: ${name}`);
+      }
+    }
+  }
 });
