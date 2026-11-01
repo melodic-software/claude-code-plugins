@@ -8,7 +8,7 @@ Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin
 
 - [ ] Step 1: Survey before you ask. Read existing context, the topic's memory slice, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only). If intent already crisp from survey, route to direct synthesis (skip Q&A loop)
-- [ ] Step 2: Drive the frontier-rounds loop. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` asks only its one problem question); order rounds by blast radius; restate decided/open after each round
+- [ ] Step 2: Drive the frontier-rounds loop. Before the first decision question, the `## Terminology matrix` below is agreed. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` asks only its one problem question); order rounds by blast radius; restate decided/open after each round
 - [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`, not a ship-it exit). Once no open question remains on the frontier, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, coined terms, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2; every item is recorded in `## Assumption sweep` below with its disposition (`context/assumption-sweep.md`)
 - [ ] Step 3: Recognize the stop condition. The open-question register grades clean (`check-open-questions.sh` exits 0; skipped only when the run asked no question at all and so wrote no register), no question is left to ask (every unknown the task depends on resolved or captured as a named assumption) AND user has confirmed the restated shared understanding, which opens with the register recap and cites the `--procedure` check's exit code (`me`/`auto`; `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest)
 - [ ] Step 4: Persist the contract. Engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in, so the session can continue elsewhere at any round boundary with nothing lost)
@@ -27,6 +27,14 @@ One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`
 One line: what the user disclosed at intake about where they start (SKILL.md Stance, "Intake the starting point"). `/planning:wayfind chart` carries it into its map's Notes, so a session cleared between the two skills keeps it (`context/routing.md` "The handoff to wayfind"). Replace the placeholder line with this run's disclosure.
 
 - <the user's starting-point disclosure>
+
+## Terminology matrix
+
+One row per term the rounds rely on, built and agreed with the user before the first decision question; a later round that adds a term adds a `proposed` row and gets it agreed. Status: `proposed` | `agreed`. With no such term, replace the table with `none`. Rules: `context/loop.md` "Terminology matrix". Replace the example row with this run's terms.
+
+| Term | Definition | Source | Status |
+|---|---|---|---|
+| head SHA | the commit the PR branch points at | user, round 1 | agreed |
 
 ## Open-question register
 

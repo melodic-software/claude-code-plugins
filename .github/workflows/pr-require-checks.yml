@@ -6057,7 +6057,7 @@ jobs:
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
-      # before listing (verify:too-old, an unread config) reaches
+      # before listing (an unread config or commit list) reaches
       # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
@@ -6397,8 +6397,8 @@ jobs:
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            # A refusal returned before any listing (verify:too-old, an unread
-            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # A refusal returned before any listing (an unread config or
+            # commit list) goes on with no pass names: merge-holds.mjs
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true

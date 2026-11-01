@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C6 Every parameter has a description | ANTHROPIC | FAIL | |",
+      "why": "fail"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C6 does not FAIL: Zod types are enough.",
+      "why": "negated"
+    }
+  ]
+}

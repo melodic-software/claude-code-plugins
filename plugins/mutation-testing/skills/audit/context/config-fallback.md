@@ -8,13 +8,17 @@ in the order SKILL.md "The exercised scope" gives.
 
 Read every layer the setup skill's
 [config merge model](../../setup/SKILL.md#the-config-merge-model) names, in its order, and merge
-them as it says: a later layer overrides a scalar and unions a list. A layer that cannot be read is
-reported unreadable and skipped. The scope report's `Config:` line names the layer that supplied
-each value ([`../templates/report.md`](../templates/report.md)).
+them as it says: a later layer overrides a scalar and unions a list. The user layer is the two
+`userConfig` values SKILL.md "Variables" renders, `operators` and `max_mutants` (read as
+`max-mutants`); an invalid one is named with its value and dropped, as the merge model says. A layer that cannot be read is reported unreadable and skipped. The scope
+report's `Config:` line names the layer that supplied each value, `userConfig` for the user layer
+([`../templates/report.md`](../templates/report.md)). A key no layer sets takes its default below,
+marked `fallback` on that line.
 
 ## No config at any layer
 
-Fall back, never refuse. The defaults are `tool: manual` (the single-operator protocol, SKILL.md
+That is no team or local file and no `userConfig` value. Fall back, never refuse. The defaults are
+`tool: manual` (the single-operator protocol, SKILL.md
 Phase 2); `diff-target` from `git symbolic-ref --short refs/remotes/origin/HEAD`, never a hardcoded
 branch, and when that does not resolve, ask the user for it (an unattended run stops, naming
 `git remote set-head origin --auto`); `mutate` set to the changed source files minus test code, or
