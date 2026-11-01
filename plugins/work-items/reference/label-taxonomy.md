@@ -122,7 +122,7 @@ example is the `wayfind: *` axis: declared by the consuming repo's label-as-code
 but applied and removed only by `/planning:wayfind`, on its own map sub-issues, at sub-issue
 creation ("Never create labels ad hoc from this skill", per `/planning:wayfind` `SKILL.md` "Create or
 extend the map issue"). No work-items skill applies, strips, or requires a `wayfind:` value on the
-items it manages; it respects whatever role label (e.g. `needs-human`) a wayfind HITL item already
-carries, the same as any other item's role label. Members and semantics belong to the declaring
+items it manages, and `list-frontier` leaves out every item carrying a `wayfind:` label, whatever
+role label it carries, so `/work-items:work` never picks one. Members and semantics belong to the declaring
 repo and `/planning:wayfind`, per the resolved decision `melodic-software/github-iac#179`, so they are
 referenced here, not restated.
