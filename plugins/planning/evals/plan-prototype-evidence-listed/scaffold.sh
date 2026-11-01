@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # A locked Brief for an invoice approval flow, a tier B early-exit design record, and the durable
-# note a /prototype:pressure-test spike left: its branch, its commit SHA and one point it left
-# unproven (two approvers acting on one invoice at the same moment). The plan should list all
-# three in its Prototype evidence section.
+# notes two /prototype:pressure-test spikes left. The first was pushed: its branch, its commit SHA
+# and one point it left unproven (two approvers acting on one invoice at the same moment). The
+# second was not: its local path and why it was not pushed (it reads a copy of production
+# invoices). The plan should list both in its Prototype evidence section, the second by its local
+# path with that not-pushed reason.
 set -euo pipefail
 
 git init -q -b main
@@ -60,6 +62,21 @@ Left unproven: what happens when two approvers act on the same invoice at the sa
 spike ran one approver at a time.
 MD
 
+cat >.work/invoice-approval/prototype-note-approval-log.md <<'MD'
+# Prototype note: invoice approval log
+
+Question: can each approval be recorded as one row in an approvals log, without adding columns to
+the invoice model?
+
+Answer: yes. An append-only log keyed by invoice id and approver recorded every transition the
+spike drove, and the invoice model needed no change.
+
+Evidence: local path `~/spikes/invoice-approval-log`, not pushed: the spike reads a copy of
+production invoices.
+
+Left unproven: how the approvals log is migrated onto the live database.
+MD
+
 cat >.work/invoice-approval/PLAN.md <<'MD'
 ## Brief
 
@@ -78,14 +95,16 @@ Invoices move through draft, submitted, approved and rejected in code, so each a
 - When goals conflict, prefer: the transitions the prototype settled over new ones
 
 ### Work size
-- Small: one module and its tests.
+- Small: two modules and their tests.
 
 ### Constraints
 - Follow the transitions the prototype spike in .work/invoice-approval/prototype-note.md settled.
+- Record approvals the way the spike in .work/invoice-approval/prototype-note-approval-log.md showed.
 
 ### Acceptance criteria
 - `approve` and `reject` move an invoice only along the transitions the prototype note lists.
-- A unit test covers each transition and the refused ones.
+- Each `approve` and `reject` call appends one row to the approvals log.
+- A unit test covers each transition, the refused ones, and the log row each one writes.
 
 ### Captured assumptions
 - Quality bar: internal

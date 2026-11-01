@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: plan-prototype-evidence-listed
-description: A locked Brief that consumes a prototype spike gets a plan whose Prototype evidence section lists the spike's branch, its commit SHA and the point it left unproven
+description: A locked Brief that consumes a pushed and an unpushed prototype spike gets a plan whose Prototype evidence section lists the first spike's branch, its commit SHA and the point it left unproven, and the second spike's local path with its not-pushed reason
 tags: [plan, prototype, evidence, scaffold]
-expected_outcome: The plan skill fires and writes the plan into .work/invoice-approval/PLAN.md with a Prototype evidence section filled from .work/invoice-approval/prototype-note.md. That section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 (in full or as a prefix of at least seven characters), and, as left unproven, two approvers acting on the same invoice at the same moment.
+expected_outcome: The plan skill fires and writes the plan into .work/invoice-approval/PLAN.md with a Prototype evidence section filled from .work/invoice-approval/prototype-note.md and .work/invoice-approval/prototype-note-approval-log.md. That section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 (in full or as a prefix of at least seven characters), and, as left unproven, two approvers acting on the same invoice at the same moment. It also names the local path ~/spikes/invoice-approval-log with not pushed and the reason, that the spike reads a copy of production invoices.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:plan The Brief in .work/invoice-approval/PLAN.md is locked, the design gate has its early-exit record, and the plan consumes the prototype spike recorded in .work/invoice-approval/prototype-note.md. Write the plan into that PLAN.md through the Step 4.7 draft, then show me the plan's Prototype evidence section and stop before asking for approval."
+  prompt: "/planning:plan The Brief in .work/invoice-approval/PLAN.md is locked, the design gate has its early-exit record, and the plan consumes the two prototype spikes recorded in .work/invoice-approval/prototype-note.md and .work/invoice-approval/prototype-note-approval-log.md. Write the plan into that PLAN.md through the Step 4.7 draft, then show me the plan's Prototype evidence section and stop before asking for approval."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write, Edit]
   max_turns: 40
   timeout_seconds: 900
@@ -16,7 +16,12 @@ graders:
     pattern: 'Prototype evidence[\s\S]{0,2000}spike/invoice-approval-states[\s\S]{0,400}\b9c41e7a\w*[\s\S]{0,1000}\b(?:concurren\w*|simultaneous\w*|same (?:time|moment)|at once|race)'
     flags: i
     arm: both
+  - name: lists-unpushed-prototype
+    type: regex
+    pattern: 'Prototype evidence[\s\S]{0,2000}invoice-approval-log\b[\s\S]{0,300}\bnot pushed\b[\s\S]{0,200}\bproduction\b'
+    flags: i
+    arm: both
   - name: prototype-evidence-judge
     type: llm
     arm: both
-    criteria: "PASS only if the answer shows the plan's Prototype evidence section (or quotes it from PLAN.md) and that section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 in full or as a prefix of at least seven characters, and, as left unproven, two approvers acting on the same invoice at the same moment. FAIL if the section is missing, if any of the three is missing or appears only outside that section, or if the answer writes no plan."
+    criteria: "PASS only if the answer shows the plan's Prototype evidence section (or quotes it from PLAN.md) and that section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 in full or as a prefix of at least seven characters, and, as left unproven, two approvers acting on the same invoice at the same moment; and, for the second spike, its local path ~/spikes/invoice-approval-log marked not pushed with the reason that it reads a copy of production invoices. FAIL if the section is missing, if any of these is missing or appears only outside that section, if the second spike is given a branch or commit instead of its local path, if its not-pushed reason is dropped, or if the answer writes no plan."
