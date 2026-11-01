@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.7] - 2026-11-01
+
+### Fixed
+
+- The `audit-instructions` criteria, the skill body and the `audit` checklist point at the live upstream sections (effort, sub-agents, workflows and the Fable and Opus 4.8 prompting guides) with an as-of date and recheck trigger where they restated or half-pointed. The I14 source-conflict note and the I17 version fence that no live source still states are gone ([#12107](https://github.com/melodic-software/claude-code-plugins/issues/12107)).
+
 ## [2.4.6] - 2026-11-01
 
 ### Changed
