@@ -792,6 +792,14 @@ test("the model reads its data directory alone", () => {
   }
 });
 
+// The criteria step copies docs/review to STANDARDS_DIR/review; the prompt
+// lists that directory, or a reviewer told to read only the listed files
+// never applies the per-concern rules.
+test("the prompt names the per-concern review rules the criteria step copies", () => {
+  assert.ok(prompt.includes("its per-concern review rules (`review/`, when present;"));
+  assert.ok(step("Copy the review criteria").includes('cp -R .base/docs/review "$DATA/standards/review"'));
+});
+
 test("the verdict uploads once, after it is written, under the writer's name", () => {
   assert.equal(text.match(/uses: actions\/upload-artifact@/g).length, LEGS.length);
   for (const job of LEGS) {

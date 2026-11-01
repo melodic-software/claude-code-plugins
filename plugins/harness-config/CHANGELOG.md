@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.5] - 2026-11-01
+
+### Changed
+
+- `audit-automation-gaps` routes a CI concern about one recurring mistake to `/corrections:codify`, in place of `/review:audit-enforceability`, and its enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as a reader.
+
 ## [2.4.4] - 2026-10-31
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "sql-server",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "SQL Server and Azure SQL Database access for agents, read-only by default under a read-only database principal, with an opt-in write tier a person approves per call (ADR 0086). Ships the versioned config schema and loader, read and write reject lists, a stdio MCP server with fixed query, list_objects, describe_object, preview_write and write tools, a tedious executor with per-call transaction guards and a row-count-checked write batch, and a setup skill.",
   "author": {
     "name": "Melodic Software",
