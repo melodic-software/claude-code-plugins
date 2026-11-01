@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | The q query parameter is concatenated into the LIKE clause on a public route, so an unauthenticated caller can send a UNION SELECT over the users table and read every email and password hash. | Bind the term as a ? parameter, as products.js does |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "names the q injection, the attacker gain and the fix at CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/routes/search.js:11 | code-reviewer | The SQL is built by string concatenation; consider a query builder for readability. | Use a query builder |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names string-built SQL at SUGGESTION without the injection"
+    }
+  ]
+}
