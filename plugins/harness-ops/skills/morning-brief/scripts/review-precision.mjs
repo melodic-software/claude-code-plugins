@@ -59,6 +59,22 @@ export const BUCKETS = Object.freeze([
   "unanswered",
 ]);
 const LABELED = ["valid-fixed", "valid-follow-up", "intentional", "incorrect", "uncertain"];
+// Who wrote the answer an outcome came from, derived in compute() from each snapshot comment's
+// raw `author_type` (GraphQL's author `__typename`, the Actor interface; null with no author) and
+// its full body. A Bot is the lanes App or any other app. A User answer with a line opening with
+// the D5 label marker (`<!-- d5 finding=`, review-discipline.md) is `user-marked`; any other User
+// answer is `user-unmarked`: a person, or an agent answer posted before the marker existed (it
+// landed in aae9ecdbe3, #11812, on 2026-11-01). Anything else, or no recorded type, is unknown.
+// No kind is called "person" (the decision on #11841).
+export const AUTHOR_KINDS = Object.freeze(["bot", "user-marked", "user-unmarked", "unknown"]);
+const D5_MARKER = /^\s*<!-- d5 finding=/m;
+const ANSWERED = BUCKETS.filter((bucket) => bucket !== "unanswered");
+
+export function authorKind(type, body) {
+  if (type === "Bot") return "bot";
+  if (type !== "User") return "unknown";
+  return D5_MARKER.test(String(body ?? "")) ? "user-marked" : "user-unmarked";
+}
 
 // ---------------------------------------------------------------- answer parsing
 
@@ -182,6 +198,8 @@ export function normalizeFirstLine(body) {
 
 const byTime = (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : String(a.key) < String(b.key) ? -1 : String(a.key) > String(b.key) ? 1 : 0);
 const emptyOutcomes = () => Object.fromEntries(BUCKETS.map((bucket) => [bucket, 0]));
+// The answered outcomes per answer author kind; an unanswered finding has no answerer.
+const emptyByAuthor = () => Object.fromEntries(AUTHOR_KINDS.map((kind) => [kind, { outcomes: Object.fromEntries(ANSWERED.map((bucket) => [bucket, 0])) }]));
 
 function laneRounds(reviews) {
   // Heads in order, up to and including the first clean one after the last head with findings;
@@ -219,7 +237,7 @@ function computePr(pr, until, repo, roundAuthor) {
     const lane = footerLane(root.body);
     if (!lane) continue;
     const replies = comments.slice(1).filter((c) => footerLane(c.body) === null);
-    findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), resolved: thread.resolved === true, answers: replies.map((c) => c.body) });
+    findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), resolved: thread.resolved === true, answers: replies.map((c) => ({ body: c.body, kind: authorKind(c.author_type, c.body) })) });
   }
 
   // Summary-only findings: N-K per review, answered by the lane's finding table rows in order. A
@@ -242,14 +260,14 @@ function computePr(pr, until, repo, roundAuthor) {
         lane = open[0];
       }
       const head = row.sha ? reviews[lane].find((r) => r.sha.startsWith(row.sha)) : latest(lane, comment.createdAt);
-      if (head) rows.push({ ...row, lane, head: head.sha });
+      if (head) rows.push({ ...row, lane, head: head.sha, kind: authorKind(comment.author_type, comment.body) });
     }
   }
   for (const [lane, list] of Object.entries(reviews)) {
     for (const review of list) {
       const answers = rows.filter((row) => row.lane === lane && row.head === review.sha);
       for (let i = 0; i < Math.max(0, review.findings - review.inline); i++) {
-        findings.push({ lane, sha: review.sha, at: review.at, key: `${review.sha}#${i}`, id: null, path: null, first: null, summary: true, answers: answers[i] ? [answers[i].text] : [] });
+        findings.push({ lane, sha: review.sha, at: review.at, key: `${review.sha}#${i}`, id: null, path: null, first: null, summary: true, answers: answers[i] ? [{ body: answers[i].text, kind: answers[i].kind }] : [] });
       }
     }
   }
@@ -261,7 +279,7 @@ function computePr(pr, until, repo, roundAuthor) {
   const isRepost = (f) => {
     const earlier = (g) => g !== f && g.lane === f.lane && g.sha !== f.sha && g.at < f.at;
     if (!f.summary && findings.some((g) => earlier(g) && !g.summary && g.path === f.path && g.first === f.first)) return true;
-    const text = f.answers.join("\n");
+    const text = f.answers.map((a) => a.body).join("\n");
     for (const [, id] of text.matchAll(CITED_COMMENT)) {
       const g = byId.get(rootOf.get(id) ?? id);
       if (g && earlier(g)) return true;
@@ -274,7 +292,7 @@ function computePr(pr, until, repo, roundAuthor) {
 
   const lanes = {};
   for (const lane of LANES) {
-    lanes[lane] = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, resolved_unanswered: 0 };
+    lanes[lane] = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0 };
   }
   for (const f of findings) {
     const stats = lanes[f.lane];
@@ -283,9 +301,10 @@ function computePr(pr, until, repo, roundAuthor) {
       stats.reposts++;
       continue;
     }
-    const labeled = f.answers.map((body) => answerBucket(body, pr.number, repo)).find((o) => o.bucket !== "answered-unlabeled");
-    const outcome = labeled ?? (f.answers.length ? answerBucket(f.answers[0], pr.number, repo) : { bucket: "unanswered" });
+    const answers = f.answers.map((a) => ({ ...answerBucket(a.body, pr.number, repo), kind: a.kind }));
+    const outcome = answers.find((o) => o.bucket !== "answered-unlabeled") ?? answers[0] ?? { bucket: "unanswered" };
     stats.outcomes[outcome.bucket]++;
+    if (outcome.kind) stats.by_author_kind[outcome.kind].outcomes[outcome.bucket]++;
     if (outcome.deferUnlinked) stats.defer_unlinked++;
     if (outcome.bucket === "unanswered" && f.resolved) stats.resolved_unanswered++;
   }
@@ -311,6 +330,7 @@ function finish(stats) {
   const labeled = LABELED.reduce((sum, bucket) => sum + stats.outcomes[bucket], 0);
   stats.labeled = labeled;
   stats.precision = labeled ? Number(((stats.outcomes["valid-fixed"] + stats.outcomes["valid-follow-up"]) / labeled).toFixed(4)) : null;
+  for (const one of Object.values(stats.by_author_kind ?? {})) finish(one);
   return stats;
 }
 
@@ -323,11 +343,12 @@ export function compute(snapshot) {
     .map((pr) => computePr(pr, until, snapshot.repo, snapshot.round_author ?? null));
   const lanes = {};
   for (const lane of LANES) {
-    const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, resolved_unanswered: 0, inline_mismatch: 0, heads_reviewed: 0 };
+    const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), by_author_kind: emptyByAuthor(), defer_unlinked: 0, resolved_unanswered: 0, inline_mismatch: 0, heads_reviewed: 0 };
     for (const pr of prs) {
       const one = pr.lanes[lane];
       for (const key of ["findings", "reposts", "defer_unlinked", "resolved_unanswered", "inline_mismatch", "heads_reviewed"]) total[key] += one[key];
       for (const bucket of BUCKETS) total.outcomes[bucket] += one.outcomes[bucket];
+      for (const kind of AUTHOR_KINDS) for (const bucket of ANSWERED) total.by_author_kind[kind].outcomes[bucket] += one.by_author_kind[kind].outcomes[bucket];
     }
     lanes[lane] = finish(total);
   }
@@ -376,6 +397,20 @@ export function renderMarkdown(result) {
   for (const [lane, s] of Object.entries(result.lanes)) {
     out.push(`- ${lane}: ${s.resolved_unanswered} unanswered on a resolved thread, ${s.defer_unlinked} defers citing no newer item, ${s.inline_mismatch} heads whose inline count differs from the lane's`);
   }
+  out.push(
+    "",
+    "By who answered (bot and user-marked precision is an agent-labeled upper bound: the answering agent judged the finding; user-unmarked is a person, or an agent answer posted before the D5 marker existed on 2026-11-01):",
+    "",
+    "| Lane | Answered by | valid-fixed | valid-follow-up | intentional | incorrect | uncertain | Precision (n labeled) | answered-unlabeled |",
+    "|---|---|---|---|---|---|---|---|---|",
+  );
+  for (const [lane, s] of Object.entries(result.lanes)) {
+    for (const [kind, k] of Object.entries(s.by_author_kind)) {
+      const o = k.outcomes;
+      if (k.labeled + o["answered-unlabeled"] === 0) continue;
+      out.push(`| ${lane} | ${kind} | ${o["valid-fixed"]} | ${o["valid-follow-up"]} | ${o.intentional} | ${o.incorrect} | ${o.uncertain} | ${pct(k.precision)} (${k.labeled}) | ${o["answered-unlabeled"]} |`);
+    }
+  }
   const r = result.rounds;
   out.push("", `Rounds to pass, against the cap of ${r.cap} (${r.cap_source}):`, "");
   for (const [lane, s] of Object.entries(r.lane_review_rounds)) {
@@ -415,13 +450,13 @@ const PR_QUERY = `query($owner:String!, $name:String!, $endCursor:String) {
             path line originalLine isResolved
             comments(first:50) {
               pageInfo { hasNextPage }
-              nodes { databaseId createdAt author { login } body originalCommit { oid } replyTo { databaseId } }
+              nodes { databaseId createdAt author { __typename login } body originalCommit { oid } replyTo { databaseId } }
             }
           }
         }
         comments(first:100) {
           pageInfo { hasNextPage }
-          nodes { createdAt author { login } body userContentEdits(first:100) { totalCount nodes { editedAt diff } } }
+          nodes { createdAt author { __typename login } body userContentEdits(first:100) { totalCount nodes { editedAt diff } } }
         }
       }
     }
@@ -473,10 +508,10 @@ function fetchPrs(repo, since, until, truncated) {
             resolved: t.isResolved === true,
             comments: t.comments.nodes
               .filter((c) => c.createdAt < until)
-              .map((c) => ({ id: c.databaseId, author: c.author?.login ?? null, createdAt: c.createdAt, body: c.body, commit: c.originalCommit?.oid ?? null, replyTo: c.replyTo?.databaseId ?? null })),
+              .map((c) => ({ id: c.databaseId, author: c.author?.login ?? null, author_type: c.author?.__typename ?? null, createdAt: c.createdAt, body: c.body, commit: c.originalCommit?.oid ?? null, replyTo: c.replyTo?.databaseId ?? null })),
           };
         }),
-        comments: pr.comments.nodes.filter((c) => c.createdAt < until).map((c) => ({ author: c.author?.login ?? null, createdAt: c.createdAt, body: c.body })),
+        comments: pr.comments.nodes.filter((c) => c.createdAt < until).map((c) => ({ author: c.author?.login ?? null, author_type: c.author?.__typename ?? null, createdAt: c.createdAt, body: c.body })),
         reviews: reviews.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.lane < b.lane ? -1 : a.lane > b.lane ? 1 : a.sha < b.sha ? -1 : 1)),
       });
     }
@@ -511,7 +546,7 @@ export function fetchSnapshot({ repo, since, until }) {
   const prs = fetchPrs(repo, since, until, truncated);
   console.error(`review-precision: ${prs.length} merged PRs in the window`);
   prs.sort((a, b) => a.number - b.number);
-  return { schema: 2, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, round_author, truncated, prs };
+  return { schema: 3, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, round_author, truncated, prs };
 }
 
 // ---------------------------------------------------------------- CLI
