@@ -227,7 +227,7 @@ as of 2026-11-01; recheck when that section changes); any other dispatch mechani
 
 The `auditor` definition pins `model: opus`. Its verdict is consequential, so it runs at the
 session's model tier or above: when this session's model resolves above `opus`, pass the session's
-own model as the per-call `model`. Never pass one below `opus`. Which model a dispatch gets: [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
+own model as the per-call `model`, in the form that parameter's schema accepts. Never pass one below `opus`. Which model a dispatch gets: [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
 (as of 2026-11-01; recheck when that section changes).
 
 ### Step 3. Persist-check, then blindspot + candidate findings (subagent output → user)
