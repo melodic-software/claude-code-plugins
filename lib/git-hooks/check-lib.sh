@@ -269,8 +269,13 @@ checks_push_ranges() {
     seen=1
     [[ "$lsha" =~ $zero ]] && continue
     if ! [[ "$rsha" =~ $zero ]]; then
-      printf '%s %s\n' "$rsha" "$lsha"
-      continue
+      if git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+        printf '%s %s\n' "$rsha" "$lsha"
+        continue
+      fi
+      # A remote sha this clone lacks (a push over an unfetched commit)
+      # ranges like a new branch, so git diff never fails on a missing object.
+      printf 'NOTICE: %s is not in this clone, so %s is checked from its merge-base with the default branch; fetch to check against the remote.\n' "$rsha" "$lref" >&2
     fi
     head="$(checks_remote_head "$remote")"
     base=""

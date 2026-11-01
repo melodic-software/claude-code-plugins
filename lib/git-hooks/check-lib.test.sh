@@ -233,6 +233,11 @@ expect "pre-push: a new branch starts at its merge-base with <remote>/HEAD" "$ba
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
 expect "pre-push: the range's changed lines" $'f.txt\t2\t2' \
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+# A remote sha this clone never fetched ranges from the merge-base, with a notice.
+unfetched=1234567890abcdef1234567890abcdef12345678
+out="$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$unfetched" | in_repo "$P" pre-push 'checks_changed_lines; echo "rc=$?"; cat "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/ranges"' origin url 2>&1)"
+expect "pre-push: an unfetched remote sha ranges from the merge-base, with a notice" \
+  "NOTICE: $unfetched is not in this clone, so refs/heads/topic is checked from its merge-base with the default branch; fetch to check against the remote."$'\n'"rc=0"$'\n'"$base_sha $topic_sha"$'\n'$'f.txt\t2\t2' "$out"
 # The pushed commit's blob decides, not the index or the work tree.
 printf 'pushed\0bin\n' >"$P/p.dat"
 git -C "$P" add p.dat
