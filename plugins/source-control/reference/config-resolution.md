@@ -412,8 +412,8 @@ raise supplied by any of them is ignored and reported.
 **The one named exception: the typed pair `autopilot` + `--merge c3-this-run`.** Per the loop-lane
 convention's "one named, explicit paired-argument exception" (§1), an invocation whose own argument
 line types both the literal `autopilot` tier keyword and the explicit raise argument
-`--merge c3-this-run` widens *that single invocation's* merge dimension up to and including C3,
-still bounded by the C5 hold (below). Either token alone does nothing to the
+`--merge c3-this-run` widens *that single invocation's* merge dimension to the C3 rung (C2 through
+C4), still bounded by the C5 hold (below). Either token alone does nothing to the
 merge dimension: `autopilot` is a merge-inert tier keyword, so a saved invocation or template
 carrying it acquires no merge authority, and `c3-this-run` without the typed `autopilot` tier is
 reported and ignored. The pair is not a config value and is never persisted: the next invocation
@@ -452,11 +452,11 @@ keyword or any other layer never substitutes for tracked adoption: with the tier
 no tracked adoption, merges stay `human-only` and the lane reports why.
 
 **Promotion-evidence gate.** A tracked rung is a ceiling, not autonomous-merge permission:
-before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
-`C3-auto-merge` effective state through the trusted promotion-evidence gate, fail-closing to
-unpromoted when evidence is unavailable or unqualified
+before the rung partition admits a C2, C3 or C4 PR, the lane resolves `C2-auto-merge` /
+`C3-auto-merge` effective state through the trusted promotion-evidence gate (C4 takes the
+`C3-auto-merge` cell), fail-closing to unpromoted when evidence is unavailable or unqualified
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
-Until that gate returns a qualified read, C2/C3 classes stay off the merge-eligible set regardless of
+Until that gate returns a qualified read, C2-C4 classes stay off the merge-eligible set regardless of
 `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
 **C5 hold.** Untrusted provenance is the one work class that holds a merge: no rung, no config
@@ -469,9 +469,11 @@ partition derives C5 from the pull request, not the class stamped on the item it
 provenance "dominates every other property" (`work-classes.md`, `C5`): a cross-repository head, or
 a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
 `babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
-closed to C5 when its field is unavailable. The rungs admit classes up to C3, and the partition
-compares the pull request's own class to the rung (the C4 diff veto: a diff that no longer matches
-its recorded class fails closed), so a C4 pull request sits outside every current rung. **Never derive C5 by testing the PR author's login against
+closed to C5 when its field is unavailable. C4 is not a hold: it partitions like C3, admitted at
+`c3-autonomous` and `full-autonomy` against the `C3-auto-merge` cell. The partition compares the
+pull request's own class to the rung (the diff-class check: the diff can raise the recorded class,
+never lower it, and a diff whose class cannot be read fails closed), so `c2-mechanical` excludes a
+C4 diff whatever its item's stamp. **Never derive C5 by testing the PR author's login against
 `babysit_watched_owners`.** That key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
 
@@ -524,7 +526,7 @@ the two, and every rule below is fail-closed:
   nowhere else.** The value is never forwarded as `--self-logins`, `--extra-bot-logins`, discovery
   scope, or any write or resolution authority, and a trust match never establishes C2; it only
   removes the categorical C5 bar. The PR still needs a close-linked item with a recorded
-  classification, and still faces the C4 diff veto, the rung comparison, and every other withholding
+  classification, and still faces the diff-class check, the rung comparison, and every other withholding
   in the partition.
 
 ## babysit-prs repository-policy keys
