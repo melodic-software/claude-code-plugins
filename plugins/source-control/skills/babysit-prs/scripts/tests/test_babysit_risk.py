@@ -293,7 +293,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 19, "gate": 50, "enforcement": 50},
+            {"trust": 19, "gate": 51, "enforcement": 50},
         )
         self.assertEqual(
             FLOOR.high,

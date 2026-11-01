@@ -1432,6 +1432,8 @@ merge:
         class: gate
       - glob: ".github/workflows/pr-review-approved.yml"
         class: gate
+      - glob: ".github/workflows/pr-review-comment-relay.yml"
+        class: gate
       - glob: ".github/workflows/pr-review-hosted.yml"
         class: gate
       - glob: ".github/workflows/pr-review-main.yml"
