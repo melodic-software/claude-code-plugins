@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.1] - 2026-11-01
+
+### Changed
+
+- The bundled enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as the reader that picks a rung for a recurring mistake, a findings file or review comments, in place of `/review:audit-enforceability` and retro's codify mode.
+
 ## [2.3.0] - 2026-11-01
 
 ### Added
