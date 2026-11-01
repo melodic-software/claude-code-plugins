@@ -126,6 +126,50 @@
         }
       ],
       "why": "lists the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work-items/1.md && grep -rn plugin src"
+          }
+        }
+      ],
+      "why": "chains a code search after an item-store read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1'; ls src"
+          }
+        }
+      ],
+      "why": "lists the source after a seam read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn plugin . --exclude-dir=.work-items"
+          }
+        }
+      ],
+      "why": "greps the checkout, naming the item store only to exclude it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd .workspace && grep -rn plugin ."
+          }
+        }
+      ],
+      "why": "a .work prefix that is not the item store"
     }
   ]
 }

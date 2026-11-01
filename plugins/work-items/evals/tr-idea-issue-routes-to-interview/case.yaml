@@ -41,7 +41,7 @@ graders:
   - name: no-bash-search
     type: tool_used
     tool: Bash
-    input_match: '^(?![\s\S]*(?:\.work|/work-items/|work-item-tracker\.sh))[\s\S]*?(?:(?:"command":"|[ \t;&(]|\\[nt])(?:(?:grep|rg|ag)[ \t]|find[ \t]+[./~]|git[ \t]+(?:grep|log)\b)|(?:[ \t/"]|\\[nt])src(?![\w-]))'
+    input_match: '(?:"command":"|[;&(]|\\n)(?!(?:[^;&\\]|\\[^n])*(?:(?<![=\w.-])\.work-items\b|/work-items/|work-item-tracker\.sh))(?:[^;&\\]|\\[^n])*?(?:(?:(?<=[ \t"(;&|])|(?<=\\[nt]))(?:(?:grep|rg|ag)[ \t]|find[ \t]+[./~]|git[ \t]+(?:grep|log)\b)|(?:(?<=[ \t/"])|(?<=\\[nt]))src(?![\w-]))'
     min: 0
     max: 0
     arm: both
