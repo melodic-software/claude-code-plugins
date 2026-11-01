@@ -53,8 +53,8 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { admissionParked, authorAdmitted } from "../intake-triage/admit.mjs";
+import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { authorAdmitted, confirmedUnadmitted } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
@@ -71,8 +71,8 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Which answer the comment is, or null: `decision`, `parked` (a decision on an
-// issue admission parked at status: confirmed) or `info`.
+// Which answer the comment is, or null: `decision`, `parked` (a decision on a
+// status: confirmed issue no admission took) or `info`.
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId }) {
   if (issue.pull_request || issue.state !== "open") {
     return null;
@@ -92,10 +92,9 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "decision";
     }
   }
-  // status: confirmed is also triage's verified status, so only an issue
-  // admission parked there counts (refine.mjs applies the same guard).
-  const parked = async () => admissionParked(labels, await paginate(github, `/repos/${repository}/issues/${issue.number}/comments`), lanesAppId);
-  if (humans.has(user.id) && labels.includes(CONFIRMED) && (await parked())) {
+  // A listed human's decision re-enters a status: confirmed issue whether
+  // admission parked it there or a person confirmed it before any admission.
+  if (humans.has(user.id) && confirmedUnadmitted(labels)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "parked";

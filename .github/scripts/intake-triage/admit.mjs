@@ -962,13 +962,17 @@ export function authorAdmitted(issue, humans, appId) {
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
 }
 
+// Whether the issue sits at status: confirmed with no other status and no
+// agent-ready, parked by admission or never admitted. Pure.
+export const confirmedUnadmitted = (labels) =>
+  labels.includes(CONFIRMED) && ![NEEDS_DECISION, READY, AGENT_READY].some((label) => labels.includes(label));
+
 // Whether admission parked the issue at status: confirmed, which is also
 // triage's verified status: no other status, no agent-ready, and the lanes
 // App's admission comment. `labels` are its label names, `comments` its
 // comments. Pure.
 export const admissionParked = (labels, comments, appId) =>
-  labels.includes(CONFIRMED) &&
-  ![NEEDS_DECISION, READY, AGENT_READY].some((label) => labels.includes(label)) &&
+  confirmedUnadmitted(labels) &&
   Number.isInteger(appId) &&
   comments.some((comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
 

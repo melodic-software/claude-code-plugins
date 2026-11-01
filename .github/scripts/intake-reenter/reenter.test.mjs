@@ -150,9 +150,19 @@ test("a listed human's decision on an issue admission parked at status: confirme
   expectDispatched(w);
 });
 
-test("a decision on a verified status: confirmed issue admission never parked changes nothing", async () => {
-  for (const labels of [["status: confirmed"], ["status: confirmed", "agent-ready"]]) {
-    const w = world({ labels, comments: [...(labels.includes("agent-ready") ? [PARKED] : []), { id: 1, user: OWNER, body: DECISION }] });
+test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
+  const w = world({
+    labels: ["status: confirmed", "needs-triage"],
+    comments: [{ id: 1, user: OWNER, body: DECISION }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  expectDispatched(w);
+});
+
+test("a decision on a status: confirmed issue that is admitted or ready changes nothing", async () => {
+  for (const labels of [["status: confirmed", "agent-ready"], ["status: confirmed", "status: ready"]]) {
+    const w = world({ labels, comments: [PARKED, { id: 1, user: OWNER, body: DECISION }] });
     assert.equal(await run(w, 1), 0);
     assert.deepEqual([...w.labels()].sort(), [...labels].sort(), labels.join());
     assert.equal(w.dispatches().length, 0, labels.join());
