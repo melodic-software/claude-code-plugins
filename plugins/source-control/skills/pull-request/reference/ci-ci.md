@@ -29,7 +29,7 @@ The system prompt names its path. It is JSON:
     {"number": 45, "spec_kind": "closes", "body": "<the linked issue's body>", "comments": ["<a counted comment>"]}
   ],
   "feedback_lines": [
-    {"path": "plugins/p/skills/s/SKILL.md", "lines": ["<a line the last address-feedback round added>"]}
+    {"path": "scripts/x.sh", "lines": ["<a line the last address-feedback round added>"]}
   ]
 }
 ```
