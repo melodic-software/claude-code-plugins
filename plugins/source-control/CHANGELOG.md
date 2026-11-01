@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.2] - 2026-11-01
+
+### Fixed
+
+- A pull request that changes the per-concern review rules under `docs/review/` now counts as a lane-source change, so its review runs from main, as one that changes `AGENTS.md` does.
+
 ## [4.11.1] - 2026-11-01
 
 ### Changed
