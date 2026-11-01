@@ -47,11 +47,12 @@ re-read the page.
   manifest was left. `features.json` was a dangling link, which the swap removed and restored
   ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
 
-- Read-only run root under `/tmp` with `--allow-tools Bash`: on Claude Code 2.1.310, 2.1.314 and
-  2.1.316, Linux/WSL2, a run whose sandbox sat under the default `/tmp` saw the scratch repo's
-  `.git` as read-only (`git fetch` failed on `.git/FETCH_HEAD`, `git merge` on
-  `.git/ORIG_HEAD.lock`, "Read-only file system"), and the shell's cwd-tracking write into the
-  session tmp failed, so a Bash call could report exit 1 though its command succeeded. The kept
+- Read-only run root under `/tmp` with `--allow-tools Bash`: on Claude Code 2.1.316, Linux/WSL2,
+  a run whose sandbox sat under the default `/tmp` saw the scratch repo's `.git` as read-only
+  (`git merge` failed on `.git/ORIG_HEAD.lock`, "Read-only file system"), and the shell's
+  cwd-tracking write into the session tmp failed, so a Bash call could report exit 1 though its
+  command succeeded. Runs on 2.1.310 and 2.1.314 showed the same signature (`git fetch` failed on
+  `.git/FETCH_HEAD`); their `TMPDIR` was not recorded. The kept
   run's `config/settings.json` names the cause: `sandbox.filesystem.allowWrite` lists the run's
   `home` and `tmp` directories, and `denyWrite` lists `//tmp`, which covers both and wins, so the
   whole root, workspace included, is read-only (the workspace part is inferred from the settings,

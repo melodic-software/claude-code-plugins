@@ -88,10 +88,10 @@ failed every Bash call with `Sandbox is required but failed to initialize: Faile
 sockets after 5 attempts`, and a 24-character `<dir>` with the same case and tree ran Bash and
 scored.
 
-A run root under `/tmp` is also read-only to Bash, the workspace and its `.git` included, so a
-case that writes there fails even when its sandbox starts: [records.md, Sandbox and credential
-store](records.md#sandbox-and-credential-store). A `TMPDIR` outside the system temp directory
-avoids that too.
+Under a run root in `/tmp`, the workspace `.git` and the session tmp are also read-only to Bash,
+and by the run's settings the whole root is, so a case that writes there fails even when its
+sandbox starts: [records.md, Sandbox and credential store](records.md#sandbox-and-credential-store).
+A `TMPDIR` outside the system temp directory avoids that too.
 
 - **Pointer:** [anthropics/claude-code#104631](https://github.com/anthropics/claude-code/issues/104631)
   and [anthropics/claude-code#104797](https://github.com/anthropics/claude-code/issues/104797) for
