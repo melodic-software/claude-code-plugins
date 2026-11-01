@@ -36,6 +36,8 @@ import {
   SCAN_REFUSALS,
   readTurnCap,
   RESUMABLE,
+  refireStale,
+  REFIRED,
   reusePlan,
   HOLD_LINE,
   HUMAN_MERGE_HOLD,
@@ -4795,4 +4797,114 @@ test("main opens no PR when the closing PRs cannot be read", async () => {
       assert.ok(!opened(calls));
     },
   );
+});
+
+// A run that waited in its slot past a lane workflow change stopped before
+// any model turn (workflow-stale): report-outcome re-fires the issue at once
+// on main's files, with work-unblock's re-fire record, so the sweep's restart
+// accounting reads it as its own, and backs off to the sweep past
+// limits.limit-stops-per-issue re-fires since a person last added agent-ready
+// or a run last reported.
+const STALE_BOT = "melodic-automation-lanes[bot]";
+const MAIN_BLOBS = ["a".repeat(40), "b".repeat(40)];
+const RUN_SHA = "c".repeat(40);
+const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["agent-ready"], state = "open", events, comments = [] } = {}) => {
+  const calls = [];
+  const fetch = async (url, init = {}) => {
+    const method = init.method ?? "GET";
+    const { pathname, searchParams } = new URL(url);
+    calls.push({ method, path: pathname, body: init.body ? JSON.parse(init.body) : undefined });
+    const ok = (body, status = 200) => ({ ok: true, status, json: async () => body, text: async () => JSON.stringify(body) });
+    const contents = /\/contents\/(.+)$/.exec(pathname);
+    if (method === "GET" && contents) {
+      const index = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"].indexOf(contents[1]);
+      return ok({ sha: (searchParams.get("ref") === "main" ? MAIN_BLOBS : runBlobs)[index] });
+    }
+    if (method === "GET" && /\/issues\/77$/.test(pathname)) return ok({ number: 77, state, labels: labels.map((name) => ({ name })) });
+    if (method === "GET" && /\/issues\/77\/events$/.test(pathname)) {
+      return ok(events ?? [{ event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" }]);
+    }
+    if (method === "GET" && /\/issues\/77\/comments$/.test(pathname)) return ok(comments);
+    if (method === "POST" || method === "DELETE") return ok({}, method === "POST" ? 201 : 200);
+    return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
+  };
+  return { fetch, calls };
+};
+const staleGitHub = (fetch) => async (method, path, body) => {
+  const response = await fetch(`https://api.example${path}`, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}`);
+  return response.json();
+};
+const refire = (fetch, limits = LIMIT_DEFAULTS) =>
+  refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: RUN_SHA, bot: STALE_BOT, humans: new Set([1]), limits });
+const writes = (calls) => calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path.replace("/repos/o/r/issues/77", "")}`);
+const record = (at, body = `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} -->\nre-fired`) => ({ user: { login: STALE_BOT }, created_at: at, body });
+
+test("refireStale re-fires a stale run's issue at once with work-unblock's re-fire record, then the label moves", async () => {
+  const { fetch, calls } = staleFetch();
+  assert.match(await refire(fetch), /^re-fired on workflow files a{40}-b{40}$/);
+  assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready", "POST /labels"]);
+  const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+  assert.equal(REFIRED.exec(comment)?.[1], MAIN_BLOBS.join("-"), "the sweep parses it as its own re-fire record on main's key");
+  assert.equal(REFIRED.exec(comment)?.[2], undefined, "no breaker tag");
+  assert.equal(parseOutcomeMarker(comment), null, "a re-fire is no lane outcome, so stop-retries never counts it");
+  assert.deepEqual(calls.at(-1).body, { labels: ["agent-ready"] });
+});
+
+test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fires since a person or a report", async () => {
+  const two = [record("2026-11-01T10:30:00Z"), record("2026-11-01T11:00:00Z")];
+  // The App's own re-adds after each record.
+  const events = [
+    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" },
+    { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9 }, created_at: "2026-11-01T11:00:01Z" },
+    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9 }, created_at: "2026-11-01T11:00:02Z" },
+  ];
+  const spent = staleFetch({ comments: two, events });
+  assert.match(await refire(spent.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^skipped: 2 re-fires/);
+  assert.deepEqual(writes(spent.calls), []);
+  const left = staleFetch({ comments: two, events });
+  assert.match(await refire(left.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 3 }), /^re-fired/);
+  // A person's agent-ready, or a run that reported, after them resets the count.
+  const human = staleFetch({ comments: two, events: [...events, { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T12:00:00Z" }] });
+  assert.match(await refire(human.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+  const reported = staleFetch({ comments: [...two, record("2026-11-01T11:30:00Z", "<!-- work-resolve-issue outcome=retry run=5 -->\nretry")], events });
+  assert.match(await refire(reported.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+  // A breaker trip's record is the kill switch's, not a stale re-fire.
+  const breaker = staleFetch({ comments: [record("2026-11-01T10:30:00Z", `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} breaker -->\ntrip`), two[1]], events });
+  assert.match(await refire(breaker.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+});
+
+test("refireStale finishes a record whose label move did not land, without a second record", async () => {
+  const { fetch, calls } = staleFetch({ comments: [record("2026-11-01T11:00:00Z")] });
+  assert.match(await refire(fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }), /^re-fired/);
+  assert.deepEqual(writes(calls), ["DELETE /labels/agent-ready", "POST /labels"]);
+});
+
+test("refireStale does nothing when the files match main's, or the issue is closed, held, or agent-ready is off", async () => {
+  for (const [why, options, reason] of [
+    ["files match", { runBlobs: MAIN_BLOBS }, /workflow files are main's/],
+    ["closed", { state: "closed" }, /closed or agent-ready is off/],
+    ["agent-ready off", { labels: [] }, /closed or agent-ready is off/],
+    ["held", { labels: ["agent-ready", "needs-human"] }, /held by needs-human/],
+    ["removed last", { events: [{ event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" }] }, /last removed/],
+  ]) {
+    const { fetch, calls } = staleFetch(options);
+    assert.match(await refire(fetch), reason, why);
+    assert.deepEqual(writes(calls), [], why);
+  }
+  const { fetch, calls } = staleFetch();
+  assert.match(await refireStale(staleGitHub(fetch), "/repos/o/r", 77, { workflowSha: "", bot: STALE_BOT, humans: new Set(), limits: LIMIT_DEFAULTS }), /names no workflow commit/);
+  assert.deepEqual(calls, []);
+});
+
+test("main on a workflow-stale stop re-fires through refireStale and reads no outcome", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = staleFetch();
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "workflow-stale", GITHUB_WORKFLOW_SHA: RUN_SHA }, fetch }), 0);
+    assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready", "POST /labels"]);
+  });
+  await withDir({}, async (dir) => {
+    const { fetch } = staleFetch();
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "stale" }, fetch }), 1, "an unknown skip reason fails");
+  });
 });
