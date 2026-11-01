@@ -196,7 +196,7 @@ holds "work-resolve-issue.yml has no job of its own that releases" "$CALLER_YML"
 holds "the read runner has no separate release job" "$READ_YML" '!("lease-release" in d.jobs)'
 # shellcheck disable=SC2016 # the ${{ }} text is a literal the workflow must hold
 holds "report-outcome and apply-issue-patch pass the selected read call's lease handle" "$CALLER_YML" \
-  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; d.jobs["report-outcome"].with["lease-comment-id"] === want && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
+  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
 
 # Who releases (#9791), and whether the caller's report-outcome runs. Every
 # gate is the real YAML: the run job's issue-prior `if`, its go step's shell
@@ -251,7 +251,7 @@ who() {
       "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",
       "needs.resolve-issue.result": "success", "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
-      "needs.resolve-issue.outputs.lease-comment-id": leaseId,
+      "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue-stale.outputs.stale": "",
     };
     // The skipped later calls output nothing.
     for (const call of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
