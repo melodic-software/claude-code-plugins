@@ -4019,7 +4019,7 @@ jobs:
       # gh-read.sh, so each step that sources that file reads through it.
       # Its read floor and limit cap are github-token's read-floor and
       # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
-      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
+      # (log-api-budget.test.mjs checks), as the shell wrapper reads no file.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -4895,6 +4895,7 @@ jobs:
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
