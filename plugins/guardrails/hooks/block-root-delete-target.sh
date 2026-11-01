@@ -6629,7 +6629,7 @@ rdt_ps_lit_kept=1
 # shellcheck disable=SC2329  # invoked through hook::_c_locale
 rdt_ps_quote_gap() {
   [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]] ||
-    [[ ( "$COMMAND" == *'$('* || "$COMMAND" == *'${'* ) && "$COMMAND" == *'"'* ]]
+    [[ ( "$COMMAND" == *\$\(* || "$COMMAND" == *\$\{* ) && "$COMMAND" == *'"'* ]]
 }
 hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
