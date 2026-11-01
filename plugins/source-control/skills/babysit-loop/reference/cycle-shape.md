@@ -207,15 +207,16 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      re-pinning (babysit-prs Autopilot step 3's lane-pin exception, `babysit-prs/reference/safety.md`). The
      lane then re-partitions the post-push head, provenance, C4-diff, rung, and only a
      still-eligible PR gets a fresh merge-capable invocation pinned to the new head.
-4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
-   its single-PR scope form (`owner/repo#N`), the lane's own step-2 snapshot is the discovery
+4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [--unattended]
+   [scope]` grammar in its single-PR scope form (`owner/repo#N`), always with `--unattended`
+   since nobody is present to answer an ask, the lane's own step-2 snapshot is the discovery
    surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
    to the mechanic at all. Three enforcement rules bind each per-PR invocation:
    - **Report-only PRs get zero invocations.** A PR marked report-only in step 2 (grace window,
      WIP-signal draft) appears in the cycle report and nowhere else, no tier, not even `safe`,
      is invoked against it, because `safe` still makes and pushes clear branch-owned fixes.
    - **Rung binds the tier.** Merge-eligible PRs (step 3) are invoked at the resolved
-     merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
+     merge-capable tier, one `/source-control:babysit-prs <tier> --unattended <owner/repo>#<N>` per PR, the
      invocation brief carrying the partitioned head SHA as the merge gate's required
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
      authorization"), and the brief tells it to merge only through the gate's `--unattended

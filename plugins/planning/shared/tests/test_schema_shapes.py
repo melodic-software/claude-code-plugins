@@ -80,6 +80,7 @@ class TestValidSamples(unittest.TestCase):
                 "upload-removed",
                 "report-filed",
                 "person-joined",
+                "fault-spike",
             },
         )
 

@@ -1,0 +1,130 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f \"/ws/docs/conventions/attribution.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "existence test"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the team layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/lib/check-retirements.sh\" --manifest \"/opt/p/retirements.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "retirement detection"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/p/skills/audit/scripts/check-stamps.sh\" --show-config 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp docs/conventions/attribution.yaml /tmp/run/before.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies the layer out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'judge_samples: 5\\n' >> docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "appends to the team layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '/^stamp/a judge_samples: 5' docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i on the team layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/new.yaml | tee docs/conventions/attribution.local.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee into the overlay"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/run/new.yaml /ws/docs/conventions/attribution.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies over the team layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.stamp_expiry_days=90' x.json > ~/.claude/attribution.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "writes the user-global layer"
+    }
+  ]
+}

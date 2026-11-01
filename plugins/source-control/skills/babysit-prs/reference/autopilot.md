@@ -49,4 +49,4 @@ Autopilot keeps every cross-tier invariant in `SKILL.md`, including dependency h
 widens *author* scope (all authors under the watched owners) and *thread* scope
 (`--include-human`); it does **not** widen the owner allowlist, and it does not gain force-push,
 `--admin`, or settings powers. Those still escalate. Run it looped:
-`/loop 15m /source-control:babysit-prs autopilot`.
+`/loop 15m /source-control:babysit-prs autopilot --unattended`.
