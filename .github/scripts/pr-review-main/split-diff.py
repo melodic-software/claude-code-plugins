@@ -1,8 +1,9 @@
 """Split the main-run review's patch into chunks one review reads whole.
 
-usage: split-diff.py <patch> <out-dir> <max-bytes> <max-chunks> <manifest> <manifest-bytes>
+usage: split-diff.py <patch> <out-dir> <max-bytes> <max-chunks> <manifest> <manifest-bytes> [<max-files>]
 
-Writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes, the
+Writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes and, with
+max-files, at most that many files, the
 patch's bytes in order and nothing else. A chunk ends at a file boundary (a
 `diff --git` line), and a file is never split: a file over max-bytes, or a
 patch that needs more than max-chunks chunks, is too large: nothing is
@@ -44,7 +45,9 @@ def files_of(data: bytes) -> list[list[bytes]]:
     return files
 
 
-def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
+def split(
+    data: bytes, max_bytes: int, max_chunks: int, max_files: int = 0
+) -> list[bytes]:
     files = files_of(data)
     over = [
         entry(lines).decode(errors="replace")
@@ -56,10 +59,17 @@ def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
             f"a file is larger than one chunk of {max_bytes} bytes: {', '.join(over)}"
         )
     chunks: list[bytes] = []
+    count = 0
     for unit in (b"".join(lines) for lines in files):
-        if not chunks or len(chunks[-1]) + len(unit) > max_bytes:
+        if (
+            not chunks
+            or len(chunks[-1]) + len(unit) > max_bytes
+            or (max_files and count >= max_files)
+        ):
             chunks.append(b"")
+            count = 0
         chunks[-1] += unit
+        count += 1
     if len(chunks) > max_chunks:
         raise TooLarge(f"the diff needs {len(chunks)} chunks, more than {max_chunks}")
     return chunks
@@ -110,8 +120,11 @@ def manifest(chunks: list[bytes], max_bytes: int) -> bytes:
 
 if __name__ == "__main__":
     patch, out, max_bytes, max_chunks, manifest_file, manifest_bytes = sys.argv[1:7]
+    max_files = int(sys.argv[7]) if len(sys.argv) > 7 else 0
     try:
-        chunks = split(Path(patch).read_bytes(), int(max_bytes), int(max_chunks))
+        chunks = split(
+            Path(patch).read_bytes(), int(max_bytes), int(max_chunks), max_files
+        )
     except TooLarge as error:
         print(f"split-diff: {error}", file=sys.stderr)
         sys.exit(TOO_LARGE)

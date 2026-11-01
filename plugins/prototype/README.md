@@ -8,7 +8,7 @@ It ships **three skills**, one per kind of question:
 
 | Skill | Invoke | Answers |
 |---|---|---|
-| `pressure-test` | `/prototype:pressure-test <scope>` | "Does this state machine / data model / API surface hold up?" A portable logic module you can lift into production, driven by hand from a disposable shell: a terminal app by default, or a self-contained HTML demo that someone outside engineering operates by clicking buttons. |
+| `pressure-test` | `/prototype:pressure-test [observe] <scope>` | "Does this state machine / data model / API surface hold up?" A portable logic module you can lift into production, driven by hand from a disposable shell: a terminal app by default, or a self-contained HTML demo that someone outside engineering operates by clicking buttons. With `observe`, the agent runs each variant of a fork a run can settle, records behavior, output and unqualified timing per variant, and recommends one; product and preference calls stay with you. |
 | `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?" A few structurally different layouts (three by default), toggled from a floating switcher, as a self-contained HTML mockup by default or on the real stack behind one route on request. For the mockup it also tells you that you can run `/design`, the bundled `design` skill's editable canvas, yourself. |
 | `build-generator` | `/prototype:build-generator <the thing you're stuck on>` | "Prompting keeps landing close but not quite." A throwaway generating tool with live controls bound to the taste values, or a replica of the process behind a reference; you tune it, its saved output goes into the project, and the tool is deleted. You invoke it; the model never does. |
 
@@ -39,8 +39,9 @@ which fits, a backend/logic question routes to `pressure-test` and a page/compon
 
 ## Configuration
 
-This plugin has no `userConfig`. Its only inputs are conversational, the scope you pass and the
-variant count you ask for (UI defaults to 3, capped at 5). It reads your project's own stack and
+This plugin has no `userConfig`. Its only inputs are conversational: the scope you pass, the
+`observe` option for `pressure-test`, and the variant count you ask for (UI defaults to 3, capped
+at 5). It reads your project's own stack and
 conventions rather than imposing its own. It writes throwaway code next to where your production
 code lives, except its HTML pages (the default UI mockup and the HTML logic demo), which go in a
 temp directory outside the repository. `build-generator` saves its configuration as a JSON file
