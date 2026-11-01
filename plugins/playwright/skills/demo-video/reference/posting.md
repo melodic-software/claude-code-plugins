@@ -6,7 +6,12 @@ created for it. The evidence step needs an identity of its own, described in its
 secrets, personal data and internal hosts in the frames. Record against fixture or test accounts so
 the video carries none to begin with.
 
-## Verification evidence: call the evidence step
+## Verification evidence in a local session: call the evidence step
+
+This section is for a local session. In CI, do not call the evidence step: it posts with
+`gh pr comment --attach`, which needs a user login a workflow does not have, and without
+`--attach` it still attaches every video its `publishable` list names. Post a demo rendered in CI,
+verification evidence or not, through the CI section below.
 
 When the video is evidence for a verification run and `/source-control:pull-request evidence` is
 among the available skills, post through it. The video is evidence when an `e2e-summary.json` or
@@ -18,12 +23,10 @@ absolute path the run listed. The step attaches a video only when its frame-text
 /source-control:pull-request evidence <pr> --evidence <evidence file> --attach <listed video path>
 ```
 
-In CI, upload the non-zipped artifact first (below) and add
-`--artifact-url <artifact url> [--retention-days <n>]`, so the comment links it with its expiry.
-
 That step owns the verdict gate, the leak scan, the one-comment rule and the `gh` attach checks,
-and its report says whether the video was attached or left out. That call is the video's only
-post: when it refuses or leaves the video out, report its reason and post the video no other way.
+and its report says whether the video was attached or left out. On this local route, that call is
+the video's only post: when it refuses or leaves the video out, report its reason and post the
+video no other way. This does not apply to the CI section's link comment.
 
 This route needs an identity that posts only evidence. The step edits the last comment of the
 account `gh` runs as, so its one-comment check refuses when that account has any other comment on
@@ -34,7 +37,7 @@ but the evidence comment, run through its own `GH_TOKEN`. Do not create that acc
 yourself.
 
 When the step does not resolve, or the demo is one a person asked for outside verification, use
-the sections below.
+the local session section below.
 
 ## Local session: attach inline with `gh`
 
@@ -64,7 +67,8 @@ mise exec gh@2.102.0 -- gh pr comment <pr> --body "Demo: <what it shows>" --atta
 
 A workflow has no user login to attach with. Upload the MP4 as a single-file, non-archived
 artifact so the link opens the video rather than a zip, then comment the artifact link on the PR
-with the workflow's token.
+with the workflow's token. This is the route for every demo rendered in CI, verification evidence
+included.
 
 - **Pointer:** [actions/upload-artifact README](https://github.com/actions/upload-artifact#readme),
   the `archive` input (single file, no zip) and the `artifact-url` output.
