@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "### Property tests\n- [ ] `parse_duration` round trip: formatting then parsing any seconds value returns the same value (model: the spec's unit table)"
+    },
+    {
+      "answer": "src/duration.py: unit examples plus property tests (any h/m/s combination sums correctly)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Unit tests\n- [ ] parse_duration handles '1h30m'\n- [ ] parse_duration rejects ''",
+      "why": "examples only"
+    },
+    {
+      "answer": "Use property tests for the endpoint.",
+      "why": "property tests not tied to the parser"
+    },
+    {
+      "answer": "### Property tests\n- none needed\n\n### Unit tests\n- [ ] parse_duration('1h30m') == 5400",
+      "why": "property heading lists nothing for the parser"
+    }
+  ]
+}

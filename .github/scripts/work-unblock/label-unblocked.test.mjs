@@ -2,7 +2,8 @@
 // closes, each issue it blocked gets `agent-ready` only when every blocker is
 // closed as completed, it is open, and it carries no hold label; the label
 // alone admits it to resolve-issue. Every fact is
-// read from the API when the run starts, never from the event payload. The kill switch and
+// read from the API when the run starts, never from the event payload, but the
+// closed issue's labels, which mark a sweep kick. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -28,6 +29,7 @@ import {
   refsMergedComment,
   infraComment,
   skipText,
+  SWEEP_LABEL,
 } from "./label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -4468,9 +4470,9 @@ test("the ACTIONS_TOKEN clients' readings land under github-token, the App clien
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
     await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
-    const line = "200 5000 4999 1 1792378942 core\n";
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
-    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+    const line = (route) => `200 5000 4999 1 1792378942 core ${route}\n`;
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line("other") + line("other"));
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line("other"));
   } finally {
     for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
       if (value === undefined) delete process.env[key];
@@ -4804,4 +4806,98 @@ test("the sweep rewrites the split-pending comment of an open-sub-issue parent w
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writes(calls), [refreshed("sub-issue #41 is open")]);
   assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/37/`)));
+});
+
+// The sweep kick: a listed human closing the marker issue (labeled
+// SWEEP_LABEL, read from the payload) runs the scheduled sweep at once, after
+// the same closer check as any close. A second kick is one more sweep.
+const MARKER = 50;
+const KICK_AT = "2026-10-16T11:59:00Z";
+const SWEEP_LISTING = `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`;
+const markerEvent = (labels = [SWEEP_LABEL], extra = {}) => ({ issue: issue(MARKER, { state: "closed", labels, at: KICK_AT }), ...extra });
+// This run's record for the closer check; any other read goes to `fallback`,
+// or answers no earlier scheduled sweep.
+function kickActions(fallback) {
+  const own = ownRun();
+  return async (method, path, ...rest) =>
+    path === `/repos/${REPO}/actions/runs/${RUN_ID}` ? own(method, path) : fallback ? fallback(method, path, ...rest) : { workflow_runs: [], jobs: [] };
+}
+const kick = ({ event = markerEvent(), env = {}, ...args }) => main({ now: NOW, env: envFor(event, env), actions: kickActions(), ...args });
+
+test("a listed human closing the marker issue runs the sweep, with a sweep-kick notice", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, calls } = world({
+    // The marker's own close is in the swept window too.
+    closedList: [closedAt(10, "2026-10-16T11:30:00Z"), issue(MARKER, { state: "closed", labels: [SWEEP_LABEL], at: KICK_AT })],
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note()] },
+  });
+  assert.equal(await kick({ github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+  assert.ok(calls.includes(SWEEP_LISTING));
+  // The marker blocks nothing: no write touches it.
+  assert.deepEqual(writes(calls).filter((call) => new RegExp(`/issues/${MARKER}(/|$| )`).test(call)), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} closed=2026-10-16T11:59:00.000Z started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
+});
+
+test("a sweep-kick notice leaves out a close time that does not parse", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github } = sweptDependent();
+  const event = { issue: { ...issue(MARKER, { state: "closed", labels: [SWEEP_LABEL] }), closed_at: "not a time" } };
+  assert.equal(await kick({ github, event }), 0);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
+});
+
+test("a close of an issue without the marker label keeps the close path and lists no closed issues", async () => {
+  const { github, calls } = oneDependent();
+  assert.equal(await main({ now: NOW, env: envFor({ issue: issue(10, { state: "closed", labels: ["bug"] }) }), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+  assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed`)));
+});
+
+test("a marker close by a bot sender, or by a closer or re-runner who is not a listed human, reads nothing", async () => {
+  for (const [name, args] of [
+    ["bot sender", { event: markerEvent([SWEEP_LABEL], { sender: LANES_BOT }) }],
+    ["unlisted closer", { env: { ACTOR_ID: "1234" } }],
+    ["unlisted re-runner", { actions: ownRun({ id: 1234, login: "someone-else" }) }],
+  ]) {
+    const { github, calls } = sweptDependent();
+    assert.equal(await kick({ github, ...args }), 0, name);
+    assert.deepEqual(calls, [], name);
+  }
+});
+
+test("two back-to-back marker closes each sweep, and the issue the kill switch stopped at broker-check is re-fired once", async () => {
+  const kickOn = (fake) =>
+    kick({
+      github: fake.github,
+      actions: kickActions(fake.github),
+      jobLog: (repo, id, options) => fake.github("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options),
+    });
+  // The first kick re-fires the stopped issue: its breaker record, then the
+  // App's remove and re-add.
+  const first = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await kickOn(first), 0);
+  tripped(first.calls);
+  const posted = writes(first.calls)[0];
+  const record = JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+  // The second kick, queued behind it, sees what the first left: the record
+  // and the re-add, with no lane run since. It sweeps and writes nothing.
+  const second = stalledRun({
+    jobs: BROKER_REFUSED,
+    logs: CHECK_KILLED,
+    comments: [note(), { id: 71, body: record, user: LANES_BOT, created_at: "2026-10-16T11:59:30Z" }],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:59:30Z" },
+      added("2026-10-16T11:59:31Z"),
+    ],
+  });
+  assert.equal(await kickOn(second), 0);
+  assert.ok(second.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=open&labels=agent-ready`)));
+  assert.deepEqual(writes(second.calls), []);
 });

@@ -590,9 +590,9 @@ run_wrapped() { # <label> <want-rc> <needle> <status> <gh-rc> <want-reading>
   fi
 }
 run_wrapped "--check-required exempts verified Dependabot commits through the gh wrapper and records its reading" 0 \
-  "Dependabot-only change to plugins/alpha/" '200 OK' 0 "200 5000 4990 10 1900000000 core"
+  "Dependabot-only change to plugins/alpha/" '200 OK' 0 "200 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
 run_wrapped "--check-required does not exempt when the wrapped signature lookup fails" 1 \
-  "MISSING FRAGMENT" '404 Not Found' 1 "404 5000 4990 10 1900000000 core"
+  "MISSING FRAGMENT" '404 Not Found' 1 "404 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
 rm -rf "$f"
 
 base_fixture f alpha
