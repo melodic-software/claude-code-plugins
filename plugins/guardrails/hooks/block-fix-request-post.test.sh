@@ -289,10 +289,12 @@ team_repo() {
 ALLOW=$(team_repo allow 'fix_request_post: allow' 1)
 verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$ALLOW")"
 assert_eq "quiet: allow mode, phrase posted (direct, dispatched)" "0 0" "$RCS"
+verdict "$(payload Bash "gh pr comment 5 -R other/repo --body \"$P\"" "$ALLOW")"
+assert_eq "quiet: allow mode is keyed to the session's repository, not the target (direct, dispatched)" "0 0" "$RCS"
 verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$ALLOW/sub")"
 assert_eq "quiet: allow mode, cwd below the repository root (direct, dispatched)" "0 0" "$RCS"
 mcp "MCP add_issue_comment, allow mode" mcp__github__add_issue_comment "{\"body\":\"$P\"}" 0 "$ALLOW"
-N_QUIET=$((N_QUIET + 2))
+N_QUIET=$((N_QUIET + 3))
 
 deny_in() { # deny_in <label> <repo> [reason text]
   verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$2")"
