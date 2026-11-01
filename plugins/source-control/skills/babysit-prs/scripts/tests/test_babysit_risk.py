@@ -2120,6 +2120,40 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             )
         )
 
+    def test_a_quoted_secrets_inherit_is_gated_and_held(self):
+        # YAML reads a quoted key or value as the same string as the bare one.
+        text = "name: x\non: push\njobs:\n  a:\n    uses: o/r/.github/workflows/y.yml@abc\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "    secrets: inherit\n",
+            '    secrets: "inherit"\n',
+            "    secrets: 'inherit'\n",
+            "    'secrets': inherit\n",
+            '    "secrets": "inherit"\n',
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                patch = "@@ -1,1 +1,2 @@\n context\n+" + added.rstrip("\n")
+                wf = _file(".github/workflows/x.yml", patch=patch)
+                result = score(_input(files=(wf,), high_floor=False, public=True))
+                self.assertIn(babysit_risk.SECRET_EXPOSURE_CODE, _codes(result))
+
+    def test_a_quoted_id_token_key_is_gated(self):
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        for added in (
+            '    permissions:\n      "id-token": write\n',
+            "    permissions:\n      'id-token': write\n",
+            "    permissions:\n      'id-token': 'write'\n",
+            '    permissions: {"id-token": write}\n',
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        self.assertFalse(
+            babysit_risk.gated_workflow(
+                "x", text + "    permissions:\n      'id-token': read\n"
+            )
+        )
+
     def test_a_hash_inside_quotes_or_a_block_scalar_hides_no_secret(self):
         text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n"
         for added in (
