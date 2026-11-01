@@ -728,6 +728,10 @@ The reasons behind each binding:
   included, therefore names `opus` while the Fable rung waits on an owner decision and a per-week Fable
   allowance, as the CI lane profiles' ladder paragraph under "Models" in
   `docs/conventions/pr-pipeline/README.md` records, and `fable` once both are set. The lane prompts follow this note.
+  One exception: the explicit-`autopilot` pre-escalation resolver (babysit-loop's
+  `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
+  tier's alias and adds no capability over the review-work model that reference rules out; while
+  the Fable rung is off, that run escalates instead of dispatching.
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
