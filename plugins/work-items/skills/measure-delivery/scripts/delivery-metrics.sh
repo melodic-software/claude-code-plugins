@@ -3,8 +3,9 @@
 # default branch, as a team trend, read from git history alone.
 #
 # Deploy signal merge-to-default-branch: each commit on the branch's
-# first-parent history (a merge commit, or a squash or rebase landing) is one
-# deployment, at its committer date. A deployment that a later first-parent
+# first-parent history is one deployment, at its committer date: a merge commit
+# or a squash landing is one, and a rebase landing is one per commit it lands.
+# A deployment that a later first-parent
 # commit reverts is a failed deployment. A commit reverts a deployment when its
 # message carries `This reverts commit <sha>` for the deployment or for a
 # commit the deployment merged, or, with no such line, when its subject is

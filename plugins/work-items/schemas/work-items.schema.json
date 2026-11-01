@@ -36,7 +36,7 @@
       "type": "string",
       "enum": ["merge-to-default-branch"],
       "default": "merge-to-default-branch",
-      "description": "What /work-items:measure-delivery counts as one deployment. merge-to-default-branch: each commit on the default branch's first-parent history (a merge commit, or a squash or rebase landing) is one deployment, and one a later commit reverts is a failed deployment. Absent: merge-to-default-branch."
+      "description": "What /work-items:measure-delivery counts as one deployment. merge-to-default-branch: each commit on the default branch's first-parent history is one deployment (a merge commit or a squash landing is one; a rebase landing is one per commit it lands), and one a later commit reverts is a failed deployment. Absent: merge-to-default-branch."
     }
   }
 }

@@ -154,6 +154,30 @@ OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-02 --until 2026-03-08
 expect "empty window: nothing to measure is null" \
   '[.totals.deployments, .totals.change_lead_time_hours_median, .totals.change_fail_rate]' '[0,null,null]'
 
+# The schema's delivery_deploy_signal must match the script: its default is
+# merge-to-default-branch and the script's own default, and the script accepts
+# every value the schema lists.
+SCHEMA="$(dirname "$S")/../../../schemas/work-items.schema.json"
+SCHEMA_DEFAULT="$(jq -r '.properties.delivery_deploy_signal.default // empty' "$SCHEMA" 2>/dev/null)"
+if [[ "$SCHEMA_DEFAULT" == merge-to-default-branch ]]; then
+  pass "schema: delivery_deploy_signal default"
+else
+  fail "schema: delivery_deploy_signal default is '$SCHEMA_DEFAULT', expected merge-to-default-branch"
+fi
+OUT="$(run </dev/null)" || OUT='{}'
+expect "schema default is the script's default" '.deploy_signal' "\"$SCHEMA_DEFAULT\""
+SIGNALS=0
+while IFS= read -r signal; do
+  SIGNALS=$((SIGNALS + 1))
+  if OUT="$(run --deploy-signal "$signal" </dev/null)" &&
+    [[ "$(jq -r '.deploy_signal' <<<"$OUT")" == "$signal" ]]; then
+    pass "schema value accepted by the script: $signal"
+  else
+    fail "schema value not accepted by the script: $signal"
+  fi
+done < <(jq -r '.properties.delivery_deploy_signal.enum[]?' "$SCHEMA" 2>/dev/null)
+((SIGNALS > 0)) || fail "schema: delivery_deploy_signal lists no value"
+
 usage_error() { # <name> <args...>
   local name="$1"
   shift

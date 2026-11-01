@@ -20,9 +20,12 @@ Arguments: `$ARGUMENTS`, the window and period flags below, passed through to th
 ## Purpose
 
 Show how the team delivers over time: one row per period and a window total, for the five
-metrics DORA defines (<https://dora.dev/guides/dora-metrics/>, read 2026-11-01). DORA applies
-them to one application or service and to a team improving against its own past, not against
-other teams; this skill reports them the same way. It reads history and writes nothing.
+delivery metrics DORA defines. This skill reports one repository's trend against its own past,
+never a comparison between teams. It reads history and writes nothing.
+
+- **Pointer**: when a metric's definition is in question, fetch
+  <https://dora.dev/guides/dora-metrics/> live. **As of**: 2026-11-01. **Recheck trigger**: DORA
+  renames, adds or removes a delivery metric.
 
 ## Metrics
 
@@ -41,7 +44,8 @@ What counts as a deployment is the team setting `delivery_deploy_signal` in the 
 Its one value, and the default, is `merge-to-default-branch`:
 
 - Each commit on the default branch's first-parent history is one deployment, at its committer
-  date: a merge commit, or a squash or rebase landing.
+  date. A merge commit or a squash landing is one deployment; a rebase landing puts each of its
+  commits on that history, so each one counts as its own deployment.
 - A deployment a later first-parent commit reverts is a failed deployment. A commit reverts a
   deployment when its message has `This reverts commit <sha>` naming the deployment or a commit
   it merged, or, with no such line, when its subject is `Revert "<subject>"` for an earlier
@@ -88,6 +92,10 @@ The signal reads only git history, so no tracker or forge call is made and any h
 Done when the table and the trend lines are shown, with the window, branch and deploy signal
 they cover.
 
+## Next
+
+`/work-items:track stats` for the open backlog behind the trend.
+
 ## Gotchas
 
 - **Never name a person.** The script emits counts, medians and ratios only. Do not add
@@ -96,11 +104,10 @@ they cover.
 - **Squash and rebase landings can shorten lead time.** Lead time starts at the earliest author
   date git keeps for the change. A landing that rewrites author dates moves that start later,
   so the lead time reads short; a merge commit keeps every commit's author date.
+- **A rebase landing counts each of its commits as a deployment.** A team that rebase-merges
+  sees deployment frequency raised by its changes' commit counts, and a reverted change marks
+  only the commits its revert names as failed, so the change fail rate reads low.
 - **A revert under another subject goes uncounted.** A hand-written undo with neither the
   `This reverts commit` line nor the `Revert "<subject>"` subject is invisible to the signal.
 - **Per-item stage times are out of scope.** Time an item spent in each tracker stage is a
   separate report, not one of these five metrics.
-
-## Next
-
-`/work-items:track stats` for the open backlog behind the trend.
