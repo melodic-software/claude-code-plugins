@@ -128,6 +128,7 @@ jobs:
       pull-requests: read # check-trusted-trigger reads the pull request
       actions: read # check-trusted-trigger reads this run's re-runner
     env:
+      API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
@@ -703,3 +704,11 @@ jobs:
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
           retention-days: 3
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

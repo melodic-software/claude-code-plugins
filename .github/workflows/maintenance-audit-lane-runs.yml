@@ -152,6 +152,10 @@ jobs:
       max-parallel: 4
       matrix:
         unit: ${{ fromJson(needs.collect.outputs.units) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -422,6 +426,14 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The units the key leg handed on, as judge-subscription's matrix. It holds
   # no secret and reads only the markers' names and closed-set values.
   judge-handoffs:
@@ -491,6 +503,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -769,6 +785,14 @@ jobs:
           echo "::error::the judgment left no findings for this unit"
           exit 1
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # The units the subscription leg handed on, as judge-fallback's matrix.
   judge-subscription-handoffs:
     needs: judge-subscription
@@ -836,6 +860,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-subscription-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1057,6 +1085,14 @@ jobs:
         run: |
           echo "::error::the judgment left no findings for this unit"
           exit 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   file:
     needs: [collect, judge, judge-subscription, judge-fallback]

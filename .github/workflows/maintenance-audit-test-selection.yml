@@ -164,6 +164,10 @@ jobs:
     permissions:
       contents: read
       actions: read
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -182,3 +186,11 @@ jobs:
           name: selection-red-replay-${{ github.event.workflow_run.id }}
           path: ${{ runner.temp }}/red-replay/report.md
           retention-days: 7
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget
+        with:
+          tokens: github-token
