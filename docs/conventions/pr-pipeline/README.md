@@ -81,7 +81,9 @@ into `intake`.
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
-trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
+`status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
+a decision, whether admission parked it there or a person confirmed it, or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or

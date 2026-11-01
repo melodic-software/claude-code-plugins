@@ -710,6 +710,7 @@ jobs:
     if: ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    cache-mode: read
     concurrency:
       group: intake-refine-issue-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
@@ -1038,6 +1039,7 @@ jobs:
       && (needs.refine-issue.outputs.handoff == 'true' || needs.refine-issue.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    cache-mode: read
     concurrency:
       group: intake-refine-issue-subscription-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
