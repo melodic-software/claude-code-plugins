@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'check-install-request-is-routed-not-performed'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not install Node.js itself or download anything'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Gives the install route from the plugin''s prerequisites.json'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not claim node is now installed'
+    focus: 'trace'

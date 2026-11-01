@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The upstream playground plugin is not installed here: no `playground` skill is in this session's listing.\n\nInstall it, then ask again:\n\n```shell\n/plugin marketplace add anthropics/claude-plugins-official\n/plugin install playground@claude-plugins-official\n```\n\nUse user scope to have it everywhere, or project scope to pin it to this repository.",
+      "why": "shell block"
+    },
+    {
+      "answer": "**Not installed.** The `playground` skill from `claude-plugins-official` is absent.\n\n- Run `claude plugin install --scope user playground@claude-plugins-official` (user scope: every project)\n- or `--scope project` to pin it to this repo (project scope)\n\nThis wrapper does not build playgrounds itself.",
+      "why": "bold, scope flag"
+    },
+    {
+      "answer": "## Playground plugin missing\n\n1. `/plugin install playground@claude-plugins-official`\n2. If it says the marketplace is unknown, add `anthropics/claude-plugins-official` first.\n\nScope: user scope makes it available everywhere; project scope keeps it to this repository.",
+      "why": "heading, numbered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Install the playground plugin from Anthropic, then retry.",
+      "why": "no command"
+    },
+    {
+      "answer": "Run `/plugin install playgrounds@claude-plugins-official`.",
+      "why": "this plugin, not upstream"
+    },
+    {
+      "answer": "Here's a quick explorer:\n\n```html\n<!DOCTYPE html>\n<html><body><input type=\"range\" id=\"backoff\"></body></html>\n```",
+      "why": "hand-built"
+    }
+  ]
+}

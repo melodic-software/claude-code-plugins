@@ -4,6 +4,13 @@ Notable changes to the enforcement ladder (SemVer). Renaming, removing or moving
 bump. Adding a rung, a reader's selection rule or a boundary-rule location is a minor bump.
 Wording-only clarification is a patch.
 
+## [2.1.0] - 2026-11-01
+
+- Added: the `/corrections:codify` reader row, the strongest rung that can decide a recurring
+  mistake given as a description, a findings file or review comments.
+- Removed: the `/review:audit-enforceability` and `/session-flow:retro` codify reader rows, and the
+  "cheapest" order only the first of them used.
+
 ## [2.0.0] - 2026-10-21
 
 The ladder becomes four tiers (codebase, static analysis, guidance, human only), strongest first,

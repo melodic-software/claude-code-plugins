@@ -40,7 +40,7 @@ existing architecture test, or the `## Boundary rules` section of your
 architecture topic doc) against the project references
 `/architecture:map-dependencies` reads from your build manifests. It lists each
 reference that crosses a recorded rule, and each rule you confirm goes to a
-findings file that `/review:audit-enforceability` turns into an architecture-test
+findings file that `/corrections:codify findings` turns into an architecture-test
 proposal. With no rule recorded, it shows the references and asks which
 directions are forbidden; it never infers a rule from folder names.
 

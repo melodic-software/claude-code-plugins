@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Refused: `linting` is not a lane id this pass accepts."
+    },
+    {
+      "answer": "Unknown lane id: linting. Accepted ids: instructions:<class>, conflicts, permission-state, permission-grants, config, memory, retirements, postures."
+    },
+    {
+      "answer": "`--lanes` names `linting`, which is not a known lane, so the run stops."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Ran the config lane; linting was skipped.",
+      "why": "silently narrowed"
+    },
+    {
+      "answer": "Running lanes config and linting now.",
+      "why": "accepted the id"
+    }
+  ]
+}

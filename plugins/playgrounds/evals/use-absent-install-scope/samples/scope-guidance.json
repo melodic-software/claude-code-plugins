@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The upstream playground plugin is not installed here: no `playground` skill is in this session's listing.\n\nInstall it, then ask again:\n\n```shell\n/plugin marketplace add anthropics/claude-plugins-official\n/plugin install playground@claude-plugins-official\n```\n\nUse user scope to have it everywhere, or project scope to pin it to this repository.",
+      "why": "prose"
+    },
+    {
+      "answer": "**Not installed.** The `playground` skill from `claude-plugins-official` is absent.\n\n- Run `claude plugin install --scope user playground@claude-plugins-official` (user scope: every project)\n- or `--scope project` to pin it to this repo (project scope)\n\nThis wrapper does not build playgrounds itself.",
+      "why": "flags and labels"
+    },
+    {
+      "answer": "## Playground plugin missing\n\n1. `/plugin install playground@claude-plugins-official`\n2. If it says the marketplace is unknown, add `anthropics/claude-plugins-official` first.\n\nScope: user scope makes it available everywhere; project scope keeps it to this repository.",
+      "why": "heading"
+    },
+    {
+      "answer": "- Scope: user, for every project\n- Scope: project, for this repo only",
+      "why": "list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Install it at user scope so it is available everywhere.",
+      "why": "user only"
+    },
+    {
+      "answer": "Install it for this project.",
+      "why": "no scope word"
+    }
+  ]
+}

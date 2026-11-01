@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "visualization:visualize"
+          }
+        }
+      ],
+      "why": "other skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playgrounds:use",
+            "args": "caching comparison"
+          }
+        }
+      ],
+      "why": "routes here"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playground:playground"
+          }
+        }
+      ],
+      "why": "upstream"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playground"
+          }
+        }
+      ],
+      "why": "bare upstream"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "use"
+          }
+        }
+      ],
+      "why": "bare use, as the routing case accepts"
+    }
+  ]
+}

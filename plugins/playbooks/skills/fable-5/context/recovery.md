@@ -55,7 +55,7 @@ TRIGGER: any tool call fails. Classify before responding. The three classes have
 
 When ambiguous, default to deterministic and read the error carefully: misclassifying a deterministic failure as transient is the common mistake, and one careful read costs less than one blind retry.
 
-A permission denial (a classifier, hook or permission rule refusing the call) belongs to none of the three classes and is never routed around: follow the trust-and-authority chapter, section "A denied action is a boundary, not an obstacle".
+A permission denial (a classifier, hook or permission rule refusing the call) belongs to none of the three classes and is never routed around: follow the trust-and-authority chapter, section "A denied action is a boundary, not an obstacle". A safety-classifier refusal of a request, or the automatic model switch that follows one, is a fourth thing again: the switch is governed by meta-rule 3 in the skill body, and a benign request that keeps tripping the classifier is rephrased, not retried. Pointer: for the phrasings and inputs that raise false positives, see [Reduce safeguard false positives](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#reduce-safeguard-false-positives). As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this rule.
 
 ## Time-box tangents
 

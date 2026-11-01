@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ap-unknown-lane-refused
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-unknown-id
+    type: regex
+    pattern: '\blinting\b[\s\S]{0,200}?\b(?:unknown|unrecogni[sz]ed|invalid|not (?:a |an )?(?:valid |known |recogni[sz]ed )?(?:lane|id)|refus\w*|no such)\b|\b(?:unknown|unrecogni[sz]ed|invalid|refus\w*|no such)\b[\s\S]{0,200}?\blinting\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: lists-accepted-ids
+    type: regex
+    pattern: '\bpermission-state\b[\s\S]{0,600}?\bconflicts\b|\bconflicts\b[\s\S]{0,600}?\bpermission-state\b'
+    target: 'last_message'
+  - name: no-lane-dispatched
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill":"(?:harness-config:)?audit(?:-instructions|-permission-state|-permission-grants)?"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-lease
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\blease\s+acquire\b'
+    min: 0
+    max: 0
+    arm: 'both'

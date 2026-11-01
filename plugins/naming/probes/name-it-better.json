@@ -1,0 +1,135 @@
+{
+  "skill": "naming:name-it-better",
+  "plugin": "naming",
+  "skill_dir": "plugins/naming/skills/name-it-better",
+  "ranking_note": "Authored from the description at base commit b3b38650f8, frozen before the concise rewrite; protocol per /playbooks:skill-authoring ## Measurement. The plugin has one skill, so every competitor is in another plugin. Positives cover a fresh name for each listed modality (function, CLI command, file, repo, domain term, skill), a retry after a rejected name or shortlist, and one high-stakes public name (the tournament argument). Near-misses sit beside the rename-references sweep (a decided rename, stragglers after a git mv), the docs-naming file-name skills (a casing audit, applying a rename plan, emitting a file-name gate), glossary curation in domain-driven-design, a style-guide lookup the skill routes to the ecosystem's guide, and a regex for branch names. Positives paraphrase the description rather than repeat its quoted phrases.",
+  "competitors": [
+    "docs-hygiene:rename-references",
+    "docs-naming:audit-file-names",
+    "docs-naming:realign-file-names",
+    "docs-naming:generate-file-name-gate",
+    "domain-driven-design:curate-language"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I can't think of a good name for the function that retries a failed webhook delivery with backoff. Give me a few options."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "`processData` tells a reader nothing. It parses the CSV upload and drops duplicate rows. Propose clearer names."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You offered `EventHub` for this module and I don't like it at all. Try again with different ideas."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We need a name for the new CLI subcommand that prints which config layer set each value. Any ideas?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This will be the name of our public SDK and it can never change once it ships. Run a proper contest between candidates and help me choose."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Suggest a name for the state an order is in once it is paid but before the warehouse picks it."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Come up with repository names for the new service that mirrors our GitHub issues into Jira."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "None of those three names work for me, they all sound like managers. Give me another round."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me pick a filename for the doc that explains how releases get cut."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our skill is currently called `check-stuff`, which is vague. What should it be called instead?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename `fetchUser` to `loadUser` across the whole repo and update the imports."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I just did a git mv of docs/Setup.md to docs/setup.md. Find every link that still points at the old path."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Are all the file names under docs/ kebab-case? List the ones that aren't."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does PEP 8 say about naming module-level constants?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Apply the file-name rename plan from yesterday's audit, one file at a time."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our glossary uses customer, client and account for the same thing. Settle the canonical term and record the rejected synonyms."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I've settled on `OrderLedger` as the new class name. Update every reference and the tests to match."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a regex that checks branch names follow feature/<ticket>-<slug>."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find the stale references to the old `review` skill name left over from last week's rename."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a CI check that fails when a new file under docs/ is not lowercase and hyphenated."
+    }
+  ]
+}
