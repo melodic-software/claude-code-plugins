@@ -2,12 +2,13 @@
   "skill": "user-interface:write-css",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/write-css",
-  "ranking_note": "Written from the write-css description at the merge base. Near-misses aim at the other user-interface skills: write-animation builds motion, audit reviews built interface code one concern lane at a time (motion included) without editing it, glossary names an effect, and design owns a component's variant API (neg-train-04 asks which variants a component offers, not their styles).",
+  "ranking_note": "Written from the write-css description at the merge base. Near-misses aim at the other user-interface skills: write-animation builds motion, audit reviews built interface code one concern lane at a time (motion included) without editing it, glossary names an effect, and design owns a component's variant API (neg-train-04 asks which variants a component offers, not their styles). Build-a-component near-misses (neg-*-build-*) go to user-interface:design, which builds markup, states and styles together; setup owns plugin settings.",
   "competitors": [
     "user-interface:write-animation",
     "user-interface:audit",
     "user-interface:glossary",
-    "user-interface:design"
+    "user-interface:design",
+    "user-interface:setup"
   ],
   "queries": [
     {
@@ -53,6 +54,54 @@
       "request": "Restyle the login page so it lays out properly on narrow screens."
     },
     {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The long product names in the cart sidebar overflow the card and push the price off screen. Fix it in cart.module.css with an ellipsis."
+    },
+    {
+      "id": "pos-train-09",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Convert the .gallery flexbox in gallery.scss to CSS grid so the tiles line up in columns instead of ragged rows."
+    },
+    {
+      "id": "pos-train-10",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Swap the inline styles on this card for Tailwind classes:\n<div style=\"padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2)\">"
+    },
+    {
+      "id": "pos-train-11",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The focus ring on our Tabs disappears in Windows high-contrast mode. Fix the :focus-visible styles in tabs.css so it shows with forced colors on."
+    },
+    {
+      "id": "pos-train-12",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you go through src/styles/main.css and point out anything outdated or fragile, like float layouts or magic numbers?"
+    },
+    {
+      "id": "pos-train-13",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The stat widget sits in both the narrow sidebar and the wide main column. Make it stack vertically based on its own width, not the viewport."
+    },
+    {
+      "id": "pos-train-14",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dark mode: the --surface and --text custom properties don't change when prefers-color-scheme is dark. Wire that up in tokens.css."
+    },
+    {
+      "id": "pos-train-15",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The icon and label in our Svelte Chip aren't vertically centered, the icon sits a couple pixels low. Fix it in the <style> block."
+    },
+    {
       "id": "neg-train-01",
       "split": "train",
       "expect_trigger": false,
@@ -83,6 +132,42 @@
       "request": "Make the modal feel smoother when it closes."
     },
     {
+      "id": "neg-train-build-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build a checkout page in React from scratch: shipping address form, order summary and a payment step."
+    },
+    {
+      "id": "neg-train-build-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a notifications panel component in Angular with unread counts, mark-all-as-read, and grouping by day."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "When the accordion opens, have the content slide down smoothly instead of popping in."
+    },
+    {
+      "id": "neg-train-07",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the interface changes in this PR's diff and list the problems by severity. Read-only, no fixes."
+    },
+    {
+      "id": "neg-train-08",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is there a name for the frosted blurry background behind a modal?"
+    },
+    {
+      "id": "neg-train-09",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mock up a few rough alternatives for the onboarding screen layout that I can toggle between before we commit."
+    },
+    {
       "id": "pos-validation-01",
       "split": "validation",
       "expect_trigger": true,
@@ -107,6 +192,24 @@
       "request": "Write the scoped styles for this Vue component's dropdown."
     },
     {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need styles for this card grid so it goes 1 column on narrow screens, up to 4 on wide ones, without media queries if possible. Cards should stay equal height.\n\n<ul class=\"card-grid\">\n  <li class=\"card\">...</li>\n</ul>"
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you clean up the Tailwind classes on this button? It's got conflicting padding and the dark mode hover is wrong: `className=\"px-4 px-6 py-2 bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-300 rounded-md rounded-lg text-white\"`"
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Restyle the styled-components for our Badge so the variants (success, warning, danger) pull from theme.colors instead of hardcoded values, and fix the text getting cut off when the label is long."
+    },
+    {
       "id": "neg-validation-01",
       "split": "validation",
       "expect_trigger": false,
@@ -129,6 +232,24 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Add a bounce when the item lands in the cart."
+    },
+    {
+      "id": "neg-validation-build-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build a checkout summary component in Angular: line items, promo code input with validation, subtotal/tax/total, and an empty-cart state. Template, logic, and styles."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's the name for that effect where the background image moves slower than the foreground as you scroll?"
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look over the diff in this PR for the header and footer components and tell me about any accessibility or layout problems you see. Don't change anything, just report."
     }
   ]
 }

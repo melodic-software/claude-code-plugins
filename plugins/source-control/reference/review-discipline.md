@@ -37,9 +37,11 @@ Compaction loses classification state; comment-count heuristics miss edits, dele
 multi-finding comments. Every pass re-derives comment state from GitHub:
 
 1. **Filter out own prior replies.** Comments authored by your own posting identities
-   (`gh api user --jq .login`, plus any project bot identity: the set the readiness gate's
-   `--self` / `--extra-self` covers) that ARE classification replies (contain the
-   `| # | Finding | Classification |` table pattern) are NOT findings; skip them. Own follow-up
+   (`gh api user --jq .login`, plus any project bot identity, the same set the readiness gate's
+   `--self` / `--extra-self` covers) that ARE classification replies are NOT findings. A reply
+   is one when a line in it opens with the D5 label marker `<!-- d5 finding=` (§2), or, for a
+   reply posted before the marker existed, when it carries the
+   `| # | Finding | Classification |` table pattern. Skip them. Own follow-up
    replies citing commit SHAs are also not findings. Only comments from OTHER authors are
    potential finding sources.
 2. **Classify each remaining comment** as addressed or unaddressed by checking GitHub for
@@ -82,10 +84,36 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 | 2 | <summary> | INCORRECT | <evidence why wrong> | 👎 |
 | 3 | <summary> | VALID (defer) | <structural, urgent, or fix blocked on research: why; item id> | 👍 |
 | 4 | <summary> | INTENTIONAL | <the decision or constraint that makes it deliberate> | 👀 |
+
+<!-- d5 finding=1 label=VALID lane=<lane> -->
+<!-- d5 finding=2 label=INCORRECT lane=<lane> -->
+<!-- d5 finding=3 label=VALID-defer lane=<lane> -->
+<!-- d5 finding=4 label=INTENTIONAL lane=<lane> -->
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post it
 BEFORE the reply, so reviewers scanning a PR see 👍/👎 without expanding threads.
+
+**Label marker, one line per finding, required in every D5 answer.** Below the table, write one
+`<!-- d5 finding=<#> label=<LABEL> lane=<lane> -->` line for each row, with nothing else on the
+line. This holds for every answer, inline or issue-level, including the answer to a reposted
+finding. The marker goes beside the table and never replaces it: the readiness gate (below)
+credits table rows only, so a reply holding prose and markers with no table counts as
+unclassified. Prose such as "same disposition as on `<sha>`" may explain the answer, but the
+table row and the marker still state the label. Field values:
+
+- `finding`: the row's `#`.
+- `label`: the row's classification, written with no spaces: `VALID` for VALID (fix now),
+  `VALID-defer` for VALID (defer), or `INCORRECT`, `UNCERTAIN` or `INTENTIONAL`.
+- `lane`: the review lane that raised the finding, written as the REST API's `user.login` for
+  the finding's comment, `[bot]` suffix included (`claude[bot]`, never `claude`).
+
+The marker replaces the shapes that carry no machine-readable label: a `| Finding | Verdict |`
+table, a line such as "Acknowledged, no change.", or a label stated only in prose. A reader of
+these answers also accepts two other forms that carry a label: a classification table with no
+markers, from a reply posted before the marker existed, and the pr-unblock lane's own fixed
+`**pr-unblock / address-feedback: <LABEL>, <state>**` line, which is that lane's label line in
+place of the marker.
 
 **MANDATORY subagent dispatch for multi-finding comments (≥3 findings):**
 
@@ -247,7 +275,8 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
     the D5 reply cites it. A cited id that does not resolve is the dropped finding this step
     exists to prevent
 - [ ] D5. Reply with the per-finding classification table + evidence (before fixing). Table
-  format per §2, which includes the Reacted column. **Route the reply by comment type, REQUIRED
+  format per §2, which includes the Reacted column and the required `<!-- d5 finding=` label
+  marker line for each finding. **Route the reply by comment type, REQUIRED
   and not interchangeable:** inline review comments (diff-anchored, `pulls/comments`) MUST reply
   THREADED via `gh api repos/{owner}/{repo}/pulls/<pr>/comments/<comment-id>/replies -f
   body='...'` so the reply lands under the source thread, NEVER a detached `pr comment`.
