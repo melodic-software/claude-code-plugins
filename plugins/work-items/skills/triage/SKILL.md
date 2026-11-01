@@ -135,14 +135,19 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    umbrella's membership comment, are claimed the same way, all of them before the outcome's first
    write, since an umbrella fold is one indivisible sequence
    ([`context/apply-outcome.md`](context/apply-outcome.md)). When any of those claims is lost on
-   exit `7`, release the ones held, write none of the sequence, and name the lost item in the report.
-3. **Hand back** each claimed item after its last write, including on a run that stops partway.
-   First clear the session's own assignee through the adapter's assignee edit (GitHub:
-   `--remove-assignee "@me"`; local-markdown: the item's `assignees` field), because `claim`
-   assigned it, `release` never touches assignees, and the frontier lists only unassigned items.
-   Then `"$TRACKER" release "<id>" --lease-comment-id <n>`. Exit `0` with either `released` value
-   is done. Exit `6` (the provider declares `release: false`) leaves the lease to run out its TTL.
-   Exit `7` means the lease is no longer this run's; leave it.
+   exit `7`, hand back the ones held (step 3) with nothing written, write none of the sequence, and
+   name the lost item in the report.
+3. **Hand back** each claimed item after its last write, including on a run that stops partway,
+   and each claimed item an aborted outcome never wrote to. First
+   `"$TRACKER" release "<id>" --lease-comment-id <n>`. Exit `0` with either `released` value: then
+   clear the session's own assignee through the adapter's assignee edit (GitHub:
+   `--remove-assignee "@me"`), because `claim` assigned it, `release` never touches assignees, and
+   the frontier lists only unassigned items. Exit `6` (the provider declares `release: false`, as
+   local-markdown and linear do): leave both the lease and the assignee. Clearing the assignee
+   under a live lease lists the item on the frontier while every `claim` on it fails with exit `7`;
+   instead the lease runs out its TTL, after which local-markdown's `list-items` reports the item
+   unassigned and linear's `reclaim` frees it. Exit `7` means the lease is no longer this run's;
+   leave it and the assignee.
 
 When `.work-item-tracker.json` does not resolve, give the choice
 [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Provider-neutral over the
