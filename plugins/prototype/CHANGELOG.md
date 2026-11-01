@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-01
+
+### Added
+
+- The shared prototype discipline gains an evidence step, run after the durable note is written and before the throwaway code is deleted, and `/prototype:pressure-test` runs it in its capture step. The step runs the repository's own secrets and machine-data check over the prototype files and, only when it passes, commits them to a throwaway branch named by the repository's declared branch-naming convention (never the default branch or a lane-reserved name), pushes it, and writes the branch name and commit SHA into the note. With no such check, a failed check or no declared convention, it pushes nothing and writes the local path and `not pushed: <reason>` into the note. The discipline names this as an exception to the delete-when-done rule. A new eval case, `pt-evidence-no-secrets-check`, covers the no-check path ([#12026](https://github.com/melodic-software/claude-code-plugins/issues/12026)).
+
 ## [0.21.1] - 2026-11-01
 
 ### Changed
