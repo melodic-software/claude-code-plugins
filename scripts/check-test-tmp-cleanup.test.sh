@@ -35,8 +35,8 @@ write_js_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\ncons
 write_js_bare_beside_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_under_root() { printf 'after(() => {});\nconst d = join(mkdtempSync(join(root, "x-")), "f");\n' >"$1"; }
 
-# mk_repo <out-var>: a repo with one clean suite, one comment-only suite. The builder assigns through a nameref, which shellcheck
-# cannot follow.
+# mk_repo <out-var>: a repo with one clean suite and one comment-only suite.
+# The builder assigns through a nameref, which shellcheck cannot follow.
 mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1
