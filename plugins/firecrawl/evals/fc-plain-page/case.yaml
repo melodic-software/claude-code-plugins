@@ -11,7 +11,7 @@ graders:
   - name: no-firecrawl-run
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?!-)\w'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?!-)\w'
     min: 0
     max: 0
     arm: 'both'

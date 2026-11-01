@@ -125,6 +125,18 @@
         }
       ],
       "why": "guarded by a shell conditional or loop (Codex on #11939)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if firecrawl init --all --browser; then echo ok; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "command used as an if/while condition (claude-review on #11939)"
     }
   ]
 }

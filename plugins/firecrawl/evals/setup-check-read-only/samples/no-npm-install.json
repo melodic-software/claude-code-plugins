@@ -89,6 +89,18 @@
         }
       ],
       "why": "update"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if npm install -g firecrawl-cli; then echo done; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "command used as an if/while condition (claude-review on #11939)"
     }
   ]
 }
