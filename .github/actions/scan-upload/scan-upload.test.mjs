@@ -76,7 +76,8 @@ test("a link, a compressed file and a glob each withhold the upload", (t) => {
 
 test("the broad assignment label only warns", (t) => {
   const dir = workDir(t);
-  writeFileSync(path.join(dir, "fixture.txt"), 'password = "not-a-real-one"\n');
+  // Joined at run time, so no tracked line reads as a password assignment.
+  writeFileSync(path.join(dir, "fixture.txt"), `${["pass", "word"].join("")} = "not-a-real-one"\n`);
   const result = run(dir, path.join(dir, "fixture.txt"));
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.outputs, "clean=true\n");
