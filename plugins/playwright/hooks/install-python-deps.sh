@@ -5,10 +5,14 @@
 # loads. A failed install is a user notice with the repair line, never a silent skip; the model hears nothing here,
 # since pydeps.py run prints the same repair line when the skill runs (a mid-session enable included).
 # Always exits 0: a failed install must not block the session.
+# Installs nothing under claude plugin eval: each run's data directory sits inside its own throwaway
+# claude-eval-* sandbox, so an install there costs every case about 91 MB and adds a notice to the
+# measured run. A demo-video case gets pydeps.py run's repair line instead.
 set -uo pipefail
 
 data="${CLAUDE_PLUGIN_DATA:-}"
 [[ -n "$data" ]] || exit 0
+[[ "/${data//\\//}/" == */claude-eval-*/* ]] && exit 0
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="${SCRIPT_DIR%/*}"

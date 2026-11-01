@@ -119,6 +119,22 @@ else
   fail "no data dir: rc=$RC output=[$out]"
 fi
 
+# Under claude plugin eval the data directory sits inside the run's claude-eval-* sandbox: nothing installs and
+# nothing is said, so a trigger-only case pays no install. The forward and backslash forms both match. Run from
+# $WORK: on Linux the backslash form is a relative name, so a regressed hook installs under $WORK, not the caller's cwd.
+root="$(new_plugin evalrun "$digest")"
+cd "$WORK" || exit 1
+for data in "$WORK/claude-eval-ab12/config/plugins/data/playwright-inline" 'C:\Temp\claude-eval-ab12\config\plugins\data\playwright-inline'; do
+  run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$data"
+  out="$OUT"
+  if [[ "$RC" -eq 0 && -z "$out" && ! -e "$data" && "$(installs "$WORK/claude-eval-ab12/config/plugins/data/playwright-inline")" == 0 ]]; then
+    ok "a SessionStart under the eval sandbox installs nothing and says nothing ($data)"
+  else
+    fail "eval sandbox: rc=$RC data=$data output=[$out]"
+  fi
+done
+cd - >/dev/null || exit 1
+
 # No Python on PATH: a notice naming the floor, not a silent skip.
 tools="$WORK/tools"
 mkdir -p "$tools"
