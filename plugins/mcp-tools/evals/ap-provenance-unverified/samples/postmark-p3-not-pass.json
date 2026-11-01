@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (unverified) | |",
+      "why": "warn"
+    },
+    {
+      "answer": "| postmark | P1 Floating version | PASS | Exact version. The version is fixed, but the publisher is the problem (see P3). |",
+      "why": "observed smoke reply: P3 only cross-referenced in a P1 row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | PASS | |",
+      "why": "pass cell"
+    },
+    {
+      "answer": "| postmark | P3 Publisher provenance | **PASS (unverified)** | ok |",
+      "why": "P3 passed, label does not rescue it"
+    },
+    {
+      "answer": "| P3 | postmark | PASS | |",
+      "why": "criterion-first column order"
+    }
+  ]
+}

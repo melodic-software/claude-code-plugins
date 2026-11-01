@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "description": "audit docs/topic-01.md",
+            "prompt": "Extract every claim"
+          }
+        }
+      ],
+      "why": "dispatched before the answer"
+    }
+  ]
+}

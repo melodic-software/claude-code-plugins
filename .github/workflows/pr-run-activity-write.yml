@@ -525,6 +525,7 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    cache-mode: read
     # id-token: write is only for the broker request. Any step of this job can
     # request an OIDC token for another audience: an accepted residual (ADR
     # 0058), bounded by the broker's one mint per job. So no step runs a

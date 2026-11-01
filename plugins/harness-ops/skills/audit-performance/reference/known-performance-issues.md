@@ -280,7 +280,10 @@ restart is required.
 
 - **Pointer**: when stating either documented default, fetch the linked sub-agents section live.
   **As of**: 2026-10-11. **Recheck trigger**: either default changes (the spawn-depth default has
-  changed before).
+  changed before). For `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS`: **As of** 2026-11-01, absent
+  from a raw fetch of env-vars and present as a string in the Claude Code 2.1.316 binary (a grep of
+  the installed binary, not a behavior probe). **Recheck trigger**: env-vars starts listing it, or a
+  release drops the string.
 
 **The truthiness trap.** `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` is gated by a JavaScript
 truthiness test on the raw string (`if (!process.env.CLAUDE_CODE_...) return false`), and in

@@ -552,6 +552,7 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    cache-mode: read
     permissions:
       contents: read
       pull-requests: read
@@ -2403,6 +2404,7 @@ jobs:
       && needs.run.outputs.handed-off != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    cache-mode: read
     environment: pr-pipeline-scan-carrier
     permissions:
       contents: read
@@ -3149,6 +3151,7 @@ jobs:
       && github.event.repository.default_branch != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    cache-mode: read
     permissions:
       contents: read
     env:

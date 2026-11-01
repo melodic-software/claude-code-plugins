@@ -1,0 +1,123 @@
+{
+  "skill": "domain-driven-design:curate-language",
+  "plugin": "domain-driven-design",
+  "skill_dir": "plugins/domain-driven-design/skills/curate-language",
+  "ranking_note": "Authored from the before description at commit c6a1185b2b, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The plugin has one skill, and the competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "planning:design",
+    "planning:interview",
+    "naming:name-it-better",
+    "docs-hygiene:rename-references",
+    "architecture:improve"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "In our claims system 'claim' means the customer's first notice of loss to the call center but the adjusted payout case to the adjusters. Help us settle which meaning wins and write it into our glossary."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Billing says 'invoice', finance says 'bill' and the API says 'statement' for the same document. Pick one canonical term for the project and note the others as rejected so nobody reintroduces them."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just agreed in the modeling session that a 'shipment' is one carrier handoff, not the whole customer order. Capture that in the ubiquitous language doc."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our glossary entry for 'policyholder' just says 'the customer'. Tighten it so it states what a policyholder actually is in our insurance domain."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "'Carrier' and 'haulier' keep colliding in our logistics code and docs. The two words clash, sort out which one we use and record the decision."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Add 'reserve' to our domain glossary: in claims it is the money set aside for an expected payout. It belongs to the claims handling context we already have."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The planning discussion landed on calling a failed card charge a 'dunning attempt' instead of 'retry'. Make sure that vocabulary is preserved in our terms list."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Standardize how the team talks about 'consignment', 'parcel' and 'package' in the warehouse domain; they are being used interchangeably and they shouldn't be."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "'Account' is overloaded in billing: sometimes the paying customer, sometimes the ledger. Resolve it and update our domain terms accordingly."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does 'subrogation' mean according to our project glossary? Just read me the entry."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does 'idempotent' mean in general programming terms?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our logistics monolith has grown huge. Help us figure out where the bounded contexts are and how to split it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Suggest a better name for this helper function that calculates late fees on overdue invoices."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I renamed the PolicyHolder class to Insured. Find every leftover reference to the old name across the repo."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix the flaky timeout in the payment webhook integration test."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run an EventStorming session with me to discover the events and contexts in our claims process."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me design the types for a shipment tracking module: what should the entities and value objects look like?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Bump the Node version in our CI workflow to the current LTS."
+    }
+  ]
+}

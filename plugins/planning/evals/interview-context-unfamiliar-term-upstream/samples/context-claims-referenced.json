@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n- Today every crash report opens its own issue (triage/intake.py:12).\n- Upstream's cluster step attaches a report to the open cluster with the same dedupe fingerprint, a SHA-1 of the normalized first error line (vendor/upstream-triage/README.md:9).\n- The gap: duplicates hide the real count of distinct crashes (vendor/upstream-triage/README.md:16).\nMy recommendation: yes, add the cluster step.\nBasis: verified, vendor/upstream-triage/README.md:9 and triage/intake.py:12.\nAlternatives:\n- (a) Keep one issue per report. No new code, but duplicates keep hiding the crash count.",
+      "why": "every Context bullet carries a file:line"
+    },
+    {
+      "answer": "**Q1:** Should the fingerprint cover only the first error line?\n**Context:** upstream hashes only the first error line ([README, Limits](https://example.com/upstream#limits)).\n➡️ My recommendation: match upstream.",
+      "why": "bold one-line Context with a link"
+    },
+    {
+      "answer": "Q2: Should cluster growth page the owner?\nContext:\n- Upstream pages the owner when a cluster gains 10 reports in an hour (vendor/upstream-triage/README.md:11).\n- Our on-call rota is two people. Judgment\nMy recommendation: not in V1.\n\nQ3: Should we split clusters by hand?\nContext: upstream does, since two crashes can share a first line (vendor/upstream-triage/README.md:20).\nMy recommendation: yes.",
+      "why": "two questions; a judgment label counts as the reference for an unsourced claim"
+    },
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n\n- You want fewer duplicate issues (user, round 1).\n- Upstream groups reports by their dedupe fingerprint, a SHA-1 of the normalized first error line (vendor/upstream-triage/README.md:8).\n\nMy recommendation: yes.",
+      "why": "a blank line after the label, and a claim the user stated cites its round"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nMy recommendation: yes. Upstream clusters by dedupe fingerprint.",
+      "why": "no Context block"
+    },
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext: upstream groups reports by a dedupe fingerprint.\nMy recommendation: yes.",
+      "why": "a one-line Context with no reference"
+    },
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n- Today every report opens its own issue (triage/intake.py:12).\n- A dedupe fingerprint is a hash of the first error line.\nMy recommendation: yes.",
+      "why": "one Context bullet has no reference"
+    },
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n- Today every report opens its own issue (triage/intake.py:12).\nMy recommendation: yes.\n\nQ2: Should cluster growth page the owner?\nContext: upstream pages the owner when a cluster grows.\nMy recommendation: not in V1.",
+      "why": "the second question's Context has no reference"
+    },
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n- Today every report opens its own issue (triage/intake.py:12).\nMy recommendation: yes.\n\nQ2: Should cluster growth page the owner?\nMy recommendation: not in V1.",
+      "why": "the second question has a recommendation and no Context block"
+    }
+  ]
+}

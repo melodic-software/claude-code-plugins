@@ -143,6 +143,7 @@ jobs:
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    cache-mode: read
     permissions:
       actions: read # download the units artifact
       contents: read # check out main
@@ -480,6 +481,7 @@ jobs:
     if: ${{ !cancelled() && needs.judge-handoffs.result == 'success' && needs.judge-handoffs.outputs.count != '' && needs.judge-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    cache-mode: read
     permissions:
       actions: read # download the units artifact
       contents: read # check out main
@@ -822,6 +824,7 @@ jobs:
     if: ${{ !cancelled() && needs.judge-subscription-handoffs.result == 'success' && needs.judge-subscription-handoffs.outputs.count != '' && needs.judge-subscription-handoffs.outputs.count != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    cache-mode: read
     permissions:
       actions: read # download the units artifact
       contents: read # check out main

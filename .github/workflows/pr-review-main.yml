@@ -191,6 +191,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -1012,6 +1013,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -1834,6 +1836,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews

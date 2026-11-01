@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/plugin-data/curate-language-user-config-abc.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "plugin-data settings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/glossary.md",
+            "content": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Account**\n"
+          }
+        }
+      ],
+      "why": "rewrites the glossary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/GLOSSARY.md",
+            "content": "# Glossary"
+          }
+        }
+      ],
+      "why": "new glossary"
+    }
+  ]
+}
