@@ -253,8 +253,9 @@ default, `/work-items:work` runs a bug item through to a fix and a draft pull
 request. With `investigate`, it stops after the root cause: it opens no branch,
 writes no fix and opens no pull request. Instead it posts one marker comment on
 the item with the outcome, the reproduction evidence, the ranked causes and the
-access that was missing. The work skill's "Investigate mode" section says how
-it is read.
+access that was missing. CI mode (`--issue <n> --ci`) does not read the key and
+runs a bug item through to a fix. The work skill's "Investigate mode" section
+says how it is read.
 
 ```yaml
 bug_path:

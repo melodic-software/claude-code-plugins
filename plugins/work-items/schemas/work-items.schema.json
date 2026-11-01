@@ -45,7 +45,7 @@
     "bug_path": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far /work-items:work runs its bug path. Repository layer only; no userConfig option.",
+      "description": "How far /work-items:work runs its bug path. Repository layer only; no userConfig option. CI mode (--issue <n> --ci) does not read it.",
       "properties": {
         "mode": {
           "type": "string",

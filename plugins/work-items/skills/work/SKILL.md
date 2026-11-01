@@ -433,7 +433,8 @@ repository root:
 Empty output (no file, no key, or a document the parser rejects) means the default, `full`, which
 runs the whole path above. `investigate` ends the path after the root cause and skips the
 branch-name sub-step. Any other value names the value, releases the claim (seam `release`) and ends
-the run. Report the mode in use and whether it came from the file or the default.
+the run. Report the mode in use and whether it came from the file or the default. CI mode
+(`--issue <n> --ci`) does not read `bug_path.mode`: it runs its own steps through to a fix.
 
 In investigate mode, steps 1 to 3 run as written, and a step 3 outcome that ends the run still ends
 it. When step 2 shows no repro, or step 3 ends Inconclusive, skip the diagnosis and post the comment
@@ -453,4 +454,5 @@ when the setting adds one, follows it. The comment carries four parts:
    and what it would have settled; `none` when nothing was missing.
 
 A `not-reproduced` outcome then escalates, as step 2 says, citing the comment. Then release the
-claim (seam `release`) and end the run.
+claim (seam `release`), clear this session's own assignee through the adapter's assignee edit,
+since release never touches assignees and the frontier excludes an assigned item, and end the run.
