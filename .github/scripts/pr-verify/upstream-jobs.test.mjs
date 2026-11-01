@@ -66,7 +66,7 @@ test("a Node suite with a sibling .test.sh at the head is listed with its wrappe
     "e/h.fixtures.test.mjs",
     "e/h.fixtures.test.sh",
     // No sibling wrapper: test-node runs these.
-    "lib/view-runtime.test.mjs",
+    "j/k.test.mjs",
     "e/i.fixtures.test.mjs",
     "e/i.test.sh",
     // A shell suite with no Node sibling, and a file that is no suite.

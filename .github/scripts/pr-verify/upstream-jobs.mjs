@@ -55,16 +55,23 @@ export function wrappedNodeSuites(paths) {
     .filter(({ wrapper }) => tree.has(wrapper));
 }
 
+// JOBS_FILE's content: the run's jobs, and the wrapped Node suites of a tree
+// listed NUL-separated, as `git ls-tree -z` lists it.
+export function jobsFile(listed, treeListing) {
+  return { ...listed, wrapped_node_suites: wrappedNodeSuites(treeListing.split("\0").filter(Boolean)) };
+}
+
 export async function main(env = process.env, { github, fetchImpl } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "UPSTREAM_RUN_ID", "JOBS_FILE", "HEAD_PATHS_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  const wrapped = wrappedNodeSuites(readFileSync(env.HEAD_PATHS_FILE, "utf8").split("\0").filter(Boolean));
+  const tree = readFileSync(env.HEAD_PATHS_FILE, "utf8");
   const listed = await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, env.UPSTREAM_RUN_ID);
-  writeFileSync(env.JOBS_FILE, `${JSON.stringify({ ...listed, wrapped_node_suites: wrapped }, null, 2)}\n`);
-  console.log(`upstream-jobs: wrote ${listed.jobs.length} jobs of run ${listed.run_id} and ${wrapped.length} Node suites test-bash runs`);
+  const file = jobsFile(listed, tree);
+  writeFileSync(env.JOBS_FILE, `${JSON.stringify(file, null, 2)}\n`);
+  console.log(`upstream-jobs: wrote ${file.jobs.length} jobs of run ${file.run_id} and ${file.wrapped_node_suites.length} Node suites test-bash runs`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
