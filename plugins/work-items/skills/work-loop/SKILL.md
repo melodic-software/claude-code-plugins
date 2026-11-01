@@ -331,7 +331,9 @@ window, the labeler precondition and the hard gates below is admitted, whatever 
 label, and with none. Of the class and provenance labels, only `work-class: untrusted-provenance`
 or `provenance: signal` holds a candidate for a person: `list-frontier --autonomous` already drops both
 ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)),
-and a candidate found carrying either is escalated through step 5, never dispatched.
+and a candidate found carrying either is escalated through step 5, never dispatched. A candidate
+whose latest removal of either label came from an actor below `write` is held the same way (the
+provenance-removal hold below).
 
 **In-flight precondition (before the other checks).** A frontier candidate that already has an
 open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply
@@ -389,6 +391,21 @@ Hard gates:
 - **Provenance hold.** A candidate carrying `work-class: untrusted-provenance` or
   `provenance: signal` is human-gated. Step 5 escalates it as `kind=escalated`; it is never
   dispatched.
+- **Provenance-removal hold.** The provenance hold tests only whether a label is present, so its
+  absence counts only when someone allowed to grant admission removed it. For each candidate, read
+  the item's `unlabeled` events for `work-class: untrusted-provenance` and `provenance: signal`
+  (GitHub: the issue timeline, `gh api --paginate "repos/<owner>/<repo>/issues/<number>/timeline?per_page=100"`,
+  rows with `event` `unlabeled`), and read the actor of each label's latest removal through the
+  same repository-permission read the labeler precondition uses. A candidate whose latest removal of
+  either label came from an actor below `write` (a triage or read actor, `none`, or a permission
+  that does not read) is human-gated: step 5 escalates it as `kind=escalated`, naming the label, the
+  actor and the permission, and it is never dispatched. The latest removal decides, so a person with
+  `write` who applies the label again and removes it clears the hold. A failed or empty timeline
+  read, a removal event with no usable actor login, and a binding that cannot read removal events
+  fail closed for this cycle the way the labeler precondition does: not dispatched, no label
+  changed, reported as `provenance-removal check failed: #<item> (<reason>)`, and not progress.
+  Pass the label names and logins as `jq --arg` values, never spliced into a command or jq
+  program.
 - **Path/topic hard gate.** An item touching dependency SHA pins, checksum or pin recomputation,
   or any surface the consuming repository's `CLAUDE.md` declares as inviolable ground rules is
   human-gated, such items surface-read as mechanical dependency bumps but are

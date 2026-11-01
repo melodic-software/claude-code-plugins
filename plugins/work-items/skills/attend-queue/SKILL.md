@@ -246,15 +246,20 @@ never compress this restatement away.
   re-read the labels before clearing `@me`. A C4/C5 answer applies the class label alone and the
   item stays human-gated, per the branch below.
 - **Human-floor work class: reclassify or stay gated, never the plain flip.** An item carrying
-  `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is human-gated
-  regardless of any other signal
+  `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) is not resolved by the
+  plain flip
   ([`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
-  "The human-floor class excludes the autonomous-eligible role label"), so an answered escalation
-  never makes it autonomously dispatchable; applying the autonomous-eligible role label to it is a
-  labeling defect (`list-frontier --autonomous` floors it on the work class anyway). **Removing the
-  human-gated role label strands it**: the autonomous frontier floors it, and this lane's
-  attention view keys on that role label plus a marker comment, so nothing lists the item again.
-  Resolve such a row one of two ways:
+  "The human-floor class excludes the autonomous-eligible role label"). The two classes now differ
+  at the frontier and the admission gate. `work-class: untrusted-provenance` is still floored:
+  `list-frontier --autonomous` drops it and the work-loop's provenance hold escalates it, so
+  **removing the human-gated role label strands it**, since this lane's attention view keys on that
+  role label plus a marker comment and nothing lists the item again. `work-class: structural` is no
+  longer floored: neither `list-frontier --autonomous` nor the admission gate drops it, so removing
+  the human-gated role label puts it back on the autonomous frontier, where the work-loop admits
+  it. Whether a structural item may go there is the reclassify policy, which is pending slice S2
+  ([#12060](https://github.com/melodic-software/claude-code-plugins/issues/12060)); until S2 settles
+  it, resolve a structural row by one of the two branches below, never the plain flip. Resolve such
+  a row one of two ways:
   - **Reclassify, then flip**, when the operator's answer genuinely narrows the work to an
     autonomously dispatchable class (C1-C3). Replace the `work-class:` label with the new member
     and perform the role-label flip **in the same edit**, and record the reclassification and the
@@ -387,10 +392,13 @@ placeholder before running a command or writing it into a brief.
 - **Never flip without clearing.** The flip is one edit that applies the autonomous-eligible role
   and removes the human-gated one; an item wearing both stays excluded from
   `list-frontier --autonomous`.
-- **Never clear the human-gated role off a floor class.** A `work-class: structural` or
-  `work-class: untrusted-provenance` item stripped of it is floored out of
-  `list-frontier --autonomous` and matches no row condition here, so no lane surfaces it again.
-  Reclassify it in the same edit as the flip, or leave the role label alone.
+- **Never clear the human-gated role off a floor class.** A `work-class: untrusted-provenance`
+  item stripped of it is floored out of `list-frontier --autonomous` and matches no row condition
+  here, so no lane surfaces it again. A `work-class: structural` item stripped of it is no longer
+  floored and goes back onto the autonomous frontier, where the work-loop admits it; the reclassify
+  policy for structural items is pending slice S2
+  ([#12060](https://github.com/melodic-software/claude-code-plugins/issues/12060)). Either way,
+  reclassify it in the same edit as the flip, or leave the role label alone.
 - **Judgment lane only.** Resolving an escalation never turns into executing the item here; the
   worker loop picks it up through the frontier. Executing from this lane would bypass the seam
   claim and the topology's single-authority rule.
