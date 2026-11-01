@@ -48,10 +48,10 @@ The rung partition below is where its widening rule does the work.
 The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matrix, scope
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
-`/source-control:babysit-prs <tier> <owner/repo>` via the Skill tool with the resolved tier and
-scope; this loop restates none of that. Two disciplines in particular are babysit-prs's own, held
-here by citation: the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded
-mutations" and its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the
+`/source-control:babysit-prs <tier> --unattended <owner/repo>` via the Skill tool with the resolved
+tier and scope, `--unattended` because nobody is present to answer an ask; this loop restates none
+of that. Two disciplines in particular are babysit-prs's own, held here by citation: the head-move
+yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded mutations" and its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the
 foreign-activity discipline (the `foreign_activity` dispatch suppressor, never race a foreign
 session for the same PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)).
 The grace window below is an additional loop-level overlay, never a replacement for them.

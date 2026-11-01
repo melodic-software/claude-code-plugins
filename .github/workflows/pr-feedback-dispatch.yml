@@ -604,10 +604,10 @@ jobs:
         run: |
           # shellcheck source=/dev/null
           . "$API_BUDGET_SH" 2>/dev/null || true
-          # budget <gh api -i output>: keeps its rate-limit reading for the
-          # job-end api-budget notice; nothing without the library.
+          # budget <gh api -i output> <path>: keeps its rate-limit reading, under
+          # the path's route, for the job-end notices; nothing without the library.
           budget() {
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$1" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "$(! declare -F api_budget_route >/dev/null || api_budget_route api "$2")" <<<"$1" >/dev/null
           }
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
@@ -675,13 +675,13 @@ jobs:
               cond=()
               [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
               if out=$(gh api -i "$3" "${cond[@]}"); then
-                budget "$out"
+                budget "$out" "$3"
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
                 etag_path=$3 etag_body=${!1}
                 etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
                 return 0
               fi
-              budget "$out"
+              budget "$out" "$3"
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
               if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then

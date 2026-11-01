@@ -102,6 +102,13 @@
 #   home (/home/<name>/repos/x) is false. null means not applicable. Like
 #   projectPathPresent it annotates and never filters installed[] or divergences[].
 #
+#   Those same records and entries also carry projectEnabledEntry: the raw
+#   enabledPlugins entry for the id in the present path's .claude/settings.json,
+#   one of "true", "false", "other" (not a boolean), "absent" (no file, no map,
+#   or no key) and "unreadable" (the file does not parse, or the map is not an
+#   object); null when the path is not present or the record is user scope.
+#   Read with a builtin per distinct present path, no process per path.
+#
 #   Each of those records also carries linkedWorktree: true|false|null — whether
 #   its projectPath is a linked git worktree (the git dir differs from the git
 #   common dir: `.git` is a file whose gitdir line points into a `worktrees/`
@@ -1012,6 +1019,14 @@ fi
 # hold a hundred records naming a dozen directories), so the stat count tracks
 # directories, not records, and the answer is taken once for the whole run.
 presence_tsv=""
+# Each present path's raw .claude/settings.json text, read with a builtin, so the
+# block can say what enabledPlugins entry that file holds for each record:
+# `<path> U+001E <F|M|U><text> U+001F`, F for a file, M for none, and U for a
+# file holding a U+001C-U+001F byte; a path holding one is left out, so its
+# entry reads null. The payload splits on those bytes before any text is
+# parsed, so such text is never bundled: it would forge another path's entry.
+# Valid JSON cannot carry them raw.
+settings_bundle=""
 for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
   pp_fs="${pp//\\//}"
@@ -1047,6 +1062,14 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
       esac
     fi
     presence_tsv+="$pp"$'\t'"true"$'\t'"$pp_linked"$'\n'
+    pp_settings="M"
+    if [[ -f "$pp_fs/.claude/settings.json" ]]; then
+      pp_settings=""
+      IFS= read -r -d '' pp_settings <"$pp_fs/.claude/settings.json" || true
+      pp_settings="F$pp_settings"
+      [[ "$pp_settings" != *[$'\x1c'-$'\x1f']* ]] || pp_settings="U"
+    fi
+    [[ "$pp" != *[$'\x1c'-$'\x1f']* ]] && settings_bundle+="$pp"$'\x1e'"$pp_settings"$'\x1f'
   else
     presence_tsv+="$pp"$'\t'"false"$'\n'
   fi
@@ -1100,6 +1123,20 @@ PASS3_PROGRAM='
       | map(select(length > 0) | split("\t") | select(length >= 3 and (.[0] | length) > 0))
       | map({key: .[0], value: (.[2] == "true")})
       | from_entries) as $wt
+  # The settings file of each present path, parsed once: {state: "absent"} for no
+  # file, {state: "unreadable"} for one that does not parse or whose
+  # enabledPlugins is not an object, else {state: "ok", map}.
+  | ($parts[3] // "" | split("\u001f")
+      | map(select(length > 0) | split("\u001e") | select(length >= 2 and (.[0] | length) > 0)
+            | {key: .[0],
+               value: (.[1] as $t
+                 | if ($t | startswith("M")) then {state: "absent"}
+                   elif ($t | startswith("U")) then {state: "unreadable"}
+                   else (($t[1:] | try fromjson catch null) as $j
+                         | if ($j | type) != "object" then {state: "unreadable"}
+                           elif ($j.enabledPlugins // {} | type) != "object" then {state: "unreadable"}
+                           else {state: "ok", map: ($j.enabledPlugins // {})} end) end)})
+      | from_entries) as $pset
   # Entries whose source is not a string never reached the payload, so they
   # are absent from this map entirely — a lookup returns null, the same
   # fail-open answer as an entry whose manifest could not be read. A manifest
@@ -1157,6 +1194,24 @@ PASS3_PROGRAM='
                   if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
                     .projectPath as $pp
                     | (if ($wt | has($pp)) then $wt[$pp] else null end)
+                  else null end
+                ),
+                # The raw enabledPlugins entry for this id in the present path'"'"'s
+                # .claude/settings.json: "true", "false", "other" (a value that is
+                # not a boolean), "absent" (no file, no map, or no key), or
+                # "unreadable"; null when the path is not present or the record is
+                # user scope. `claude plugin list` reports no entry and an explicit
+                # false alike, so this is what tells them apart.
+                projectEnabledEntry: (
+                  if (.scope == "project" or .scope == "local") and (.projectPath // "" | length) > 0 then
+                    .projectPath as $pp
+                    | (if ($pset | has($pp)) then $pset[$pp] else null end) as $ps
+                    | if $ps == null then null
+                      elif $ps.state != "ok" then $ps.state
+                      elif ($ps.map | has($id)) | not then "absent"
+                      elif $ps.map[$id] == true then "true"
+                      elif $ps.map[$id] == false then "false"
+                      else "other" end
                   else null end
                 )
               })) as $installed
@@ -1232,7 +1287,8 @@ PASS3_PROGRAM='
       | map(select(length > 1))
       | map({
           id: .[0].id,
-          scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome, linkedWorktree, label}),
+          scopes: map({scope, version, projectPath, projectPathPresent, projectPathIsHome, linkedWorktree,
+                       projectEnabledEntry, label}),
           versionsMatch: ((map(.version) | unique | length) == 1)
         })) as $divergences
   | {
@@ -1427,7 +1483,7 @@ emit_marketplace() {
     --arg ci "$case_insensitive_os" \
     --arg home "${HOME:-}" \
     --arg selector "$IDS_SELECTOR" \
-    "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"
+    "$PASS3_PROGRAM" <<<"$ctx_json"$'\x1d'"$presence_tsv"$'\x1d'"$bundle"$'\x1d'"$settings_bundle"
 }
 
 # Emit one marketplace: the JSON block by default, or its projected id list when
