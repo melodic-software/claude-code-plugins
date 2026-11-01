@@ -1,6 +1,12 @@
 schema_version: "1.1"
 name: 'setup-literal-password-is-a-config-fail-with-env-remediation'
 graders:
+  - name: 'runs-check-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-setup\.mjs'
+    min: 1
+    arm: 'with-only'
   - name: 'expectation-1'
     type: 'llm'
     criteria: 'Reports the config row as FAIL, not PASS or INFO'

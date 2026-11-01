@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_SKILL_DIR}/scripts/check-setup.mjs\" --config ~/sql-server/config.json --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the check only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_SKILL_DIR}/scripts/install-server.mjs\" --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "installs after a config FAIL"
+    }
+  ]
+}

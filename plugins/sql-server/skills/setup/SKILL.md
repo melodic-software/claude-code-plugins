@@ -21,7 +21,8 @@ config file; it checks the ones you made. Config shape and examples:
 
 Arguments: the action (`check` when absent), `--config <path>` (required; ask for it once when
 missing), and `--environment <name>` to limit the run to one environment. Every action is safe to
-rerun.
+rerun. When the user asks for project scope, refuse it in your first reply, before any step, with
+the reason `apply` step 3 gives, so a run that stops early still answers it.
 
 ## `check` (read-only)
 

@@ -1,7 +1,7 @@
 ---
-description: 'Narration case: it names fictional or consumer-repo paths that no fixture provides.'
+description: 'Narration case: it names fictional or consumer-repo paths that no fixture provides. Needs --allow-tools Bash: the skill runs check-setup.mjs.'
 tags: ['setup', 'narration']
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Bash, Skill]
 expected_outcome: 'Setup: no config file exists at the given path. Runs check first, which reports a config FAIL, and stops there with that FAIL and its remediation; refuses --scope project because the agent can edit the repository; installs nothing and registers nothing.'
 ---
 
