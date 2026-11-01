@@ -3,7 +3,7 @@ name: dl-remove-game-update
 graders:
   - name: not-corrupted
     type: regex
-    pattern: '\b(?:not|isn''t|is[\s*_]+not|nothing''s|nothing is|no)\b[^\n.]{0,30}\b(?:corrupt\w*|broken|damaged|wrong with)\b|\b(?:drift|change|modified exe|MODIFIED)\b[^\n.]{0,60}\b(?:is|was|came from|comes from|from)\b[^\n.]{0,20}\b(?:the |a )?(?:Steam |game )?update\b'
+    pattern: '\b(?:not|isn''t|is[\s*_]+not|nothing''s|nothing is|no)\b[^\n.]{0,30}\b(?:corrupt\w*|broken|damage[ds]?|wrong with)\b|\b(?:drift|change|modified exe|MODIFIED)\b[^\n.]{0,60}\b(?:is|was|came from|comes from|from)\b[^\n.]{0,20}\b(?:the |a )?(?:Steam |game )?update\b'
     flags: 'i'
     target: last_message
   - name: offers-refresh
@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: reshade-kept
     type: regex
-    pattern: '\bReShade(?:\.ini)?\b[^\n]{0,200}\b(?:not ours|not the mod''s|isn''t the mod''s|didn''t install|did[\s*_]+not install|wasn''t installed|was[\s*_]+not installed|kept|keep|stays|your call|you decide|your decision|yours|won''t delete|will[\s*_]+not delete|leave|left)\b|\b(?:won''t|will[\s*_]+not|not going to|don''t|do[\s*_]+not)\b[^\n]{0,60}\b(?:delete|remove)\b[^\n]{0,40}\bReShade\b'
+    pattern: '\bReShade(?:\.ini)?\b[\s\S]{0,200}\b(?:not ours|not the mod''s|isn''t the mod''s|didn''t install|did[\s*_]+not install|wasn''t installed|was[\s*_]+not installed|kept|keep|stays|your call|you decide|your decision|yours|won''t delete|will[\s*_]+not delete|leave|left)\b|\b(?:won''t|will[\s*_]+not|not going to|don''t|do[\s*_]+not)\b[^\n]{0,60}\b(?:delete|remove)\b[^\n]{0,40}\bReShade\b'
     flags: 'i'
     target: last_message
   - name: no-refresh-run

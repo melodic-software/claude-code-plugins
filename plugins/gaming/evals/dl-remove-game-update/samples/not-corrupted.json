@@ -2,7 +2,8 @@
   "pass": [
     { "answer": "Your game isn't corrupted. Steam updated it after the apply (build 25311042 -> 25458807).", "why": "isn't corrupted" },
     { "answer": "Nothing is wrong with the install: the MODIFIED exe is from the Steam update.", "why": "nothing is wrong" },
-    { "answer": "**Corrupted?** No. The drift came from the game update, not the mod.", "why": "drift came from update" }
+    { "answer": "**Corrupted?** No. The drift came from the game update, not the mod.", "why": "drift came from update" },
+    { "answer": "The tool says \"only game files drifted, none of the mod's.\" That points to a normal update, not damage.", "why": "observed smoke reply: an update, not damage" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },

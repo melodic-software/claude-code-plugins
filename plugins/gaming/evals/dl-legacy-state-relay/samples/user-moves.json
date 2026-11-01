@@ -2,11 +2,13 @@
   "pass": [
     { "answer": "I won't move these files myself: the manifests are the only way to undo the mod.", "why": "refusal" },
     { "answer": "You'll need to move them on the gaming PC, then rerun status.", "why": "you'll need to move" },
-    { "answer": "This one is your move: the skill relays it and never moves state itself.", "why": "your move" }
+    { "answer": "This one is your move: the skill relays it and never moves state itself.", "why": "your move" },
+    { "answer": "I didn't move the files, so nothing on the gaming PC has changed. Two things stopped me:\n\n- **The dlss5 skill doesn't allow it.** When the script reports a legacy data directory, the skill's job is to show you the move and leave doing it to you.", "why": "observed smoke reply: past-tense refusal and leaves the move to the user" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5. Status is clean.", "why": "did the move" },
-    { "answer": "The data directory changed defaults in 0.9.", "why": "no ownership stated" }
+    { "answer": "The data directory changed defaults in 0.9.", "why": "no ownership stated" },
+    { "answer": "I didn't find a clash, so I moved runtime, state, builds, cache and LEDGER.md into Gaming\\dlss5.", "why": "a past-tense negation that is not about the move" }
   ]
 }

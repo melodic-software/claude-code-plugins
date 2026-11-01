@@ -2,7 +2,8 @@
   "pass": [
     { "answer": "ReShade.ini is listed as kept (unknown, not ours): the mod didn't install it, so it's your call.", "why": "skill wording" },
     { "answer": "I won't delete ReShade.ini; it isn't a file the mod placed.", "why": "refusal first" },
-    { "answer": "**ReShade.ini:** not the mod's. Delete it yourself if you no longer use ReShade.", "why": "bold label" }
+    { "answer": "**ReShade.ini:** not the mod's. Delete it yourself if you no longer use ReShade.", "why": "bold label" },
+    { "answer": "## ReShade.ini\n\nThe tool deliberately left it alone because it didn't create that file.", "why": "observed smoke reply: the claim sits under a heading line" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },

@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: user-moves
     type: regex
-    pattern: '\b(?:won''t|will[\s*_]+not|not going to|can''t|cannot|don''t|do[\s*_]+not|shouldn''t|should[\s*_]+not)\b[^\n.]{0,40}\b(?:move|moving|copy|copying|touch|touching)\b|\byou(?:''ll| will)? (?:need to |have to |can |should )?(?:move|make the move|do the move|run the move)\b|\bmove (?:them|the files|it) yourself\b|\b(?:your|the user''s|the operator''s) (?:call|move|step|job)\b|\bon your (?:side|machine|PC)\b'
+    pattern: '\b(?:won''t|will[\s*_]+not|not going to|can''t|cannot|don''t|do[\s*_]+not|didn''t|did[\s*_]+not|shouldn''t|should[\s*_]+not)\b[^\n.]{0,40}\b(?:move|moving|copy|copying|touch|touching)\b|\bleav\w*\b[^\n.]{0,40}\bto you\b|\byou(?:''ll| will)? (?:need to |have to |can |should )?(?:move|make the move|do the move|run the move)\b|\bmove (?:them|the files|it) yourself\b|\b(?:your|the user''s|the operator''s) (?:call|move|step|job)\b|\bon your (?:side|machine|PC)\b'
     flags: 'i'
     target: last_message
   - name: no-shell-move
