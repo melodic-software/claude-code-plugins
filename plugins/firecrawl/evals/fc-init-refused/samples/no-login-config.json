@@ -1,0 +1,130 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --status 2>/dev/null | head -10",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view firecrawl-cli version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "npm metadata read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'firecrawl init' README.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "init inside a grep pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl init --all --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "init is the other grader's"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl login",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "login"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl config --api-key fc-123",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx firecrawl-cli@latest login --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "versioned package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --version; firecrawl login",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after a version check"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: setup-check-read-only
+graders:
+  - name: gives-verdict
+    type: 'regex'
+    pattern: '\b(?:PASS|FAIL|INFO|INDETERMINATE|Pass|Fail|Info|Indeterminate)\b'
+    target: 'last_message'
+  - name: reports-key-state
+    type: 'regex'
+    pattern: 'FIRECRAWL_API_KEY\b[^\n]{0,40}?\b(?:un|not[ -])?set\b|^(?:#{1,4}[ \t]+|\*\*)[^\n]*FIRECRAWL_API_KEY[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:un|not[ -])?set\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: no-print-key
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:(?:echo|printf|print)\b(?:\\\\\\n|(?![;|]|&&|\$\(|`|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\$(?:FIRECRAWL_API_KEY\b|\{FIRECRAWL_API_KEY(?!:?\+)[^}]*\})|printenv(?=\s*(?:[;|)]|&&|(?<!\\\\)\\n|"))|printenv\s+FIRECRAWL_API_KEY\b|(?:env|set|export\s+-p|declare\s+-[a-zA-Z]*[px][a-zA-Z]*)(?=\s*(?:[;|)]|&&|(?<!\\\\)\\n|"))|declare\s+-[a-zA-Z]*p[a-zA-Z]*\s+FIRECRAWL_API_KEY\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-key-write
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:setx(?:\.exe)?\s|export\s+FIRECRAWL_API_KEY=|(?:echo|printf|cat)\b(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?FIRECRAWL_API_KEY=(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?(?:(?<![0-9&])>>?\s*(?:\\")?(?!/dev/null\b)|\|\s*(?:sudo\s+)?tee\b))|"command":"(?:[^"\\]|\\.)*?SetEnvironmentVariable\(\s*\\?["\x27]FIRECRAWL_API_KEY'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-npm-install
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?(?:p?npm|yarn)\s+(?:(?:global\s+)?(?:install|i|add)|update|up|upgrade)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-firecrawl-auth
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?:login|config|init)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

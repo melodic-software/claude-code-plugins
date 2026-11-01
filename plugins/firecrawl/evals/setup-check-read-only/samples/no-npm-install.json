@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view firecrawl-cli version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "npm metadata read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm ls -g firecrawl-cli --depth=0",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lists the global package"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g firecrawl-cli",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm i -g firecrawl-cli@latest",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "short form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl || npm install -g firecrawl-cli",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "install on absence"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm add -g firecrawl-cli",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pnpm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm update -g firecrawl-cli",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "update"
+    }
+  ]
+}
