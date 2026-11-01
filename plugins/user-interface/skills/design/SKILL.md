@@ -211,8 +211,11 @@ which skill to run, the order for a whole screen, or what comes after a pass.
 
 ## Gotchas
 
-- When `node` is missing, detect cannot run: read the project's design files yourself and treat
-  `installed` as `null`.
+- With no shell or no `node`, detect cannot run: read the project's design files yourself, treat
+  `installed` as `null`, and take every setting a spoke calls resolved from
+  `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
+- Reach plugin files only by the paths this skill and `concerns.json` name: a spoke already holds
+  the technique the concern needs. Never Grep or Glob the plugin's directory; search the project.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
 - A `reason` beside a non-null `installed` list means detect could not resolve this plugin's own
