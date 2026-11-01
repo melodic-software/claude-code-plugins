@@ -190,7 +190,7 @@ user-global layer.
 ```text
 work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id>
-work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
+work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
 work-item-tracker.sh release <id> --lease-comment-id <n> [--holder <h>]
 work-item-tracker.sh reclaim <id>
@@ -549,7 +549,7 @@ Arbitration is the same in both modes (step 4), so a local claim made while a la
 backs off, and a lane run that finds a live local lease backs off without starting its model.
 
 ```text
-<!-- work-item-lease v1 {"schema_version":"1.0","holder":"<gh login>","acquired_at":"<ISO>","renewed_at":"<ISO>","ttl_hours":24,"session_id":"<opt>"} -->
+<!-- work-item-lease v1 {"schema_version":"1.0","holder":"<gh login>","acquired_at":"<ISO>","renewed_at":"<ISO>","ttl_hours":24,"session_id":"<opt>","phase":"<opt>"} -->
 ```
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
@@ -569,6 +569,12 @@ backs off, and a lane run that finds a live local lease backs off without starti
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
 - `session_id` is diagnostic metadata only, optional and collision-prone; a
   missing/duplicate `session_id` still counts as a competing lease.
+- `phase` names the work the lease is for: `triage`, `discovery` or `implementation`. The github
+  and local-markdown `claim` write it from `--phase <kind>` and refuse any other value (exit 2)
+  before any write. A lease with no `phase` field is an implementation claim. `renew-lease`, and
+  the github `reclaim`, keep the field, since they edit the lease JSON in place. It is metadata only:
+  arbitration and liveness ignore it, so a triage lease blocks an implementation claim like any
+  other live lease. The claim and renew result objects do not carry it; read it from the lease.
 - The **lease handle** (`lease_comment_id`, emitted by `claim`/`renew-lease`) is
   provider-specific: the GitHub adapter uses the lease comment's own id (external,
   not stored in the JSON); the local-markdown adapter has no external ids, so it

@@ -72,6 +72,15 @@ wit_lease_ttl_within_cap() {
     ((10#$1 * 60 + 10#$2 <= WIT_LEASE_MAX_TTL_HOURS * 60))
 }
 
+# wit_lease_phase_valid <kind> — 0 when <kind> is a lease phase claim accepts
+# (CONTRACT.md "Lease protocol"). A lease with no phase field is an implementation claim.
+wit_lease_phase_valid() {
+  case "$1" in
+  triage | discovery | implementation) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # wit_lease_is_live <lease-json> <now-epoch> — 0 when no superseded_at and not expired.
 # A lease renewed more than 300 s after now, or with a TTL over WIT_LEASE_MAX_TTL_HOURS, is not live.
 wit_lease_is_live() {
