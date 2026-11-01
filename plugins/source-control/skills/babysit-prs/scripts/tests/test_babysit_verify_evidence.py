@@ -4419,6 +4419,86 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), listed)
         self.assertEqual(fake.probes(), 1)
 
+    def against_the_clock(
+        self,
+        fake: FakeGitHub,
+        spend: float,
+        *,
+        limit: str = "",
+        failure: BaseException | None = None,
+    ) -> ve.Evidence:
+        """One Reader's judgment with no carry, its whole listing taking
+        `spend` seconds of the listing clock and raising `failure` if given,
+        under a caller that kills it at `limit` seconds ("" for none)."""
+        now = [0.0]
+
+        def listing(args: list[str], **kwargs: Any) -> Any:
+            if args[:2] == ["api", f"repos/{REPO}/actions/artifacts?per_page=100"]:
+                now[0] += spend
+                if failure is not None:
+                    fake.calls.append(args)
+                    raise failure
+            return fake(args, **kwargs)
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            return fake(args, **kwargs), {"date": DATE}
+
+        env = {ve.DEADLINE_ENV: limit, ve.CALLER_ENV: "verify-cap.mjs"}
+        with (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+            mock.patch.object(ve, "_listing_clock", side_effect=lambda: now[0]),
+            mock.patch.object(postmerge, "gh_capture", side_effect=listing),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            return ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+
+    def test_a_top_up_out_of_the_callers_time_is_not_noted_for_the_job(
+        self,
+    ) -> None:
+        # A 60 s caller limit leaves 45 s, under the 60 s the five artifacts'
+        # listings take with no caller. The whole listing spends 50 s, so its
+        # top-up has no time left: this caller refuses, a later one may list.
+        fake = self.fake()
+        evidence = self.against_the_clock(fake, 50.0, limit="60")
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertIn("could not be checked against", evidence.detail)
+        self.assertFalse(self.failed.exists())
+        # The job's next Reader, with the whole cap, lists and judges.
+        evidence = self.against_the_clock(fake, 0.0)
+        self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(fake.full_listings(), 2)
+
+    def test_a_whole_listing_timed_out_by_the_callers_limit_is_not_noted(
+        self,
+    ) -> None:
+        evidence = self.against_the_clock(
+            self.fake(), 45.0, limit="60", failure=timed_out()
+        )
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertIn("timed out", evidence.detail)
+        self.assertFalse(self.failed.exists())
+
+    def test_a_whole_listing_failure_not_the_callers_is_noted(self) -> None:
+        # A timeout of the whole cap's own budget (60 s for five artifacts),
+        # and a top-up page 404 with the caller's time left.
+        cases: dict[str, tuple[FakeGitHub, float, str, BaseException | None]] = {
+            "cap timeout": (self.fake(), 60.0, "", timed_out()),
+            "caller 404": (self.fake(), 0.0, "60", None),
+        }
+        cases["caller 404"][0].page_fail = "gh: Not Found (HTTP 404)"
+        for label, (fake, spend, limit, failure) in cases.items():
+            with self.subTest(label):
+                self.failed.unlink(missing_ok=True)
+                evidence = self.against_the_clock(
+                    fake, spend, limit=limit, failure=failure
+                )
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertFalse(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+                self.assertIn(evidence.detail, self.failed.read_text())
+
     def test_uploads_stamped_ahead_of_the_runner_still_read_incrementally(
         self,
     ) -> None:

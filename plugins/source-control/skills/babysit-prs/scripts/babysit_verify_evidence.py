@@ -344,8 +344,9 @@ DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
 CALLER_ENV = "BABYSIT_VERIFY_CALLER"
 DEADLINE_MARGIN_SECONDS = 15.0
 # The start of a `verify:unreadable` detail when the listing does not fit in
-# what the caller's limit leaves: pr-unblock verify-cap.mjs skips the round
-# on it, for that run only, as on `SIBLING_UNREADABLE`.
+# what the caller's limit leaves, before paging or after the limit runs out:
+# pr-unblock verify-cap.mjs skips the round on it, for that run only, as on
+# `SIBLING_UNREADABLE`, and no `FAILED_LISTING_SUFFIX` note is written.
 DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
 # The least a whole listing's timeout takes, gh's per-call default it
 # replaced, unless the cap or a caller's limit leaves less.
@@ -414,7 +415,8 @@ COUNT_MISSED = _CountMissed()
 # more than the count (ci-status run 41287360293).
 COUNT_OVER = _CountMissed()
 # Beside `LISTING_ENV`'s file, a listing from the API that failed in this job
-# after it began a whole listing, with its reason: the job's later Readers, in this process or another, refuse
+# after it began a whole listing, with its reason, unless it failed for want of
+# a caller's time (`DEADLINE_UNREADABLE`): the job's later Readers, in this process or another, refuse
 # on it without paging again (pr-merge's merge job built one Reader per
 # candidate, each paging three whole listings, 825 to 1,015 calls a run on
 # 2026-11-01).
@@ -1179,7 +1181,8 @@ class Reader:
     _listing_error: str | None = None
     # When the whole listings of one `_complete_listing` must end.
     _read_deadline: float | None = None
-    # A whole listing was paged, so a failure is noted for the job.
+    # A whole listing was paged, so a failure not for want of a caller's time
+    # is noted for the job.
     _whole_paged: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
@@ -1363,7 +1366,9 @@ class Reader:
         before any read when the live count (`_live_count`) is too long to
         list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
         bounds the count read too, and every refusal for want of its time
-        starts with `DEADLINE_UNREADABLE`."""
+        starts with `DEADLINE_UNREADABLE`: one before paging, and one after
+        it when the caller's limit cut the whole listings' timeout and too
+        little of it is left for another wait (`LISTING_WAITS`)."""
         self._whole_paged = False
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
@@ -1380,6 +1385,26 @@ class Reader:
                 f"for a whole listing and its top-up at {LISTING_PAGE_SECONDS:.0f} s "
                 f"a page, past {bound}, so none is started"
             )
+        full = listing_timeout(total, LISTING_TIMEOUT_SECONDS)
+        try:
+            return self._whole_listings(budget)
+        except (_Unreadable, RuntimeError) as exc:
+            error, deadline = str(exc), self._read_deadline
+            if (
+                full is not None
+                and budget < full
+                and deadline is not None
+                and deadline - _listing_clock() <= max(LISTING_WAITS)
+                and not error.startswith(DEADLINE_UNREADABLE)
+            ):
+                raise _Unreadable(
+                    f"{DEADLINE_UNREADABLE}: {error} (out of {bound})"
+                ) from exc
+            raise
+
+    def _whole_listings(self, budget: float) -> list[dict[str, Any]]:
+        """`_complete_listing`'s whole listings and their top-ups, all inside
+        `budget`."""
         union: dict[int, dict[str, Any]] = {}
         deadline: float | None = None
         listing: list[dict[str, Any]] | _CountMissed | None = None
