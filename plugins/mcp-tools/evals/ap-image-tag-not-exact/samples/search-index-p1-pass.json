@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| search-index | P1 Floating version | PASS | sha256 digest |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| search-index | P1 Floating version | WARN | |",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "| browser | P1 Floating version | PASS | |",
+      "why": "wrong server"
+    }
+  ]
+}
