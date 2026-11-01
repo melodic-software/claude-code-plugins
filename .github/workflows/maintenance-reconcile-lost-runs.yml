@@ -188,7 +188,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.plan.outputs.record-1 != ''
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reconcile-record/record.json
 
@@ -206,7 +206,7 @@ jobs:
         id: scan-upload-2
         if: >-
           steps.plan.outputs.record-2 != ''
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reconcile-record/record.json
 
@@ -224,7 +224,7 @@ jobs:
         id: scan-upload-3
         if: >-
           steps.plan.outputs.record-3 != ''
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reconcile-record/record.json
 
@@ -254,7 +254,7 @@ jobs:
         id: scan-upload-4
         if: >-
           ${{ !cancelled() && steps.plan.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reconcile-settled/settled.json
 

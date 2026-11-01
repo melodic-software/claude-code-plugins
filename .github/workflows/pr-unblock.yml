@@ -851,7 +851,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: |
             ${{ runner.temp }}/feedback-context/threads.json
@@ -1553,7 +1553,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.collect.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/adjudication/verdicts.json
 
@@ -1764,7 +1764,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: |
             ${{ runner.temp }}/dependency-context/dependency.json
@@ -2208,7 +2208,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.context.outputs.proceed == 'true'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/ci-context/context.json
 

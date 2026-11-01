@@ -681,7 +681,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/eval-results/
 

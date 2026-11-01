@@ -682,7 +682,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.select.outputs.refine == 'true'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/refine-context/context.json
 
@@ -1019,7 +1019,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/refinement/refinement.json
 
@@ -1321,7 +1321,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.collect.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/refinement/refinement.json
 

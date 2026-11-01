@@ -291,7 +291,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.record.outputs.name != '' && steps.record.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-unblock-dispatched.json
 

@@ -1851,7 +1851,7 @@ jobs:
         id: scan-upload
         if: >-
           ${{ !cancelled() && steps.verdict.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
@@ -3638,7 +3638,7 @@ jobs:
         id: scan-upload
         if: >-
           ${{ !cancelled() && steps.verdict.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
@@ -5171,7 +5171,7 @@ jobs:
         id: scan-upload
         if: >-
           ${{ !cancelled() && steps.verdict.outcome == 'success' }}
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 

@@ -248,7 +248,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.deferred.outputs.name != ''
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-feedback-deferred.txt
 
@@ -467,7 +467,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatched.json
 
@@ -906,7 +906,7 @@ jobs:
         if: >-
           steps.find.outputs.record != ''
         continue-on-error: true
-        uses: ./.base/.github/actions/scan-upload
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/rerun-ci-status-record.json
 

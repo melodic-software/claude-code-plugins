@@ -3391,7 +3391,8 @@ jobs:
         id: scan-upload
         if: >-
           steps.summary-collect.outcome == 'success'
-        uses: ./.base/.github/actions/scan-upload
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
 

@@ -54,7 +54,14 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
   const dispatch = job("dispatch-full-run");
   assert.deepEqual(
     [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]),
-    ["Check out the api-budget library", "Read main's full-run cover", "Start the full CI run on main", "Record the dispatched run", "Log the API budget at the end"],
+    [
+      "Check out the api-budget library",
+      "Read main's full-run cover",
+      "Start the full CI run on main",
+      "Scan the upload for credentials",
+      "Record the dispatched run",
+      "Log the API budget at the end",
+    ],
   );
   assert.doesNotMatch(dispatch, /sleep 180|actions\/runs\/\$RUN_ID|post-merge-demotion-alert\.yml\/dispatches/);
   const timeout = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(dispatch)[1]);
@@ -239,12 +246,12 @@ test("dispatch-full-run starts nothing within the cap, and anything outside it",
 // resolved merge-pr slot applies; a slot `enabled: false` or whose
 // `applies-when` does not match prints the skip reason instead (#7636).
 // A merge-job step's condition, with or without an `id:` line before it.
-const mergeIf = (name) => {
-  const body = job("merge").split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0];
+const conditionOf = (body, name) => {
   const found = /(?:^|\n) {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(body);
   assert.ok(found, `${name} has a condition`);
   return (found[1] ?? found[2]).replaceAll("\n", " ");
 };
+const mergeIf = (name) => conditionOf(job("merge").split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0], name);
 const configured = (applies, outcome = "success") => ({ config: { outcome, outputs: { applies, "skip-reason": applies === "true" ? "" : "disabled-by-config" } } });
 
 test("the merge job requests its lane token and reads its mode only while the merge-pr slot applies", () => {
@@ -269,12 +276,19 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
   assert.match(block, /\n {10}REASON: \$\{\{ steps\.config\.outputs\.skip-reason \}\}\n/);
   assert.match(block, /::notice::merge-pr does not apply \(\$\{REASON:-no reason\}\)/);
   // Every step after the token request waits on a token, or on a step that does.
-  const after = names.slice(names.indexOf("Request the lane token") + 1);
-  for (const name of after) {
-    const condition = mergeIf(name);
-    const unminted = { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped", outputs: {} }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } };
+  // Each credential scan reads as clean, so an upload waits on its own
+  // condition, not only on its scan. Steps go by block: the scans share a name.
+  const blocks = merge.split("\n      - name: ").slice(1);
+  const after = blocks.slice(names.indexOf("Request the lane token") + 1);
+  for (const block of after) {
+    const name = block.slice(0, block.indexOf("\n"));
+    const condition = conditionOf(block, name);
+    const unminted = new Proxy(
+      { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped", outputs: {} }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } },
+      { get: (known, id) => known[id] ?? (/^scan-upload(-\d+)?$/.test(id) ? { outcome: "success", outputs: { clean: "true" } } : undefined) },
+    );
     const always = () => true;
-    const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "post-merge-dispatch": { result: "success", outputs: { "rate-limited": "" } } }, always);
+    const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "post-merge-dispatch": { result: "success", outputs: { "rate-limited": "" } } }, always);
     // It reads the job's own token, and runs on a kill switch too.
     if (name === "Log the API budget at job end") {
       continue;
@@ -316,7 +330,8 @@ test("post-merge-dispatch reads the cover only while the lane is live", () => {
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
-// contents: read only checks out the api-budget library, sparse, from main.
+// contents: read only checks out the api-budget library and the upload scan
+// with the rules it reads, sparse, from main.
 test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
   const dispatch = job("dispatch-full-run");
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
@@ -326,7 +341,7 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
   assert.match(checkout, /^ {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/\.github\/actions\/scan-upload\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
 // The cover read and each dispatch POST leave a rate-limit reading, so the
@@ -1176,9 +1191,25 @@ test("a dispatch that returns no run id is not sent again and records nothing", 
 });
 
 test("a dispatch that failed skips the record", () => {
-  for (const id of ["dispatch-full-run", "post-merge-dispatch"]) {
-    const record = job(id).split("\n      - name: Record the dispatched run\n")[1];
-    assert.match(record, /^ {8}if: steps\.dispatch\.outputs\.run-id != ''\n/, id);
+  for (const [id, scanId] of [
+    ["dispatch-full-run", "scan-upload"],
+    ["post-merge-dispatch", "scan-upload-2"],
+  ]) {
+    const [before, record] = job(id).split("\n      - name: Record the dispatched run\n");
+    assert.ok(
+      record.startsWith(`        if: >-\n          (steps.dispatch.outputs.run-id != '') && steps.${scanId}.outputs.clean == 'true'\n`),
+      id,
+    );
+    // The credential scan just before it runs on the same condition and scans
+    // the file the record uploads.
+    const scan = before.split("\n      - name: ").at(-1);
+    assert.ok(
+      scan.startsWith(
+        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        continue-on-error: true\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
+      ),
+      id,
+    );
+    assert.ok(record.includes("\n          path: ${{ runner.temp }}/dispatched.json\n"), id);
   }
 });
 
@@ -1432,7 +1463,19 @@ test("enable-auto-merge reads the verifier answers only from a trusted run and u
   assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
   const upload = step("Upload the verifier answers for the next run");
   assert.ok(upload, "an answers upload");
-  assert.match(upload, /^ {8}if: >-\n {10}always\(\) && steps\.arm\.outcome != 'skipped'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  const predicate = "always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')";
+  assert.ok(upload.startsWith(`        if: >-\n          (${predicate}) && steps.scan-upload.outputs.clean == 'true'\n`), upload);
+  // The credential scan just before it runs on the same condition over the
+  // same two files.
+  const scan = arm.split("\n      - name: Upload the verifier answers for the next run\n")[0].split("\n      - name: ").at(-1);
+  assert.ok(scan.startsWith(`Scan the upload for credentials\n        id: scan-upload\n        if: >-\n          ${predicate}\n`), scan);
+  assert.ok(scan.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), scan);
+  // A best-effort upload: neither it nor its scan can fail the job.
+  for (const block of [scan, upload]) assert.ok(block.includes("\n        continue-on-error: true\n"), block);
+  assert.ok(
+    scan.includes("\n          path: |\n            ${{ runner.temp }}/verify-answers/verify-answers.json\n            ${{ runner.temp }}/verify-answers/eam-skip.json\n"),
+    scan,
+  );
   assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
   // Bounded, so the job's timeout stays above the sum of its steps'.
   assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
