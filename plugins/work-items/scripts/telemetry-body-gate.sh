@@ -8,7 +8,9 @@
 # prompt-injected --body-file or --body-dir must not be able to post a credential
 # file. Each function returns non-zero with the reason in TBG_ERR; the caller maps
 # that to its own exit code. No message carries an absolute path or a match.
-# Needs bash 4.1+ and GNU realpath (-e).
+# Portable to stock macOS (bash 3.2, BSD userland): paths are canonicalized with
+# cd -P and pwd -P in a subshell, with CDPATH unset and an option-shaped operand
+# prefixed with ./.
 
 # shellcheck disable=SC2034 # TBG_* results are read by the sourcing script
 unset CDPATH
@@ -20,8 +22,20 @@ unset CDPATH
 # the home dir, or an ancestor of the home dir. The name is checked again on the
 # canonical path, so a symlink named for PLUGIN that points elsewhere is refused.
 # The home dir is the account's passwd entry, so an overridden HOME cannot move
-# it; $HOME is only the fallback where getent is missing.
+# it; $HOME is only the fallback where getent is missing (stock macOS).
 tbg_has_name() { [[ "$2" == "$1" || "$2" == "$1"-* ]]; }
+# tbg_canon_dir DIR: print DIR's canonical path, every symlink resolved; non-zero
+# when DIR is not an existing directory or its canonical path holds a newline,
+# which command substitution would strip into a different path.
+tbg_canon_dir() {
+  local d="$1" out
+  [[ "$d" == -* ]] && d="./$d"
+  [[ -d "$d" ]] && out="$(CDPATH='' cd -P -- "$d" 2>/dev/null && pwd -P && printf x)" || return 1
+  out="${out%x}"
+  out="${out%$'\n'}"
+  [[ "$out" == /* && "$out" != *$'\n'* ]] || return 1
+  printf '%s\n' "$out"
+}
 tbg_safe_dir() {
   local plugin="$1" dir="${2:-${CLAUDE_PLUGIN_DATA:-}}" seg home
   TBG_SAFE=""
@@ -35,7 +49,7 @@ tbg_safe_dir() {
     TBG_ERR="no safe body dir: --body-dir (or CLAUDE_PLUGIN_DATA) must be this plugin's data dir, whose last segment names $plugin"
     return 1
   fi
-  if ! TBG_SAFE="$(realpath -e -- "$dir" 2>/dev/null)" || [[ ! -d "$TBG_SAFE" ]]; then
+  if ! TBG_SAFE="$(tbg_canon_dir "$dir")" || [[ -z "$TBG_SAFE" || ! -d "$TBG_SAFE" ]]; then
     TBG_SAFE=""
     TBG_ERR="the safe body dir does not exist"
     return 1
@@ -46,7 +60,14 @@ tbg_safe_dir() {
     return 1
   fi
   home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
-  home="$(realpath -m -- "${home:-${HOME:-/}}" 2>/dev/null)" || home="/"
+  # A home dir that does not exist holds nothing, so it is compared as written.
+  home="${home:-${HOME:-}}"
+  [[ -d "$home" ]] && { home="$(tbg_canon_dir "$home")" || home=""; }
+  if [[ "$home" != /* ]]; then
+    TBG_SAFE=""
+    TBG_ERR="cannot resolve the home dir to check the safe body dir against it"
+    return 1
+  fi
   if [[ "$TBG_SAFE" == / || "$home" == "$TBG_SAFE" || "$home" == "$TBG_SAFE"/* ]]; then
     TBG_SAFE=""
     TBG_ERR="the safe body dir must not be /, the home dir, or an ancestor of it"
@@ -57,58 +78,74 @@ tbg_safe_dir() {
 # tbg_read_body FILE: copy FILE, which must resolve under TBG_SAFE, to a private
 # file named in TBG_COPY, made in TBG_SAFE so TMPDIR need not be writable (the
 # caller removes it). Returns 2 when FILE does
-# not exist, 1 on any other refusal. The leaf is canonicalized with realpath, so
-# no `cd` (and no CDPATH or option-shaped parent) is involved. The file is then
-# opened once, and on Linux the open descriptor's own path is checked again, so a
-# swap between the realpath check and the open is caught. Without /proc (macOS)
-# only the realpath check stands, and that swap window stays open.
+# not exist, 1 on any other refusal. FILE's parent dir is canonicalized with
+# tbg_canon_dir and the leaf, which must not be a symlink, . or .., is appended. The
+# file is then opened once on fd 9 (a caller's own fd 9 would be closed), and on Linux the open descriptor's own path is
+# checked again, so a swap between the check and the open is caught. Without
+# /proc (macOS) only the canonical-path check stands, and that swap window stays open.
 tbg_read_body() {
-  local file="$1" canon opened fd
+  local file="$1" canon opened parent leaf
   TBG_COPY=""
   if [[ -L "$file" ]]; then
     TBG_ERR="the body file must not be a symlink"
     return 1
   fi
-  if ! canon="$(realpath -e -- "$file" 2>/dev/null)"; then
+  if [[ ! -e "$file" ]]; then
     TBG_ERR="the body file does not exist"
     return 2
   fi
+  leaf="${file##*/}"
+  if [[ "$file" == */* ]]; then parent="${file%/*}"; else parent=.; fi
+  if [[ -z "$leaf" || "$leaf" == . || "$leaf" == .. || "$leaf" == *$'\n'* ]] ||
+    ! parent="$(tbg_canon_dir "${parent:-/}")" || [[ -z "$parent" ]]; then
+    TBG_ERR="the body file must resolve under the safe body dir"
+    return 1
+  fi
+  canon="${parent%/}/$leaf"
   if [[ ! -f "$canon" || "$canon" != "$TBG_SAFE"/* ]]; then
     TBG_ERR="the body file must resolve under the safe body dir"
     return 1
   fi
-  if ! exec {fd}<"$canon"; then
+  # A hard link would carry an outside file's contents under a safe name.
+  if [[ -z "$(find "$canon" -prune -links 1 2>/dev/null)" ]]; then
+    TBG_ERR="the body file must not be a hard link"
+    return 1
+  fi
+  if [[ -L "$canon" ]] || ! exec 9<"$canon"; then
     TBG_ERR="cannot open the body file"
     return 1
   fi
-  if [[ -e "/proc/self/fd/$fd" ]]; then
-    opened="$(readlink -- "/proc/self/fd/$fd")"
+  if [[ -e /proc/self/fd/9 ]]; then
+    opened="$(readlink -- /proc/self/fd/9)"
     if [[ "$opened" != "$TBG_SAFE"/* ]]; then
-      exec {fd}<&-
+      exec 9<&-
       TBG_ERR="the body file must resolve under the safe body dir"
       return 1
     fi
   fi
-  if ! TBG_COPY="$(mktemp "$TBG_SAFE/.body.XXXXXX")" || ! cat <&"$fd" >"$TBG_COPY"; then
-    exec {fd}<&-
+  if ! TBG_COPY="$(mktemp "$TBG_SAFE/.body.XXXXXX")" || ! cat <&9 >"$TBG_COPY"; then
+    exec 9<&-
     TBG_ERR="cannot copy the body file"
     return 1
   fi
-  exec {fd}<&-
+  exec 9<&-
 }
 
 # tbg_instance: the lane-instance fallback, in TBG_INSTANCE: a random lane-<hex>
 # id made once and kept in TBG_SAFE/lane-instance, so it is stable across
 # restarts and distinct per machine without publishing the hostname in the public
 # marker. A symlinked or malformed stored id is refused and never echoed. A new id
-# is written to a temp file and hard-linked into place, which never overwrites.
+# is written to a temp file and hard-linked into place, which never overwrites; a
+# lane-instance that is a directory makes ln link inside it, so the stored id must
+# then be a regular file.
 tbg_instance() {
   local file="$TBG_SAFE/lane-instance" tmp=""
   TBG_INSTANCE=""
   if [[ ! -L "$file" && ! -e "$file" ]]; then
     TBG_INSTANCE="lane-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
     if tmp="$(mktemp "$TBG_SAFE/.lane-instance.XXXXXX" 2>/dev/null)" &&
-      printf '%s\n' "$TBG_INSTANCE" >"$tmp" && ln -T -- "$tmp" "$file" 2>/dev/null; then
+      printf '%s\n' "$TBG_INSTANCE" >"$tmp" && ln -n -- "$tmp" "$file" 2>/dev/null &&
+      [[ -f "$file" && ! -L "$file" ]]; then
       rm -f -- "$tmp"
       return 0
     fi
@@ -120,9 +157,9 @@ tbg_instance() {
       return 1
     }
   fi
-  if [[ -L "$file" ]]; then
+  if [[ -L "$file" || ! -f "$file" ]]; then
     TBG_INSTANCE=""
-    TBG_ERR="the stored lane-instance is a symlink; delete it to make a new one"
+    TBG_ERR="the stored lane-instance is a symlink or not a file; delete it to make a new one"
     return 1
   fi
   TBG_INSTANCE="$(head -c 64 -- "$file" 2>/dev/null | tr -d '\r\n')"
