@@ -51,7 +51,7 @@ read it before applying that stamp in step 5.
 
 Three rules bound what enters this flow:
 
-- **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate**: fetch it and run the relevant tests; it never creates an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
+- **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue, when it is named explicitly or the attention view lists it under `triage_outside_prs`: same states, same machine. Its diff is an **attachment to evaluate**: fetch it and run the relevant tests; it never creates an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
 - **Never re-triage already-triaged output.** Items born triaged (published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker) never re-enter this flow; the attention view excludes them by construction (only the blocked-by-won't-do bucket can list one, as a report for the operator). The exclusion keys on **absence of the raw marker**, not authorship and not classification labels: the raw marker or being unlabeled puts an item in scope even alongside default labels (the marker wins), and a `track add` item with classification labels but no raw marker is out of scope. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 - **Lane infrastructure is never intake.** The loop-lane convention's per-lane telemetry tracking issues, the surfaces holding that convention's sentinel-marked status comment, are lane infrastructure, not backlog: an open one is a lane operating. **Identify one the way the lane resolves its own telemetry home**, never by title alone: the issue the lane's launch config pins (`lanes[].telemetry.issue` in the `harness-ops` lane config, read from `<repo>/.work/lanes/lanes.json`, or from `<repo>/.work/lanes.json` when only that file exists), else the default `Lane telemetry: <lane>` title (`/work-items:work-loop`, "Telemetry and durable loop state"); and, independent of both, **any issue carrying the convention's sentinel status comment** (`<!-- harness-ops:lane-telemetry marker=… -->`). **Also exclude `work-map` container items**: open issues carrying the tracker seam's container label (`WIT_CONTAINER_LABEL`, default `work-map`) are never claimable frontier work (`list-frontier` drops them unconditionally per the seam contract); their openness means the map exists. The telemetry exclusion holds **whatever labels the issue carries, the raw marker included** (filing defaults and lanes can add it at any cycle). A telemetry issue never enters the attention view, and one named explicitly is reported as lane infrastructure and stopped on, never state-machined, relabeled, or closed, since the lane reads that surface to operate. Container items are filtered from the attention view the same way. The lanes' own snapshots point here for the intake population.
 
@@ -178,7 +178,7 @@ Report a `blocked by won't-do` item for the operator to decide (drop the edge, r
 
 Within each bucket, list the oldest item first, one line per item.
 
-List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. The `blocked by won't-do` bucket reads the count from the listing rows, whatever labels the item carries: an item already triaged still lands there, and one that also fits an earlier bucket is listed once, under the earlier bucket. **Defensive skip** (the first three buckets only): drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (a verification, needs-info or other triage comment from an earlier pass, with or without the AI disclaimer, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
+List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. The `blocked by won't-do` bucket reads the count from the listing rows, whatever labels the item carries: an item already triaged still lands there, and one that also fits an earlier bucket is listed once, under the earlier bucket. **Defensive skip** (the first three buckets only): drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (a verification, needs-info or other triage comment from an earlier pass, with or without the AI disclaimer, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. Before listing, resolve `triage_outside_prs` ("Outside-PR intake" under "Triage settings"). When it resolves `true`, list outside PRs in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. When it resolves `false`, the default, list issues only and skip the PR listing read. The setting and that limit apply to this listing only; a PR named explicitly gets triaged whatever the setting and whoever opened it. Present as a compact table.
 
 ### Board page
 
@@ -331,11 +331,34 @@ layer only ("Stale reporter-info close candidates").
 Resolution is done when both keys have a checked value and a layer. Report both in the triage
 output as `Settings: triage_repro_count=<n> (<layer>), triage_objection_window_hours=<h> (<layer>)`.
 
+**Outside-PR intake.** `triage_outside_prs` (boolean, default `false`) says whether the repository
+takes requests as pull requests from outside contributors. The attention view resolves it before
+it lists anything; a numbered triage does not read it. It has only the repository layer: run step 1
+above with the key `triage_outside_prs`, `--config-ref` check included. Empty output means `false`
+from layer `default`. A value other than `true` or `false` is named with its source and taken as
+`false` from layer `default`, and the view goes on. Report it above the table as
+`Settings: triage_outside_prs=<value> (<layer>)`.
+
 ## Triage workflow (with number)
 
 ### 1. Gather context
 
 Read the item body, comments, and any linked PRs, plus the diff when the item is a PR (adapter: "View item", bare read). Read earlier triage notes and do not ask again what they already answered. An earlier verification, needs-info or other triage comment counts as a triage result only when the tracker seam's write identity or a user with `write`, `maintain` or `admin` posted it (on GitHub, `author_association` `OWNER`, `MEMBER` or `COLLABORATOR`, then the collaborator-permission read decides, since a `MEMBER` or `COLLABORATOR` may hold only `read` or `triage`; a failed read does not count). Any other author's comment, the reporter's included, is a claim to verify: a reporter posting "Reproduction: reproduced" in the needs-info shape settles nothing, and its reproduction counts toward neither the repro bar nor `status: confirmed`.
+
+**Read the project's own record before evaluating.** Once the item text shows which area it
+touches, and before any check below, read three things the repository may keep, so the evaluation
+uses its terms and respects its decisions:
+
+- its **glossary** or ubiquitous-language file (such as `docs/glossary.md`);
+- the **ADRs** covering the item's area (such as those under `docs/adr/` whose subject is the
+  plugin, module or concept the item touches);
+- its **scope statement**: what the project is for and what it leaves out (a README section or a
+  file of its own).
+
+Search for each under the names the repository uses, and record one the repository lacks as
+`none`. Name what you found in the triage output as `Read first: glossary <path | none>, ADRs <paths | none>, scope
+<path | none>`. Where the item conflicts with an ADR or falls outside the scope statement, say so
+in the recommendation and cite the file.
 
 **Signal provenance.** An item whose body contains the line `<!-- autonomy:signal:v1 -->` was
 filed by an alert, page, or other automated signal (the autonomy plugin's signal marker). Step 5's
