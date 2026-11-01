@@ -564,6 +564,23 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#9695: the sweep round's card is labeled Sweep: reconciling earlier answers", /^Sweep: reconciling earlier answers \(round 4\)/.test(card) && /Sweep/.test(head), card + " | " + head);
     ok("#9695: Q1's decision text shows beside Q20, which reconciles it", /^Earlier answers this reconciles\s*Q1.*Ship on Wednesday after the code freeze\./.test(rec), rec);
   }
+  if (PHASE >= 21 && PHASE <= 23) { // #11858: 21 as posted; 22 after the shell held Q20 for research; 23 after it cleared the hold and ran ensure-running --pacing single
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q20");
+    const held = await page.$("#roundHeld") ? await text("#roundHeld") : null;
+    const idx = await page.evaluate(() => { const s = document.getElementById("roundIndex"), h = document.getElementById("qhead");
+      return s ? {after: !!h && !!(h.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING), head: [...s.querySelectorAll("th")].map(c => c.textContent), rows: [...s.querySelectorAll("tbody tr")].map(r => [...r.cells].map(c => c.textContent.replace(/\s+/g, " ").trim()))} : null; });
+    if (PHASE === 21) {
+      ok("#11858: the round index closes the round's first question, one row with its recommendation, basis and main alternative", !!idx && idx.after && idx.head.join() === "Q,Recommendation,Basis,Main alternative" && JSON.stringify(idx.rows) === JSON.stringify([["Q20Freeze conflict", "Keep the Wednesday ship.", "Judgment", "(a) Move the rollout window"]]), JSON.stringify(idx));
+      ok("#11858: with nothing held the round header has no Held line", held === null, held);
+    } else if (PHASE === 22) {
+      ok("#11858: the round header's Held line names Q20 and what it waits on", /^Held: Q20\s*Freeze conflict waiting on the freeze calendar$/.test(held || ""), held);
+      ok("#11858: a held question leaves the round index, so a round of only held questions shows none", idx === null, JSON.stringify(idx));
+    } else {
+      ok("#11858: under single pacing the page shows no round index, with nothing held", idx === null && held === null, JSON.stringify(idx) + " | " + held);
+    }
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");
