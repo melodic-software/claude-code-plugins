@@ -19,6 +19,10 @@ Resolve it in this order:
    `skills/fanout/` tree owns the merge-set rules. Read those files directly. For **where the file
    goes**, read `review/skills/fanout/SKILL.md` "Shared inputs"; the detector-findings contract
    points there and `findings-file-shape.md` does not restate it. This rung works offline, which is the point of putting it first.
+   Decide "installed" from this session's skill listing (a `/review:` skill is listed), and take
+   the plugin's directory only from a base directory a loaded `review` skill reports. Never search
+   the filesystem for the plugin: when the listing names no `review` skill, or no loaded skill
+   gives its directory, go to rung 2.
 2. **The publisher's raw URL**, when `review` is not installed:
    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
 3. **Neither reachable → do not write.** Report that the destination and the guard could not be
