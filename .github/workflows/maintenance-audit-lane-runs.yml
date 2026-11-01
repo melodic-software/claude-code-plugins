@@ -420,12 +420,6 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Fail without findings
-        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
-        run: |
-          echo "::error::the judgment left no findings for this unit"
-          exit 1
-
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -433,6 +427,12 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+      - name: Fail without findings
+        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
+        run: |
+          echo "::error::the judgment left no findings for this unit"
+          exit 1
 
   # The units the key leg handed on, as judge-subscription's matrix. It holds
   # no secret and reads only the markers' names and closed-set values.
@@ -779,12 +779,6 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Fail without findings
-        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
-        run: |
-          echo "::error::the judgment left no findings for this unit"
-          exit 1
-
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -792,6 +786,12 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+      - name: Fail without findings
+        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
+        run: |
+          echo "::error::the judgment left no findings for this unit"
+          exit 1
 
   # The units the subscription leg handed on, as judge-fallback's matrix.
   judge-subscription-handoffs:
@@ -1080,12 +1080,6 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-      - name: Fail without findings
-        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'
-        run: |
-          echo "::error::the judgment left no findings for this unit"
-          exit 1
-
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -1093,6 +1087,12 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+      - name: Fail without findings
+        if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'
+        run: |
+          echo "::error::the judgment left no findings for this unit"
+          exit 1
 
   file:
     needs: [collect, judge, judge-subscription, judge-fallback]

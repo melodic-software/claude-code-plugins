@@ -191,6 +191,8 @@ jobs:
         if: always()
         continue-on-error: true
         timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget
+        # actionlint rejects the $/ form zizmor asks for; the comment above
+        # pr-require-checks.yml's Run zizmor step has the detail.
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
