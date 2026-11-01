@@ -64,10 +64,14 @@ scans it with the rest of the rendered body.
      digits and `/._-`, since any other character (a space, a parenthesis, a backslash, a drive
      colon) can leave the image reference unparsed and publish the local path. Copy a capture
      whose path holds any other character into a scratchpad directory whose absolute path passes
-     the same test, under its file name with those characters dropped, and use the copy's path
-     here and in its `--attach`. When no such directory is available, leave the capture out and
-     name it in the report. How an attached file's reference is replaced is in the record at the
-     end of this file;
+     the same test, in a subdirectory of its own named for the capture's position in the attach
+     list (`1/`, `2/`, ...), so two captures never share a copy path: two `step.png` files from
+     different directories, or `shot (1).png` beside `shot 1.png`, would otherwise copy to one
+     name and the second would overwrite the first. Name the copy with its file name's other
+     characters dropped; when nothing but its extension, or nothing at all, is left, name it
+     `capture` plus whatever extension is left. Use the copy's path here and in its `--attach`.
+     When no such directory is available, leave the capture out and name it in the report. How
+     an attached file's reference is replaced is in the record at the end of this file;
    - `{{artifact_line}}`: with `--artifact-url`, the artifact's name, its link and when it expires
      (`expires after <n> days`, else `expires with the repository's artifact retention setting`).
      With no artifact URL and no capture attached, the line reads `Media not uploaded: <reason>`,
@@ -93,8 +97,11 @@ scans it with the rest of the rendered body.
    fails this check on any PR it has answered, so run the step as a separate account, through
    its own `GH_TOKEN`.
 7. **Check the attach flag.** `gh pr comment --help` must list `--attach`. When it does not, run
-   the commands below through the latest `gh` with `mise exec gh@latest -- gh ...`, which leaves
-   the user's default `gh` alone, after checking that its `--help` lists `--attach`. When neither is
+   the commands below through a pinned `gh` with `mise exec gh@2.102.0 -- gh ...`, which leaves
+   the user's default `gh` alone, after checking that its `--help` lists `--attach`. The pin is a
+   reviewed release that carries `--attach` (first in v2.99.0), never `latest`: this `gh` runs
+   with the evidence identity's `GH_TOKEN`, so an unreviewed upstream release must not reach it.
+   Bump the pin only on the recheck trigger at the end of this file. When neither is
    available, render the body again from step 4 with no captures (no `{{#capture}}` blocks, so no
    local path reaches the comment), keep the artifact link when there is one, else set the
    artifact line to `Media not uploaded: gh cannot attach files`, scan it again as in step 5, and
@@ -136,5 +143,6 @@ attached; each one left out and why; the artifact line; or the refusal, with the
   "last comment" the `--*-last` flags act on.
 - **As of:** 2026-11-01. No run here has yet probed `--edit-last` with `--attach` against a live
   PR; step 9 covers a `gh` that rejects the pair.
-- **Recheck trigger:** a `gh` release note that changes `--attach` or `--edit-last`, or a posted
-  capture that renders as a link instead of inline.
+- **Recheck trigger:** a `gh` release note that changes `--attach` or `--edit-last`, which is
+  also when step 7's `gh@2.102.0` pin is reviewed and bumped, or a posted capture that renders as
+  a link instead of inline.
