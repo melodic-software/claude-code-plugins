@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/work-items/skills/measure-delivery/scripts/delivery-metrics.sh\" --repo /w --deploy-signal merge-to-default-branch --branch main --since 2026-10-01 --until 2026-10-31"
+          }
+        }
+      ],
+      "why": "runs the script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w log --first-parent --format='%h %an %s' main"
+          }
+        }
+      ],
+      "why": "reads git log by hand"
+    },
+    {
+      "answer": [],
+      "why": "nothing run"
+    }
+  ]
+}
