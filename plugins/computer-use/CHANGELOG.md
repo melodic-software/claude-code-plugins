@@ -3,6 +3,14 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.12] - 2026-11-01
+
+### Fixed
+
+- `diagnose` now says that a screensaver, display or power fix stays the operator's even when
+  the operator asks the agent to apply it: the agent neither runs the change nor writes a script
+  or `.reg` file that applies it, and names the setting and value to change instead.
+
 ## [0.1.11] - 2026-10-13
 
 ### Changed

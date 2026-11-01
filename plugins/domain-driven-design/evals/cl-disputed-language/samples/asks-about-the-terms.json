@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "## One question before I write\n\nWhen a company signs up, is the Tenant the same party as the Customer who pays, or can one Tenant hold several Accounts?",
+      "why": "# heading then question"
+    },
+    {
+      "answer": "**Question:** Are Account, Customer and Tenant one concept with three names, or three distinct concepts?",
+      "why": "bold label"
+    },
+    {
+      "answer": "| # | Question |\n|---|---|\n| 1 | Does a Customer own exactly one Account? |",
+      "why": "table row"
+    },
+    {
+      "answer": "- Which of these names the party that signs the contract: Account, Customer or Tenant?",
+      "why": "list item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I added **Account** to docs/glossary.md as the canonical term, with Customer and Tenant under Avoid.",
+      "why": "picked a winner, no question"
+    },
+    {
+      "answer": "Account, Customer and Tenant remain unresolved, so I wrote nothing.",
+      "why": "no question asked"
+    },
+    {
+      "answer": "Which file should hold the entry?",
+      "why": "question not about the terms"
+    },
+    {
+      "answer": "Should I put it in the same file?",
+      "why": "question not about the terms"
+    }
+  ]
+}

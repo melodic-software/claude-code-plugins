@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "**Overall:** 24 pass, 3 warn, 1 fail, 6 info",
+      "why": "contract"
+    },
+    {
+      "answer": "Overall: 24 passes, 3 warnings, 1 failure and 6 info",
+      "why": "inflected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Overall the server looks good.",
+      "why": "no counts"
+    },
+    {
+      "answer": "Overall: 1 fail",
+      "why": "partial"
+    }
+  ]
+}

@@ -40,6 +40,9 @@ decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
 optional execution lane. On Windows and macOS `apply` never runs: a run ends in a report plus the `execution-platform-unsupported` handoff (§6), which on Windows removes through one `handoff-apply` per tier.
 
+Run `hygiene.py` only through the Bash tool; the guard denies an engine call made through the
+PowerShell tool.
+
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional

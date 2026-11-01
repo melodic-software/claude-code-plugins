@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: cl-unattended-no-convention
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: proposes-glossary-md
+    type: regex
+    pattern: 'GLOSSARY\.md[\s\S]{0,160}?\b(?:propos(?:e|ed|es|al|ing)|suggest(?:ed|ion|s)?|recommend(?:ed|ation|s)?|(?:would|''d) (?:create|be|hold|go|live|contain|put|use|write)|not (?:yet )?(?:created|written)|unconfirmed|awaiting|pending|once (?:you|someone|a human|it is|confirmed)|after (?:you|confirmation|someone))\b|\b(?:propos(?:e|ed|es|al|ing)|suggest(?:ed|ion|s)?|recommend(?:ed|ation|s)?|(?:would|''d) (?:create|use|write|put)|unconfirmed)\b[\s\S]{0,160}?GLOSSARY\.md'
+    flags: 'i'
+    target: last_message
+  - name: reports-missing-convention
+    type: regex
+    pattern: '\bno (?:existing |established |declared |glossary |vocabulary |domain[- ]language |placement |naming |documentation )*(?:conventions?|glossary|glossary file|vocabulary file)\b|\bconventions?\b[^\n]{0,80}?\b(?:missing|not found|absent|none|does not exist|doesn''t exist|was not found|could not be found)\b|\b(?:missing|absent|lacks? an?|without an?|no) (?:\w+ ){0,3}?conventions?\b|\b(?:could(?: not|n''t) find|does(?: not|n''t) (?:have|define|declare)) (?:an? |any )?(?:\w+ ){0,3}?conventions?\b'
+    flags: 'i'
+    target: last_message
+  - name: reports-nothing-written
+    type: regex
+    pattern: '\bnothing (?:was |has been |is |got )?(?:written|created|changed)\b|\b(?:wrote|created|changed) nothing\b|\bno (?:files? |glossary )?(?:was |were |has been |have been )?(?:written|created)\b|\b(?:did not|didn''t|will not|won''t|do not|don''t) (?:write|create)\b|\b(?:have not|haven''t|has not|hasn''t) (?:been )?(?:written|created)\b|\b(?:wrote|created) no\b|\bdefer(?:red|ring|s)?\b|\bnot (?:yet )?(?:written|created)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: asks-nothing
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: 'both'

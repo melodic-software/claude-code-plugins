@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# Domain language map\n\n| Context | Glossary | Relationship |\n|---|---|---|\n| Support | `support-terms.md` | Support requests billing evidence through the published case reference. |\n| Billing | `billing-terms.md` | Billing publishes charge references to Support. |\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "# Domain language map\n\n| Context | Glossary | Relationship |\n|---|---|---|\n| Support | `support-terms.md` | Support requests billing evidence through the published case reference. |\n| Billing | `billing-terms.md` | Billing publishes charge references to Support. |\n| Helpdesk | `helpdesk-terms.md` | Split out of Support. |\n",
+      "why": "new context discovered"
+    },
+    {
+      "answer": "# Domain language map\n\n| Context | Glossary | Relationship |\n|---|---|---|\n| Support | `support-terms.md` | Support requests billing evidence through the published case reference. |\n",
+      "why": "context merged away"
+    }
+  ]
+}
