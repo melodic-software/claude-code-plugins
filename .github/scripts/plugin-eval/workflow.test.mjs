@@ -45,6 +45,14 @@ test("a pull request run proves the policy denies the reads before any case runs
   assert.ok(text.indexOf("- name: Probe that the policy") < text.indexOf("- name: Run the plugin eval"));
 });
 
+test("each summary also reaches the job log and the results folder, with workflow commands off", () => {
+  const summarize = step("Summarize the results");
+  assert.match(summarize, /summarize\.mjs "\$results" [^\n]*>"\$summary" \|\| failed=1\n/);
+  assert.match(summarize, /summary="\$OUT\/\$name\/summary\.md"\n/);
+  assert.match(summarize, /cat "\$summary" >>"\$GITHUB_STEP_SUMMARY"\n/);
+  assert.match(summarize, /echo "::stop-commands::\$token"\n\s+cat "\$summary"\n\s+echo "::\$token::"\n/);
+});
+
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'pull_request' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
