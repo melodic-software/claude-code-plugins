@@ -208,6 +208,43 @@ test("a summary-only finding takes its answer from the lane's issue-comment tabl
   assert.equal(compute(snap).prs.find((pr) => pr.number === 101).lanes[CR].outcomes.unanswered, 1);
 });
 
+test("a D5 table answers the only lane with summary-only findings, unless its marker names another reviewer", () => {
+  const d5 = (login) =>
+    `| # | Finding | Classification | Evidence | Reacted |\n|---|---|---|---|---|\n| 1 | The description omits the default | INCORRECT | It is there. | 👎 |\n\n<!-- d5 finding=1 label=INCORRECT lane=${login} -->`;
+  const pr101 = (snap) => compute(snap).prs.find((pr) => pr.number === 101).lanes[CR].outcomes;
+  const snap = fixture();
+  // PR 101's code lane has one INCORRECT thread answer already; the D5 row adds the second.
+  snap.prs[0].comments[0].body = d5("github-actions[bot]");
+  assert.deepEqual([pr101(snap).incorrect, pr101(snap).intentional, pr101(snap).unanswered], [2, 0, 0]);
+  // With the lanes' summary comment present, a marker naming another reviewer answers no lane.
+  snap.prs[0].comments.push({ author: "github-actions", createdAt: T("10", "01"), body: `<!-- claude-lane-reviewed-head lane=${CR} sha=${A} -->` });
+  assert.equal(pr101(snap).incorrect, 2);
+  snap.prs[0].comments[0].body = d5("chatgpt-codex-connector[bot]");
+  assert.deepEqual([pr101(snap).incorrect, pr101(snap).unanswered], [1, 1]);
+});
+
+test("a round is the lanes App's comment opening with the marker, never a quote of it", () => {
+  const rounds = (snap) => compute(snap).prs.find((pr) => pr.number === 101).fix_rounds;
+  const snap = fixture();
+  snap.round_author = "melodic-lanes[bot]";
+  assert.equal(rounds(snap), 1);
+  snap.prs[0].comments.push({ author: "kyle-sexton", createdAt: T("12"), body: "The counter keys on `<!-- pr-unblock:address-feedback-round -->`." });
+  snap.prs[0].comments.push({ author: "kyle-sexton", createdAt: T("12", "10"), body: "<!-- pr-unblock:address-feedback-round -->\nNot the App." });
+  assert.equal(rounds(snap), 1);
+  // A snapshot that names no App counts the first-line marker from any author.
+  delete snap.round_author;
+  assert.equal(rounds(snap), 2);
+});
+
+test("a defer's forward link: this repository's #N or URL, never another repository's", () => {
+  const repo = "example/repo";
+  assert.equal(bucketOf("VALID (defer): filed https://github.com/example/repo/issues/250", 101, repo).bucket, "valid-follow-up");
+  assert.equal(bucketOf("VALID (defer): filed https://github.com/example/repo/pull/250", 101, repo).bucket, "valid-follow-up");
+  assert.equal(bucketOf("VALID (defer): filed https://github.com/other/repo/issues/250", 101, repo).bucket, "answered-unlabeled");
+  assert.equal(bucketOf("VALID (defer): filed other/repo#250", 101, repo).bucket, "answered-unlabeled");
+  assert.equal(bucketOf("VALID (defer): filed #250", 101, repo).bucket, "valid-follow-up");
+});
+
 test("a comment or review at or after until is ignored", () => {
   const pr103 = compute(fixture()).prs.find((pr) => pr.number === 103);
   assert.equal(pr103.lanes[CR].outcomes.unanswered, 1);

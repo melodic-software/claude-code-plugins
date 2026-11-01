@@ -24,7 +24,8 @@ error names. Fetch is GraphQL only, ten merged PRs per call; stderr counts the P
   comments` counts.
 - **Findings.** A thread whose first comment ends in the lane's `claude-lane:` footer, plus the
   summary-only findings each reviewed head counts (`N` minus `K`), answered from that lane's
-  `<lane> finding (<sha>)` table. Codex and other bots carry no footer and are not
+  `<lane> finding (<sha>)` table or a D5 `| # | Finding | Classification |` table naming the lane
+  (or, naming none, answering the only lane with summary-only findings on its latest head). Codex and other bots carry no footer and are not
   counted.
 - **Outcomes.** Each fresh finding lands in one bucket: `valid-fixed`, `valid-follow-up` (a VALID
   defer citing a newer tracker item), `intentional`, `incorrect`, `uncertain`,

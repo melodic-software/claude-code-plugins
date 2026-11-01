@@ -91,15 +91,26 @@ export function labelOf(text) {
   return FIX_SHA.test(text) ? "valid" : null;
 }
 
+// The item numbers an answer cites in this repository: `#N` not prefixed by another
+// `owner/repo`, and this repository's issue or pull URLs.
+function citedItems(text, repo) {
+  const out = [...String(text).matchAll(/(?<![\w./-])#(\d+)\b/g)].map((m) => Number(m[1]));
+  if (repo) {
+    const url = new RegExp(`https://github\\.com/${repo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(?:issues|pull)/(\\d+)\\b`, "gi");
+    for (const m of String(text).matchAll(url)) out.push(Number(m[1]));
+  }
+  return out;
+}
+
 // One answer's bucket. A VALID (defer) counts as a follow-up only when it cites a tracker id
 // newer than the PR (issues and PRs share one numbering); a defer with no forward link is
 // answered but unlabeled, and says so.
-export function bucketOf(text, prNumber) {
+export function bucketOf(text, prNumber, repo = null) {
   const label = labelOf(text);
   if (label === null) return { bucket: "answered-unlabeled" };
   if (label === "valid") return { bucket: "valid-fixed" };
   if (label === "defer") {
-    const forward = [...String(text).matchAll(/#(\d+)\b/g)].some((m) => Number(m[1]) > prNumber);
+    const forward = citedItems(text, repo).some((n) => n > prNumber);
     return forward ? { bucket: "valid-follow-up" } : { bucket: "answered-unlabeled", deferUnlinked: true };
   }
   return { bucket: label };
@@ -117,17 +128,32 @@ function replyText(body) {
   return body;
 }
 
-export const answerBucket = (body, prNumber) => bucketOf(replyText(body), prNumber);
+export const answerBucket = (body, prNumber, repo = null) => bucketOf(replyText(body), prNumber, repo);
 
-// The summary-answer rows an issue comment carries: { lane, sha|null, text } per row.
+const lanesNamed = (text) => LANES.filter((lane) => new RegExp(`(?<![\\w-])${lane}(?![\\w-])`).test(text));
+const botLogin = (login) => String(login ?? "").replace(/\[bot\]$/, "");
+
+// The summary-answer rows an issue comment carries: { lane|null, sha|null, login|null, text } per
+// row. Two shapes: a `<lane> finding (<sha>)` header, and the D5 table
+// (`| # | Finding | Classification | ...`, review-discipline.md), whose lane is the one a row or the
+// comment names (null when neither names exactly one) and whose `<!-- d5 finding=N ... lane=L -->`
+// marker gives the login of the reviewer it answers.
 function summaryRows(body) {
   const out = [];
   for (const { header, body: rows } of tables(body)) {
-    const m = SUMMARY_HEADER.exec(header[0] ?? "");
-    if (!m) continue;
     const col = header.findIndex((cell) => /^(verdict|classification)$/i.test(cell));
-    for (const cells of rows) {
-      out.push({ lane: m[1], sha: m[2] ?? null, text: col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | ") });
+    const m = SUMMARY_HEADER.exec(header[0] ?? "");
+    const text = (cells) => (col >= 0 ? `${cells[col]} | ${cells.join(" | ")}` : cells.join(" | "));
+    if (m) {
+      for (const cells of rows) out.push({ lane: m[1], sha: m[2] ?? null, login: null, text: text(cells) });
+    } else if (header[0] === "#" && col >= 0) {
+      const named = lanesNamed(body);
+      for (const cells of rows) {
+        const inRow = lanesNamed(cells.join(" "));
+        const lane = inRow.length === 1 ? inRow[0] : named.length === 1 ? named[0] : null;
+        const marker = new RegExp(`<!-- d5 finding=${cells[0].replace(/\D/g, "")} label=\\S+ lane=(\\S+) -->`).exec(body);
+        out.push({ lane, sha: null, login: marker ? marker[1] : null, text: text(cells) });
+      }
     }
   }
   return out;
@@ -165,7 +191,7 @@ function laneRounds(reviews) {
   return clean < 0 ? null : new Set(reviews.slice(0, clean + 1).map((r) => r.sha)).size;
 }
 
-function computePr(pr, until) {
+function computePr(pr, until, repo, roundAuthor) {
   const reviews = {};
   for (const lane of LANES) reviews[lane] = [];
   for (const review of pr.reviews ?? []) {
@@ -195,15 +221,27 @@ function computePr(pr, until) {
     findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), resolved: thread.resolved === true, answers: replies.map((c) => c.body) });
   }
 
-  // Summary-only findings: N-K per review, answered by the lane's finding table rows in order.
+  // Summary-only findings: N-K per review, answered by the lane's finding table rows in order. A
+  // D5 row naming no lane answers the only lane whose latest head before it has summary-only
+  // findings; a row whose marker names a reviewer other than the lanes' comment author is skipped.
+  const comments = [...(pr.comments ?? [])].filter((c) => c.createdAt < until).map((c) => ({ ...c, at: c.createdAt, key: c.body })).sort(byTime);
+  const laneLogins = new Set(comments.filter((c) => REVIEWED_HEAD.test(c.body)).map((c) => botLogin(c.author)));
+  const latest = (lane, at) => reviews[lane].filter((r) => r.at <= at).at(-1);
   const rows = [];
-  for (const comment of [...(pr.comments ?? [])].filter((c) => c.createdAt < until).map((c) => ({ ...c, at: c.createdAt, key: c.body })).sort(byTime)) {
+  for (const comment of comments) {
     for (const row of summaryRows(comment.body)) {
-      const lane = reviews[row.lane];
-      const head = row.sha
-        ? lane.find((r) => r.sha.startsWith(row.sha))
-        : lane.filter((r) => r.at <= comment.createdAt).at(-1);
-      if (head) rows.push({ ...row, head: head.sha });
+      if (row.login && laneLogins.size && !laneLogins.has(botLogin(row.login))) continue;
+      let lane = row.lane;
+      if (!lane) {
+        const open = LANES.filter((l) => {
+          const r = latest(l, comment.createdAt);
+          return r && r.findings > r.inline;
+        });
+        if (open.length !== 1) continue;
+        lane = open[0];
+      }
+      const head = row.sha ? reviews[lane].find((r) => r.sha.startsWith(row.sha)) : latest(lane, comment.createdAt);
+      if (head) rows.push({ ...row, lane, head: head.sha });
     }
   }
   for (const [lane, list] of Object.entries(reviews)) {
@@ -244,8 +282,8 @@ function computePr(pr, until) {
       stats.reposts++;
       continue;
     }
-    const labeled = f.answers.map((body) => answerBucket(body, pr.number)).find((o) => o.bucket !== "answered-unlabeled");
-    const outcome = labeled ?? (f.answers.length ? answerBucket(f.answers[0], pr.number) : { bucket: "unanswered" });
+    const labeled = f.answers.map((body) => answerBucket(body, pr.number, repo)).find((o) => o.bucket !== "answered-unlabeled");
+    const outcome = labeled ?? (f.answers.length ? answerBucket(f.answers[0], pr.number, repo) : { bucket: "unanswered" });
     stats.outcomes[outcome.bucket]++;
     if (outcome.deferUnlinked) stats.defer_unlinked++;
     if (outcome.bucket === "unanswered" && f.resolved) stats.resolved_unanswered++;
@@ -256,7 +294,10 @@ function computePr(pr, until) {
     lanes[lane].heads_reviewed = list.length;
     finish(lanes[lane]);
   }
-  const markers = (pr.comments ?? []).filter((c) => c.createdAt < until && String(c.body).includes(ROUND_MARKER)).length;
+  // A round is a comment whose first line is the marker, from the lanes App when the snapshot
+  // names it (address-feedback.mjs isRoundMarker); a quote of the marker elsewhere is not one.
+  const isRound = (c) => String(c.body).split(/\r?\n/)[0].trim() === ROUND_MARKER && (!roundAuthor || botLogin(c.author) === botLogin(roundAuthor));
+  const markers = (pr.comments ?? []).filter((c) => c.createdAt < until && isRound(c)).length;
   return {
     number: pr.number,
     lanes,
@@ -278,7 +319,7 @@ export function compute(snapshot) {
   const prs = [...snapshot.prs]
     .filter((pr) => pr.mergedAt >= since && pr.mergedAt < until)
     .sort((a, b) => a.number - b.number)
-    .map((pr) => computePr(pr, until));
+    .map((pr) => computePr(pr, until, snapshot.repo, snapshot.round_author ?? null));
   const lanes = {};
   for (const lane of LANES) {
     const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, resolved_unanswered: 0, inline_mismatch: 0, heads_reviewed: 0 };
@@ -447,24 +488,29 @@ function fetchPrs(repo, since, until, truncated) {
 
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-function fetchCap(repo) {
+// The round cap and the lanes App login from docs/conventions/pr-pipeline.yaml, read once.
+function fetchPipeline(repo) {
+  let yaml = "";
   try {
-    const yaml = gh(["api", "-H", "Accept: application/vnd.github.raw", `repos/${repo}/contents/docs/conventions/pr-pipeline.yaml`]);
-    const m = /^loop:\n(?:[ \t]+.*\n|\s*\n)*?[ \t]+review-rounds: (\d+)/m.exec(yaml);
-    if (m) return { value: Number(m[1]), source: CAP_SOURCE };
+    yaml = gh(["api", "-H", "Accept: application/vnd.github.raw", `repos/${repo}/contents/docs/conventions/pr-pipeline.yaml`]);
   } catch (error) {
     if (error instanceof RateLimited) throw error;
   }
-  return { value: CAP_DEFAULT, source: `${CAP_SOURCE} (unread; the default from that key)` };
+  const cap = /^loop:\n(?:[ \t]+.*\n|\s*\n)*?[ \t]+review-rounds: (\d+)/m.exec(yaml);
+  const identity = /^merge:\n(?:[ \t]+.*\n|\s*\n)*?[ \t]+agent-identity: (\S+)/m.exec(yaml);
+  return {
+    rounds_cap: cap ? { value: Number(cap[1]), source: CAP_SOURCE } : { value: CAP_DEFAULT, source: `${CAP_SOURCE} (unread; the default from that key)` },
+    round_author: identity ? identity[1] : null,
+  };
 }
 
 export function fetchSnapshot({ repo, since, until }) {
   const truncated = [];
-  const rounds_cap = fetchCap(repo);
+  const { rounds_cap, round_author } = fetchPipeline(repo);
   const prs = fetchPrs(repo, since, until, truncated);
   console.error(`review-precision: ${prs.length} merged PRs in the window`);
   prs.sort((a, b) => a.number - b.number);
-  return { schema: 2, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, truncated, prs };
+  return { schema: 2, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, round_author, truncated, prs };
 }
 
 // ---------------------------------------------------------------- CLI
