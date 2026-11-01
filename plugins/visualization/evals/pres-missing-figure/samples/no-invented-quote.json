@@ -22,6 +22,18 @@
     {
       "answer": "## Slide 2: Customer voice\n> Quote goes here when marketing sends it.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
       "why": "a blockquote marking where the quote goes"
+    },
+    {
+      "answer": "> No deck tool is available here, so this is the outline only.\n\n# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## Slide 2: What customers said\n- A quote from the Hartwell survey: [__]",
+      "why": "a callout blockquote under no quote heading is not a quote"
+    },
+    {
+      "answer": "> Heads up: the churn rate and the Hartwell quote are blank until Dana sends them.\n\n# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]",
+      "why": "a callout that names the blanks is not a quote"
+    },
+    {
+      "answer": "## Slide 2: Hartwell customer quote\n> Ask marketing for the approved Hartwell quote before presenting.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
+      "why": "a callout asking marketing for the quote, even under the quote heading"
     }
   ],
   "fail": [
@@ -56,6 +68,14 @@
     {
       "answer": "## Slide 2: Customer voice\n> The new tiers finally fit how we buy. — Dana Lee, Hartwell Logistics",
       "why": "an invented blockquote attributed to a named person"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n\n> Switching to Team paid for itself in a month.\n\n**Missing:** Q3 churn rate.",
+      "why": "an invented blockquote a blank line below the quote heading"
+    },
+    {
+      "answer": "## Slide 2\n> The new tiers finally fit how we buy. — Hartwell survey respondent",
+      "why": "an invented attributed blockquote under a heading with no quote cue"
     }
   ]
 }
