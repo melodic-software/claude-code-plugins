@@ -3482,10 +3482,10 @@ def _kept_report(
     object comparing it with the kept one."""
     fresh = None
     if look.key is not None and answer_cacheable(report):
-        # A too-old refusal clears only on a new upload, which changes the
-        # key; any other answer is read again once it turns too old.
+        # Age changes only one answer: verify:missing turns verify:too-old
+        # past TOO_OLD_DAYS. Any other answer moves only with the key.
         limits = [now + ANSWER_TTL, look.pass_expiry]
-        limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
+        limits.append(look.too_old if report.get("refusal") == MISSING else None)
         fresh = {
             "key": look.key,
             "readAt": now.isoformat(),
