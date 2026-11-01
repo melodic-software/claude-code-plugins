@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Move `runtime\\`, `state\\`, `builds\\`, `cache\\` and `LEDGER.md` from `G:\\OneDrive\\Documents\\Gaming` into `G:\\OneDrive\\Documents\\Gaming\\dlss5`, then rerun status.", "why": "verbatim relay" },
+    { "answer": "1. Open G:/OneDrive/Documents/Gaming.\n2. Move the runtime, state, builds and cache folders and LEDGER.md into Gaming/dlss5.\n3. Rerun status.", "why": "steps with forward slashes" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Move the state folder into Gaming\\dlss5 and rerun.", "why": "partial list" },
+    { "answer": "Done: I moved everything and status is clean.", "why": "did it itself, no relay" }
+  ]
+}

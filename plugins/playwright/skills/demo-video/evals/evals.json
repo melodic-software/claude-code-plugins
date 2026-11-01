@@ -43,14 +43,41 @@
     {
       "id": 4,
       "name": "ci-posting-uses-artifact-link",
-      "prompt": "This demo is being rendered in a GitHub Actions job. How should it get onto the PR?",
+      "prompt": "A reviewer asked for this demo, and no e2e-summary.json or report.json lists it. It is being rendered in a GitHub Actions job. How should it get onto the PR?",
       "expected_output": "Uploads the MP4 as a single-file, non-archived Actions artifact and comments the artifact link on the PR, instead of gh --attach, which needs a user login.",
       "files": [],
       "expectations": [
         "Recommends a non-zipped single-file artifact upload for CI",
         "Comments a link to the artifact on the PR",
         "Does not propose creating a new credential or token for posting",
-        "Points to reference/posting.md for the current upload option rather than restating it from memory"
+        "Points to reference/posting.md for the current upload option rather than restating it from memory, and uses its CI artifact-link section, the route for every demo rendered in CI"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "verification-evidence-uses-evidence-step",
+      "prompt": "In this local session, the e2e run for PR 57 wrote e2e-summary.json, and its publishable list names the demo.mp4 that passed quality control and review, with a non-empty demo.mp4.txt beside it. Post the video as the PR's evidence.",
+      "expected_output": "Posts through /source-control:pull-request evidence 57 --evidence <path to e2e-summary.json> --attach <the listed demo.mp4 path> when that skill is available, and relays its report, instead of running gh pr comment --attach itself.",
+      "files": [],
+      "expectations": [
+        "Calls /source-control:pull-request evidence with the PR number, --evidence naming the e2e-summary.json and --attach naming the video path the summary lists",
+        "Does not also post the video with its own gh pr comment --attach",
+        "Uses the reference/posting.md fallback only when the evidence step does not resolve",
+        "When the evidence step refuses or reports the video left out, relays its reason rather than posting the video another way"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "ci-verification-evidence-uses-artifact-link",
+      "prompt": "A GitHub Actions job ran the e2e suite for PR 61. Its e2e-summary.json lists demo.mp4 in publishable, the video passed quality control and review, and demo.mp4.txt beside it is not empty. Post the video as the PR's evidence from this job.",
+      "expected_output": "Does not call /source-control:pull-request evidence from the CI job. Uploads the MP4 as a single-file, non-archived Actions artifact and comments the artifact link on the PR with the workflow's token, per the CI section of reference/posting.md.",
+      "files": [],
+      "expectations": [
+        "Does not call /source-control:pull-request evidence from the CI job",
+        "Does not run gh pr comment or gh pr create with --attach from the workflow",
+        "Uploads the MP4 as a single-file, non-archived artifact and comments its link on the PR",
+        "Says in the comment that the link expires with the repository's artifact retention",
+        "Does not propose creating a new credential or token for posting"
       ]
     }
   ]

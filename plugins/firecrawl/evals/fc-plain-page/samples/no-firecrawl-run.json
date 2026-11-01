@@ -1,0 +1,118 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --status 2>/dev/null | head -10",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sI https://example.com/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain curl"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn 'firecrawl scrape' docs/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "firecrawl inside a grep pattern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape https://example.com/ -o /tmp/fc-scrape-a1b2c3",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "scrape with -o"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "OUT=$(mktemp \"${TMPDIR:-/tmp}/fc-scrape-XXXXXX\"); firecrawl scrape https://example.com/ -o \"$OUT\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after mktemp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y firecrawl-cli scrape https://example.com/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/usr/local/bin/firecrawl map https://example.com",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute path"
+    }
+  ]
+}
