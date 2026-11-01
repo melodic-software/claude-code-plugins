@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Bucket | Item |\n|---|---|\n| unlabeled | #1 CSV export drops the header row |\n| raw marker | #2 Add a --since filter to ledger export |",
+      "why": "both items listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Bucket | Item |\n|---|---|\n| unlabeled | #1 CSV export drops the header row |",
+      "why": "#2 missing"
+    },
+    {
+      "answer": "No untriaged intake.",
+      "why": "empty view"
+    }
+  ]
+}

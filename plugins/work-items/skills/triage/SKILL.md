@@ -108,6 +108,49 @@ raw → verified → briefed
 
 Claiming stays coordination state, not a label. Assignee + lease via the seam (`/work-items:track start`, `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"); `blocked` is a native `blocked-by` edge, not a `status:` label.
 
+## Claim before the first write
+
+A triage run claims each item before it writes to it and releases the claim once its result is
+posted, so two runs never post conflicting results on one item. A write is any comment, label edit,
+dimension write, `blocked-by` edge or close. Reads take no claim: the attention view, the stale
+reporter-info listing, the sweep's list and count, and every read before the first write.
+
+1. **Claim** right before the first write to the item, through the seam, with the triage phase:
+
+   ```bash
+   TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   "$TRACKER" claim "<id>" --phase triage --ttl-hours 1
+   ```
+
+   `<id>` is fully qualified. Exit `0`: the claim is held; keep its `lease_comment_id`. Exit `7`:
+   another session holds the item, so write nothing to it, do not retry it in this run, and report
+   `#<n> skipped: claimed by another session`. Exit `2` from a provider whose `claim` takes no
+   `--phase` (linear's does not): claim once more without `--phase`. Exit `6` (the provider
+   declares `claim: false`, as gitea and jira do): write unclaimed and report that no claim was
+   possible. Any other exit leaves the item unwritten and is reported. The one-hour TTL frees the
+   item soon on a provider with no `release`; when verification may run longer, renew with
+   `"$TRACKER" renew-lease "<id>" --lease-comment-id <n>` before it lapses.
+2. **Other items** an outcome writes to, such as a cluster member's edge and comment or an
+   umbrella's membership comment, are claimed the same way, all of them before the outcome's first
+   write, since an umbrella fold is one indivisible sequence
+   ([`context/apply-outcome.md`](context/apply-outcome.md)). When any of those claims is lost on
+   exit `7`, release the ones held, write none of the sequence, and name the lost item in the report.
+3. **Hand back** each claimed item after its last write, including on a run that stops partway.
+   First clear the session's own assignee through the adapter's assignee edit (GitHub:
+   `--remove-assignee "@me"`; local-markdown: the item's `assignees` field), because `claim`
+   assigned it, `release` never touches assignees, and the frontier lists only unassigned items.
+   Then `"$TRACKER" release "<id>" --lease-comment-id <n>`. Exit `0` with either `released` value
+   is done. Exit `6` (the provider declares `release: false`) leaves the lease to run out its TTL.
+   Exit `7` means the lease is no longer this run's; leave it.
+
+When `.work-item-tracker.json` does not resolve, give the choice
+[`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Provider-neutral over the
+seam" names before the first write: run `/work-items:setup`, or, in a deliberate gh-native mode, write
+unclaimed and report that no race-safe claim was held. An unbound local-markdown store writes
+nothing. Under `/work-items:attend-queue`, an `[intake]` row comes to triage unclaimed and triage
+claims it here.
+
 ## Attention view (no number)
 
 The view answers one question per open item: is triage, or an operator decision triage reports, the
@@ -165,7 +208,8 @@ Listing them closes nothing:
 
 - **Attended** (the interactive branch of the direction gate, its restatement included): ask once
   whether to close the listed candidates. Close only those the operator says
-  yes to (adapter: "Close item", not planned), each with the comment below. The rest stay open.
+  yes to (adapter: "Close item", not planned), each with the comment below and under a claim
+  ("Claim before the first write"). The rest stay open.
 - **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the list and
   close nothing, whatever the lane directive authorizes. Lanes never close these items; only the
   operator's yes does.
@@ -204,8 +248,9 @@ machine and changes no label but that one.
    carry a recommendation`, then one line per selected item: number, title, where the
    recommendation is. When `<n>` is 0, stop there.
 4. **Attended** (the interactive branch of the direction gate): ask once whether to clear the label
-   from those `<n>` items. On yes, for each item in turn, post the comment below, then remove the
-   label; a failed post leaves that item's label in place. Items the operator excludes keep it. The
+   from those `<n>` items. On yes, for each item in turn, claim it ("Claim before the first write"),
+   post the comment below, remove the label, then hand the claim back; a failed post leaves that
+   item's label in place. Items the operator excludes keep it. The
    edit applies no other label, so the item ends with no role label, and the objection window of
    triage workflow step 5, which only an autonomous-eligible label edit triggers, does not apply.
    `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can pick it
@@ -333,7 +378,8 @@ Never interview anyone about the fix for a claim nobody has confirmed. Verificat
 
 Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info comment" in [context/apply-outcome.md](context/apply-outcome.md)).
 
-**On a pass**, once the direction gate is met, post one verification comment and then apply
+**On a pass**, once the direction gate is met and the item is claimed ("Claim before the first
+write"), post one verification comment and then apply
 `status: confirmed` (label preflight and comment shape: "Verification comment" in
 [context/apply-outcome.md](context/apply-outcome.md)). The comment carries the evidence, for a bug
 as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the recorded runs. The
