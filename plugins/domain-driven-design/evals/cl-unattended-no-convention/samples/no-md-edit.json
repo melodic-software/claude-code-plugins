@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/fulfillment/shipment.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "not a .md file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/README.md",
+            "old_string": "Packs orders",
+            "new_string": "Packs orders. Glossary: GLOSSARY.md"
+          }
+        }
+      ],
+      "why": "edits README"
+    }
+  ]
+}

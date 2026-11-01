@@ -669,9 +669,13 @@ compose a compliant subject/title, reading all three layers with the per-key mer
 concern owns **enforcement**: how a zero-dependency guardrails hook decides whether an
 *already-formed* subject/title is allowed. Both read the same team values
 (`docs/conventions/source-control.yaml`, then for one release the legacy files) but differ on
-purpose: enforcement reads the **team-tracked layer only** (a gitignored `*.local.md`
-must never weaken a blocking gate), resolves to **POSIX ERE only**, and treats an unresolved key as
-**no enforcement**, never the bundled Conventional Commits default. That contract, the regex-dialect
+purpose: enforcement reads the **team-tracked layer** (a gitignored `*.local.md` must never weaken
+a blocking gate), and only where it sets no `subject_pattern` falls back to the operator's
+git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.
+Drafting does not read that file; an operator who wants drafts to match it sets the same
+`## subject_pattern` in `.claude/source-control.local.md`. Enforcement resolves to **POSIX ERE
+only**, and treats an unresolved key as **no enforcement**, never the bundled Conventional Commits
+default. That contract, the regex-dialect
 normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in the
 [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md).
 

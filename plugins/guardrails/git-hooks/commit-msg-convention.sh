@@ -1,6 +1,6 @@
 #!/bin/sh
 # guardrails-commit-msg-convention v2
-# guardrails commit-msg check: the commit subject matches the team convention.
+# guardrails commit-msg check: the commit subject matches the commit convention.
 #
 #   commit-msg-convention.sh <message-file>   git runs it as commit-msg
 #
@@ -10,14 +10,16 @@
 # It reads the team-tracked pattern (`subject_pattern` in
 # docs/conventions/source-control.yaml, or for one release the legacy
 # .claude/source-control.md surfaces) through the same resolver the guard uses,
-# installed beside this script with its YAML parser as entry assets.
+# installed beside this script with its YAML parser as entry assets. Where the
+# team tracks none, the resolver falls back to the operator's own
+# `subject_pattern` in a git-ignored docs/conventions/source-control.local.yaml.
 #
 # Sentinel: the "guardrails-commit-msg-convention" marker on line 1 or 3 marks
 # this hook as derived FROM the tracked config, so convention-inference tooling
 # must not count it as an independent signal.
 #
-# No tracked pattern: no enforcement, exit 0, silent. A pattern that is not POSIX
-# ERE, an unreadable config or a resolver that cannot run also exits 0, but
+# No tracked or personal pattern: no enforcement, exit 0, silent. A pattern
+# that is not POSIX ERE, an unreadable config or a resolver that cannot run also exits 0, but
 # prints a notice with the resolver's diagnostic to stderr (this hook has no
 # model channel): exit 1 with empty stderr is "no pattern", anything else a failure.
 # Fixup, squash and amend subjects pass, as rebase --autosquash consumes them.
@@ -111,12 +113,22 @@ $subject
 EOF
 # The file that holds the pattern, asked for only now that the subject failed.
 layer="$(sh "$resolver" --layer "$repo_root" subject_pattern 2>/dev/null)" || layer=""
-[ -n "$layer" ] || layer="the team convention file"
+case "$layer" in
+docs/conventions/source-control.local.yaml)
+  owner="your personal convention"
+  fix="edit $layer, which only you read"
+  ;;
+*)
+  [ -n "$layer" ] || layer="the team convention file"
+  owner="the team convention"
+  fix="change it in $layer through a pull request"
+  ;;
+esac
 {
-  echo "guardrails: the commit subject does not match the team convention."
+  printf 'guardrails: the commit subject does not match %s.\n' "$owner"
   printf '  subject: %s\n' "$subject"
   printf '  pattern: %s   (subject_pattern in %s)\n' "$subject_ere" "$layer"
   echo "Rewrite the subject to match the pattern and commit again. If the pattern"
-  printf 'itself is wrong, change it in %s through a pull request.\n' "$layer"
+  printf 'itself is wrong, %s.\n' "$fix"
 } >&2
 exit 1

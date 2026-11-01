@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/plugin-data/curate-language-user-config-abc.json",
+            "content": "{\"glossary_file\":\"GLOSSARY.md\"}"
+          }
+        }
+      ],
+      "why": "step 2 plugin-data settings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/src/fulfillment/GLOSSARY.md",
+            "content": "# Fulfillment glossary"
+          }
+        }
+      ],
+      "why": "created the glossary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/GLOSSARY.md",
+            "content": "# Glossary"
+          }
+        }
+      ],
+      "why": "created at the root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/GLOSSARY-MAP.md",
+            "content": "# Map"
+          }
+        }
+      ],
+      "why": "created a map"
+    }
+  ]
+}
