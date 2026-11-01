@@ -271,10 +271,15 @@ push gives a head the verifier judges again.
 When the run uploaded a `pass` or `pass-notes` verdict instead, on an open PR still at that head
 `post-verify-notes` removes `pr-verify-failed` from a PR a person opened, if it is there, and
 dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads the review threads, and when an
-unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
+unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
+check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
+`_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
+`address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
+those at the passing head only with `verify-superseded-head` at it (then naming it in
+`superseded_head`); a failed or missing read leaves those open. No model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
 `pass-only`, which the dispatcher's release reads pass over. A pass-only round goes only to lanes

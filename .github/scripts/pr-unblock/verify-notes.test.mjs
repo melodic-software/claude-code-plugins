@@ -482,7 +482,17 @@ test("a stale fail-note thread is an open verifier note from another head, and n
   );
 });
 
-test("a pass names its head only when the PR is open at it and holds a stale fail-note thread", async () => {
+// A pass that superseded the FAIL at its own head (babysit_verify_evidence.py
+// `supersededAtHead`) leaves that FAIL's notes stale too; naming any other
+// head adds none.
+test("a fail-note thread at the head is stale only when the FAIL there was superseded", () => {
+  const threads = [thread("PRRT_old"), thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD }), thread("PRRT_same_done", { body: noteBody(HEAD), commit: HEAD, resolved: true })];
+  assert.deepEqual(staleVerifyNotes(threads, HEAD, { supersededHead: HEAD }), ["PRRT_old", "PRRT_same"]);
+  assert.deepEqual(staleVerifyNotes(threads, HEAD, { supersededHead: OLD }), ["PRRT_old"]);
+  assert.deepEqual(staleVerifyNotes(threads, HEAD, {}), ["PRRT_old"]);
+});
+
+test("a pass names its head only when the PR is open at it and holds an open fail-note thread", async () => {
   const run = async ({ pull = {}, threads = [thread("PRRT_old")], name = PASS, text = passText() } = {}) => {
     const dir = tempDir("verify-notes-");
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: name, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
@@ -496,7 +506,10 @@ test("a pass names its head only when the PR is open at it and holds a stale fai
   };
   assert.equal(await run(), `pass-head-sha=${HEAD}\n`);
   assert.equal(await run({ name: `${PASS}-notes`, text: passText({ verdict: "pass-notes" }) }), `pass-head-sha=${HEAD}\n`);
-  assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD })] }), "", "a note on the passing head stays");
+  // A note on the passing head starts the round too: the dispatcher's
+  // verifier read decides whether the FAIL there was superseded.
+  assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD })] }), `pass-head-sha=${HEAD}\n`, "a note on the passing head");
+  assert.equal(await run({ threads: [thread("PRRT_same", { body: noteBody(HEAD), commit: HEAD, resolved: true })] }), "", "a resolved note on the passing head");
   assert.equal(await run({ threads: [thread("PRRT_other", { author: 209825114 }), thread("PRRT_plain", { body: "x" })] }), "", "not a verifier note");
   assert.equal(await run({ threads: [] }), "", "no thread");
   assert.equal(await run({ pull: { head: { sha: OLD } } }), "", "the PR moved past the passing head");

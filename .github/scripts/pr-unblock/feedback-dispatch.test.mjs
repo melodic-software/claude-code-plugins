@@ -281,6 +281,24 @@ test("a pass-only dispatch the reader could not read the cap for still gets its 
   assert.deepEqual(fail.calls.dispatch, []);
 });
 
+// A pass that superseded the FAIL at its own head (babysit_verify_evidence.py
+// `supersededAtHead`, read by the same verifier read as the cap) sends that
+// head as verify-superseded-head, so the round resolves that FAIL's notes too.
+// No other answer, and no FAIL round, sends it.
+test("a pass-only dispatch names the head superseded only when the gate's reader found the FAIL there superseded", async () => {
+  const inputs = async (extra) => {
+    const api = fakeApi();
+    await decide(api, resolvedLane(), extra);
+    return api.calls.dispatch.map((call) => call.inputs["verify-superseded-head"]);
+  };
+  assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => ({ cap: null, supersededAtHead: true }) }), [HEAD]);
+  assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => ({ cap: null, supersededAtHead: false }) }), [undefined]);
+  assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => null }), [undefined]);
+  assert.deepEqual(await inputs({ verifyCapped: () => ({ cap: null, supersededAtHead: true }) }), [undefined]);
+  // A cap the reader found still skips the round, superseded or not.
+  assert.deepEqual(await inputs({ passOnly: true, verifyCapped: () => ({ cap: "verify:repeated-fail: fails at 3 heads, the cap is 3", supersededAtHead: true }) }), []);
+});
+
 // A round sent for pr-verify's FAIL at the head (notesSince set) finds that
 // FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
 // the reader is told to expect it; a review run's round and a pass expect none.

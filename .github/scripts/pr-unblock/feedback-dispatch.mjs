@@ -59,12 +59,15 @@
 // counts only check runs started after the pr-verify run was created
 // (notesSince, read back from the API) and skips the head's handled record.
 // A pr-verify pass whose post-verify-notes job found an open fail-note
-// thread from an earlier head names its head in VERIFY_PASS_HEAD_SHA instead.
+// thread names its head in VERIFY_PASS_HEAD_SHA instead.
 // That dispatch is a pass-only round (input verify-pass-head): it runs no
-// model and posts no address-feedback check, its reply job resolves those
-// threads as the lanes App, so neither the review markers, a workable thread,
+// model and posts no address-feedback check, its reply job resolves the
+// threads from an earlier head as the lanes App, so neither the review markers, a workable thread,
 // the human gate (a needs-human PR dispatches here whoever applied the label)
-// nor the head's check runs decide it; the hold labels still skip it. It only
+// nor the head's check runs decide it; the hold labels still skip it. Those at
+// the passing head it resolves only when the merge gate's reader, in the same
+// read as the FAIL cap, found the FAIL there superseded (input
+// verify-superseded-head; babysit_verify_evidence.py `supersededAtHead`). It only
 // resolves notes a later pr-verify pass superseded, and the needs-human label
 // it leaves on still blocks the merge. A pass-only round goes only to lanes
 // App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
@@ -150,7 +153,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyCapReader } from "./verify-cap.mjs";
+import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -386,7 +389,8 @@ export async function dispatchFeedback({
   requestSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
-  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  // verify-cap.mjs verifyReader's { cap, supersededAtHead }, or
+  // verifyCapReader's cap refusal alone, or null.
   verifyCapped = () => null,
 }) {
   const skip = (why) => {
@@ -593,7 +597,8 @@ export async function dispatchFeedback({
   // A round sent for pr-verify's FAIL at this head (notesSince) expects the
   // reader's FAIL refusal there.
   const expected = !passOnly && notesSince !== null ? [VERIFY_FAIL] : [];
-  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  const { cap: capped, supersededAtHead } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
@@ -618,6 +623,9 @@ export async function dispatchFeedback({
       activity: settings.activity,
       "dispatcher-run-id": String(runId),
       ...(passOnly ? { "verify-pass-head": head } : {}),
+      // The gate's reader found the FAIL at this head superseded, so the
+      // round resolves that FAIL's notes too (address-feedback.mjs select).
+      ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
     },
   };
   let workflowRunId;
@@ -1328,9 +1336,10 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
-    // The gate's reader for the FAIL-cap skip (verify-cap.mjs), when the
-    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
-    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined),
+    // The gate's reader for the FAIL-cap skip and a pass-only round's
+    // superseded FAIL (verify-cap.mjs), when the workflow names it in
+    // VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyReader(env, { log }) : undefined),
     now,
     log,
   };
