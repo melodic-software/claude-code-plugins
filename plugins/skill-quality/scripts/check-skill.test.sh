@@ -4148,6 +4148,29 @@ else
   fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
+# 48b. A plugin suite case.yaml whose tags name the skill satisfies --require-evals;
+#      one whose tags only start with the skill's name does not.
+mkdir -p "$TMP/plugins/p1/evals/c1"
+printf '%s\n' 'schema_version: 1' 'tags: [listed-other, hard]' >"$TMP/plugins/p1/evals/c1/case.yaml"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals fails when no case.yaml tag is exactly the skill"
+else
+  fail "a case tagged only listed-other should not satisfy listed (rc=$rc): $out"
+fi
+printf '%s\n' 'schema_version: 1' "tags: [hard, 'listed']" >"$TMP/plugins/p1/evals/c1/case.yaml"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case.yaml tags listed' <<<"$out"; then
+  pass "--require-evals accepts a plugin case.yaml that tags the skill"
+else
+  fail "a case tagged listed should satisfy --require-evals (rc=$rc): $out"
+fi
+rm -rf "${TMP:?}/plugins/p1/evals"
+
 # 49. The evals-warrant walk stops at a filesystem root instead of spinning.
 # `dirname` is a fixed point at every root: `.` for a relative path on any
 # platform, and `<drive>:` on Git Bash, where `git rev-parse --show-toplevel`

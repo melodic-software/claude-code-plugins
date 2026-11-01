@@ -1545,6 +1545,17 @@ evals_warrant_skip() {
   path_list_contains "$file" "$1"
 }
 
+# A plugin suite case counts for the skill when its flow-list `tags:` names the
+# skill, the tag convert-evals-json.py writes on every case it converts.
+plugin_case_tags_skill() {
+  local f
+  for f in "$(dirname -- "$SKILLS_ROOT")"/evals/*/case.yaml; do
+    [[ -f "$f" ]] || continue
+    grep -qE "^tags:[[:space:]]*\[(.*,)?[[:space:]]*['\"]?${SKILL_NAME}['\"]?[[:space:]]*(,.*)?\]" "$f" && return 0
+  done
+  return 1
+}
+
 evals_skill_rel=""
 if [[ "$SKILLS_ROOT" =~ /plugins/([^/]+)/skills$ ]]; then
   evals_skill_rel="plugins/${BASH_REMATCH[1]}/skills/${SKILL_NAME}"
@@ -1552,12 +1563,15 @@ fi
 
 if [[ ! -f "$SKILL_DIR/evals/evals.json" ]]; then
   if [[ "$REQUIRE_EVALS" == "1" ]]; then
-    if [[ -n "$evals_skill_rel" ]] && evals_warrant_skip "$evals_skill_rel"; then
+    if [[ -n "$evals_skill_rel" ]] && plugin_case_tags_skill; then
+      note "evals: a plugin suite case.yaml tags $SKILL_NAME"
+    elif [[ -n "$evals_skill_rel" ]] && evals_warrant_skip "$evals_skill_rel"; then
       note "evals skip recorded in scripts/evals-warrant-exemptions.txt for $evals_skill_rel"
     else
-      err "skill ships no evals/evals.json — required when the skill is new or its SKILL.md changed"
+      err "skill ships no evals/evals.json and no plugin evals/*/case.yaml tags it — required when the skill is new or its SKILL.md changed"
     fi
-  elif grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD"; then
+  elif grep -qE '^##+[[:space:]]+Actions?([^[:alnum:]_]|$)' "$SKILL_MD" &&
+    ! { [[ -n "$evals_skill_rel" ]] && plugin_case_tags_skill; }; then
     warn "action-router-shaped skill with no evals/evals.json — check whether the skill warrants triggering evals"
   fi
 fi
