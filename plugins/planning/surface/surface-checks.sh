@@ -363,14 +363,16 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
       sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
     done
+    # The repeated writes run round as a module from this directory: Python then reuses its cached
+    # bytecode, where round.sh runs round.py as a script that recompiles all of it on every call.
     jhandle() {
       local s
       read -r -a s <<<"$(unhandled "$j")"
-      [[ "${#s[@]}" -eq 0 ]] || jtime handle bash "$here/round.sh" --dir "$j" handle --seq "${s[@]}" >/dev/null
+      [[ "${#s[@]}" -eq 0 ]] || jtime handle "$py" -m round --dir "$j" handle --seq "${s[@]}" >/dev/null
     }
     japply() { # name ops-json
       printf '%s' "$2" >"$j/ops/$1.json"
-      jtime apply bash "$here/round.sh" --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
+      jtime apply "$py" -m round --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
     }
     jrun() { run_code "$tmp/uj$1.js" "$tmp/uj$1.out"; }
     jrun 1
@@ -460,8 +462,11 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
     # A Notes reply after the restatement: the restate notice outranks it in phase 16.
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
-    # An ordinary Claude note after it must not unpin the question.
-    jtime sleep sleep 1
+    # An ordinary Claude note after it must not unpin the question. Notes carry whole-second times,
+    # so waiting for the next second to start gives it a later time than n2, as a full second would.
+    local us=${EPOCHREALTIME#*.} wait=1
+    [[ "$us" =~ ^[0-9]{6}$ && "$us" != 000000 ]] && wait=$(printf '0.%06d' "$((1000000 - 10#$us))")
+    jtime sleep sleep "$wait"
     japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
     jrun 16
     # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
