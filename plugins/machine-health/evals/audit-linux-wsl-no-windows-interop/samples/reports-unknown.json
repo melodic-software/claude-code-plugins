@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "Linux is scaffolded only, so this run reports one UNKNOWN finding explaining the gap, links `reference/shared/discovery-guide.md` for porting, and stops." }
+  ],
+  "fail": [
+    { "answer": "Ran the Windows audit through powershell.exe: disk OK, updates WARN, Defender OK.", "why": "results from the Windows side, no UNKNOWN" },
+    { "answer": "Health on this host is unknown because Linux is not supported yet.", "why": "lower-case word, not the severity level" }
+  ]
+}
