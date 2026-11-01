@@ -1,6 +1,6 @@
 ---
-description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix. Use when: 'audit my sessions', 'which sessions burned the most tokens', or corrections keep repeating. One session's retro: /session-flow:retro."
-argument-hint: "[sweep…] [--unattended] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
+description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix, plus retro score trends. Use when: 'audit my sessions', 'which sessions burned the most tokens', 'show trends', or corrections keep repeating. One session's retro: /session-flow:retro."
+argument-hint: "[sweep|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep…] [--unattended] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|now|ticket|style|correction] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01
+**Arguments.** `[sweep|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|now|ticket|style|correction|trends] [--unattended] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01, /audit-sessions trends
 
 ## Purpose
 
@@ -17,7 +17,8 @@ change what causes it. The sweep measures no correction count and no trend over 
 `correction` lens has this session's model judge which stored short turns were corrections, and
 reports them apart from the measured findings, unranked. To see
 whether you are getting faster, run it twice with different `--since`/`--until` windows and compare
-the two reports by hand. Two bundled stdlib scripts do the counting; this skill runs them,
+the two reports by hand. The `trends` action does show a trend over time, from a different
+source: the session health scores `/session-flow:retro` records, with delivery metrics beside them. Two bundled stdlib scripts do the counting; this skill runs them,
 presents the report, and routes each finding to the skill that would act on it. It never applies a
 finding itself. The `style` pass reads the same store for preferences you type in more than one
 session and hands each one you confirm to `/corrections:codify`.
@@ -28,12 +29,13 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 ## Arguments
 
 Read `$ARGUMENTS` whole. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present
-(see "Boundary" below); take it out before reading the rest. Six actions: `sweep`, which is also what a bare invocation does,
+(see "Boundary" below); take it out before reading the rest. Seven actions: `sweep`, which is also what a bare invocation does,
 `sweep-only`, the consumer mode below, `now` ("Current session" below), `ticket` ("Ticket
-rollup" below), `style` ("Style pass" below) and `correction` ("Correction lens" below). `--scope`,
+rollup" below), `style` ("Style pass" below), `correction` ("Correction lens" below) and `trends`
+("Score trends" below). `--scope`,
 `--since`, `--until` and `--write-report` pass through to `sweep.py` unchanged (dates are
 `YYYY-MM-DD`, UTC); `sweep-only` and `correction` refuse `--write-report`, `style` takes `--scope`
-and `--since` only, and `now` takes no option. `ticket` requires `--pattern '<regex>'`, takes
+and `--since` only, and `now` and `trends` take no option. `ticket` requires `--pattern '<regex>'`, takes
 `--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`; stop when
 `ticket` has no pattern. Stop and name this accepted set on any other token; never guess.
 
@@ -61,6 +63,10 @@ Exits 0, 1 and 2 mean what Step 2 says.
     the Bash tool.
 - The store and reports live under `D/audit-sessions/`; their layout, retention and schema
   versioning are in [reference/store-layout.md](reference/store-layout.md).
+- **Score history** (read by `trends`): `D/scores/<project-slug>.md`, the file
+  `/session-flow:retro` session and quick modes append to. `<project-slug>` is the project's
+  absolute path, in its Windows drive form when `pwd -W` gives one, with every character outside
+  `[A-Za-z0-9]` replaced by `-`.
 - **Uninstall deletes the store.** Say so before the first collect on a machine: the store is the
   only lasting copy of these numbers, because Claude Code removes old transcripts on its own
   schedule and a deleted store cannot be rebuilt for sessions already removed.
@@ -322,6 +328,14 @@ a model. Run Step 1 first, pass `--scope` yourself as in the style pass's step 3
    that no agreement figure on a labeled sample exists yet, and that they are never ranked beside
    the measured findings. Each one suggests `/corrections:codify` for the person to run, marked `(not installed)` when
    the catalog lacks it.
+
+## Score trends: `trends`
+
+`trends` shows how this project's session health scores move across sessions, with the team's
+delivery metrics beside them. It takes no option, runs neither Step 1 nor Step 2, and reads no
+store: its only inputs are the score history under "Paths" and `/work-items:measure-delivery` when
+that skill is available, so the first-collect disclosure under "Paths" does not apply. Read
+[actions/trends.md](actions/trends.md) and follow its process.
 
 ## Boundary, the built-in `/insights` command
 

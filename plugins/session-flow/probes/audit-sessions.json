@@ -48,6 +48,12 @@
       "request": "Find the sessions where I had to restate a preference more than twice."
     },
     {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me trends across my last several retros."
+    },
+    {
       "id": "pos-val-01",
       "split": "validation",
       "expect_trigger": true,

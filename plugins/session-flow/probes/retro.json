@@ -2,7 +2,7 @@
   "skill": "session-flow:retro",
   "plugin": "session-flow",
   "skill_dir": "plugins/session-flow/skills/retro",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are running-retro, audit-sessions, audit-friction, handoff and the scrutinize discipline skill.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are running-retro, audit-sessions, audit-friction, handoff and the scrutinize discipline skill. The former pos-train-05 (trends across several retros) is now neg-train-05: cross-session score trends moved to /session-flow:audit-sessions trends, so retro should no longer fire on it.",
   "competitors": [
     "session-flow:running-retro",
     "session-flow:audit-sessions",
@@ -34,12 +34,6 @@
       "split": "train",
       "expect_trigger": true,
       "request": "Codify the lessons from this session into durable notes."
-    },
-    {
-      "id": "pos-train-05",
-      "split": "train",
-      "expect_trigger": true,
-      "request": "Show me trends across my last several retros."
     },
     {
       "id": "pos-train-06",
@@ -100,6 +94,12 @@
       "split": "train",
       "expect_trigger": false,
       "request": "Where is my permission friction coming from?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me trends across my last several retros."
     },
     {
       "id": "neg-val-01",
