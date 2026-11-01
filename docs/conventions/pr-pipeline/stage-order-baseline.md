@@ -20,8 +20,8 @@ Measured 2026-11-01. The window is pull requests merged in the 7 days before the
 |---|---|---|---|---|---|
 | pr-verify runs per PR | 1,400 merged | 1.57 | 1 | 3 | 11 |
 | Re-verifications per PR | 1,400 merged | 0.60 | 0 | 2 | 10 |
-| Address-feedback rounds per PR | 235 created after 2026-10-31T00:30Z | 0.13 | 0 | 0 | 4 |
-| Address-feedback rounds per merged PR | 1,400 merged | 0.16 | | | |
+| Address-feedback rounds per PR | 235 created after 2026-10-31T00:30Z | 0.07 | 0 | 0 | 2 |
+| Address-feedback runs ÷ merged PRs | 1,400 merged | 0.16 | | | |
 | Code-review runs per PR | 235 created after 2026-10-31T00:30Z | 1.49 | 1 | 3 | 7 |
 | Lane turns ÷ merged PRs | 1,400 merged | 55.5 (estimate) | | | |
 | Lane model minutes ÷ merged PRs | 1,400 merged | 5.8 (estimate) | | | |
@@ -40,11 +40,20 @@ Measured 2026-11-01. The window is pull requests merged in the 7 days before the
 
 The counter that `loop.review-rounds` caps is the `<!-- pr-unblock:address-feedback-round -->` marker comment on each pull request ([Loop caps](README.md#loop-caps)). `publish-feedback.mjs` posts one marker per address-feedback model run. Counting the markers would take one comment read per pull request, so this baseline counts address-feedback runs instead:
 
-- **Per pull request:** each `pr-feedback-dispatched-<review run>-<feedback run>` artifact is one run.
-  - It is joined to its pull request through the review run's `pr-review-cli-handoff-*` artifact and that artifact's head branch.
-  - Both artifacts are kept 1 day, so this covers only the 235 pull requests created and merged in the last day.
-  - 193 of the 235 were reviewed. 12 of the 80 dispatches did not join.
-- **Across the 7 days:** 227 `skill-reply-pr-unblock-address-feedback-*` runs, over 1,400 merged pull requests.
+- **Per pull request:** the cohort is the 235 pull requests created and merged in the last day. 193 of them were reviewed.
+  - **Dispatches.** Each `pr-feedback-dispatched-<review run>-<feedback run>` artifact records one dispatched pr-unblock run, not one model run. `pr-feedback-dispatch.yml` uploads it whenever the dispatch step returns a run id.
+  - **Join.** A dispatch joins its pull request through the review run's `pr-review-cli-handoff-*` artifact and that artifact's head branch. Both artifacts are kept 1 day.
+  - **Where the 80 dispatches landed:**
+    - 31 on cohort pull requests.
+    - 3 on merged pull requests created before the cohort.
+    - 34 on pull requests closed unmerged.
+    - 11 on pull requests still open.
+    - 1 with no review artifact.
+  - **Rounds.** A round is a dispatched run that reached the address-feedback model run, which is the run `publish-feedback.mjs` posts a marker for. A `skill-reply-pr-unblock-address-feedback-*` artifact in the same workflow run shows it got there.
+    - 17 of the 31 cohort dispatches reached it, on 14 pull requests: 17 ÷ 235 = 0.07.
+    - The other 14 dispatched runs stopped before the model run.
+    - On the day as a whole, 39 of the 80 dispatched runs reached it. The day's 46 address-feedback model runs also include 7 that started without a dispatch.
+- **Across the 7 days:** 227 `skill-reply-pr-unblock-address-feedback-*` model runs, on all pull requests including unmerged ones. 227 ÷ 1,400 merged = 0.16. This is a ratio of runs to merged pull requests, not a per-PR count.
 
 ### Turns and minutes
 
