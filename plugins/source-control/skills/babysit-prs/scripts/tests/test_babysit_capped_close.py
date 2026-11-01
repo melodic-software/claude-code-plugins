@@ -475,7 +475,8 @@ class ClosesForAFreshAttempt(unittest.TestCase):
 
     def test_review_rounds_not_converging_close_for_a_fresh_attempt(self) -> None:
         world = World()
-        world.comments[PR] = [comment(stopped_note())]
+        url = f"https://github.com/{REPO}/pull/{PR}#issuecomment-1"
+        world.comments[PR] = [{**comment(stopped_note()), "html_url": url}]
         # The verifier's answer plays no part.
         result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
         self.assertEqual(result["closed"], True)
@@ -483,7 +484,13 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         self.assertEqual(result["restarted"], [ISSUE])
         self.assertEqual(world.calls()[-1], f"PATCH repos/{REPO}/pulls/{PR}")
         self.assertIn("review rounds as `feedback-not-converging`", world.body(0))
-        self.assertTrue(world.body(1).startswith(f"<!-- verify-capped-close pr={PR} "))
+        issue_body = world.body(1)
+        self.assertTrue(issue_body.startswith(f"<!-- verify-capped-close pr={PR} "))
+        # The fresh attempt starts from the open threads the stop lists,
+        # not from pr-verify FAIL findings it was not closed for.
+        self.assertIn(f"lane-stopped comment lists ({url})", issue_body)
+        self.assertNotIn("starts from these findings", issue_body)
+        self.assertNotIn("No FAIL findings", issue_body)
 
     def test_not_converging_needs_the_lanes_apps_stop_at_the_head(self) -> None:
         for why, comments in {

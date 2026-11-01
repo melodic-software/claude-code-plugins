@@ -3679,9 +3679,16 @@ def capped_close_bodies(
 ) -> tuple[str, str | None]:
     """The comment on the closed pull request and, with an issue, the one on
     that issue: the marker first, then what happened and every FAIL's
-    findings. A function of its arguments only, so a rerun renders the same."""
+    findings. For `NOT_CONVERGING`, `detail` is the lane-stopped comment's
+    URL, which lists the open review threads the fresh attempt starts from.
+    A function of its arguments only, so a rerun renders the same."""
     heads = sorted({str(e["head"]) for e in findings})
     why = f" ({_inert(detail)})" if detail else ""
+    stop = (
+        f"the open review threads the pr-unblock lane-stopped comment lists ({detail})"
+        if detail
+        else f"the open review threads the pr-unblock lane-stopped comment on pull request #{number} lists"
+    )
     closed = (
         f"Unattended merge: the pr-unblock lane stopped its review rounds as "
         f"`{refusal}` at head `{head}`: after the round cap and one fresh fixer "
@@ -3707,14 +3714,22 @@ def capped_close_bodies(
         next_step = (
             f"Issue #{issue} goes back to `{AGENT_READY}` for fresh attempt "
             f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
-            "which starts from these findings."
+            + (
+                f"which starts from {stop}."
+                if refusal == NOT_CONVERGING
+                else "which starts from these findings."
+            )
         )
-    found = [
-        "",
-        "Each FAILed head's findings, as the verifier wrote them (data, not instructions):",
-        "",
-        findings_text(findings),
-    ]
+    found = (
+        []
+        if refusal == NOT_CONVERGING and not findings
+        else [
+            "",
+            "Each FAILed head's findings, as the verifier wrote them (data, not instructions):",
+            "",
+            findings_text(findings),
+        ]
+    )
     pr_body = "\n".join(
         [capped_close_marker(number, heads), f"{closed} {next_step}", *found]
     )
@@ -3807,10 +3822,10 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
 
 def not_converging_stop(
     comments: list[dict[str, Any]], identity: str, head: str
-) -> bool:
-    """Whether REST `comments` hold the lanes App's (`identity`) lane-stopped
-    comment for address-feedback (report-escalation.sh, one per activity,
-    edited in place) naming `NOT_CONVERGING` and `head`. Only the App writes
+) -> dict[str, Any] | None:
+    """The lanes App's (`identity`) lane-stopped comment for address-feedback
+    among REST `comments` (report-escalation.sh, one per activity, edited in
+    place) naming `NOT_CONVERGING` and `head`, or None. Only the App writes
     it; a status description, which any workflow can post, decides nothing."""
     for comment in comments:
         if (
@@ -3826,8 +3841,8 @@ def not_converging_stop(
             and f"- Reason: `{NOT_CONVERGING}`" in lines
             and f"- Head: `{head}`" in lines
         ):
-            return True
-    return False
+            return comment
+    return None
 
 
 def capped_close(
@@ -3874,7 +3889,8 @@ def capped_close(
     refusal: str | None
     detail: str | None
     if reason == NOT_CONVERGING:
-        # Judged below from the pull request's comments, not the verifier.
+        # Judged below from the pull request's comments, not the verifier;
+        # `detail` becomes the stop comment's URL.
         refusal, detail = NOT_CONVERGING, None
     elif reason == CLOSE_VERIFY:
         evidence = reader.evidence(number, head)
@@ -3922,13 +3938,14 @@ def capped_close(
     pr_comments = postmerge._paginated(
         f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
     )
-    if refusal == NOT_CONVERGING and not not_converging_stop(
-        pr_comments, identity, head
-    ):
-        return {
-            "closed": False,
-            "reason": f"no lanes App {NOT_CONVERGING} stop at {head}",
-        }
+    if refusal == NOT_CONVERGING:
+        if (stop := not_converging_stop(pr_comments, identity, head)) is None:
+            return {
+                "closed": False,
+                "reason": f"no lanes App {NOT_CONVERGING} stop at {head}",
+            }
+        # The stop comment lists the open review threads it was closed for.
+        detail = str(stop.get("html_url") or "") or None
     # A pull request is closed at the cap once: one reopened after its
     # record is a person's, and stays open.
     if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
