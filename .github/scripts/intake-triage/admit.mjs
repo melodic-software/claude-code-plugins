@@ -1187,6 +1187,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
+  // Each field no one set refuses once above; `unsetOnly` tells a caller a
+  // refusal is for those alone, not for a set value or any other reason.
+  const unset = ["size", "uncertainty"].filter((name) => verdict.dimensions?.[name] === "unset");
   // pr-verify judges a lane PR only against text a listed human wrote and
   // the refinement on their issue, so the criteria count only there, and it
   // stops on an issue with more comments than it reads (resolve-pr.mjs
@@ -1331,6 +1334,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       ...(attended && { attended }),
       ...(hostRun && refuse.length === 1 && wait.length === 0 && parked.length === 0 && { hostRun }),
       ...(doneBy.length > 0 && { done: doneBy }),
+      ...(unset.length > 0 && refuse.length === unset.length && { unsetOnly: unset }),
     };
   }
   if (parked.length > 0) {
