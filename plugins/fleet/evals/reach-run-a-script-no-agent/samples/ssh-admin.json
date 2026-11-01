@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ssh ssh-admin@laptop-win pwsh -c 'Get-ChildItem C:\\Users'",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "ssh laptop-wsl claude -p",
+      "why": "missing"
+    }
+  ]
+}

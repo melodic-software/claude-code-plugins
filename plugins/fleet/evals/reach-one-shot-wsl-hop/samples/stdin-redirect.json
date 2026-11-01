@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "ssh -p 2222 evaluser@desk-wsl 'claude -p \"df\" < /dev/null'",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "ssh desk-wsl 'claude -p \"df\"'",
+      "why": "missing"
+    }
+  ]
+}

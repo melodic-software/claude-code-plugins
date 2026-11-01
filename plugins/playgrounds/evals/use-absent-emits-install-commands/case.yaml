@@ -1,0 +1,16 @@
+schema_version: "1.1"
+name: 'use-absent-emits-install-commands'
+graders:
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Scope guidance distinguishes user scope from project scope'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'No attempt to hand-build an explorer as a fallback'
+    focus: 'trace'
+  - name: 'install-commands'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*/plugin marketplace add anthropics/claude-plugins-official)(?=[\s\S]*/plugin install playground@claude-plugins-official)'
+    flags: 'i'
+    target: 'last_message'

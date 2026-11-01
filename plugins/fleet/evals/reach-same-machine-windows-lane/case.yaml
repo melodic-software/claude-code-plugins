@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-same-machine-windows-lane'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Uses row R1: runs claude.exe from WSL by absolute path (/mnt/c/Users/<user>/.local/bin/claude.exe) after cd to a Windows-side scratch directory, with < /dev/null, and asks that turn to list sessions and then SendMessage to the named one. Does not use ssh for a same-machine hop and does not rely on the local ListAgents, which shows only the WSL lane. Notes that starting the turn prompts under auto mode.'
+    focus: 'trace'
+  - name: 'runs-claude-exe'
+    type: 'regex'
+    pattern: '\bclaude\.exe\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

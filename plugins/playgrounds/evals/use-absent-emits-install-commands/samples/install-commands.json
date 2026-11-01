@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Run:\n/plugin marketplace add anthropics/claude-plugins-official\n/plugin install playground@claude-plugins-official",
+      "why": "both commands"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /plugin install playground",
+      "why": "unqualified install"
+    },
+    {
+      "answer": "/plugin marketplace add anthropics/claude-plugins-official",
+      "why": "install command missing"
+    }
+  ]
+}

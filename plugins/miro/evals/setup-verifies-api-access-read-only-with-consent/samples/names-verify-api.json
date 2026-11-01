@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/miro:setup check verify-api` to make one read-only call.",
+      "why": "names the opt-in"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Your token looks fine.",
+      "why": "no route to the opt-in"
+    }
+  ]
+}

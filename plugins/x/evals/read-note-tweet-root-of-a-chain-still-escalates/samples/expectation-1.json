@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Escalates to step 2. isNoteTweet: true describes the post's long-form representation, not the absence of replies — a chain can begin with a note tweet, and the explicit thread request plus the 1/ marker are positive continuation evidence.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

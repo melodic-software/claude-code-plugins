@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-missing-curl-does-not-route-a-single-post-to-step-2'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Names the missing prerequisite explicitly — never a silent skip'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not treat step 2 as a general substitute for step 1'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Reports the post as unreadable rather than returning an empty step-2 result as if content were lost'
+    focus: 'trace'

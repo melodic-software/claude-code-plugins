@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'read-plaintext-scheme-is-accepted-and-upgraded-by-rebuild'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Accepts the http:// input rather than refusing it at the gate'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not carry http:// into the attribution URL'
+    focus: 'trace'
+  - name: 'no-http-in-command'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'http://(?:x|twitter)\.com'
+    min: 0
+    max: 0
+    arm: 'both'

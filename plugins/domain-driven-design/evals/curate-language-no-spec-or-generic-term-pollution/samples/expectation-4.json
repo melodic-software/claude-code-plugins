@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Rejects the proposed entry because Retry is generic programming vocabulary and the proposed text is an implementation specification, not a project-specific what-it-IS domain definition. It asks for evidence of a distinct project-domain meaning before admitting it.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

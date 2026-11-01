@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Routes generation upstream, then instead of relying on open <file>.html, feature-detects the delivery path: offers an Artifact publish or a file send only if the session supports it, and otherwise reports the file path, saying plainly which tiers were unavailable.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

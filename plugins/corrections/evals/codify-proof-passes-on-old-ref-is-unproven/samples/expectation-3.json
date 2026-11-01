@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The check passed on the old ref, so it does not catch the mistake. The skill reports the check as unproven with the exit code and the script's lines, does not propose it for install, and says to change the check or the rung and prove again.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

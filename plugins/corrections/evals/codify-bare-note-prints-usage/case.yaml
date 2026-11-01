@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'codify-bare-note-prints-usage'
+graders:
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output stops after the usage line without counting or proposing anything'
+    focus: 'trace'
+  - name: 'usage-line'
+    type: 'regex'
+    pattern: 'usage: /corrections:codify note "<observation>"'
+    target: 'last_message'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-buffer-call'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh'
+    min: 0
+    max: 0
+    arm: 'both'

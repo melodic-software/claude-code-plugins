@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'codify-escaped-defect-names-missing-context'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output answers what the model did not have in front of it when it made the mistake, naming the pricing rules file'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output puts that answer in the proposal next to the rung'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output treats a rule that was never loaded as fixed where it lives, per the ladder''s recurring-correction question, instead of only moving up the ladder'
+    focus: 'trace'

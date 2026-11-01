@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A metered charge record received from a usage source. | support request |\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A customer's request for help. | |\n",
+      "why": "overwritten"
+    }
+  ]
+}

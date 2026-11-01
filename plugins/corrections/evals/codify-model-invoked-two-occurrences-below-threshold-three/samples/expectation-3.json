@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The threshold is 3, set by the team layer. Two occurrences are below it and no person asked to codify this, so the skill reports the count next to the threshold and its layer, and stops: no rung, no check, no proof, no proposal, nothing written.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

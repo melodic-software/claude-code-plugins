@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Finds no convention, resolves the glossary settings, and proposes a GLOSSARY.md for the Fulfillment context (opening with a short description of the context, the Shipment entry under it), naming the layer that supplied the name. It asks the user to confirm the proposal before writing any file and proposes no GLOSSARY-MAP.md, since only one context exists.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

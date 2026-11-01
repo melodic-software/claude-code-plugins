@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-uppercase-scheme-and-host-still-match'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not refuse a valid URL solely because its scheme or host is uppercased'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Rebuilds the lowercase canonical https://x.com/<handle>/status/<id> form'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not lowercase or otherwise rewrite the input to force a match — the gate matches, captures, and rebuilds as always'
+    focus: 'trace'

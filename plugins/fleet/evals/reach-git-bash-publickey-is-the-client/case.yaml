@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-git-bash-publickey-is-the-client'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Identifies the client rather than the key: Git Bash''s MSYS ssh reaches no agent. Directs the command through the Windows OpenSSH client at C:\Windows\System32\OpenSSH\ssh.exe, which is agent-backed and what ~/.ssh/config is wired to. Does not start regenerating or re-authorizing keys.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
+  - name: 'uses-openssh-client'
+    type: 'regex'
+    pattern: '\bssh\.exe\b|System32[\\/]+OpenSSH|\bWindows(?:''s)? OpenSSH\b'
+    flags: 'i'
+    target: 'last_message'

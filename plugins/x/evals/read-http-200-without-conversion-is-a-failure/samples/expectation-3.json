@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Treats the 200 as a failed fetch because the response carries no converted content, and reports it as such. Does not present the HTML or an empty result as the post.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+---
+tags: ['be-concise']
+allowed_tools: [Read, Glob, Grep, Skill, Agent]
+expected_outcome: 'Reshapes the comment bottom-line-first: the staged rollout decision and the outstanding ask lead, the narrative of how the team got there follows. Every load-bearing value survives verbatim: release 2.14.0, the 2026-09-18 internal-ring ship date, the 2026-11-30 gateway contract termination, the owner Priya Raman, the rejected big-bang weekend cutover, and the platform-team ask for the per-ring metrics dashboard with its end-of-week confirmation. The input runs to five paragraphs, so the rewrite goes through the fresh-context semantic-diff guard with the dropped decision, number, or ask class before it is handed over. The posted comment is not overwritten; the reshaped text is offered for the user to post. The reply ends with before and after word counts as plain counts.'
+---
+
+I posted this update on PLAT-4412 and the PO says it is unreadable. Rewrite it so she gets the point: tracker-comment-checkout-rollout.md.

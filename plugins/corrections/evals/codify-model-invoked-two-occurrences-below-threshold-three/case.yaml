@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: 'codify-model-invoked-two-occurrences-below-threshold-three'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output lists both occurrences with their commits and states the count of 2 next to the threshold of 3'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output says the threshold of 3 came from the team layer (docs/conventions/corrections.yaml)'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output proposes nothing: no rung, no check command and no proof run'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:corrections:)?codify"'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'

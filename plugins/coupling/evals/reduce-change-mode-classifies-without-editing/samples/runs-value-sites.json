@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/skills/reduce/scripts/value-sites.py find --old 'D:\\data\\ccproxy'"
+          }
+        }
+      ],
+      "why": "the bundled script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn 'ccproxy' ."
+          }
+        }
+      ],
+      "why": "ad-hoc grep"
+    }
+  ]
+}

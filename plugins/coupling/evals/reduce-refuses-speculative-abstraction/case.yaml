@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'reduce-refuses-speculative-abstraction'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not wrap stable single-implementation dependencies in interfaces'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not introduce an event or mediator mechanism for one-to-one flows'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Grounds any applied reduction in verified evidence of change transmission, citing the remediation catalog''s counterweights'
+    focus: 'trace'

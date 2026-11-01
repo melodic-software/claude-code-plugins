@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Finding no playground plugin installed, emits /plugin marketplace add anthropics/claude-plugins-official and /plugin install playground@claude-plugins-official with scope guidance, and offers to proceed once installed instead of building a substitute.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

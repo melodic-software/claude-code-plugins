@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reads the supplied map, routes the new definition only to support-terms.md, and leaves billing-terms.md and the context boundaries unchanged. It does not duplicate the entry or run bounded-context discovery.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

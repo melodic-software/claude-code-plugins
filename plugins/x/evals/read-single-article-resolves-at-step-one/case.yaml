@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: 'read-single-article-resolves-at-step-one'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Uses POST with a JSON body; never attempts a GET against /api/markdown'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Attributes with the gate''s rebuilt URL, never the URL the converter echoed back'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Treats the raw Markdown body as success rather than looking for a markdown field that the text/markdown form does not carry'
+    focus: 'trace'
+  - name: 'expectation-5'
+    type: 'llm'
+    criteria: 'Spools the response to the plugin-data file with -o rather than streaming an article-sized body to stdout, then deletes it'
+    focus: 'trace'
+  - name: 'expectation-6'
+    type: 'llm'
+    criteria: 'Does not condition the redirect on recognizing the /status/ URL as an article in advance'
+    focus: 'trace'
+  - name: 'no-thread-reader-fetch'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: 'threadreaderapp\.com'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-thread-reader-curl'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'threadreaderapp\.com'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The note action has no observation text, so the skill prints the note usage line and stops. No row is written and buffer.sh is not called.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

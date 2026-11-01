@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The person invoked the skill and said to codify it, so the one-occurrence count is below the threshold of 2 but acts anyway. The report lists the single occurrence with its commit, picks a rung by id from the ladder, places the lesson by scope, proves the check with prove-check.sh, and writes the proposal file under .work/codify/, announcing the path first.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

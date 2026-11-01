@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'codify-group-names-its-keys-across-two-sources'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output names producer as the field grouping key and shows each producer group with its count'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output names the mistake as the second grouping''s key and source_id as its occurrence key'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output shows the changelog-fragment group at 2 of 2 and names /corrections:codify for it, and shows the git-config group at 1 of 2'
+    focus: 'trace'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-append-or-proof'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh[^\"]*\bappend\b|prove-check\.sh'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: 'reach-escapes-apostrophe'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Reads ~/.config/fleet/FLEET.md, then composes the one-shot WSL hop. Escapes the apostrophe in what''s before substituting into the single-quoted remote command: replace each '' with ''\'''' or wrap the remote command in $''...'' quoting. Does not paste the contraction unescaped into the outer single quotes, because that would close the local shell quote before ssh runs.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

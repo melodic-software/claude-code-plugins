@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/buffer.sh read"
+          }
+        }
+      ],
+      "why": "reads the buffer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/buffer.sh append .work/codify/notes/row.json"
+          }
+        }
+      ],
+      "why": "calls buffer.sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/prove-check.sh --old a91c3d2"
+          }
+        }
+      ],
+      "why": "runs a proof"
+    }
+  ]
+}

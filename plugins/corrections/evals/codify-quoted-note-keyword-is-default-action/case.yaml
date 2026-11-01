@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'codify-quoted-note-keyword-is-default-action'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output runs the default action and counts occurrences of the described mistake against the threshold'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output does not treat the invocation as the note action and writes no buffer row'
+    focus: 'trace'
+  - name: 'no-buffer-call'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh'
+    min: 0
+    max: 0
+    arm: 'both'

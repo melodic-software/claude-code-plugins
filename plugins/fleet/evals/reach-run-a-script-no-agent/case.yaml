@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-run-a-script-no-agent'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Treats this as the run-a-script verb, which starts no agent. Routes a Windows command on another machine over the port 22 windows-shell alias as ssh-admin with pwsh quoting, not through a claude turn. Notes that ssh-admin has no DPAPI, so anything needing the console user''s credentials goes through the on-demand tasks.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
+  - name: 'ssh-admin'
+    type: 'regex'
+    pattern: '\bssh-admin\b'
+    flags: 'i'
+    target: 'last_message'

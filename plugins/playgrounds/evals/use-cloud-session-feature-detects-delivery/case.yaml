@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'use-cloud-session-feature-detects-delivery'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'open <file>.html is not assumed to work'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Each delivery tier is offered conditionally on actual availability, not asserted'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Unavailable tiers are named visibly rather than skipped silently'
+    focus: 'trace'

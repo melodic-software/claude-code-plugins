@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-long-article-is-read-to-the-end-before-cleanup'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not delete the spool file after a single bounded slice'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Never presents the first slice as the complete article'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Reports partial results explicitly when the file is not read to its end'
+    focus: 'trace'

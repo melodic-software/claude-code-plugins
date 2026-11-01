@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'codify-blocking-hook-asks-before-install'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output picks the action-guard rung, a blocking hook, from the ladder'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output writes the proposal but does NOT install the hook'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output asks the person before installing the blocking check, and says it asks every time'
+    focus: 'trace'

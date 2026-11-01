@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'curate-language-attended-proposes-glossary-file'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Proposes GLOSSARY.md (or the name the glossary_file setting resolves to) for the Fulfillment context rather than inventing another file name'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Asks the user to confirm the proposed file and location before writing anything'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Does not propose GLOSSARY-MAP.md or another context map, because only one bounded context exists'
+    focus: 'trace'
+  - name: 'no-md-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-md-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

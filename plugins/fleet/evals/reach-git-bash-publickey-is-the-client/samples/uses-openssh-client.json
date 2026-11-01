@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Use C:\\Windows\\System32\\OpenSSH\\ssh.exe.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Regenerate your key with ssh-keygen.",
+      "why": "missing"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Checks the ranked file for a second list, finds no list whose entries mostly name tracked paths (a below row), and does not report it as a second list or offer the derive-from-tree comparison; it stays a collision hotspot ranked like any other.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

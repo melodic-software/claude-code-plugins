@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'reduce-second-list-not-flagged-when-entries-hold-data'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Does not call i18n/strings.json a second list'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not present the keep, discover or generate comparison for it'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Keeps it as an ordinary ranked collision hotspot and makes no repository edits'
+    focus: 'trace'

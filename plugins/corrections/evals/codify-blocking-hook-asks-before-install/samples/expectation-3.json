@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The mistake is an action no file check sees, so the rung is the action-guard hook, a blocking check. The person's invocation covers writing the proposal, but the skill asks before installing the hook and installs nothing until the answer is yes.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

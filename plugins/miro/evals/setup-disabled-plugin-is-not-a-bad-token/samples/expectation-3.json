@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Distinguishes a disabled plugin from an enabled server that failed to start or authenticate. It does not diagnose a missing tool list as a bad token, and it still never reads the token or settings.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

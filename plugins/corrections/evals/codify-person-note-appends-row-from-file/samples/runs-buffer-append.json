@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/buffer.sh append .work/codify/notes/row.json"
+          }
+        }
+      ],
+      "why": "calls buffer.sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/buffer.sh read"
+          }
+        }
+      ],
+      "why": "a read, not an append"
+    }
+  ]
+}

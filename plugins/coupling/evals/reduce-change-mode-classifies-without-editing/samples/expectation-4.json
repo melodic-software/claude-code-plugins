@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Runs the bundled value-sites inventory for every spelling of the old path, classifies the README and script default as setup sites with a proposed reference form, leaves the CHANGELOG as a record, proposes a correction for PLAN.md instead of editing it, flags the fixture for a person, and makes no edits because apply was not given.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

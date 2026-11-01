@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Runs the bundled collision-hotspots script from the repository root with --prs sized to several days of history (about 40 a day), reads its conflicts, pairs and path rows, verifies the ranked files before ledgering them as collision-hotspot candidates beside the co-change evidence, carries every gap: line into the report, treats the known bump hotspots line (changelogs, lockfiles, version manifests) as version-bump noise that is not ledgered, and makes no repository edits because the run is dry-run.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

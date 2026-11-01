@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Rejects the response on the status code alone, because success requires exactly 200. Reports the unexpected status and deletes the spool without treating its plaintext body as converted content.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

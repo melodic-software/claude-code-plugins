@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "States that step 1 is unavailable because curl is absent and that the xtomd endpoint is POST-only so WebFetch cannot substitute. Does NOT route a single post to step 2, which resolves chains only; reports the post as unreadable without curl.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

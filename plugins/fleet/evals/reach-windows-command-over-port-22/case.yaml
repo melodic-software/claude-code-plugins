@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-windows-command-over-port-22'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Routes to the port 22 windows-shell hop as ssh-admin with pwsh quoting, not the WSL hop. Does not attempt claude over port 22, and says why if the distinction comes up: ssh-admin has no Claude sign-in.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
+  - name: 'ssh-admin'
+    type: 'regex'
+    pattern: '\bssh-admin\b'
+    flags: 'i'
+    target: 'last_message'

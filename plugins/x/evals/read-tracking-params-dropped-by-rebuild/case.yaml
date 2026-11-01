@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'read-tracking-params-dropped-by-rebuild'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Rebuilds a canonical https://x.com/<handle>/status/<id> URL from captures only'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Accepts the twitter.com host form rather than refusing it'
+    focus: 'trace'
+  - name: 'no-tracking-token-shell'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'AbCdEfGhIjKlMnOp|[?&][st]='
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-tracking-token-webfetch'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: 'AbCdEfGhIjKlMnOp'
+    min: 0
+    max: 0
+    arm: 'both'

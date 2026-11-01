@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/short-standup-comment.md"
+          }
+        }
+      ],
+      "why": "reads the comment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "semantic diff",
+            "prompt": "compare before and after"
+          }
+        }
+      ],
+      "why": "dispatches a diff subagent"
+    }
+  ]
+}

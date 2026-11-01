@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'codify-proof-passes-on-old-ref-is-unproven'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output reports the check as unproven because it passes on the old ref'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output does NOT propose the check for install'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output shows the proof''s exit code and old and new results, and says to change the check or rung and prove again'
+    focus: 'trace'

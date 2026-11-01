@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "generator",
+            "prompt": "brief"
+          }
+        }
+      ],
+      "why": "a generator spawn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/x"
+          }
+        }
+      ],
+      "why": "no spawn"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: 'reach-one-shot-wsl-hop'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Reads ~/.config/fleet/FLEET.md to resolve the host, port and account instead of guessing them. Composes a one-shot headless turn over the WSL hop: ssh -p 2222 <wsl-user>@<host> ''claude -p "..." < /dev/null''. Keeps the stdin redirect. Notes that the turn runs under the desktop''s own Claude account and that it prompts under auto mode.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'
+  - name: 'stdin-redirect'
+    type: 'regex'
+    pattern: '<\s*/dev/null'
+    flags: 'i'
+    target: 'last_message'

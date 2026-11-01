@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://xtomd.com/x",
+            "prompt": "x"
+          }
+        }
+      ],
+      "why": "another host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://threadreaderapp.com/thread/2015883857489522876.html",
+            "prompt": "x"
+          }
+        }
+      ],
+      "why": "escalates"
+    }
+  ]
+}

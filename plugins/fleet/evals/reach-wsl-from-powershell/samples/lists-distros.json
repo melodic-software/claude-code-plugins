@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run wsl.exe -l -q to get the distro.",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run wsl -d Ubuntu.",
+      "why": "missing"
+    }
+  ]
+}

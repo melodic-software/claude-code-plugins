@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The proposal names the rung and the check, and also answers what the model did not have in front of it when it made the mistake: the pricing rules file, which was never opened. The answer sits next to the rung so the fix can be context as well as a check.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

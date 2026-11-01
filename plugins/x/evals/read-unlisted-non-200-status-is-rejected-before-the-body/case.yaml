@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-unlisted-non-200-status-is-rejected-before-the-body'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Requires exactly 200 rather than only rejecting the codes named in the status table'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not rely on the exit status here — a non-followed redirect exits 0'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Never treats a short plaintext body as Markdown merely because plain text parses as Markdown'
+    focus: 'trace'

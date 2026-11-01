@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-receives-the-raw-path-not-the-shell-escaped-one'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Passes Read a bare filesystem path with no surrounding quote characters'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Still single-quotes the path at the shell sites — the -o target and the delete'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Does not pass the ''...''\''''...'' shell escape form to Read'
+    focus: 'trace'

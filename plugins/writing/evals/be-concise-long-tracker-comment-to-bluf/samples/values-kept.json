@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Staged rollout, owner Priya Raman: 2.14.0 ships to the internal ring 2026-09-18; the gateway contract ends 2026-11-30.",
+      "why": "all four"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Staged rollout, owner Priya: 2.14.0 ships 2026-09-18; the contract ends 2026-11-30.",
+      "why": "owner name shortened"
+    },
+    {
+      "answer": "Staged rollout, owner Priya Raman: ships mid-September; contract ends 2026-11-30.",
+      "why": "version and date lost"
+    }
+  ]
+}

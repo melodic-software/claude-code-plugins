@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Posts the URL to xtomd's /api/markdown endpoint and returns the article as Markdown, attributed with author handle and date from the converted body plus the gate's rebuilt canonical URL. Does not reach for Thread Reader App.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

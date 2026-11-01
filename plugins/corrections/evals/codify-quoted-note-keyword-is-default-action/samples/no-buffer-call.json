@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -20"
+          }
+        }
+      ],
+      "why": "another command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/buffer.sh append .work/codify/notes/row.json"
+          }
+        }
+      ],
+      "why": "calls buffer.sh"
+    }
+  ]
+}

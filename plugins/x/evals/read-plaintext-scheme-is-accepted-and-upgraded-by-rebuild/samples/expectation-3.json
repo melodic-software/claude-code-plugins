@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Matches the post form, captures handle and id, and rebuilds https://x.com/jack/status/20. The plaintext scheme is discarded by the rebuild rather than carried forward, so the emitted command is HTTPS and no plaintext request is ever issued.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

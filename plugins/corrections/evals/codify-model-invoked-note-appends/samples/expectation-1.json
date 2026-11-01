@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "A note is an observation, not a codification, so a model invocation appends the row like a person's does. The skill uses a session source_id, writes the row file and runs buffer.sh append. It writes no proposal.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

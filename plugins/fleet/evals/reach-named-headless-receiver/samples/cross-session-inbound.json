@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "--settings '{\"crossSessionInbound\":\"accept\"}'",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "claude.exe -p -n receiver",
+      "why": "missing"
+    }
+  ]
+}

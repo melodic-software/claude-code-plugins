@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: 'curate-language-routes-known-context-without-discovery'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Does not discover, rename, split, or merge bounded contexts'
+    focus: 'trace'
+  - name: 'support-ticket-row'
+    type: 'regex'
+    pattern: '^\|\s*\**Ticket\**\s*\|[^|\n]*\brequests?\b'
+    flags: 'mi'
+    target: { source: 'file', path: 'docs/language/support-terms.md' }
+  - name: 'billing-ticket-kept'
+    type: 'regex'
+    pattern: '^\|\s*Ticket\s*\|\s*A metered charge record received from a usage source\.\s*\|'
+    flags: 'm'
+    target: { source: 'file', path: 'docs/language/billing-terms.md' }
+  - name: 'billing-not-duplicated'
+    type: 'regex'
+    pattern: 'request for help'
+    flags: 'i'
+    match: 'not_contains'
+    target: { source: 'file', path: 'docs/language/billing-terms.md' }

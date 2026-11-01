@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'curate-language-no-empty-file-or-fixed-filename'
+graders:
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not create GLOSSARY.md, CONTEXT.md, or any other glossary file, and presents any file name only as an unconfirmed proposal'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Defers creation until a real term resolves'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Reports the missing placement convention rather than silently inventing one'
+    focus: 'trace'
+  - name: 'no-md-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-md-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

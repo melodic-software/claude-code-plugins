@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "usage: /corrections:codify note \"<observation>\" [#PR | <commit>]",
+      "why": "verbatim"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Usage: give me an observation.",
+      "why": "paraphrase"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "wsl.exe -d Ubuntu --cd /tmp --exec bash -lc '...'",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "wsl.exe -d Ubuntu -- bash -lc '...'",
+      "why": "missing"
+    }
+  ]
+}

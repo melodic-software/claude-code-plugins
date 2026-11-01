@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: 'reach-peer-tools-stay-in-lane'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Does NOT call ListAgents or SendMessage locally and does not claim they reach the desktop. Explains that accounts are per lane, so the peer tools see only this lane. Picks the route matrix row for the desktop''s Windows lane from this origin (R3 from WSL, R6 from Windows): a claude.exe turn started by absolute path through the desktop''s WSL hop, from a Windows-side scratch directory, whose own peer tools list and then message the sessions. Lists first and messages a name from that list. May load reference/relay.md.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

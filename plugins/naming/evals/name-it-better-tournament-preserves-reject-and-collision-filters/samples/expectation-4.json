@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The tournament action widens to ~5 generators and runs elimination rounds, but first carries `OrderManager` as a main-thread reject list and treats `OrderService` as an existing-vocabulary collision. Both the rejected incumbent and the colliding candidate are disqualified before the elimination rounds begin, so neither can enter the bracket or reach the finalist. It presents a finalist plus runners-up for the human to pick.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Confirms the upstream playground plugin is installed by its claude-plugins-official install record, then invokes the upstream skill via the Skill tool using the namespaced `playground:playground` form with the balancing brief, and does not generate any playground HTML itself.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

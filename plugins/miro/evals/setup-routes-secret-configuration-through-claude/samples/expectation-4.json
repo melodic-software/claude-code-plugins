@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Checks enablement and scoped Miro tool availability without inspecting the token or settings, routes missing configuration through Claude Code's native plugin prompt, and requires a reload before rechecking.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

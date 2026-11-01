@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "semantic diff",
+            "prompt": "compare before and after"
+          }
+        }
+      ],
+      "why": "a diff subagent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/x.md"
+          }
+        }
+      ],
+      "why": "no spawn"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This is a job for `/adhd:clarify`.",
+      "why": "slash form"
+    },
+    {
+      "answer": "adhd:clarify restructures it.",
+      "why": "bare"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here is a shorter version.",
+      "why": "no route"
+    }
+  ]
+}

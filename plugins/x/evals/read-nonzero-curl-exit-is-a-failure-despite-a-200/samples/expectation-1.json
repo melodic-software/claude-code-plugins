@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Treats the fetch as failed on the nonzero exit status, before looking at the HTTP code or the file. Deletes the spool without reading it and reports the aborted transfer. Does not present the partial Markdown prefix as the post.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

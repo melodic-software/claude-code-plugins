@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: 'curate-language-passive-lookup-does-not-mutate'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Returns the existing Policyholder meaning from the supplied file'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Distinguishes passive lookup from the skill''s active-maintenance workflow'
+    focus: 'trace'
+  - name: 'no-md-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-md-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'returns-meaning'
+    type: 'regex'
+    pattern: 'party that owns the insurance contract'
+    flags: 'i'
+    target: 'last_message'

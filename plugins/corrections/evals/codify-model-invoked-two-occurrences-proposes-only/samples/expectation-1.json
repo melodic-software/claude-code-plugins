@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The count reaches the threshold of 2, so the skill picks a rung, places the lesson and runs the proof, then presents the proposal in the report. Because the model invoked it, nothing is written to .work/codify/ or the repository.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

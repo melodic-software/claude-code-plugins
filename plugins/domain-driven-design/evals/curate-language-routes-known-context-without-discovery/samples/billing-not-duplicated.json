@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Ticket | A metered charge record received from a usage source. | support request |\n",
+      "why": "billing meaning only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Ticket | A metered charge record. | |\n| Ticket (Support) | A customer's request for help. | |\n",
+      "why": "duplicated as a hedge"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -20"
+          }
+        }
+      ],
+      "why": "another command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .git/hooks/pre-commit && git commit -m hook"
+          }
+        }
+      ],
+      "why": "commits"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: 'reach-declines-shared-account'
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'expected-output'
+    type: 'llm'
+    criteria: 'Declines to propose sharing an account: the per-lane split is deliberate so one lane''s usage does not draw down another''s. Explains that the relay routes in the matrix already reach every lane by starting a turn inside the target lane.'
+    focus: 'trace'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:fleet:)?reach"'

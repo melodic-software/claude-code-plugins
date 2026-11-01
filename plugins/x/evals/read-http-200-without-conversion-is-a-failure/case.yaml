@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'read-http-200-without-conversion-is-a-failure'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Validates that the response actually carries converted content rather than trusting the status code'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Captures and reports the status code rather than inferring outcome from body shape'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Never reports a failed fetch as an empty post'
+    focus: 'trace'

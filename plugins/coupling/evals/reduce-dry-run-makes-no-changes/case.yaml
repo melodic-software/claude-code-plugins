@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'reduce-dry-run-makes-no-changes'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Performs no edits to repository content and creates no branch or PR'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Still verifies findings and persists the ranked set to the memory-tier ledger'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Reports what a full run would apply versus route'
+    focus: 'trace'

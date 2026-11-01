@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: 'codify-group-over-a-window'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Output drops the 2026-09-12 row because its ts is before the --since value'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Output shows the SQL group at 2 of 2, at the threshold, and names /corrections:codify with the SQL concatenation mistake'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Output shows the auth group at 1 of 2 and does not name a codify command for it'
+    focus: 'trace'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-append-or-proof'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'buffer\.sh[^\"]*\bappend\b|prove-check\.sh'
+    min: 0
+    max: 0
+    arm: 'both'
