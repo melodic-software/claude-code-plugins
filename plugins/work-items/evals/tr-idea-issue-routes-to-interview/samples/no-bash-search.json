@@ -25,6 +25,39 @@
     {
       "answer": [],
       "why": "nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n needs-spec /cache/plugins/work-items/reference/label-taxonomy.md"
+          }
+        }
+      ],
+      "why": "searches the plugin's own references"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find .work-items -name '*.md'"
+          }
+        }
+      ],
+      "why": "lists the item store"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1' | grep labels"
+          }
+        }
+      ],
+      "why": "filters the seam's read of the item"
     }
   ],
   "fail": [
