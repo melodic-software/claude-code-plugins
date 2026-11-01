@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: au-path-scopes-one-server
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-scoped-tool
+    type: regex
+    pattern: '\binventory_list_items\b'
+  - name: no-out-of-scope-tool
+    type: regex
+    pattern: '\bpayments_charge_card\b'
+    match: 'not_contains'
+  - name: scoped-tool-not-skipped
+    type: regex
+    pattern: '\binventory_list_items\b[^\n]{0,40}\b(?:not|wasn''t|was\s+not|never)\s+(?:audited|found|discovered|evaluated)\b'
+    flags: 'i'
+    match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: diag-uipi-operator
+graders:
+  - name: retry-wont-help
+    type: regex
+    pattern: '\b(?:retry|retrying|retries|trying again|repeating|repeated|resending|resend|re-sending|clicking again)\b[^\n.]{0,60}\b(?:won''t|will[\s*_]+not|wouldn''t|would[\s*_]+not|doesn''t|does[\s*_]+not|never|can''t|cannot|not going to)\b[^\n.]{0,20}\b(?:help|work|land|succeed|get through|go through|fix|change|recover)\b|\bnot recoverable\b|\b(?:no|any) (?:amount|number) of (?:retries|retrying|retry)|\b(?:don''t|do[\s*_]+not|no point|pointless|stop)\b[^\n.]{0,30}\b(?:retrying|retries|retry)|\bwill (?:fail|keep failing) (?:the same|identically|every time|forever)\b|\bfails? (?:identically|the same way)\b'
+    flags: 'i'
+    target: last_message
+  - name: operator-dismisses
+    type: regex
+    pattern: '\b(?:you|operator|human|someone|a person)\b[^\n.]{0,60}\b(?:dismiss|dismisses|approve|approves|accept|accepts|click|clicks|answer|handle|close|closes|respond|clear|deal with|finish)\b[^\n.]{0,60}\b(?:UAC|prompts?|dialogs?|elevated|elevation|admin|administrator|consent|windows?|installer|it|them)\b|\b(?:UAC|prompts?|dialogs?|elevated|elevation|consent|windows?)\b[^\n.]{0,60}\b(?:needs|requires|must be|has to be)\b[^\n.]{0,20}\b(?:you|human|operator|manually|by hand)\b'
+    flags: 'i'
+    target: last_message
