@@ -3064,10 +3064,16 @@ Each profile under `models.profiles` names:
   `resolve-config` resolves any value outside `haiku`, `sonnet` and `opus` to `opus`, so a
   config that skipped the schema check still never runs `default` or the frontier tier.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
-  passes none, so the model's default effort applies.
+  passes none, so the run takes whatever level the effort resolution order reaches next, the
+  model's default when nothing else sets one
+  ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+  as of 2026-11-01; recheck when that section changes the order).
 - `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
   `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing, and any
-  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win.
+  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
+  2026-11-01; recheck when that section changes the order or adds an override such as a mod's
+  `agent.spawn` hook).
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the

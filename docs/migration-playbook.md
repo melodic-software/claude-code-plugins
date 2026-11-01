@@ -126,7 +126,7 @@ that way ("current state is evidence, never justification", `melodic-software/st
 Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
 
 1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
-   overloaded generic term (a bare `audit` is collision bait).
+   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
 2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
    `name` (not the marketplace name); mirror established Claude Code patterns.
 3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
@@ -159,7 +159,7 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
   a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
   runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
-  (the `Workflow` tool, an `Agent` fan-out): the base skill's main-context half chooses the tier
+  (the `Workflow` tool): the base skill's main-context half chooses the tier
   before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
   `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
   why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why
@@ -1332,7 +1332,7 @@ operated by others, so surfaces 5 and 6 carry the weight here.
   absolute: before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
   chunked reply can exceed it and `--max-time` is the bound that always holds. When either bound does
   fire it aborts rather than truncating cleanly, and review found the skill would have read the
-  wreckage: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
+  partial output: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
   `63`, leaving a partial spool whose Markdown prefix passes every content check. The exit status is
   now the first gate, ahead of the HTTP code and the body, and a nonzero exit deletes the spool
   unread. Two further rounds closed the remaining paths by which third-party bytes reach the session:

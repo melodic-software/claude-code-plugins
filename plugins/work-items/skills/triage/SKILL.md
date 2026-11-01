@@ -141,6 +141,40 @@ prints the table only. `context/board.md` and `context/apply-outcome.md` write t
 directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the
 placeholder before running a command.
 
+### Stale reporter-info close candidates
+
+Off unless the repository sets `triage_stale_reporter_info_days`. Resolve it before the listing
+through step 1 of "Triage settings", the `--config-ref` check included. It has no default and no
+`userConfig` option, so empty output means off. A value that is not a whole number of at least 1
+is named (file, key, value) and also means off. Report
+`Settings: triage_stale_reporter_info_days=<n> (repository)`, or `=off`.
+
+When it is set to `<n>`, list after the buckets, from the same listing after the
+lane-infrastructure exclusion, each open item carrying `needs-reporter-info` that passes both
+filters. Take the reporter from the item's author and the comments with their authors and dates
+from adapter "List item comments".
+
+- **Write-access filter.** Its reporter lacks write access: neither the tracker seam's write
+  identity nor a user with `write`, `maintain` or `admin`, read as in triage workflow step 1,
+  Gather context. A failed access read keeps the item off the list. Where the bound adapter has no
+  author or access read, only a reporter and access the invocation states count, never item text.
+- **No reply within the window.** No comment from the reporter is newer than the last triage note,
+  and that note, or the item's creation when it has none, is more than `<n>` days old.
+
+List the candidates oldest first, one line each: number, title, days since the last triage note.
+Listing them closes nothing:
+
+- **Attended** (the interactive branch of the direction gate, its restatement included): ask once
+  whether to close the listed candidates. Close only those the operator says
+  yes to (adapter: "Close item", not planned), each with the comment below. The rest stay open.
+- **Unattended** (an autonomous lane, CI, or any run with no operator turn): report the list and
+  close nothing, whatever the lane directive authorizes. Lanes never close these items; only the
+  operator's yes does.
+
+```markdown
+Closed: no reply in <n> days to the request for information. Reply with the details and a maintainer can reopen it.
+```
+
 ## Human-gated sweep (`sweep`)
 
 Re-checks items already wearing the human-gated role label (resolved from `config.role_labels`, as
@@ -236,6 +270,9 @@ layer order from ADR 0064 Decision 8; these keys have no `~/.claude` file or loc
    value, and drop that layer. Layers are read highest first, so no valid higher layer is left:
    the key takes its manifest default from layer `default`. Never use a lower layer's value, so an
    invalid repository value does not fall back to the per-user one. Then continue.
+
+The attention view reads one more key, `triage_stale_reporter_info_days`, from the repository
+layer only ("Stale reporter-info close candidates").
 
 Resolution is done when both keys have a checked value and a layer. Report both in the triage
 output as `Settings: triage_repro_count=<n> (<layer>), triage_objection_window_hours=<h> (<layer>)`.

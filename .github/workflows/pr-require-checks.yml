@@ -4769,8 +4769,8 @@ jobs:
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
-          # gh_read's included, leaves its rate-limit reading for the notice
-          # the lane-scope step writes.
+          # gh_read's included, leaves its rate-limit reading for the notices
+          # the job's last step writes.
           { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_humans; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -6558,7 +6558,6 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
@@ -7086,3 +7085,10 @@ jobs:
             esac
           done <<<"$lanes"
           exit "$failed"
+      # Last, and on failure too, so the notices hold every step's readings:
+      # each step that sources gh-read.sh leaves them in $RUNNER_TEMP/api-budget.
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }
