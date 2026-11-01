@@ -295,7 +295,7 @@ only the human can detect.
 dated: [ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)
 shipped V1 manual-only for three stated reasons. None holds as an exception class. (1) *Costs no
 listing-budget description*, where the default section above rejects exactly this move: hiding a skill
-from the model is a total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
+from the model is a near-total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
 collision with `session-flow:workflow`*, the same shape as #2969's candidate, and it dissolves the
 same way: ADR 0016 itself resolved that collision reciprocally, amending `workflow`'s
 "never present both" mandate to govern **stage** routing and cede option surfacing, and each
@@ -331,7 +331,7 @@ and blocks cross-skill reach and subagent preload, whereas a name-only entry is 
 model-invocable, and chainable. Whether any given description survives the aggregate is a
 fleet-wide budget question, owned by `harness-ops:audit-skill-visibility` and measured by the
 instrument above; it is not a reason to hide a skill, which the default section forecloses in
-terms ("hiding a skill from the model is a *total* trade, not a listing-budget optimization").
+terms ("hiding a skill from the model is therefore a near-total trade, not a listing-budget optimization").
 
 ADR 0016 is amended in place to record the revised posture; its core decision, to resolve candidates
 from the catalog rather than the listing, is untouched and is what makes this skill worth reaching.

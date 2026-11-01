@@ -37,9 +37,11 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   that is not a person typing `/name`: another skill, a subagent preload, `/loop`, a routine, a
   Desktop task, a workflow prompt, an event trigger. Any automation starter, present or planned,
   makes the skill model-invocable, with its unattended safety in body gates and scripts. A skill is
-  user-invoked only when it is starved in the listing and no automation starts it. Why: several of
-  those starters cannot reach a user-invoked skill; the invocation-mode rubric above records which.
-  As of 2026-11-01. Recheck: a release note naming `disable-model-invocation`, skill preload,
+  user-invoked only when it is starved in the listing and no automation starts it. Why: the rule
+  keys on the starter, not on reach. Another skill, a subagent preload, an in-product scheduled
+  task and `/loop` cannot reach a user-invoked skill, as the invocation-mode rubric above records;
+  a routine can today, but only by undocumented behavior a release can remove, and the rubric
+  records nothing yet for a Desktop task, a workflow prompt or an event trigger. As of 2026-11-01. Recheck: a release note naming `disable-model-invocation`, skill preload,
   scheduled tasks or routines.
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
@@ -81,9 +83,9 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 ## Body
 
 - **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
-  conversation. A read-only action proceeds and names what it inferred; that is the bare-run
-  default, `proceed`. A state change proposes the action and waits for a yes, a fixed floor no setting
-  lowers. With nothing to infer, ask one multiple-choice question. Unattended, a state change
+  conversation. A read-only action proceeds and names what it inferred; the planned
+  bare-run setting calls this default `proceed`, and no settings key carries it yet. A state
+  change proposes the action and waits for a yes, a fixed floor. With nothing to infer, ask one multiple-choice question. Unattended, a state change
   stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
   guessed write needs the person's yes, and an unattended run has no one to give it.
 - Apply the deletion test, then the prompt audit's flags: trigger-case enumeration, step
