@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Config-gap observations\n\nNo `.claude/codebase-health.md`; offer to persist via /codebase-health:setup apply.",
+      "why": "hash heading"
+    },
+    {
+      "answer": "**Config-gap observations**: add `docs/**/*.md` once docs exist.",
+      "why": "bold"
+    },
+    {
+      "answer": "5. Config gap observations: none beyond the default documentation globs.",
+      "why": "numbered list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No config gaps section this time.",
+      "why": "negated"
+    },
+    {
+      "answer": "## Drift patterns\n\nNone.",
+      "why": "section missing"
+    }
+  ]
+}
