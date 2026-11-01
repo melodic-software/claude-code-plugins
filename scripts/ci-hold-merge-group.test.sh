@@ -75,11 +75,12 @@ fi
 # The base commit's config is a fixture directory: STUB_TRACKER is its
 # .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
 # BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
-# arguments. A labels read fails its first STUB_FAILS calls, then prints
-# STUB_LABELS one per line.
+# arguments.
 mkdir -p "$TMP_ROOT/bin"
-# The link read answers STUB_LINK (default: a person's pull request), or
-# fails with STUB_LINK_FAIL; a timeline read prints STUB_TIMELINE, one
+# The one GraphQL read fails its first STUB_FAILS calls, or every call with
+# STUB_LINK_FAIL, then answers STUB_LINK (default: a person's pull request)
+# with the pull request's labels set to STUB_LABELS (comma-separated) unless
+# STUB_LINK names its own; a timeline read prints STUB_TIMELINE, one
 # unlabeled event per line, or fails with STUB_TIMELINE_FAIL; the Refs
 # issue's labels read prints STUB_ISSUE_LABELS.
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
@@ -88,10 +89,12 @@ printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 *graphql*)
   [[ -z "${STUB_LINK_FAIL:-}" ]] || exit 1
+  [[ "$(grep -c graphql "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || exit 1
   # The api-budget wrapper adds -i to a single read: the headers come first.
   [[ "$2" != -i ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Resource: graphql\r\n\r\n'
   person='{"data":{"repository":{"pullRequest":{"author":{"__typename":"User"}}}}}'
-  printf '%s\n' "${STUB_LINK:-$person}"
+  jq -c --arg labels "${STUB_LABELS:-}" 'if .data.repository.pullRequest | has("labels") then . else
+    .data.repository.pullRequest.labels = ($labels | split(",") | map(select(length > 0)) | {totalCount: length, nodes: map({name: .})}) end' <<<"${STUB_LINK:-$person}"
   ;;
 */timeline*)
   [[ -z "${STUB_TIMELINE_FAIL:-}" ]] || exit 1
@@ -99,10 +102,6 @@ case "$*" in
   ;;
 *issues/18/labels*)
   [[ -z "${STUB_ISSUE_LABELS:-}" ]] || tr ',' '\n' <<<"$STUB_ISSUE_LABELS"
-  ;;
-*/labels*)
-  [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || exit 1
-  [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS"
   ;;
 *) exit 1 ;;
 esac
@@ -132,6 +131,9 @@ CUSTOM='{"config":{"role_labels":{"human-gated":" owner-call "}}}'
 ACTORS='{"version":1,"actors":[{"id":100,"login":"maintainer","kind":"human"},{"id":200,"login":"agent-lanes[bot]","kind":"bot"}]}'
 
 # expect <label> <want-rc> <want-label-calls> <want-pr|-> <GITHUB_REF> <STUB_LABELS> <STUB_FAILS> [want-out]
+# A label call is the GraphQL read, which holds the pull request's labels, or
+# the Refs issue's labels read; the pull request's labels are never read over
+# REST.
 # The tracker fixture is set by the caller's environment (STUB_TRACKER, STUB_CHECKOUT_FAILED, BASE_SHA).
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" want_pr="$4" out rc calls config="$TMP_ROOT/base-config"
@@ -152,16 +154,17 @@ expect() {
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="$5" STUB_LABELS="$6" STUB_FAILS="$7" \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" LANES_APP_ID="$LANES" BASE_SHA="${BASE_SHA-$BASE}" BASE_CONFIG="$config" \
     bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
-  calls=$(grep -c '/labels' "$TMP_ROOT/log")
+  calls=$(grep -cE 'graphql|/labels' "$TMP_ROOT/log")
   TRUST_CALLS=$(grep -cE 'graphql|/timeline|issues/18/labels' "$TMP_ROOT/log")
   TRUST_OUT=$out
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls labels call(s) got $calls"
-  elif [[ "$want_pr" != - ]] &&
-    [[ "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/$want_pr/labels?per_page=100 --paginate --jq .[].name" ]]; then
-    fail "$label: unexpected gh call '$(sort -u "$TMP_ROOT/log")'"
+  elif grep -vE 'issues/18/labels' "$TMP_ROOT/log" | grep -q '/labels'; then
+    fail "$label: the pull request's labels were read over REST: '$(sort -u "$TMP_ROOT/log")'"
+  elif [[ "$want_pr" != - ]] && grep graphql "$TMP_ROOT/log" | grep -vq -- "-F n=$want_pr\$"; then
+    fail "$label: the GraphQL read is not for #$want_pr: '$(sort -u "$TMP_ROOT/log")'"
   elif grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the tracker config was read through the API: '$(sort -u "$TMP_ROOT/log")'"
   elif [[ -n "${8:-}" && "$out" != *"$8"* ]]; then
@@ -180,7 +183,20 @@ expect "a label that only contains the name does not hold" 0 1 6419 "$QUEUE" "do
 expect "ref without refs/heads/ is read" 1 1 6419 "gh-readonly-queue/main/pr-6419-$SHA" "do-not-merge" 0
 expect "base branch with a slash is read" 1 1 12 "refs/heads/gh-readonly-queue/release/v2/pr-12-$SHA" "do-not-merge" 0
 expect "a transient read failure is retried" 1 2 6419 "$QUEUE" "do-not-merge" 1
-expect "an unreadable label list fails closed" 1 3 6419 "$QUEUE" "" 3 "::error::could not read the labels of #6419"
+expect "an unreadable label list fails closed" 1 3 6419 "$QUEUE" "" 3 "::error::could not read the labels and issue link of #6419"
+person='{"data":{"repository":{"pullRequest":{"author":{"__typename":"User"}}}}}'
+export STUB_LINK
+STUB_LINK="$(jq -c '.data.repository.pullRequest.labels = {totalCount: 101, nodes: [{name: "ci"}]}' <<<"$person")"
+expect "a cut label list fails closed" 1 1 6419 "$QUEUE" "" 0 "::error::the labels of #6419 could not all be read"
+STUB_LINK="$(jq -c '.data.repository.pullRequest.labels = {totalCount: 101, nodes: [{name: "do-not-merge"}]}' <<<"$person")"
+expect "a cut label list holding do-not-merge still fails closed" 1 1 6419 "$QUEUE" "" 0 "could not all be read"
+STUB_LINK="$(jq -c '.data.repository.pullRequest.labels = null' <<<"$person")"
+expect "a missing label list fails closed" 1 1 6419 "$QUEUE" "" 0 "could not all be read"
+STUB_LINK="$(jq -c '.data.repository.pullRequest.labels = {totalCount: 1, nodes: [{name: null}]}' <<<"$person")"
+expect "a label name that is not a string fails closed" 1 1 6419 "$QUEUE" "" 0 "could not all be read"
+STUB_LINK="$(jq -c '.data.repository.pullRequest.labels = {totalCount: 2, nodes: [{name: "ci"}, {name: "do-not-merge"}]}' <<<"$person")"
+expect "do-not-merge in the GraphQL label list holds a person's pull request" 1 1 6419 "$QUEUE" "" 0 "::error::#6419 carries the 'do-not-merge' label"
+STUB_LINK=''
 expect "a non-queue ref fails closed without a call" 1 0 - "refs/heads/main" "" 0 "::error::cannot read a pull request number"
 expect "a short sha fails closed without a call" 1 0 - "refs/heads/gh-readonly-queue/main/pr-6419-abc123" "" 0
 
@@ -275,7 +291,7 @@ trust "a cut label list fails closed" 1 1 "(issue-labels-unreadable)"
 STUB_LINK="$(link Bot '[]' | jq -c '.data.repository.pullRequest.closingIssuesReferences.totalCount = 11')"
 trust "a cut closing-issue list fails closed" 1 1 "could not all be read"
 STUB_LINK_FAIL=1
-expect "an unreadable link fails closed after three reads" 1 1 6419 "$QUEUE" "enhancement" 0 "::error::could not read the issue link of #6419"
+expect "an unreadable link fails closed after three reads" 1 3 6419 "$QUEUE" "enhancement" 0 "::error::could not read the labels and issue link of #6419"
 [[ "$TRUST_CALLS" -eq 3 ]] || fail "an unreadable link: expected 3 reads got $TRUST_CALLS"
 STUB_LINK_FAIL=''
 STUB_LINK="$(link Bot "[$(issue 16 '[]')]")" STUB_TIMELINE_FAIL=1
