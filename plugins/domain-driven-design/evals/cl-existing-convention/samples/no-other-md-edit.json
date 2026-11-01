@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/domain/claims-terms.md",
+            "old_string": "Anyone who contacts the claims desk.",
+            "new_string": "The person requesting coverage under a policy."
+          }
+        }
+      ],
+      "why": "refines the glossary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits README"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/GLOSSARY.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits a new glossary"
+    }
+  ]
+}
