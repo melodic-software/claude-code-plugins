@@ -438,9 +438,11 @@ runs:
             fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads, dependency-review or merge-base"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
           # Their wrappers run through Bash, which only the patch skill with
-          # no prepare mode gets with rules of its own.
-          if ((${#checks[@]} + ${#verify[@]})) && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; }; then
-            fail "run-claude-cli: checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode"
+          # no prepare mode gets with rules of its own, and ci-context bare.
+          # ci-context takes verify-scripts alone: its checks are the PR's own.
+          if ((${#checks[@]})) && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; } ||
+            { ((${#verify[@]})) && [ "$PREPARE" != ci-context ] && { [ "$edits" != patch ] || [ -n "$PREPARE" ]; }; }; then
+            fail "run-claude-cli: checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode, and verify-scripts under ci-context"
           fi
           [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ && $STAGE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the workspace or the stage directory has a name a rule cannot carry"
@@ -474,6 +476,16 @@ runs:
             allowed+=(Bash Edit Write Agent)
             denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
+            # verify-scripts: a base copy of each listed script behind its
+            # wrapper, the copy the skill is told to run in place of the
+            # checkout's (ci-ci.md, "A digest pin the pull request moved").
+            # Bash is bare here, so the wrappers need no rule of their own and
+            # nothing enforces the route: review of the patch is the control.
+            if ((${#verify[@]})); then
+              stage_verify "$STAGE/verify" "$lane/verify"
+              denied+=("Edit(./.lane/verify/**)" "Write(./.lane/verify/**)" "NotebookEdit(./.lane/verify/**)")
+              preamble="$preamble The runner's repository scripts, base copies the pull request cannot change, each run by exactly its wrapper path with the script's own arguments: ${verify_wrappers[*]}. Run one of these scripts only through its wrapper, never the checkout's copy."
+            fi
           fi
           # A skill that hands on a patch with no prepare mode (fix-docs) gets
           # Bash, which runs only what an allow rule below names: the lane
@@ -746,6 +758,7 @@ runs:
             if [ "$PREPARE" = ci-context ]; then
               [[ $CI_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the CI context directory has a name a rule cannot carry"
               [ -f "$CI_DIR/context.json" ] || fail "ci-context: the runner wrote no context file"
+              ((${#verify[@]} == 0)) || fail "ci-context: verify-scripts stage on run-claude-cli only"
               chmod -R a-w "$CI_DIR"
               mkdir -p "$SCRATCH"
               allowed="$allowed,Bash,Edit,Write,Agent,Read(/$CI_DIR/**),Edit(/$SCRATCH/**)"

@@ -550,6 +550,11 @@ class RunValidityTest(unittest.TestCase):
             " to start (%s)" % trace,
             proc.stdout,
         )
+        self.assertIn(
+            "harness failure: 1 run never started or had no sandbox, so the score"
+            " measures the harness, not the skill",
+            proc.stdout.splitlines()[-1],
+        )
         self.assertIn("check permission denials: PASS", proc.stdout)
 
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
