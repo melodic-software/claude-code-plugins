@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: speaker-notes
     type: regex
-    pattern: '^(?:[\s\S]*?(?:^[ \t]*(?:[-*+>][ \t]+|\d+[.)][ \t]+)?|[.!?|][ \t]+)(?:\*\*|__|\*|_)?(?:(?:speaker|presenter|slide)(?:''s|s'')?[ \t]+notes?|notes)[ \t]*(?:\*\*|__|\*|_)?[ \t]*(?:[:\-–—]|$)){3}'
+    pattern: '^(?:[\s\S]*?(?:^[ \t]*(?:#{1,6}[ \t]+|[-*+>][ \t]+|\d+[.)][ \t]+)?|[.!?|][ \t]+)(?:\*\*|__|\*|_)?(?:(?:speaker|presenter|slide)(?:''s|s'')?[ \t]+notes?|notes)[ \t]*(?:\*\*|__|\*|_)?[ \t]*(?:[:\-–—]|$)){3}'
     flags: im
     target: last_message
   - name: no-deck-page

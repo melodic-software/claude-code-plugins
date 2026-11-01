@@ -34,6 +34,10 @@
     {
       "answer": "## Slide 2: Hartwell customer quote\n> Ask marketing for the approved Hartwell quote before presenting.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
       "why": "a callout asking marketing for the quote, even under the quote heading"
+    },
+    {
+      "answer": "No deck tool is available here, so this is the outline only.\n\n# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- New plans launched July 8 across 3 tiers.\n- Q3 churn: [__]\n\n## Slide 2: What customers said\n- Hartwell survey quote: [__]\n\n## Slide 3: Decision\n- \"Keep or drop the Starter tier?\"\n- Notes: 412 accounts upgraded from Starter to Team in Q3.\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a quoted restatement of the supplied decision on a slide that is not about the customer quote"
     }
   ],
   "fail": [

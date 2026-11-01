@@ -13,6 +13,10 @@
     {
       "answer": "# Follow-the-Sun Rota\n\n## Slide 1: The overnight gap\nTickets after 18:00 wait 9 hours.\n\nPresenter notes: open with Lisbon.\n\n## Slide 2: Three regions\nDublin, Manila, Austin.\n\n**Speaker notes**\nNobody works nights.\n\n## Slide 3: The ask\n4 Manila hires by December.\n\nSpeaker's notes — finance has seen the budget line.",
       "why": "other common notes labels"
+    },
+    {
+      "answer": "# Follow-the-Sun Rota\n\nSections: the gap, the rota, the ask.\n\n## Slide 1: The overnight gap\nTickets after 18:00 wait 9 hours.\n\n### Speaker notes:\nOpen with the Lisbon complaint.\n\n## Slide 2: Three regions\nDublin, Manila, Austin.\n\n### Speaker notes:\nNobody works nights.\n\n## Slide 3: The ask\n4 Manila hires by December.\n\n### Speaker notes:\nFinance has seen the budget line.",
+      "why": "per-slide speaker notes under a Markdown heading"
     }
   ],
   "fail": [
