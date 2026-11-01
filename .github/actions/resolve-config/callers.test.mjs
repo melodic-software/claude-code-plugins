@@ -1239,7 +1239,8 @@ test("pr-run-activity-read.yml: the issue outcome's lane.json names the credenti
   }
   const lane = (env) => {
     const out = tempDir("lane-json-");
-    spawnSync("bash", ["-c", collect.run], { encoding: "utf8", env: { ...process.env, OUT_DIR: out, SCRATCH_OUTCOME: join(out, "absent"), ...env } });
+    const ran = spawnSync("bash", ["-c", collect.run], { encoding: "utf8", env: { ...process.env, OUT_DIR: out, SCRATCH_OUTCOME: join(out, "absent"), ...env } });
+    assert.equal(ran.status, 0, ran.stderr);
     return JSON.parse(readFileSync(join(out, "lane.json"), "utf8"));
   };
   const named = lane({ LANE_CREDENTIAL: "ISSUE_LANE_CLAUDE_API_KEY", LANE_FALLBACK: "credit-stop" });

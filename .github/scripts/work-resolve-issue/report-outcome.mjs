@@ -290,17 +290,18 @@ export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-i
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
 // The lane name its stop-reason markers carry.
 const LANE = "work-resolve-issue";
-const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=([A-Z][A-Z0-9_]*))?(?: fallback=(credit-stop|auth|no-key|limit-stop))? -->/;
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=(ISSUE_LANE_CLAUDE_API_KEY|ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN))?(?: fallback=(credit-stop|no-key))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
 
 // The secret NAME a run's leg used and why it fell back, from lane.json, which
-// the run could rewrite: a name outside SECRET_NAME or a reason outside
-// FALLBACKS is dropped, so the marker carries only closed, public-safe values.
-const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
-const FALLBACKS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
+// the run could rewrite. Only the names run-claude-cli records for role
+// issue-lane and the reasons the collect step writes pass, so a rewritten
+// lane.json cannot carry any other value (an encoded token) into the marker.
+const CREDENTIALS = new Set(["ISSUE_LANE_CLAUDE_API_KEY", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]);
+const FALLBACKS = new Set(["credit-stop", "no-key"]);
 export function readLaneCredential(dir) {
   let lane;
   try {
@@ -309,19 +310,19 @@ export function readLaneCredential(dir) {
     return {};
   }
   return {
-    ...(typeof lane?.credential === "string" && SECRET_NAME.test(lane.credential) && { credential: lane.credential }),
-    ...(typeof lane?.fallback === "string" && FALLBACKS.has(lane.fallback) && { fallback: lane.fallback }),
+    ...(CREDENTIALS.has(lane?.credential) && { credential: lane.credential }),
+    ...(FALLBACKS.has(lane?.fallback) && { fallback: lane.fallback }),
   };
 }
 
 // The plan with ` credential=<NAME> fallback=<reason>` (each when valid)
-// closing its outcome marker line.
+// closing its outcome marker line; a line already tagged is left as it is.
 export function withCredential(plan, { credential, fallback } = {}) {
-  const tag = `${typeof credential === "string" && SECRET_NAME.test(credential) ? ` credential=${credential}` : ""}${FALLBACKS.has(fallback) ? ` fallback=${fallback}` : ""}`;
+  const tag = `${CREDENTIALS.has(credential) ? ` credential=${credential}` : ""}${FALLBACKS.has(fallback) ? ` fallback=${fallback}` : ""}`;
   if (!tag || typeof plan?.comment !== "string") {
     return plan;
   }
-  return { ...plan, comment: plan.comment.replace(/^(<!-- work-resolve-issue outcome=[^\n]*?) -->/m, `$1${tag} -->`) };
+  return { ...plan, comment: plan.comment.replace(/^(<!-- work-resolve-issue outcome=(?:(?! credential=| fallback=)[^\n])*?) -->/m, `$1${tag} -->`) };
 }
 
 // The marker a limited run leaves on its issue; work-unblock reads it back.
@@ -1868,7 +1869,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {} }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -1896,6 +1897,8 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
     const counted = { ...(await read()), outcome: plan.exit };
     plan = capRetries(plan, countRestarts(counted), limits);
   }
+  // Every plan above is final here, rebuilt or not, so each takes the run's tags.
+  plan = withCredential(plan, lane);
   if (KEPT.has(plan.action)) {
     const posted = history.comments.some((comment) => {
       const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
@@ -2135,7 +2138,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           unmarked,
           collectRefused: env.COLLECT_REFUSED === "true",
         });
-    plan = withCredential(plan, readLaneCredential(dir));
+    const lane = readLaneCredential(dir);
+    plan = withCredential(plan, lane);
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing.
@@ -2251,7 +2255,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

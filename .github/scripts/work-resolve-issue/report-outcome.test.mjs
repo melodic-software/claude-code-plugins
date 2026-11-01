@@ -2083,17 +2083,30 @@ test("the outcome marker names a valid credential and fallback reason from lane.
     credential: "ISSUE_LANE_CLAUDE_API_KEY",
     fallback: "credit-stop",
   });
-  // After the escalation line, the outcome line is the one that takes the tags.
-  const escalated = withCredential({ comment: `${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=failed run=9 -->\n<!-- other -->` }, { credential: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" });
-  assert.equal(escalated.comment, `${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=failed run=9 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN -->\n<!-- other -->`);
-  assert.equal(parseOutcomeMarker(escalated.comment).credential, "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN");
+  // A hand-back decide builds opens with the escalation line; its outcome line takes the tags.
+  const handBack = decide({
+    outcome: { exit: "stopped", reason: "design-change: The tests cannot run here.", title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] },
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: BRANCH,
+    changedFiles: [],
+    runId: "555",
+  });
+  assert.ok(handBack.comment.startsWith(`${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=stopped run=555 -->`), handBack.comment);
+  const tagged = withCredential(handBack, { credential: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN", fallback: "no-key" });
+  assert.ok(tagged.comment.startsWith(`${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=stopped run=555 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key -->\n`), tagged.comment);
+  assert.equal(tagged.comment.split("\n").slice(2).join("\n"), handBack.comment.split("\n").slice(2).join("\n"), "only the outcome line changes");
+  assert.deepEqual(parseOutcomeMarker(tagged.comment), { outcome: "stopped", resets: null, run: "555", onResumed: false, credential: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN", fallback: "no-key" });
+  assert.equal(withCredential(tagged, { credential: "ISSUE_LANE_CLAUDE_API_KEY" }).comment, tagged.comment, "a tagged line is tagged once");
 });
 
 test("the outcome marker drops a credential that is not a secret name and a fallback reason outside the closed set", () => {
-  for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "", 7]) {
+  // An upper-snake value outside the three names run-claude-cli records for
+  // issue-lane is dropped too: a rewritten lane.json could hold an encoded token.
+  for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43UOV3HO6DZPI", "AUTOMATIONS_CLAUDE_API_KEY", "", 7]) {
     assert.deepEqual(credentialOf({ credential }), {}, String(credential));
   }
-  for (const fallback of ["handoff", "fallback", "rate-limit", "CREDIT-STOP", ""]) {
+  for (const fallback of ["handoff", "fallback", "rate-limit", "auth", "limit-stop", "CREDIT-STOP", ""]) {
     assert.deepEqual(credentialOf({ credential: "ISSUE_LANE_CLAUDE_API_KEY", fallback }), { credential: "ISSUE_LANE_CLAUDE_API_KEY" }, fallback);
   }
   assert.deepEqual(credentialOf({ branch: "" }), {}, "a lane.json without the fields");
@@ -2103,6 +2116,7 @@ test("the outcome marker drops a credential that is not a secret name and a fall
   // A marker whose tokens fall outside the closed values does not parse as the lane's.
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 credential=lower_case -->"), null);
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 fallback=handoff -->"), null);
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 credential=AUTOMATIONS_CLAUDE_API_KEY -->"), null);
 });
 
 test("an outcome marker without a credential or fallback still parses without them", () => {
@@ -2126,6 +2140,37 @@ test("main on a limit stop comments the marker and touches no label", async () =
     assert.equal(posted.length, 1);
     assert.ok(posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 -->"));
     assert.ok(!calls.some((c) => c.path.endsWith("/labels") || c.method === "DELETE"));
+  });
+});
+
+// The tags reach the posted comment on the limited path and on a stop that
+// finishStop finalizes.
+test("main posts the credential and fallback tags on a limited stop and a routed stop", async () => {
+  const tags = { credential: "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", fallback: "credit-stop" };
+  await withAsyncDir({ "lane.json": JSON.stringify({ ...JSON.parse(LIMITED_LANE), ...tags }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
+    const posted = calls.filter((c) => c.method === "POST");
+    assert.equal(posted.length, 1);
+    assert.ok(
+      posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=123 credential=ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop -->\n"),
+      posted[0].body.body,
+    );
+  });
+  await withAsyncDir({ "lane.json": JSON.stringify({ branch: "", class: "issue-edited", ...tags }) }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.match(comment, /^(?:<!-- work-items:escalation [^\n]* -->\n)?<!-- work-resolve-issue outcome=[a-z-]+[^\n]* credential=ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop -->\n/, comment);
+    assert.equal(parseOutcomeMarker(comment).credential, "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN");
   });
 });
 
