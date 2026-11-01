@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours."
+    },
+    {
+      "answer": "Police and lease are identities, not rhymes: same l, same stressed vowel."
+    },
+    {
+      "answer": "Identity check: fail for both (police, lease).",
+      "why": "box verdict"
+    },
+    {
+      "answer": "That's an identity, so I'd drop both.",
+      "why": "plain statement"
+    },
+    {
+      "answer": "Police and lease: identity, not real rhymes.",
+      "why": "plural rhymes"
+    },
+    {
+      "answer": "Police and lease? They're identities of release.",
+      "why": "they're identities"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Police is the stronger rhyme; lease feels flat.",
+      "why": "treats an identity as a rhyme"
+    },
+    {
+      "answer": "Identity check: pass, both differ from release.",
+      "why": "passes the identity check"
+    },
+    {
+      "answer": "Both are perfect rhymes for release. Pick by meaning.",
+      "why": "calls the identities perfect rhymes"
+    }
+  ]
+}

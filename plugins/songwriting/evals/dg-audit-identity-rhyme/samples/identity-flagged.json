@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter and §8 Pre-lock filter: run.\n\n**Line:** \"I'll never feel that same delight\"\n\n**Stress & meter**\n- Stressed syllables on strong beats: pass. i'll NEV-er FEEL that SAME de-LIGHT, four stresses like line 1.\n- Greedy spots: pass.\n\n**Rhyme stability**\n- Identity check: fail. light / de-LIGHT keep the same l before the stressed vowel, so this is identity, not rhyme. The ear hears the same word twice.\n- Cliche pair: fail. light / delight is a stock pair.\n\n**Image specificity**\n- Rusty's-collar image before the telling line: fail. \"feel that same delight\" names a feeling; line 1's kitchen light already shows it.\n\n**Register**: skipped. No voiceprint exists for you yet, so I can't judge this against your own style; I'm not ruling on register.\n\nDominant: the identity at the line's end. Fix it, accept it with a reason, or come back after another pass. Which?"
+    },
+    {
+      "answer": "light / delight is an identity: both have l before the stressed vowel."
+    },
+    {
+      "answer": "❌ Identity check (light / delight share the l)",
+      "why": "fail glyph before the box name"
+    },
+    {
+      "answer": "Identity check fails: the pre-vowel consonant doesn't change.",
+      "why": "verb form"
+    },
+    {
+      "answer": "That's an identity, not a rhyme.",
+      "why": "plain statement"
+    },
+    {
+      "answer": "Identity: light and delight aren't a true rhyme, same onset l.",
+      "why": "negated rhyme after the box name"
+    },
+    {
+      "answer": "Identity check: light / delight are identity, not true rhymes.",
+      "why": "plural rhymes"
+    },
+    {
+      "answer": "Light and delight? They're identities, same l in front of the stressed vowel.",
+      "why": "they're identities"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "light / delight is a perfect rhyme, strong and resolved.",
+      "why": "calls the identity a rhyme"
+    },
+    {
+      "answer": "Identity check: pass (l and d differ).",
+      "why": "passes the identity check"
+    },
+    {
+      "answer": "Identity check: pass\nCliche scan: fail, light / delight is a stock pair.",
+      "why": "the fail verdict is on another line, about another box"
+    },
+    {
+      "answer": "Run an identity check before you lock it.",
+      "why": "names the check without a verdict"
+    }
+  ]
+}
