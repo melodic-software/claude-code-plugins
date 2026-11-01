@@ -9,7 +9,11 @@
 # could steer that lane. The owner decided that only they, typing in the GitHub
 # UI, post the phrase (#8438). This guard holds that decision on the Bash and
 # PowerShell tools and on the GitHub MCP server's comment, review, issue and
-# pull-request write tools.
+# pull-request write tools. The risk is our own actors, so a repository may
+# lift it: `fix_request_post` in its tracked docs/conventions/guardrails.yaml
+# (schema schemas/guardrails.schema.json) is `block` (the default) or `allow`.
+# Under `allow` a would-be block exits 0. An untracked file, a missing key, a
+# file that does not parse or any other value keeps `block`; the last two say so.
 #
 # WHAT BLOCKS. A command that posts or edits GitHub content, carrying the phrase
 # where the lane would read it as a request:
@@ -61,6 +65,7 @@
 # Escape: the `block_fix_request_post_enabled` userConfig option (true or false;
 # any other value keeps the guard on and says so). userConfig resolves at
 # plugin-enable time, so an inline env prefix on the command cannot change it.
+# Per repository: `fix_request_post: allow`, above.
 #
 # BLOCKING: exits 2 on a detected post.
 
@@ -128,7 +133,35 @@ emit_tel() {
   hook::emit_telemetry "block-fix-request-post" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
+# _bfr_allowed: 0 when the payload's repository tracks a team file that sets
+# fix_request_post to allow. Read only on a would-block call, so a call that
+# posts no request pays nothing. Any other state keeps the block; a value
+# other than allow or block, or a file that does not parse, says so.
+_BFR_TEAM_REL="docs/conventions/guardrails.yaml"
+_bfr_allowed() {
+  local root recs val key=$'\nfix_request_post\t'
+  hook::repo_root_to root "$_BFR_CWD" || return 1
+  [[ -f "$root/$_BFR_TEAM_REL" ]] || return 1
+  git -C "$root" ls-files --error-unmatch -- "$_BFR_TEAM_REL" >/dev/null 2>&1 || return 1
+  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <"$root/$_BFR_TEAM_REL" 2>/dev/null); then
+    printf 'guardrails: %s does not parse; fix_request_post stays block.\n' "$_BFR_TEAM_REL" >&2
+    return 1
+  fi
+  recs=$'\n'"$recs"
+  [[ "$recs" == *"$key"* ]] || return 1
+  val="${recs#*"$key"}"
+  val="${val%%$'\n'*}"
+  [[ "$val" == allow ]] && return 0
+  [[ "$val" == block ]] ||
+    printf "guardrails: %s sets fix_request_post: '%s', not allow or block; it stays block.\n" "$_BFR_TEAM_REL" "$val" >&2
+  return 1
+}
+
 block() {
+  if _bfr_allowed; then
+    emit_tel ok "$1, allowed by fix_request_post"
+    exit 0
+  fi
   printf '%s\n' \
     "BLOCKED: this would post the PR-fix lane fix request (a line starting \"PR-fix lane: please fix this finding\") to GitHub ($1)." \
     "Only the repository owner may post a fix request, typed in the GitHub UI: the address-feedback lane acts on it with push credentials, and an agent posts with the owner's token (owner decision, https://github.com/melodic-software/claude-code-plugins/issues/8438)." \
