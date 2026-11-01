@@ -118,7 +118,7 @@ jobs:
         run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
 
       - name: Log the API budget at the end
-        if: always()
+        if: always() && inputs.dispatcher-run-id != ''
         continue-on-error: true
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
