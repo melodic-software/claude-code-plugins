@@ -107,12 +107,42 @@ if [[ $? -eq 2 && "$out" == *"no letter or digit"* ]]; then
 else
   fail "expected exit 2 for branch __, got: $out"
 fi
+git_test_config "$f" checkout -q Feat/Some_Thing
+lane="$(CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-1-2-3 run_new "$f" alpha patch)"
+if [[ "$lane" =~ ^\.changes/alpha/feat-some_thing-[0-9a-f]{8}\.md$ ]]; then
+  ok "on a branch, ignores CHANGELOG_FRAGMENT_BRANCH"
+else
+  fail "expected the branch slug, got: $lane"
+fi
 git_test_config "$f" checkout -q --detach
-out="$(run_new "$f" alpha patch 2>&1)"
+out="$(unset CHANGELOG_FRAGMENT_BRANCH && run_new "$f" alpha patch 2>&1)"
 if [[ $? -eq 2 && "$out" == *"not on a branch"* ]]; then
   ok "refuses a detached HEAD"
 else
   fail "expected exit 2 on a detached HEAD, got: $out"
+fi
+rm -rf "$f/.changes"
+for bad in ../x -x 'a b' 'a..b' 'a/' ''; do
+  out="$(CHANGELOG_FRAGMENT_BRANCH="$bad" run_new "$f" alpha patch 2>&1)"
+  if [[ $? -eq 2 && ! -e "$f/.changes" ]]; then
+    ok "refuses CHANGELOG_FRAGMENT_BRANCH '$bad' on a detached HEAD"
+  else
+    fail "expected exit 2 and no fragment for '$bad', got: $out"
+  fi
+done
+lane="$(CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-1-2-3 run_new "$f" alpha patch)"
+[[ -f "$f/$lane" ]] && printf '### Fixed\n\n- x\n' >>"$f/$lane"
+# shellcheck source=lib/changelog-fragments.sh
+if [[ "$lane" =~ ^\.changes/alpha/work-resolve-issue-issue-1-2-3-[0-9a-f]{8}\.md$ ]] && (cd "$f" && . scripts/lib/changelog-fragments.sh && changelog_fragments::validate "$lane"); then
+  ok "on a detached HEAD, names the fragment after CHANGELOG_FRAGMENT_BRANCH"
+else
+  fail "expected .changes/alpha/work-resolve-issue-issue-1-2-3-<hex>.md that validates, got: $lane"
+fi
+# The way the lane's check wrapper runs it: the base copy, against the checkout.
+if out="$(CHECK_DATA_ROOT="$f" bash "$SELF_DIR/check-changelog-fragments.sh" --check 2>&1)"; then
+  ok "check-changelog-fragments.sh --check accepts the lane's fragment"
+else
+  fail "check-changelog-fragments.sh --check rejected the lane's fragment: $out"
 fi
 rm -rf "$f"
 

@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.1] - 2026-11-01
+
+### Changed
+
+- The bundled enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as the reader that picks a rung for a recurring mistake, a findings file or review comments, in place of `/review:audit-enforceability` and retro's codify mode.
+
+## [2.3.0] - 2026-11-01
+
+### Added
+
+- `lib/prior-findings.mjs` lists a CI review lane's own earlier findings on a pull request for its wrapper to hand the model: inline review threads, reviews and PR comments, kept only when the github-actions bot wrote them (by numeric id), no other account edited them, and they carry the lane's `claude-lane:` footer or reviewed-head marker. For each anchored finding on a thread still open it records whether `git diff <posted head> HEAD` touches the lines it names (a resolved thread always answers yes), and it counts the lane's rounds (the earlier heads it posted a finding on, by thread, review or reviewed-head summary) against `loop.review-rounds` read from a default-branch `pr-pipeline.yaml` ([#7777](https://github.com/melodic-software/claude-code-plugins/issues/7777)).
+
+### Changed
+
+- `/review:code-review` and `/review:security-review` read a `PRIOR FINDINGS:` file when the wrapper names one: a finding the lane already posted on an open thread whose lines are unchanged since is not posted again, at any severity, and gets one `already posted` summary line that counts as the posted finding would (findings count, `critical-findings:`, `hold`), so a review that still finds it never reads clean and never closes the earlier thread once an agent resolves it. Past the round cap the code lane posts only blocking findings and the security lane only CRITICAL and IMPORTANT ones. With no such file both lanes review as before ([#7777](https://github.com/melodic-software/claude-code-plugins/issues/7777)).
+
 ## [2.2.0] - 2026-11-01
 
 ### Added

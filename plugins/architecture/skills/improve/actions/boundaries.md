@@ -120,7 +120,7 @@ unconfirmed.
 ## Phase 4: Hand confirmed rules to the enforcement audit
 
 A confirmed rule belongs on the `architecture-test` rung of the enforcement ladder. Write it to a
-findings file so `/review:audit-enforceability` can propose the test:
+findings file so `/corrections:codify findings` can propose the test:
 
 - **Where.** `<memory_dir>/improve/<branch-slug>/<YYYYMMDDTHHMMSSZ>-boundaries.md`.
   `<memory_dir>` and `<branch-slug>` are as Phase 2 ("Memory-tier writes") defines them. Never
@@ -136,8 +136,8 @@ findings file so `/review:audit-enforceability` can propose the test:
   `architecture-test`. The row template is in
   [../research/boundaries/README.md](../research/boundaries/README.md) ("Findings rows").
 
-The lens's report then names the file. When `/review:audit-enforceability` is among the available
-skills, it offers `/review:audit-enforceability <file>` as the next step and never runs it unasked.
+The lens's report then names the file. When `/corrections:codify` is among the available skills, it
+offers `/corrections:codify findings <file>` as the next step and never runs it unasked.
 Without that skill, the report names the file and states each confirmed rule with the architecture
 test it calls for.
 

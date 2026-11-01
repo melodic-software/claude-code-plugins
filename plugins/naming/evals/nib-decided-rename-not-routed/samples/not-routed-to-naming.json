@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [], "why": "no skill call: sweeps with Grep" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "docs-hygiene:rename-references", "args": "fetchUser to loadUser" } }], "why": "the rename sweep, the right owner" },
+    { "answer": [{ "tool": "Grep", "input": { "pattern": "fetchUser", "output_mode": "content", "-n": true } }], "why": "a plain search" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "naming:name-it-better" } }], "why": "naming a name that is already final" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "name-it-better", "args": "fetchUser" } }], "why": "bare skill name" }
+  ]
+}

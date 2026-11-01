@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Strategy | Writes | Consistency |\n|---|---|---|\n| Write-through | slower | strong |",
+      "why": "table"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "For an interactive comparison, install `playground@claude-plugins-official`.",
+      "why": "pushes install"
+    }
+  ]
+}

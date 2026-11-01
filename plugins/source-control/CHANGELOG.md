@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.1] - 2026-11-01
+
+### Changed
+
+- `babysit_verify_evidence.py evidence` takes what its caller already holds before reading GitHub: the config files at the base commit from the checkout `BABYSIT_CONFIG_CHECKOUT` names when its HEAD is that commit, the default branch from `BABYSIT_DEFAULT_BRANCH` for the run's own repository, and the pull request record from the file `BABYSIT_VERIFY_PULL` names when it is the same repository, number and head. The default branch's tip is read once per run. Anything else reads the API as before. ci-status's merge-queue step passes all three, so a lanes App pull request's verdict read makes about six fewer `GITHUB_TOKEN` requests.
+
+## [4.11.0] - 2026-11-01
+
+### Added
+
+- The post-merge check (`babysit_postmerge.py`) settles a lane merge it judged verified. A check whose read was complete lists, in its report's `settle`, each of the agent identity's merges that is verified with no red, superseded or flaked full run and no running canary in its window and no empty record listing behind it. `--settle-from <report>` then posts the identity's `<!-- babysit-merge-settled sha=<merge commit> -->` comment on each one's pull request. A later check counts a merge that carries that marker, unedited and written by the identity, as verified without reading its runs or its `pr-merge-dispatched-<id>` artifact. The same author and edit checks as the pin comment decide whether a marker counts. The marker is read in the same batched comment query as the pins, and the run listings start at the earliest merge not yet settled, so a settled merge no longer fails once its record's 30-day retention ends; a merge never settled still depends on it. A failed post is a warning and changes no verdict, and the next check lists the merge again.
+
 ## [4.10.1] - 2026-11-01
 
 ### Fixed

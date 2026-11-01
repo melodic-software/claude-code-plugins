@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: 'setup-apply-refuses-project-scope-on-config-fail'
+graders:
+  - name: 'runs-check-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-setup\.mjs'
+    min: 1
+    arm: 'with-only'
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Reports the config FAIL from check with its remediation'
+    focus: 'trace'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?install-server\.mjs'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-register'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?claude mcp add'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Refuses --scope project and gives the reason that the agent can edit the repository'
+    focus: 'trace'
+  - name: 'expectation-4'
+    type: 'llm'
+    criteria: 'Does not create or edit the config file'
+    focus: 'trace'

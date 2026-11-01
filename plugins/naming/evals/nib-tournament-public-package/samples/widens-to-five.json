@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "generator 1", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "generator 2", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "generator 3", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "generator 4", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "generator 5", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "judge round 1", "prompt": "Score these pairs against the written rubric." } }
+      ],
+      "why": "five generators and a judge"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no subagents" },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Brief only." } },
+        { "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Brief only." } }
+      ],
+      "why": "the default pass's three, not widened"
+    }
+  ]
+}

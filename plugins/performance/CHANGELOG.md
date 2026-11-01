@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-11-01
+
+### Added
+
+- `/performance:go-faster` reads delivery metrics from `/work-items:measure-delivery` (#11883). When the work-items plugin is installed and enabled, the `pr-review` area records change lead time and failed deployment recovery time from the default branch's history, with the change fail rate and the deployment rework rate in each title. Without the plugin, the area marks those metrics not checked (`owner-unavailable`), names the plugin to enable, and the sweep goes on.
+
 ## [0.13.0] - 2026-10-31
 
 ### Changed

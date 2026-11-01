@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: 'setup-reads-absent-rate-limits-as-reactive-only'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'Classifies absent rate_limits on a fresh snapshot as INFO: expected fail-open behavior under which consumers run reactive-only'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'Does not tell the person to rewire or reinstall anything for it'
+    focus: 'trace'
+  - name: 'expectation-3'
+    type: 'llm'
+    criteria: 'Cites the reader contract as the owner of the fail-open rule'
+    focus: 'trace'
