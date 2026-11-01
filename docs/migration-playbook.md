@@ -354,8 +354,8 @@ path states "no upstream" and names the regeneration trigger instead (e.g. a mod
 ## Evals: warrant policy and consumer-verify recipe
 
 Evals are model-graded behavior cases. A new case is a `claude plugin eval` suite case at
-`plugins/<plugin>/evals/<case>/case.yaml` whose one-line `tags: [...]` list holds the directory
-name of the skill it covers, checked with no model call by `/evals:validate`. Per-skill `plugins/<plugin>/skills/<skill>/evals/evals.json`
+`plugins/<plugin>/evals/<case>/case.yaml` whose one-line `tags: [...]` list, in `case.yaml` or in
+`prompt.md`'s frontmatter, holds the directory name of the skill it covers, checked with no model call by `/evals:validate`. Per-skill `plugins/<plugin>/skills/<skill>/evals/evals.json`
 files (schema `plugins/skill-quality/reference/evals.schema.json`) are legacy: existing ones stay
 until `plugins/evals/skills/plugin-eval/scripts/convert-evals-json.py` converts them, and no new one
 is added. Evals are **warranted, not mandatory**: a skill ships them only when they earn their keep.
@@ -375,7 +375,8 @@ eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves, because a satisfied "looks covered" is not a warrant.
 This section is the policy; current coverage is verified on demand. Read the `tags:` of
-`plugins/*/evals/*/case.yaml` and glob the legacy `plugins/*/skills/*/evals/evals.json` across the
+`plugins/*/evals/*/case.yaml` and of each case's `prompt.md` frontmatter (where
+`convert-evals-json.py` writes them), and glob the legacy `plugins/*/skills/*/evals/evals.json` across the
 tree, and read the result against the warrant rule above, never from a checked-in snapshot that
 decays the moment a skill lands.
 
