@@ -87,6 +87,16 @@ describe("which posts are the lane's own", () => {
     assert.equal(isLanePost({ ...edit, editor: BOT }, LANE), true);
   });
 
+  test("a footer wrapped in backticks, the form the other lane parsers accept, is the lane's and is stripped", () => {
+    // clear-escalations.mjs LANE_TAG and babysit_review_evidence.py LANE_TAG_RE
+    // read `claude-lane: <lane>` with optional backticks.
+    const ticked = `x\n\n\`claude-lane: ${LANE}\``;
+    assert.equal(isLanePost({ author: BOT, body: ticked, lastEditedAt: null }, LANE), true);
+    assert.equal(isLanePost({ author: BOT, body: "x\n\n`claude-lane: claude-review`", lastEditedAt: null }, LANE), false);
+    const [found] = run([thread(BOT, `${FINDING}\n\n\`claude-lane: ${LANE}\``)], shifted).findings;
+    assert.equal(found.body, FINDING);
+  });
+
   test("the lane's reviewed-head marker comment counts as the lane's own post", () => {
     const marker = `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\nsummary`;
     assert.equal(isLanePost({ author: BOT, body: marker, lastEditedAt: null }, LANE), true);
@@ -158,17 +168,45 @@ describe("lines changed since the finding was posted", () => {
 });
 
 describe("rounds and the cap", () => {
-  test("rounds count the distinct heads the lane posted findings on", () => {
+  test("rounds count the distinct earlier heads the lane posted findings on, never the head under review", () => {
     const second = { ...thread(BOT), comments: { nodes: [{ ...thread(BOT).comments.nodes[0], originalCommit: { oid: shifted } }] } };
+    // A rerun on `edited` already holds the lane's posts on it; they are not a
+    // round before this review.
+    const onHead = { ...thread(BOT), comments: { nodes: [{ ...thread(BOT).comments.nodes[0], originalCommit: { oid: edited } }] } };
     const result = collect({
-      threads: [thread(BOT), thread(BOT), second, thread(PERSON, `x\n\nclaude-lane: ${LANE}`, { originalCommit: { oid: edited } })],
-      reviews: [],
+      threads: [thread(BOT), thread(BOT), second, onHead, thread(PERSON, `x\n\nclaude-lane: ${LANE}`, { originalCommit: { oid: edited } })],
+      reviews: [
+        { url: "u", body: `**${LANE}**: 1 inline finding(s) on \`${edited}\`; the summary is in this lane's pull request comment.\n\nclaude-lane: ${LANE}`, lastEditedAt: null, author: BOT, commit: { oid: edited } },
+      ],
       comments: [],
       lane: LANE,
       head: edited,
       diff,
     });
     assert.equal(result.rounds, 2);
+  });
+
+  test("a reviewed-head summary comment counts its head as a round only when it states a finding", () => {
+    // The status line ci-workflows publish-review/publish.cjs statusLine writes.
+    const summary = (sha, findings, author = BOT) => ({
+      url: "u",
+      lastEditedAt: null,
+      author,
+      body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${sha} -->\n<!-- claude-lane-reviewed-base ref=main merge-base=${v1} -->\n**${LANE}** reviewed \`${sha}\`: read 2 of 2 changed file(s); ${findings} finding(s), 0 as inline comments.\n\nA finding.\n\ncritical-findings: 0`,
+    });
+    const skip = {
+      url: "u",
+      lastEditedAt: null,
+      author: BOT,
+      body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** needs no new review of \`${v1}\`: no file in scope changed.\n\n1 finding(s) carried forward.`,
+    };
+    const rounds = (comments, head = edited) => collect({ threads: [], reviews: [], comments, lane: LANE, head, diff }).rounds;
+    assert.equal(rounds([summary(v1, 1), summary(shifted, 2)]), 2);
+    assert.equal(rounds([summary(v1, 0)]), 0);
+    assert.equal(rounds([skip]), 0);
+    assert.equal(rounds([summary(edited, 1)]), 0);
+    assert.equal(rounds([summary(v1, 1, PERSON)]), 0);
+    assert.equal(collect({ threads: [], reviews: [], comments: [summary(v1, 1)], lane: LANE, head: edited, diff }).findings[0].posted, v1);
   });
 
   test("readCap reads loop.review-rounds and nothing else", () => {

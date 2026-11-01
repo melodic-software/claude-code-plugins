@@ -9,8 +9,8 @@
 //
 // A post is the lane's own only when GitHub reports its author as the
 // github-actions bot by numeric id, no other account edited it, and its last
-// non-blank line is the lane's `claude-lane: <lane>` footer (or its first line
-// is the lane's reviewed-head marker). Text alone never makes a post the
+// non-blank line is the lane's `claude-lane: <lane>` footer, bare or in
+// backticks (or its first line is the lane's reviewed-head marker). Text alone never makes a post the
 // lane's: a lookalike from any other account is not listed, so it cannot
 // suppress a finding.
 //
@@ -62,15 +62,39 @@ const QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 const isBot = (actor) =>
   actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID && actor.login === "github-actions";
 
+// The lane's footer line, bare or in backticks, as clear-escalations.mjs
+// LANE_TAG and babysit_review_evidence.py LANE_TAG_RE read it.
+const footer = (lane) => new RegExp(`^\`?claude-lane: ${lane}\`?$`, "u");
+const marker = (lane) => new RegExp(`^<!-- claude-lane-reviewed-head lane=${lane} sha=([0-9a-f]{40}) -->$`, "u");
+const nonBlank = (body) =>
+  body
+    .split(/\r?\n/u)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
 // Whether `post` is `lane`'s own: the bot wrote it, nobody else edited it, and
 // it carries the lane's footer as its last non-blank line or the lane's
 // reviewed-head marker as its first line.
 export function isLanePost(post, lane) {
   if (!LANES.has(lane) || !isBot(post?.author) || typeof post.body !== "string") return false;
   if (post.lastEditedAt != null && !isBot(post.editor)) return false;
-  const lines = post.body.split(/\r?\n/u).filter((l) => l.trim());
-  if (lines.at(-1)?.trim() === `claude-lane: ${lane}`) return true;
-  return new RegExp(`^<!-- claude-lane-reviewed-head lane=${lane} sha=[0-9a-f]{40} -->$`, "u").test(lines[0]?.trim() ?? "");
+  const lines = nonBlank(post.body);
+  return footer(lane).test(lines.at(-1) ?? "") || marker(lane).test(lines[0] ?? "");
+}
+
+// A reviewed-head comment's head and the findings its status line counts, as
+// ci-workflows publish-review/publish.cjs writes them: the marker, an optional
+// reviewed-base line, then `**<lane>** reviewed `<sha>`: read N of M changed
+// file(s); K finding(s), ...`. A skip's "needs no new review" line counts none.
+function reviewedHead(body, lane) {
+  const lines = nonBlank(body);
+  const sha = marker(lane).exec(lines[0] ?? "")?.[1];
+  if (!sha) return null;
+  const status = lines[1]?.startsWith("<!-- claude-lane-reviewed-base ") ? lines[2] : lines[1];
+  const counted = new RegExp(`^\\*\\*${lane}\\*\\* reviewed \`${sha}\`: read \\d+ of \\d+ changed file\\(s\\); (\\d+) finding\\(s\\)`, "u").exec(
+    status ?? "",
+  );
+  return { sha, findings: counted ? Number(counted[1]) : 0 };
 }
 
 // Whether `git diff -U0 <posted> <head>` output changes any line in
@@ -86,7 +110,7 @@ export function touchesOriginal(diff, start, end) {
   return false;
 }
 
-const stripFooter = (body, lane) => body.replace(new RegExp(`\\s*claude-lane: ${lane}\\s*$`, "u"), "").trim();
+const stripFooter = (body, lane) => body.replace(new RegExp(`\\s*\`?claude-lane: ${lane}\`?\\s*$`, "u"), "").trim();
 
 // One inline thread's verdict. Anything the job cannot judge answers yes, so it
 // never suppresses a finding. So does a resolved thread: only an unresolved
@@ -110,17 +134,23 @@ function judge(thread, posted, head, diff) {
   }
 }
 
-// The lane's prior findings and its rounds: the distinct heads it posted a
-// finding on. `diff(from, to, path)` returns `git diff -U0` text and throws on
-// failure.
+// The lane's prior findings and its rounds. A round is a distinct head before
+// the one under review on which the lane posted at least one finding: an
+// inline thread (one finding each), a review (publish.cjs posts one only with
+// inline findings), or a reviewed-head comment whose status line counts one or
+// more. A rerun's own posts on the head under review are not a round.
+// `diff(from, to, path)` returns `git diff -U0` text and throws on failure.
 export function collect({ threads, reviews, comments, lane, head, diff }) {
   const findings = [];
   const heads = new Set();
+  const round = (posted) => {
+    if (SHA.test(posted) && posted !== head) heads.add(posted);
+  };
   for (const thread of threads ?? []) {
     const root = thread?.comments?.nodes?.[0];
     if (typeof thread?.path !== "string" || !isLanePost(root, lane)) continue;
     const posted = String(root.originalCommit?.oid ?? "");
-    if (SHA.test(posted)) heads.add(posted);
+    round(posted);
     findings.push({
       source: "inline review thread",
       path: thread.path,
@@ -136,8 +166,9 @@ export function collect({ threads, reviews, comments, lane, head, diff }) {
   ]) {
     for (const post of posts ?? []) {
       if (!isLanePost(post, lane)) continue;
-      const posted = String(post.commit?.oid ?? "");
-      if (source === "review" && SHA.test(posted)) heads.add(posted);
+      const summary = source === "comment" ? reviewedHead(post.body, lane) : null;
+      const posted = String((summary ? summary.sha : post.commit?.oid) ?? "");
+      if (source === "review" || summary?.findings > 0) round(posted);
       const body = stripFooter(post.body, lane);
       if (!body) continue;
       findings.push({ source, path: null, posted, url: post.url, body, lines: null, changed: "yes (no line anchor)" });
