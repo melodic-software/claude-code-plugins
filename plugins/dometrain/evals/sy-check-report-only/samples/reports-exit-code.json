@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "## Result\n\nExit code: 2 (unverifiable). The fetch from raw.githubusercontent.com failed.",
+      "why": "heading section, plain label"
+    },
+    {
+      "answer": "**Exit code:** `0`, no drift detected.",
+      "why": "bold label, code span"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Exit code | 1 |\n| Drift | yes |",
+      "why": "table row"
+    },
+    {
+      "answer": "- The script exited with code 2: unverifiable, curl could not reach GitHub.",
+      "why": "list item, exited with code"
+    },
+    {
+      "answer": "update.sh exited 1 (drift). See context/update.md.",
+      "why": "exited N"
+    },
+    {
+      "answer": "## Exit code\n\n2 (unverifiable)",
+      "why": "heading then value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Couldn't reach raw.githubusercontent.com, so drift is unknown.",
+      "why": "no exit code"
+    },
+    {
+      "answer": "No drift detected.",
+      "why": "status only"
+    },
+    {
+      "answer": "I report the script's exit code (0 no drift, 1 drift, 2 unverifiable).",
+      "why": "legend in parentheses"
+    },
+    {
+      "answer": "Exit codes: 0 no drift, 1 drift, 2 unverifiable.",
+      "why": "legend, plural"
+    },
+    {
+      "answer": "Exit code: 0 no drift, 1 drift, 2 unverifiable.",
+      "why": "legend, singular"
+    }
+  ]
+}
