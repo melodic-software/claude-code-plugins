@@ -573,7 +573,8 @@ variable that sets it).
 > ladder paragraph under "Models" in `docs/conventions/pr-pipeline/README.md`;
 > recheck when the per-week Fable allowance is set); the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
-> convention ("Capability tiers" and "Alias binding"), and the
+> convention ("Capability tiers" and "Alias binding", whose note on
+> Agent dispatches is why the frontier work above names `opus`), and the
 > `model` values an Agent call takes are listed at
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
 > recheck when that list changes); it admits no `haiku`
@@ -723,7 +724,8 @@ wakeup ceiling for days rather than finishing.
 > per-week Fable allowance is set);
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
-> loop-lane convention ("Capability tiers" and "Alias binding"), and the
+> loop-lane convention ("Capability tiers" and "Alias binding", whose note on
+> Agent dispatches is why the frontier work above names `opus`), and the
 > `model` values an Agent call takes are listed at
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
 > recheck when that list changes); it admits no

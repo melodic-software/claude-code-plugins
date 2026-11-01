@@ -719,6 +719,14 @@ The reasons behind each binding:
   frontier dispatch self-heals where Fable is unavailable instead of failing or silently running a
   stale pin. For Fable's access, version and billing requirements, see
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
+
+  *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
+  `model` takes
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); recheck
+  when that list changes). A lane's frontier-tier Agent dispatch, the security-surface rule's
+  included, therefore names `opus` while the Fable rung is off by the owner's recorded hold (the
+  ladder paragraph under "Models" in `docs/conventions/pr-pipeline/README.md`), and `fable` once the
+  per-week Fable allowance is set. The lane prompts follow this note.
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
