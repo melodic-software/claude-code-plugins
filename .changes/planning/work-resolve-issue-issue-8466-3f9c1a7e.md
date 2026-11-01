@@ -9,4 +9,4 @@ bump: minor
 
 ### Added
 
-- Eval case `late-return-restates-every-open-question-in-full`.
+- Eval cases `late-return-restates-every-open-question-in-full` and `held-question-release-restates-every-open-question-in-full`.

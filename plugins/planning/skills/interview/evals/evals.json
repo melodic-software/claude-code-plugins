@@ -619,6 +619,19 @@
         "Q4, Q5 and Q6 are not collapsed into a one-line pointer to the earlier round",
         "No question is recorded as answered, because the user has not replied"
       ]
+    },
+    {
+      "id": 44,
+      "name": "held-question-release-restates-every-open-question-in-full",
+      "prompt": "/planning:interview me Add a nightly export of order data to the analytics warehouse.\n\n[Session state: terminal lane. Round 1's Q1 to Q3 are `answered`. Round 2 was shown as Q4 (export format; recommended: Parquet, because the warehouse loader reads Parquet), Q5 (how far back the first export reaches; recommended: 90 days, from the retention setting the survey read), Q6 (whether refunds are exported as negative rows or a separate table; recommended: negative rows, from the existing finance report's shape) and Q7 (the export window; recommended: 03:30 UTC, after the nightly jobs the survey found in the repository's cron file). A sub-agent was dispatched to read the warehouse's ingest quota; Q8 (whether the export is split into batches) waits on that result and was held, so it has no register row. Before the user replies, the return lands: the warehouse accepts at most 2 GB per load, and last month's order data was 5 GB.]",
+      "expected_output": "The return contradicts no recommendation under Q4 to Q7 and answers none of them, but it releases the held Q8, which is now asked with a recommendation to split the export into batches under 2 GB, with its basis in the returned quota and the 5 GB monthly size. The message ends with one block restating every open question in full: Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with `Basis:` and its alternatives. Q4 to Q7 are not reduced to a one-line pointer to the earlier round, and no question is recorded as answered, since the user has not replied.",
+      "files": [],
+      "expectations": [
+        "Q8 is asked with a batching recommendation whose basis is the 2 GB per-load quota from the sub-agent's return",
+        "The final block of the message restates Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with a Basis line, and its alternatives",
+        "Q4 to Q7 are not collapsed into a one-line pointer to the earlier round",
+        "No question is recorded as answered, because the user has not replied"
+      ]
     }
   ]
 }
