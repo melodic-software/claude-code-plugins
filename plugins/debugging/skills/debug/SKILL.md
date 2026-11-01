@@ -19,45 +19,39 @@ invocation:
 - Recent commits, `git log --oneline -10`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+Keep the `| head` pipe in the command: a cap applied after reading bounds nothing, since the whole
+output is already in context. Treat a failure (not a repository, git unavailable) as an unknown
+value and carry on. Keep these as separate Bash calls, not pre-compute lines: the harness runs a
+skill's whole pre-compute block as one shell invocation, and a worktree-isolated session refuses a
+compound command that contains git.
 
 ## Variables
 
 Arguments: `$ARGUMENTS`
 
-`--unattended`, anywhere in the arguments, is not part of the observation: it is the caller declaring that nobody is
-present, which governs the `/debug` offer under "Routing". Take it out before reading the rest.
+`--unattended`, anywhere in the arguments, is not part of the observation: it declares that nobody
+is present, which governs the `/debug` offer under "Routing". Take it out before reading the rest.
 
 ## Purpose
 
-This skill turns a reported failure into a command that answers one question, "is the bug still
-here?", and then uses that command as the judge for every later step. The six phases below each end
-in a gate. How well Phase 1 goes decides most of the outcome: with a quick, repeatable check that an
-agent can run unattended, Phases 3 to 5 become routine work; without one, every hypothesis is a
-guess. The usual way a debugging session goes wrong is starting on causes before any such check
-exists. Phase 1 and Phase 6 (the check, and the cleanup that removes what the run added) carry the
-weight; the three phases between them follow from the check.
+This skill turns a reported failure into a command that answers "is the bug still here?", then uses
+that command as the judge for every later step. Each of the six phases ends in a gate. Phase 1 (the
+check) and Phase 6 (the cleanup that removes what the run added) carry the weight: with a quick,
+repeatable check an agent can run unattended, Phases 3 to 5 are routine; without one, every
+hypothesis is a guess. Starting on causes before the check exists is the usual way a session fails.
 
-Scope boundary: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill. Cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
+Scope: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, cycle that test directly (reproduce → fix → retest → regression) without this skill. What it adds over a bare fix loop: **if no correct test seam exists, that absence IS the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
 
-Running example. The phases below follow one case: a photo larger than 20 MB uploaded through the
-mobile API gets a 502 from the media service, while smaller photos upload normally.
+Running example: a photo larger than 20 MB uploaded through the mobile API gets a 502 from the
+media service, while smaller photos upload normally.
 
-## Adapting to your environment (graceful degrade)
+## Adapting to your environment
 
-This skill is self-contained. Where a phase below names an adjacent capability, such as a test-investigation routine, a TDD helper, a headless-browser driver, an architecture-audit agent, an issue tracker, or an outcome-verifier, treat it as **optional**: *if your environment provides that capability (a skill, plugin, agent, or tool), invoke it; otherwise proceed with the inline guidance given here, which stands on its own.* Never block a phase because an adjacent tool is absent. Consumer-specific conventions (naming, module layout, banned APIs, work-notes location) come from your own project's `CLAUDE.md` and tool config. Read them; this skill does not assume them.
+Where a phase names an adjacent capability (a test-investigation routine, a TDD helper, a headless-browser driver, an architecture-audit agent, an issue tracker, an outcome-verifier), it is **optional**: invoke it if your environment provides it (a skill, plugin, agent, or tool); otherwise follow the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent. Consumer conventions (naming, module layout, banned APIs, work-notes location) come from your project's `CLAUDE.md` and tool config; read them.
 
 ## Secrets stay out of what you show
 
-Anything this skill puts in a reply, a work note or a commit is a place a secret can leak. The rule
-for each kind of text:
+Anything this skill puts in a reply, a work note or a commit can leak a secret:
 
 | Text | Rule |
 |---|---|
@@ -71,7 +65,7 @@ excerpt on your own.
 
 ## Emit checklist
 
-For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md`. If your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
+Track phase completion for every run. Copy `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md` to your project's working-notes or scratch location if it has one; otherwise track the six phases inline. Skip Phase 4 when the Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
 
 ## Phase 1: Build the reproduction loop
 
@@ -114,7 +108,7 @@ stays an `instruct` step the user does on their own.
 
 ### Loop-recursion hazard
 
-When the loop IS a test the suite/runner discovers and runs, watch for self-invocation: a test file that invokes the very runner (or pre-push lane) which re-discovers and re-runs it recurses until the box saturates. Each nested run re-triggers the test. The symptom reads as a *hang*, but it is fork-bombing, not a slow test. Guard with a re-entrancy sentinel: set an env marker before the inner run; a nested invocation that sees the marker exits early. Same pattern for any loop that shells out to a command which re-enters the loop.
+A loop test that invokes the runner (or pre-push lane) which discovers it re-runs itself until the box saturates: it looks like a *hang* but is fork-bombing. Guard with a re-entrancy sentinel: set an env marker before the inner run, and exit early from any nested invocation that sees it. The same applies to any loop that shells out to a command which re-enters the loop.
 
 ### Phase 1 exit check
 
@@ -230,7 +224,7 @@ Timing tools per stack (micro-bench libraries, query-plan inspection, profile pr
 
 **A probe that writes a profile.** When an instrument step produces a CPU profile, heap snapshot or trace, read it with `/debugging:analyze-profile` and test its file:line finding against the Phase 3 prediction it was meant to check.
 
-**Cold-vs-warm + contention.** A single timing datapoint taken right after filesystem churn (freshly-created fixtures, a just-cloned repo) or while the box is under load (leaked process trees, a parallel build, antivirus scanning) is cold-cache- and contention-inflated, often by multiples. Before calling a perf number reproducible: re-measure warm, on a quiet box, best-of-N (or worst-of-N for a regression ceiling). A number that drops several-fold on the second clean run was measuring contention, not the code path. Never trust one datapoint after churn.
+**Cold-vs-warm + contention.** One timing taken right after filesystem churn (fresh fixtures, a just-cloned repo) or under load (leaked process trees, a parallel build, antivirus scanning) is cold-cache- and contention-inflated, often by multiples. Before calling a perf number reproducible, re-measure warm, on a quiet box, best-of-N (or worst-of-N for a regression ceiling). A number that drops several-fold on the second clean run measured contention, not the code path. Never trust one datapoint after churn.
 
 ## Phase 5: Fix + regression test
 
@@ -287,7 +281,7 @@ The run is not done until every line below holds. They fall into three groups.
 - The Phase 1 loop, run again, no longer reproduces the failure.
 - The regression test passes, or the missing correct seam is written up as an architecture finding.
 - The user report and the PR description each carry two redacted runs of the Phase 1 loop: the red one from before the fix and the green one from after it. When no red run exists (say the loop was built only after a hotfix), the report records that gap and the evidence used in its place
-- Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix. If your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` DOES the fix + regression test; a verifier VERIFIES the outcome
+- Confirm the outcome: run the mechanical build/test/lint, check the original symptom is resolved with no regression, and record the evidence. Beyond those checks, an agent that did NOT produce the fix renders the outcome verdict, since the fixing context leans toward approval: use your environment's outcome-verification capability, or dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. This skill does the fix and regression test; the verifier verifies
 
 **Leave a record.**
 
@@ -313,13 +307,12 @@ If the answer is a check (a lint or analyzer rule, a test, a hook) that would ha
 
 ## Boundary, the bundled `debug` skill
 
-The names collide outright, so "debug this" can land on either, but the two debug different things.
+"Debug this" can land on either skill, but they debug different things.
 
 - **`debug` (bundled skill)**: turns on debug logging for the current Claude Code session and
-  troubleshoots Claude Code itself by reading that session's debug log. It is reserved for the
-  person to run; the model does not invoke it.
-- **This skill (marketplace plugin).** Debugs the user's application: build a reproduction loop,
-  confirm it fails, rank causes, probe them, fix with a regression test, remove what the run added.
+  troubleshoots Claude Code itself from that session's debug log. The person runs it; the model
+  does not invoke it.
+- **This skill**: debugs the user's application.
 
 **Routing.** When the broken thing is Claude Code itself (a hook, a tool call, a permission, a
 session misbehaving) rather than the user's code, offer it to the person:
@@ -332,9 +325,8 @@ in its output instead of asking; without that flag it asks.
 **Mutation gate.** `debug` starts debug logging for the session from the moment it runs. This
 skill never runs it on the person's behalf.
 
-**Availability is never assumed.** Bundled skills are gated on settings, environment, plan, and
-host; this section states what to do when the person can run it, never that it is present. The
-four-part records live in [reference/native-debug.md](reference/native-debug.md).
+**Availability is never assumed.** This section says what to do when the person can run it, never
+that it is present; records in [reference/native-debug.md](reference/native-debug.md).
 
 ## What this skill does NOT do
 
