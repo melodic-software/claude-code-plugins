@@ -1081,6 +1081,7 @@ class RunValidityTest(unittest.TestCase):
             proc = self.denied_in_sandbox(calls)
             self.assertDenials(proc, "WARN")
             self.assertIn("aimed under its own plugin-data directory", proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
 
     def test_a_denial_beside_or_outside_the_runs_own_plugin_data_is_a_fail(self):
         sandbox = self.dir / "claude-eval-ab"

@@ -49,7 +49,9 @@ one line per check, detail lines indented under it:
                       aimed only under the run's own plugin-data directory
                       (<sandbox>/config/plugins/data, CLAUDE_PLUGIN_DATA),
                       which the sandbox denies to any skill that persists
-                      state. Otherwise a
+                      state; its score counts as taken under that denial, so
+                      compare it only with runs denied the same way.
+                      Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -1030,7 +1032,8 @@ def check_denials(runs, roots, root):
             " plugin; or a run denied only named calls other than Skill that every"
             " run of its case was denied in both arms, none inside the plugin; or a"
             " run denied only named calls other than Skill aimed under its own"
-            " plugin-data directory): %s"
+            " plugin-data directory, whose score was taken under that denial, so"
+            " compare it only with runs denied the same way): %s"
             % ", ".join(warned_cases)
         )
     if failed:
