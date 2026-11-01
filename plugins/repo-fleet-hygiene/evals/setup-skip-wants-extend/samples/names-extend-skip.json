@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`--skip` replaces the default skip list, so only third_party would be skipped. To add it to the defaults, use `--extend-skip third_party` instead.",
+      "why": "names the flag"
+    },
+    {
+      "answer": "## Proposed entry\n\n```gitconfig\n[fleet]\n    skipAppend = third_party\n```",
+      "why": "config key in a fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Added `skip = third_party` to .claude/repo-fleet-hygiene.conf.",
+      "why": "wrote the replacing key"
+    },
+    {
+      "answer": "Note that --skip replaces the default list rather than appending to it.",
+      "why": "states the semantics but never names the additive option"
+    }
+  ]
+}

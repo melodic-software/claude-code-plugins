@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```\nmode: apply\nrepos: 2\n```",
+      "why": "the script's count line"
+    },
+    {
+      "answer": "**repos:** 2",
+      "why": "bold label"
+    },
+    {
+      "answer": "The plan covers 2 repositories.",
+      "why": "prose count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Synced the fleet: everything is on main now.",
+      "why": "no count"
+    },
+    {
+      "answer": "repos: 3",
+      "why": "wrong count"
+    }
+  ]
+}

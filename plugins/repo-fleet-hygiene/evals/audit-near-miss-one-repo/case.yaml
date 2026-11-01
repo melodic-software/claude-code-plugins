@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: audit-near-miss-one-repo
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-fleet-audit
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:repo-fleet-hygiene:)?audit"'
+    min: 0
+    max: 0
+    arm: 'both'
