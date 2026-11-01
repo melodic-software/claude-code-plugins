@@ -52,7 +52,7 @@ cost-of-delay estimate, never inflates it:
 |---|---|---|
 | 1 | Measured telemetry (Tier 1/2 sources) | high |
 | 2 | Repo and CI history (hotspots.md, ci-health.md, dependency staleness) | medium-high |
-| 3 | Structural presence signals (coverage presence, TODO density, missing automation) | medium-low |
+| 3 | Structural presence signals (coverage presence, TODO density, missing automation, built-but-unwired capabilities per disconnected.md) | medium-low |
 | 4 | Model judgment (this session's read of the target) | low, always labeled "judgment" |
 
 A candidate cites the *best* rung it actually has; mixing rungs in one citation is fine
