@@ -1,0 +1,132 @@
+{
+  "skill": "speech:check",
+  "plugin": "speech",
+  "skill_dir": "plugins/speech/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are same-plugin siblings only: speech:narrate (turning a script into narration.wav and words.json with the kokoro or elevenlabs backend) and speech:setup (user-invoked only; downloading the pinned Kokoro model files and setting up text to speech, a rival for setup and download wording). check owns a read-only report of the speech plugin's own text-to-speech prerequisites (Python 3.12+, Node.js, espeak-ng, numpy and onnxruntime, the Kokoro model files), each missing one with its remedy, installing nothing.",
+  "competitors": [
+    "speech:narrate",
+    "speech:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The narrate step just died with exit code 2. What is it missing?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I kick off a voiceover, can you confirm this machine actually has everything the speech plugin needs?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Session start warned me about espeak-ng for speech. Is that the only thing missing, and what do I do about it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check whether onnxruntime and numpy got installed for the speech plugin, and whether the voice model got downloaded. Don't install anything."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can this box do TTS yet, or is something still not installed?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My Python might be too old for the TTS plugin. Report what speech needs that I don't have."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Narration won't run. List every missing speech prerequisite with how to fix each one."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Just look, don't change anything: does the kokoro voice setup have its model and espeak available?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm about to rely on narration for a video. Verify the dependencies the voice tooling needs resolve first."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What is the speech plugin still missing after the session-start hook ran?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read this intro paragraph aloud and give me a wav with word timings."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Download the Kokoro model and English voices so narration works."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which CLIs do my enabled plugins need across the board, and which ones are missing on this machine?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The video digest stopped because yt-dlp couldn't be found. Check the knowledge plugin's tools."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a narrated Manim explainer video about how binary search works."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Generate the voiceover for this script with ElevenLabs instead of the local voice."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up text to speech on this new laptop, including fetching the model files."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "A hook said a formatter is missing. Report which external tools across all my plugins aren't installed."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is ffmpeg and ImageMagick available for the course digest to run?"
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Turn this narration script into audio at a slightly slower speed and save it under out/."
+    }
+  ]
+}

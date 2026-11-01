@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "FI=\"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/finding-identity.sh\"\nbash \"$FI\" guarded-append --run-dir x --record '{\"kind\":\"finding\"}' --epoch 1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh\" partial append --run-dir x --record y",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bypasses the guard"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/runs/k/r1/findings.partial.1.jsonl",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "hand-written partial"
+    }
+  ]
+}
