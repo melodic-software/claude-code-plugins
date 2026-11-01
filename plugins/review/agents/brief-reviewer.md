@@ -26,13 +26,19 @@ write.
 Do not edit files. Bash is for reading: git, search, and inspection commands only.
 
 **Model and effort pin.** This agent returns a judgment verdict, so it pins `model: opus` and
-`effort: high`, the model-config row the pointer below names, on a model at least as capable as
-the one that produced the work it checks.
+`effort: high`, the model-config row the pointer below names. The `opus` pin reviews work on a
+model at least as capable as the one that produced it when that work came from an Opus-family
+or lower-tier session. Work from a session on a more capable family is reviewed one tier down,
+a trade-off this repository takes to keep judgment fan-out off the frontier tier (the fan-out
+guard in ADR 0045).
 
 - **Pointer:** the `high` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  for the model `opus` resolves to under each session model, see
+  [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
   for which tools a definition's `tools` list withholds, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-10-10.
+- **As of:** 2026-11-01.
 - **Recheck trigger:** next model release, or that section changes how an omitted `tools` entry
-  is withheld from a subagent.
+  is withheld from a subagent, or "Choose a model" changes when a family alias resolves to the
+  session's model.
