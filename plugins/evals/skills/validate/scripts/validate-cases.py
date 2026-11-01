@@ -201,6 +201,11 @@ REMOVED_TOOLS = frozenset(["TaskOutput"])
 # A skill's pre-computed context line (!`command`) runs through Bash when the
 # skill loads. A case that names the skill, by a leading /plugin:skill command
 # or a tag, and lacks Bash fails to load it and ends at 0 turns.
+# - Pointer: when what loads a pre-computed line may have changed, fetch
+#   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
+#   observed basis is the #8635 rate-limit-guard run, INVALID at 0 turns.
+# - As of: 2026-11-01
+# - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w.-]+)(?=[\s:,.;]|$)")
 SKILL_NAME = re.compile(r"^[\w-][\w.-]*$")
@@ -826,7 +831,9 @@ def skills_named(prompt, tags):
 def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
     """WARN when a named skill's pre-computed context line has no Bash grant."""
     value, path = fields.get("allowed_tools", ([], home))
-    if isinstance(value, list) and "Bash" in [str(tool) for tool in value]:
+    if isinstance(value, list) and any(
+        str(tool).split("(", 1)[0].strip() == "Bash" for tool in value
+    ):
         return
     for skill in skills_named(prompt, tags):
         skill_md = os.path.join(plugin_root, "skills", skill, "SKILL.md")

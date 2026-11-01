@@ -926,6 +926,7 @@ class SkillBashGrant(ValidatorTestCase):
     def test_no_warning_with_bash_or_without_a_precomputed_line(self):
         self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
         self.assertNotIn("pre-computed", self.bash_case("Read, Skill, Bash").stdout)
+        self.assertNotIn("pre-computed", self.bash_case("Read, 'Bash(node *)'").stdout)
         self.skill("setup", "---\ndescription: x\n---\n\nRead the doc.\n")
         self.assertNotIn("pre-computed", self.bash_case("Read, Skill").stdout)
 
