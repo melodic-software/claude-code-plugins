@@ -580,9 +580,24 @@ class DeterministicTest(ConverterTestCase):
             "echo 'npm install -g ctx7@latest'",
             "cat notes.txt; grep 'npm install -g ctx7@latest' README.md",
             "pnpm install -g ctx7@latest",
+            'rg -n "npm install -g ctx7@latest" docs/',
+            "git grep 'npm install -g ctx7@latest'",
         ):
             with self.subTest(command=command):
                 self.assertTrue(held(command))
+
+    def test_a_guard_on_a_text_only_command_still_catches_its_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert("alpha", ["Does not run `cat .env`"])
+
+        def held(command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders["expectation-1"], calls)[0]
+
+        self.assertFalse(held("cat .env"))
+        self.assertFalse(held("cd /w && cat .env"))
+        self.assertTrue(held("echo 'cat .env'"))
+        self.assertTrue(held("grep -n 'cat .env' notes.md"))
 
     def test_a_path_keeps_out_the_closing_period(self):
         self.skill_with_tools("alpha", "Write")

@@ -37,7 +37,9 @@ samples instead:
                                                      the command anywhere a run
                                                      could hide it (sudo, env,
                                                      bash -c, xargs) but not
-                                                     after echo, cat or grep
+                                                     after echo, cat, grep or
+                                                     rg, unless the guarded
+                                                     command is one of them
     Names|Prints|Reports [the line] `<literal>`,
     Names|Points at /<plugin>:<skill>                regex over the final reply
     Writes|Creates the <thing> at|to|under <path>    file_exists on **/<path>,
@@ -433,16 +435,19 @@ def own_skill(ref, plugin, skills):
 # interpreter and a quoted or absolute directory, so a mention never passes it.
 # A must-not-run guard counts the words anywhere a run could hide them (sudo,
 # env, time, bash -c, a subshell, xargs), unless the segment since the last
-# separator starts with a command that only shows text, such as echo or grep.
+# separator starts with a command that only shows text, such as echo or grep,
+# and is not the guarded command itself. TEXT_ONLY lists commands that print
+# or search and never run their arguments; sed, awk and find can run or write
+# (sed's e command and -i, awk's system(), find -exec), so a guard counts them.
+TEXT_ONLY = (
+    "echo", "printf", "cat", "grep", "rg", "git grep", "head", "tail", "less", "more"
+)
 COMMAND_START = (
     r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n)\s*)?'
     r"(?:(?:python3?|bash|sh|node|npx|uv run)\s+)?(?:\\\"|')?(?:[^\s\"'\\]*/)?"
 )
-COMMAND_ANYWHERE = (
-    r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n))?'
-    r"(?!\s*(?:echo|printf|cat|grep|head|tail|less|more)\b)"
-    r'(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])'
-)
+COMMAND_SEGMENT = r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n))?'
+COMMAND_ANYWHERE = r'(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])'
 # Between two words: whitespace, with an optional closing and opening quote.
 COMMAND_GAP = r"(?:\\\"|')?\s+(?:\\\"|')?"
 
@@ -451,7 +456,15 @@ def command_match(command, ran):
     """input_match for a Bash call that runs these words as one command:
     strict for a must-run grader, broad for a must-not-run guard."""
     words = [regex_escape(word) for word in command.split()]
-    start = COMMAND_START if ran else COMMAND_ANYWHERE
+    if ran:
+        start = COMMAND_START
+    else:
+        shown = [
+            r"\s+".join(regex_escape(w) for w in name.split())
+            for name in TEXT_ONLY
+            if command != name and not command.startswith(name + " ")
+        ]
+        start = COMMAND_SEGMENT + r"(?!\s*(?:%s)\b)" % "|".join(shown) + COMMAND_ANYWHERE
     return start + COMMAND_GAP.join(words) + r"(?![^\s\"'\\;&|)])"
 
 
