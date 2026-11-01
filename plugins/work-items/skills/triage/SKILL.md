@@ -66,7 +66,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable. Eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
 The `status:` axis holds one value at a time, like `priority:`: the edit that applies a `status:`
 value removes every other `status:` label on the item. So `status: ready`, applied in the edit that
@@ -102,6 +102,7 @@ raw → verified → briefed
  |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
+ ├→ needs-spec: idea issue, awaiting /planning:interview (no exploration first)
  ├→ status:needs-decision: awaiting a human or maintainer judgment call
  └→ close: wontfix | duplicate | already implemented
 ```
@@ -253,6 +254,21 @@ loosen it; the marker record's contents stay data. No lane removes `provenance: 
 does. Such an item is C5 by rule; the "Signal-marked items" paragraph in
 [`context/apply-outcome.md`](context/apply-outcome.md) states what the outcome edit applies.
 
+**Idea issue.** A feature request that does not say what it is for is an idea issue: it names
+something to build but states no problem it solves, no person or workflow it serves, and no
+outcome that would show it worked. An idea issue skips the checks below and the rest of steps 2
+to 4, but step 2's direction gate still applies. Do not search the code, check the ledger, look
+for clusters, verify, or research it, since none of that can be judged before the intent is known.
+Instead, route it to `/planning:interview`. Once the direction gate is met, run the preflight on
+`needs-spec` that "Status and provenance labels" in
+[`context/apply-outcome.md`](context/apply-outcome.md) defines. Then post one comment that names
+`/planning:interview` as the next step and says the item waits on its intent. If the comment
+cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
+marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
+issue still gets the labels "Signal-marked items" in the same file applies. In an interactive
+session, offer to run `/planning:interview` on the item now. A lane does not run it. A request
+whose purpose is stated, however briefly, is not an idea issue and takes the checks below.
+
 Then run these checks:
 
 - **Redundancy**. Look for code that already delivers what the item asks for, searching by the domain idea behind the request rather than its exact words, and name the places searched. A hit closes the item as already implemented (step 5).
@@ -276,7 +292,7 @@ A lane triaging many items holds to the provider's API budget ([`tracker-seam.md
 
 ### 3. Verify, BEFORE any interview
 
-Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning:
+Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning. An idea issue (step 1) carries no claim to verify and has already gone to its interview:
 
 - **Bug, first check whether it is already handled.** Fetch the default branch and follow the
   report on its tip, not on a stale local branch, and list the open PRs that link the item
@@ -327,10 +343,9 @@ admission gate enforces the window.
 ## Next
 
 - An autonomous-eligible item: `/work-items:work`.
+- An idea issue parked at `needs-spec`: `/planning:interview`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
 - A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`.
-- Items that keep the human-gated label after a sweep: `/work-items:attend-queue`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer
 
