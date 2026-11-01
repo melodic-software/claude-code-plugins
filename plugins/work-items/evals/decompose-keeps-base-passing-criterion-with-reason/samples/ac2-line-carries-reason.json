@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "## Done when\n\n- [ ] AC1: `refunds export --month 2026-09` writes only September refunds.\n- [ ] AC2: `refunds export --help` exits 0. (passes at base; kept: the new flag must not break the help output)",
+      "why": "template form on the AC2 line"
+    },
+    {
+      "answer": "- [ ] AC2: `refunds export --help` exits 0 (passes at base, kept because the new flag must not break the help output)",
+      "why": "kept-because form"
+    },
+    {
+      "answer": "* [ ] AC2: `--help` exits 0. Passes at base; a regression guard so the flag does not break help.",
+      "why": "star bullet with a regression-guard reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty run"
+    },
+    {
+      "answer": "## Done when\n\n- [ ] AC1: `refunds export --month 2026-09` writes only September refunds.\n- [ ] AC2: `refunds export --help` exits 0.",
+      "why": "AC2 kept with no reason"
+    },
+    {
+      "answer": "- [ ] AC1: `refunds export --month 2026-09` writes only September refunds.\n\nAC2 was left out as already met.",
+      "why": "AC2 dropped instead of kept"
+    },
+    {
+      "answer": "- [ ] AC2: `refunds export --help` exits 0.\n\nAC2 is kept because the new flag must not break the help output.",
+      "why": "reason written below the list, not beside the check"
+    },
+    {
+      "answer": "- [ ] AC2: `refunds export --help` exits 0. (passes at base; kept)",
+      "why": "kept with no reason given"
+    },
+    {
+      "answer": "- [ ] AC2: `refunds export --help` exits 0. (passes at base; kept: <the approved one-line reason>)",
+      "why": "template placeholder copied verbatim"
+    }
+  ]
+}

@@ -39,10 +39,12 @@ readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: signal")
 
-# An item waiting on an owner decision or on information is not workable by an
-# autonomous lane, whatever else it carries. Fixed strings, no binding key.
+# An item waiting on an owner decision, on information or on a spec is not
+# workable by an autonomous lane, whatever else it carries. Fixed strings, no
+# binding key. needs-spec is a bare Meta label, not a status: value.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
   "status: needs-decision"
   "status: needs-info"
+  "needs-spec"
 )

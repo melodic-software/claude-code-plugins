@@ -162,6 +162,8 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the project root gathered above); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
 - **Open questions handed off, never dropped**. Surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
 
+When dispatched work returns after you presented open questions and before the user answers, the next message that presents anything ends with every open question in full: `docs/contracts/async-round-presentation/README.md` in the marketplace.
+
 ## Scope
 
 Explore the following: $ARGUMENTS

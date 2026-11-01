@@ -29,6 +29,14 @@
 # steps read `${{ steps.<id>.outputs.retention-days }}`; the row's value records
 # the longest that script returns.
 #
+# SCAN. Each row's `scan` says whether its uploads are lane or eval artifacts
+# that lib/publish-gate.mjs scanLeak clears first. `upload`: each upload step
+# follows a .github/actions/scan-upload step over the identical path and its
+# `if:` requires that step's clean output, or it reads from the read runner's
+# leak-scan output directory and requires leak-scan's clean output.
+# `plaintext`: an earlier scan step in the same steps clears the plaintext the
+# upload seals. `none`: no scan. A scanned upload with no such step is a finding.
+#
 # The table is held to its own rules too: it must pass
 # .github/artifact-retention.schema.json; each reader and max-reader must start
 # with a path that exists in the repository; a `max` row must name a
