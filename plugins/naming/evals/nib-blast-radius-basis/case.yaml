@@ -9,7 +9,7 @@ graders:
     input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
   - name: states-blast-radius
     type: regex
-    pattern: '\bblast radius\b|\b(?:[1-9][0-9]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:[\w-]+\s+){0,2}(?:files?|references?|call[- ]?sites?|callers?|usages?|places|imports?|occurrences?)\b'
+    pattern: '\bblast radius\b|\b(?:[1-9][0-9]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:(?!(?:of|the|its|their|these|those|go|across|in|at|to|a|an)\b)[\w-]+\s+){0,2}(?:files?|references?|call[- ]?sites?|callers?|usages?|places|imports?|occurrences?)\b'
     flags: 'i'
     target: last_message
   - name: basis-label

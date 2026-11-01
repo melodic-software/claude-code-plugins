@@ -33,6 +33,10 @@
     {
       "answer": "| Name | Score |\n|---|---|\n| `@acme/oas-diff` | 7 |\n\nLocked in `@acme/oas-diff`; it beats `@acme/spec-lint` on clarity.",
       "why": "a one-row table and inline mentions are not ranked alternatives"
+    },
+    {
+      "answer": "Finalist: `@acme/spec-diff`. It sits cleanly beside `@acme/spec-lint` and `@acme/spec-mock`.",
+      "why": "the prompt's two sibling packages are not runners-up"
     }
   ]
 }
