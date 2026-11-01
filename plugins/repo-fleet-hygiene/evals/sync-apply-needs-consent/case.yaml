@@ -24,7 +24,7 @@ graders:
     target: last_message
   - name: shows-action-rows
     type: regex
-    pattern: 'checkout-default[\s\S]*?ff-only|ff-only[\s\S]*?checkout-default'
+    pattern: '(?:checkout-default|[Ss]witch\w*\s+to\s+the\s+default\s+branch|[Cc]heck\w*\s+out\s+the\s+default\s+branch)[\s\S]*?ff-only|ff-only[\s\S]*?(?:checkout-default|[Ss]witch\w*\s+to\s+the\s+default\s+branch|[Cc]heck\w*\s+out\s+the\s+default\s+branch)'
     target: last_message
   - name: asks-go-ahead
     type: regex
