@@ -7,6 +7,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -88,11 +89,13 @@ export async function shallowCloneGitHubRepo(
     .mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"))
     .catch(() => null);
   if (!isolatedHome) return false;
+  liveHomes.add(isolatedHome);
   try {
     const emptyConfig = path.join(isolatedHome, "gitconfig");
     if (!(await fs.writeFile(emptyConfig, "").then(() => true, () => false))) return false;
     return await runClone({ ...run, gitArgs: HARDENED_GIT_ARGS, env: hardenedEnv(isolatedHome, emptyConfig), ownGroup: true });
   } finally {
+    liveHomes.delete(isolatedHome);
     await fs.rm(isolatedHome, { recursive: true, force: true }).catch(() => {});
   }
 }
@@ -187,9 +190,20 @@ const liveCloneGroups = new Set();
 /** The signals whose default exit a listener would remove. */
 const HANDLED_SIGNALS = /** @type {const} */ (["SIGHUP", "SIGINT", "SIGTERM"]);
 
+/** Isolated homes of hardened clones in flight; an abnormal parent exit skips their `finally`. */
+const liveHomes = new Set();
+
 function killLiveCloneGroups() {
   for (const child of liveCloneGroups) killProcessTree(child);
   liveCloneGroups.clear();
+  for (const home of liveHomes) {
+    try {
+      rmSync(home, { recursive: true, force: true });
+    } catch {
+      // A home that cannot be removed must not stop the exit.
+    }
+  }
+  liveHomes.clear();
 }
 
 /** @param {NodeJS.Signals} signal */

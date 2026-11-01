@@ -80,7 +80,9 @@ into `intake`.
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
-trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
+`status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
+a decision, whether admission parked it there or a person confirmed it, or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
@@ -2235,7 +2237,9 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main, and after each one whose only failures are
+same-repository, non-draft pull request into main that did not start while the pull request was a
+draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and neither pr-verify
+nor the merge gate below counts a FAIL judged from one), and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
 widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
 jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session
@@ -2380,7 +2384,8 @@ run), and a changed closing set or a removed spec comment leaves no time to
 compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
-its own reads every run it would not judge: a head already judged or moved past, a draft, a run red
+its own reads every run it would not judge: a head already judged or moved past, a draft or a run
+that started on one, a run red
 for anything an approval does not lift, an author it does not judge. So the gate's reads go only to
 a run the resolver would judge, and nothing either writes reaches the model before both pass.
 
