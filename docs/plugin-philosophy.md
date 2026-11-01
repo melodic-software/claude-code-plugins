@@ -888,6 +888,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Retired-convention detection and cleanup (manifest + shared helper) | [`docs/contracts/retired-conventions/`](contracts/retired-conventions/README.md) |
 | Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/contracts/recommendation-basis/`](contracts/recommendation-basis/README.md) |
 | Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/contracts/authoring-formats/`](contracts/authoring-formats/README.md) |
+| Async round presentation: the latest message restates every open item in full after dispatched work returns | [`docs/contracts/async-round-presentation/`](contracts/async-round-presentation/README.md) |
 
 ## Cross-platform contract
 
