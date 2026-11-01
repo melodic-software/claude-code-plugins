@@ -548,7 +548,8 @@ EOF
 run feedback-not-converging
 check "not-converging, lanes App PR: exit 0" 0 "$RC"
 has "not-converging, lanes App PR: says pr-merge closes it and re-admits the issue" 'The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt.' "$STUB/bodies"
-has "not-converging, lanes App PR: add do-not-merge first to keep it open" 'To keep it open, first add `do-not-merge`' "$STUB/bodies"
+has "not-converging, lanes App PR: add the human-gated label first to keep it open" 'To keep it open for one more round, first add `needs-human`' "$STUB/bodies"
+has "not-converging, lanes App PR: do-not-merge also stops the rounds" 'it also stops the lane'"'"'s rounds' "$STUB/bodies"
 check "not-converging, lanes App PR: no retry-on-this-head text" 0 "$(grep -c 'a person resolves the threads or gets the checks green' "$STUB/bodies" || true)"
 check "not-converging, lanes App PR: the round grant is named once" 1 "$(grep -c 'PR-fix lane: please fix this finding' "$STUB/bodies" || true)"
 

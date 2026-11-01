@@ -145,15 +145,15 @@ esac
 bot=${LANES_BOT_LOGIN:-melodic-automation-lanes[bot]}
 issue="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER"
 dispatch="gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity"
+tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
+label=needs-human
+if [[ -f $tracker ]]; then
+  label=$(jq -er '.config.role_labels // {}
+    | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
+    die "cannot read the human-gated role label from $tracker"
+fi
 
 if [[ $route == hold ]]; then
-  tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
-  label=needs-human
-  if [[ -f $tracker ]]; then
-    label=$(jq -er '.config.role_labels // {}
-      | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
-      die "cannot read the human-gated role label from $tracker"
-  fi
   marker='<!-- work-items:escalation lane=pr-unblock kind=escalated -->'
   key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
   labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
@@ -272,7 +272,7 @@ if [[ $route == fail ]]; then
   if [[ $ESCALATION_REASON == feedback-not-converging && ${lane_pr:-false} == true ]]; then
     # The pr-merge lane closes a lanes App pull request stopped here and
     # re-admits its issue (enable-auto-merge.mjs notConverging).
-    next_text="The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt. To keep it open, first add \`do-not-merge\` (or the human-gated label), then reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\`, which grants one more round on that thread, or resolve the threads and dispatch the workflow below."
+    next_text="The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt. To keep it open for one more round, first add \`$label\`, which holds the close but not a requested round, then reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\`. \`do-not-merge\` holds the close too, but it also stops the lane's rounds, so with it a person resolves the threads and dispatches the workflow below before removing it."
   elif [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     more=" A reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\` grants one more round on that thread."
   fi
