@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [15.0.0] - 2026-11-01
+
+Major: §4 gains a loop-layer invariant, and a change to a loop-layer invariant is a major bump (see
+the top of this file). No lane mechanic changes.
+
+- **Forge writes converge on rerun (§4).** Every step that writes to the forge (a label, comment,
+  branch or pull request) reads the current forge state before writing and leaves the same state
+  when rerun after a stop at any point, because lanes restart and are re-dispatched. Restart
+  adoption and the escalation duplicate check are named as cases of the rule (#12147).
+
 ## [14.0.0] - 2026-11-01
 
 Major: the autonomy ladder's merge authority changes for a work class (§1).
