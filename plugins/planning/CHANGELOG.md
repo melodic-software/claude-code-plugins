@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.134.2] - 2026-11-01
+
+### Fixed
+
+- The interview's Gates block, in the first 20,000 bytes of its SKILL.md, now also states the confirmation gate and the Step 4 `--brief` Brief cross-check command, each pointing at its full rule. A compaction re-attaches only the start of a skill, so before this a compacted session could lose both gates ([#9864](https://github.com/melodic-software/claude-code-plugins/issues/9864)).
+
 ## [0.134.1] - 2026-11-01
 
 ### Fixed
