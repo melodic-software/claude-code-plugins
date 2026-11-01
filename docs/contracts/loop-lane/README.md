@@ -62,8 +62,8 @@ too ([the pr-merge lane](../../conventions/pr-pipeline/README.md#the-pr-merge-la
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
 by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
-no class caps its rung, its promotion evidence is read by rung, not class (C2 needs
-`C2-auto-merge`, C3 every C3 cell), and its one class-named
+no class caps its rung, its promotion evidence is read by rung, not class (`merge` (`C2`) needs
+`C2-auto-merge`, `merge-reviewed` (`C3`) every C3 cell), and its one class-named
 check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
 untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
@@ -530,7 +530,7 @@ Three rules make the signal deterministic:
   order fails the other way and cannot be recovered: a stop after the marker post leaves the marker
   standing with no record ever written, and that standing marker suppresses the record on every
   later cycle, so the out-of-band notification for that escalation is lost permanently. Ordering is
-  what makes the seam fail loud rather than silent; no reconciliation pass is needed, and none
+  what makes the notification path fail loud rather than silent; no reconciliation pass is needed, and none
   would be reliable, since a compensating write can stop in exactly the same window.
 
 **Background-job launch mode.** The tracker marker comment is the escalation of record whether or
@@ -592,7 +592,7 @@ is read live at the pointer.
 - **Recheck trigger**: a Claude Code release note or docs change touching HTTP hook handlers, the
   `if` field, header interpolation, or how edit rules anchor their paths.
 
-- The seam is an `http` handler on `PostToolUse` in the consuming repo's project
+- The notification hook is an `http` handler on `PostToolUse` in the consuming repo's project
   `.claude/settings.json`: per-consuming-repo configuration that no plugin ships. We rely on it as
   deterministic (it fires on the matched lifecycle event, no model judgment) and as carrying no
   claude.ai subscription or Remote Control dependency.
@@ -638,7 +638,7 @@ Only the http hook is the deterministic leg.
 path is relative to the session's checkout, and the hook that fires is the one in that session's
 loaded project settings. So a lane whose scope argument names a repository other than its own
 checkout, a supported merge-lane mode, POSTs to the *launching* project's endpoint, and the
-target repository's tracked hook is never consulted. That is the seam as specified rather than a
+target repository's tracked hook is never consulted. That is the hook working as specified rather than a
 misconfiguration: "the consuming repo" is whichever project the lane session runs in, which is also
 the project whose settings the harness loaded. **Running the lane from the target repository's own
 checkout is therefore a requirement, not a preference, whenever that repository's endpoint is the

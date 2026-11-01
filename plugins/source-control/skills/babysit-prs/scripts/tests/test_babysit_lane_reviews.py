@@ -783,6 +783,14 @@ class EvidenceCommandReadsTheRisk(unittest.TestCase):
                 self.assertIs(report["wholeReviewWanted"], whole)
         self.assertIs(self.cli(passed, None, head="d" * 40)["wholeReviewWanted"], False)
 
+    def test_a_rung_name_from_the_room_scores_as_its_code(self) -> None:
+        for rung in ("merge", "merge-reviewed"):
+            with self.subTest(rung=rung):
+                report = self.cli(
+                    ve.Evidence(None, HEAD, (), 0), "unsafe-path: docs/link", rung=rung
+                )
+                self.assertEqual(report["reviews"], "unsafe-path: docs/link")
+
     def test_no_rung_from_the_room_holds(self) -> None:
         for rung in (None, "off", "C9"):
             with self.subTest(rung=rung):

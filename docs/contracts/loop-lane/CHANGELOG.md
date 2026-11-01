@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [13.1.1] - 2026-11-01
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **Rung names (§1).** The unattended merge gate's rungs are named `merge` (`C2`) and
+  `merge-reviewed` (`C3`) where the contract maps each rung to its promotion cells, matching the
+  `merge.rung` names in the PR pipeline convention (#7469).
+
 ## [13.1.0] - 2026-10-31
 
 Minor. Guidance only: confirms an interim §8 mechanism and adds how to read it; no topology,
@@ -709,7 +718,7 @@ A change to the escalation contract is a major bump per this file's own rule.
 - **Escalation contract (§2), escalation record write.** Every escalation an autonomous lane
   files now also writes a local JSON escalation record at
   `.claude/lane-escalations/<UTC-stamp>-<item>-<lane>.json`, created with the Write tool (never a
-  shell redirect, whose `Bash` event the seam's `Write` matcher never sees), one new file per
+  shell redirect, whose `Bash` event the hook's `Write` matcher never sees), one new file per
   NEWLY filed escalation, since suppression is the marker read a lane already performs before
   escalating, so a standing escalation re-encountered on a later cycle fires no second webhook. The
   record is written **immediately before** the marker comment, and the order is part of the
@@ -730,7 +739,7 @@ A change to the escalation contract is a major bump per this file's own rule.
   `PushNotification` and `slack`-plugin outbound are
   named as optional model-discretionary layers, never the deterministic leg. Fan-out depth on the
   one filed escalation, not a second escalation channel; degradation without a configured hook
-  loses only the out-of-band leg. §2 also records the seam's egress (the POST body is the full
+  loses only the out-of-band leg. §2 also records the hook's egress (the POST body is the full
   hook input, session metadata included, consumer-opted by configuring the hook) and its
   silent-failure mode (empty-string env interpolation plus non-blocking non-2xx), with a
   wire-time verification step.
