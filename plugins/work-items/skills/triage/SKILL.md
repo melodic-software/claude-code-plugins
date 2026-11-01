@@ -66,7 +66,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable. Eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), `needs-spec` (from raw only: an idea issue awaiting its `/planning:interview`, step 1; returns to raw once the interview records its intent), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
 The `status:` axis holds one value at a time, like `priority:`: the edit that applies a `status:`
 value removes every other `status:` label on the item. So `status: ready`, applied in the edit that
@@ -102,7 +102,7 @@ raw → verified → briefed
  |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
- ├→ needs-spec: idea issue, awaiting /planning:interview (no exploration first)
+ ├→ needs-spec: idea issue, awaiting /planning:interview (no exploration first) → raw (once the interview records its intent)
  ├→ status:needs-decision: awaiting a human or maintainer judgment call
  └→ close: wontfix | duplicate | already implemented
 ```
@@ -265,9 +265,12 @@ Instead, route it to `/planning:interview`. Once the direction gate is met, run 
 `/planning:interview` as the next step and says the item waits on its intent. If the comment
 cannot be posted, apply no label. Then, in one label edit, apply `needs-spec` and remove the raw
 marker. Apply no `status:`, priority, work-class or role label, except that a signal-marked idea
-issue still gets the labels "Signal-marked items" in the same file applies. In an interactive
-session, offer to run `/planning:interview` on the item now. A lane does not run it. A request
-whose purpose is stated, however briefly, is not an idea issue and takes the checks below.
+issue also gets `provenance: signal` and `work-class: untrusted-provenance` (`provenance: signal`
+alone in a lane barred from recording a class), and never the human-gated role label. In an
+interactive session, offer to run `/planning:interview` on the item now. A lane does not run it.
+Once an interview records the item's intent, return it to raw in one label edit that removes
+`needs-spec` and restores the raw marker, then triage it from step 1. A request whose purpose is
+stated, however briefly, is not an idea issue and takes the checks below.
 
 Then run these checks:
 
