@@ -46,7 +46,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["schema_version", "provider", "config"],
-      "description": "The work-item tracker binding: the one active provider the seam (tools/work-item-tracker/CONTRACT.md, Setup) dispatches to. Absent: the seam reads the legacy root .work-item-tracker.json while the migration runs, with a notice, and stops pointing at /work-items:setup when neither exists. In work-items.local.yaml only config.lease_ttl_hours, config.lease_ttl_minutes, the per-provider auth_email/auth_env keys and docs may be set.",
+      "description": "The work-item tracker binding: the one active provider the seam (tools/work-item-tracker/CONTRACT.md, Setup) dispatches to. Absent: the seam reads the legacy repo-root JSON binding while the migration runs, with a notice, and stops pointing at /work-items:setup when neither exists. In work-items.local.yaml only config.lease_ttl_hours, config.lease_ttl_minutes, the per-provider auth_email/auth_env keys and docs may be set.",
       "properties": {
         "schema_version": {
           "type": "string",
