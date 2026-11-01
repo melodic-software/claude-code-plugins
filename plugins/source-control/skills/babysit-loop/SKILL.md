@@ -483,11 +483,10 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   re-invokes the same prompt in the same session, carrying the same explicit authorization) and
   ends when a newly launched invocation omits either token; a `babysit_loop_tier: autopilot`
   config value with no typed pair is that case and stays at the seam rung.
-- **C5 never merges autonomously through this loop.** Not at `full-autonomy` or the `autopilot`
-  exception. Untrusted provenance is the one class hold: cycle-shape step 3's rung partition
-  derives it from the PR, and the unattended merge gate enforces it in code (`trust_refusal` in
-  `babysit_merge_policy.py`, the only class-named check that gate makes). It is not a
-  `babysit_loop_merge` value. C4 sits outside every current rung, which admit classes up to C3.
+- **C5 never merges autonomously through this loop**, not at `full-autonomy` or the `autopilot`
+  exception. Untrusted provenance is the one class hold, not a `babysit_loop_merge` value: step 3's
+  partition derives it from the PR, and the unattended merge gate's only class-named check enforces
+  it (`trust_refusal`, `babysit_merge_policy.py`). C4 sits outside every rung, which admit up to C3.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: it never autonomously merges a Dependabot/Renovate-class
   PR, whatever its work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
