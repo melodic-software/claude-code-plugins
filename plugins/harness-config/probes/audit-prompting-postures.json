@@ -2,13 +2,14 @@
   "skill": "harness-config:audit-prompting-postures",
   "plugin": "harness-config",
   "skill_dir": "plugins/harness-config/skills/audit-prompting-postures",
-  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice C (#11563); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-instructions, unhobble, audit-automation-gaps, audit-pass, draft-auto-mode-rules; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice C (#11563); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-instructions, unhobble, audit-automation-gaps, audit-pass, draft-auto-mode-rules, audit; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
   "competitors": [
     "harness-config:audit-instructions",
     "harness-config:unhobble",
     "harness-config:audit-automation-gaps",
     "harness-config:audit-pass",
-    "harness-config:draft-auto-mode-rules"
+    "harness-config:draft-auto-mode-rules",
+    "harness-config:audit"
   ],
   "queries": [
     {

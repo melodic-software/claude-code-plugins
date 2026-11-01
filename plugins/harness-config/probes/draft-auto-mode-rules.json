@@ -2,11 +2,13 @@
   "skill": "harness-config:draft-auto-mode-rules",
   "plugin": "harness-config",
   "skill_dir": "plugins/harness-config/skills/draft-auto-mode-rules",
-  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice B (#11561); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-permission-state, audit-permission-grants, audit; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice B (#11561); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-permission-state, audit-permission-grants, audit, audit-instructions, audit-automation-gaps; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
   "competitors": [
     "harness-config:audit-permission-state",
     "harness-config:audit-permission-grants",
-    "harness-config:audit"
+    "harness-config:audit",
+    "harness-config:audit-instructions",
+    "harness-config:audit-automation-gaps"
   ],
   "queries": [
     {

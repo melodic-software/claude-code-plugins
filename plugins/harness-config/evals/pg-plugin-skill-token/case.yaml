@@ -26,7 +26,14 @@ graders:
   - name: 'no-skill-edit'
     type: 'tool_used'
     tool: 'Edit'
-    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:SKILL\.md"|(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-skill-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:SKILL\.md"|(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
     min: 0
     max: 0
     arm: 'both'
