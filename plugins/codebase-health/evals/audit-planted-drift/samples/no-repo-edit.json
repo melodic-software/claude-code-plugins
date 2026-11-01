@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "content": "- [x] Phase 0"
+          }
+        }
+      ],
+      "why": "checklist copied into task notes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "old_string": "- [ ] Phase 1",
+            "new_string": "- [x] Phase 1"
+          }
+        }
+      ],
+      "why": "ticking the checklist"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/README.md",
+            "old_string": "npm run serve",
+            "new_string": "npm start"
+          }
+        }
+      ],
+      "why": "edits README"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/package.json",
+            "old_string": "\"start\"",
+            "new_string": "\"serve\""
+          }
+        }
+      ],
+      "why": "edits package.json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/config.js",
+            "old_string": "3000",
+            "new_string": "8080"
+          }
+        }
+      ],
+      "why": "edits source"
+    }
+  ]
+}

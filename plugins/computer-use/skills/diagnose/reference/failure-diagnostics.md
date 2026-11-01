@@ -33,7 +33,9 @@ immediately after: **29.6s**, and it kept climbing. Repeated with four more synt
 
 **Remediation is the operator's** (it is a system setting; do not change it for them): raise or
 disable the screensaver/display timeout for the duration of the work. Report the measured value
-and let them decide.
+and let them decide. This holds when the operator asks you to fix it: do not apply the change by
+command, and do not write a script or `.reg` file that applies it. Name the setting and the value
+to change, and the operator changes it.
 
 ## Ladder: `empty capture (0x0)`
 

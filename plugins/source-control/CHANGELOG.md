@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.9.2] - 2026-11-01
+
+### Fixed
+
+- The babysit-prs verdict reader judges a pull request created more than `TOO_OLD_DAYS` ago like any other, so a fresh pass at its head allows it, and refuses `verify:too-old` only where no counted verdict is left at the head. `verify:too-old` is out of `VERIFY_FINAL` and `STANDING`, so `capped_close` no longer closes such a pull request ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+
 ## [4.9.1] - 2026-11-01
 
 ### Fixed
