@@ -57,8 +57,8 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
   guessed. Keep a quoted user idiom that shares no word with the rest of the description (a
   jargon or slang name for the job) when probes show it moves triggering; cut a paraphrase of
-  words already present. Weaker models lean on these terms more, so measure on each model the
-  skill targets.
+  words already present. Our untested hypothesis is that weaker models lean on these terms more,
+  so measure on each model the skill targets.
 - **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
   trigger text does nothing there: the invocation-control section of the Claude Code skills docs
   in [Sources](#sources).
@@ -202,9 +202,9 @@ reads it. A key nothing reads is cut.
 - Grant only the tools the agent needs.
 - Pin `model` in frontmatter. `inherit` only for an agent that must run on the orchestrator's
   model, with the reason on the same line: `model: inherit  # reason: <why>`. An omitted field
-  falls back to the orchestrator's model with nothing to show it was chosen; a dispatching skill
-  overrides per call. `scripts/validate-plugin-contracts.mjs` fails a definition that breaks
-  either rule.
+  leaves nothing in the definition to show a model was chosen; what an omitted, pinned or
+  per-call value resolves to is read at the [Subagent docs](#sources) entry's pointers.
+  `scripts/validate-plugin-contracts.mjs` fails a definition that breaks either rule.
 
 ## Measurement
 
@@ -289,7 +289,8 @@ judgment (a reviewer reads) or attestation (the author states it).
 - Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); under
   `--require-evals`, check 14 passes when a suite case lists the skill's directory name in a
   one-line `tags: [...]` (mechanical); fresh-session baseline captured
-  (attestation); models exercised, from `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill
+  (attestation); models exercised, from the Agent-tool model aliases (the [Subagent docs](#sources)
+  entry holds the pointer) (attestation); a skill
   run under a `model` override or inside a subagent names every target model, or says which are
   untested (attestation).
 
@@ -330,8 +331,12 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
   (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
-  and [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-10-06. Recheck: the model resolution order or the omitted-field fallback
-  changes.
+  for the model resolution order and the Agent-tool alias set,
+  [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
+  for the force setting that overrides frontmatter `model`, and
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-11-01.
+  Recheck: the model resolution order, the omitted-field fallback, the force setting or the
+  Agent-tool alias list changes.
 - **Pocock's skills**, <https://github.com/mattpocock/skills> at commit `6fd9479`, measured by us
   over 38 skills. As of 2026-10-06. Recheck: a re-measure at a newer commit moves a median or a
   shape.
