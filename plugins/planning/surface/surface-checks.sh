@@ -25,7 +25,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=235 [live]=18 [page]=122)
+declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=236 [live]=18 [page]=122)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -339,23 +339,40 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     # The journey runs against a fifth server seeded with an empty interview. It walks the whole
     # flow on one page in twenty phases; the shell writes as Claude between them. Its short
     # readingWindow lets phase 7 see Idle without waiting out the default 180 s after phase 1's delivery.
+    # Wall milliseconds of the shell's own steps between page phases, by kind, printed after the
+    # phases' lines so a log shows where the suite's time outside the page goes. Needs bash 5's
+    # EPOCHREALTIME; without it the line reports '?'.
+    declare -A jms=() jcount=()
+    jtime() { # kind command...
+      local t0=${EPOCHREALTIME:-} t1 rc
+      "${@:2}"
+      rc=$?
+      t1=${EPOCHREALTIME:-}
+      if [[ -n "$t0" && -n "$t1" ]]; then
+        jms[$1]=$((${jms[$1]:-0} + (${t1/./} - ${t0/./}) / 1000))
+        jcount[$1]=$((${jcount[$1]:-0} + 1))
+      fi
+      return "$rc"
+    }
     mkdir -p "$j/ops"
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
     printf '%s' '{"readingWindow": 5}' >"$j/settings.json"
-    bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
-    bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
+    jtime setup bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
+    jtime setup bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
     jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
       sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
     done
+    # The repeated writes run round as a module from this directory: Python then reuses its cached
+    # bytecode, where round.sh runs round.py as a script that recompiles all of it on every call.
     jhandle() {
       local s
       read -r -a s <<<"$(unhandled "$j")"
-      [[ "${#s[@]}" -eq 0 ]] || bash "$here/round.sh" --dir "$j" handle --seq "${s[@]}" >/dev/null
+      [[ "${#s[@]}" -eq 0 ]] || jtime handle "$py" -m round --dir "$j" handle --seq "${s[@]}" >/dev/null
     }
     japply() { # name ops-json
       printf '%s' "$2" >"$j/ops/$1.json"
-      bash "$here/round.sh" --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
+      jtime apply "$py" -m round --dir "$j" apply --file "$j/ops/$1.json" >/dev/null || bad "journey: ops $1 refused"
     }
     jrun() { run_code "$tmp/uj$1.js" "$tmp/uj$1.out"; }
     jrun 1
@@ -445,8 +462,12 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
     # A Notes reply after the restatement: the restate notice outranks it in phase 16.
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
-    # An ordinary Claude note after it must not unpin the question.
-    sleep 1
+    # An ordinary Claude note after it must not unpin the question. Notes carry whole-second times,
+    # so waiting for the next second to start gives it a later time than n2, as a full second would.
+    local now=${EPOCHREALTIME:-} us wait=1 # bash 4 has no EPOCHREALTIME: keep the full second
+    us=${now#*.}
+    [[ "$us" =~ ^[0-9]{6}$ && "$us" != 000000 ]] && wait=$(printf '0.%06d' "$((1000000 - 10#$us))")
+    jtime sleep sleep "$wait"
     japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
     jrun 16
     # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
@@ -457,13 +478,18 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."},
     {"op": "context", "handoff": "Resume from docs/handoff.md in a fresh session."}]}'
     jrun 18
-    bash "$here/round.sh" --dir "$j" stop >/dev/null
+    jtime restart bash "$here/round.sh" --dir "$j" stop >/dev/null
     jrun 19
-    bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
+    jtime restart bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
     [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
     jrun 20
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
     for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+    local k line=""
+    for k in setup apply handle sleep restart; do
+      line+=" $k ${jms[$k]:-?}ms/${jcount[$k]:-0}"
+    done
+    echo "ui_journey.shell:$line"
   }
 
   group_live() {

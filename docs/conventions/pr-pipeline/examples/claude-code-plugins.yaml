@@ -4,6 +4,7 @@ version: 2
 activities:
   simplify:
     skill: code-tidying:batch-simplify
+    args: --unattended            # a lane run has nobody to answer an ask
     effect: mutate-branch
     gating: advisory
     reads-untrusted: false
@@ -52,6 +53,7 @@ activities:
     inputs: [pr, base-sha, head-sha]
   check-intent:
     skill: verification:confirm
+    args: --unattended
     effect: read
     gating: gate
     reads-untrusted: true
@@ -195,7 +197,8 @@ models:
     claude: review
 
 merge:
-  rung: C2
+  # off, merge or merge-reviewed (README.md, Merge authority).
+  rung: merge
   # The merge authority and, for local-babysit, the login the lane acts as
   # (README.md, Merge authority). local-babysit requires agent-identity.
   # authority: local-babysit

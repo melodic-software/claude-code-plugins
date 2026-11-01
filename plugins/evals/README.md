@@ -45,6 +45,8 @@ The CLI reads a plugin's `evals/` tree (`prompt.md` plus `graders/*.md`, or `cas
 the format `/evals:design` writes for a skill, and the one `claude plugin eval init` writes for a
 whole plugin; `/evals:validate` checks it. Anthropic's `skill-creator` plugin has its own JSON
 eval format, which the CLI does not read; convert those cases to the suite layout to run them here.
+`skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
+cases into its `evals/` suite and removes the converted files.
 
 ## Upstream sync
 

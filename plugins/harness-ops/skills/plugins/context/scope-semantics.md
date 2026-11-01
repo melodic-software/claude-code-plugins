@@ -181,7 +181,9 @@ Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 **A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
 trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
 lagging one `update ineffective, uninstall clears it`; the row stays a divergence, and any update the
-run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
+run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `sync`
+still calls `update` from a linked worktree (Step 3a in [sync.md](sync.md)) and reports a record the
+call left behind as not moved; the row keeps its `worktree` class. `uninstall`
 clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
 **Record**: pointer, the update-strategy results of the 2026-10-12 converge run in
 [#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6125445322);
@@ -225,11 +227,25 @@ do.
 `true` means the `projectPath` is a user home: the current `$HOME`, `/home/<name>`, `/Users/<name>`,
 `C:\Users\<name>`, or the WSL view of a Windows home, `/mnt/<drive>/Users/<name>` (`Users` and the
 drive letter match case-insensitively). A project-scope install run from a home directory records
-that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file, so a
-`-s project` command there would change user scope. Under a home (`/home/<name>/repos/app`) is an
-ordinary project and reads `false`. `converge` blocks such a row and runs nothing for it. `sync` drops
-the record's scope before comparing versions, so a divergence that exists only because of it is not
-counted as actionable, and lists the records in a `User-home project records` row.
+that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file.
+Under a home (`/home/<name>/repos/app`) is an ordinary project and reads `false`.
+
+Our decision: from a home, `converge` runs nothing, because its writing calls (the table above)
+would change that home's user settings, and `sync` runs only `update`, which we treat as writing no
+settings file, and checks the two settings files around each call ([sync.md](sync.md) Step 3a), so
+it does not rest on that treatment.
+
+- **Pointer**: the home-path `update` probe recorded in
+  [#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6283364040);
+  the command itself is documented under
+  [Update plugins now](https://code.claude.com/docs/en/plugins/install#update-plugins-now).
+- **As of**: 2026-10-20
+- **Recheck trigger**: a Claude Code release note that changes what `claude plugin update` writes,
+  or a sync run whose settings check stops a home path.
+
+`sync` drops a home-keyed record's scope before comparing versions,
+so a divergence that exists only because of it is not counted as actionable, and lists in a
+`User-home project records` row only the records `update` could not move.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 

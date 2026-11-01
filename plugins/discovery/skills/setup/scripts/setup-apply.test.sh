@@ -10,6 +10,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$SCRIPT_DIR/setup-apply.mjs"
 READER="$SCRIPT_DIR/parse-concern-value.sh"
 
@@ -67,7 +73,7 @@ if [[ "$(cat "$f")" == "$before" ]]; then pass 'the existing file is untouched w
 # Same change with --yes: written, comment kept.
 run "$repo" --yes explore_output=change-prep
 if ((CODE == 0)); then pass 'with --yes the change is written'; else fail 'with --yes the change is written'; fi
-if [[ "$(cat "$f")" == $'# team pick\nexplore_output: change-prep' ]]; then pass 'the written file keeps the comment and holds change-prep'; else fail 'the written file keeps the comment and holds change-prep'; fi
+if [[ "$(settings "$f")" == $'# team pick\nexplore_output: change-prep' ]]; then pass 'the written file keeps the comment and holds change-prep'; else fail 'the written file keeps the comment and holds change-prep'; fi
 
 # Invalid value: refused, nothing created.
 repo="$(new_repo)"
@@ -88,7 +94,7 @@ printf 'explore_output: auto\nverbosity: high\n' >"$repo/docs/conventions/discov
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS explore_output: auto"* ]]; then pass '--check warns on an unknown key and keeps the valid key'; else fail '--check warns on an unknown key and keeps the valid key'; fi
 run "$repo" --yes explore_output=explain
-if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$repo/docs/conventions/discovery.yaml")" == $'explore_output: explain\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$repo/docs/conventions/discovery.yaml")" == $'explore_output: explain\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # An invalid existing value is replaced by a valid one.
 printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
@@ -131,7 +137,7 @@ shape_case() { # shape_case <label> <refuse|replace> <file content>
   run "$repo" --yes explore_output=change-prep
   if [[ "$want" == refuse ]]; then
     if [[ "$CODE" -eq 1 && "$(cat "$f")" == "$before" ]]; then pass "apply refuses $label and leaves the file"; else fail "apply refuses $label and leaves the file"; fi
-  elif [[ "$CODE" -eq 0 && "$(cat "$f")" == "explore_output: change-prep" ]]; then
+  elif [[ "$CODE" -eq 0 && "$(settings "$f")" == "explore_output: change-prep" ]]; then
     pass "apply replaces $label with the given value"
   else
     fail "apply replaces $label with the given value"
@@ -155,7 +161,7 @@ repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf 'stray:\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --yes explore_output=explain
-if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*stray' <<<"$OUT")" -eq 1 && "$(cat "$repo/docs/conventions/discovery.yaml")" == $'stray:\nexplore_output: explain' ]]; then pass 'an unknown empty key is one warning that names it, and its line is kept'; else fail 'an unknown empty key is one warning that names it, and its line is kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*stray' <<<"$OUT")" -eq 1 && "$(settings "$repo/docs/conventions/discovery.yaml")" == $'stray:\nexplore_output: explain' ]]; then pass 'an unknown empty key is one warning that names it, and its line is kept'; else fail 'an unknown empty key is one warning that names it, and its line is kept'; fi
 
 # A key given twice on the command line is refused before anything is read or
 # written, whether or not the file exists.
@@ -236,6 +242,20 @@ if [[ "$CODE" -eq 2 ]]; then pass '--check with a pair exits 2'; else fail '--ch
 OUT="$(cd "$WORKROOT" && GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" explore_output=auto 2>&1)"
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+repo="$(new_repo)"
+run "$repo" explore_output=explain
+record="$(grep -v '^# ' "$repo/docs/conventions/discovery.yaml")"
+record_ok=0
+[[ "$CODE" -eq 0 && "$record" == $'written_against: discovery@'"$VERSION"$'\nexplore_output: explain\nprovenance:\n  explore_output: chosen'* ]] && record_ok=1
+repo="$(new_repo)"
+run "$repo" --default explore_output
+default_ok=0
+[[ "$CODE" -eq 0 && "$(grep -c '^  explore_output: default$' "$repo/docs/conventions/discovery.yaml")" -eq 1 ]] && default_ok=1
+if [[ "$record_ok" -eq 1 ]]; then pass 'the file records written_against and a chosen entry'; else fail 'the file records written_against and a chosen entry'; fi
+if [[ "$default_ok" -eq 1 ]]; then pass '--default records a default entry'; else fail '--default records a default entry'; fi
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2

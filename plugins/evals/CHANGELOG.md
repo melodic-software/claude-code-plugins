@@ -1,5 +1,27 @@
 # Changelog: evals
 
+## [0.13.1] - 2026-11-01
+
+### Fixed
+
+- `plugin-eval` preflight prints an `eval_tmpdir` field and refuses before any spend when the `TMPDIR` directory the run step will use is longer than 24 characters and a case requests `Bash` or `PowerShell`. 24 characters is the longest length measured to work; at 63, the shell sandbox's Unix sockets could not be created, so every shell call failed while the run still exited 0 and scored ([#11740](https://github.com/melodic-software/claude-code-plugins/issues/11740)).
+- `run-validity.py` names a `session started` failure in its verdict as a harness failure whose score measures the harness, not the skill, and the `read` action reports such a run that way instead of as the skill's result.
+- `reference/sandboxes.md` gives the 24-character bound for `<dir>` in the Docker link swap and Sandbox start sections, with the socket names and measurements behind it.
+
+## [0.13.0] - 2026-11-01
+
+### Added
+
+- `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's
+  skill-creator `evals.json` cases into `claude plugin eval` cases under the plugin's `evals/`:
+  a `prompt.md` with the prompt and expected outcome, a `case.yaml` with one `llm` grader per
+  expectation, and a `skill-fired` grader with sample answers where the prompt is natural
+  language and no expectation reads as the skill staying quiet. Each expectation grader gets
+  the case's `expected_output` as a must-pass sample, labeled for a person to confirm before
+  judge calibration, and `narration: true` carries over as a tag and a `description` line.
+  It prints the plugin's case count (`--dry-run` writes nothing), removes each converted
+  `evals.json`, and refuses, writing nothing, when a case directory already exists.
+
 ## [0.12.0] - 2026-10-31
 
 ### Changed

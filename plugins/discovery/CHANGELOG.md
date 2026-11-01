@@ -1,5 +1,32 @@
 # Changelog: discovery plugin
 
+## [0.44.1] - 2026-11-01
+
+### Fixed
+
+- The parent contract's deny-rule pointer now names the sub-agents section on disabling specific
+  subagents, and `discovery:researcher`'s `high` pin points at the section that says what overrides
+  it. The explorer agent points at where the built-in `Explore` model is stated instead of asserting it, the deep tier says
+  its `maxConcurrent` clamp is the plugin's own cap, and `setup` no longer says every env var waits
+  for the next session, and points at where a settings-file `env` value's timing is stated
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [0.44.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
 ## [0.43.1] - 2026-10-31
 
 ### Changed

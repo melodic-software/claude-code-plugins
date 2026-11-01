@@ -5,6 +5,10 @@
     },
     {
       "answer": "Before I draw anything: which view fits what you need?\n\n- (Recommended) A call tree from `PostalCarrier.quote` down into `RateTable`.\n- A shallow file tree of where each piece would live.\n- Types and signatures for `Parcel`, `RateTable` and `Carrier`.\n\nI'll render once you pick one."
+    },
+    {
+      "answer": "Which form do you want? 1. Call tree (recommended) 2. Types and signatures 3. File tree",
+      "why": "a one-line menu with the recommended form first"
     }
   ],
   "fail": [
@@ -13,6 +17,18 @@
     },
     {
       "answer": "Which view do you want? I'd recommend the call tree.\n\n- Types and signatures\n- Call tree\n- Pseudocode"
+    },
+    {
+      "answer": "Which view do you want?\n\n- Types and signatures\n- Call tree (recommended)\n- Pseudocode",
+      "why": "dash bullets with the recommended form second"
+    },
+    {
+      "answer": "Which view do you want?\n\n* File tree\n* Pseudocode\n* Call tree (recommended)",
+      "why": "star bullets with the recommended form last"
+    },
+    {
+      "answer": "Which form do you want? 1. Types and signatures 2. Call tree (recommended) 3. File tree",
+      "why": "a one-line menu with the recommended form second"
     }
   ]
 }

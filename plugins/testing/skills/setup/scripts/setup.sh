@@ -214,6 +214,7 @@ check() {
   while IFS=$'\t' read -r k v; do
     case "$k" in
     adapter_dirs) for f in "$v"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done ;;
+    extend.*.claim_by_content.files) ;;
     extend.*.files)
       k="${k#extend.}"
       ext_files+="${k%.files}"$'\tfiles\t'"$v"$'\n'

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: cl-known-context-routing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: support-ticket-row
+    type: regex
+    pattern: '^\|\s*\**Ticket\**\s*\|[^|\n]*\brequest[^|\n]*\|[^|\n]*\|\s*$'
+    flags: 'mi'
+    target: { source: file, path: docs/language/support-terms.md }
+  - name: support-case-kept
+    type: regex
+    pattern: '^\|\s*\**Case\**\s*\|'
+    flags: 'm'
+    target: { source: file, path: docs/language/support-terms.md }
+  - name: billing-unchanged
+    type: regex
+    pattern: '^# Billing language\n\n\| Term \| Definition \| Avoid \|\n\|---\|---\|---\|\n\| Ticket \| A metered charge record received from a usage source\. \| support request \|\n?$'
+    target: { source: file, path: docs/language/billing-terms.md }
+  - name: map-unchanged
+    type: regex
+    pattern: '^# Domain language map\n\n\| Context \| Glossary \| Relationship \|\n\|---\|---\|---\|\n\| Support \| `support-terms\.md` \| Support requests billing evidence through the published case reference\. \|\n\| Billing \| `billing-terms\.md` \| Billing publishes charge references to Support\. \|\n?$'
+    target: { source: file, path: docs/language/context-map.md }
+  - name: no-other-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:(?:[^"\\]|\\.)*?(?:/|\\\\))?(?!support-terms\.md")[^"/\\]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

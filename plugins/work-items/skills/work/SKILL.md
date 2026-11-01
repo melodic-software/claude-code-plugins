@@ -72,16 +72,16 @@ dispatch, PR or babysit step. It works in place:
    comment settles a question. Push back only on a question no such decision answers.
 3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
    root-cause gate first, inline: read the code and docs the symptom points at, run no command from
-   the checkout, and name the cause. When `/debugging:debug` or `/testing:diagnose` resolves in this
-   lane, use it; the lane loads only this plugin, so expect neither and read the code yourself. The
+   the checkout, and name the cause. When `/debugging:debug --unattended` or `/testing:diagnose`
+   resolves in this lane, use it; the lane loads only this plugin, so expect neither and read the code yourself. The
    cause you name is the one the fix addresses. When you cannot name a cause from what you read, do
    not implement a guess: stop with the reason. When the field names the cause, or the brief has no
    Root cause field, skip the gate. Make the change in the checkout, following the repository's own rules for the files
    you touch and its release record for each plugin you change. Write an external fact (a
    documented default, limit or behavior) only after reading it in the source you cite during
    this run; the issue's quote of a page is not that source. Read a web source through a research
-   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research` for a
-   question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
+   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research --unattended`
+   for a question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
    when the issue asks for a page or a site digested. Add each page you read to `verification` as
    `read <url>: what it says`. When you cannot read the source (the lane allows no web access, or
    the read fails), leave the claim out, and stop if the issue needs it. Commit every changed file with the commit
@@ -308,8 +308,17 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 **Auto-selected (<tier-name>):** #42 Fix <thing>
 Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
+I read this item as: <goal; done when>
+
 Proceed with this item? (yes / pick different / skip)
 ```
+
+The `I read this item as:` line restates, in your own words, what the item asks, so the user can
+catch a misread before the claim. Draw the goal from the item's brief (its Summary or Desired
+behavior, or the Outcome section of a decomposed item, its `Goal:` line when present) and the done-when from its
+Acceptance criteria or Done when list, condensed to one line. With no brief, draw both from the
+title and body, and say `done when: not stated` when the item names no check. The line is
+attended-only: an autonomous run prints neither it nor the prompt.
 
 **Autonomous invocation (no interactive user).** When a loop lane (e.g. `/work-items:work-loop`)
 or another unattended context invokes this skill, do not present the prompt and do not block. The
@@ -319,8 +328,12 @@ required ratification marker). The named id **binds the selection**: skip the se
 not recompute priorities or re-select, and proceed from the staleness pre-check with exactly that
 item, so the invoker's admission and accounting stay attached to the item executed (concurrent
 slots rely on this to avoid colliding on one candidate). Record the auto-confirmation in the
-item's claim comment. Every later step is unchanged; the seam claim in Step 5 remains the atomic
-acquisition point, attended or not.
+item's claim comment. Every later step runs as it does attended, with one difference: nobody is
+present to answer an ask, so pass `--unattended` to each skill a later step invokes that takes it: `/debugging:debug --unattended`,
+`/implementation:implement-dispatch --unattended`,
+`/source-control:pull-request create --pushed --worktree <path> --unattended`, and
+`/source-control:babysit-prs --unattended`. `unattended-callers.test.mjs` beside this file fails
+when one of these calls, or a CI-mode call above, drops the flag.
 
 ### Step 4: Staleness pre-check
 

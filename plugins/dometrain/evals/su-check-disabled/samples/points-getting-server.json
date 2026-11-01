@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Next: follow the README's [Getting the MCP server](../../README.md#getting-the-mcp-server).",
+      "why": "link text and anchor"
+    },
+    {
+      "answer": "## Next action\n\nRegister a user-scope server; see **Getting the MCP server** in the plugin README.",
+      "why": "heading section, bold"
+    },
+    {
+      "answer": "| Next | README section getting-the-mcp-server |",
+      "why": "anchor slug in a table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "State: disabled.",
+      "why": "state only"
+    },
+    {
+      "answer": "Run /mcp to see the server.",
+      "why": "points elsewhere"
+    },
+    {
+      "answer": "See the README for registration steps.",
+      "why": "README without the section"
+    }
+  ]
+}

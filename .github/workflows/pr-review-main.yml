@@ -43,6 +43,11 @@ name: pr-review-main
 # lost-run reconciler (maintenance-reconcile-lost-runs.yml); otherwise the
 # next push reviews again.
 #
+# The trigger job runs the trigger gate and reads the PR's files once per
+# run; the key leg takes its result, a boolean, the PR number and two SHAs
+# checked against fixed shapes, only from the same run attempt, and gates
+# itself otherwise. The later legs gate themselves at their own start.
+#
 # Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
 # pr-verify.yml.
@@ -69,7 +74,103 @@ defaults:
     shell: bash
 
 jobs:
+  # The trigger gate and the PR's file list, read once per run for both of
+  # the review job's lanes. Its outputs are only what the gate computed (a
+  # boolean, the PR number, two SHAs) and the lane-source boolean, each
+  # checked against a fixed shape by the lane; never head-ref or other PR
+  # text. A lane uses them only from this run attempt: a lane a person re-runs
+  # alone ("re-run failed jobs" or one job) keeps an earlier attempt's trigger
+  # job, so it gates itself, as every later leg does. The lost-run reconciler
+  # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
+  # re-runs too and its own gate checks the reconciler's record.
+  trigger:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR and its files
+      actions: read # the upstream run the trigger gate reads
+    outputs:
+      run-attempt: ${{ github.run_attempt }}
+      proceed: ${{ steps.gate.outputs.proceed }}
+      review: ${{ steps.select.outputs.review }}
+      pr-number: ${{ steps.gate.outputs.pr-number }}
+      head-sha: ${{ steps.gate.outputs.head-sha }}
+      base-sha: ${{ steps.gate.outputs.base-sha }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list. Skipped when no lane would review.
+      - name: Check the trigger
+        id: gate
+        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true')
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
+      # Only a pull request that changes a lane source is reviewed here; the
+      # predicate is the merge gate's own, read from main.
+      - name: Select a lane-source pull request
+        id: select
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          FILES: ${{ runner.temp }}/pr-review-main-files.txt
+        run: |
+          # Each page the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
+          review=$(python3 -I -c '
+          import sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
+          # The files API lists at most 3000; a longer list may hide one.
+          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          ' "$FILES")
+          echo "review=$review" >>"$GITHUB_OUTPUT"
+          echo "lane source changed: $review"
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   review:
+    needs: trigger
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.event == 'pull_request'
@@ -90,6 +191,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -169,7 +271,7 @@ jobs:
       # on the trusted-actor list.
       - name: Check the trigger
         id: gate
-        if: steps.switch.outputs.proceed == 'true'
+        if: steps.switch.outputs.proceed == 'true' && needs.trigger.outputs.run-attempt != github.run_attempt
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -189,6 +291,8 @@ jobs:
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
+          # Each page the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
@@ -201,6 +305,41 @@ jobs:
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
+
+      # One source for the gate's result: the trigger job's, or this leg's
+      # own gate when it ran. Each value must have its fixed shape, so no
+      # other text leaves this step.
+      - name: Take the gate's result
+        id: trigger
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          # The trigger job's result, only from this run attempt.
+          CARRIED: ${{ needs.trigger.outputs.run-attempt == github.run_attempt }}
+          CARRIED_PROCEED: ${{ needs.trigger.outputs.proceed }}
+          CARRIED_REVIEW: ${{ needs.trigger.outputs.review }}
+          CARRIED_PR: ${{ needs.trigger.outputs.pr-number }}
+          CARRIED_HEAD: ${{ needs.trigger.outputs.head-sha }}
+          CARRIED_BASE: ${{ needs.trigger.outputs.base-sha }}
+          GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
+          GATE_REVIEW: ${{ steps.select.outputs.review }}
+          GATE_PR: ${{ steps.gate.outputs.pr-number }}
+          GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+        run: |
+          if [ "$CARRIED" = true ]; then
+            proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
+          else
+            proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
+          fi
+          if [ "$proceed" != true ]; then
+            echo "the trigger gate stops this lane"
+            exit 0
+          fi
+          if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the trigger gate's result is malformed"
+            exit 1
+          fi
+          { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
@@ -228,12 +367,12 @@ jobs:
       # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
-        if: steps.select.outputs.review == 'true'
+        if: steps.trigger.outputs.review == 'true'
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           # About 75k tokens of patch: room in the lane's turn budget to read
@@ -324,7 +463,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
-          pr-number: ${{ steps.gate.outputs.pr-number }}
+          pr-number: ${{ steps.trigger.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
@@ -745,9 +884,9 @@ jobs:
             ${{ steps.review-4.outputs.execution-file }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
@@ -762,14 +901,23 @@ jobs:
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
         run: |
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -865,6 +1013,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -963,6 +1112,8 @@ jobs:
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
+          # Each page the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
@@ -975,6 +1126,35 @@ jobs:
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
+
+      # One source for the gate's result: the trigger job's, or this leg's
+      # own gate when it ran. Each value must have its fixed shape, so no
+      # other text leaves this step.
+      - name: Take the gate's result
+        id: trigger
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          CARRIED: "false"
+          GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
+          GATE_REVIEW: ${{ steps.select.outputs.review }}
+          GATE_PR: ${{ steps.gate.outputs.pr-number }}
+          GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+        run: |
+          if [ "$CARRIED" = true ]; then
+            proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
+          else
+            proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
+          fi
+          if [ "$proceed" != true ]; then
+            echo "the trigger gate stops this lane"
+            exit 0
+          fi
+          if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the trigger gate's result is malformed"
+            exit 1
+          fi
+          { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
@@ -1002,12 +1182,12 @@ jobs:
       # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
-        if: steps.select.outputs.review == 'true'
+        if: steps.trigger.outputs.review == 'true'
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           # About 75k tokens of patch: room in the lane's turn budget to read
@@ -1098,7 +1278,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
-          pr-number: ${{ steps.gate.outputs.pr-number }}
+          pr-number: ${{ steps.trigger.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
@@ -1531,9 +1711,9 @@ jobs:
             ${{ steps.review-4.outputs.execution-file }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
@@ -1548,14 +1728,23 @@ jobs:
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
         run: |
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -1647,6 +1836,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Each chunk's review has 22 minutes.
     timeout-minutes: 100
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
@@ -1741,6 +1931,8 @@ jobs:
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           FILES: ${{ runner.temp }}/pr-review-main-files.txt
         run: |
+          # Each page the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" \
             --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES"
           review=$(python3 -I -c '
@@ -1753,6 +1945,35 @@ jobs:
           ' "$FILES")
           echo "review=$review" >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
+
+      # One source for the gate's result: the trigger job's, or this leg's
+      # own gate when it ran. Each value must have its fixed shape, so no
+      # other text leaves this step.
+      - name: Take the gate's result
+        id: trigger
+        if: steps.switch.outputs.proceed == 'true'
+        env:
+          CARRIED: "false"
+          GATE_PROCEED: ${{ steps.gate.outputs.proceed }}
+          GATE_REVIEW: ${{ steps.select.outputs.review }}
+          GATE_PR: ${{ steps.gate.outputs.pr-number }}
+          GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
+          GATE_BASE: ${{ steps.gate.outputs.base-sha }}
+        run: |
+          if [ "$CARRIED" = true ]; then
+            proceed=$CARRIED_PROCEED review=$CARRIED_REVIEW pr=$CARRIED_PR head=$CARRIED_HEAD base=$CARRIED_BASE
+          else
+            proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
+          fi
+          if [ "$proceed" != true ]; then
+            echo "the trigger gate stops this lane"
+            exit 0
+          fi
+          if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the trigger gate's result is malformed"
+            exit 1
+          fi
+          { echo "review=$review"; echo "pr-number=$pr"; echo "head-sha=$head"; echo "base-sha=$base"; } >>"$GITHUB_OUTPUT"
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
@@ -1780,12 +2001,12 @@ jobs:
       # keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
-        if: steps.select.outputs.review == 'true'
+        if: steps.trigger.outputs.review == 'true'
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-review-main-data
           SRC: ${{ runner.temp }}/pr-review-main-src
           # About 75k tokens of patch: room in the lane's turn budget to read
@@ -1876,7 +2097,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
-          pr-number: ${{ steps.gate.outputs.pr-number }}
+          pr-number: ${{ steps.trigger.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ github.workspace }}/pr-review-main-data/context.json
           github-token: ${{ github.token }}
@@ -2289,9 +2510,9 @@ jobs:
             ${{ steps.review-4.outputs.execution-file }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           LANE: ${{ matrix.lane }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trigger.outputs.base-sha }}
           TREE_SHA: ${{ steps.diff.outputs.tree }}
           VERDICT_DIR: ${{ runner.temp }}/pr-review-main-verdict
           DIFF_DIR: ${{ github.workspace }}/pr-review-main-data/diff
@@ -2306,14 +2527,23 @@ jobs:
         if: ${{ !cancelled() && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.review-1.outcome != 'skipped' && steps.verdict.outcome != 'success' && steps.review-1.outputs.handoff != 'true' && steps.review-2.outputs.handoff != 'true' && steps.review-3.outputs.handoff != 'true' && steps.review-4.outputs.handoff != 'true' }}
         env:
           LANE: ${{ matrix.lane }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.trigger.outputs.head-sha }}
+          PR_NUMBER: ${{ steps.trigger.outputs.pr-number }}
         run: |
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}

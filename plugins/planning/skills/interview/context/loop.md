@@ -160,10 +160,10 @@ Take a team adding rate limits to a public API. Whether limits count per key or 
 
 Run rounds until the stop condition is met. Each round:
 
-1. **Restate the working understanding** in two or three sentences: what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. When it fully covers a question's context, that question needs no per-question context line (SKILL.md "Relentless mode")
+1. **Restate the working understanding** in two or three sentences: what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. It never stands in for a question's own Context block (SKILL.md "Relentless mode")
 2. **Compute the frontier:** list the open decisions and drop any whose framing or option set still hangs on an unanswered question, one asked in THIS round included; a dropped question comes back once its input is answered. Carry-overs first: questions unanswered from the previous round re-surface at the top, labeled as such
 3. **Self-answer gate per frontier question:** run the self-answer step ([`self-answer.md`](../../../context/self-answer.md)) over codebase, docs and history, connected tools, and research. A fact a source answers is STATED with its source tag, not asked, and its dependents join the frontier now (see "Self-answer gate" below). A slow lookup (deep exploration, external research) follows SKILL.md "In-flight lookups"
-4. **Ask the frontier as one numbered set:** each question with a recommended answer and its evidence: a `Basis: verified` list of each fact it rests on with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output), then one `Inference:` line on why those facts together lead to this answer for this user (SKILL.md "Recommended answers"); and one `Flips if:` line naming the condition that would change this recommendation, checkable against a fact the user can confirm ("Flips if: partners share keys across regions"), on every recommendation, in addition to the round's closing probe (eval evidence: `<plugin-root>/evals/interview-recommendation-basis-and-flip/`). A `judgment` label alone is no basis here, consequential or not: a question with no fact to cite is researched first (the self-answer gate in item 3, and SKILL.md "Ground before recommending" for a consequential one), and one research cannot settle is asked open with a `Withheld:` line naming the evidence that would settle it instead of a recommendation. Order within the round by blast radius, so the answer that would change the most downstream work goes first
+4. **Ask the frontier as one numbered set:** each question opening with its Context block and carrying a recommended answer and its evidence: each fact it rests on, in the Context block with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output), a `Basis: verified` line naming the sources the answer rests on, then one `Inference:` line on why those facts together lead to this answer for this user (SKILL.md "Recommended answers"); and one `Flips if:` line naming the condition that would change this recommendation, checkable against a fact the user can confirm ("Flips if: partners share keys across regions"), on every recommendation, in addition to the round's closing probe (eval evidence: `<plugin-root>/evals/interview-recommendation-basis-and-flip/`). A `judgment` label alone is no basis here, consequential or not: a question with no fact to cite is researched first (the self-answer gate in item 3, and SKILL.md "Ground before recommending" for a consequential one), and one research cannot settle is asked open with a `Withheld:` line naming the evidence that would settle it instead of a recommendation. Order within the round by blast radius, so the answer that would change the most downstream work goes first
 5. **Capture the answers.** In `auto` and `lock`, hold the Brief draft in a scratch buffer and write it at Step 4; in `me` mode, persist each answer to the ledger and Brief the moment it locks (see Incremental persistence). The open-question register is written earlier still, at ask-time, in every mode, except for the acceptance-criteria coverage prompt, which gets no row ([`coverage-prompt.md`](coverage-prompt.md)). Partial replies are normal: resolve what was answered, keep the rest OPEN, and never default an unanswered question to its recommendation. Honor accept-shorthands ("accept all recommendations", "yes to Q5 to Q7"); a hedged reply is not an accept-shorthand (see "Hedged flag")
 6. **Recompute the tree.** What subtrees did these answers eliminate? What new branches opened? Which blocked questions just joined the frontier? Name what was pruned
 7. **Domain check:** when the task touches domain concepts, run the glossary challenge (its two triggers, any domain term the user uses two ways and any term that collides with an existing definition, each get a probe) and scenario exploration (a made-up concrete case that tests where one concept stops and the next starts). **Engineering sessions only:** when a term resolves, invoke `/domain-driven-design:curate-language` via the Skill tool for the inline vocabulary update if that plugin is enabled, else record the term and its definition in the resolution field of the open-question register row that resolved it, since a general session writes no repo docs (SKILL.md "Domain-aware behaviors")
@@ -190,7 +190,7 @@ The ledger's `## Constraint ledger` section sits above `## Open-question registe
 - **`confirmed`:** written the moment the user states a constraint, in any reply, not only in an answer.
 - **`inherited`:** written for each constraint read from an upstream artifact (a prior Brief, a PRD, a design resolution). One the contract relies on is asked as a register row at ask-time; the answer flips the tag to `confirmed`, or drops the constraint and says so in the row's resolution. Unattended it takes the ladder in "Unattended path". In `lock` it is a gap (STOP and surface); in `auto` direct synthesis it makes the path Mixed.
 - **A PRD is more than constraints:** its Problem becomes the Brief's `### Problem`, its Goals `Vision:` line the Goal's `- Vision (where this heads):` line, its reason the `- Intent (why, in the user's words):` line only when the PRD quotes the user (else `none stated`), and each item in its `## Assumptions` goes under `### Captured assumptions` with its source (`- <assumption> (from PRD): revisit if <trigger>`), never as a constraint row.
-- **Citations:** every recommendation carries `Checked against: C1, C3` (or `Checked against: none`) on one line under its `My recommendation:` line. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
+- **Citations:** every recommendation carries `Checked against:` with each constraint named in words (or `Checked against: none`) on one line under its `My recommendation:` line; the `C<N>` ids stay in the ledger. The page and card encodings: SKILL.md Step 2 "Keep a running constraint ledger".
 - **Re-check:** a new `confirmed` row re-checks every open recommendation's `Checked against:` line; a recommendation it changes is revised (old, new, why) before the next round is shown.
 - **Backstop:** the assumption sweep lists any relied-on `inherited` row left unasked.
 
@@ -267,7 +267,7 @@ The read-only decision table (the degrade):
 
 ### Session-shorthand glossary
 
-When a round coins or leans on session-local shorthand, a label, abbreviation, or cross-repo term the user may not share, define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
+When a round coins or leans on session-local shorthand, a label, abbreviation, or cross-repo term the user may not share, record it here, so later rounds and a resumed session have its definition, and define it inline in each question that uses it (SKILL.md "Name every code; define every term where it is used"); `check-round-codes.sh` flags a use with no name beside it. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
 
 A question whose recommendation, option or `Commits you to:` part coins a name writes its glossary line to the ledger in the same step as its register row at ask-time, on every surface (on the page, also send the `glossary` op, [`surface.md`](surface.md)), and defines the name in the question itself. The assumption sweep reports a coined name missing from the glossary as a `coined-term` item ([`assumption-sweep.md`](assumption-sweep.md)).
 
@@ -276,6 +276,19 @@ A question whose recommendation, option or `Commits you to:` part coins a name w
 - lane: one parallel builder session working an isolated slice
 - gate vacuity: an acceptance gate that always passes, so it checks nothing
 ```
+
+### Terminology matrix
+
+The ledger's `## Terminology matrix` holds one row per term the rounds rely on, built before the first decision question (SKILL.md "Agree the terms before the first decision"):
+
+```markdown
+| Term | Definition | Source | Status |
+|---|---|---|---|
+| head SHA | the commit the PR branch points at | user, round 1 | agreed |
+| cluster step | upstream's grouping of reports that share a fingerprint | vendor/upstream-triage/README.md:8 | proposed |
+```
+
+Status is `proposed` until the user agrees the row, then `agreed`. The agreement question is registered like any other; its resolution names the rows it agreed. A term the user redefines keeps its row with the user's definition and source `user, round <N>`. The shorthand glossary above holds the session's own coinages; the matrix holds every term a reader must share to answer, coined or not.
 
 ### Dialogue + recommendation revision
 
@@ -381,7 +394,7 @@ The drift check above fires on a user reply. A round can also be overtaken by ou
 2. **It contradicts a recommendation under a question already asked.** Restate that question, naming the superseded recommendation as superseded and giving the replacement its own basis. A recommendation the session has since disproved is worse than no recommendation, because the user is answering against it.
 3. **It answers an open row from the environment.** Resolve it and STATE the answer; do not leave it standing as a question. "Facts are yours; decisions are the user's" does not stop applying because the fact arrived late.
 
-**Re-present narrowly.** One line carrying the untouched questions (*"Still open, unchanged: Q5, Q6, Q8"*), and the full question shape ONLY for the row that actually moved. Never re-print the whole round: with several lookups in flight that is several full re-prints under one open set, which buries the round it is trying to surface. The user answers by `Q<N>` against a block they can scroll to; restoring visibility is not worth the noise, and the changed recommendation is the part they cannot recover by scrolling.
+**Restate every open row in full.** After a return, the first message that presents a question before the user's next separate reply ends with one block holding every `open` and `superseded-by-plan` row in the full question shape (Context, recommendation with `Basis:`, alternatives), with any row that moved marked as changed. This holds whether outcome 2 or 3 moved a row or the return released a question held for it, and when that message also processes a user reply that shared the turn. A row still held for a pending result may be named in one line as waiting. The user reads the latest message: a one-line pointer to an earlier block sends them scrolling to rebuild the open set, and with several returns that set spreads across messages. Outcome 1 that releases no held question stays one line, because it presents nothing. Rule: `docs/contracts/async-round-presentation/README.md` in the marketplace.
 
 **This does not hold the round.** The scoped barrier stays exactly as it is (SKILL.md "In-flight lookups"): of the frontier questions, those that need a pending result are held and the others are asked, and a question off the frontier keeps waiting on its unanswered input. Holding a round until every dispatch drains would trade this failure for a serialized interview.
 
@@ -422,7 +435,14 @@ bash "<plugin-root>/scripts/check-open-questions.sh" \
 bash "<plugin-root>/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <memory_dir>/<topic-slug>/PLAN.md
+
+# Step 4 on a page-surface run: the same, plus the page's data dir.
+bash "<plugin-root>/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
+  --brief <memory_dir>/<topic-slug>/PLAN.md --surface '<data_dir>'
 ```
+
+`--surface` checks the Brief against the page's export; [`surface.md`](surface.md) "Wrap-up" lists what it fails.
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 

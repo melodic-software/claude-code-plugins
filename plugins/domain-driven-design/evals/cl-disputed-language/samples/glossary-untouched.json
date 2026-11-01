@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n",
+      "why": "unchanged glossary"
+    },
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Carrier**\n\nThe company that transports a shipment.\n",
+      "why": "unrelated entry only"
+    },
+    {
+      "answer": "",
+      "why": "empty file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Account**\n\nThe paying party.\n\nAvoid: customer, tenant\n",
+      "why": "manufactured consensus"
+    },
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Tenant**\n\nTBD: may be the same as Customer.\n",
+      "why": "speculative entry"
+    }
+  ]
+}

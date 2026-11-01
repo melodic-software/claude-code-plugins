@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, TOO_OLD_DAYS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -109,7 +109,10 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
     }
     const latest = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?filter=latest&per_page=100$/.exec(path);
     if (method === "GET" && latest) {
-      const found = byId.get(Number(latest[1]))?.jobs ?? [];
+      // A run with no jobs named is a ready pull request's: its ci-status
+      // skipped the draft step resolve-pr's draftRun reads.
+      const ready = [{ id: 1, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: "skipped" }] }];
+      const found = byId.get(Number(latest[1]))?.jobs ?? ready;
       return { total_count: found.length, jobs: found };
     }
     const notes = /^\/repos\/[^/]+\/[^/]+\/check-runs\/([0-9]+)\/annotations\?per_page=100$/.exec(path);
@@ -1446,6 +1449,30 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
       assert.equal(passReads.length, artifacts, label);
     }
   });
+});
+
+// The gate refuses a pull request past TOO_OLD_DAYS with no counted verdict
+// at its head `verify:too-old` until a fresh pass there: the head's passed
+// checks run is re-run once, recorded, so pr-verify judges it.
+test("a pull request past TOO_OLD_DAYS whose head has no verdict re-runs its passed checks once, with a record", async () => {
+  await withTrustedList(async (env) => {
+    const old = (created, pass = false) => {
+      const { setup } = specChanged({ edited: null, pass });
+      return { ...setup, pulls: [{ ...pr(1), created_at: created }] };
+    };
+    // NOW is 2026-10-19T20:00Z: 84 days after 07-27, 79 after 08-01.
+    const { code, outputs, reruns } = await reconcile({ ...old("2026-07-27T23:00:00Z"), env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
+    assert.deepEqual((await reconcile({ ...old("2026-08-01T00:00:00Z"), env })).reruns, [], "79 days old");
+    assert.deepEqual((await reconcile({ ...old("2026-07-27T23:00:00Z", true), env })).reruns, [], "a pass at the head");
+  });
+});
+
+test("TOO_OLD_DAYS is the gate's", () => {
+  const gate = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
+  assert.equal(Number(/^TOO_OLD_DAYS = ([0-9]+)$/m.exec(gate)?.[1]), TOO_OLD_DAYS);
 });
 
 test("a spec edited after a pass is caught when a label or body edit started a newer checks run after the edit", async () => {

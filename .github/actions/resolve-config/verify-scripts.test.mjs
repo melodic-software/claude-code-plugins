@@ -82,11 +82,17 @@ test("verify-scripts with effect read and no applied-by.patch fails the schema",
   rejected({ effect: "read", "verify-scripts": ["scripts/check-x.sh"] });
 });
 
+// The read runner stages them under prepare: ci-context too, as base copies the
+// skill is told to run in place of the checkout's (the live config's fix-ci, which
+// live-config.test.mjs resolves); checks stay refused there.
+test("checks on a prepare: ci-context skill fail the schema", () => {
+  rejected({ effect: "read", prepare: "ci-context", "applied-by": { patch: "apply-patch" }, checks: ["scripts/check-x.sh"] });
+});
+
 // A skill with an effect other than read runs in the write runner's run job,
-// which holds the lane token and id-token: write. Code a verify-script runs can
-// read that token from an ancestor's /proc/<pid>/environ, so the schema refuses
-// the scripts that run checkout code there (pr-run-activity.md, Skill
-// activities).
+// which holds the lane token and id-token: write, and claude-code-action writes
+// that token into the checkout's .git/config, so the schema refuses the scripts
+// that run checkout code there (pr-run-activity.md, Skill activities).
 for (const script of ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"]) {
   test(`verify-scripts listing ${script} on a write-effect skill fails the schema`, () => {
     rejected({ "verify-scripts": [script] });

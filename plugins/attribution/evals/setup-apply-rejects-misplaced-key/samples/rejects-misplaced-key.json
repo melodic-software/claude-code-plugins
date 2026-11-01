@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "`accuracy.judge_samples` is not a key in the schema: judge_samples is top-level, so the nested form would be a silent no-op. Want me to set top-level `judge_samples: 5` instead?",
+      "why": "top-level and no-op"
+    },
+    {
+      "answer": "I rejected accuracy.judge_samples rather than writing it.",
+      "why": "rejected before the key"
+    },
+    {
+      "answer": "Refusing to write `accuracy.judge_samples`: it would leave the panel at its default.",
+      "why": "refusing"
+    },
+    {
+      "answer": "judge_samples belongs at the root level of attribution.yaml, not under accuracy.",
+      "why": "root level"
+    },
+    {
+      "answer": "That key won't be written: judge_samples is a top-level setting.",
+      "why": "won't be written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Set accuracy.judge_samples to 5 in docs/conventions/attribution.yaml.",
+      "why": "wrote it"
+    },
+    {
+      "answer": "judge_samples was not rejected; it now reads 5 under accuracy.",
+      "why": "near-miss negation"
+    },
+    {
+      "answer": "Done. accuracy:\n  judge_samples: 5",
+      "why": "no reason"
+    }
+  ]
+}

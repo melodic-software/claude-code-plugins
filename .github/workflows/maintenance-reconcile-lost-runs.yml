@@ -31,7 +31,9 @@ name: maintenance-reconcile-lost-runs
 # A pr-require-checks run that passed on its first attempt is re-run once,
 # recorded, when the head's pr-verify pass predates a change to its spec (an
 # issue edit or a new spec comment), so pr-verify judges the head again
-# instead of leaving it at verify:spec-changed.
+# instead of leaving it at verify:spec-changed. So is one inside GitHub's
+# re-run window on a pull request past the gate's TOO_OLD_DAYS whose head has
+# no counted verdict, so a fresh pass clears verify:too-old.
 #
 # A lanes App pull request whose newest pr-require-checks run failed, on its
 # first attempt, only in ci-status, which noted that the lanes kill switch was
@@ -182,8 +184,17 @@ jobs:
       # One record per pr-verify or pr-review-main run, per pr-require-checks run made attempt
       # 2, and per stopped hosted review run the act step re-runs, uploaded
       # first. A failed upload fails the job, so that run is not re-run.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.plan.outputs.record-1 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
       - name: Record re-run 1
-        if: steps.plan.outputs.record-1 != ''
+        if: >-
+          (steps.plan.outputs.record-1 != '') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.plan.outputs.record-1 }}
@@ -191,8 +202,17 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          steps.plan.outputs.record-2 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
       - name: Record re-run 2
-        if: steps.plan.outputs.record-2 != ''
+        if: >-
+          (steps.plan.outputs.record-2 != '') && steps.scan-upload-2.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.plan.outputs.record-2 }}
@@ -200,8 +220,17 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          steps.plan.outputs.record-3 != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-record/record.json
+
       - name: Record re-run 3
-        if: steps.plan.outputs.record-3 != ''
+        if: >-
+          (steps.plan.outputs.record-3 != '') && steps.scan-upload-3.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.plan.outputs.record-3 }}
@@ -221,8 +250,17 @@ jobs:
       # The runs this pass settled for good, which the next pass skips
       # (reconcile.mjs SETTLED_ARTIFACT). A missing upload costs the next pass
       # a full read, never a re-run.
+      - name: Scan the upload for credentials
+        id: scan-upload-4
+        if: >-
+          ${{ !cancelled() && steps.plan.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reconcile-settled/settled.json
+
       - name: Carry the settled runs
-        if: ${{ !cancelled() && steps.plan.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.plan.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

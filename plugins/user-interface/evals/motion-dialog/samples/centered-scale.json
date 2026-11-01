@@ -5,7 +5,7 @@
       "why": "fade outside the query, a centered 0.96 scale only when motion is allowed, from display: none"
     },
     {
-      "answer": "```css\n.confirm {\n  opacity: 0;\n  scale: 0.92;\n  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1), scale 220ms cubic-bezier(0.32, 0.72, 0, 1), display 220ms allow-discrete, overlay 220ms allow-discrete;\n}\n.confirm[open] { opacity: 1; scale: 1; }\n@starting-style { .confirm[open] { opacity: 0; scale: 0.92; } }\n@media (prefers-reduced-motion: reduce) {\n  .confirm { transition-property: opacity, display, overlay; }\n}\n```",
+      "answer": "```css\n.confirm {\n  opacity: 0;\n  scale: 0.92;\n  transition: opacity 220ms cubic-bezier(0.23, 1, 0.32, 1), scale 220ms cubic-bezier(0.23, 1, 0.32, 1), display 220ms allow-discrete, overlay 220ms allow-discrete;\n}\n.confirm[open] { opacity: 1; scale: 1; }\n@starting-style { .confirm[open] { opacity: 0; scale: 0.92; } }\n@media (prefers-reduced-motion: reduce) {\n  .confirm { transition-property: opacity, display, overlay; }\n}\n```",
       "why": "a centered 0.92 scale-in, within 0.9 to 0.97, whose scale stops animating under reduced motion while the fade stays"
     }
   ],

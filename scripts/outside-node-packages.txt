@@ -14,6 +14,7 @@
 .github/actions/open-lane-output
 .github/actions/report-check-run
 .github/actions/request-lane-token
+.github/actions/scan-upload
 .github/actions/seal-lane-output
 .github/actions/select-trusted-text
 .github/actions/upload-lane-transcript

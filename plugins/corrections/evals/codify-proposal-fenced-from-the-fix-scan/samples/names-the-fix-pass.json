@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "A proposal there is offered to the fix pass."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Done."
+    }
+  ]
+}

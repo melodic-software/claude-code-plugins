@@ -97,6 +97,7 @@ jobs:
       python_plan: ${{ steps.plan.outputs.python_plan }}
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
+      playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
       - name: Check out

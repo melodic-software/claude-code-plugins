@@ -85,6 +85,12 @@ assert_eq 'a leading comment does not become the base indent' ".scratch" \
 assert_eq 'a longer key is not matched by a shorter one' \
   ".notes" "$(resolve 'memory_dir_extra: .scratch' memory_dir '.notes')"
 
+# --- The setup writer's written_against and provenance keys leave a value as it is ---
+assert_eq 'written_against and provenance beside a key return its value' "$(resolve 'memory_dir: .scratch')" \
+  "$(resolve "$(printf 'written_against: fixture@1.2.0\nmemory_dir: .scratch\nprovenance:\n  memory_dir: chosen (default .work)')")"
+assert_eq 'written_against and provenance beside a key: the value is .scratch' ".scratch" \
+  "$(resolve "$(printf 'written_against: fixture@1.2.0\nmemory_dir: .scratch\nprovenance:\n  memory_dir: chosen (default .work)')")"
+
 # --- Held behavior: unquoted trailing ` # comment` still stripped ---
 assert_eq 'unquoted trailing comment stripped' ".scratch" "$(resolve 'memory_dir: .scratch  # the tier')"
 
@@ -128,8 +134,8 @@ assert_exit "no args exits 2" 2 "$rc"
 # --- Dotted keys and lists, read from the pipeline's canonical example ---
 # Expected values are the literals on the cited lines of that example file.
 EX="$SCRIPT_DIR/../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml"
-assert_eq 'nested key merge.rung (example :173)' "C2" "$(bash "$SCRIPT" "$EX" merge.rung)"
-assert_eq '--list prints a flow list one item per line, quotes removed (example :179)' \
+assert_eq 'nested key merge.rung (example :201)' "merge" "$(bash "$SCRIPT" "$EX" merge.rung)"
+assert_eq '--list prints a flow list one item per line, quotes removed (example :207)' \
   $'.github/**\n.claude/**\ndocs/conventions/pr-pipeline.yaml' \
   "$(bash "$SCRIPT" "$EX" merge.diff-check.denied-paths --list)"
 assert_eq 'a block sequence of mappings is indexed (example :143)' "merge" \
@@ -209,7 +215,7 @@ assert_eq 'duplicate key: --strict names the second line' "parse-concern-value: 
 rc=0
 out=$(bash "$SCRIPT" --strict "$EX" merge.rung) || rc=$?
 assert_exit '--strict on a clean file exits 0' 0 "$rc"
-assert_eq '--strict on a clean file prints the value' "C2" "$out"
+assert_eq '--strict on a clean file prints the value' "merge" "$out"
 assert_eq '--strict on a missing file prints the fallback' ".x" \
   "$(bash "$SCRIPT" --strict "$TEST_TMPDIR/nope.yaml" memory_dir .x)"
 
