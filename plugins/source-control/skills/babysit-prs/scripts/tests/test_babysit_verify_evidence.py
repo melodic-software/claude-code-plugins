@@ -4495,6 +4495,31 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(fake.full_listings(), 2)
 
+    def test_a_top_up_read_after_a_5xx_with_no_date_is_noted(self) -> None:
+        # The top-up's page 1 answers 502 once, then reads with no `Date`:
+        # the failure is the missing header, not the 502, so it is noted.
+        fake = self.fake()
+        failed = [False]
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            if not failed[0]:
+                failed[0] = True
+                fake.calls.append(args)
+                return subprocess.CompletedProcess(
+                    args, 1, "", "gh: Bad Gateway (HTTP 502)"
+                ), {}
+            return fake(args, **kwargs), {}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("could not be checked against", evidence.detail)
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0])
+        self.assertTrue(self.failed.exists())
+
     def test_a_whole_listing_lost_to_a_5xx_is_not_noted_for_the_job(self) -> None:
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
         _, evidence = self.judge(fake)

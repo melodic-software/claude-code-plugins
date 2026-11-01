@@ -1587,9 +1587,12 @@ class Reader:
                 return None
             if proc.returncode == 0:
                 try:
-                    return json_object(json.loads(proc.stdout)), headers
+                    body = json_object(json.loads(proc.stdout))
                 except ValueError:
                     pass  # A body cut short: read again.
+                else:
+                    self._page_transient = False
+                    return body, headers
             elif not _transient((proc.stderr or "").strip()):
                 self._page_transient = False
                 return None
