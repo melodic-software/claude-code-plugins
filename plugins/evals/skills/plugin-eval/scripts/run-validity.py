@@ -1015,7 +1015,7 @@ def check_denials(runs, roots, root):
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 
 
-def check_fired(cases, runs, root, measured_fire=()):
+def check_fired(cases, runs, root, measured_fire=frozenset()):
     unfired, unread, controls, unknown, checked = [], [], [], [], 0
     measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
     for case in cases:
@@ -1051,10 +1051,11 @@ def check_fired(cases, runs, root, measured_fire=()):
         notes.append("no skill-fired grader, so not checked: %s" % ", ".join(unknown))
     fired = sum(f for f, _ in measured.values())
     probed = sum(n for _, n in measured.values())
+    label = "measured cases" if set(measured) & measured_fire else "invocation probes"
     if measured:
         notes.append(
-            "invocation probes fired in %d of %s, the measured rate, not gated"
-            % (fired, plural(probed, "with-arm run"))
+            "%s fired in %d of %s, the measured rate, not gated"
+            % (label, fired, plural(probed, "with-arm run"))
         )
     rates = [
         "measured: case %s fired in %d of %s" % (name, f, plural(n, "with-arm run"))
@@ -1064,7 +1065,7 @@ def check_fired(cases, runs, root, measured_fire=()):
     tail = ("; " + "; ".join(notes)) if notes else ""
     fired_in = "fired in %s" % plural(checked, "with-arm run")
     if measured and not checked:
-        fired_in = "no should-trigger case outside the invocation probes"
+        fired_in = "no should-trigger case outside the %s" % label
     if unfired:
         return (
             FAIL,
@@ -1089,7 +1090,7 @@ def check_fired(cases, runs, root, measured_fire=()):
             fired_in + tail,
             rates,
             (
-                "invocation probes fired in %d of %s" % (fired, plural(probed, "run"))
+                "%s fired in %d of %s" % (label, fired, plural(probed, "run"))
                 if rates
                 else None
             ),
@@ -1394,7 +1395,7 @@ def main(argv=None):
     later = [
         ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots, root)),
-        ("skill fired", check_fired(cases, runs, root, set(args.measured_fire))),
+        ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),

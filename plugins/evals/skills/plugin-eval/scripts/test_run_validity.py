@@ -1134,6 +1134,8 @@ class RunValidityTest(unittest.TestCase):
             "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
             proc.stdout,
         )
+        self.assertIn("measured cases fired in 0 of 1", proc.stdout)
+        self.assertNotIn("invocation probes", proc.stdout)
         self.assertNotIn("unfired:", proc.stdout)
 
     def test_measured_fire_leaves_other_unfired_cases_invalid(self):

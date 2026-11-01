@@ -23,8 +23,7 @@ statement of record: with `--json <file>` the terminal summary table is suppress
    `case.yaml` sets `context.scaffold_script`; a `case.yaml` it cannot locate or read leaves that
    check unchecked. When the comparison measures whether a skill fires, as on the base side of a
    change that makes it fire, name each such case with `--measured-fire <case>`: its misses are
-   reported as a measured rate, not a failure, and every other check still applies
-   ([#11979](https://github.com/melodic-software/claude-code-plugins/issues/11979)).
+   reported as a measured rate, not a failure, and every other check still applies.
 
    - **Pointer**: [Add setup or history with case.yaml](https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml);
      the `--scaffold` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options);
