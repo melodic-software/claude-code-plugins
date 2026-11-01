@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.14] - 2026-11-01
+
+### Changed
+
+- `work-classes.md` names the babysit merge gate's rungs `merge` (`C2`) and `merge-reviewed` (`C3`) where it maps each rung to its promotion cells (#7469).
+
+### Fixed
+
+- The routines contract's `dynamic workflow` row no longer says a workflow is always composed at
+  run time: each run is session-scoped, and its script can be saved in the project or a plugin.
+  The README says a command hook, not every hook, cannot re-run the `/goal` evaluator, and points
+  at the goal and hooks pages (#6916).
+
 ## [0.32.13] - 2026-10-31
 
 ### Changed

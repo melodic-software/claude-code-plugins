@@ -480,7 +480,8 @@ test("the workflow runs on a needs-human unlabel", () => {
 });
 
 // The reenter job's folded `if:`, evaluated against one event. Covers only
-// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels.
+// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels
+// and, case-insensitively as GitHub does, over the comment body.
 function reenterGate({ event, labels, label = null, comment = null, sender = null }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
@@ -491,6 +492,10 @@ function reenterGate({ event, labels, label = null, comment = null, sender = nul
     .filter(Boolean)
     .join(" ");
   body = body.replace(/contains\(github\.event\.issue\.labels\.\*\.name, ('[^']*')\)/g, (_, name) => `${JSON.stringify(labels)}.includes(${name})`);
+  body = body.replace(
+    /contains\(github\.event\.comment\.body, ('[^']*')\)/g,
+    (_, text) => `${JSON.stringify(String(comment?.body ?? "").toLowerCase())}.includes(${text}.toLowerCase())`,
+  );
   const context = {
     "github.event.comment.performed_via_github_app": null,
     "github.event.comment.user.type": comment?.type ?? null,
@@ -515,8 +520,23 @@ test("a parked swap that lifts needs-human and adds status: confirmed starts no 
 test("a plain needs-human lift and a comment on a parked issue still start the job", () => {
   assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["priority: medium"] }), true);
   assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run"] }), true);
-  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User" }, labels: ["status: confirmed"] }), true);
+  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User", body: DECISION }, labels: ["status: confirmed"] }), true);
   assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
+});
+
+// The script takes a comment at needs-decision or confirmed only when its first
+// line, leading whitespace trimmed, starts `**Decision recorded.**`; any other
+// comment there starts no runner. needs-info takes any comment.
+test("a comment at needs-decision or confirmed starts the job only with the decision marker", () => {
+  const comment = (labels, body) => reenterGate({ event: "issue_comment", comment: { type: "User", body }, labels });
+  for (const status of ["status: needs-decision", "status: confirmed"]) {
+    assert.equal(comment([status], DECISION), true, status);
+    assert.equal(comment([status], "  \n**Decision recorded.**\n\nOption 1."), true, `${status}, leading whitespace`);
+    assert.equal(comment([status], "Thanks, looking."), false, status);
+    assert.equal(comment([status], "Decision recorded."), false, `${status}, no bold`);
+    assert.equal(comment([status, "status: needs-info"], "An answer."), true, `${status} beside needs-info`);
+  }
+  assert.equal(comment(["status: needs-info"], "An answer."), true);
 });
 
 test("only a bot's status: confirmed removal with nothing else to move the issue starts the job", () => {

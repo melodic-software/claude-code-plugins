@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.31.2] - 2026-11-01
+
+### Fixed
+
+- A hardened shallow clone killed by SIGINT, SIGTERM or SIGHUP no longer leaves its `harvest-clone-home-*` directory in the temp root: the exit handler that kills the clone's process group now removes the isolated home as well.
+
 ## [0.31.1] - 2026-11-01
 
 ### Fixed

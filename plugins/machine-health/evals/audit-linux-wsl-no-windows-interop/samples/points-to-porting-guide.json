@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "Porting guidance is in reference/shared/discovery-guide.md.", "why": "names the guide" },
+    { "answer": "See scripts/linux/not-implemented.md for what a Linux port needs.", "why": "names the stub" }
+  ],
+  "fail": [
+    { "answer": "UNKNOWN: Linux checks are not implemented. Stopping.", "why": "no pointer to porting guidance" }
+  ]
+}

@@ -54,6 +54,16 @@ test("pendingStop names the unreset stop that resets last, and nothing once all 
   assert.equal(pendingStop([run()], { now: ended }), null);
 });
 
+// A key out of credit does not recover when a usage window resets, so a credit
+// stop is no limit stop: its failed run handles the head, and no reset waits.
+test("a credit stop is no limit stop: no reset, nothing pending, and the head is handled", () => {
+  const credit = posted("lane=pr-unblock activity=resolve-conflicts class=credit-stop turns=1");
+  assert.equal(limitResetsAt(credit), null);
+  assert.equal(pendingStop([credit], { now: ended }), null);
+  assert.equal(anyHandles([credit], { now: ended + 5 * HOUR }), true);
+  assert.equal(permanentlyHandles([credit]), true);
+});
+
 test("another class, or a failed run with no summary record, is no limit stop", () => {
   assert.equal(limitResetsAt(posted("lane=pr-unblock activity=resolve-conflicts class=other turns=3")), null);
   assert.equal(limitResetsAt(run()), null);
