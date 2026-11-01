@@ -25,9 +25,10 @@
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment, and neither do passes that all
 //   started before the spec last changed (`specChanged`): the head is judged
-//   again, with reason `spec-changed`, nor do passes of a pull request
-//   turned too old that all come from runs created before it did (`tooOld`):
-//   judged again with reason `too-old`.
+//   again, with reason `spec-changed`, nor do the newest passes of a pull
+//   request turned too old, but younger than a FAIL's retention less a
+//   margin, when they do not all come from runs created after it turned too
+//   old (`tooOld`): judged again with reason `too-old`.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
@@ -59,7 +60,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+import { issuesSuffix, isVerdictName, NAME, retentionDays } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
 
@@ -434,18 +435,34 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
 // `verify:too-old` unless a pass at the head comes from a pr-verify run
 // created since (test_verify_rules_sync.py keeps the two equal).
 export const TOO_OLD_DAYS = 80;
+// babysit_verify_evidence.FAIL_RETENTION_MARGIN in days: a fresh pass clears
+// too-old only while the pull request is younger than a FAIL's retention
+// (retentionDays("fail")) less this, so its first FAILs still count.
+export const FAIL_RETENTION_MARGIN_DAYS = 2;
+const DAY_MS = 86_400_000;
 
-// Whether the pull request created at `createdAt` is too old at `now` and no
-// counted pass at the head comes from a run created after it turned so
-// (`passCreated`): the gate refuses such a head `verify:too-old`, so it is
-// judged again, with reason `too-old`. A missing creation time judges nothing
-// again: the gate refuses it whatever a pass says.
-export function tooOld(passCreated, createdAt, now = Date.now()) {
-  const at = Date.parse(createdAt ?? "") + TOO_OLD_DAYS * 86_400_000;
-  if (Number.isNaN(at) || now <= at) {
+// The age, in milliseconds after creation, past which a fresh pass no longer
+// clears too-old (babysit_verify_evidence.judged_until).
+export const judgedUntilMs = () => (retentionDays("fail", false) - FAIL_RETENTION_MARGIN_DAYS) * DAY_MS;
+
+// Whether the pull request created at `createdAt` is too old at `now`, still
+// young enough for a fresh pass to clear it, and the passes of the run that
+// started last (`passStarts`, every one when a start time is missing) do not
+// all come from runs created after it turned too old (`passCreated`, a
+// re-attempt keeps it): babysit_verify_evidence `_judged_since`. The gate
+// refuses such a head `verify:too-old`, so it is judged again, with reason
+// `too-old`. A missing creation time judges nothing again: the gate refuses
+// it whatever a pass says.
+export function tooOld(passStarts, passCreated, createdAt, now = Date.now()) {
+  const born = Date.parse(createdAt ?? "");
+  const at = born + TOO_OLD_DAYS * DAY_MS;
+  if (Number.isNaN(born) || now <= at || now >= born + judgedUntilMs()) {
     return false;
   }
-  return !passCreated.some((time) => Date.parse(time ?? "") > at);
+  const starts = passStarts.map((time) => Date.parse(time ?? ""));
+  const last = Math.max(...starts);
+  const newest = starts.some(Number.isNaN) ? passCreated : passCreated.filter((_, i) => starts[i] === last);
+  return newest.length === 0 || !newest.every((time) => Date.parse(time ?? "") > at);
 }
 
 // Whether every counted pass at the head started before the live spec last
@@ -686,7 +703,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   // (read only now: the name records them) is looked up only past it.
   // So is a head of a pull request turned too old with no pass made since
   // (`tooOld`), which the gate refuses `verify:too-old` until one is.
-  const stale = passes.length > 0 && tooOld(passCreated, pull.created_at, now);
+  const stale = passes.length > 0 && tooOld(passes, passCreated, pull.created_at, now);
   if (passes.length > 0 && !stale && !specChanged(passes, { ...spec, bodyEditedAt })) {
     return skip("already-judged");
   }

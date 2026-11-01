@@ -18,7 +18,9 @@ from a completed, successful one. Any other artifact is ignored.
 - the pull request was created more than `TOO_OLD_DAYS` ago and no counted
   PASS at the head comes from a pr-verify run created since then
   (`_judged_since`): `verify:too-old`, since a verdict may already have
-  expired. A fresh PASS at the head clears it, and the items below decide;
+  expired. A fresh PASS at the head clears it, and the items below decide,
+  only before `judged_until` (`FAIL_RETENTION_DAYS` less a margin): past it
+  the pull request's first FAILs may be gone, and too-old is final;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
@@ -296,16 +298,32 @@ def verdict_name(name: str) -> re.Match[str] | None:
 
 
 PASSES = ("pass", "pass-notes")
+
+
+def judged_until(created: datetime) -> datetime:
+    """When a fresh PASS stops clearing `verify:too-old` for a pull request
+    created at `created` (`FAIL_RETENTION_DAYS` less the margin)."""
+    return created + timedelta(days=FAIL_RETENTION_DAYS) - FAIL_RETENTION_MARGIN
+
+
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
 # gone. 80 leaves ten days of margin (judgment).
 TOO_OLD_DAYS = 80
+# How long a FAIL verdict lasts (write-verdict.mjs `retentionDays("fail")`,
+# pinned by tests/test_verify_rules_sync.py). A fresh PASS clears
+# `verify:too-old` only while the pull request is younger than this less
+# `FAIL_RETENTION_MARGIN`: past it, its first FAILs may have expired, so the
+# earlier-fail rule and the FAIL cap would under-count, and too-old is final.
+FAIL_RETENTION_DAYS = 90
+FAIL_RETENTION_MARGIN = timedelta(days=2)
 # How long after it turns too old a pull request waits before the capped
 # close: the lost-run reconciler (twice an hour, maintenance-reconcile-lost-
 # runs.yml `cron`) re-runs its head's checks so pr-verify judges it again.
-# It re-runs only a first attempt, so a re-judge is not guaranteed and the
-# close stays; a day is 48 reconciler passes, and 81 days is still inside the
-# 90-day artifact retention (judgment).
+# It re-runs only a first attempt of a checks run created inside GitHub's
+# re-run window (reconcile.mjs RERUN_WINDOW_DAYS), so the re-judge happens
+# only when the head's checks run is recent, and the close stays; a day is 48
+# reconciler passes, well before `judged_until` (judgment).
 TOO_OLD_GRACE = timedelta(days=1)
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
@@ -2326,7 +2344,9 @@ class Reader:
         # pr-verify run created after it turned too old: its earlier FAILs may
         # have expired. Returned before its FAILs are kept, so `fail_findings`
         # reads them from the listing (`_own_fails`).
-        if now > too_old_at and not self._judged_since(passes, too_old_at):
+        if now > too_old_at and (
+            now >= judged_until(created) or not self._judged_since(passes, too_old_at)
+        ):
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         fails = [v for v in verdicts if v.verdict == "fail"]
         failed = {v.sha for v in fails}
@@ -2575,9 +2595,7 @@ class Reader:
         except postmerge.PostMergeReadError:
             return None
 
-    def _judged_since(
-        self, passes: list[tuple[int, str, Any]], at: datetime
-    ) -> bool:
+    def _judged_since(self, passes: list[tuple[int, str, Any]], at: datetime) -> bool:
         """Every pass of the run that started last (`_newest`) comes from a
         pr-verify run created after `at` (`_fresh_created`, which a
         re-attempt keeps): a judgment of the head made since. None without a
@@ -3848,7 +3866,9 @@ def not_converging_stop(
             != identity.lower()
         ):
             continue
-        lines = [line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")]
+        lines = [
+            line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")
+        ]
         if (
             lines[0] == LANE_STOPPED_FEEDBACK
             and f"- Reason: `{NOT_CONVERGING}`" in lines

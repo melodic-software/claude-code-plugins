@@ -22,6 +22,9 @@
 - The merge queue's pass lookup: ci-status's lines that find the head's pass
   in pr-require-checks.yml, run under bash against stubbed run reads, allow
   a pass from the runs the gate counts, under the exact names it reads.
+- The too-old rule: the same age, FAIL retention and margin, and resolve-pr
+  judges a too-old head again exactly when the gate's `_judged_since` finds
+  no pass made since.
 
 The run records are the gate suite's own forgeries and unfinished runs.
 """
@@ -38,6 +41,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -214,9 +218,14 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
     def test_too_old_is_the_same_age(self) -> None:
         # resolve-pr judges a head again exactly when the gate would refuse
         # it `verify:too-old` for want of a pass made since.
+        # A fresh pass clears it only while a FAIL's retention, less the same
+        # margin, still covers the pull request's first FAILs.
+        writer = RESOLVER.parent / "write-verdict.mjs"
         script = (
-            f"import {{ TOO_OLD_DAYS }} from {json.dumps(RESOLVER.as_uri())};"
-            " console.log(JSON.stringify(TOO_OLD_DAYS));"
+            f"import {{ TOO_OLD_DAYS, FAIL_RETENTION_MARGIN_DAYS }} from {json.dumps(RESOLVER.as_uri())};"
+            f" import {{ retentionDays }} from {json.dumps(writer.as_uri())};"
+            " console.log(JSON.stringify([TOO_OLD_DAYS, retentionDays('fail', false),"
+            " retentionDays('fail', true), FAIL_RETENTION_MARGIN_DAYS]));"
         )
         proc = subprocess.run(
             ["node", "--input-type=module", "-e", script],
@@ -224,7 +233,62 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             text=True,
             check=True,
         )
-        self.assertEqual(json.loads(proc.stdout), ve.TOO_OLD_DAYS)
+        days, fail, fail_relinked, margin = json.loads(proc.stdout)
+        self.assertEqual(days, ve.TOO_OLD_DAYS)
+        self.assertEqual((fail, fail_relinked), (ve.FAIL_RETENTION_DAYS,) * 2)
+        self.assertEqual(timedelta(days=margin), ve.FAIL_RETENTION_MARGIN)
+
+    def test_a_too_old_head_is_judged_again_exactly_when_the_gate_refuses(
+        self,
+    ) -> None:
+        # resolve-pr `tooOld` and the gate's `_judged_since` on the same
+        # passes: (start, creation) per run, a re-attempt keeping its creation.
+        created = datetime(2026, 7, 25, tzinfo=UTC)
+        now = datetime(2026, 10, 19, tzinfo=UTC)
+        old, fresh = "2026-10-01T00:00:00Z", "2026-10-14T00:00:00Z"
+        cases = [
+            [[old, old]],
+            [[fresh, fresh]],
+            [[fresh, old]],
+            [[old, old], [fresh, fresh]],
+            [[fresh, old], [old, fresh]],
+            [[None, fresh], [fresh, old]],
+            [[None, fresh], [fresh, fresh]],
+            [[old, None]],
+        ]
+        script = (
+            f"import {{ tooOld }} from {json.dumps(RESOLVER.as_uri())};"
+            " const [cases, created, now] = JSON.parse(process.argv[1]);"
+            " console.log(JSON.stringify(cases.map((runs) => tooOld("
+            "runs.map((r) => r[0]), runs.map((r) => r[1]), created, Date.parse(now)))));"
+        )
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                json.dumps([cases, created.isoformat(), now.isoformat()]),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        at = created + timedelta(days=ve.TOO_OLD_DAYS)
+        for runs, rejudged in zip(cases, js, strict=True):
+            reader = ve.Reader(gate.REPO, "main")
+            reader._started = {i: start for i, (start, _) in enumerate(runs)}
+            made = {
+                i: None if c is None else datetime.fromisoformat(c)
+                for i, (_, c) in enumerate(runs)
+            }
+            passes = [(i, f"p{i}", None) for i in range(len(runs))]
+            with (
+                self.subTest(runs),
+                mock.patch.object(reader, "_fresh_created", side_effect=made.get),
+            ):
+                self.assertEqual(rejudged, not reader._judged_since(passes, at))
 
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
         # A FAIL the gate still counts must not expire before the pull

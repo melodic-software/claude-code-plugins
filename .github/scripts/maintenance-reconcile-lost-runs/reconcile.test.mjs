@@ -1353,9 +1353,9 @@ const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(C
 // `updated` is the issue's updatedAt: the edit time by default, else a time
 // before the pass. PR `number` is the head under check.
 // `created` is the pull request's creation time, `passCreated` the pass run's.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, created, passCreated } = {}) {
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, created, passCreated, checksCreated } = {}) {
   const head = sha(number);
-  const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
+  const checks = { ...run(601, head, { conclusion: "success", attempt, ...(checksCreated && { created: checksCreated }) }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success", ...(passCreated && { created: passCreated }) }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
   const name = `pr-verify-${number}-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
   const issue = {
@@ -1394,10 +1394,12 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
   return { setup: { pulls: [{ ...pr(number), ...(created && { created_at: created }) }], runs: [checks, judged], github: wrap }, specReads, prefilterReads, passReads };
 }
 
-// Too old from 2026-10-08 (80 days after 2026-07-20); NOW is 2026-10-19.
+// Too old from 2026-10-13 (80 days after 2026-07-25), and a fresh pass clears
+// it until 2026-10-21 (90-day FAIL retention less 2 days); NOW is 2026-10-19.
+const AGED = "2026-07-25T00:00:00Z";
 test("a head of a pull request turned too old with no pass made since re-runs its passed checks once", async () => {
   await withTrustedList(async (env) => {
-    const stale = specChanged({ edited: null, created: "2026-07-20T00:00:00Z", passCreated: "2026-10-01T00:00:00Z" });
+    const stale = specChanged({ edited: null, created: AGED, passCreated: "2026-10-01T00:00:00Z" });
     const { code, reruns, outputs } = await reconcile({ ...stale.setup, env });
     assert.equal(code, 0);
     assert.deepEqual(reruns, [601]);
@@ -1410,9 +1412,13 @@ test("a head of a pull request turned too old with no pass made since re-runs it
 test("a too-old pull request whose pass was made since it turned too old, or a second attempt, re-runs nothing", async () => {
   await withTrustedList(async (env) => {
     for (const [label, options] of Object.entries({
-      "fresh pass": { created: "2026-07-20T00:00:00Z", passCreated: "2026-10-09T00:00:00Z" },
-      "attempt 2": { created: "2026-07-20T00:00:00Z", passCreated: "2026-10-01T00:00:00Z", attempt: 2 },
+      "fresh pass": { created: AGED, passCreated: "2026-10-14T00:00:00Z" },
+      "attempt 2": { created: AGED, passCreated: "2026-10-01T00:00:00Z", attempt: 2 },
       "not yet too old": { created: "2026-08-01T00:00:00Z", passCreated: "2026-10-01T00:00:00Z" },
+      // Its first FAILs may have expired: no pass can clear it now.
+      "past the FAIL retention ceiling": { created: "2026-07-20T00:00:00Z", passCreated: "2026-10-01T00:00:00Z" },
+      // GitHub re-runs no run older than RERUN_WINDOW_DAYS.
+      "a checks run past the re-run window": { created: AGED, passCreated: "2026-09-01T00:00:00Z", checksCreated: "2026-09-01T00:00:00Z" },
     })) {
       const { setup } = specChanged({ edited: null, ...options });
       assert.deepEqual((await reconcile({ ...setup, env })).reruns, [], label);
@@ -1420,11 +1426,17 @@ test("a too-old pull request whose pass was made since it turned too old, or a s
   });
 });
 
-test("aged reads the pull request's age against resolve-pr's TOO_OLD_DAYS", () => {
+test("aged reads the pull request's age between TOO_OLD_DAYS and the FAIL retention ceiling, and the checks run's re-run window", () => {
   const now = Date.parse("2026-10-19T00:00:00Z");
-  assert.equal(aged({ created_at: "2026-07-30T23:00:00Z" }, now), true);
-  assert.equal(aged({ created_at: "2026-07-31T01:00:00Z" }, now), false);
-  assert.equal(aged({}, now), false);
+  const recent = { created_at: "2026-10-18T00:00:00Z" };
+  assert.equal(aged({ created_at: "2026-07-30T23:00:00Z" }, recent, now), true);
+  assert.equal(aged({ created_at: "2026-07-31T01:00:00Z" }, recent, now), false);
+  // 88 days, the ceiling: no fresh pass could clear it.
+  assert.equal(aged({ created_at: "2026-07-23T01:00:00Z" }, recent, now), true);
+  assert.equal(aged({ created_at: "2026-07-22T23:00:00Z" }, recent, now), false);
+  assert.equal(aged({ created_at: "2026-07-30T23:00:00Z" }, { created_at: "2026-09-18T00:00:00Z" }, now), false);
+  assert.equal(aged({ created_at: "2026-07-30T23:00:00Z" }, {}, now), false);
+  assert.equal(aged({}, recent, now), false);
 });
 
 async function withTrustedList(fn) {

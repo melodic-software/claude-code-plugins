@@ -2336,20 +2336,30 @@ class AnOldPullRequestIsRefused(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertFalse(evidence.needs_human)
 
+    # Created 2026-07-22: too old from 2026-10-10, and a fresh PASS clears it
+    # until 2026-10-18 (FAIL_RETENTION_DAYS less the margin); NOW is 10-16.
+    AGED = "2026-07-22T00:00:00Z"
+
     def test_a_pass_made_after_it_turned_too_old_clears_it(self) -> None:
-        # Created 2026-07-20, too old from 2026-10-08; the head's PASS run was
-        # created 2026-10-15, a judgment made since.
-        old = pull(created_at="2026-07-20T00:00:00Z")
+        # The head's PASS run was created 2026-10-15, a judgment made since.
+        old = pull(created_at=self.AGED)
         self.assertIsNone(read(passing(), old).refusal)
 
     def test_a_pass_made_before_it_turned_too_old_does_not(self) -> None:
-        old = pull(created_at="2026-07-20T00:00:00Z")
+        old = pull(created_at=self.AGED)
         stale = passing(runs={1: judged(1, "2026-10-07T00:00:00Z")})
         self.assertEqual(read(stale, old).refusal, "verify:too-old")
 
+    def test_past_the_fail_retention_ceiling_no_pass_clears_it(self) -> None:
+        # Created 2026-07-19: 89 days at NOW, past 90 less 2, so its first
+        # FAILs may be gone and even a fresh PASS leaves it too old.
+        self.assertEqual(ve.FAIL_RETENTION_DAYS, 90)
+        old = pull(created_at="2026-07-19T00:00:00Z")
+        self.assertEqual(read(passing(), old).refusal, "verify:too-old")
+
     def test_a_fresh_pass_still_meets_the_other_rules(self) -> None:
         # The age is cleared; a FAIL at the head still refuses.
-        old = pull(created_at="2026-07-20T00:00:00Z")
+        old = pull(created_at=self.AGED)
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
         self.assertEqual(read(fake, old).refusal, "verify:fail")
 
