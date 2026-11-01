@@ -2,13 +2,9 @@
   "skill": "harness-memory:audit",
   "plugin": "harness-memory",
   "skill_dir": "plugins/harness-memory/skills/audit",
-  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-memory:stateless (status, disable and purge of auto memory only, where audit checks the whole instruction and memory layer against a docs-derived checklist), harness-config:audit-instructions (report-only hunt for stale, misstated or conflicting text, reaching skills, agents and hook text too), instruction-placement:audit (content on the wrong surface, such as conventions to demote to path-scoped rules), docs-hygiene:write-for-agents (writing or trimming agent-loaded markdown) and session-flow:handoff (a save-point for clear-and-resume). audit owns the checklist audit, fix, checklist update and report over CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules and auto memory.",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitor only: harness-memory:stateless (status, disable and purge of auto memory only, where audit checks the whole instruction and memory layer against a docs-derived checklist). audit owns the checklist audit, fix, checklist update and report over CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules and auto memory.",
   "competitors": [
-    "harness-memory:stateless",
-    "harness-config:audit-instructions",
-    "instruction-placement:audit",
-    "docs-hygiene:write-for-agents",
-    "session-flow:handoff"
+    "harness-memory:stateless"
   ],
   "queries": [
     {

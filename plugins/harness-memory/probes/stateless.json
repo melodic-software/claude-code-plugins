@@ -2,13 +2,9 @@
   "skill": "harness-memory:stateless",
   "plugin": "harness-memory",
   "skill_dir": "plugins/harness-memory/skills/stateless",
-  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are harness-memory:audit (checklist audit of CLAUDE.md, AGENTS.md, rules and auto memory, where stateless only inspects, disables or purges auto memory), harness-config:audit-instructions (stale, misstated or conflicting text in CLAUDE.md, AGENTS.md, rules, skills, agents and hooks), instruction-placement:audit (instruction content on the wrong surface), docs-hygiene:write-for-agents (writing or trimming agent-loaded markdown) and session-flow:handoff (a save-point for clear-and-resume). stateless owns the status, disable and purge of Claude Code's self-written per-repo auto memory.",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitor only: harness-memory:audit (checklist audit of CLAUDE.md, AGENTS.md, rules and auto memory, where stateless only inspects, disables or purges auto memory). stateless owns the status, disable and purge of Claude Code self-written per-repo auto memory.",
   "competitors": [
-    "harness-memory:audit",
-    "harness-config:audit-instructions",
-    "instruction-placement:audit",
-    "docs-hygiene:write-for-agents",
-    "session-flow:handoff"
+    "harness-memory:audit"
   ],
   "queries": [
     {
