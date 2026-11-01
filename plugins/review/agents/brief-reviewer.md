@@ -26,11 +26,9 @@ write.
 Do not edit files. Bash is for reading: git, search, and inspection commands only.
 
 **Model and effort pin.** This agent returns a judgment verdict, so it pins `model: opus` and
-`effort: high`, the model-config row the pointer below names. The `opus` pin reviews work on a
-model at least as capable as the one that produced it when that work came from an Opus-family
-or lower-tier session. Work from a session on a more capable family is reviewed one tier down,
-a trade-off this repository takes to keep judgment fan-out off the frontier tier (the fan-out
-guard in ADR 0045).
+`effort: high`, the model-config row the pointer below names. The `opus` pin is this repository's
+choice to keep judgment fan-out off the frontier tier (the fan-out guard in ADR 0045); which model
+it resolves to under a given session model is read live from the pointer below.
 
 - **Pointer:** the `high` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
