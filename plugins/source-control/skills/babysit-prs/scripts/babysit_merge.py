@@ -4839,7 +4839,7 @@ def unattended_enqueue(
     # Updating merges the base's canonical but not the copies the pull request
     # generated from its own, so the drift check fails until they are
     # regenerated: refused, with the fix named, instead of updated.
-    # No lane acts on the refusal, so it is escalated to a person.
+    # Escalated: pr-unblock's sync-shared-copies answers a lanes App PR's.
     if sources := inputs_read.get("regenerate"):
         reason = (
             f"shared-copy-sources-changed:{','.join(sources)} "

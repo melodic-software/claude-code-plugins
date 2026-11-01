@@ -1460,10 +1460,17 @@ the rules that only tighten in
   With the registry listed, a canonical the pull request carries (its canonical or a copy touched,
   or a copy newly registered) that the base changed is refused as `shared-copy-sources-changed:`
   instead of updated: an update leaves the copies the pull request generated from its own
-  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. No lane
-  acts on that refusal, so the wrapper escalates it: one `<!-- babysit-merge-shared-copy-escalation -->`
-  comment naming the canonicals, the head and the fix, then the human-gated role label, both
-  unchanged by a rerun at the same head; the `head-moved` clear removes the label once the head moves. Any
+  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. The wrapper
+  escalates it: one `<!-- babysit-merge-shared-copy-escalation -->` comment naming the canonicals,
+  the head and the fix, then the human-gated role label, both unchanged by a rerun at the same head;
+  the `head-moved` clear removes the label once the head moves. On a lanes App pull request,
+  pr-unblock's `sync-shared-copies` activity answers it with no model and no person: the dispatcher
+  sends one run per refused head, a base-code job merges the default branch tip and runs the base's
+  sync script, refusing a head that changes the script, its registry or `scripts/lib`
+  (`shared-copy-tooling-changed`) and any write the base-tip registry lists as no copy
+  (`shared-copy-path-unregistered`), and `apply-shared-copies` pushes one merge commit under
+  patch-rules.json's `shared-copies` row, which admits only registered copies. The new head moves
+  past the refusal, so the next pr-merge sweep clears the label. Any
   doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
   or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
   error) may have landed, so it holds the old head instead. Empty or absent updates nothing.

@@ -75,7 +75,7 @@ test("escalation-routes.json routes every reason the write runner accepts, each 
   assert.ok(accepted.length > 30, `read ${accepted.length} reasons from the enum`);
   assert.deepEqual([...new Set(accepted)].sort(), Object.keys(ROUTES).sort());
   for (const [reason, entry] of Object.entries(ROUTES)) {
-    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci"].includes(entry.activity), reason);
+    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci", "sync-shared-copies"].includes(entry.activity), reason);
     assert.ok(["hold", "fail"].includes(entry.route), reason);
     // Only a fail route names a label, the session-builder queue's.
     assert.ok(!Object.hasOwn(entry, "label") || (entry.route === "fail" && entry.label === "needs-session"), reason);
