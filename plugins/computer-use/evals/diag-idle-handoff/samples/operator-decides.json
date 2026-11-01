@@ -15,6 +15,18 @@
     {
       "answer": "Remediation is the operator's (it is a system setting; do not change it for them).",
       "why": "reference wording"
+    },
+    {
+      "answer": "Nothing was changed and no script file was written. The guidance here says power and screensaver settings are the machine owner's to change, even when the owner asks me.",
+      "why": "neutralized observed reply: the machine owner's to change"
+    },
+    {
+      "answer": "These settings are yours to change; the value to set is below.",
+      "why": "yours to change"
+    },
+    {
+      "answer": "Screensaver and power settings stay the computer owner’s to set.",
+      "why": "the computer owner’s to set, curly apostrophe"
     }
   ],
   "fail": [
@@ -29,6 +41,14 @@
     {
       "answer": "The screensaver is the cause; it fired after 300 seconds.",
       "why": "cause only"
+    },
+    {
+      "answer": "The screensaver is the owner's problem now.",
+      "why": "owner's, no hand-off of the change"
+    },
+    {
+      "answer": "The owner's screensaver was set to 300 seconds.",
+      "why": "owner's as a possessive only"
     }
   ]
 }
