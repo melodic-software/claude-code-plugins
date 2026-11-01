@@ -891,6 +891,13 @@ expect_both 'bare variable: "${X}"_old* allowed' 0 "${RDT_CWD[@]}" --command 'rm
 expect_both 'bare variable: "${X:?}/*" allowed' 0 --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "${X:?}/*" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "${X:?}/*"'
 expect_both 'bare variable: "$X/build" allowed with a cwd' 0 "${RDT_CWD[@]}" --command 'rm -rf "$X/build"'
+# #9770 decision: an operand that still holds an expansion after the bound
+# literal is left alone, not refused. These are the shapes that dominated the
+# measured would-be refusals; each names its target through a value the
+# command itself sets, inside a temp root or the working tree.
+expect_both 'partial expansion: mktemp value allowed' 0 "${RDT_CWD[@]}" --command 'd="$(mktemp -d)" && touch "$d/a" && rm -rf "${d:?}/a"'
+expect_both 'partial expansion: loop variable allowed' 0 "${RDT_CWD[@]}" --command 'for d in a b; do rm -rf "/tmp/rdt-pin/$d"; done'
+expect_both 'partial expansion: value set after another command allowed' 0 "${RDT_CWD[@]}" --command 'mkdir -p out && S=/tmp/rdt-pin; rm -rf "$S/x"'
 
 # A NUL byte in `cwd` or `scratchpad_dir` refuses only a recursive delete this
 # arm must judge; any other command is not affected. A NUL in the command itself

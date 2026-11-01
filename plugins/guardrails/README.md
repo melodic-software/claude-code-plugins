@@ -1586,8 +1586,14 @@ expanded and each match judged as a literal path, and a relative path after a cd
 not follow (a relative cd while CDPATH is set, a glob target with no match or several) is refused.
 The judgment is bounded (512 targets, 256 glob entries, 25 seconds of wall time) and refuses past a
 bound. A target it cannot place (an expansion other than HOME, a relative path after a non-literal
-cd) is left alone. With the same payload cwd, a protected tree is refused ahead of every root above,
-the working tree included: a `.git`, and a directory holding one, so a throwaway clone under temp
+cd) is left alone. That is a measured decision
+([#9770](https://github.com/melodic-software/claude-code-plugins/issues/9770)): refusing an operand
+that still holds an expansion (`rm -rf "$X/build"`) fired on 900 of 5,926 delete-shaped commands in
+one operator's recorded corpus, and in at least 145 of them the target, with the value the command
+assigned substituted, was inside an allowed root. A blocking check ships with zero false positives
+([ADR 0080](../../docs/adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)),
+so the guard does not refuse it. With the same payload cwd, a protected tree is refused ahead of
+every root above, the working tree included: a `.git`, and a directory holding one, so a throwaway clone under temp
 too; the git toplevel itself; every worktree root git has registered for that repository (the
 first 256, read from its `worktrees/*/gitdir` files); anything under `~/.claude`, so every delete
 in a working tree there; Claude Code's temp tree, `<temp>/claude-<uid>` (`%TEMP%\claude` on
