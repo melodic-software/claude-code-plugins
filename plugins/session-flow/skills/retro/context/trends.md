@@ -51,7 +51,7 @@ went wrong).
 ### 6. Delivery metrics
 
 When `/work-items:measure-delivery` is among the available skills, invoke it through the Skill tool
-with no arguments, which reads the default 84-day window in weekly buckets. Show its table and trend
+with no arguments, so it reads its default window and bucket. Show its table and trend
 lines under a `Delivery` heading, with the window, branch and deploy signal it reports and its
 note that the history runs up to the last fetch. They
 describe the team's delivery from the default branch's history, so keep them in their own table,
