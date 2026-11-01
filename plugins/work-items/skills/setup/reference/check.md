@@ -12,10 +12,27 @@ check.
    [`reference/tracker-seam.md`](../../../reference/tracker-seam.md)
    "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
-2. **Tracker provider binding**, resolve `BINDING` (above). Absent → INFO: the tracker seam is not
-   bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
-   to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
-   parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
+2. **Tracker provider binding**, resolve the convention home and `BINDING` (SKILL.md "Resolving the
+   paths"). A broken pointer (resolver exit `3`) is FAIL, naming the resolver's message. Where no home
+   applies (exit `4` or `5`) → INFO: the seam reads only the legacy JSON file there, and setup
+   writes no binding until the repository binds a convention home. Then branch on which files bind:
+   - **Neither** `BINDING` nor `LEGACY` → INFO: the tracker seam is not bound, so every seam verb
+     hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing to configure; the
+     remediation is `/work-items:setup apply`.
+   - **`LEGACY` only** (`.work-item-tracker.json` exists and `<home>/work-items.yaml` has no
+     `tracker` key) → INFO: the binding exists only in the legacy JSON file, which the seam still
+     reads with a notice; `/work-items:setup apply` copies it into `<home>/work-items.yaml` and
+     keeps the JSON file. Validate the JSON file as below.
+   - **`BINDING`, with `LEGACY` too** → INFO: the JSON file is kept for the readers that still read
+     only it (SKILL.md "Provider binding" step 1); name any `provider` or `config` value that
+     differs between the two. When a `.work-item-tracker.local.json` exists and
+     `<home>/work-items.local.yaml` has no `tracker` key, say the seam no longer reads that
+     personal overlay, since it reads the overlay beside the YAML binding; `apply` copies it.
+
+   Validate the binding that binds without mutating: `<home>/work-items.yaml` parses with
+   `awk -f <plugin-root>/skills/triage/scripts/yaml-subset.awk` and its `tracker` mapping carries no
+   key outside `schema_version`, `provider`, `config` and `docs`, or the legacy file parses as JSON.
+   It carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`) or a consumer-local one at
    `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
    A seeded provider (`jira`, `gitea`, `linear`) resolves only through that consumer-local copy: with
@@ -23,8 +40,10 @@ check.
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
-   The ignore rule is required whether or not the overlay file exists. A present overlay
-   (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted keys
+   The ignore rule for `OVERLAY` (`<home>/work-items.local.yaml`) is required whether or not the
+   overlay file exists. A present overlay must parse (the YAML file with the same parser, its
+   `tracker` mapping; a legacy `.work-item-tracker.local.json`, still read beside a legacy-only
+   binding, as JSON), carry only allowlisted keys
    (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
    Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
    [`reference/overlay-ignore-probes.md`](overlay-ignore-probes.md). A bare
@@ -64,7 +83,7 @@ check.
    skipped first-time bind's skeleton, INFO: the schedule carries no rows, so `due` / `recheck` /
    `work` have nothing to act on; `apply --seed-schedule` seeds it. (Report this only once the root
    shape validates, probe 3 establishes file presence alone and cannot tell empty from malformed.)
-5. **Tracked, not ignored**, a present schedule (and a present binding) must be committed to be
+5. **Tracked, not ignored**, a present schedule (and a present `<home>/work-items.yaml`) must be committed to be
    team-shared. Probe the pair per path: `git check-ignore -v` (match = FAIL with the pattern)
    AND `git ls-files --error-unmatch` (non-zero = FAIL: un-ignored but untracked; "commit it").
 6. **Recurring-maintenance role label**. Role-label resolution is an action-entry invariant per the

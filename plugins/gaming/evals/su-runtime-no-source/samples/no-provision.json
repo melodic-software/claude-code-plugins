@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb discover" } }], "why": "read-only discover" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'" } }], "why": "pwsh probe" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb provision -Runtime -DataDir 'G:\\OneDrive\\Documents\\Gaming\\dlss5'" } }], "why": "provision from check" }
+  ]
+}
