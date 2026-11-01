@@ -10,10 +10,19 @@ This file records only what an `audit-instructions` run does with it.
 ## Deriving the key
 
 Phase D's `persist-report.sh` command in `SKILL.md`, whose paths are already resolved there,
-derives the key and writes the report. `--plugin-data` carries the data directory because
-`${CLAUDE_PLUGIN_DATA}` is absent from the Bash tool's environment. Run that script rather than a
-`mkdir` of your own against the plugin data directory: the permission layer denies an inline
-command that names a path there, and the script's write is not denied. The key is
+derives the key and writes the report. The data directory travels as the `--plugin-data` argument,
+never through the environment. Persist only through that script: never run a `mkdir`, or any
+command of your own, against the plugin data directory.
+
+- **Pointer**: when deciding where `${CLAUDE_PLUGIN_DATA}` resolves, fetch
+  [plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live; for why an inline command against the data directory is avoided, read the eval-trace
+  evidence in #12039.
+- **As of**: 2026-11-01
+- **Recheck trigger**: that section changes which environments receive `${CLAUDE_PLUGIN_DATA}`, or
+  a later eval trace shows an inline command against the data directory running undenied.
+
+The key is
 `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh` that
 the script runs and `audit-prompting-postures` also uses. To read the prior report, run the
 `state-key.sh` command Phase D names and use its result.

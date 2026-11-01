@@ -28,7 +28,7 @@ one. The default verdict per posture is NOT-APPLICABLE, not MISSING.
 
 **Instruction-held, not tool-enforced. Never tell an operator this skill *cannot* edit their files.**
 `disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays in the tool
-set and Phase B has already read every audited component, so it can overwrite one; `Bash` stays for
+set for Phase D's report file and Phase B has already read every audited component, so it can overwrite one; `Bash` stays for
 Phase D's persist script, and a shell mutates files too. That closes the likeliest accidental path, not the
 capability, and a skill auditing assurance must not overstate its own. We treat the restriction as
 clearing on the human's next message, so whoever accepts a proposal can apply it (Pointer: when
@@ -161,19 +161,27 @@ unavailable, or the session cannot spawn subagents:
 
 Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
 
-**Persist by running this script**, which derives `<state-key>`, creates the directory and writes
-the file atomically, then prints the path it wrote:
+**Write the report with the Write tool first**, to a scratch file outside the plugin data directory
+and outside every audited component (a file under the session's temporary directory), so the
+report passes the Write tool's content guards like every other file this skill writes. **Then
+persist it by running this script** on that file; the script derives `<state-key>`, creates the
+directory and writes `last-audit.md` atomically, then prints the path it wrote:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/lib/persist-report.sh" \
-  --plugin-data "${CLAUDE_PLUGIN_DATA}" --component audit-prompting-postures --report -
+  --plugin-data "${CLAUDE_PLUGIN_DATA}" --component audit-prompting-postures --report <report-file>
 ```
 
-Pass the report body on stdin (`--report -`, from a quoted heredoc) or as a file path.
-`${CLAUDE_PLUGIN_DATA}` substitutes here in the skill text but is absent from the Bash tool's own
-environment, so it has to travel as that argument. **Do not run a standalone `mkdir`, or any
-command of your own, against the plugin data directory**: the permission layer denies an inline
-command that names a path there, and the script's write is not denied.
+`--report -` (the body on stdin) is the fallback for a session where the Write tool is unavailable,
+never the main route. Pass the data directory as the `--plugin-data` argument shown, never through
+the environment. **Persist only through this script: never run a standalone `mkdir`, or any command
+of your own, against the plugin data directory.** (Pointer: when deciding where `${CLAUDE_PLUGIN_DATA}`
+resolves, fetch
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+live; for why an inline command against the data directory is avoided, read the eval-trace
+evidence in #12039. As of: 2026-11-01. Recheck trigger: that section changes which environments
+receive `${CLAUDE_PLUGIN_DATA}`, or a later eval trace shows an inline command against the data
+directory running undenied.)
 
 `${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so a fixed `last-audit.md` is silently
 overwritten by the next run from any other root, this skill's only durable deliverable, destroyed by
