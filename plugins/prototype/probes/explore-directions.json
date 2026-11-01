@@ -2,17 +2,10 @@
   "skill": "prototype:explore-directions",
   "plugin": "prototype",
   "skill_dir": "plugins/prototype/skills/explore-directions",
-  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are prototype:pressure-test (a throwaway terminal app or HTML demo stepping business logic, state or a data model through awkward cases), user-interface:design (designing CLI output, TUIs, banners and app UI from the project's design system), visualization:visualize (choosing and rendering a diagram, chart or table for conversation content), playgrounds:use (the first-party interactive parameter explorer whose output is a prompt to paste back), user-experience:structure (user flows, information architecture, navigation and sitemaps), user-experience:evaluate (usability evaluation of an existing design, flow or app), user-interface:write-css (writing and reviewing CSS against the project's tokens), prototype:build-generator (a tunable throwaway generator for an artifact prompting cannot hit) and planning:brainstorm (diverging into candidate engineering or product approaches before scope is locked). explore-directions owns building a few structurally different throwaway layouts of one screen, switchable in place, to decide what it should look like.",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings prototype:pressure-test (a throwaway terminal app or HTML demo stepping business logic, state or a data model through awkward cases) and prototype:build-generator (a tunable throwaway generator for an artifact prompting cannot hit). explore-directions owns building a few structurally different throwaway layouts of one screen, switchable in place, to decide what it should look like.",
   "competitors": [
     "prototype:pressure-test",
-    "user-interface:design",
-    "visualization:visualize",
-    "playgrounds:use",
-    "user-experience:structure",
-    "user-experience:evaluate",
-    "user-interface:write-css",
-    "prototype:build-generator",
-    "planning:brainstorm"
+    "prototype:build-generator"
   ],
   "queries": [
     {

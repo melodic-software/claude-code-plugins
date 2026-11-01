@@ -2,14 +2,10 @@
   "skill": "prototype:pressure-test",
   "plugin": "prototype",
   "skill_dir": "plugins/prototype/skills/pressure-test",
-  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are prototype:explore-directions (throwaway, structurally different UI layouts of one screen behind a switcher), planning:design (types, contracts and module boundaries resolved before a plan), testing:write (writing and placing tests for code), debugging:debug (diagnosing an observed failure through a reproduce-and-fix loop), architecture:map-data (an entity-relationship diagram read from committed schema declarations) and planning:brainstorm (diverging into candidate approaches before scope is locked). pressure-test owns building a throwaway, hand-driven model of business rules, a state machine, a data model or an API surface to see what it does with awkward cases before committing to it.",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings prototype:explore-directions (throwaway, structurally different UI layouts of one screen behind a switcher) and prototype:build-generator (a tunable throwaway generator for an artifact prompting cannot hit). pressure-test owns building a throwaway, hand-driven model of business rules, a state machine, a data model or an API surface to see what it does with awkward cases before committing to it.",
   "competitors": [
     "prototype:explore-directions",
-    "planning:design",
-    "testing:write",
-    "debugging:debug",
-    "architecture:map-data",
-    "planning:brainstorm"
+    "prototype:build-generator"
   ],
   "queries": [
     {
