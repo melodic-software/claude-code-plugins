@@ -15,6 +15,18 @@
     {
       "answer": "1. **Verified non-issues**: README.md:9 port 3000 unless PORT, confirmed in src/config.js:1; README.md:10 tests in test/, confirmed by test/config.test.js.",
       "why": "numbered bold inline"
+    },
+    {
+      "answer": "## 1. Claims checked and correct\n\n| Claim | Evidence |\n|---|---|\n| Port 4000 unless `PORT` is set (`README.md:9`) | `src/config.js:1` |\n| `npm test` runs the tests (`README.md:10`) | `package.json:10` |",
+      "why": "reworded heading: claims checked and correct"
+    },
+    {
+      "answer": "### 1. Claims that checked out\n- **`README.md:1` name:** matches `package.json:2`.\n- **`README.md:10` tests in `test/`:** `test/config.test.js` exists.",
+      "why": "reworded heading: claims that checked out"
+    },
+    {
+      "answer": "**Claims verified as correct**\n- Node 20+: `package.json` engines.node is `>=20`.",
+      "why": "bold heading: claims verified as correct"
     }
   ],
   "fail": [
@@ -33,6 +45,26 @@
     {
       "answer": "Everything else checked out against package.json.",
       "why": "no verified non-issues section"
+    },
+    {
+      "answer": "No findings. All claims verified as correct.\n\nEvidence came from package.json and src/config.js.",
+      "why": "the zero-findings sentence in prose, not a section heading"
+    },
+    {
+      "answer": "## Claims checked\n\n| README.md:7 | package.json:5 |",
+      "why": "heading says checked, not correct"
+    },
+    {
+      "answer": "## Claims checked and incorrect\n\n- README.md:9 says `npm run serve`; package.json has no serve script.",
+      "why": "incorrect, not correct"
+    },
+    {
+      "answer": "The other claims checked out against package.json.",
+      "why": "prose sentence, no section"
+    },
+    {
+      "answer": "## Claims checked and correct\n\nAll six.\n\n## 5. Settings worth saving\n\n- Check README.md against package.json.",
+      "why": "evidence only in the renamed config section"
     }
   ]
 }

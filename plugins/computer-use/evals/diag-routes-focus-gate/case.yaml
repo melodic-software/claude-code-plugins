@@ -5,7 +5,7 @@ graders:
     type: tool_used
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:computer-use:)?diagnose"'
-    arm: 'both'
+    arm: 'with-only'
   - name: nothing-sent-wrong-app
     type: regex
     pattern: '\bnothing (?:was |got )?(?:typed|sent|clicked|delivered|went|reached)\b|\bbefore anything (?:was|got) (?:sent|typed|delivered)\b|\b(?:no|none of the) (?:input|keystrokes?|clicks?|text|typing)\b[^\n.]{0,40}\b(?:reached|went|landed|sent|typed|delivered|got)\b|\b(?:didn''t|did not|never) (?:type|typed|send|sent|click|clicked|land|landed|go|went|reach|reached|get|got)\b[^\n.]{0,40}\b(?:wrong|Lumen|RGB|other)\b|\bgate (?:did its job|worked|is working|blocked|refused|stopped|caught)\b|\bworking as (?:intended|designed)\b|\b(?:safety|focus|allowlist) (?:gate|check) (?:doing|did) its job\b'

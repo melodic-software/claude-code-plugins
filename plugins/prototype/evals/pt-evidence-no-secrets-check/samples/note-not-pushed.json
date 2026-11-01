@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Loan renewal\n\nA renewal of a copy someone else reserved is refused, and the reservation stands.\n\nEvidence: src/loans/renewal.prototype.py, src/loans/loans_proto_tui.py\nnot pushed: no secrets check in this repository\n",
+      "why": "local path and a not-pushed reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# Loan renewal\n\nA renewal of a reserved copy is refused.\n\nEvidence: branch prototype/loan-renewal at 3f9c2ab\n",
+      "why": "claims a pushed branch, no not-pushed reason"
+    }
+  ]
+}

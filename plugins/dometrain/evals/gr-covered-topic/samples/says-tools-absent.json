@@ -27,6 +27,18 @@
     {
       "answer": "I can't search Dometrain right now, so treat this as ungrounded.",
       "why": "can't search"
+    },
+    {
+      "answer": "There's no `dometrain` MCP server set up in this session, so this answer comes from general knowledge. Run `/dometrain:setup` to connect it.",
+      "why": "neutralized observed reply: backticked dometrain, server"
+    },
+    {
+      "answer": "There are no `dometrain` MCP tools in this session.",
+      "why": "neutralized observed reply: backticked dometrain, tools"
+    },
+    {
+      "answer": "Without the `dometrain` server I can't cite a lesson.",
+      "why": "without, backticked"
     }
   ],
   "fail": [
@@ -53,6 +65,14 @@
     {
       "answer": "I don't need Dometrain for this one.",
       "why": "declines the source without saying it is absent"
+    },
+    {
+      "answer": "The `dometrain` MCP server answered with three lessons.",
+      "why": "backticked server that is present"
+    },
+    {
+      "answer": "No `dometrain` lesson covers refresh-token rotation.",
+      "why": "no lesson, not no tools"
     }
   ]
 }

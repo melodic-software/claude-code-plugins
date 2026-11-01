@@ -1227,6 +1227,30 @@ test("pr-run-activity-read.yml: issue-prior's stale branch reaches write-issue, 
   assert.equal(JSON.parse(readFileSync(join(out, "lane.json"), "utf8")).stale, "work-resolve-issue/issue-7-1-1");
 });
 
+// ADR 0087: lane.json names the secret the leg ran on (run-claude-cli's
+// credential, a NAME) and the closed fallback reason, each left out when empty.
+test("pr-run-activity-read.yml: the issue outcome's lane.json names the credential and fallback reason", () => {
+  const collect = workflow("pr-run-activity-read.yml").jobs.run.steps.find((step) => step.name === "Collect the issue outcome");
+  const legs = { "steps.act-key.outputs.credential": "", "steps.act-token.outputs.credential": "", "steps.act-fallback.outputs.credential": "" };
+  assert.equal(evaluate(collect.env.LANE_CREDENTIAL, { ...legs, "steps.act-token.outputs.credential": "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN" }), "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN");
+  assert.equal(evaluate(collect.env.LANE_CREDENTIAL, legs), "");
+  for (const [fallback, reason] of [["credit-stop", "credit-stop"], ["no-key", "no-key"], ["handoff", ""], ["fallback", ""], ["", ""]]) {
+    assert.equal(evaluate(collect.env.LANE_FALLBACK, { "inputs.fallback": fallback }), reason, fallback);
+  }
+  const lane = (env) => {
+    const out = tempDir("lane-json-");
+    const ran = spawnSync("bash", ["-c", collect.run], { encoding: "utf8", env: { ...process.env, OUT_DIR: out, SCRATCH_OUTCOME: join(out, "absent"), ...env } });
+    assert.equal(ran.status, 0, ran.stderr);
+    return JSON.parse(readFileSync(join(out, "lane.json"), "utf8"));
+  };
+  const named = lane({ LANE_CREDENTIAL: "ISSUE_LANE_CLAUDE_API_KEY", LANE_FALLBACK: "credit-stop" });
+  assert.equal(named.credential, "ISSUE_LANE_CLAUDE_API_KEY");
+  assert.equal(named.fallback, "credit-stop");
+  const none = lane({ LANE_CREDENTIAL: "", LANE_FALLBACK: "" });
+  assert.equal(Object.hasOwn(none, "credential"), false);
+  assert.equal(Object.hasOwn(none, "fallback"), false);
+});
+
 // The issue lane's model jobs hold no write token. resolve-issue and its
 // subscription call run on the read runner, whose run job (the one that runs
 // the model) gets only the job's read-only GITHUB_TOKEN; the App token is
@@ -5278,6 +5302,7 @@ test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a r
     gate["run-dispatcher-upstreams"],
     "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
   );
+  assert.equal(gate["run-dispatcher-relay"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}");
   const assertStep = steps.find((step) => step.name === "Assert a feedback context goes with review-threads");
   const config = steps.findIndex((step) => step.id === "config");
   assert.ok(steps.indexOf(assertStep) > config);
@@ -5429,9 +5454,9 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   for (const input of ["dispatcher-run-id", "dispatcher-workflow", "dispatched-workflow"]) {
     assert.equal(read[input], write[input], input);
   }
-  // The feedback dispatcher's two inputs are the write runner's, passed only
+  // The feedback dispatcher's three inputs are the write runner's, passed only
   // for a review-threads call (the next test).
-  for (const input of ["run-dispatcher-workflow", "run-dispatcher-upstreams"]) {
+  for (const input of ["run-dispatcher-workflow", "run-dispatcher-upstreams", "run-dispatcher-relay"]) {
     const value = String(write[input]).trim().split(/\s+/).join(" ");
     assert.equal(read[input], `\${{ inputs.feedback-context-sha256 != '' && '${value}' || '' }}`, input);
   }

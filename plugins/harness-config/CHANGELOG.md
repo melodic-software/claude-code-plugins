@@ -5,6 +5,16 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.6] - 2026-11-01
+
+### Changed
+
+- The audit skill body drops flavor and repeated clauses; every rule, default, example and gate is unchanged, and its description did not change.
+
+### Fixed
+
+- `audit-prompting-postures` and `audit-instructions` now persist `last-audit.md` through the new `lib/persist-report.sh`, which derives the state key, creates the keyed directory and writes the file atomically. The skills no longer leave an inline `mkdir` on the plugin data directory to the model, which the permission layer denied, leaving eval runs INVALID.
+
 ## [2.4.5] - 2026-11-01
 
 ### Changed

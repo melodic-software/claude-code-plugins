@@ -7,6 +7,22 @@
     {
       "answer": "Right now there is no way to construct a repro for this.",
       "why": "no way to construct a repro"
+    },
+    {
+      "answer": "I couldn't build a reproduction loop, so I haven't guessed at causes. To get one I need a HAR file, permission for short-lived production instrumentation, or access to an environment where it happens.",
+      "why": "couldn't build"
+    },
+    {
+      "answer": "I could not get a reliable repro from a report that says only 'sometimes laggy'.",
+      "why": "could not get a reliable repro"
+    },
+    {
+      "answer": "We can’t build a feedback loop yet: there are no logs and no capture.",
+      "why": "curly can’t"
+    },
+    {
+      "answer": "I couldn’t construct any repro without access to an affected machine.",
+      "why": "curly couldn’t construct any repro"
     }
   ],
   "fail": [
@@ -21,6 +37,18 @@
     {
       "answer": "Here is a summary of the release notes for version 2.3.",
       "why": "answer to a different question"
+    },
+    {
+      "answer": "I couldn't build the Docker image, so the app won't start locally.",
+      "why": "couldn't build something other than a loop"
+    },
+    {
+      "answer": "I could build a reproduction loop once we have a HAR file.",
+      "why": "could, not negated"
+    },
+    {
+      "answer": "Couldn't you build a loop from the HAR file the support team saved?",
+      "why": "question to the user, not a statement that no loop exists"
     }
   ]
 }
