@@ -104,7 +104,8 @@ it, so the untriaged-material clause applies there too.
   (moving into pending), or one of several pending checks completing while siblings are still
   pending, is not actionable and is excluded, so a normal multi-check CI run does not dispatch a
   string of "still waiting" workers. It re-fires a worker the moment CI as a whole finishes or a
-  real regression appears, never on an intermediate poll. Its regression case (a new failing
+  real regression appears, without re-firing on every intermediate poll while CI is still running.
+  Its regression case (a new failing
   check) never coincides with `pr_clean_ready_for_direct_gate` (a failing check keeps `blockers`
   non-empty); only its "just settled clean" case is ever suppressed.
 - **`merge_state_became_actionable`** (suppressible): `mergeStateStatus` moved *into*
