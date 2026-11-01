@@ -523,17 +523,8 @@ jobs:
           echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
           echo "run-id=$id" >>"$GITHUB_OUTPUT"
 
-      - name: Scan the upload for credentials
-        id: scan-upload-2
-        if: >-
-          steps.dispatch.outputs.run-id != ''
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/dispatched.json
-
       - name: Record the dispatched run
-        if: >-
-          (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
+        if: steps.dispatch.outputs.run-id != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
@@ -639,17 +630,8 @@ jobs:
           echo "{\"rerunner_run_id\":$GITHUB_RUN_ID,\"run_id\":$RUN_ID,\"attempt\":2}" >"$RUNNER_TEMP/rerun.json"
           echo "recorded=true" >>"$GITHUB_OUTPUT"
 
-      - name: Scan the upload for credentials
-        id: scan-upload-3
-        if: >-
-          !cancelled() && steps.rerun.outputs.recorded == 'true'
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/rerun.json
-
       - name: Record the re-run
-        if: >-
-          (!cancelled() && steps.rerun.outputs.recorded == 'true') && steps.scan-upload-3.outputs.clean == 'true'
+        if: "!cancelled() && steps.rerun.outputs.recorded == 'true'"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
@@ -784,17 +766,8 @@ jobs:
             exit 0
           done <<<"$runs"
 
-      - name: Scan the upload for credentials
-        id: scan-upload-4
-        if: >-
-          !cancelled() && steps.alert.outputs.run-id != ''
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/alerted.json
-
       - name: Record the alert sent
-        if: >-
-          (!cancelled() && steps.alert.outputs.run-id != '') && steps.scan-upload-4.outputs.clean == 'true'
+        if: "!cancelled() && steps.alert.outputs.run-id != ''"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
@@ -2622,8 +2595,6 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/log-api-budget/
-            /.github/actions/scan-upload/
-            /lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
 
       # At most one full run of main per CAP_MINUTES, each of main's tip,
@@ -2798,17 +2769,8 @@ jobs:
       # The post-merge check counts a full run started by github-actions[bot]
       # only when a pr-merge.yml run on main uploaded an artifact naming it.
       # Only this run's own steps can upload this run's artifacts.
-      - name: Scan the upload for credentials
-        id: scan-upload
-        if: >-
-          steps.dispatch.outputs.run-id != ''
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/dispatched.json
-
       - name: Record the dispatched run
-        if: >-
-          (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
+        if: steps.dispatch.outputs.run-id != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}

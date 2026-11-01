@@ -44,8 +44,8 @@
         "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _lane_reruns reads records of runs created within confirm-wait-minutes plus FULL_RUN_ALLOWANCE",
         ".github/scripts/pr-merge/lane-records.mjs carries the records the post-merge check proved, each only until its artifact's expires_at, so the carry adds no lifetime"
       ],
-      "reason": "The look-back is merged_since, the later of the enabling commit and the newest demotion clear, with no bound in days. It stops at the post-merge check's 1000-run listing cap (babysit_gh.py RUN_SEARCH_CAP): past that the check is unreadable and holds the lane whatever this row says. At the 48 and 57 dispatch runs in the two days to 2026-10-31T05:00Z, after the 30-minute cap and its bypass landed, that is about 19 days, and demotion clears had come at most 4.8 days apart; 30 days leaves about 11 more for a stopped check, whose runs then accumulate only at the human merge rate. This holds while the listing reaches 1000 runs, or a clear moves the floor, within 30 days: at least 34 runs a day. A record that has left the listing never verifies a merge: its run stops counting as the lane's, so the merge holds as an unlisted record until a later recorded run covers it, and a flaked or in-between red run can read red and demote.",
-      "scan": "upload"
+      "reason": "The look-back is merged_since, the later of the enabling commit and the newest demotion clear, with no bound in days. It stops at the post-merge check's 1000-run listing cap (babysit_gh.py RUN_SEARCH_CAP): past that the check is unreadable and holds the lane whatever this row says. At the 48 and 57 dispatch runs in the two days to 2026-10-31T05:00Z, after the 30-minute cap and its bypass landed, that is about 19 days, and demotion clears had come at most 4.8 days apart; 30 days leaves about 11 more for a stopped check, whose runs then accumulate only at the human merge rate. This holds while the listing reaches 1000 runs, or a clear moves the floor, within 30 days: at least 34 runs a day. A record that has left the listing never verifies a merge: its run stops counting as the lane's, so the merge holds as an unlisted record until a later recorded run covers it, and a flaked or in-between red run can read red and demote. It holds only workflow-written integers, so it is not scanned.",
+      "scan": "none"
     },
     "pr-merge-rerun-*": {
       "retention-days": "max",
@@ -54,16 +54,16 @@
         ".github/scripts/pr-merge/lane-records.mjs keeps the records the post-merge check proved"
       ],
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-      "reason": "The post-merge check reads the lane's re-run record back to merged_since, only while the run's pr-merge-dispatched record exists; keep this at or above that family's days.",
-      "scan": "upload"
+      "reason": "The post-merge check reads the lane's re-run record back to merged_since, only while the run's pr-merge-dispatched record exists; keep this at or above that family's days. It holds only workflow-written integers, so it is not scanned.",
+      "scan": "none"
     },
     "pr-merge-alerted-*": {
       "retention-days": 1,
       "readers": [
         "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_ALERT_ARTIFACT (`--lane-alerted`), asked by .github/workflows/pr-merge.yml post-merge-dispatch only for full runs created within LOOKBACK_HOURS (6)"
       ],
-      "reason": "Read back only for full runs created in the last 6 hours (pr-merge.yml LOOKBACK_HOURS), and each record is uploaded after its run was created; 1 day, the minimum, outlasts that window.",
-      "scan": "upload"
+      "reason": "Read back only for full runs created in the last 6 hours (pr-merge.yml LOOKBACK_HOURS), and each record is uploaded after its run was created; 1 day, the minimum, outlasts that window. It holds only workflow-written integers, so it is not scanned.",
+      "scan": "none"
     },
     "pr-merge-post-merge-report": {
       "retention-days": 1,
