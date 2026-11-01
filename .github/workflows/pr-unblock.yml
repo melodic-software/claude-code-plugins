@@ -16,10 +16,11 @@ name: pr-unblock
 # PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
 # job keeps the threads, a read model job answers them, and script jobs push
 # its patch and post its replies.
-# After a pr-verify pass at a PR's head that left fail-note threads of earlier
-# heads open, it sends one with verify-pass-head: a pass-only round, where the
-# base job lists those threads, no model job runs, and the reply job resolves
-# them as the lanes App, posting nothing and counting no round.
+# After a pr-verify pass at a PR's head that left fail-note threads open, it
+# sends one with verify-pass-head: a pass-only round, where the base job lists
+# those of earlier heads, and those at the head when verify-superseded-head
+# names it, no model job runs, and the reply job resolves them as the lanes
+# App, posting nothing and counting no round.
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
@@ -61,6 +62,11 @@ on:
         default: ""
       verify-pass-head:
         description: address-feedback from pr-feedback-dispatch.yml only; the head a pr-verify pass judged, for a pass-only round.
+        required: false
+        type: string
+        default: ""
+      verify-superseded-head:
+        description: With verify-pass-head only; that head, when the merge gate's reader found the FAIL there superseded, so the round resolves its notes too.
         required: false
         type: string
         default: ""
@@ -1235,6 +1241,7 @@ jobs:
           # A pass-only round (address-feedback.mjs select), sent only by a
           # dispatcher run, which the reply job's gate checks.
           VERIFY_PASS_HEAD: ${{ inputs.verify-pass-head }}
+          VERIFY_SUPERSEDED_HEAD: ${{ inputs.verify-superseded-head }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: |
           mkdir -p "$FEEDBACK_DIR"

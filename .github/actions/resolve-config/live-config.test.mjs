@@ -484,8 +484,8 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
   assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
-// Code a verify-script runs can read the lane's token from any same-user
-// process's /proc/<pid>/environ, so no listed script runs checkout code.
+// resolve-issue lists no script that runs checkout code; the PR's own CI runs
+// the tests.
 const RUNS_CHECKOUT_CODE = [
   "scripts/run-test-file.sh",
   "plugins/skill-quality/scripts/check-skill.sh",

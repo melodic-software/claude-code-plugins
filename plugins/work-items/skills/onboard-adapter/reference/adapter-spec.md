@@ -29,7 +29,8 @@ A self-hosted, forge-shaped provider with no lease support:
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
-    "set-fields": false, "get-field-options": false, "change-link": true, "capabilities": true
+    "set-fields": false, "get-field-options": false, "change-link": true,
+    "add-recurrence": false, "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
@@ -76,7 +77,11 @@ different contract revision, and guessing produces a manifest that lies.
 
 `create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`,
 `add-sub-item`, `list-items`, `list-sub-items`, `label-provenance`, `set-fields`, `get-field-options`, `change-link`,
-`capabilities`.
+`add-recurrence`, `capabilities`.
+
+`add-recurrence` records a signal's source link and a note on an item, and writes nothing when
+the item already records that link (`CONTRACT.md` "Verbs"). Declare it `false` unless the
+adapter can read back what it wrote before writing again.
 
 `set-fields` sets single-select issue fields by option id (`CONTRACT.md` "Verbs"). Declare it
 `false` unless the provider has such fields and the adapter refuses an option id that is not one
