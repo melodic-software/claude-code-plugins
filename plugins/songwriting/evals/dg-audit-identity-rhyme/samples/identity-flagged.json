@@ -50,6 +50,14 @@
     {
       "answer": "Run an identity check before you lock it.",
       "why": "names the check without a verdict"
+    },
+    {
+      "answer": "Identity check: pass, delight isn't an identity of light because of the de- prefix.",
+      "why": "denies the identity"
+    },
+    {
+      "answer": "light / delight is a perfect rhyme, not an identity.",
+      "why": "calls the identity a perfect rhyme"
     }
   ]
 }

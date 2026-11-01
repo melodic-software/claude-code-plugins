@@ -34,6 +34,14 @@
     {
       "answer": "You have no voiceprint yet. Register: too formal, delight sounds Victorian.",
       "why": "mentions the voiceprint without skipping the gate"
+    },
+    {
+      "answer": "No voiceprint on file, so going by the genre: \"delight\" reads too formal for this register.",
+      "why": "names the missing voiceprint, then rules by genre"
+    },
+    {
+      "answer": "Register: I won't skip this one, \"delight\" is too formal.",
+      "why": "refuses to skip the gate"
     }
   ]
 }

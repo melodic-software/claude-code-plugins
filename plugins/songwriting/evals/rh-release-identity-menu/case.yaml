@@ -3,7 +3,7 @@ name: rh-release-identity-menu
 graders:
   - name: identity-flagged
     type: regex
-    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re|an)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
+    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
     flags: 'i'
     target: last_message
   - name: eight-plus-candidates

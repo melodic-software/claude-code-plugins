@@ -3,7 +3,7 @@ name: dg-audit-identity-rhyme
 graders:
   - name: identity-flagged
     type: regex
-    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re|an)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
+    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
     flags: 'i'
     target: last_message
   - name: box-verdicts
@@ -13,6 +13,6 @@ graders:
     target: last_message
   - name: register-gate-skipped
     type: regex
-    pattern: '\bvoiceprint\b[^\n]{0,80}?\b(?:skip(?:s|ped)?|(?:can[''’]t|cannot|won[''’]t) (?:judge|rule on|check))\b|\bregister\b[^\n]{0,80}?\bskip(?:s|ped)?\b|\bskip(?:s|ped)?\b[^\n]{0,80}?\bregister\b'
+    pattern: '\bvoiceprint\b[^\n]{0,80}?(?:(?<!n[''’]t )(?<!not )\bskip(?:s|ped)?|\b(?:can[''’]t|cannot|won[''’]t) (?:judge|rule on|check))\b|\bregister\b[^\n]{0,80}?(?<!n[''’]t )(?<!not )\bskip(?:s|ped)?\b|(?<!n[''’]t )(?<!not )\bskip(?:s|ped)?\b[^\n]{0,80}?\bregister\b'
     flags: 'i'
     target: last_message

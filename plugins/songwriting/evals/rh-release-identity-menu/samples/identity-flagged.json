@@ -38,6 +38,10 @@
     {
       "answer": "Both are perfect rhymes for release. Pick by meaning.",
       "why": "calls the identities perfect rhymes"
+    },
+    {
+      "answer": "Identity check: pass, police isn't an identity of release.",
+      "why": "denies the identity"
     }
   ]
 }
