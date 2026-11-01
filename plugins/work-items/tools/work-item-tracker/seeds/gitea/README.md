@@ -12,8 +12,8 @@ skewing silently as the plugin evolves.
 
 ## Binding
 
-The seam reads one tracked `.work-item-tracker.json` at the repo root. This adapter's
-subtree:
+The seam reads one tracked binding, the `tracker` key of `<home>/work-items.yaml`. This
+adapter's subtree, in the JSON form the adapter reads:
 
 ```json
 {

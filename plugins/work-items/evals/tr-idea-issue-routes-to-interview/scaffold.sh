@@ -10,15 +10,20 @@ git config user.email eval@example.invalid
 
 printf '.work/\n' >.gitignore
 printf '# ledger\n\nLedger service.\n' >README.md
-mkdir -p .work-items src
+mkdir -p .work-items src docs/conventions
 cat >src/export.js <<'JS'
 export function exportCsv(rows) {
   return rows.map((row) => row.join(",")).join("\n");
 }
 JS
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
+cat >docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+YAML
 cat >.work-items/1.md <<'MD'
 ---
 id: "local-markdown:local/markdown#1"
@@ -35,5 +40,5 @@ created_at: "2026-10-01T08:00:00Z"
 
 We should add a plugin system to the ledger.
 MD
-git add .gitignore README.md src .work-item-tracker.json .work-items
+git add .gitignore README.md src docs .work-items
 git commit -q -m "chore: scaffold ledger"

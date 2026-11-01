@@ -50,9 +50,9 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/w/.work-item-tracker.json",
-            "old_string": "\"\"",
-            "new_string": "\"agent-ready\""
+            "file_path": "/w/docs/conventions/work-items.yaml",
+            "old_string": "autonomous-eligible: \"\"",
+            "new_string": "autonomous-eligible: agent-ready"
           }
         }
       ],

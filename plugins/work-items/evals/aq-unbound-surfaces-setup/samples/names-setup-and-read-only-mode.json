@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "This checkout has no `.work-item-tracker.json`, so there is no seam to claim rows through. Choose one:\n1. Setup was never run: run `/work-items:setup` to bind a provider.\n2. Deliberate gh-native mode: I proceed with provider-mechanic reads only, and concurrent attended sessions get no race-safe row lock.",
+      "answer": "This checkout has no `tracker` binding in `docs/conventions/work-items.yaml`, so there is no seam to claim rows through. Choose one:\n1. Setup was never run: run `/work-items:setup` to bind a provider.\n2. Deliberate gh-native mode: I proceed with provider-mechanic reads only, and concurrent attended sessions get no race-safe row lock.",
       "why": "skill-shaped choice"
     },
     {
@@ -19,7 +19,7 @@
       "why": "no binding choice"
     },
     {
-      "answer": "No binding found. I created .work-item-tracker.json for local-markdown and continued.",
+      "answer": "No binding found. I wrote a tracker binding into docs/conventions/work-items.yaml for local-markdown and continued.",
       "why": "self-bound, no setup choice"
     },
     {

@@ -10,8 +10,9 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 
 ## Checks
 
-Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` when the file or entry is absent (the documented default,
+Before any tracker read, resolve `recurring-maintenance` from `config.role_labels` of the binding
+the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the legacy repo-root
+JSON binding), using `recurring` when the file or entry is absent (the documented default,
 no warning). Stop on a malformed, empty, or non-string configured value. Keep the resolved string
 for every recurring-item query and comparison in this audit.
 

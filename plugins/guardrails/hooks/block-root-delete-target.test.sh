@@ -3832,26 +3832,36 @@ bash "$HOOK" <<<'{"tool_name":"Bash","tool_input":{}}' >/dev/null 2>&1 || rc=$?
 assert_exit "payload with no command is a skip" 0 "$rc"
 
 # `X=build && rm -rf "$X"` deletes `build`, so it is judged as `build`, but
-# only when the command opens with `NAME=LITERAL SEP` and nothing after it can
-# change NAME.
+# only when the assignment is a statement that runs before every use and
+# nothing after it can change NAME.
 expect_both 'X=build && rm -rf "$X" allowed' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf "$X"'
 expect_both 'X=build; rm -rf "$X/" allowed' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf "$X/"'
 expect_both "X='build' && rm -rf \"\$X/out\" allowed" 0 "${RDT_CWD[@]}" --command "X='build' && rm -rf \"\$X/out\""
 expect_both 'a literal on its own line, then the delete, allowed' 0 "${RDT_CWD[@]}" \
   --command $'X=build\nrm -rf "$X"'
-# An unquoted operand binds nothing: an inherited IFS can split `$X` into
-# other words, so only the double-quoted forms take the literal.
-expect_both 'X=build && rm -rf $X blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X'
-expect_both 'X=build; rm -rf $X/ blocks (unquoted)' 2 "${RDT_CWD[@]}" --command 'X=build; rm -rf $X/'
-expect_both 'X=build && rm -rf "$X"/ blocks (suffix outside the quotes)' 2 "${RDT_CWD[@]}" \
-  --command 'X=build && rm -rf "$X"/'
-expect "attended: an unquoted operand asks" 0 "${RDT_CWD[@]}" \
+# Unquoted and braced uses take the literal too (#7413).
+expect_both 'X=build && rm -rf $X allowed (unquoted)' 0 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X'
+expect_both 'X=build; rm -rf $X/ allowed (unquoted)' 0 "${RDT_CWD[@]}" --command 'X=build; rm -rf $X/'
+expect_both 'X="build" && rm -rf "${X}" allowed (braced)' 0 "${RDT_CWD[@]}" \
+  --command 'X="build" && rm -rf "${X}"'
+expect_both 'X=build; rm -rf ${X}/out allowed (braced, unquoted)' 0 "${RDT_CWD[@]}" \
+  --command 'X=build; rm -rf ${X}/out'
+# An unbound `$S/x` or `${X}x` is not a bare variable and is allowed with or
+# without a binding, so the rows that decide whether NAME binds delete the bare
+# `$S` or `${S}`: bound, it is the literal; unbound, it blocks.
+expect_both 'X=build; rm -rf ${X} allowed (braced, unquoted, bare)' 0 "${RDT_CWD[@]}" \
+  --command 'X=build; rm -rf ${X}'
+expect_both 'a scratch literal, unquoted through mkdir and rm, allowed' 0 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; mkdir -p $S/run; rm -rf $S'
+expect "attended: an unquoted operand is allowed, not asked" 0 "${RDT_CWD[@]}" \
   --command 'X=build && rm -rf $X' -- CLAUDE_CODE_SESSION_ATTENDED=1
-assert_eq "attended: an unquoted operand's decision is ask" ask \
+assert_eq "attended: an unquoted operand carries no decision" "" \
   "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
 # Outside that shape nothing binds, and the variable blocks as a bare variable.
-expect_both 'X="build" && rm -rf "${X}" blocks (a braced expansion)' 2 "${RDT_CWD[@]}" \
-  --command 'X="build" && rm -rf "${X}"'
+expect_both 'X=build && rm -rf "$X"/ blocks (suffix outside the quotes)' 2 "${RDT_CWD[@]}" \
+  --command 'X=build && rm -rf "$X"/'
+expect_both 'X=build && rm -rf ${X}x $X blocks (a longer word)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf ${X}x $X'
+expect_both 'X=build && rm -rf ${X:-/} blocks (an operator)' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf ${X:-/}'
 expect_both 'two literals, then rm -rf "$A" "$B" blocks' 2 "${RDT_CWD[@]}" \
   --command "A=build B='dist' && rm -rf \"\$A\" \"\$B/x\""
 expect_both 'readonly, then the literal, blocks' 2 "${RDT_CWD[@]}" --command 'readonly X=/etc; X=build; rm -rf "$X"'
@@ -3861,7 +3871,8 @@ expect_both 'a second delete of the bound variable allowed (#9779)' 0 "${RDT_CWD
   --command 'X=build && rm -rf "$X" && rm -rf "$X"'
 expect_both 'a glob after the variable blocks' 2 "${RDT_CWD[@]}" --command 'X=build && rm -rf $X*'
 expect_both 'a comment after the delete allowed (#9779)' 0 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # c'
-expect_both 'a comment naming $X unquoted blocks' 2 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # $X'
+expect_both 'a comment naming $X unquoted allowed' 0 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # $X'
+expect_both 'a comment naming $X inside a longer word blocks' 2 "${RDT_CWD[@]}" --command 'X=build &&rm -rf "$X" # a$X'
 expect_both 'a line continuation before the separator blocks' 2 "${RDT_CWD[@]}" \
   --command $'X=build\\\n&& rm -rf "$X"'
 expect_both 'a group around the literal blocks' 2 "${RDT_CWD[@]}" --command '{ X=build; } && rm -rf "$X"'
@@ -3897,8 +3908,17 @@ expect_both 'a literal outside the tree, several statements before, blocks' 2 "$
   --command 'S=/etc; ls "$S"; rm -rf "$S"'
 expect_both 'a later reassignment to a root blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; mkdir -p "$S"; S=/; rm -rf "$S"'
-expect_both 'an unquoted use of the name elsewhere blocks' 2 "${RDT_CWD[@]}" \
+expect_both 'an unquoted use of the name elsewhere allowed (#7413)' 0 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; echo $S; rm -rf "$S"'
+expect_both 'a substituted value blocks' 2 "${RDT_CWD[@]}" --command 'S=$(pwd); rm -rf $S'
+expect_both 'a copy of the bound name blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; T=$S; rm -rf $T'
+expect_both 'a later reassignment from an expansion blocks' 2 "${RDT_CWD[@]}" \
+  --command 'S=/tmp/rdt-scratch; S=$HOME; rm -rf $S'
+expect_both 'an unassigned unquoted name after a statement blocks' 2 "${RDT_CWD[@]}" \
+  --command 'true; rm -rf ${S}'
+expect_both 'an IFS assignment before the literal blocks' 2 "${RDT_CWD[@]}" \
+  --command 'IFS=/; S=/tmp/rdt-scratch; rm -rf $S'
 expect_both 'the name inside a longer quoted word blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; echo "at $S"; rm -rf "$S"'
 expect_both 'arithmetic on the name blocks' 2 "${RDT_CWD[@]}" \
@@ -3920,8 +3940,30 @@ expect_both 'a zsh zparseopts on the name blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; zparseopts -A S x:; rm -rf "$S"'
 expect_both 'a ${NAME:=} default blocks' 2 "${RDT_CWD[@]}" \
   --command 'S=/tmp/rdt-scratch; unused="${S:=/}"; rm -rf "$S"'
-expect_both 'an assignment after another statement blocks' 2 "${RDT_CWD[@]}" \
+# #7413: an assignment after plain statements joined by `;` or newline binds,
+# since nothing before it can skip it.
+expect_both 'an assignment after another statement allowed' 0 "${RDT_CWD[@]}" \
   --command 'mkdir -p /tmp/rdt-scratch; S=/tmp/rdt-scratch; rm -rf "$S"'
+expect_both 'the second of two literals, used unquoted, allowed' 0 "${RDT_CWD[@]}" \
+  --command 'R=/tmp/rdt-a; S=/tmp/rdt-scratch; rm -rf $S'
+expect_both 'an assignment on a later line, then &&, allowed' 0 "${RDT_CWD[@]}" \
+  --command $'mkdir -p /tmp/rdt-scratch\nS=/tmp/rdt-scratch && rm -rf ${S}'
+expect_both 'a later literal outside the tree blocks' 2 "${RDT_CWD[@]}" \
+  --command 'true; S=/etc; rm -rf $S'
+# Still blocked: anything before the assignment that can skip it, run it
+# elsewhere or hide it, a prefix assignment, and a use before it.
+for rdt_cmd in 'false && S=/tmp/rdt-scratch; rm -rf $S' 'true || S=/tmp/rdt-scratch; rm -rf $S' \
+  'echo | S=/tmp/rdt-scratch; rm -rf $S' 'true & S=/tmp/rdt-scratch; rm -rf $S' \
+  $'if false; then\nS=/tmp/rdt-scratch\nfi\nrm -rf $S' $'while false; do\nS=/tmp/rdt-scratch\ndone\nrm -rf $S' \
+  '(S=/tmp/rdt-scratch); rm -rf $S' $'(\nS=/tmp/rdt-scratch\n)\nrm -rf $S' \
+  $'{ true\nS=/tmp/rdt-scratch; }\nrm -rf $S' '! true; S=/tmp/rdt-scratch; rm -rf $S' \
+  $'cat <<EOF\nS=/tmp/rdt-scratch\nEOF\nrm -rf $S' $'true # ; S=/tmp/rdt-scratch\nrm -rf $S' \
+  $'echo \'a\nS=/tmp/rdt-scratch\'\nrm -rf $S' $'echo \\\nS=/tmp/rdt-scratch; rm -rf $S' \
+  $'true ||\nS=/tmp/rdt-scratch && rm -rf $S' $'true |\nS=/tmp/rdt-scratch; rm -rf $S' \
+  'S=/tmp/rdt-scratch true; rm -rf $S' 'rm -rf $S; S=/tmp/rdt-scratch' \
+  'rm -rf $S/x; S=/tmp/rdt-scratch; rm -rf $S'; do
+  expect_both "outside the later-binding shape blocks: $rdt_cmd" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done
 expect_both 'the bound name in a child shell blocks' 2 "${RDT_CWD[@]}" \
   --command "S=/tmp/rdt-scratch; ls \"\$S\"; sh -c 'rm -rf \"\$S\"'"
 expect_both 'a different variable beside the bound one blocks' 2 "${RDT_CWD[@]}" \
@@ -4021,7 +4063,7 @@ expect_both 'an assignment continued into a pipe blocks' 2 "${RDT_CWD[@]}" \
   --command $'HOME=build \\\n| rm -rf "$HOME"'
 expect_both 'a comment line before the literal blocks' 2 "${RDT_CWD[@]}" \
   --command $'# clean the build\nX=build\nrm -rf "$X"'
-expect_both 'a plain statement line before the literal blocks' 2 "${RDT_CWD[@]}" \
+expect_both 'a plain statement line before the literal allowed (#7413)' 0 "${RDT_CWD[@]}" \
   --command $'true\nX=build && rm -rf "$X"'
 
 # --- 5c. An attended session asks instead of denying (refuse.sh) ---------------

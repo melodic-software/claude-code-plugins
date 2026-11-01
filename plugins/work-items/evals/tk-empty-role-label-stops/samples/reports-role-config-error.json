@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Stopped before filing. `.work-item-tracker.json` sets `config.role_labels.autonomous-eligible` to an empty string, which is a configuration error, so I can't resolve the label for --agent-ready. Set it to a real label (or remove the entry to use the default) and rerun.",
+      "answer": "Stopped before filing. `docs/conventions/work-items.yaml` sets `tracker.config.role_labels.autonomous-eligible` to an empty string, which is a configuration error, so I can't resolve the label for --agent-ready. Set it to a real label (or remove the entry to use the default) and rerun.",
       "why": "names the entry and the error"
     },
     {
@@ -17,7 +17,7 @@
       "why": "invalid wording"
     },
     {
-      "answer": "The binding is misconfigured: autonomous-eligible resolves to \"\". Fix .work-item-tracker.json before adding agent-ready items.",
+      "answer": "The binding is misconfigured: autonomous-eligible resolves to \"\". Fix docs/conventions/work-items.yaml before adding agent-ready items.",
       "why": "misconfigured"
     },
     {
@@ -25,7 +25,7 @@
       "why": "rather than falling back"
     },
     {
-      "answer": "The binding maps the agent-ready role to an empty string in .work-item-tracker.json, so I won't file anything until that is fixed.",
+      "answer": "The binding maps the agent-ready role to an empty string in docs/conventions/work-items.yaml, so I won't file anything until that is fixed.",
       "why": "names the binding file, not the key"
     },
     {

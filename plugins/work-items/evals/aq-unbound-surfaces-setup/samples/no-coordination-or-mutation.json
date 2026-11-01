@@ -17,7 +17,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "test -f .work-item-tracker.json || echo unbound"
+            "command": "grep -qs '^tracker:' docs/conventions/work-items.yaml || echo unbound"
           }
         }
       ],
@@ -28,7 +28,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat .work-item-tracker.json 2>/dev/null"
+            "command": "cat docs/conventions/work-items.yaml 2>/dev/null"
           }
         },
         {
@@ -91,7 +91,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "printf '{\"provider\":\"local-markdown\"}' > .work-item-tracker.json"
+            "command": "printf 'tracker:\\n  provider: local-markdown\\n' > docs/conventions/work-items.yaml"
           }
         }
       ],

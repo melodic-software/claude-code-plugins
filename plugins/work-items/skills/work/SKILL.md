@@ -234,7 +234,7 @@ broader grants. The dated basis, the full contract, remediation, and the
 Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
 invariant ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Shared tracker context") is discharged **here, before Step 0 runs**, never left to surface as a raw
-`exit 3` mid-reclaim. If `.work-item-tracker.json` does not resolve, surface the actionable choice
+`exit 3` mid-reclaim. If the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, surface the actionable choice
 before attempting `reclaim`: **(1) setup was never run** → run `/work-items:setup` to bind the
 provider; **(2) a deliberate gh-native operating mode** → this lane is coordination-*dependent* (Step
 0 `reclaim`, `list-frontier`, and the Step 5 `claim` are all seam verbs that need the binding), so an
@@ -282,8 +282,9 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 ### Role-label preflight
 
-Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` when the file or entry is absent (the documented default,
+Before any tracker read, resolve `recurring-maintenance` from `config.role_labels` of the binding
+the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the legacy repo-root
+JSON binding), using `recurring` when the file or entry is absent (the documented default,
 no warning). Stop on a malformed, empty, or non-string configured value. Use the resolved string
 for every recurring/non-recurring filter and every adapter query in this action; do not compare
 labels against the default literal after a remap.
