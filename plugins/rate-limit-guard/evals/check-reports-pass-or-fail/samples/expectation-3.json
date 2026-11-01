@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reports PASS for node when it resolves, or FAIL with the install route when it does not, then a row for the module, and stops.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

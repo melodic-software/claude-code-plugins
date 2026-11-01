@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 /tmp/pressure-test-a1B2c3/harness.py\",\"description\":\"Run both variants\"}}]}}",
+      "why": "harness script run with python3"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cd /tmp/pressure-test-a1B2c3 && python harness.py\",\"description\":\"Run both variants\"}}]}}",
+      "why": "harness script run with python after cd"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 \\\"/tmp/pressure-test-a1B2c3/harness.py\\\"\",\"description\":\"Run both variants\"}}]}}",
+      "why": "harness script run with python3 on a double-quoted path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c 'import csv, io; print(next(csv.reader(io.StringIO(\\\"7,x,3\\\"))))'\",\"description\":\"Run the csv variant\"}}]}}",
+      "why": "variant run with python3 -c"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/harness.py\"}}]}}",
+      "why": "harness read, never run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/harness.py\",\"content\":\"import csv\\n\"}}]}}",
+      "why": "harness written, never run"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 --version\",\"description\":\"Check Python\"}}]}}",
+      "why": "Python version checked, no variant run"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"run it with python3 harness.py\"}]}}",
+      "why": "tool result mentioning the command, no Bash call"
+    }
+  ]
+}

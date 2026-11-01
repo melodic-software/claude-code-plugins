@@ -81,9 +81,9 @@ Parse `$ARGUMENTS` for:
 
 There is deliberately no `ci` category. Two skills own that ground. The `ci-lanes` layer of
 `/overengineering:audit` walks the lanes already running and judges whether each still earns its
-carry cost, and `/review:audit-enforceability` maps one review finding through its enforcement-rung
-crosswalk to the cheapest rung that could catch it, a CI lane included. Route a CI concern to
-whichever fits when the `overengineering` or `review` plugin is installed; when neither is, record
+carry cost, and `/corrections:codify` maps one recurring mistake or review finding to the strongest
+enforcement rung that can catch it, including a check that runs in CI. Route a CI concern to whichever fits when
+the `overengineering` or `corrections` plugin is installed; when neither is, record
 the concern in the verdict as out of scope and name its owner, rather than widening this audit's
 categories.
 
