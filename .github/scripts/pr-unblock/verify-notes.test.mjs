@@ -20,7 +20,7 @@ const verdictText = (extra = {}) =>
 
 // Each write lands in `created` (review comments) or `writes` (the PR's own
 // comments and labels), so a test sees every change a run makes.
-function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = [], queued = false, dequeue } = {}) {
+function fakeApi({ pull = {}, reviewComments = [], threads = [], issueComments = [], labels = [], queued = false, dequeue } = {}) {
   const created = [];
   const writes = [];
   return {
@@ -28,6 +28,7 @@ function fakeApi({ pull = {}, reviewComments = [], issueComments = [], labels = 
     writes,
     getPull: async () => ({ state: "open", head: { sha: HEAD }, user: { id: APP }, ...pull }),
     listReviewComments: async () => reviewComments,
+    listThreads: async () => threads,
     listPullFiles: async () => FILES.map((filename) => ({ filename })),
     createReviewComment: async (pr, fields) => created.push({ pr, ...fields }),
     listIssueComments: async () => issueComments,
@@ -280,6 +281,25 @@ test("a retry after a partial post posts only the comments still missing", async
   assert.deepEqual(
     retry.created.map((c) => c.path),
     ["plugins/x/b.md"],
+  );
+});
+
+// A pass that superseded a FAIL at this head resolved that FAIL's notes
+// (publish-feedback.mjs, superseded_head). A later FAIL at the same head must
+// open a thread again, or its round finds nothing open and the PR stalls on
+// the gate's verify:fail with no lane stop. A note in an open thread still
+// counts as posted.
+test("a later fail at the head posts again on a path whose note there sits in a resolved thread", async () => {
+  const verdict = readVerdict(NAME, verdictText({ notes: ["plugins/x/a.py: one", "plugins/x/b.md: two"] }));
+  const first = fakeApi();
+  await postNotes({ api: first, verdict, appId: APP, log: () => {} });
+  const comments = first.created.map((c, i) => ({ id: 100 + i, user: { id: ACTIONS_BOT }, commit_id: HEAD, path: c.path, body: c.body }));
+  const thread = (id, commentId, isResolved) => ({ id, isResolved, comments: { totalCount: 1, nodes: [{ databaseId: commentId }] } });
+  const again = fakeApi({ reviewComments: comments, threads: [thread("PRRT_a", 100, true), thread("PRRT_b", 101, false)] });
+  assert.equal(await postNotes({ api: again, verdict, appId: APP, log: () => {} }), true);
+  assert.deepEqual(
+    again.created.map((c) => c.path),
+    ["plugins/x/a.py"],
   );
 });
 

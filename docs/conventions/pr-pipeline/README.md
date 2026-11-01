@@ -247,7 +247,9 @@ It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-
 `pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file. A PR a person opened gets no
+that head, and only the comments that head does not hold yet, by file; a note in a resolved thread
+does not count, so a FAIL after a pass that superseded an earlier one at the same head opens a thread
+again. A PR a person opened gets no
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which

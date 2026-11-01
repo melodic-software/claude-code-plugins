@@ -10,7 +10,9 @@
 // It posts only for an open pull request whose current head is the one the
 // FAIL judged, and only the comments not on it yet: a verifier note at that
 // head on the same file is that comment, so a re-run after a partial post
-// posts the rest and nothing twice. Each note that starts with a path the pull
+// posts the rest and nothing twice. A note whose thread is resolved does not
+// count: a pass that superseded an earlier FAIL at the head resolved it, so a
+// later FAIL there posts again and its round has an open thread to work. Each note that starts with a path the pull
 // request changes (`path` or `path:line`, backticks allowed) goes on that
 // file; the summary and every other note go on the first such file, or on the
 // pull request's first changed file when no note names one. Model text is
@@ -294,9 +296,12 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
     await holdPersonPull({ api, verdict, log });
     return false;
   }
+  // A note in a resolved thread is not posted: a pass that superseded an
+  // earlier FAIL at this head resolved it, and this FAIL needs an open thread.
+  const resolved = new Set((await api.listThreads(pr)).filter((thread) => thread.isResolved === true).flatMap((thread) => (thread.comments?.nodes ?? []).map((comment) => comment.databaseId)));
   const posted = new Set(
     (await api.listReviewComments(pr))
-      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER)
+      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER && !resolved.has(comment.id))
       .map((comment) => comment.path),
   );
   const files = (await api.listPullFiles(pr)).map((file) => file.filename);
