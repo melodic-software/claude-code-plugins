@@ -3957,6 +3957,7 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.carry = pathlib.Path(tmp.name, "verify-listing-carry.json")
         self.saved = pathlib.Path(tmp.name, "verify-listing.json")
+        self.failed = pathlib.Path(f"{self.saved}{ve.FAILED_LISTING_SUFFIX}")
         for patcher in (
             mock.patch.dict(
                 "os.environ",
@@ -4346,18 +4347,81 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
-        for delta in (-1, 1):
+        # One short is a skip another whole listing may restore; one over is
+        # an entry GitHub no longer counts, which no further listing drops.
+        for delta, reads in ((-1, 1), (1, ve.LISTING_READS)):
             with self.subTest(delta):
                 self.write_carry(self.base)
                 self.saved.unlink(missing_ok=True)
+                self.failed.unlink(missing_ok=True)
                 fake = self.fake()
                 fake.live_total = len(self.base) + delta
                 reader, evidence = self.judge(fake)
                 self.assertEqual(evidence.refusal, "verify:unreadable")
                 self.assertIn("live artifact count", evidence.detail or "")
                 self.assertEqual(reader.listing_mode, "full")
-                self.assertEqual(fake.full_listings(), ve.LISTING_READS)
+                self.assertEqual(fake.full_listings(), reads)
                 self.assertFalse(self.saved.exists())
+
+    def skewed(self) -> FakeGitHub:
+        """GitHub as on 2026-11-01 08:00-09:00Z: its count drops artifacts up
+        to an hour before the `expires_at` it lists, and stamps uploads an
+        hour ahead of the runner's clock. The carry still holds 600 and 610,
+        which GitHub already dropped; 650 is listed by the whole listing, then
+        dropped before its top-up, both with `expires_at` past GitHub's Date."""
+        soon = LISTED_AT + timedelta(minutes=30)
+        old = self.base_at - timedelta(days=2)
+        dropped = [
+            dated("pr-merge-gate-cursor", 3, i, old, expires=soon) for i in (600, 610)
+        ]
+        dropping = dated("pr-merge-gate-cursor", 3, 650, old, expires=soon)
+        ahead = dated("pr-merge-gate-cursor", 3, 1100, LISTED_AT + timedelta(hours=1))
+        self.write_carry([*self.base, *dropped])
+        fake = self.fake(ahead, dropping)
+        listed = fake.listed
+
+        def drops_during_the_listing() -> list[dict[str, Any]]:
+            items = listed()
+            fake.artifacts = [a for a in fake.artifacts if a is not dropping]
+            return items
+
+        fake.listed = drops_during_the_listing  # type: ignore[method-assign]
+        return fake
+
+    def test_a_count_github_drops_early_takes_one_whole_listing_a_job(self) -> None:
+        fake = self.skewed()
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("held more artifacts than", evidence.detail or "")
+        self.assertEqual(reader.listing_mode, "full")
+        # Another whole listing only adds ids, so it would hold 650 too.
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertFalse(self.saved.exists())
+        self.assertIn("held more artifacts than", self.failed.read_text())
+        # The job's next Reader, in this process or another, pages nothing.
+        listed = (fake.pages(), fake.full_listings())
+        _, again = self.judge(fake)
+        self.assertEqual(again.refusal, "verify:unreadable")
+        self.assertIn("held more artifacts than", again.detail or "")
+        self.assertEqual((fake.pages(), fake.full_listings()), listed)
+        self.assertEqual(fake.probes(), 1)
+
+    def test_uploads_stamped_ahead_of_the_runner_still_read_incrementally(
+        self,
+    ) -> None:
+        # After the skew: a FAIL and another upload stamped an hour ahead of
+        # the runner's clock, and a count that holds.
+        self.write_carry(self.base)
+        ahead = LISTED_AT + timedelta(hours=1)
+        fake = self.fake(
+            dated(named(HEAD, "fail"), 2, 1100, ahead),
+            dated("pr-merge-gate-cursor", 3, 1050, ahead),
+        )
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        self.assertFalse(self.failed.exists())
 
     def test_a_carry_past_its_age_bound_lists_every_page(self) -> None:
         # The bound is three hours (LISTING_CARRY_MAX_AGE's basis).
@@ -4409,14 +4473,15 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
             with self.subTest(error):
                 self.write_carry(self.base)
                 self.saved.unlink(missing_ok=True)
+                self.failed.unlink(missing_ok=True)
                 fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
                 fake.page_fail = error
                 reader, evidence = self.judge(fake)
                 self.assertEqual(reader.listing_mode, "full")
                 # The whole listing is read, but no page can check it: it
-                # refuses rather than judge on it.
+                # refuses rather than judge on it, and reads it once.
                 self.assertEqual(evidence.refusal, "verify:unreadable")
-                self.assertEqual(fake.full_listings(), ve.LISTING_READS)
+                self.assertEqual(fake.full_listings(), 1)
 
     def test_a_page_with_no_date_or_an_odd_entry_lists_every_page(self) -> None:
         self.write_carry(self.base)
@@ -4433,8 +4498,9 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
             evidence = reader.evidence(PR, HEAD, pull())
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(evidence.refusal, "verify:unreadable")
-        self.assertEqual(fake.full_listings(), ve.LISTING_READS)
+        self.assertEqual(fake.full_listings(), 1)
         self.saved.unlink(missing_ok=True)
+        self.failed.unlink()
         odd = self.fake(dated("x", 3, 1200, LISTED_AT) | {"expires_at": "soon"})
         reader, evidence = self.judge(odd)
         self.assertEqual(reader.listing_mode, "full")
