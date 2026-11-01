@@ -717,6 +717,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
     await page.fill("#noteText", "second note"); await page.click("[data-sendnote]");
     ok("a save while a wake is in flight says queued, Claude is busy", await until(() => /Queued, Claude is busy/.test((document.getElementById("noteToast") || {}).textContent || ""), 4000), await text("#noteToast"));
+    const frame = await page.evaluate(() => window.__io.applied);
+    await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers the second note, so the server pushes a state frame
+    const pushed = await page.waitForFunction(f => window.__io.applied !== f, frame, {timeout: 5000, polling: 50}).then(() => true).catch(() => false);
+    ok("the Notes send toast outlasts the next state push", pushed && /Queued, Claude is busy/.test(await text("#noteToast")), (pushed ? "" : "no frame; ") + await text("#noteToast"));
     await page.click("#flyClose", {timeout: 2000}).catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16
