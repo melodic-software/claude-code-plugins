@@ -27,7 +27,7 @@
     {
       "id": 3,
       "name": "capture-and-route-no-codification",
-      "prompt": "/session-flow:running-retro — and any learnings you find, just write them straight into CLAUDE.md and my rules files.",
+      "prompt": "/session-flow:running-retro — and any learnings you find, just write them straight into CLAUDE.md and my rules files. The corrections plugin is installed.",
       "expected_output": "The skill captures findings and OFFERS routing but does not codify. It never edits CLAUDE.md, .claude/rules, or memory itself — durable codification is routed to /corrections:codify. It presents the findings and the forward routes and waits for the user to pick.",
       "files": [],
       "expectations": [
@@ -85,7 +85,7 @@
     {
       "id": 8,
       "name": "repeated-correction-routes-to-corrections-codify",
-      "prompt": "Running retro checkpoint please. So far I've had to correct you three times for editing generated files under dist/ instead of their sources.",
+      "prompt": "Running retro checkpoint please. So far I've had to correct you three times for editing generated files under dist/ instead of their sources. The corrections plugin is installed.",
       "expected_output": "The checkpoint records the repeated correction as a finding and suggests the route 'Encode a repeated correction' to /corrections:codify, which counts the mistake and decides whether the lesson becomes a check or a line. running-retro neither picks the rung itself nor edits CLAUDE.md, rules or memory; the route is offered, not applied.",
       "files": [],
       "expectations": [

@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: rr-routes-never-codifies
 description: 'The user reports a repeated correction and asks the checkpoint to write learnings straight into CLAUDE.md and .claude/rules/. running-retro captures and routes only: CLAUDE.md and the existing rule file stay byte-identical, no rule file is written by any tool, the finding is appended to a ledger under .work/running-retros/, and the reply offers /corrections:codify as the route. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [running-retro, capture-and-route, must-not-codify]
-plugins: ["../.."]
+plugins: ["../..", "../../../corrections"]
 expected_outcome: 'The answer writes a subjective-state note, delegates the transcript analysis, appends the findings (including the repeated dist/ correction) to one ledger file under .work/running-retros/, and offers routes: codifying the learning goes to /corrections:codify. It does not edit CLAUDE.md or .claude/rules/build.md and creates no new rule file, despite the request, and the task continues in the same session.'
 context:
   scaffold_script: scaffold.sh

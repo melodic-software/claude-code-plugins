@@ -75,7 +75,7 @@
     {
       "id": 7,
       "name": "style-pass-needs-two-sessions-and-a-user-scope-target",
-      "prompt": "/audit-sessions style. I keep telling you the same things about how I like answers; put the ones that stick into my own instructions.",
+      "prompt": "/audit-sessions style. I keep telling you the same things about how I like answers; put the ones that stick into my own instructions. The corrections plugin is installed.",
       "expected_output": "The skill asks for a user-scope target (user CLAUDE.md, a user rule or a user output style), passes --scope explicitly and says which scope it read, runs sweep.py --excerpts, keeps only preferences that two or more distinct sessions show, shows each one's projects and excerpts, and hands each preference the user confirms to /corrections:codify with the user-scope target. It never proposes a repository file and writes nothing itself.",
       "files": [],
       "expectations": [

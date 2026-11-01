@@ -16,7 +16,7 @@
     {
       "id": 2,
       "name": "codify-request-names-corrections-codify",
-      "prompt": "/session-flow:retro mine review comments from our recent merged PRs and codify what reviewers keep telling us",
+      "prompt": "/session-flow:retro mine review comments from our recent merged PRs and codify what reviewers keep telling us. The corrections plugin is installed.",
       "expected_output": "Mining review comments is not a retro mode. The skill names /corrections:codify, whose reviews action reads recent merged pull requests' review comments, and stops. It does not run a session, trends or quick retro in its place and fetches no review comments itself.",
       "files": [],
       "expectations": [
