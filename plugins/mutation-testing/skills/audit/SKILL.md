@@ -34,6 +34,12 @@ why is the
 
 Arguments: `$ARGUMENTS`
 
+The user config layer, rendered from this plugin's `userConfig` (empty or a literal
+`${user_config.…}` token means unset; Phase 0 "Config" reads it):
+
+- `operators`: `${user_config.operators}`
+- `max_mutants`: `${user_config.max_mutants}`
+
 ## Argument parsing
 
 - **Scope** (optional): a path limiting which changed files are considered. Default: every changed

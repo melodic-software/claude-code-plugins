@@ -1,6 +1,6 @@
 ---
 description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked .claude/mutation-testing.md config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill ran on fallback defaults or reports an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
-argument-hint: "[check|apply]"
+argument-hint: "[check|apply [team|local|user]]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -18,16 +18,27 @@ either does nothing or does something expensive, and the config records the answ
 Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects read-only;
 `apply` interviews and writes, then re-runs `check`. No argument or `check` runs the check; `apply`
-runs the check first, then the write flow.
+runs the check first, then the write flow. `apply` takes the target layer as its next word: `team`
+(the default), `local` or `user` ([`apply` by layer](#apply-by-layer)).
 
 ## The config merge model
 
-`.claude/mutation-testing.md` resolves across the documented cascade layers. User-global
-(`~/.claude/mutation-testing.md`) → team (`${CLAUDE_PROJECT_DIR}/.claude/mutation-testing.md`) →
-local overlay (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning
-lists. This skill writes only the **team** file; a higher overlay is the user's to change. Report
-explicitly when an overlay changes the team file's effect, and warn when a layer cannot be read,
-rather than silently presenting the team file as effective.
+The config resolves across three layers, lowest first: the user layer (`userConfig`) → team
+(`${CLAUDE_PROJECT_DIR}/.claude/mutation-testing.md`) → local overlay
+(`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists. There is
+no user-global file: a per-person value lives in this plugin's `userConfig`, which Claude Code
+prompts for and stores. It carries two keys that mean the same thing in every repository,
+`operators` and `max_mutants` (the config's `max-mutants`); their rendered values are:
+
+- `operators`: `${user_config.operators}`
+- `max_mutants`: `${user_config.max_mutants}`
+
+An empty value or a surviving literal `${user_config.…}` token is unset. A value outside the key's
+range (`operators` other than `default` or `narrow`, `max_mutants` not a whole number of at least 1)
+is reported with its key and value and dropped. The other keys are per repository, `test-command`
+above all, so they are never read from `userConfig`. Report explicitly when an overlay changes the
+team file's effect, and warn when a layer cannot be read, rather than silently presenting the team
+file as effective.
 
 The arid-node suppression record is a **separate** surface, `.claude/mutation-testing-arid.md`,
 shaped by the finding-suppression convention. Keeping it separate from the config keeps the config
@@ -64,12 +75,16 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
    result is meaningful until this passes. Record the wall-clock; it is the input to the timeout
    setting and to whether diff-scoping is sufficient. For `dotnet test`, run it once per test
-   project, naming the project, never over a solution or a directory.
+   project, naming the project, never over a solution or a directory. With no configured
+   `test-command`, ask the user for the command, or propose one and wait for their confirmation,
+   before running anything; an unattended run reports this probe as not run.
 5. **Known flakiness**. Ask, and check for a documented flaky-test list or retry configuration.
    Flakiness present → INFO with the consequence stated plainly: mutants killed by a flaky failure
    inflate the score by an unknown margin.
 6. **Config presence (effective, across layers)**. Report the merged result and which layer
-   contributes what: tool, diff target, operator set, timeout, paths to mutate. Nothing readable →
+   contributes what: tool, diff target, operator set, timeout, paths to mutate, with a value from
+   the user layer named `userConfig` and an invalid one reported as FAIL naming the key, the value
+   and `/plugin configure` as the fix. Nothing readable →
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
    time. `apply` writes a config that replaces it.
@@ -187,19 +202,46 @@ unambiguous; ask only where the answer is genuinely the user's.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
+### `apply` by layer
+
+Steps 1 to 10 are the `team` flow. The other two layers change what is written:
+
+- **`local`** writes to `.claude/mutation-testing.local.md` only, and only the keys the user wants
+  to override, without the template's team-shared header. It skips step 8, since a personal
+  suppression entry would not suppress, and step 9, since the overlay is meant to stay untracked. Before writing, run `git check-ignore -v .claude/mutation-testing.local.md`;
+  when nothing ignores it, offer the `.claude/**/*.local.*` line in `.gitignore` and write it only on
+  the user's acceptance.
+- **`user`** writes no file and no setting, and of `check` it runs only probe 6, so it runs no
+  test command. It runs step 1, then settles only the two `userConfig` keys: `operators` as step 4
+  does, and `max_mutants` unset by default, so the effort cap applies, offering a cap only when the
+  user asks. When this repository's team or local file already sets `operators` or `max-mutants`,
+  say that file overrides the user value here. Then name how to save them:
+  `/plugin configure mutation-testing@<marketplace>`, or headless
+  `claude plugin configure mutation-testing@<marketplace> --values-stdin < values.json` with
+  `values.json` holding `{"operators": "<value>", "max_mutants": "<value>"}`, per the marketplace's
+  plugin-reconfiguration convention
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
+  Never write `pluginConfigs` or any settings file yourself. Say that steps 7 to 10 were skipped
+  because nothing in the repository was written, so `git status` is unchanged, and that a
+  repository's tool, diff target, mutate paths and test command still come from its team or local
+  file or the audit's fallback.
+
 ## Output
 
-A tracked `.claude/mutation-testing.md` and `.claude/mutation-testing-arid.md` in the consuming repo,
-plus a one-paragraph summary of what was written, the measured baseline suite time, and how to
-re-run this setup to reconfigure.
+For the `team` layer, a tracked `.claude/mutation-testing.md` and `.claude/mutation-testing-arid.md`
+in the consuming repo; for `local`, the untracked overlay; for `user`, no file and the
+`/plugin configure` line. Each ends with a one-paragraph summary of what was written and how to
+re-run this setup to reconfigure; `team` and `local` also give the measured baseline suite time.
 
 ## What this skill does NOT do
 
 - Run a mutation analysis. That is `/mutation-testing:audit`. `check` runs the *unmutated* suite
   once to establish the baseline, and nothing more.
 - Install anything without asking.
-- Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
-- Write machine-local state. Configuration lives in the consumer's tracked files, never in the
-  plugin directory or the plugin data directory.
+- Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The user layer is
+  `userConfig`, which Claude Code stores; `apply user` names `/plugin configure` for it.
+- Write machine-local state other than the `local` overlay `apply local` writes on request.
+  Configuration lives in the consumer's repository files, never in the plugin directory or the
+  plugin data directory.
 - Set a score threshold. The config template deliberately has no such field; see the `principles`
   skill's `scaling-and-suppression.md` for why gating on the score inverts the incentive.

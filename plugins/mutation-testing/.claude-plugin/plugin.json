@@ -16,5 +16,18 @@
     "stryker",
     "pitest",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "operators": {
+      "type": "string",
+      "title": "Operator set",
+      "description": "Your operator set for every repository: default (the tool's own defaults) or narrow (statement-block removal plus relational-operator replacement, for a cheaper run). A repository's mutation-testing config overrides it. Unset by default."
+    },
+    "max_mutants": {
+      "type": "number",
+      "title": "Mutant cap",
+      "description": "Your cap on how many mutants one audit run generates, in every repository. A repository's mutation-testing config overrides it, and the audit's --max flag overrides both. Unset by default, so the effort cap applies.",
+      "min": 1
+    }
+  }
 }
