@@ -90,6 +90,8 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
 - Stand-in: <none | what the proof ran on in place of the real target; each setup step the stand-in did that the target will not, marked unverified>
+- Capture: <ran | not-applicable | blocked | skipped> (<reason, or none for ran>); <count> evidence artifacts kept
+- Evidence loop: <k>/3 | 3/3 cap reached, last NEEDS WORK | <k>/3 (not written: uncommitted changes) | not tracked (detached head)
 - Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```
 
@@ -101,7 +103,8 @@ Basis: LLM-written test oracles were measured to assert what the code does rathe
 - **NOT VERIFIED: no intent source** when the intent ladder ([intent.md](intent.md)) found nothing and no one can be asked
 - **NOT VERIFIED** under `proof_level: strict` when a proof box is empty or its perf box has no baseline (see [Proof boxes](#proof-boxes))
 - Under any verdict, list an ecosystem whose only checks were syntax-only as "no real check ran"; it does not change the verdict by itself and never counts as a mechanical pass
-- If NEEDS WORK, list specific gaps with suggested actions
+- A capture that could not run (Capture `blocked`) is never by itself a reason for NEEDS WORK: the Capture line says why, and a criterion only the capture could prove makes the verdict NOT VERIFIED
+- If NEEDS WORK, list specific gaps with suggested actions, and whether they go back to implementation or the evidence loop is at its cap (SKILL.md, Evidence loop)
 
 ## Which check proves which change
 
