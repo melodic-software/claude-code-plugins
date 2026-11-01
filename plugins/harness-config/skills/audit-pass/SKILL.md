@@ -115,7 +115,8 @@ rather than queues. All specified in
 read the lease, then read the partial's lane records and carry forward every lane whose input digest
 is unchanged.
 
-**Do not derive the run directory or hand-write the lease.** `scripts/run-state.sh` does both:
+**Do not derive the run directory or hand-write the lease.** `scripts/run-state.sh` does both, which
+is what makes this phase a mechanism rather than a description of one:
 
 ```bash
 S="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh"
@@ -387,7 +388,8 @@ Before the headline, the inline message names what waits on the operator: the pa
 the `/doctor` handoff when Phase 4 produced one, and any lane that stopped fenced or unverified.
 
 Every run also emits, in **one line**, how many `OPINION`-tier checks were
-available, how many were not run, and the argument that enables them (`--opinion`).
+available, how many were not run, and the argument that enables them (`--opinion`). Without it the
+tier ships unreachable.
 
 **Overlap notes are emitted here and never merge the findings they name.** Where two catalogs
 independently flag the same site, the note names **both** `finding_id`s and leaves both findings
