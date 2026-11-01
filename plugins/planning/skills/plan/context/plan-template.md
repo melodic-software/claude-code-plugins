@@ -35,6 +35,14 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed at St
 |------------|--------|------------------|-------------------|
 | <one Brief Captured assumption, or one the plan adds> | <`Brief`, `PRD`, `plan`, or the research file> | <the phase Sanity Check that shows it false, e.g. "Phase 2 Sanity Check: `grep -c ...` prints 0"> | <Minor: proceed and note / Moderate: flag and continue, never adopt a better option unasked / Major: stop and replan> |
 
+### Prototype evidence
+
+<one row per prototype this plan consumes, filled from that prototype's durable note. Omit the section when the plan consumes no prototype>
+
+| Prototype | Evidence | Left unproven |
+|-----------|----------|---------------|
+| <the question the prototype settled> | <branch `<name>` at commit `<SHA>`, or the local path followed by `not pushed: <reason>`> | <each point the prototype did not show, separated by `; `, or `none recorded` when its note names none> |
+
 ### Standards grounding
 
 <which consumer standards shaped this plan, from the grounding step. Skipped at trivial scale only: state "Skipped: trivial scale, ambient context only">

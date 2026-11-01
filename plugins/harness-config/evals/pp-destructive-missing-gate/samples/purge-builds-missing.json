@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | P7 | .claude/skills/purge-builds/SKILL.md | MISSING | ```diff ... |"
+    },
+    {
+      "answer": "MISSING: purge-builds has no confirmation before rm -rf."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "| 1 | P7 | purge-builds | PRESENT | settings deny |",
+      "why": "judged present"
+    }
+  ]
+}

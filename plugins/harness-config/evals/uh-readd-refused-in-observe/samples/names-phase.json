@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "phase: observe"
+    },
+    {
+      "answer": "The window is still open (observe)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "phase: readd",
+      "why": "wrong phase"
+    }
+  ]
+}

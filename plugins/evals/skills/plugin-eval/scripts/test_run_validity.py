@@ -1128,6 +1128,68 @@ class RunValidityTest(unittest.TestCase):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
             self.assertDenials(proc, "FAIL")
 
+    def own_results(self, *parts, sandbox="claude-eval-ab"):
+        return str(self.dir.joinpath(
+            sandbox, "config", "projects", "-tmp-claude-eval-ab-home-cwd",
+            "00000000-0000-4000-8000-000000000001", *parts))
+
+    def test_a_read_of_the_sessions_own_tool_results_is_a_warning(self):
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for calls in (
+            [("Grep", {"pattern": "Balancing autonomy", "path": saved,
+                       "output_mode": "content", "-A": 25})],
+            [("Read", {"file_path": saved, "offset": 1, "limit": 5})],
+            [("Glob", {"pattern": "*.txt", "path": self.own_results("tool-results")})],
+            # Beside a plugin-data denial, each is set aside under its own count.
+            [("Grep", {"pattern": "x", "path": saved}),
+             ("Write", {"file_path": self.own_data("p", "last-audit.md"), "content": "x"})],
+        ):
+            proc = self.denied_in_sandbox(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+            self.assertIn("aimed only at the session's own tool-results directory",
+                          proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+        self.assertIn("1 denial under the run's own plugin-data directory, not counted",
+                      proc.stdout)
+
+    def test_a_mixed_run_fails_counting_only_its_other_tool_results_denials(self):
+        proc = self.denied_in_sandbox([
+            ("Read", {"file_path": self.own_results("tool-results", "a.txt")}),
+            ("Read", {"file_path": str(self.dir / "claude-eval-ab" / "config" / "settings.json")}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+
+    def test_other_denials_near_tool_results_still_fail(self):
+        sandbox = self.dir / "claude-eval-ab"
+        saved = self.own_results("tool-results", "a.txt")
+        for calls, trace_at in (
+            # Only Read, Grep and Glob qualify: Bash and a write do not.
+            ([("Bash", {"command": "cat " + saved})], None),
+            ([("Write", {"file_path": saved, "content": "x"})], None),
+            # Elsewhere in the session or project directory, or at another depth.
+            ([("Read", {"file_path": self.own_results("memory", "a.md")})], None),
+            ([("Read", {"file_path": str(sandbox.joinpath(
+                "config", "projects", "p", "tool-results", "a.txt"))})], None),
+            ([("Glob", {"pattern": "**", "path": str(sandbox / "config" / "projects")})], None),
+            # The user settings a settings-auditing skill reads stay a FAIL.
+            ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
+            # A write under the workspace's protected .claude/ stays a FAIL.
+            ([("Write", {"file_path": str(sandbox.joinpath(
+                "home", "cwd", ".claude", "unhobble", "x", "manifest.json")),
+                "content": "{}"})], None),
+            # Another sandbox's tool results are not this session's.
+            ([("Read", {"file_path": self.own_results(
+                "tool-results", "a.txt", sandbox="claude-eval-zz")})], None),
+            # A relative path, or a trace outside <sandbox>/out, never qualifies.
+            ([("Read", {"file_path": "config/projects/p/s/tool-results/a.txt"})], None),
+            ([("Read", {"file_path": saved})], ("claude-eval-ab",)),
+        ):
+            proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(

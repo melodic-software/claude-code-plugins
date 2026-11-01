@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "Findings: P1, .claude/settings.json, `Bash(python3 *)`, auto mode drops it on entry; exempt, CLAUDE.md 'Permission exemptions': deliberate broad grant. 1 finding, all exempted by consumer declaration, so this is not a clean bill."
+    },
+    {
+      "answer": "## Permission grant report: 2026-11-01\n\n**Short answer:** One of your two project allow rules will stop working when auto mode turns on. `Bash(pytest)` is a narrow rule and keeps working. `Bash(python3 *)` is a broad interpreter rule, and auto mode drops those. Once it's dropped, every `python3 …` command goes to the auto-mode classifier instead of being pre-approved. Your CLAUDE.md already says the team accepts that loss. There are two reasons not to treat this as a clean bill, though: the stated reason for the exemption doesn't match the repo, and some places where rules live weren't checked.\n\n### Summary\n- **Scan root:** `cwd` (found from the git top level)\n- **What was checked:** 2 allow rules in 1 settings file (project `.claude/settings.json`). No `allowed-tools` blocks: the `.claude/skills`, `agents` and `commands` folders are empty. No plugin manifests.\n- **Not read:**\n  - **Local scope (`.claude/settings.local.json`):** the scan reported this file as `absent`, but it does exist. In this session the sandbox replaces it with a device file I can't open (`Permission denied`), so its allow rules were not checked. The file is also gitignored, so each teammate has their own copy, and no scan from this repo can see theirs.\n  - **User-global settings:** none exist on this machine. Each teammate's `~/.claude/settings.json` was not checked. That file is where \"Always allow\" saves rules, so it's where broad rules that auto mode drops tend to pile up.\n  - **Never checked by this tool:** managed policy, enterprise settings, a `--settings` file, and the pre-v2.1.211 start-directory copy. `Monitor` allow rules are also not checked.\n- **Repo declarations read:** `CLAUDE.md` § \"Permission exemptions\" marks `Bash(python3 *)` as a deliberate broad grant. Effect: finding #1 goes from warning to info, and stays in the table and the counts.\n- **Findings:** 1 total (P1), all exempted by a repo declaration. 0 errors.\n\n### Findings\n| # | Check | Severity | Source | Finding | Recommended | Exempt? |\n|---|---|---|---|---|---|---|\n| 1 | P1 | ~~warning~~ → info | `.claude/settings.json` `permissions.allow` | `Bash(python3 *)` matches any `python3` command. Auto mode drops rules like this when it starts, so the grant stops doing anything. | Replace it with narrow rules, one per script, such as `Bash(python3 scripts/<name>.py)`. Narrow rules like these keep working in auto mode. Better still, make each script an executable bare command and allow it by name. | exempt — `CLAUDE.md`: \"data scripts under `scripts/` are run ad hoc, and we accept the auto-mode drop for this one rule\" |\n\n### Look at this before you rely on the exemption\nThe exemption gives `scripts/` as its reason, but **the repo has no `scripts/` folder**. The tracked files are `src/quay/app.py`, `tests/test_app.py`, `pyproject.toml` and `CLAUDE.md`. Either the scripts live somewhere uncommitted, or the exemption is out of date. If it's out of date, the broad rule is covering nothing in particular, and the cleanest fix is to delete it. If the scripts are real, commit them and switch to narrow per-script rules. Either way, they'd keep working in auto mode.\n\n### What else the team should do\n- **Each person** should check their own `~/.claude/settings.json` and `.claude/settings.local.json` for broad rules like `Bash(python*)`, `Bash(npx *)`, `Bash(npm:*)`, `Bash(*)` or `Agent`. They can run this audit on their own machine, or use `/harness-config:audit-permission-state` to see which rules actually survive auto mode.\n- To change or remove the `python3` rule, you can run `/permissions` yourself, if your session has it, or edit `.claude/settings.json` directly. I haven't changed anything. Do you want me to draft the replacement rules once you've decided what happens to `scripts/`?",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CLAUDE.md says the python3 grant is deliberate, so I left it out. Your rules are clean.",
+      "why": "drops the row"
+    },
+    {
+      "answer": "Bash(python3 *) is dropped in auto mode; narrow it.",
+      "why": "ignores the declaration"
+    },
+    {
+      "answer": "| Rule | File | Finding | Status |\n|---|---|---|---|\n| `Bash(python3 *)` | .claude/settings.json | Interpreter wildcard: auto mode drops it on entry | Exempt: the grant looks deliberate |\n\n1 finding, marked exempt.",
+      "why": "keeps the row and marks it exempt, but does not cite the CLAUDE.md declaration"
+    }
+  ]
+}
