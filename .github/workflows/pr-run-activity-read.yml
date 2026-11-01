@@ -1990,6 +1990,12 @@ jobs:
           LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
           LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
           LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
+          # The secret NAME the leg ran on (run-claude-cli's credential, never
+          # the value) and the closed fallback reason, both as the lane record
+          # takes them; each is left out of lane.json when empty, and
+          # report-outcome re-checks both before its marker names them.
+          LANE_CREDENTIAL: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
+          LANE_FALLBACK: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
@@ -1999,8 +2005,10 @@ jobs:
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
             --arg max_turns "$LANE_MAX_TURNS" --arg turns "$LANE_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
+            --arg credential "${LANE_CREDENTIAL-}" --arg fallback "${LANE_FALLBACK-}" \
             '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, turns: $turns, resume: $resume, stale: $stale,
-              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
+              failed: $failed, "api-error-status": $status, "error-text": $error_text}
+              + ({credential: $credential, fallback: $fallback} | with_entries(select(.value != "")))' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's
       # replies or a dependency-review skill's verdict, and in issue mode the
