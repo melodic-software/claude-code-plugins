@@ -2269,7 +2269,10 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
 judgment was started by, each with its name and conclusion, read with the job's own token: the
 verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+eval itself. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
+sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
+(`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
+label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
