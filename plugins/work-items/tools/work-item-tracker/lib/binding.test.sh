@@ -325,6 +325,35 @@ write_binding "$TEST_TMPDIR/ids.yaml" 'tracker:
 assert_eq "YAML scalars stay strings inside arrays" '{"completed":["10000"],"wont_do":["10001"]}' \
   "$(wit_yaml_binding_json "$TEST_TMPDIR/ids.yaml" | jq -c '.config.jira.resolutions')"
 
+# An empty flow sequence stays [], as the legacy JSON writes it, where the parser
+# alone prints nothing: jira tells a present empty done_category_keys (a config
+# error) from an absent one (the default) by presence, and requires both resolutions
+# keys. A `[]` inside a quoted scalar or a comment is text, and a key with no value
+# reads as absent.
+write_binding "$TEST_TMPDIR/empty.yaml" 'tracker:
+  config:
+    jira:
+      site: a.atlassian.net # not a list: []
+      blocked_by_link_type: "[]"
+      auth_email:
+      done_category_keys: []
+      resolutions:
+        completed: ["10000"]
+        wont_do: [ ]  # none yet'
+assert_eq "an empty YAML flow sequence stays [], as in the legacy JSON" \
+  '{"site":"a.atlassian.net","blocked_by_link_type":"[]","done_category_keys":[],"resolutions":{"completed":["10000"],"wont_do":[]}}' \
+  "$(wit_yaml_binding_json "$TEST_TMPDIR/empty.yaml" | jq -c '.config.jira')"
+printf 'tracker:\r\n  config:\r\n    jira:\r\n      done_category_keys: []\r\n' >"$TEST_TMPDIR/crlf.yaml"
+assert_eq "an empty flow sequence on a CRLF line stays []" '[]' \
+  "$(wit_yaml_binding_json "$TEST_TMPDIR/crlf.yaml" | jq -c '.config.jira.done_category_keys')"
+write_binding "$TEST_TMPDIR/dup.yaml" 'tracker:
+  config:
+    jira:
+      done_category_keys: []
+      done_category_keys: ["done"]'
+ERR="$(wit_yaml_binding_json "$TEST_TMPDIR/dup.yaml" 2>&1 >/dev/null)"
+assert_contains "a parse error after an empty flow sequence names the file's own line" "$ERR" "$TEST_TMPDIR/dup.yaml: line 5"
+
 # The pointer region binds a home other than the default.
 PREPO="$(yaml_repo pointer-repo)"
 mkdir -p "$PREPO/team/conf"

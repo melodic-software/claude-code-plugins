@@ -133,7 +133,11 @@ tracker:
 
 The seam reads the file with the plugin's copy of `yaml-subset.awk`, the repository's YAML
 subset parser. Every scalar reads as a string (the parser drops quotes, so a quoted id stays
-the id), and every reader takes a number or boolean as text. A key under `tracker` that the
+the id), and every reader takes a number or boolean as text. An empty flow sequence (`[]`)
+reads as an empty array, as the legacy JSON file writes it, so `done_category_keys: []` is
+present and judged like the JSON value (jira rejects an empty set) instead of taking the
+default, and `wont_do: []` keeps its key. One difference remains: a key with no value reads
+as absent, as though left out, never as a JSON `null`. A key under `tracker` that the
 schema does not declare, a document the parser rejects (named by file and line), or a rejected
 value (named by file, key and value; the overlay when it set the value) is exit `3`.
 

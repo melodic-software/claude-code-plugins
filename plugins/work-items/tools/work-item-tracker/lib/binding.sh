@@ -16,6 +16,11 @@ WIT_YAML_PARSER="$_WIT_BINDING_LIB_DIR/../../../skills/triage/scripts/yaml-subse
 WIT_HOME_RESOLVER="$_WIT_BINDING_LIB_DIR/../../../lib/resolve-convention-home.sh"
 readonly WIT_DEFAULT_CONVENTION_HOME="docs/conventions"
 readonly WIT_LEGACY_BINDING=".work-item-tracker.json"
+# What an empty flow sequence reads as while the parser reads a binding, which turns
+# back into []. It opens with a control character no YAML scalar can hold (raw, it is
+# outside YAML's character set; escaped, the subset rejects it), so it never matches
+# a value a file sets.
+readonly WIT_YAML_EMPTY_SEQ=$'\002[]'
 
 # wit_project_root: the one repo-root anchor every seam resolution uses (CONTRACT.md
 # "Setup (binding file)"). Fails outside a git repo with no CLAUDE_PROJECT_DIR.
@@ -48,11 +53,38 @@ wit_convention_home() {
   esac
 }
 
-# wit_yaml_records <file>: the parser's `dotted.key<TAB>value` records. On a parse
-# error, names the file and line on stderr and fails.
+# wit_yaml_mark_empty_seqs [<marker>]: stdin to stdout, line for line, with each empty
+# flow sequence in a value position (`key: []`, `- key: []`, `- []`) replaced by
+# <marker> as a double-quoted scalar. The parser prints nothing for `[]` and a record
+# for the scalar. The line count is kept, so a parse error still names the file's own
+# line. With no marker, a plain copy.
+wit_yaml_mark_empty_seqs() {
+  if [[ -z "${1:-}" ]]; then
+    cat
+    return
+  fi
+  # The lead is the indent, then `- `, a plain or quoted key and its colon, or both,
+  # exactly as the parser reads them; \047 is a single quote.
+  LC_ALL=C awk -v marker="$1" '
+    BEGIN {
+      key = "([A-Za-z0-9_-]+|\"([^\"\\\\]|\\\\.)*\"|\047([^\047]|\047\047)*\047)"
+      lead = "^ *((- +)?" key "[ \t]*:[ \t]+|- +)"
+    }
+    {
+      sub(/\r$/, "")
+      if (NR == 1) sub(/^\357\273\277/, "")
+      if (match($0, lead) && substr($0, RLENGTH + 1) ~ /^\[[ \t]*\][ \t]*(#.*)?$/)
+        $0 = substr($0, 1, RLENGTH) "\"" marker "\""
+      print
+    }'
+}
+
+# wit_yaml_records <file> [<marker>]: the parser's `dotted.key<TAB>value` records, each
+# empty flow sequence printed as <marker> when one is given (wit_yaml_mark_empty_seqs).
+# On a parse error, names the file and line on stderr and fails.
 wit_yaml_records() {
   local records
-  if ! records="$(LC_ALL=C awk -f "$WIT_YAML_PARSER" <"$1")"; then
+  if ! records="$({ wit_yaml_mark_empty_seqs "${2:-}" | LC_ALL=C awk -f "$WIT_YAML_PARSER"; } <"$1")"; then
     printf 'work-item-tracker: %s: line %s\n' "$1" \
       "$(awk -F '\t' '$1 == "error" { print $2 ": " $3 }' <<<"$records" | tail -n 1)" >&2
     return 1
@@ -71,15 +103,18 @@ wit_yaml_has_binding() {
 # wit_yaml_binding_json <file>: the file's `tracker` mapping as one JSON object.
 # Every scalar stays a string: the parser drops quotes, so a type guessed from the
 # text would turn a quoted id such as "10000" into a number. Every reader takes
-# numbers and booleans as text (jq -r, then a regex or string compare).
+# numbers and booleans as text (jq -r, then a regex or string compare). An empty flow
+# sequence stays [], as the legacy JSON file writes it: jira and linear tell a present
+# empty list (a config error) from an absent key (the default) with has(). A key with
+# no value reads as absent (CONTRACT.md "Setup (binding file)").
 wit_yaml_binding_json() {
   local records json bad
-  records="$(wit_yaml_records "$1")" || return 1
-  json="$(jq -R -n -c '
+  records="$(wit_yaml_records "$1" "$WIT_YAML_EMPTY_SEQ")" || return 1
+  json="$(jq -R -n -c --arg emptyseq "$WIT_YAML_EMPTY_SEQ" '
     [inputs | select(startswith("tracker.") or startswith("tracker\t"))
       | split("\t") as $f
       | {path: ($f[0] | split(".")[1:] | map(if test("^(0|[1-9][0-9]*)$") then tonumber else . end)),
-         value: ($f[1:] | join("\t"))}]
+         value: ($f[1:] | join("\t") | if . == $emptyseq then [] else . end)}]
     | reduce .[] as $r ({}; setpath($r.path; $r.value))' <<<"$records")" || return 1
   bad="$(jq -r 'if type != "object" then "tracker"
     else keys_unsorted - ["schema_version", "provider", "config", "docs"] | map("tracker." + .) | join(", ") end' <<<"$json")"
