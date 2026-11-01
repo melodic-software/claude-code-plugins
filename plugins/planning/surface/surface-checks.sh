@@ -464,7 +464,8 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
     # An ordinary Claude note after it must not unpin the question. Notes carry whole-second times,
     # so waiting for the next second to start gives it a later time than n2, as a full second would.
-    local us=${EPOCHREALTIME#*.} wait=1
+    local now=${EPOCHREALTIME:-} us wait=1 # bash 4 has no EPOCHREALTIME: keep the full second
+    us=${now#*.}
     [[ "$us" =~ ^[0-9]{6}$ && "$us" != 000000 ]] && wait=$(printf '0.%06d' "$((1000000 - 10#$us))")
     jtime sleep sleep "$wait"
     japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
