@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n# Drain a quarry worker before maintenance\n\n## Before you start\n\nA running job holds a **lease** on its worker: a claim the job renews every 10 seconds. A worker is safe to stop once it holds no leases.\n\n## Steps\n\n1. Cordon the worker, so the scheduler stops assigning it new jobs:\n\n   ```sh\n   quarry worker cordon w-17\n   ```\n\n2. Wait until the worker's lease count reaches 0. Check it with:\n\n   ```sh\n   quarry worker show w-17\n   ```\n\n3. Jobs get a grace period to finish: the time set by `drain.grace` in `quarry.toml`, 15 minutes by default. If a job still holds its lease after that, requeue it:\n\n   ```sh\n   quarry job requeue <id>\n   ```\n\n   Each requeue bumps the job's fencing token, a number that storage checks on every write. Storage rejects writes that carry an older token, so the old run cannot overwrite the new one.\n\n4. Stop the worker:\n\n   ```sh\n   systemctl stop quarry-worker\n   ```\n````",
+      "why": "lease defined up front; cordon, grace period and fencing token glossed in the step that first uses each"
+    },
+    {
+      "answer": "````markdown\n# Drain a quarry worker\n\nThis guide assumes you know quarry's lease model: a running job holds a lease on its worker and renews it every 10 seconds.\n\n## Terms\n\n- **Cordon**: stop the scheduler assigning new jobs to a worker.\n- **Grace period**: how long a job may keep holding its lease before you requeue it; `drain.grace` in `quarry.toml`, default 15 minutes.\n- **Fencing token**: a number bumped on each requeue; storage rejects writes that carry an older one.\n\n## Steps\n\n1. Cordon the worker: `quarry worker cordon w-17`.\n2. Wait until its lease count is 0: `quarry worker show w-17`.\n3. If a job still holds its lease after the grace period, run `quarry job requeue <id>`. The fencing token makes the old run's writes fail.\n4. Stop the worker: `systemctl stop quarry-worker`.\n````",
+      "why": "lease defined in the opening sentence, the rest in a terms section before the steps"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "````markdown\n# Drain a quarry worker\n\n1. Cordon the worker: `quarry worker cordon w-17`.\n2. Wait until its lease count reaches 0: `quarry worker show w-17`.\n3. If a job still holds its lease after the grace period, run `quarry job requeue <id>`. The fencing token makes the old run's writes fail.\n4. Stop the worker: `systemctl stop quarry-worker`.\n\n## Reference\n\n- **Cordon**: the scheduler stops assigning new jobs to the worker.\n- **Lease**: the claim a running job holds on a worker, renewed every 10 seconds.\n- **Grace period**: `drain.grace` in `quarry.toml`, default 15 minutes.\n- **Fencing token**: a number bumped on each requeue; storage rejects writes that carry an older one.\n````",
+      "why": "runbook order kept: every term defined only after the steps that rely on it"
+    },
+    {
+      "answer": "````markdown\n# Drain a quarry worker\n\nCordon the worker with `quarry worker cordon w-17`, then watch `quarry worker show w-17` until no leases remain. Requeue any job that outlives the grace period with `quarry job requeue <id>`; its fencing token protects storage. Then run `systemctl stop quarry-worker`.\n````",
+      "why": "no term introduced or named as assumed knowledge"
+    }
+  ]
+}

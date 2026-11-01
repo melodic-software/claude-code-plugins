@@ -1039,6 +1039,157 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out")):
+        """The clean result at two runs per arm, measurable-criterion's second
+        with-arm run scoring 0 against its sibling's 1 and denied each (tool,
+        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl. The
+        sandbox's own plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        trace = self.dir.joinpath(*trace_at, "trace.jsonl")
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        entries = [
+            {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
+            for i, (tool, tool_input) in enumerate(calls)
+        ]
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
+            + "\n",
+            encoding="utf-8",
+        )
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        for case in data["cases"]:
+            for name in ("with", "without"):
+                case["arms"][name].append(copy.deepcopy(case["arms"][name][0]))
+        row = data["cases"][1]["arms"]["with"][1]
+        row["tracePath"], row["score"] = str(trace), 0
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "2")
+
+    def own_data(self, *parts):
+        return str(self.dir.joinpath("claude-eval-ab", "config", "plugins", "data", *parts))
+
+    def test_a_denial_only_under_the_runs_own_plugin_data_is_a_warning(self):
+        lease = self.own_data("harness-config-inline", "runs", "ap-1", "lease")
+        for calls in (
+            [("Read", {"file_path": lease})],
+            [("Bash", {"command": "cat " + lease})],
+            [("Write", {"file_path": lease, "content": "x"}),
+             ("Read", {"file_path": self.own_data("other", "last-audit.md")})],
+        ):
+            proc = self.denied_in_sandbox(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("aimed only under the run's own plugin-data directory", proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+            for _, tool_input in calls:
+                target = tool_input.get("file_path") or tool_input["command"]
+                self.assertIn(
+                    "  case measurable-criterion, with-arm run 2: %s %s (" % (_, target),
+                    proc.stdout,
+                )
+
+    def test_a_mixed_run_fails_counting_only_its_other_denials(self):
+        proc = self.denied_in_sandbox([
+            ("Read", {"file_path": self.own_data("p", "lease")}),
+            ("Bash", {"command": "cat " + self.own_data("p", "state.json")}),
+            ("Read", {"file_path": "/etc/hosts"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn(
+            "FAIL (3 denials in 1 run; 2 denials under the run's own plugin-data"
+            " directory, not counted)",
+            proc.stdout,
+        )
+        self.assertIn("Read " + self.own_data("p", "lease") + " (", proc.stdout)
+
+    def test_a_denial_beside_or_outside_the_runs_own_plugin_data_is_a_fail(self):
+        sandbox = self.dir / "claude-eval-ab"
+        lease = self.own_data("p", "lease")
+        for calls, trace_at in (
+            # The rest of the run's config directory is not plugin data.
+            ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
+            ([("Bash", {"command": "ls " + str(sandbox / "config")})], None),
+            ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
+            # A Bash call with one path inside plugin data and one outside.
+            ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
+            # Another sandbox's plugin data is not this run's.
+            ([("Read", {"file_path": str(self.dir.joinpath(
+                "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),
+            # One denial in plugin data does not excuse one outside it.
+            ([("Read", {"file_path": lease}), ("Read", {"file_path": "/etc/hosts"})], None),
+            # A Skill denial, or one with no rooted path, never qualifies.
+            ([("Skill", {"skill": "harness-config:audit-pass"})], None),
+            ([("Read", {"file_path": "config/plugins/data/p/lease"})], None),
+            # A trace outside <sandbox>/out names no sandbox to read data from.
+            ([("Read", {"file_path": lease})], ("claude-eval-ab",)),
+        ):
+            proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
+    def own_results(self, *parts, sandbox="claude-eval-ab"):
+        return str(self.dir.joinpath(
+            sandbox, "config", "projects", "-tmp-claude-eval-ab-home-cwd",
+            "00000000-0000-4000-8000-000000000001", *parts))
+
+    def test_a_read_of_the_sessions_own_tool_results_is_a_warning(self):
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for calls in (
+            [("Grep", {"pattern": "Balancing autonomy", "path": saved,
+                       "output_mode": "content", "-A": 25})],
+            [("Read", {"file_path": saved, "offset": 1, "limit": 5})],
+            [("Glob", {"pattern": "*.txt", "path": self.own_results("tool-results")})],
+            # Beside a plugin-data denial, each is set aside under its own count.
+            [("Grep", {"pattern": "x", "path": saved}),
+             ("Write", {"file_path": self.own_data("p", "last-audit.md"), "content": "x"})],
+        ):
+            proc = self.denied_in_sandbox(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+            self.assertIn("aimed only at the session's own tool-results directory",
+                          proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+        self.assertIn("1 denial under the run's own plugin-data directory, not counted",
+                      proc.stdout)
+
+    def test_a_mixed_run_fails_counting_only_its_other_tool_results_denials(self):
+        proc = self.denied_in_sandbox([
+            ("Read", {"file_path": self.own_results("tool-results", "a.txt")}),
+            ("Read", {"file_path": str(self.dir / "claude-eval-ab" / "config" / "settings.json")}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+
+    def test_other_denials_near_tool_results_still_fail(self):
+        sandbox = self.dir / "claude-eval-ab"
+        saved = self.own_results("tool-results", "a.txt")
+        for calls, trace_at in (
+            # Only Read, Grep and Glob qualify: Bash and a write do not.
+            ([("Bash", {"command": "cat " + saved})], None),
+            ([("Write", {"file_path": saved, "content": "x"})], None),
+            # Elsewhere in the session or project directory, or at another depth.
+            ([("Read", {"file_path": self.own_results("memory", "a.md")})], None),
+            ([("Read", {"file_path": str(sandbox.joinpath(
+                "config", "projects", "p", "tool-results", "a.txt"))})], None),
+            ([("Glob", {"pattern": "**", "path": str(sandbox / "config" / "projects")})], None),
+            # The user settings a settings-auditing skill reads stay a FAIL.
+            ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
+            # A write under the workspace's protected .claude/ stays a FAIL.
+            ([("Write", {"file_path": str(sandbox.joinpath(
+                "home", "cwd", ".claude", "unhobble", "x", "manifest.json")),
+                "content": "{}"})], None),
+            # Another sandbox's tool results are not this session's.
+            ([("Read", {"file_path": self.own_results(
+                "tool-results", "a.txt", sandbox="claude-eval-zz")})], None),
+            # A relative path, or a trace outside <sandbox>/out, never qualifies.
+            ([("Read", {"file_path": "config/projects/p/s/tool-results/a.txt"})], None),
+            ([("Read", {"file_path": saved})], ("claude-eval-ab",)),
+        ):
+            proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(

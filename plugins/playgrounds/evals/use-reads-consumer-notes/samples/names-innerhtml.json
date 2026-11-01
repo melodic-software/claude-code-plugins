@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Yes, one real caution: the data-explorer template renders query text into `innerHTML` through regex highlighting without escaping. Customer-submitted text could inject markup, so add HTML escaping before it reaches `innerHTML`, or feed it only trusted content.",
+      "why": "prose"
+    },
+    {
+      "answer": "- **Escape first.** The data explorer highlights with regexes and writes the result to innerHTML unescaped.\n- Sanitize customer input before it goes near that path.",
+      "why": "list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Watch out for XSS in general when you share pages.",
+      "why": "generic"
+    },
+    {
+      "answer": "It renders into innerhtml, lowercase.",
+      "why": "not the DOM property name"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "dropped: Bash(python3 *) (interpreter-wildcard)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "All four rules carry over.",
+      "why": "none named"
+    }
+  ]
+}

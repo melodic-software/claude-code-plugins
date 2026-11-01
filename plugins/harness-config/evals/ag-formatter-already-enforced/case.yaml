@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: ag-formatter-already-enforced
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-precommit'
+    type: 'regex'
+    pattern: 'pre-commit'
+    target: 'last_message'
+  - name: 'already-enforced'
+    type: 'regex'
+    pattern: 'Already enforced|already (?:enforced|covered|runs|run)'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'posttooluse-not-a-gate'
+    type: 'llm'
+    criteria: 'PASS only if the reply''s verdict on a PostToolUse hook running ruff format and ruff check after every edit is REJECT (or a CONDITIONAL that moves the check to a git pre-commit or pre-push placement rather than a per-edit hook), citing that .pre-commit-config.yaml and the CI workflow already run ruff, and the reply does not say a PostToolUse hook can stop or block the edit. FAIL if it passes the per-edit hook, says PostToolUse prevents the save, or says it added a hook.'
+  - name: 'no-automation-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json"|\.mcp\.json"|\.claude/hooks/|\.pre-commit-config\.yaml")'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-automation-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json"|\.mcp\.json"|\.claude/hooks/|\.pre-commit-config\.yaml")'
+    min: 0
+    max: 0
+    arm: 'both'

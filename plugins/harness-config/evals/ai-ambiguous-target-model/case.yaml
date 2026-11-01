@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ai-ambiguous-target-model
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-versioned-flag
+    type: regex
+    pattern: '--target-model[\s`]+(?:<version>|[a-z]+-\d)'
+    target: 'last_message'
+  - name: no-prescan
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'instruction-scan\.sh|conflict-scan\.sh'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-lanes
+    type: tool_used
+    tool: 'Agent'
+    min: 0
+    max: 0
+    arm: 'both'

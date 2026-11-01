@@ -114,7 +114,7 @@ Applies in both modes, when `/code-metrics:audit-duplication` ran and its docume
   growing; copy count still ranks spread (ranking.md).
 - **The candidate's next step is a lint proposal**: a check that stops the next copy. Which rung
   fits (`shared-helper`, one helper every caller goes through, or a linter rung that flags a new
-  copy) is the enforcement ladder's call, made by `/review:audit-enforceability`
+  copy) is the enforcement ladder's call, made by `/corrections:codify`
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md>).
 - **No CI ceiling on a total clone count.** The trend is a ranking input, never a gate; a proposal
   targets one growing class, not the repository's total.
@@ -134,10 +134,10 @@ Applies in both modes, when `/code-metrics:audit-duplication` ran and its docume
     memory root holds a `.gitignore` containing `*`, creating it (announced) when absent; never
     edit the consumer's root `.gitignore`; write nothing when the memory root is the repository
     root.
-  - The candidate row names the file. Interactively, offer `/review:audit-enforceability <file>`
+  - The candidate row names the file. Interactively, offer `/corrections:codify findings <file>`
     when it is among the available skills; never run it unasked. Unattended, the row and any filed
     item carry the file path and that command, and nothing runs it.
-  - Without review, the candidate row still names the file and says the audit is not available.
+  - Without corrections, the candidate row still names the file and says the audit is not available.
 
 ## Filing flow (presence-gated, deduped, capped)
 

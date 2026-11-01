@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: pp-script-gate-present
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'guide-fetched'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    input_match: 'claude-prompting-best-practices'
+    min: 1
+  - name: 'wipe-cache-present'
+    type: 'regex'
+    pattern: 'wipe-cache[\s\S]{0,600}?PRESENT|PRESENT[\s\S]{0,600}?wipe-cache'
+    target: 'last_message'
+  - name: 'cites-script'
+    type: 'regex'
+    pattern: 'wipe-cache\.sh'
+    target: 'last_message'
+  - name: 'script-gate-credited'
+    type: 'llm'
+    criteria: 'PASS only if the reply judges .claude/skills/wipe-cache/SKILL.md as already carrying destructive-action confirmation (PRESENT), citing that scripts/wipe-cache.sh asks the user y/N before it deletes anything, and does not recommend adding a confirmation step to the skill as a needed fix. FAIL if it judges the posture MISSING, does not cite the script, or says it edited a file.'
+  - name: 'no-instruction-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-instruction-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-mutate'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'sed\s+-i(?:\\"|[^"])*?\.claude/skills/|(?:>>?|tee(?:\s+-a)?)\s*[\w./-]*\.claude/skills/'
+    min: 0
+    max: 0
+    arm: 'both'

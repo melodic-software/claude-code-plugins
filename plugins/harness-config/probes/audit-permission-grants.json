@@ -1,0 +1,121 @@
+{
+  "skill": "harness-config:audit-permission-grants",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-permission-grants",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice B (#11561); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-permission-state, draft-auto-mode-rules, audit; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit-permission-state",
+    "harness-config:draft-auto-mode-rules",
+    "harness-config:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "my skill has `allowed-tools: Bash(python3 *)` in its frontmatter but claude still prompts every time it runs python. why isn't that grant doing anything?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through every permissions.allow entry in .claude/settings.json and settings.local.json and flag anything that only works on my laptop, like hardcoded home directory paths."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "will these allow rules still work for my teammates on windows? a bunch of them point at ~/bin/ scripts"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "the plugin I'm writing grants itself Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/*) in a skill's frontmatter. is that grant actually honored or is it inert?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "scan the allowed-tools lines across all our skills and tell me which grants are malformed or non-portable. report only, don't change anything"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "There's a guarded helper under scripts/ that keeps getting denied even though I added `Bash(./scripts/guard.sh:*)` to allow. Figure out what's wrong with the rule."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "review the allow list in .claude/settings.json for interpreter wildcards like Bash(python *) or Bash(bash -c *) that won't survive auto mode"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "someone committed a permission rule with a literal $HOME in it. are there other grants like that anywhere in the repo?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before we publish this plugin, look over every allowed-tools frontmatter in its skills and agents and tell me if any grant is pointless or won't carry over to other machines."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "agents/reviewer.md lists Bash(jq:*) in allowed-tools but the subagent still asks before running jq. is the grant shaped wrong?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "show me the merged list of allow, ask and deny rules that are actually in force right now across user, project and managed settings"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "i keep getting asked to approve git status and ls. add whatever read-only commands I use a lot to the project allowlist so it stops"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "add Bash(npm run build) to the allow rules in my project settings"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "help me write the autoMode block so the classifier lets read-only kubectl commands through but stops anything that deletes resources"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "check settings.json, .mcp.json and our hooks for security problems and drift since the last Claude Code release"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the managed settings file at the system level being picked up at all on this machine? And which of its rules win over the ones in my user settings?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "open the interactive permissions editor so I can remove a deny rule by hand"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "look through my recent sessions, figure out which safe bash commands I approve over and over, and allowlist them in the project settings"
+    }
+  ]
+}

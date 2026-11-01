@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: dr-compose-paste-ready
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'lint-before-draft'
+    type: 'tool_order'
+    before: {tool: 'Bash', input_match: 'automode-block-lint\.sh'}
+    after: {tool: 'Bash', input_match: 'draft-automode-block\.sh'}
+  - name: 'drafter-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'draft-automode-block\.sh'
+    min: 1
+  - name: 'keeps-defaults'
+    type: 'regex'
+    pattern: '\$defaults'
+    target: 'last_message'
+  - name: 'names-user-settings'
+    type: 'regex'
+    pattern: '~/\.claude/settings\.json|CLAUDE_CONFIG_DIR|\buser settings\b'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'no-reset'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'auto-mode\s+reset'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'

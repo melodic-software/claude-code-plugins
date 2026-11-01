@@ -197,13 +197,15 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
 // split-diff.py on a fixture patch: the chunk files it writes, by name.
 const SPLIT_DIFF = new URL("./split-diff.py", import.meta.url).pathname;
 // With `manifestBytes`, it returns the manifest it wrote (null for none).
-function split(patch, maxBytes, maxChunks, manifestBytes) {
+// With `maxFiles`, it passes the optional seventh argument.
+function split(patch, maxBytes, maxChunks, manifestBytes, maxFiles) {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-chunks-"));
   try {
     writeFileSync(path.join(dir, "diff.patch"), patch);
     mkdirSync(path.join(dir, "out"));
     const manifest = path.join(dir, "manifest.txt");
-    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)], { encoding: "utf8" });
+    const args = [path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)];
+    const run = spawnSync("python3", ["-I", SPLIT_DIFF, ...args, ...(maxFiles === undefined ? [] : [String(maxFiles)])], { encoding: "utf8" });
     const chunks = Object.fromEntries(readdirSync(path.join(dir, "out")).sort().map((name) => [name, readFileSync(path.join(dir, "out", name), "utf8")]));
     if (manifestBytes !== undefined) {
       return { status: run.status, chunks, stderr: run.stderr, manifest: (() => { try { return readFileSync(manifest, "utf8"); } catch { return null; } })() };
@@ -256,6 +258,23 @@ test("a chunk of exactly the cap, and exactly the most chunks, still split", () 
   const [a, b] = [filePatch("a", 100), filePatch("b", 100)];
   assert.deepEqual(split(a, 100, 1), { status: 0, chunks: { "chunk-1.patch": a }, stderr: "" });
   assert.deepEqual(split(a + b, 100, 2).chunks, { "chunk-1.patch": a, "chunk-2.patch": b });
+});
+
+test("with a file cap a chunk also ends at that many files, and without one only bytes cut", () => {
+  const files = ["a", "b", "c", "d", "e"].map((name) => filePatch(name, 50));
+  const [a, b, c, d, e] = files;
+  const all = files.join("");
+  // Five 50-byte files fit one 1000-byte chunk; a cap of 2 cuts at every second file.
+  assert.deepEqual(split(all, 1000, 4).chunks, { "chunk-1.patch": all });
+  assert.deepEqual(split(all, 1000, 4, 15000, 0).chunks, { "chunk-1.patch": all });
+  assert.deepEqual(split(all, 1000, 4, undefined, 2), { status: 0, chunks: { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e }, stderr: "" });
+  // Bytes still cut first: at 100 bytes and a cap of 3, each chunk holds two files.
+  assert.deepEqual(split(all, 100, 4, undefined, 3).chunks, { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e });
+  // A cap that needs more than the most chunks is too large and writes nothing.
+  const over = split(all, 1000, 2, undefined, 2);
+  assert.equal(over.status, 3);
+  assert.deepEqual(over.chunks, {});
+  assert.match(over.stderr, /3 chunks/);
 });
 
 test("more chunks than the most, or a file larger than one chunk, is too large and writes nothing", () => {
@@ -790,6 +809,14 @@ test("the model reads its data directory alone", () => {
     assert.ok(prompt.includes(placeholder), placeholder);
     assert.ok(step("Write the prompt and schema").includes(`prompt=\${prompt//${placeholder}/`), placeholder);
   }
+});
+
+// The criteria step copies docs/review to STANDARDS_DIR/review; the prompt
+// lists that directory, or a reviewer told to read only the listed files
+// never applies the per-concern rules.
+test("the prompt names the per-concern review rules the criteria step copies", () => {
+  assert.ok(prompt.includes("its per-concern review rules (`review/`, when present;"));
+  assert.ok(step("Copy the review criteria").includes('cp -R .base/docs/review "$DATA/standards/review"'));
 });
 
 test("the verdict uploads once, after it is written, under the writer's name", () => {
