@@ -134,8 +134,8 @@ assert_exit "no args exits 2" 2 "$rc"
 # --- Dotted keys and lists, read from the pipeline's canonical example ---
 # Expected values are the literals on the cited lines of that example file.
 EX="$SCRIPT_DIR/../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml"
-assert_eq 'nested key merge.rung (example :173)' "C2" "$(bash "$SCRIPT" "$EX" merge.rung)"
-assert_eq '--list prints a flow list one item per line, quotes removed (example :179)' \
+assert_eq 'nested key merge.rung (example :201)' "merge" "$(bash "$SCRIPT" "$EX" merge.rung)"
+assert_eq '--list prints a flow list one item per line, quotes removed (example :207)' \
   $'.github/**\n.claude/**\ndocs/conventions/pr-pipeline.yaml' \
   "$(bash "$SCRIPT" "$EX" merge.diff-check.denied-paths --list)"
 assert_eq 'a block sequence of mappings is indexed (example :143)' "merge" \
@@ -215,7 +215,7 @@ assert_eq 'duplicate key: --strict names the second line' "parse-concern-value: 
 rc=0
 out=$(bash "$SCRIPT" --strict "$EX" merge.rung) || rc=$?
 assert_exit '--strict on a clean file exits 0' 0 "$rc"
-assert_eq '--strict on a clean file prints the value' "C2" "$out"
+assert_eq '--strict on a clean file prints the value' "merge" "$out"
 assert_eq '--strict on a missing file prints the fallback' ".x" \
   "$(bash "$SCRIPT" --strict "$TEST_TMPDIR/nope.yaml" memory_dir .x)"
 

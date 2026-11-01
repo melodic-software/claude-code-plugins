@@ -19,7 +19,7 @@
 #
 # Exit 0 = every registered question is resolved (register is clean) and, with
 #          --procedure, the procedure checks below pass
-# Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
+# Exit 1 = at least one question is still `open`, `discussing` or `superseded-by-plan` (the
 #          contract is not locked), --procedure found a procedure defect
 #          (the register is gradeable but the interview did not complete its
 #          own procedure; fix the ledger or Brief and re-run), the named
@@ -44,7 +44,9 @@
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
 #   - Q1 | answered | round 1 | <question> | <resolution>
-# Statuses: open | answered | deferred | withdrawn | blocked | superseded-by-plan
+# Statuses: open | discussing | answered | deferred | withdrawn | blocked | superseded-by-plan
+# `discussing` is an `open` question the user asked to talk through: it counts
+# in `open=<n>` and blocks the gate the same way.
 # `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
 # the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
 # gate exactly like `open`.
@@ -368,8 +370,7 @@ count_line() {
 # export's lines. A decision duplicated, put back in an earlier form, or
 # contradicted by a second line naming its Q<N> fails.
 check_decisions() {
-  local want have want_n have_n seen=$'\n' export_lines brief_lines
-  local qn_re='(^|[^A-Za-z0-9])[Qq][1-9][0-9]*([^0-9A-Za-z_]|$)'
+  local want want_n have_n seen=$'\n' export_lines brief_lines
   export_lines="$(section_lines decisions 1 "$export_hi" "$expected_brief")"
   brief_lines="$(section_lines decisions "$brief_lo" "$brief_hi" "$brief")"
   while IFS= read -r want; do
@@ -383,11 +384,22 @@ check_decisions() {
       proc_problem "Brief's Decisions has a line $have_n times that the page export writes $want_n time(s): $want"
     fi
   done <<<"$export_lines"
+  no_stray_decisions decisions Decisions
+  no_stray_decisions constraints Constraints
+}
+
+# Name each line of the Brief's section `name` that names a Q<N> but is not one of
+# the export's lines for that section, as the section `label`: a decision in another
+# form, or a second line for one (a Decisions line repeated under Constraints).
+no_stray_decisions() {
+  local have export_lines
+  local qn_re='(^|[^A-Za-z0-9])[Qq][1-9][0-9]*([^0-9A-Za-z_]|$)'
+  export_lines=$'\n'"$(section_lines "$1" 1 "$export_hi" "$expected_brief")"$'\n'
   while IFS= read -r have; do
     [[ -n "$have" && "$have" =~ $qn_re ]] || continue
-    [[ $'\n'"$export_lines"$'\n' == *$'\n'"$have"$'\n'* ]] ||
-      proc_problem "Brief's Decisions has a line the page export does not write (a decision in another form, or a second line for it): $have"
-  done <<<"$brief_lines"
+    [[ "$export_lines" == *$'\n'"$have"$'\n'* ]] ||
+      proc_problem "Brief's $2 has a line the page export does not write (a decision in another form, or a second line for it): $have"
+  done <<<"$(section_lines "$1" "$brief_lo" "$brief_hi" "$brief")"
 }
 
 # Set `trimmed` to $1 without its leading and trailing whitespace (no subshell).
@@ -869,7 +881,7 @@ while IFS= read -r line; do
   # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
   shopt -s nocasematch
   case "$status_field" in
-  open) open_count=$((open_count + 1)) ;;
+  open | discussing) open_count=$((open_count + 1)) ;;
   answered) answered=$((answered + 1)) ;;
   deferred)
     deferred=$((deferred + 1))
@@ -1070,9 +1082,9 @@ if [[ "$procedure_on" -eq 1 ]]; then
       [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
     done
 
-    # The page's own export is what the Brief must still carry: a section a
-    # confirmed restatement filled (Decisions) and the user's words in Intent
-    # exist only on the page, so the template headings alone cannot show them.
+    # The page's own export is what the Brief must still carry: the sections a
+    # confirmed restatement filled and the user's words in Intent exist only on
+    # the page, so the template headings alone cannot show them.
     if [[ "$surface_named" -eq 1 ]]; then
       expected_brief="$(mktemp)" || die_ungradeable "could not create a temp file for the --surface export"
       trap 'rm -f "$expected_brief"' EXIT
@@ -1087,9 +1099,14 @@ if [[ "$procedure_on" -eq 1 ]]; then
         [[ -z "$want" || "$brief_headings" == *$'\n'"$want"$'\n'* ]] ||
           proc_problems="${proc_problems}Brief is missing the section '$want' that the page export writes"$'\n'
       done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
-      need_export_lines intent Intent
-      need_export_lines 'tl;?dr' TLDR
-      need_export_lines 'acceptance criteria' 'Acceptance criteria'
+      # Every line the export writes in a section other than Decisions (counted below).
+      while IFS= read -r want; do
+        [[ -z "$want" || "$want" == decisions ]] && continue
+        # Not ${want^}: macOS /bin/bash is 3.2.
+        label="$(printf '%s' "${want:0:1}" | tr '[:lower:]' '[:upper:]')${want:1}"
+        [[ "$want" != tldr ]] || label=TLDR
+        need_export_lines "${want//[^a-z0-9 -]/.}" "$label"
+      done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
       check_decisions
     fi
   fi

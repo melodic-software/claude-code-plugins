@@ -22,6 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy
 import babysit_risk
+import babysit_tracker_binding
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
@@ -293,7 +294,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 19, "gate": 50, "enforcement": 50},
+            {"trust": 19, "gate": 50, "enforcement": 51},
         )
         self.assertEqual(
             FLOOR.high,
@@ -1300,7 +1301,7 @@ class LanePathFloorTests(unittest.TestCase):
             "scripts/x.sh",
             "lib/x.sh",
             ".gitleaks.toml",
-            ".work-item-tracker.json",
+            babysit_tracker_binding.LEGACY_PATH,
             ".node-version",
             ".python-version",
             ".gitattributes",
@@ -2120,6 +2121,40 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             )
         )
 
+    def test_a_quoted_secrets_inherit_is_gated_and_held(self):
+        # YAML reads a quoted key or value as the same string as the bare one.
+        text = "name: x\non: push\njobs:\n  a:\n    uses: o/r/.github/workflows/y.yml@abc\n"
+        self.assertFalse(babysit_risk.gated_workflow("x", text))
+        for added in (
+            "    secrets: inherit\n",
+            '    secrets: "inherit"\n',
+            "    secrets: 'inherit'\n",
+            "    'secrets': inherit\n",
+            '    "secrets": "inherit"\n',
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+                patch = "@@ -1,1 +1,2 @@\n context\n+" + added.rstrip("\n")
+                wf = _file(".github/workflows/x.yml", patch=patch)
+                result = score(_input(files=(wf,), high_floor=False, public=True))
+                self.assertIn(babysit_risk.SECRET_EXPOSURE_CODE, _codes(result))
+
+    def test_a_quoted_id_token_key_is_gated(self):
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        for added in (
+            '    permissions:\n      "id-token": write\n',
+            "    permissions:\n      'id-token': write\n",
+            "    permissions:\n      'id-token': 'write'\n",
+            '    permissions: {"id-token": write}\n',
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        self.assertFalse(
+            babysit_risk.gated_workflow(
+                "x", text + "    permissions:\n      'id-token': read\n"
+            )
+        )
+
     def test_a_hash_inside_quotes_or_a_block_scalar_hides_no_secret(self):
         text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n"
         for added in (
@@ -2261,7 +2296,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 50)
+        self.assertEqual(len(FLOOR.review), 51)
         for glob in FLOOR.review:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))

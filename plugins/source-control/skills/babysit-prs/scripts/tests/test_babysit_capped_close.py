@@ -132,6 +132,7 @@ class World:
         attempts: int = 1,
         holds: tuple[str, ...] = (),
         issue_holds: tuple[str, ...] = ("needs-human",),
+        reason: str = ve.CLOSE_VERIFY,
     ) -> dict[str, Any]:
         with (
             mock.patch.object(ve.merge_policy, "pull_request", return_value=self.pr),
@@ -145,6 +146,7 @@ class World:
                 attempts=attempts,
                 holds=holds,
                 issue_holds=issue_holds,
+                reason=reason,
             )
 
     def calls(self) -> list[str]:
@@ -471,6 +473,52 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         # clears it, so the pull request stays open for that judgment.
         self.assertFalse(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
 
+    def test_review_rounds_not_converging_close_for_a_fresh_attempt(self) -> None:
+        world = World()
+        url = f"https://github.com/{REPO}/pull/{PR}#issuecomment-1"
+        world.comments[PR] = [{**comment(stopped_note()), "html_url": url}]
+        # The verifier's answer plays no part.
+        result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
+        self.assertEqual(result["closed"], True)
+        self.assertEqual(result["refusal"], ve.NOT_CONVERGING)
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertEqual(world.calls()[-1], f"PATCH repos/{REPO}/pulls/{PR}")
+        self.assertIn("review rounds as `feedback-not-converging`", world.body(0))
+        issue_body = world.body(1)
+        self.assertTrue(issue_body.startswith(f"<!-- verify-capped-close pr={PR} "))
+        # The fresh attempt starts from the open threads the stop lists,
+        # not from pr-verify FAIL findings it was not closed for.
+        self.assertIn(f"lane-stopped comment lists ({url})", issue_body)
+        self.assertNotIn("starts from these findings", issue_body)
+        self.assertNotIn("No FAIL findings", issue_body)
+
+    def test_not_converging_needs_the_lanes_apps_stop_at_the_head(self) -> None:
+        for why, comments in {
+            "none": [],
+            "another head": [comment(stopped_note(head="b" * 40))],
+            "another reason": [comment(stopped_note(reason="feedback-verifier-open"))],
+            "another account": [comment(stopped_note(), login="github-actions[bot]")],
+        }.items():
+            with self.subTest(why):
+                world = World()
+                world.comments[PR] = comments
+                result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
+                self.assertFalse(result["closed"])
+                self.assertEqual(world.writes, [])
+
+
+def stopped_note(reason: str = ve.NOT_CONVERGING, head: str = HEAD) -> str:
+    """report-escalation.sh's fail-route comment for address-feedback."""
+    return "\n".join(
+        [
+            ve.LANE_STOPPED_FEEDBACK,
+            "The pr-unblock lane stopped `address-feedback` on this pull request.",
+            "",
+            f"- Reason: `{reason}`",
+            f"- Head: `{head}`",
+        ]
+    )
+
 
 class LeavesItAlone(unittest.TestCase):
     def test_a_refusal_that_can_clear_is_no_close(self) -> None:
@@ -577,8 +625,21 @@ class TheCommand(unittest.TestCase):
                 "attempts": 2,
                 "holds": ("do-not-merge", "needs-human"),
                 "issue_holds": ("needs-human",),
+                "reason": ve.CLOSE_VERIFY,
             },
         )
+        with (
+            mock.patch.object(ve.merge_policy, "config_at", return_value=config),
+            mock.patch.object(
+                ve.merge_policy, "with_default_branch", return_value=config
+            ),
+            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": True}
+            ) as close,
+        ):
+            self.main("--reason", ve.NOT_CONVERGING)
+        self.assertEqual(close.call_args.kwargs["reason"], ve.NOT_CONVERGING)
 
     def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
         with mock.patch.object(

@@ -191,7 +191,7 @@ Never pad a quiet run by re-listing standing findings to look useful.
   classification stands. Re-deriving it invites drift between runs for no new information.
 - **Only the both-absent row routes out.** With either the baseline or the artifact in hand there is
   a comparison to make, since an artifact alone bootstraps. With neither there is nothing to report
-  movement against, and this skill is not a full audit wearing a different name.
+  movement against, and this skill is not a full audit.
 - **Never advance the baseline past an unrecorded discovery.** The merge happens first, every cycle.
   Capturing the spine first leaves a baseline that says the finding is old while no artifact record
   says it exists. Nothing errors, and the finding is gone from both sides. The bootstrap row is the
@@ -205,7 +205,7 @@ Never pad a quiet run by re-listing standing findings to look useful.
 ## Gotchas
 
 - **A quiet run is the expected outcome, not a failed one.** The pull toward finding *something* to
-  justify the run is exactly what makes a cadence lane useless. A short answer that states the
+  justify the run is what makes a cadence lane useless. A short answer that states the
   window and the suppressed count is the whole report.
 - **"Nothing touched the rules folder" does not make glob re-validation unnecessary.** Globs break
   from refactors elsewhere. Skipping validation on that reasoning misses the single shape that most
@@ -219,6 +219,6 @@ Never pad a quiet run by re-listing standing findings to look useful.
 - **A capture at the wrong moment is a silently useless lane.** Capture at the end, after the
   comparison. Capturing first compares this run against itself and reports nothing forever, with no
   error to show for it.
-- **A `changed` finding's stale line range is the dangerous part.** It is not a bookkeeping
-  detail: `realign` excises by that range, so reporting `changed` without re-deriving the range
-  hands the apply lane a number that points at the wrong text.
+- **A `changed` finding's stale line range is the dangerous part.** `realign` excises by that range,
+  so reporting `changed` without re-deriving the range hands the apply lane a number that points at
+  the wrong text.

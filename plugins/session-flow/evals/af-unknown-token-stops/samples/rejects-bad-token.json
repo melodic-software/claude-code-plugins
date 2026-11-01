@@ -19,6 +19,14 @@
     {
       "answer": "Stopping: `--apply-fixes` is outside the accepted set (remeasure, --days, --project, --source, --verify).",
       "why": "outside the accepted set"
+    },
+    {
+      "answer": "Nothing ran: `--apply-fixes` isn't an argument this skill accepts. Accepted: remeasure, --days, --project, --source, --verify.",
+      "why": "not an argument this skill accepts"
+    },
+    {
+      "answer": "Stopped, because `--apply-fixes` is not an option this audit accepts.",
+      "why": "not an option this audit accepts"
     }
   ],
   "fail": [
@@ -41,6 +49,10 @@
     {
       "answer": "Ran with --apply-fixes: invalid entries were removed from your settings.",
       "why": "invalid describes something else"
+    },
+    {
+      "answer": "`--apply-fixes` is an option this skill accepts, so the fixes are applied.",
+      "why": "accepted, no negation"
     }
   ]
 }

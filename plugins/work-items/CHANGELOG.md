@@ -3,6 +3,64 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.0] - 2026-11-01
+
+### Added
+
+- work-item tracker: an `add-recurrence <id> --source-link <url> --note <text>` seam verb records that a signal was seen again on an item, and writes nothing when the item already records that source link, so a lane that sees one signal twice records it once (#11866). The `github` and `local-markdown` adapters implement it; an adapter that does not declare it exits `6`.
+
+- triage: a `triage_stale_reporter_info_days` repository setting, off by default (#11868). When a repository sets it, the attention view lists each open `needs-reporter-info` item whose reporter lacks write access and has not replied within that many days as a close candidate. Triage closes a candidate only on the operator's yes in an attended session; a lane or CI run reports the list and closes nothing.
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+- `/work-items:work`: the attended confirm prompt now prints an `I read this item as: <goal; done when>` line above "Proceed with this item?", drawn from the item's brief, so a misread item is caught before the claim (#11864). Autonomous runs print neither the line nor the prompt.
+
+- work-item-tracker: the github and local-markdown `claim` take an optional `--phase <kind>` (`triage`, `discovery` or `implementation`) and write it into the lease as `phase` (#11871). A lease without the field is an implementation claim. `renew-lease`, and the github `reclaim`, keep it, so a triage or discovery claim can be told apart from an implementation claim and timed per phase. Arbitration and liveness ignore the field. Any other value is refused with exit 2 before anything is written.
+
+- `/work-items:decompose`: the base-commit check now offers a third choice for a criterion that already passes at the base commit: keep it, with a one-line reason. The published Done when writes that reason beside the check, so whoever picks the item up sees why a check that cannot fail at the starting commit is there (#11876).
+
+- `/work-items:triage` claims each item through the seam with `--phase triage` right before its first write (a comment, label edit, dimension write, edge or close). After its last write it clears its own assignee and releases the claim, so two runs never post conflicting results on one item (#11878). A claim lost to another session (exit 7) skips the item, and the report names it. The attention view, the stale reporter-info listing and the sweep's count take no claim. An outcome that writes to several items, such as an umbrella fold, claims all of them first and writes none when one is lost. A provider with no leases (exit 6) writes unclaimed and says so. The claim's one-hour TTL frees the item soon on a provider with no `release`.
+
+- triage: an idea issue, a feature request that does not say what it is for, now goes to `/planning:interview` and is parked with `needs-spec` before any code search, ledger check, verification or research (#11869). Once an interview records its intent, the item returns to raw (`needs-spec` removed, raw marker restored) and is triaged again. The label taxonomy lists `needs-spec`, and triage's label preflight covers it. A new eval case, `tr-idea-issue-routes-to-interview`, checks the route and that triage searches no code first. The tracker's human floor now holds `needs-spec`, so `list-frontier --autonomous` drops a parked idea issue the way it drops `status: needs-decision` and `status: needs-info` items.
+
+- `/work-items:triage` reads the repository's glossary, the ADRs covering the item's area and its scope statement before it evaluates an item. It names which of them it found in a `Read first:` line (#11867).
+- A `triage_outside_prs` repository setting in `docs/conventions/work-items.yaml`, default `false`, says whether the repository takes requests as pull requests from outside contributors (#11867).
+
+- work-item tracker: the seam reads the tracker binding from the `tracker` key of `<home>/work-items.yaml`, the convention home the repository's pointer region binds (`docs/conventions` when it binds none), with the personal overlay `<home>/work-items.local.yaml`. `work-items.schema.json` declares the binding keys. A rejected value names the file, key and value. While the migration runs, the seam still reads `.work-item-tracker.json` when the YAML has no binding and prints a one-line notice; with neither, it stops and points at `/work-items:setup` (#11872).
+
+- `/work-items:measure-delivery`: a read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, deployment rework rate) as a weekly or monthly team trend, read from the default branch's git history and never broken down by person (#11874). The repository setting `delivery_deploy_signal` in `docs/conventions/work-items.yaml` sets what counts as a deployment; its one value and default, `merge-to-default-branch`, counts each commit landing on the default branch, and one a later commit reverts counts as a failed deployment.
+
+- work: a bug path for bug items (#11865). The run names the broken and expected final states before any run, reproduces the bug twice through the real surface from a reset, and runs verify-existing-fix when a fix may already exist: the baseline reproduces twice and the patched build resolves it twice, ending Confirmed, Insufficient fix or Inconclusive, and never opening a competing PR. It writes the failing test first when a cheap local target exists, opens a draft PR only with before-and-after proof (the same path run twice on the patched build), and never merges. Two eval cases cover a confirmed reproduction and an already-fixed item.
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+- `/work-items:attend-queue` claims a row with `--phase triage`, tells the operator which row it skipped on exit 7, and leaves `[intake]` rows to triage's own claim, since a claim this lane took first would make triage back off from the item.
+- The README's multi-agent claim protocol section lists every skill that claims, and says read-only listings never claim.
+- New eval cases: `tr-claims-before-triage-write` expects the triage claim before the first item write, and `tr-attention-view-no-claim` expects no claim for the attention view.
+
+- With `triage_outside_prs` unset or `false`, the `/work-items:triage` attention view lists no pull requests and does not fetch them. A pull request named explicitly is still triaged (#11867).
+
+- **Breaking:** the work-item tracker bundles only the `github` and `local-markdown` adapters. `jira`, `gitea` and `linear` now ship as seeds under `tools/work-item-tracker/seeds/`, and the consuming repo owns its copy. `/work-items:setup apply` runs the new `seed-copy.sh`, which copies the bound provider's seed into `<repo root>/tools/work-item-tracker/adapters/<provider>/` with a `.seed-hash` record. On a re-run it fast-forwards a copy nobody edited, and for an edited one it prints the diff and writes nothing. A repo already bound to one of the three gets exit `3` from the seam, naming the setup step, until it runs `/work-items:setup apply` once (#11873).
+
+- The work-items skills, references, README, CONTRACT, schema description and adapter seed READMEs name the tracker binding as the `tracker` key of `<home>/work-items.yaml` (default `docs/conventions/work-items.yaml`) and the role-label remap as `tracker.config.role_labels` (#11880). Only `/work-items:setup` and the seam reader still name the legacy repo-root JSON binding, which the seam reads with a notice until setup migrates it.
+- The "no binding found" message from the dispatcher, the jira, gitea and linear seeds and the onboard-adapter `common.sh` template points at `tracker:` in `<home>/work-items.yaml`, or the legacy repo-root JSON binding the seam still reads. A seed already copied into a repository keeps its old message until setup copies it again.
+- The conformance runner re-homes its binding as `binding.json` and finds the overlay path through the new `wit_overlay_path` helper in `lib/binding.sh`.
+- The eval scaffolds write the binding under `tracker:` in `docs/conventions/work-items.yaml`, and their graders and samples check that file. The GitHub adapter tests' `test-scope` lines name `docs/conventions/work-items.yaml`.
+
+- `/work-items:setup apply` writes the tracker binding under the `tracker` key of `<home>/work-items.yaml` and the personal overlay under `tracker` in `<home>/work-items.local.yaml`, and makes sure a `.gitignore` rule covers the new overlay path (#11879). It keeps every other key in `work-items.yaml`.
+- When only the legacy `.work-item-tracker.json` binds a repository, `apply` copies it and its `.work-item-tracker.local.json` overlay into those files with the new `skills/setup/scripts/migrate-binding.sh`, says so, and leaves both JSON files unchanged, because babysit-prs, the autonomy plugin's resolve-prerequisites and the work, triage, attend-queue and track preflights still read only them. The script reads each copy back through the seam before writing it.
+- `/work-items:setup check` reports a repository whose binding exists only in the legacy JSON file, and names any value that differs when both files bind it.
+
+### Removed
+
+- work-loop: removed the manual C3 ratification gate check and its `skills/work-loop/AGENTS.md` (#7226). The check can only run on a GitHub tracker, because it needs comment authorship and label provenance that the local-markdown adapter does not provide. The work-loop `SKILL.md` no longer points at the check.
+
+### Fixed
+
+- work-item tracker: `list-frontier` now excludes any item carrying a label that starts `wayfind:`, in both the attended and the `--autonomous` frontier. `/work-items:work` no longer picks a wayfind map item, which `/planning:wayfind` drives (#11870).
+
 ## [3.15.3] - 2026-11-01
 
 ### Fixed

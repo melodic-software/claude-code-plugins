@@ -190,6 +190,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     const h2 = await lineIs(status.text) ? await head() : {};
     ok("a status set after the newest unhandled event is not dimmed", h2.line === "Checked the cache key" && h2.old === false && h2.work === "Claude is working on Q99, Q1", JSON.stringify(h2));
     status = null;
+    // h2 came from the 3 s poll; a visible tab's visibilitychange reads /api/state at once, so h3 need not wait for the next poll
+    await tab.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
     await tab.waitForFunction(() => document.getElementById("claudeLine").hidden || document.getElementById("clText").textContent !== "Checked the cache key", null, {timeout: 8000}).catch(() => {});
     const h3 = await head();
     ok("clearing the status leaves the working line unchanged", h3.line !== "Checked the cache key" && h3.work === "Claude is working on Q99, Q1", JSON.stringify(h3));
@@ -238,7 +240,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
     // set up the notice checks: a note for Claude to answer, then the summary with a hiding filter and a hidden rail
-    await post({kind: "note", text: "Is the plan on track?"});
+    const r0 = await page.evaluate(() => document.activeElement.value);
+    await post({kind: "note", text: "Is the plan on track?"}); await settle(2000);
+    ok("a state push that rebuilds the choices keeps focus on the same radio", await page.evaluate(v => document.activeElement.matches('#choices input[type="radio"]') && document.activeElement.value === v, r0), await focused());
     await page.selectOption("#filter", "answered"); await page.click("#title"); await page.keyboard.press("w"); await page.keyboard.press("["); await settle(300);
     ok("setup: the summary shows with the Answered filter and the rail hidden", await sel() === "summary" && await page.$eval("#layout", el => el.classList.contains("norail")), await sel());
   }
@@ -713,10 +717,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers it: a wake is in flight
     await until(() => /^Claude is working on /.test(document.getElementById("workLine").textContent), 5000); // the page has seen the delivery, the state queued() reads
     ok("the first note posted", sent.ok(), sent.status());
-    await page.click("#title"); await page.keyboard.press("l"); await page.click("#flyClose", {timeout: 2000}).catch(() => {});
+    // l toggles Activity, left open since phase 10: close it only when this press opened it
+    await page.click("#title"); await page.keyboard.press("l"); if (await page.$eval("#fly", el => el.classList.contains("open"))) await page.click("#flyClose");
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
+    // The next state frame re-renders the Notes panel, emptying the toast, so record every text it shows.
+    await page.evaluate(() => { const seen = window.__noteToasts = []; const mo = window.__noteToastObserver = new MutationObserver(() => { const t = (document.getElementById("noteToast") || {}).textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }); mo.observe(document.body, {subtree: true, childList: true, characterData: true}); });
     await page.fill("#noteText", "second note"); await page.click("[data-sendnote]");
-    ok("a save while a wake is in flight says queued, Claude is busy", await until(() => /Queued, Claude is busy/.test((document.getElementById("noteToast") || {}).textContent || ""), 4000), await text("#noteToast"));
+    ok("a save while a wake is in flight says queued, Claude is busy", await until(() => window.__noteToasts.some(t => /Queued, Claude is busy/.test(t)), 4000), JSON.stringify(await page.evaluate(() => window.__noteToasts)));
+    await page.evaluate(() => window.__noteToastObserver.disconnect()); // the page lives on through phase 20
+    const frame = await page.evaluate(() => window.__io.applied);
+    await page.request.get((await page.evaluate(() => location.origin)) + "/api/wait?after=0&timeout=1", {headers: {"X-Interview-Token": await token()}}); // delivers the second note, so the server pushes a state frame
+    const pushed = await page.waitForFunction(f => window.__io.applied !== f, frame, {timeout: 5000, polling: 50}).then(() => true).catch(() => false);
+    ok("the Notes send toast outlasts the next state push", pushed && /Queued, Claude is busy/.test(await text("#noteToast")), (pushed ? "" : "no frame; ") + await text("#noteToast"));
+    await page.click("#flyClose", {timeout: 2000}).catch(() => {});
+    // Leaving Notes clears the send toast and its busy note together, so coming back while that wake is still in flight shows neither.
+    const closed = !(await page.$eval("#fly", el => el.classList.contains("open"))), busy = /^Claude is working on /.test(await text("#workLine"));
+    await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
+    ok("reopening Notes while a wake is in flight shows no busy note on its own", closed && busy && await text("#noteToast") === "", (closed ? "" : "Notes did not close; ") + (busy ? "" : "no wake in flight; ") + JSON.stringify(await text("#noteToast")));
     await page.click("#flyClose", {timeout: 2000}).catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16

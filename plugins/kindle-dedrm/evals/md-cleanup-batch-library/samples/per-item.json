@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Cleanup stays per-item: each reversal is independent, and some are harder to redo than others.", "why": "skill wording" },
+    { "answer": "`cleanup.sh --full` will ask about each item; answer y or N one at a time.", "why": "each item" },
+    { "answer": "I'll walk you through them individually.", "why": "individually" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Run `yes | bash cleanup.sh --full` and everything goes at once.", "why": "batch-confirms" },
+    { "answer": "Sure, here's one command that removes it all.", "why": "no per-item framing" }
+  ]
+}

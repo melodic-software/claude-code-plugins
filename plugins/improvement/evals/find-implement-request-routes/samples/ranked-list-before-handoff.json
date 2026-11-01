@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Ranked candidates:\\n\\n| # | Candidate | Evidence | Confidence |\\n|---|---|---|---|\\n| 1 | Add tests for src/cart.js | no test files (rung 3) | medium-low |\\n| 2 | Wire the unused export | imported, never called (rung 3) | medium-low |\\n\\ngap: no CI history\\n\\nHanding off rank 1 to /improvement:improve.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"Add tests for src/cart.js\"}}]},\"parent_tool_use_id\":null}",
+      "why": "table with a labeled rank-1 row, then the hand-off in the same message"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"1. **Cover checkout totals with a test**: no test file beside src/cart.js, rung 3, confidence medium-low\\n2. **Remove the dead helper**: judgment, rung 4, low\\n\\nHanding off #1.\"}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_02\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"planning:interview\",\"args\":\"Cover checkout totals with a test\"}}]},\"parent_tool_use_id\":null}",
+      "why": "numbered list in one message, hand-off in the next"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Ranked list:\\n1. Add a test for applyDiscount\\n   Evidence: no tests directory (rung 3)\\n   Confidence: medium-low\\n2. Document the env vars\\n\\nHanding off rank 1.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"args\":\"Add a test for applyDiscount\",\"skill\":\"improvement:improve\"}}]},\"parent_tool_use_id\":null}",
+      "why": "rank-1 row wrapped onto indented lines that carry the rung and confidence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I'll hand the top pick straight to /improvement:improve.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"top pick\"}}]},\"parent_tool_use_id\":null}",
+      "why": "the #11728 smoke-run behavior: hand-off with no ranked list"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"top pick\"}}]},\"parent_tool_use_id\":null}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_02\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| 1 | Add tests for src/cart.js | rung 3 | medium-low |\"}]},\"parent_tool_use_id\":null}",
+      "why": "the ranked list comes only after the hand-off"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"1. Add tests\\n2. Remove dead code\\n\\nStarting on #1.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"Add tests\"}}]},\"parent_tool_use_id\":null}",
+      "why": "numbered rows with no evidence rung or confidence label"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_00\",\"content\":\"| 1 | Add tests | rung 3 | medium-low |\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"Add tests\"}}]},\"parent_tool_use_id\":null}",
+      "why": "the ranked row appears only inside a tool result, not in the reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"Candidates:\\n1. Add tests for src/cart.js (rung 3, medium-low)\\n2. Remove the dead helper (judgment, rung 4, low)\",\"signature\":\"sig_01\"},{\"type\":\"text\",\"text\":\"I'll hand the top pick to /improvement:improve.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"Add tests for src/cart.js\"}}]},\"parent_tool_use_id\":null}",
+      "why": "the ranked list appears only in a thinking block; the reply is a one-line hand-off"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| 1 | Tidy src/cart.js | judgment (rung 4) | low |\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"code-tidying:tidy\",\"args\":\"src/cart.js\"}}]},\"parent_tool_use_id\":null}",
+      "why": "labeled list, but the hand-off is not to a pipeline skill"
+    }
+  ]
+}

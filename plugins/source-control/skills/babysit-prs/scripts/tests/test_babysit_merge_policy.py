@@ -84,6 +84,9 @@ merge:
 SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
 LEGACY_WITHOUT_KEY = "## babysit_loop_tier\n\nworker\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
+TRACKER_LEGACY = policy.tracker_binding.LEGACY_PATH
+# The YAML files `GhFake` answers absent when a test sets none.
+UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -112,8 +115,8 @@ class GhFake:
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
     the query's string variables, which may return a whole gh result. Any other call fails the test,
-    except a read of the team `docs/conventions/source-control.yaml` no test set: that file is
-    absent from a readable tree, so a fixture written before it existed stays a legacy-only repo.
+    except a read of a `UNSET_YAML` file no test set: that file is absent from a readable tree, so
+    a fixture written before it existed stays a legacy-only repo.
     """
 
     def __init__(self) -> None:
@@ -141,10 +144,11 @@ class GhFake:
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
-            prefix, _, ref = endpoint.partition(f"/contents/{TEAM_YAML}?ref=")
-            if ref:
-                self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
-                return http_error(404)
+            for unset in UNSET_YAML:
+                prefix, _, ref = endpoint.partition(f"/contents/{unset}?ref=")
+                if ref:
+                    self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
+                    return http_error(404)
             raise AssertionError(f"unexpected gh call: {args}")
         answer = self.rest[endpoint]
         if isinstance(answer, int):
@@ -492,6 +496,19 @@ class ReadConfigAt(unittest.TestCase):
         config_fake(self, "merge:\n  rung: C4\n")
         self.assertEqual(policy.read_config_at(REPO, SHA).rung, "off")
 
+    def test_a_rung_name_and_its_code_read_as_the_same_rung(self) -> None:
+        for value, expected in (
+            ("off", "off"),
+            ("merge", "C2"),
+            ("C2", "C2"),
+            ("merge-reviewed", "C3"),
+            ("C3", "C3"),
+        ):
+            with self.subTest(value=value):
+                config_fake(self, f"merge:\n  rung: {value}\n")
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual((config.rung, config.notes), (expected, ()))
+
     def test_a_value_with_a_line_separator_is_a_parse_error(self) -> None:
         for char in ("\u0085", "\u2028", "\x0b", "\x1c"):
             with self.subTest(char=repr(char)):
@@ -626,6 +643,12 @@ class EffectiveRung(unittest.TestCase):
     def test_names_the_input_that_holds_it_off(self) -> None:
         self.assertEqual(self.rung(cap="off").limited_by, "rungCap")
 
+    def test_a_rung_name_ranks_as_its_code(self) -> None:
+        for name, code in (("merge", "C2"), ("merge-reviewed", "C3")):
+            with self.subTest(name=name):
+                self.assertEqual(self.rung(config_rung=name).rung, code)
+                self.assertEqual(self.rung(cap=name).rung, code)
+
 
 class KillSwitch(unittest.TestCase):
     VARS = f"repos/{REPO}/actions/variables"
@@ -701,6 +724,22 @@ class RungCap(unittest.TestCase):
         self.assertEqual(self.cap({"variables": []}, "C2"), "C2")
         self.assertEqual(self.cap({"variables": []}, "C4"), "off")
         self.assertEqual(self.cap({"variables": []}, 500), "off")
+
+    def test_a_rung_name_caps_as_its_code(self) -> None:
+        self.assertEqual(self.cap({"variables": []}, "merge"), "C2")
+        self.assertEqual(self.cap({"variables": []}, "merge-reviewed"), "C3")
+
+    def test_the_lane_value_takes_a_rung_name_or_its_code(self) -> None:
+        for value, expected in (
+            ("merge", "C2"),
+            ("C2", "C2"),
+            ("merge-reviewed", "C3"),
+            ("C3", "C3"),
+            ("merge-verified", "off"),
+        ):
+            with self.subTest(value=value):
+                cap = policy.rung_cap(REPO, authority=policy.PR_MERGE, lane_value=value)
+                self.assertEqual(cap.value, expected)
 
 
 class IsHuman(unittest.TestCase):
@@ -1699,7 +1738,7 @@ class IssueVouch(unittest.TestCase):
 
     def test_the_admission_label_reads_the_tracker_config(self) -> None:
         gh = GhFake().install(self)
-        path = f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"
+        path = f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"
         mapped = {"config": {"role_labels": {"autonomous-eligible": "go"}}}
         gh.rest[path] = {
             "type": "file",
@@ -1797,7 +1836,7 @@ class IssueVouch(unittest.TestCase):
             self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
 
     def tracker(self, gh: GhFake, text: str) -> None:
-        gh.rest[f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"] = {
+        gh.rest[f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"] = {
             "type": "file",
             "encoding": "base64",
             "content": base64.b64encode(text.encode()).decode(),
@@ -2647,6 +2686,8 @@ class ReadPromotion(unittest.TestCase):
         result, _ = self.run_resolver()
         self.assertTrue(result.promoted("C2"))
         self.assertTrue(result.promoted("C3"))
+        self.assertTrue(result.promoted("merge"))
+        self.assertTrue(result.promoted("merge-reviewed"))
         for other in ("off", None, "C1", "C4", "C5"):
             self.assertFalse(result.promoted(other))
 
@@ -2663,6 +2704,9 @@ class ReadPromotion(unittest.TestCase):
         result, _ = self.run_resolver(payload)
         self.assertTrue(result.promoted("C2"))
         self.assertFalse(result.promoted("C3"))
+        # A rung name needs the cells of the code it stands for.
+        self.assertTrue(result.promoted("merge"))
+        self.assertFalse(result.promoted("merge-reviewed"))
         payload["cells"] = self.CELLS | {"C2-auto-merge": {"effective": "unpromoted"}}
         result, _ = self.run_resolver(payload)
         self.assertFalse(result.promoted("C2"))

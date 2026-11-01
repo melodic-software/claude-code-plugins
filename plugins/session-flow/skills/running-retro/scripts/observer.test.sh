@@ -9,6 +9,7 @@
 # matching the floor this skill's other launchers (observer-arm.sh, SKILL.md)
 # already enforce.
 # test-scope: plugins/session-flow/skills/running-retro/scripts/arm_observer.py
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

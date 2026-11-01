@@ -45,6 +45,7 @@ from urllib.parse import quote
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
+import babysit_tracker_binding as tracker_binding
 import babysit_whole_review as whole_review
 from babysit_classify import (
     actor_kind,
@@ -100,6 +101,9 @@ MAX_IN_FLIGHT_CEILING = 24
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
+# Each `merge.rung` name and the code it stands for. The codes stay accepted
+# as aliases and are the form the gate compares and reports.
+RUNG_NAMES = {"merge": "C2", "merge-reviewed": "C3"}
 # `babysit_loop_merge` values as a rung.
 LOOP_MERGE_RUNG = {
     "human-only": "off",
@@ -406,20 +410,33 @@ _FLOOR_ROWS: dict[str, FloorRows] = {}
 
 def floor_paths_in(text: str) -> FloorRows:
     """The `merge.diff-check.floor-paths` rows of a pipeline document, read once
-    per document: `lib/yaml-subset.awk`'s flat records, since the shared reader's
-    `--list` prints scalar items alone. Raises `FloorRowError` on a row the
-    floor cannot use, and `PolicyReadError` when the parser cannot run or
-    rejects the document."""
+    per document from its `yaml_records`, since the shared reader's `--list`
+    prints scalar items alone. Raises `FloorRowError` on a row the floor
+    cannot use, and `PolicyReadError` when the parser cannot run or rejects
+    the document."""
     if text in _FLOOR_ROWS:
         return _FLOOR_ROWS[text]
+    records = {
+        key[len(FLOOR_PATHS_KEY) + 1 :]: value
+        for key, value in yaml_records(text).items()
+        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}.")
+    }
+    _FLOOR_ROWS[text] = rows = floor_rows(records)
+    return rows
+
+
+def yaml_records(text: str) -> dict[str, str]:
+    """A YAML document's `lib/yaml-subset.awk` records: each scalar's dotted
+    key to its value. Raises `PolicyReadError` when the parser cannot run or
+    rejects the document."""
     platform = "win32" if os.name == "nt" else sys.platform
     bash = resolve_bash(os.environ, platform, os.path.isfile)
     if bash is None:
         raise PolicyReadError("no usable bash found to run the shared YAML parser")
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
-        document.write_text(text, encoding="utf-8")
         try:
+            document.write_text(text, encoding="utf-8")
             proc = run_command(
                 [bash, "-c", 'LC_ALL=C exec awk -f "$0" "$1"']
                 + [str(PARSER.with_name("yaml-subset.awk")), str(document)],
@@ -430,13 +447,8 @@ def floor_paths_in(text: str) -> FloorRows:
             raise PolicyReadError(f"the shared YAML parser failed: {exc}") from exc
     if proc.returncode != 0:
         raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
-    records = {}
-    for line in proc.stdout.split("\n"):
-        key, _, value = line.partition("\t")
-        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}."):
-            records[key[len(FLOOR_PATHS_KEY) + 1 :]] = value
-    _FLOOR_ROWS[text] = rows = floor_rows(records)
-    return rows
+    pairs = (line.partition("\t") for line in proc.stdout.split("\n") if line)
+    return {key: value for key, _, value in pairs}
 
 
 def _merge_names(text: str, key: str) -> bool:
@@ -1013,9 +1025,11 @@ def read_config_at(
         found = values[key]
         return found[0] if found else None
 
-    rung = scalar("merge.rung") or "off"
+    rung = rung_code(scalar("merge.rung")) or "off"
     if rung not in RUNG_RANK:
-        notes.append(f"merge.rung {rung!r} is not off, C2 or C3")
+        notes.append(
+            f"merge.rung {rung!r} is not off, merge (C2) or merge-reviewed (C3)"
+        )
         rung = "off"
     lines = scalar("merge.diff-check.max-changed-lines")
     if lines is not None and not re.fullmatch(r"[0-9]+", lines):
@@ -1432,6 +1446,12 @@ def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
 # --- Effective rung ---------------------------------------------------------------
 
 
+def rung_code(value: str | None) -> str | None:
+    """`value` with a rung name (`RUNG_NAMES`) read as its code; any other
+    value, a code or an unknown one, unchanged."""
+    return RUNG_NAMES.get(value or "", value)
+
+
 @dataclass(frozen=True)
 class EffectiveRung:
     rung: str
@@ -1444,6 +1464,7 @@ def effective_rung(
 ) -> EffectiveRung:
     """min(merge.rung, babysit_loop_merge, rung cap, demotion); an unknown input
     is off. `cap` None means no cap (a proven 404); `demoted` holds it off."""
+    config_rung, cap = rung_code(config_rung), rung_code(cap)
     inputs = {
         "merge.rung": config_rung if config_rung in RUNG_RANK else "off",
         LOOP_MERGE_KEY: LOOP_MERGE_RUNG.get(loop_merge or "", "off"),
@@ -1544,6 +1565,7 @@ def read_rung_cap(repo: str) -> RungCap:
     status, value = _variable(owner, name, RUNG_CAP_VARIABLE)
     if status == 404:
         return RungCap(None, "no-cap")
+    value = rung_code(value)
     if status == 200 and value in RUNG_RANK:
         return RungCap(value, "cap-set")
     return RungCap("off", "cap-unreadable" if status != 200 else "cap-invalid")
@@ -1561,6 +1583,7 @@ def rung_cap(repo: str, *, authority: str, lane_value: str | None = None) -> Run
         return RungCap("off", "lane-value-missing")
     if lane_value == "":
         return RungCap(None, "no-cap")
+    lane_value = rung_code(lane_value)
     if lane_value in RUNG_RANK:
         return RungCap(lane_value, "cap-set")
     return RungCap("off", "cap-invalid")
@@ -2302,29 +2325,24 @@ def _opt_in_refusal(
     return f"opt-in-label:{untrusted}" if untrusted else None
 
 
-TRACKER_CONFIG = ".work-item-tracker.json"
 ADMISSION_ROLE = "autonomous-eligible"
 DEFAULT_ADMISSION_LABEL = "agent-ready"
 
 
 def admission_label(owner: str, name: str, ref: str) -> str:
-    """The tracker's admission role label at `ref` (`agent-ready` unless
-    `.work-item-tracker.json` maps `autonomous-eligible`). Raises
-    `PolicyReadError` when the config cannot be read or parsed."""
-    text = _file_at(owner, name, TRACKER_CONFIG, quote(ref, safe=""))
-    if text is None:
-        return DEFAULT_ADMISSION_LABEL
+    """The tracker binding's admission role label at `ref` (`agent-ready`
+    unless it maps `autonomous-eligible`; `babysit_tracker_binding`). Raises
+    `PolicyReadError` when the binding cannot be read or parsed."""
+    at = quote(ref, safe="")
     try:
-        config = json.loads(text)
-    except ValueError as exc:
-        raise PolicyReadError(f"{TRACKER_CONFIG} at {ref} is not JSON: {exc}") from exc
-    roles = json_object(
-        json_object(json_object(config).get("config")).get("role_labels")
-    )
-    label = roles.get(ADMISSION_ROLE)
-    if isinstance(label, str) and label.strip():
-        return label.strip()
-    return DEFAULT_ADMISSION_LABEL
+        return tracker_binding.role_label(
+            lambda path: _file_at(owner, name, path, at),
+            yaml_records,
+            ADMISSION_ROLE,
+            DEFAULT_ADMISSION_LABEL,
+        )
+    except tracker_binding.BindingError as exc:
+        raise PolicyReadError(f"{exc} (at {ref})") from exc
 
 
 def _vouch_refusal(
@@ -5757,7 +5775,7 @@ class Promotion:
     reason: str | None
 
     def promoted(self, rung: str | None) -> bool:
-        needed = RUNG_CELLS.get(rung or "")
+        needed = RUNG_CELLS.get(rung_code(rung) or "")
         return bool(
             self.cells
             and needed

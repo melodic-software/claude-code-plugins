@@ -91,7 +91,7 @@ scripts/.gitattributes
 # freshly fetched ~1.2 MB schema and an installed graphql package, neither of
 # which the offline suites carry. The lane covering this class is that manual
 # invocation, recorded in the schema-check README's "Running it" section.
-plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check/*
+plugins/work-items/tools/work-item-tracker/seeds/linear/schema-check/*
 
 # Docs-sync generator executed directly by the plugin-options-docs-gate CI
 # lane: `python3 scripts/sync-plugin-options-docs.py --check` runs this exact

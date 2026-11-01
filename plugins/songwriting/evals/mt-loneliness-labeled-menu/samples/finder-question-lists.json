@@ -5,6 +5,14 @@
     },
     {
       "answer": "§7 Image filter: cliche scan pass (no \"empty heart\"), literally-false check pass.\n\nFinder questions:\n- What characteristics does it have? silence, extra room, nobody to report your day to.\n- What else has these characteristics? a motel in the off season, a church parking lot on Monday, a radio left on in a sold house.\n\n| # | Candidate | Type | Why it lands | Family distance |\n| --- | --- | --- | --- | --- |\n| 1 | the hallway swallows my footsteps | Verbal metaphor | sound with nowhere to go | close |\n| 2 | I'm an off-season motel | Expressed identity | vacancy sign | medium |\n| 3 | Sunday drags its feet | Verbal metaphor | time slowing | medium |\n| 4 | a sold-house quiet | Qualifying metaphor | quiet that belongs to someone else | far |\n| 5 | the porch light waits up for nobody | Verbal metaphor | routine with no witness | close |\n| 6 | my truck idles in the church lot | Verbal metaphor | going nowhere after the vows | far |\n\nI'm not crowning one; which fits depends on whether the ballad is bitter or tender."
+    },
+    {
+      "answer": "First I listed what this loneliness is like, then what else is like that.\n\n**What is this loneliness like?**\n1. Built for two, but only one is left.\n2. Nothing answers.\n\n**What else is like that?**\n1. **Built for two:** a two-man crosscut saw, a pickup bench seat.\n2. **Nothing answers:** a radio station after sign-off.",
+      "why": "both lists, paraphrased headings"
+    },
+    {
+      "answer": "**Step 1: What does this loneliness feel like?**\n- It's the exact shape of one missing person.\n\n**Step 2: What else feels that way?**\n- **The shape of something gone:** the unfaded square where a dresser stood.",
+      "why": "both lists, paraphrased headings"
     }
   ],
   "fail": [
@@ -14,6 +22,10 @@
     {
       "answer": "Loneliness has these characteristics: silence and space.",
       "why": "only the first list"
+    },
+    {
+      "answer": "**What else is like that?** a porch light on a timer, a dog at the end of the drive.",
+      "why": "only the second list"
     }
   ]
 }

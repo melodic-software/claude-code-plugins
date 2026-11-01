@@ -72,7 +72,7 @@ const FALLBACK_READY = [
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
-const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}";
+const KEY_CLASS = "${{ steps.judge.outputs.lane-class }}";
 const KEY_REPORT_IF =
   "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
 const SUB_REPORT_IF =
@@ -126,8 +126,17 @@ test("the upload is each job's only artifact step and follows the written verdic
       job,
     );
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
-    assert.ok(index("Upload the verdict", job) > index("Write the verdict", job), job);
-    assert.match(uploads[0].block, /if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}/, job);
+    // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
+    assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
+    assert.equal(index("Upload the verdict", job), index("Scan the upload for credentials", job) + 1, job);
+    const scan = step("Scan the upload for credentials", job);
+    assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
+    assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-verify-verdict\/verdict\.json$/m, job);
+    assert.match(
+      uploads[0].block,
+      /^ {8}if: >-\n {10}\(!cancelled\(\) && steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m,
+      job,
+    );
     // The verdict step names the retention (write-verdict.mjs retentionDays).
     assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
@@ -424,7 +433,6 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
           .replace(/if: \(steps\.(judge(?:-\d+|-spec)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
-          .replace(/known-failure-class: \$\{\{ steps\.(judge(?:-\d+|-spec)?)\.outputs\.lane-class == 'credit-stop' && 'rate-limit' \|\| steps\.\1\.outputs\.lane-class \}\}/, "known-failure-class: ${{ steps.$1.outputs.lane-class }}")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
           .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
@@ -503,6 +511,12 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
     assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
     assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
+    // The head's tree, written by the diff step from its blobless fetch, outside the data directory.
+    const diff = step("Write the diff", job);
+    assert.equal(input(listing, "HEAD_PATHS_FILE"), "${{ runner.temp }}/pr-verify-head-paths", job);
+    assert.equal(input(diff, "HEAD_PATHS_FILE"), input(listing, "HEAD_PATHS_FILE"), job);
+    assert.ok(diff.includes('git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"\n'), job);
+    assert.ok(index("Write the diff", job) < index("List the upstream run's jobs", job), job);
     assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
     assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
     assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
@@ -572,8 +586,7 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   assert.equal(input(report, "lane"), "pr-verify");
   assert.equal(input(report, "fallback-reason"), undefined);
   // A key leg that is not clean hands nothing on, so the key job records the
-  // stop itself: a credit stop as rate-limit, the class report-lane-outcome
-  // knows for it, and auth as auth.
+  // stop itself under the leg's own class, credit-stop or auth.
   assert.equal(input(report, "known-failure-class"), KEY_CLASS);
   // A clean handoff skips this report; the subscription job, which runs
   // exactly when key-leg-clean is true, records the run with a plain lane
@@ -594,11 +607,15 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   }
 });
 
-test("every ci-workflows action is pinned to one commit", () => {
-  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@([0-9a-f]{40}) # \S.*$/gm)].map((m) => m[1]);
-  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+test("every ci-workflows action is pinned to one commit, report-lane-outcome to its own", () => {
+  const all = [...text.matchAll(/uses: melodic-software\/ci-workflows\/([^@\s]+)@([0-9a-f]{40}) # \S.*$/gm)].map((m) => ({ action: m[1], sha: m[2] }));
+  assert.equal(all.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+  const isReport = (r) => r.action.endsWith("/report-lane-outcome");
+  const refs = all.filter((r) => !isReport(r)).map((r) => r.sha);
+  const reportRefs = all.filter(isReport).map((r) => r.sha);
   assert.ok(refs.length >= 6);
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
+  assert.equal(new Set(reportRefs).size, 1, `one report-lane-outcome pin: ${[...new Set(reportRefs)].join(", ")}`);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {

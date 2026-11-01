@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A checkout with no .work-item-tracker.json binding and no remote: the attended queue has
+# A checkout with no tracker binding (no docs/conventions/work-items.yaml) and no remote: the attended queue has
 # no seam to claim rows through and no forge to read.
 set -euo pipefail
 

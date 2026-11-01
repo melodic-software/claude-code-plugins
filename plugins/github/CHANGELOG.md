@@ -3,6 +3,18 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-11-01
+
+### Added
+
+- Frozen trigger-probe sets `probes/audit.json` and `probes/advise.json`, 18 queries each.
+
+### Changed
+
+- `/github:advise`'s description is shorter (664 to 528 characters), with every quoted trigger phrase and the pointer to the audit skill kept. Held-out trigger passes on opus showed no lost positive, no new false fire, and both rates within 5 points of the previous text.
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
 ## [0.4.0] - 2026-10-31
 
 ### Added

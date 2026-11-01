@@ -101,10 +101,12 @@ const LANES = Object.freeze({
       "apply-dependency-verdict",
       "apply-patch",
       "apply-patch-rung-up",
+      "apply-shared-copies",
       "report-escalation",
     ],
     // The activities the pr-unblock-dispatch tick does not dispatch: it
-    // dispatches resolve-conflicts, review-dependency and fix-ci itself
+    // dispatches resolve-conflicts, review-dependency, fix-ci and
+    // sync-shared-copies itself
     // (pr-unblock/dispatch.mjs), while address-feedback starts only when the
     // review lanes finish a head, and a failed check run there holds the head
     // (pr-unblock/feedback-dispatch.mjs).

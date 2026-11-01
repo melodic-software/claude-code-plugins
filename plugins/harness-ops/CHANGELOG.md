@@ -3,6 +3,31 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.0] - 2026-11-01
+
+### Added
+
+- `/harness-ops:morning-brief precision` reports the review-lane precision series for the pull requests merged in a closed UTC window: per lane (`claude-review`, `claude-security-review`) and per PR, the findings posted, each fresh finding's outcome (`valid-fixed`, `valid-follow-up`, `intentional`, `incorrect`, `uncertain`, `answered-unlabeled`, `unanswered`), reposts counted apart, precision beside the unlabeled and unanswered counts, and rounds to pass (`lane_review_rounds`, `fix_rounds`) against the pipeline's round cap. `--save-snapshot` and `--snapshot` split the fetch from a pure compute, so the same window gives the same bytes ([#7638](https://github.com/melodic-software/claude-code-plugins/issues/7638)).
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+- `/harness-ops:morning-brief precision` splits each lane's answered outcomes and precision by who wrote the answer (`bot`, `user-marked`, `user-unmarked`, `unknown`) under `by_author_kind`, beside the combined figures, and the markdown report adds a by-author table. The snapshot records each comment's raw `author_type` (the GraphQL author `__typename`); compute derives the kind from it and, for a user account, whether the answer has a D5 `<!-- d5 finding=<#> ... -->` marker line. The snapshot schema is now 3. `bot` and `user-marked` precision is marked as an agent-labeled upper bound, and windows before the marker landed on 2026-11-01 show zero `user-marked` answers ([#11841](https://github.com/melodic-software/claude-code-plugins/issues/11841)).
+
+- `/harness-ops:observability items` rolls up usage per work item from the hot OTEL store: tokens by type and turns (`user_prompt` events), grouped by `autonomy.work_item.url` and `ccr_session_id`, with each item's cloud sessions listed. A row with no item URL joins its item through a `ccr.session.id` map built from the store's own pairs and an optional `--session-map` file; a cloud session tied to two items stays unattributed and is named. It reads no cost data, so no output carries a price ([#11875](https://github.com/melodic-software/claude-code-plugins/issues/11875)).
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+## [5.1.1] - 2026-11-01
+
+### Fixed
+
+- The observer-agents row in `audit-performance`'s known issues now carries an as-of date, the
+  binary version it was read from, and a recheck trigger. `known-issues` describes the flagged-message
+  setting as the choice it is, not an on/off toggle, and the `lanes` config table points at the
+  model-alias table ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
 ## [5.1.0] - 2026-11-01
 
 ### Added

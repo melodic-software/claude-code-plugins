@@ -125,6 +125,18 @@ printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
 git -C "$REPO" add a.md
 expect "a finding on an added line blocks, naming that line" "1||$HTML
 $HINT" "$(check "$REPO")"
+# A sed that crashes while it turns markdownlint's output into findings leaves
+# none to block on, so it must fail the commit itself. The shim fails only the
+# call whose arguments hold the contract expression.
+mkdir -p "$WORK/fail-sed"
+# shellcheck disable=SC2016 # $* expands when the shim runs
+printf '#!/bin/sh\ncase " $* " in\n*"\\1:\\2: \\6"*) echo "sed: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+  "$(command -v sed)" >"$WORK/fail-sed/sed"
+chmod +x "$WORK/fail-sed/sed"
+out="$(cd "$REPO" && PATH="$WORK/fail-sed:$PATH" bash "$CHECK" 2>&1)"
+expect "a sed that fails while reading the markdownlint findings fails the commit" \
+  "1|sed: fatal error: internal error
+markdown-check.sh: sed exited 2 while reading the markdownlint findings, so this change was not fully checked; fix that failure, then commit again" "$?|$out"
 
 new_repo
 printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"

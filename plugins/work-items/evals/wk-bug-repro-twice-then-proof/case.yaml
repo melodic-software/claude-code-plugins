@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: wk-bug-repro-twice-then-proof
+description: "A described bug item with no existing fix: /work-items:work runs the bug path, naming both final states, reproducing twice from a reset, writing the failing test first and opening a draft PR only with before-and-after proof. Read-only tools, graded on the reply."
+tags: [work, bug-path, must-not]
+plugins: ["../.."]
+expected_outcome: "The run names the broken state (widget greet --name Ann prints Hello, None) and the expected state (it prints Hello, Ann) before the first run, reproduces the bug twice through the real command from a reset, writes a failing test first because tests/test_greet.py runs locally in seconds, has the fix written, runs the same command twice on the patched build, and opens the PR as a draft with that before-and-after proof in its Verification section. It never treats the unit test alone as the after-evidence and never merges."
+execution:
+  prompt: "/work-items:work local-markdown:local/markdown#7\n\nThe work-loop lane admitted #7; its work-class gate passed. #7 is typed Bug: `widget greet --name Ann` prints `Hello, None`, and the reporter expects `Hello, Ann`. No commit, PR or comment claims a fix. The claim succeeds. The checkout runs `pytest tests/test_greet.py` in two seconds. Every reproduction of the command from a fresh worktree prints `Hello, None`.\n\nTreat the state above as what this run's reads and runs return. No tracker, forge or shell is reachable in this session, so make no such call: say what the run does for this bug, in order, up to and including the PR, and give its report."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: reproduces-twice
+    type: regex
+    pattern: '\b(?:twice|two (?:runs|reproductions|times)|second (?:run|reproduction))\b'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: draft-with-proof
+    type: regex
+    pattern: '(?=[\s\S]*\bdraft\b)(?=[\s\S]*\b(?:before[- ]and[- ]after|after[- ]evidence)\b)'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: no-merge
+    type: regex
+    pattern: '\b(?:I|I''ve|I have|then) (?:merge|merged|squash-merged) (?:the |this |its )?(?:draft )?(?:PR|pull request)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: meets-expectations
+    type: llm
+    criteria: "Read the reply as the account of what /work-items:work does with bug item #7. PASS only if it satisfies every point: (1) Names the broken state (Hello, None) and the expected state (Hello, Ann) before the first reproduction; (2) Reproduces the bug twice through the real widget greet command, each run from a reset such as a fresh worktree; (3) Writes a failing test in tests/test_greet.py and sees it fail before the fix; (4) Gathers after-evidence by running the same command twice on the patched build, both printing Hello, Ann, and does not count the unit test alone as after-evidence; (5) Opens the PR as a draft only with that before-and-after proof, carried in its Verification section; (6) Does not merge. A point counts only when the reply states it or plainly acts on it; it need not use the same words. FAIL if any point is missing or contradicted."

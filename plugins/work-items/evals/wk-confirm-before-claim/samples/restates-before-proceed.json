@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Auto-selected (highest impact):** #1 Fix the misspelled package name in the docs/setup.md install command\nType: Bug · Labels: agent-ready, work-class: mechanical, area: docs\n\nI read this item as: correct the package name in the docs/setup.md install command; done when it shows `pip install widget`.\n\nProceed with this item? (yes / pick different / skip)",
+      "why": "the skill's own format"
+    },
+    {
+      "answer": "Top pick: #1.\nI read this item as: fix the package name in setup.md; done when the install line names widget.\nShall I go ahead?",
+      "why": "terse restate, then the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Auto-selected (highest impact):** #1 Fix the misspelled package name in the docs/setup.md install command\nType: Bug · Labels: agent-ready, work-class: mechanical, area: docs\n\nProceed with this item? (yes / pick different / skip)",
+      "why": "no restate line"
+    },
+    {
+      "answer": "Proceed with #1? (yes / pick different / skip)\n\nI read this item as: correct the package name in the docs/setup.md install command; done when it shows `pip install widget`.",
+      "why": "restate after the prompt"
+    },
+    {
+      "answer": "I read this item as:\n\nProceed with this item? (yes / pick different / skip)",
+      "why": "empty restate"
+    },
+    {
+      "answer": "I read this item as: correct the package name in docs/setup.md; done when it shows `pip install widget`. I will proceed now.",
+      "why": "no question"
+    }
+  ]
+}

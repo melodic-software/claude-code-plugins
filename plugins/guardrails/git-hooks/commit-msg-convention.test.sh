@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for the guardrails commit-msg entry (git-hooks/commit-msg-convention.sh):
-# a subject off the team's tracked subject_pattern fails, a matching one and
+# a subject off the team's tracked subject_pattern fails, as does one off the
+# operator's ignored personal pattern where the team tracks none, a matching one and
 # the autosquash forms and git's own Merge and Revert subjects pass, no tracked pattern (or a non-ERE one) enforces
 # nothing, a missing resolver never blocks blind, and the plugin's vendored
 # installer wires the entry so `git commit` runs it from the installed copy.
@@ -124,6 +125,27 @@ err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$
 expect "the failure names the team yaml as the pattern's file" yes \
   "$(grep -q 'subject_pattern in docs/conventions/source-control.yaml' <<<"$err" && echo yes || echo no)"
 
+# The personal layer: a git-ignored docs/conventions/source-control.local.yaml
+# supplies the pattern only where the team tracks none. core.excludesFile names
+# a missing file, so no global ignore rule decides a case.
+personal() { # <repo>: give the repo's operator an ignored ticket pattern
+  git -C "$1" config core.excludesFile "$WORK/no-global-excludes"
+  mkdir -p "$1/docs/conventions"
+  printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" >"$1/docs/conventions/source-control.local.yaml"
+  printf '%s\n' 'docs/conventions/**/*.local.*' >"$1/.gitignore"
+}
+new_repo ""
+personal "$REPO"
+expect "personal pattern, no team pattern: a matching subject passes" 0 "$(msg "$REPO" "ABC-1: fine")"
+expect "personal pattern, no team pattern: another subject fails" 1 "$(msg "$REPO" "junk subject")"
+err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && "$SH" "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
+expect "the failure names the personal file and asks for no pull request" "yes|no" \
+  "$(grep -q 'subject_pattern in docs/conventions/source-control.local.yaml' <<<"$err" && echo yes || echo no)|$(grep -q 'pull request' <<<"$err" && echo yes || echo no)"
+new_repo "$CC"
+personal "$REPO"
+expect "personal pattern under a team pattern: a subject the team allows passes" 0 "$(msg "$REPO" "feat: add thing")"
+expect "personal pattern under a team pattern: a subject only it allows fails" 1 "$(msg "$REPO" "ABC-1: fine")"
+
 # A copy with no resolver beside it and none in a plugin tree enforces nothing.
 mkdir -p "$WORK/lone"
 cp "$CHECK" "$WORK/lone/commit-msg-convention.sh"
@@ -194,6 +216,15 @@ git -C "$REPO" commit -q --allow-empty -m "ABC-3: legacy shape" 2>/dev/null
 expect "the installed entry enforces the team yaml over the legacy markdown" 1 "$?"
 expect "verify reports the entry ok" "ok	commit-msg-convention" \
   "$(node "$INSTALL" verify --repo "$REPO" | grep 'commit-msg-convention')"
+# The installed copy reads the personal file where the team tracks no pattern.
+new_repo ""
+personal "$REPO"
+git -C "$REPO" commit -q --allow-empty -m "seed" 2>/dev/null
+node "$INSTALL" copy --scope local --entry commit-msg-convention --repo "$REPO" >/dev/null
+git -C "$REPO" commit -q --allow-empty -m "junk subject" 2>/dev/null
+expect "the installed entry enforces the personal pattern" 1 "$?"
+git -C "$REPO" commit -q --allow-empty -m "ABC-4: fine subject" 2>/dev/null
+expect "the installed entry accepts a subject the personal pattern allows" 0 "$?"
 
 echo "commit-msg-convention: $PASS passed, $FAIL failed"
 ((FAIL == 0))

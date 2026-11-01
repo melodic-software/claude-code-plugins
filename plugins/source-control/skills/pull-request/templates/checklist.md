@@ -1,10 +1,10 @@
 # /source-control:pull-request Checklist
 
-Copy into your project's working-notes location (or track inline). Tick each box as the corresponding action completes.
+Copy into your project's working-notes location (or track inline). Tick each box as its action completes.
 
 ## Lifecycle
 
-- [ ] Phase 0: Parse action + detect state. Live PR lookup, branch check, route to appropriate phase
+- [ ] Phase 0: Parse action + detect state. Live PR lookup, branch check, route to the phase
 - [ ] Phase 1: Prep. Classify the diff; run each class's skills (agents/inline fallback when a plugin is absent); verify findings; simplify; run the project's build+test+lint gate
 - [ ] Phase 2: Create. Branch-name conformance check; `git push -u`; open the PR with `Closes #N` if the branch carries an issue number, as a draft that Phase 2.5 flips unless the open state is `draft`
 - [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; mark the PR ready
@@ -16,7 +16,7 @@ Copy into your project's working-notes location (or track inline). Tick each box
 
 - Phase 1 sub-steps may use `prep quick` / `prep review-only` / `prep simplify-only` variants for partial coverage
 - Phase 2.5 SKIPPED only when the PR is already out of draft, the base is merged in, the security review covered the PR diff, and the verify gate ran clean on the current HEAD
-- Phase 3.5 SKIPPED when no review comments received
+- Phase 3.5 SKIPPED when no review comments arrived
 - Phase 4 NEVER skipped (merge + worktree transition non-negotiable)
 
 ## Non-negotiable gates

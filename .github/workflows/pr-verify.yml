@@ -220,6 +220,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -238,6 +240,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -245,7 +248,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -253,6 +257,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The reads the subscription job would repeat, from the files and
@@ -432,13 +437,12 @@ jobs:
 
       # One lane record per run: a clean handoff is recorded by the
       # subscription job; a handoff the check above refused, on a denial or
-      # a log it cannot read, here: a
-      # credit stop as rate-limit, the class report-lane-outcome knows for
-      # it, and auth as auth.
+      # a log it cannot read, here, under the leg's own class: credit-stop
+      # or auth.
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -449,7 +453,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -549,7 +553,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.key-leg-2.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -560,7 +564,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
@@ -648,7 +652,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.key-leg-3.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -659,7 +663,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.judge-3.outputs.execution-file != ''
@@ -748,7 +752,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.key-leg-4.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -759,7 +763,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.judge-4.outputs.execution-file != ''
@@ -850,7 +854,7 @@ jobs:
       - name: Report chunk 5's outcome
         if: (steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure') && (steps.judge-5.outputs.handoff != 'true' || steps.key-leg-5.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -861,7 +865,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-5.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-5.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-5.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
 
       - name: Upload chunk 5's sealed transcript
         if: always() && steps.judge-5.outputs.execution-file != ''
@@ -952,7 +956,7 @@ jobs:
       - name: Report chunk 6's outcome
         if: (steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure') && (steps.judge-6.outputs.handoff != 'true' || steps.key-leg-6.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -963,7 +967,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-6.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-6.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-6.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
 
       - name: Upload chunk 6's sealed transcript
         if: always() && steps.judge-6.outputs.execution-file != ''
@@ -1055,7 +1059,7 @@ jobs:
       - name: Report chunk 7's outcome
         if: (steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure') && (steps.judge-7.outputs.handoff != 'true' || steps.key-leg-7.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -1066,7 +1070,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-7.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-7.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-7.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
 
       - name: Upload chunk 7's sealed transcript
         if: always() && steps.judge-7.outputs.execution-file != ''
@@ -1159,7 +1163,7 @@ jobs:
       - name: Report chunk 8's outcome
         if: (steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure') && (steps.judge-8.outputs.handoff != 'true' || steps.key-leg-8.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -1170,7 +1174,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-8.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-8.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-8.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
 
       - name: Upload chunk 8's sealed transcript
         if: always() && steps.judge-8.outputs.execution-file != ''
@@ -1264,7 +1268,7 @@ jobs:
       - name: Report chunk 9's outcome
         if: (steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure') && (steps.judge-9.outputs.handoff != 'true' || steps.key-leg-9.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -1275,7 +1279,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-9.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-9.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-9.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
 
       - name: Upload chunk 9's sealed transcript
         if: always() && steps.judge-9.outputs.execution-file != ''
@@ -1370,7 +1374,7 @@ jobs:
       - name: Report chunk 10's outcome
         if: (steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure') && (steps.judge-10.outputs.handoff != 'true' || steps.key-leg-10.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -1381,7 +1385,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-10.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-10.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-10.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
 
       - name: Upload chunk 10's sealed transcript
         if: always() && steps.judge-10.outputs.execution-file != ''
@@ -1477,7 +1481,7 @@ jobs:
       - name: Report chunk 11's outcome
         if: (steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure') && (steps.judge-11.outputs.handoff != 'true' || steps.key-leg-11.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -1488,7 +1492,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-11.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-11.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-11.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
 
       - name: Upload chunk 11's sealed transcript
         if: always() && steps.judge-11.outputs.execution-file != ''
@@ -1585,7 +1589,7 @@ jobs:
       - name: Report chunk 12's outcome
         if: (steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure') && (steps.judge-12.outputs.handoff != 'true' || steps.key-leg-12.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -1596,7 +1600,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-12.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-12.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-12.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
 
       - name: Upload chunk 12's sealed transcript
         if: always() && steps.judge-12.outputs.execution-file != ''
@@ -1759,7 +1763,7 @@ jobs:
       - name: Report the spec judgment's outcome
         if: (steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure') && (steps.judge-spec.outputs.handoff != 'true' || steps.key-leg-spec.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
@@ -1770,7 +1774,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-spec.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-spec.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-spec.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
 
       - name: Upload the spec judgment's sealed transcript
         if: always() && steps.judge-spec.outputs.execution-file != ''
@@ -1847,8 +1851,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -2036,6 +2049,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -2054,6 +2069,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -2061,7 +2077,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -2069,6 +2086,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The judgment's model, turns and effort: the verify-pr route of the
@@ -2238,7 +2256,7 @@ jobs:
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -2348,7 +2366,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.sub-leg-2.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2445,7 +2463,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.sub-leg-3.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -2543,7 +2561,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.sub-leg-4.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -2643,7 +2661,7 @@ jobs:
       - name: Report chunk 5's outcome
         if: (steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure') && (steps.judge-5.outputs.handoff != 'true' || steps.sub-leg-5.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -2743,7 +2761,7 @@ jobs:
       - name: Report chunk 6's outcome
         if: (steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure') && (steps.judge-6.outputs.handoff != 'true' || steps.sub-leg-6.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -2844,7 +2862,7 @@ jobs:
       - name: Report chunk 7's outcome
         if: (steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure') && (steps.judge-7.outputs.handoff != 'true' || steps.sub-leg-7.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -2946,7 +2964,7 @@ jobs:
       - name: Report chunk 8's outcome
         if: (steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure') && (steps.judge-8.outputs.handoff != 'true' || steps.sub-leg-8.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -3049,7 +3067,7 @@ jobs:
       - name: Report chunk 9's outcome
         if: (steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure') && (steps.judge-9.outputs.handoff != 'true' || steps.sub-leg-9.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -3153,7 +3171,7 @@ jobs:
       - name: Report chunk 10's outcome
         if: (steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure') && (steps.judge-10.outputs.handoff != 'true' || steps.sub-leg-10.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -3258,7 +3276,7 @@ jobs:
       - name: Report chunk 11's outcome
         if: (steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure') && (steps.judge-11.outputs.handoff != 'true' || steps.sub-leg-11.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -3364,7 +3382,7 @@ jobs:
       - name: Report chunk 12's outcome
         if: (steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure') && (steps.judge-12.outputs.handoff != 'true' || steps.sub-leg-12.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -3536,7 +3554,7 @@ jobs:
       - name: Report the spec judgment's outcome
         if: (steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure') && (steps.judge-spec.outputs.handoff != 'true' || steps.sub-leg-spec.outcome == 'failure')
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
@@ -3625,8 +3643,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -3805,6 +3832,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -3823,6 +3852,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -3830,7 +3860,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -3838,6 +3869,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The judgment's model, turns and effort: the verify-pr route of the
@@ -3985,7 +4017,7 @@ jobs:
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -4082,7 +4114,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -4165,7 +4197,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -4248,7 +4280,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -4332,7 +4364,7 @@ jobs:
       - name: Report chunk 5's outcome
         if: steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -4415,7 +4447,7 @@ jobs:
       - name: Report chunk 6's outcome
         if: steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -4498,7 +4530,7 @@ jobs:
       - name: Report chunk 7's outcome
         if: steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -4581,7 +4613,7 @@ jobs:
       - name: Report chunk 8's outcome
         if: steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -4664,7 +4696,7 @@ jobs:
       - name: Report chunk 9's outcome
         if: steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -4747,7 +4779,7 @@ jobs:
       - name: Report chunk 10's outcome
         if: steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -4830,7 +4862,7 @@ jobs:
       - name: Report chunk 11's outcome
         if: steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -4913,7 +4945,7 @@ jobs:
       - name: Report chunk 12's outcome
         if: steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -5060,7 +5092,7 @@ jobs:
       - name: Report the spec judgment's outcome
         if: steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
@@ -5149,8 +5181,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
