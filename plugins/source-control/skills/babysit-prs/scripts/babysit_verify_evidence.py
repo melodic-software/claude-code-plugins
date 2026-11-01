@@ -454,8 +454,8 @@ class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
     hold the live count: `COUNT_MISSED` (fewer), the one case read again on
     the same base, or `COUNT_OVER` (more, or any count once the pages near
-    expiry were read again, but a top-up's exact count left short), which
-    goes to one whole listing, since no wait removes an entry GitHub no
+    expiry were read again, except a top-up's exact count left short), which
+    goes to the whole listings, since no wait removes an entry GitHub no
     longer counts."""
 
 
@@ -1579,8 +1579,9 @@ class Reader:
         `_current_listing` reads again on the same base after a wait, and
         more, or any count once the pages near expiry were read (a top-up's
         exact count left short aside, which another whole listing can
-        restore), gives `COUNT_OVER`, which goes to one whole listing, since
-        no wait removes an entry GitHub no longer counts; either prints one
+        restore), gives `COUNT_OVER`, which goes to the whole listings (one,
+        after an over-count), since no wait removes an entry GitHub no
+        longer counts; either prints one
         `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
         `Date`, or any failed read gives None (`_page_transient` says whether

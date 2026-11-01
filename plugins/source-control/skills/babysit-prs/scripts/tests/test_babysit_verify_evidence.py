@@ -5318,13 +5318,14 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         by_id = re.compile(r"/actions/artifacts/[0-9]+$")
         return [c for c in fake.calls if by_id.search(c[-1])]
 
-    def skipped(self) -> FakeGitHub:
-        """No carry: the whole listing skips FAIL 650 at a page boundary and
-        holds 600, expiring in 30 minutes, which GitHub then deletes early:
-        the union holds exactly the live count, with 600 in the FAIL's place."""
+    def skipped(self, fail: int = 650) -> FakeGitHub:
+        """No carry: the first whole listing skips FAIL `fail` at a page
+        boundary and holds 600, expiring in 30 minutes, which GitHub then
+        deletes early: the union holds exactly the live count, with 600 in
+        the FAIL's place."""
         dropping = self.entry(600, timedelta(minutes=30))
-        fake = self.fake(self.earlier_fail(650), dropping)
-        fake.full_skips = [{650}]
+        fake = self.fake(self.earlier_fail(fail), dropping)
+        fake.full_skips = [{fail}]
         listed = fake.listed
 
         def drops_during_the_listing() -> list[dict[str, Any]]:
@@ -5364,8 +5365,22 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 1)
         self.assertEqual(len(self.by_id(fake)), 1)
         self.assertEqual(self.sleep.call_args_list, [])
+        # An exact count is not an over-count: the job's slot stays free.
+        overcount = pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}")
+        self.assertFalse(overcount.exists())
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1000, 900, 800, 750, 700])
+
+    def test_a_top_up_left_short_reads_another_whole_listing(self) -> None:
+        # The first whole listing skips FAIL 850, far from 600's page: the
+        # top-up keeps 600, whose read answers 404, and is one short. A
+        # second whole listing, not a refusal, restores the FAIL.
+        fake = self.skipped(850)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 2)
+        self.assertFalse(self.failed.exists())
 
     def test_a_dropped_entry_does_not_spend_the_top_ups_page_cap(self) -> None:
         # As above, with 650 live and near expiry too: the incremental read
