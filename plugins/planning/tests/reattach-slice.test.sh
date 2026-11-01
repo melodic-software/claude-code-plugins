@@ -73,6 +73,8 @@ assert_gate "**The user's decisions are never synthesized.**"
 assert_gate '**A gap during `lock` synthesis halts the run.**'
 assert_gate '**The register gate runs before the contract locks.**'
 assert_gate 'Full rule: Step 3, "Register gate".'
+assert_gate '**The confirmation gate holds the contract until the user confirms.**'
+assert_gate '**The Brief is cross-checked once it exists.**'
 
 if grep -q '^## Execution-shape analysis$' "$PLUGIN_DIR/skills/plan/context/plan-template.md"; then
   ok 'step 4.5 analysis lives in the plan template'
