@@ -16,9 +16,10 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-This skill reports complexity, per function where the collector reports per function, beside
-references whose provenance is printed with them, and stops there: no pass or fail, no severity,
-no finding. Whether a complexity of 23 is worth changing is the reader's call.
+Complexity is the measure with the most citable reference on the operator's list and the most
+folklore around it. This skill reports the numbers, per function where the collector reports per
+function, beside references whose provenance is printed with them, and stops there: no pass or
+fail, no severity, no finding. Whether a complexity of 23 is worth changing is the reader's call.
 
 Collectors are tried in order per lane and the first that resolves is used. Nothing is installed,
 downloaded, or fetched at run time; a lane with no resolvable collector reports that in the run

@@ -16,10 +16,11 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-Lines per file has a crisp definition and no standard-backed file-level threshold. This skill
-reports it per file in the scope, beside a reference whose provenance is printed with it, and
-stops there: no pass or fail, no severity, no finding. Deciding what to do with a long file is the
-reader's call.
+Lines per file is the one measure on the operator's list with a crisp definition and no
+standard-backed file-level threshold. This skill reports the number, per file in the scope, beside
+a reference whose provenance is printed with it, and stops there: no pass or fail, no severity, no
+finding. Deciding what to do with a long file is the reader's call; the report gives them the
+number and the citation.
 
 Two collectors, tried in order:
 
