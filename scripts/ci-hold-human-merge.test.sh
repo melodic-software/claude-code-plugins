@@ -39,10 +39,12 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' }}"* ]]; then
-  ok "step runs on every pull_request run, whatever the human-gated or cost steps found"
+# A draft's ci-status passes by design (`Note a draft`), so the step makes no
+# read there; the ready_for_review run judges the hold.
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}"* ]]; then
+  ok "step runs on every non-draft pull_request run, whatever the human-gated or cost steps found"
 else
-  fail "step's condition is not the pull_request event alone"
+  fail "step's condition is not the non-draft pull_request event alone"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"
