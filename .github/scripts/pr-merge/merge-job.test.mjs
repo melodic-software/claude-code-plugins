@@ -69,14 +69,21 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Log the API budget at the end",
     ],
   );
-  // Each upload waits on the credential scan just before it.
+  // Each upload waits on the credential scan just before it. The report is
+  // best-effort, so its scan cannot fail the job; a run record the
+  // post-merge check needs fails the job when its scan does (a missing
+  // scanner included), as a failed upload of it does.
+  assert.match(
+    assertScanned("Keep the post-merge report for enable-auto-merge", "steps.post-merge.conclusion == 'success'", list),
+    /\n {8}continue-on-error: true\n/,
+  );
   for (const [name, predicate] of [
-    ["Keep the post-merge report for enable-auto-merge", "steps.post-merge.conclusion == 'success'"],
     ["Record the dispatched run", "steps.dispatch.outputs.run-id != ''"],
     ["Record the re-run", "!cancelled() && steps.rerun.outputs.recorded == 'true'"],
     ["Record the alert sent", "!cancelled() && steps.alert.outputs.run-id != ''"],
   ]) {
-    assert.match(assertScanned(name, predicate, list), /\n {8}continue-on-error: true\n/, name);
+    assert.doesNotMatch(assertScanned(name, predicate, list), /continue-on-error/, name);
+    assert.doesNotMatch(step(name, list), /continue-on-error/, name);
   }
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
   assert.match(step("Check earlier lane merges", list), /\n {8}if: steps\.mode\.outputs\.live == 'true'\n/);

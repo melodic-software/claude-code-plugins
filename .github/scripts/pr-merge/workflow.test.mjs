@@ -1201,14 +1201,16 @@ test("a dispatch that failed skips the record", () => {
       id,
     );
     // The credential scan just before it runs on the same condition and scans
-    // the file the record uploads.
+    // the file the record uploads; with no continue-on-error, a missing
+    // scanner fails the job as a failed upload of the record does.
     const scan = before.split("\n      - name: ").at(-1);
     assert.ok(
       scan.startsWith(
-        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        continue-on-error: true\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
+        `Scan the upload for credentials\n        id: ${scanId}\n        if: >-\n          steps.dispatch.outputs.run-id != ''\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n        with:\n          path: \${{ runner.temp }}/dispatched.json\n`,
       ),
       id,
     );
+    assert.doesNotMatch(record.split("\n      - name: ")[0], /continue-on-error/, id);
     assert.ok(record.includes("\n          path: ${{ runner.temp }}/dispatched.json\n"), id);
   }
 });

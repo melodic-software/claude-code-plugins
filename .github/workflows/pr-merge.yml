@@ -528,7 +528,6 @@ jobs:
         id: scan-upload-2
         if: >-
           steps.dispatch.outputs.run-id != ''
-        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/dispatched.json
@@ -645,7 +644,6 @@ jobs:
         id: scan-upload-3
         if: >-
           !cancelled() && steps.rerun.outputs.recorded == 'true'
-        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/rerun.json
@@ -791,7 +789,6 @@ jobs:
         id: scan-upload-4
         if: >-
           !cancelled() && steps.alert.outputs.run-id != ''
-        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/alerted.json
@@ -2622,9 +2619,11 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
-      # The api-budget library only, from the default branch. A failed
-      # checkout leaves no library: the steps below call GitHub as they would
-      # without it, and no reading is logged.
+      # The api-budget library and the upload scanner, from the default
+      # branch. A failed checkout leaves neither: the steps below call GitHub
+      # as they would without the library, and no reading is logged, but the
+      # dispatched-run record's scan fails the job, as a failed upload of
+      # that record does, so the unrecorded run shows red.
       - name: Check out the api-budget library
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2814,7 +2813,6 @@ jobs:
         id: scan-upload
         if: >-
           steps.dispatch.outputs.run-id != ''
-        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/dispatched.json
