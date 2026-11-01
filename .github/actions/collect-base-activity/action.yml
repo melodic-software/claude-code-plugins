@@ -243,9 +243,9 @@ runs:
         # so the files a script reads beside itself come along. Each runs
         # through a wrapper that starts in the checkout, refuses an argument
         # naming a path outside it (a script may print what it reads), unsets
-        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (under
-        # run-claude-cli an ancestor's /proc/<pid>/environ still holds them;
-        # the write runner's skill settings clear them for all of Bash), and
+        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (no Bash
+        # process above it holds them either: run-claude-cli's steps set
+        # neither, and the write runner's skill settings clear both), and
         # keeps git from loading system, global or hook and fsmonitor
         # programs. As for the
         # checks, <dir> is where the copy is written and <at> where it runs.
