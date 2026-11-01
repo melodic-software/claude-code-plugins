@@ -25,6 +25,18 @@
         }
       ],
       "why": "the missing redaction is filed under Standards and Spec reads none"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The commit says customer emails are redacted, but the CSV writes each raw address. | Mask the address |\n\n### Standards\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | security-reviewer | The CSV writes each raw customer email, which is personal data. | Mask the address |\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the missing redaction is filed under both Spec and Standards, not under exactly one"
     }
   ]
 }
