@@ -206,11 +206,13 @@ not saved; the session model resumes on the next prompt. `inherit` keeps the act
 the organization's `availableModels` list excludes is not used. In auto mode, and in plan mode while
 the classifier reviews commands, a model auto mode does not support is not used either, and the
 session keeps its current model. With `context: fork`, the value sets the forked subagent's model
-instead.
+instead; what an excluded value does in that case resolves at the fork pointer below.
 
-**Record.** Claim: the sentences above. Basis:
-<https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of: 2026-09-28.
-Recheck: that row changes the turn scope, the auto-mode exception, or the `context: fork` rule.
+- **Pointer**: when a skill's `model` value matters, fetch the `model` row of
+  <https://code.claude.com/docs/en/skills#frontmatter-reference> live; for the fork case, also
+  <https://code.claude.com/docs/en/sub-agents#choose-a-model>. **As of**: 2026-11-01.
+  **Recheck trigger**: that row changes the turn scope, the allowlist or auto-mode exception, or
+  the `context: fork` rule.
 
 ## Arguments (Melodic Software addition)
 
