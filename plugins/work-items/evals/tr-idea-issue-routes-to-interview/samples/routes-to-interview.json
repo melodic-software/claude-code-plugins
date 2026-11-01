@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "#1 \"Add a plugin system\" is an idea issue: it says nothing about what the plugin system is for. Posted a comment naming `/planning:interview` as the next step, applied `needs-spec` and removed `needs-triage`.",
+      "why": "names the interview and the park label"
+    },
+    {
+      "answer": "Parked #1 with needs-spec.\n\nNext: /planning:interview, to settle what the plugin system is for before anyone explores it.",
+      "why": "both on separate lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Triaged #1: enhancement, priority: medium, briefed and routed to needs-human.",
+      "why": "state-machined, no interview"
+    },
+    {
+      "answer": "Searched src/ for an existing extension point and found none. Next: /planning:interview.",
+      "why": "no needs-spec park"
+    },
+    {
+      "answer": "Applied needs-spec to #1.",
+      "why": "no interview route"
+    }
+  ]
+}
