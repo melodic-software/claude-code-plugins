@@ -1,15 +1,15 @@
 # Who watches the pull request
 
-Once a PR is out of draft, CI and the review lanes start posting, and something has to answer them.
-Choose who does at the end of `ready` (2.5.6) and again at `monitor` entry when no choice was made.
-The facts each route rests on (who can start it, what it needs, what it cannot see) are recorded in
+Once a PR is out of draft, CI and the review lanes start posting, and something must answer them.
+Choose who at the end of `ready` (2.5.6), and again at `monitor` entry when no choice was made.
+The facts each route rests on (who can start it, what it needs, what it cannot see) are in
 [native-surfaces.md](native-surfaces.md); this file holds the decision.
 
 ## Check usage first
 
-Every route spends the person's plan limits, and a cloud session draws on the same limits (its
-native-surfaces row). Before recommending or starting a route, read the snapshot file
-under the rate-limit floor below and act on what it says:
+Every route spends the person's plan limits, a cloud session included (its native-surfaces row).
+Before recommending or starting a route, read the snapshot file under the rate-limit floor below
+and act on what it says:
 
 - **A window at or past 95:** report the window, its percentage and its reset in local time beside
   the recommendation, with the options: start the route anyway, switch accounts
@@ -23,9 +23,9 @@ under the rate-limit floor below and act on what it says:
   who is staying, prefer `monitor`, which stays in view, over an open-ended route; for one who is
   leaving, keep their row and say its launch is unchecked against the windows.
 
-The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no snapshot file,
-so nothing pauses it as the windows fill; a local `monitor` or loop that trips later follows the
-floor's drain-then-pause, which pauses only an opted-in session.
+The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no
+snapshot file, so nothing pauses it as the windows fill; a local `monitor` or loop that trips
+later follows the floor's drain-then-pause, which pauses only an opted-in session.
 
 ## Rate-limit guard floor (inlined)
 
@@ -78,9 +78,9 @@ applies to a watcher that opted in to pausing.
 
 "Are you staying in this session, leaving with this machine left on, or leaving with it off?"
 For "left on", also ask whether this conversation should keep going or a fresh agent is enough.
-When the person already said (for example "I'm heading out"), use that and do not ask. When the
-caller passes `--unattended`, the run asks nothing, starts nothing, and records the matrix row it
-would pick in its output; without that flag it asks.
+When the person already said (for example "I'm heading out"), use that and do not ask. With
+`--unattended`, the run asks nothing, starts nothing, and records in its output the matrix row it
+would pick; without that flag it asks.
 
 ## The matrix
 
@@ -101,8 +101,8 @@ what it judges clear, so the prompt below carries that discipline to it in words
 The model never runs it; it prints it filled in. Give the person:
 
 1. The checkout to run it from: the worktree path, or a checkout of the PR head
-   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). It finds the PR from
-   the current branch.
+   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). It finds the
+   PR from the current branch.
 2. The command, with `<N>` and the project line filled:
 
    ```text
@@ -114,12 +114,12 @@ The model never runs it; it prints it filled in. Give the person:
    ```
 
    `<project rule>` is the one convention from the repository's `AGENTS.md` or `CLAUDE.md` a fix is
-   most likely to break (for example, commit subjects and the PR title stay Conventional Commits); drop
-   the slot when there is none.
+   most likely to break (for example, commit subjects and the PR title stay Conventional Commits);
+   drop the slot when there is none.
 3. Its preconditions and limits: read the auto-fix rows of [native-surfaces.md](native-surfaces.md)
-   and the live sections they point at, and list each one for the person. Because auto-fix cannot
-   react to a merge conflict, add: when the base moves, run `/source-control:pull-request ready`
-   again, which merges it.
+   and the live sections they point at, and list each for the person. Auto-fix cannot react to a
+   merge conflict, so add: when the base moves, run `/source-control:pull-request ready` again,
+   which merges it.
 
 When the person also keeps `monitor` running here, both push to one branch; the Mutation gate in
 [SKILL.md](../SKILL.md) covers that.

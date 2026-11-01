@@ -3,8 +3,8 @@
 # state install.sh wrote (or, under --no-pr, opens it on `pr create`), any extra pull requests in
 # extra-prs, the issues in issues/<n>.json, and the REST reads the create phase makes, and never
 # reaches a network or the real gh: any command it does not serve
-# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review` and the
-# resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`
+# and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
 # exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
 # `pr update-branch` is refused on
 # purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
@@ -279,6 +279,13 @@ case "$cmd $sub" in
     pr_matches "${args[0]:-}" || refuse pr review "$@"
     record "pr review" "$@"
     echo "✓ Reviewed pull request eval-fixture/app#$PR_NUMBER"
+    ;;
+  "pr comment")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr comment "$@"
+    record "pr comment" "$@"
+    echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER#issuecomment-1"
     ;;
   "api graphql")
     shift 2
