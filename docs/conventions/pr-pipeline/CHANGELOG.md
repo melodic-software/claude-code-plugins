@@ -1,5 +1,20 @@
 # Changelog for the PR pipeline convention
 
+## [8.31.3] - 2026-11-01
+
+### Fixed
+
+- The work-unblock sweep rescans open split parents whose sub-issues are all completed, on their UTC hour (number modulo 24) and at most `limits.parent-rescan-per-run` (new, default 5) per run, under the same close rules, so a parent whose last sub-issue closed outside the sweep window still closes and one that stays open logs why. The rescan and the `status: ready` readmission share one listing of open issues.
+
+- work-unblock's readmit sweep no longer parks a born-triaged issue whose Size or Uncertainty is still unset: it waits, with no label, comment or `readmit-per-run` spend, until the filer sets the fields. A field set to a refused value, any other refusal reason, a mid-body marker or an unlisted author still refuses. `check-born-triaged.mjs` exports `notBornTriaged`, so intake and work-unblock share one detection rule.
+
+## [8.31.2] - 2026-11-01
+
+### Changed
+
+- On a lanes App merge-group run, ci-status lists main's tip once, with one unauthenticated `git ls-remote` of refs/heads/main and refs/tags/main, and passes it to the carry readers as `PR_MERGE_MAIN_TIP`. `onMain` then makes no `git/ref` read. It falls back to both REST reads when the listing failed or holds a tag named main. Each run is still compared with the tip.
+- The merge-group hold-label step reads the queued pull request's labels in its existing GraphQL query in place of REST `issues/{n}/labels`. It fails closed on a cut or missing list.
+
 ## [8.31.1] - 2026-11-01
 
 ### Fixed

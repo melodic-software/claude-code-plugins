@@ -527,6 +527,7 @@ jobs:
           cp -R .base/plugins/review/reference "$DATA/review/reference"
           cp .base/REVIEW.md "$DATA/standards/"
           cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
           if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
@@ -1350,6 +1351,7 @@ jobs:
           cp -R .base/plugins/review/reference "$DATA/review/reference"
           cp .base/REVIEW.md "$DATA/standards/"
           cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
           if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model
@@ -2177,6 +2179,7 @@ jobs:
           cp -R .base/plugins/review/reference "$DATA/review/reference"
           cp .base/REVIEW.md "$DATA/standards/"
           cp -R .base/docs/standards "$DATA/standards/standards"
+          if [ -d .base/docs/review ]; then cp -R .base/docs/review "$DATA/standards/review"; fi
           if [ -d .base/.claude/rules ]; then cp -R .base/.claude/rules "$DATA/standards/rules"; fi
 
       - name: Resolve the review's model

@@ -1,5 +1,5 @@
 ---
-description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:recommend-skills; a whole-process speed sweep is /performance:go-faster."
+description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix. Use when: 'audit my sessions', 'which sessions burned the most tokens', or corrections keep repeating. One session's retro: /session-flow:retro."
 argument-hint: "[sweep…] [--unattended] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false

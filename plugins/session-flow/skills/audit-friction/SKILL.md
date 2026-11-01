@@ -1,5 +1,5 @@
 ---
-description: "Permission and autonomy friction audit for Claude Code sessions: denials, approval prompts, hook blocks, asks and hand-offs, traced to their cause and ending in one decision brief. Use when auditing permission prompts, auto-mode denials or hook blocks, finding why the agent keeps asking or handing off, or re-measuring friction after permission fixes."
+description: "Audit Claude Code sessions for permission and autonomy friction (denials, approval prompts, hook blocks, hand-offs), traced to cause in one decision brief. Use when the agent keeps asking or handing off, auto mode denies, or re-measuring after permission fixes."
 argument-hint: "[remeasure] [--days <n>] [--project <text>] [--source <dir>] [--verify consequential|full|probes]"
 user-invocable: true
 disable-model-invocation: false
