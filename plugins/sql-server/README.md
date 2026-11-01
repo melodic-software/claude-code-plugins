@@ -70,7 +70,11 @@ hold a `write` block naming a write principal: a second login or Entra identity,
 the read principal in `auth` (see [Config](#config)). The read tools keep connecting as the read
 principal. Without `--write`, `write` refuses every call before it connects. The setup skill's
 registration commands leave `--write` out, so add it yourself to a registration you want to write
-through.
+through. They also forward only the read principal's credential variables. For a `sql-login`
+write principal, add one `--env 'NAME=${NAME}'` entry for each variable its `write.auth` names,
+such as `--env 'SQL_WRITER_USER=${SQL_WRITER_USER}' --env 'SQL_WRITER_PASSWORD=${SQL_WRITER_PASSWORD}'`,
+or the first approved `write` fails because the variable is not set. An `entra-default` write
+identity needs no extra `--env` entry: its `clientId` comes from the config.
 
 - **Approval on every call.** `write` carries `_meta["anthropic/requiresUserInteraction"]: true`,
   so Claude Code shows its permission prompt on every call in every permission mode, and no allow
