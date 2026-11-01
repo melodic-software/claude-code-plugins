@@ -10,9 +10,10 @@
 # UI, post the phrase (#8438). This guard holds that decision on the Bash and
 # PowerShell tools and on the GitHub MCP server's comment, review, issue and
 # pull-request write tools. The risk is our own actors, so a repository may
-# lift it: `fix_request_post` in its tracked docs/conventions/guardrails.yaml
-# (schema schemas/guardrails.schema.json) is `block` (the default) or `allow`.
-# Under `allow` a would-be block exits 0. An untracked file, a missing key, a
+# lift it: `fix_request_post` in docs/conventions/guardrails.yaml (schema
+# schemas/guardrails.schema.json) is `block` (the default) or `allow`, read
+# from the default branch (`origin/HEAD`), never the working tree or index.
+# Under `allow` a would-be block exits 0. No such ref or file, a missing key, a
 # file that does not parse or any other value keeps `block`; the last two say so.
 #
 # WHAT BLOCKS. A command that posts or edits GitHub content, carrying the phrase
@@ -133,17 +134,18 @@ emit_tel() {
   hook::emit_telemetry "block-fix-request-post" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-# _bfr_allowed: 0 when the payload's repository tracks a team file that sets
-# fix_request_post to allow. Read only on a would-block call, so a call that
+# _bfr_allowed: 0 when the team file on the payload's repository's default
+# branch (origin/HEAD) sets fix_request_post to allow. That ref, never the
+# working tree or the index, so the session this guards cannot lift it with
+# one edit and `git add`. Read only on a would-block call, so a call that
 # posts no request pays nothing. Any other state keeps the block; a value
 # other than allow or block, or a file that does not parse, says so.
 _BFR_TEAM_REL="docs/conventions/guardrails.yaml"
 _bfr_allowed() {
-  local root recs val key=$'\nfix_request_post\t'
+  local root text recs val key=$'\nfix_request_post\t'
   hook::repo_root_to root "$_BFR_CWD" || return 1
-  [[ -f "$root/$_BFR_TEAM_REL" ]] || return 1
-  git -C "$root" ls-files --error-unmatch -- "$_BFR_TEAM_REL" >/dev/null 2>&1 || return 1
-  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <"$root/$_BFR_TEAM_REL" 2>/dev/null); then
+  text=$(git -C "$root" show "refs/remotes/origin/HEAD:$_BFR_TEAM_REL" 2>/dev/null) || return 1
+  if ! recs=$(LC_ALL=C awk -v STRICT=1 -f "$_HOOK_SELF/yaml-subset.awk" <<<"$text" 2>/dev/null); then
     printf 'guardrails: %s does not parse; fix_request_post stays block.\n' "$_BFR_TEAM_REL" >&2
     return 1
   fi

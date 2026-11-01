@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/guardrails/schemas/guardrails.schema.json",
   "title": "guardrails team config",
-  "description": "Schema for a repository's docs/conventions/guardrails.yaml, the team layer of the guardrails plugin's settings. Read only while git tracks it. Contract: docs/contracts/config-cascade/README.md.",
+  "description": "Schema for a repository's docs/conventions/guardrails.yaml, the team layer of the guardrails plugin's settings. Read from the default branch (origin/HEAD), never the working tree. Contract: docs/contracts/config-cascade/README.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

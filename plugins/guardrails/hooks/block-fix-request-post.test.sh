@@ -265,14 +265,25 @@ bash "$HOOK" <<<"$(payload Bash "echo $(printf 'x%.0s' {1..17000})")" >/dev/null
 assert_exit "an over-length command without the phrase is left to the row's ceiling" 0 "$rc"
 
 # --- 9. The fix_request_post setting in docs/conventions/guardrails.yaml -------
-# team_repo <name> <yaml> <track>: a repository whose team file holds <yaml>,
-# git-added when <track> is 1; prints its path.
+# team_repo <name> <yaml> <on-default-branch> [staged yaml]: a repository whose
+# team file holds <yaml>, committed and published as origin/HEAD when
+# <on-default-branch> is 1, else only written and staged; [staged yaml] then
+# overwrites and stages the file on top. Prints its path.
 team_repo() {
-  local d="$TEST_TMPDIR/$1"
+  local d="$TEST_TMPDIR/$1" f=docs/conventions/guardrails.yaml
   mkdir -p "$d/docs/conventions" "$d/sub"
   git init -q "$d"
-  printf '%s\n' "$2" >"$d/docs/conventions/guardrails.yaml"
-  (($3)) && git -C "$d" add docs/conventions/guardrails.yaml
+  printf '%s\n' "$2" >"$d/$f"
+  git -C "$d" add "$f"
+  if (($3)); then
+    git -C "$d" -c user.name=t -c user.email=t@example.com commit -qm team
+    git -C "$d" update-ref refs/remotes/origin/main HEAD
+    git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  fi
+  if [[ -n "${4-}" ]]; then
+    printf '%s\n' "$4" >"$d/$f"
+    git -C "$d" add "$f"
+  fi
   printf '%s' "$d"
 }
 ALLOW=$(team_repo allow 'fix_request_post: allow' 1)
@@ -290,7 +301,8 @@ deny_in() { # deny_in <label> <repo> [reason text]
   N_DENY=$((N_DENY + 1))
 }
 deny_in "block mode" "$(team_repo block 'fix_request_post: block' 1)"
-deny_in "allow in an untracked team file" "$(team_repo untracked 'fix_request_post: allow' 0)"
+deny_in "allow staged only, no default branch" "$(team_repo staged 'fix_request_post: allow' 0)"
+deny_in "allow staged over block on the default branch" "$(team_repo restaged 'fix_request_post: block' 1 'fix_request_post: allow')"
 deny_in "an unknown value" "$(team_repo typo 'fix_request_post: allow2' 1)" "fix_request_post: 'allow2'"
 deny_in "the key absent" "$(team_repo absent 'other_key: allow' 1)"
 deny_in "a team file that does not parse" "$(team_repo broken $'fix_request_post: allow\nfix_request_post: allow' 1)" "does not parse"
