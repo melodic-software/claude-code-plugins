@@ -13,8 +13,35 @@ directory per case under `<plugin-dir>/evals/`:
 The case directory is `<skill>-<name>`, or `<name>` when the name already starts
 with the skill's own name; a case with no `name` uses its `id`. Each item of
 `expectations` (or `assertions`) becomes an `llm` grader with that item as its
-criteria, judged over the trace. A case with neither list gets one `llm`
-grader from `expected_output`, which otherwise goes to `expected_outcome`.
+criteria, judged over the trace, unless its whole wording is one of these
+mechanical checks, which become a deterministic grader with pass and fail
+samples instead:
+
+    Invokes|Loads|Triggers|Calls the <skill> skill   tool_used on Skill, for
+                                                     the case's own skill when
+                                                     the prompt is not a slash
+                                                     command
+    Does not invoke /<plugin>:<skill>, No Skill call reaches <plugin>:<skill>,
+    The <skill> skill is not invoked                 tool_used on Skill,
+                                                     min 0, max 0, arm both,
+                                                     for one of the plugin's
+                                                     skills
+    Runs `<command>` [through Bash]                  tool_used on Bash with the
+                                                     command's words in order,
+                                                     when the case grants Bash
+    Does not run `<command>` [itself]                the same, min 0, max 0,
+                                                     arm both
+    Names|Prints|Reports [the line] `<literal>`,
+    Names|Points at /<plugin>:<skill>                regex over the final reply
+    Writes|Creates the <thing> at|to|under <path>    file_exists on **/<path>,
+                                                     when the case can create
+                                                     files and lists no fixtures
+
+A qualifier after the wording ("for the why part", "and reports the result"),
+a placeholder such as `<id>`, a slash command passed to Run, or another
+plugin's skill keeps the item an `llm` judgment. A case with neither list gets
+one `llm` grader from `expected_output`, which otherwise goes to
+`expected_outcome`.
 
 A case whose prompt does not start with a slash command also gets a
 `skill-fired` `tool_used` grader on the Skill tool, with sample answers it must
@@ -32,7 +59,7 @@ each tool in the frontmatter's `allowed-tools`, with a `Bash(git *)`-style
 pattern reduced to its tool name. The list keeps that order with no repeats.
 
 A case with expectations and an `expected_output` gets a sample file per
-expectation grader, holding `expected_output` as the one answer it must pass.
+`llm` expectation grader, holding `expected_output` as the one answer it must pass.
 The source describes the intended reply rather than recording one, so the
 sample's `why` asks for the label to be confirmed before calibrate-judge.py
 measures the judge on it, and validate-cases.py warns that these samples need
@@ -163,6 +190,53 @@ UNWRITABLE = re.compile(
 )
 REGEX_SPECIAL = frozenset(".^$*+?()[]{}|\\/")
 
+# Expectation wording that maps to a deterministic grader. Each pattern must
+# match the whole expectation, so a qualifier ("for the why part", "and reports
+# the result") keeps it an llm judgment. Grader fields are the Grader types
+# table's.
+# - Pointer: when a field or its default may have changed, fetch
+#   https://code.claude.com/docs/en/plugin-evals#grader-types live.
+# - As of: 2026-11-01
+# - Recheck trigger: that table renames a field of regex, tool_used or
+#   file_exists, or changes how tool_used matches input_match.
+SKILL_REF = r"(the `?[\w-]+`? skill|`?/?[\w-]+:[\w-]+`?)"
+SKILL_INVOKED = re.compile(
+    r"^(?:Invokes|Loads|Triggers|Calls) %s(?: (?:via|through) the Skill tool)?\.?$"
+    % SKILL_REF
+)
+SKILL_NOT_INVOKED = re.compile(
+    r"^(?:(?:Does not|Does NOT|Never) (?:invoke|load|trigger|call)s? %s"
+    r"|No Skill call reaches %s"
+    r"|(The `?[\w-]+`? skill) is (?:not|NOT|never) invoked)\.?$" % (SKILL_REF, SKILL_REF)
+)
+COMMAND_RAN = re.compile(
+    r"^(?:Runs|Executes) `([^`\n]+)`"
+    r"(?: (?:through|via|with|using) (?:the )?Bash(?: tool)?)?\.?$"
+)
+COMMAND_NOT_RAN = re.compile(
+    r"^(?:Does not|Does NOT|Never) runs? `([^`\n]+)`(?: itself)?\.?$"
+)
+NAMES_LITERAL = re.compile(
+    r"^(?:(?:The (?:response|reply|output|answer)|It) )?"
+    r"(?:names|prints|mentions|quotes|reports|outputs|contains|includes|states)"
+    r"(?: the)?(?: (?:literal|exact))?(?: (?:line|string|token|text|command|path))?"
+    r" `([^`\n]+)`\.?$",
+    re.IGNORECASE,
+)
+NAMES_SKILL = re.compile(
+    r"^(?:(?:The (?:response|reply|output|answer)|It) )?"
+    r"(?:names|mentions|points (?:at|to)) /([\w-]+:[\w-]+)\.?$",
+    re.IGNORECASE,
+)
+FILE_CREATED = re.compile(
+    r"^(?:Writes|Creates) (?:(?:the|a|an) [\w -]+? )?(?:at|to|under) "
+    r"`?([\w.][\w./-]*)`?\.?$"
+)
+# A token holding a placeholder or a quote is not a literal the run can echo.
+NOT_LITERAL = re.compile(r"[<>…\"\\]|\.\.\.")
+# Tools that let a run create a file; Edit only changes one.
+CREATES_FILES = frozenset(["Write", "Bash"])
+
 
 class Refusal(Exception):
     """A reason the whole plugin is not converted."""
@@ -203,13 +277,19 @@ def plugin_name(plugin_dir):
     return name if isinstance(name, str) and name else os.path.basename(plugin_dir)
 
 
-def source_files(plugin_dir):
+def skill_dirs(plugin_dir):
     skills = os.path.join(plugin_dir, "skills")
     if not os.path.isdir(skills):
         return []
+    return sorted(
+        name for name in os.listdir(skills) if os.path.isdir(os.path.join(skills, name))
+    )
+
+
+def source_files(plugin_dir):
     found = []
-    for skill in sorted(os.listdir(skills)):
-        path = os.path.join(skills, skill, EVALS_DIR, "evals.json")
+    for skill in skill_dirs(plugin_dir):
+        path = os.path.join(plugin_dir, "skills", skill, EVALS_DIR, "evals.json")
         if os.path.isfile(path):
             found.append((skill, path))
     return found
@@ -320,6 +400,137 @@ def skill_samples(plugin, skill):
     }
 
 
+def skill_match(plugin, skill):
+    return '"skill"\\s*:\\s*"(?:%s:)?%s"' % (regex_escape(plugin), regex_escape(skill))
+
+
+def own_skill(ref, plugin, skills):
+    """The skill a SKILL_REF names when it is one of this plugin's, else None."""
+    ref = ref.strip("`")
+    if ref.lower().startswith("the "):
+        name = ref[4:-6].strip("`")
+    else:
+        owner, _, name = ref.lstrip("/").partition(":")
+        if owner != plugin:
+            return None
+    return name if name in skills else None
+
+
+def command_match(command):
+    """input_match for a Bash call whose command holds these words in order,
+    with anything between them (a quoted or absolute path, more arguments)."""
+    gap = r'(?:[^"\\]|\\.)*?'
+    words = [regex_escape(word) for word in command.split()]
+    return '"command"\\s*:\\s*"' + gap + gap.join(words)
+
+
+def bash(command):
+    return [{"tool": "Bash", "input": {"command": command}}]
+
+
+def command_samples(command, ran):
+    words = command.split()
+    quoted = 'cd /work && python3 "/work/%s" %s' % (words[0], " ".join(words[1:]))
+    present = [
+        {"answer": bash(command), "why": "the command as written"},
+        {"answer": bash(quoted.rstrip()), "why": "a quoted absolute path"},
+    ]
+    absent = [
+        {"answer": [], "why": "no Bash call"},
+        {"answer": bash("echo unrelated"), "why": "another command"},
+        {
+            "answer": [{"tool": "Read", "input": {"file_path": command}}],
+            "why": "the text in another tool's input",
+        },
+    ]
+    if len(set(words)) == len(words) > 1:
+        absent.append(
+            {"answer": bash(" ".join(reversed(words))), "why": "the words out of order"}
+        )
+    return {"pass": present, "fail": absent} if ran else {"pass": absent, "fail": present}
+
+
+def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
+    """(grader option lines, samples) for an expectation whose whole wording
+    maps to a deterministic check, or None to keep it an llm judgment."""
+    found = SKILL_INVOKED.match(text)
+    if found and not slash_invoked:
+        name = own_skill(found.group(1), plugin, skills)
+        if name == skill:
+            return (
+                ["type: 'tool_used'", "tool: 'Skill'", "input_match: "
+                 + yaml_str(skill_match(plugin, name), text)],
+                skill_samples(plugin, name),
+            )
+    found = SKILL_NOT_INVOKED.match(text)
+    if found:
+        name = own_skill(next(g for g in found.groups() if g), plugin, skills)
+        if name:
+            calls = skill_samples(plugin, name)
+            return (
+                ["type: 'tool_used'", "tool: 'Skill'", "input_match: "
+                 + yaml_str(skill_match(plugin, name), text), "min: 0", "max: 0",
+                 "arm: 'both'"],
+                {"pass": calls["fail"], "fail": calls["pass"]},
+            )
+    for pattern, ran in ((COMMAND_RAN, True), (COMMAND_NOT_RAN, False)):
+        found = pattern.match(text)
+        if not found:
+            continue
+        command = found.group(1).strip()
+        if command.startswith("/") or NOT_LITERAL.search(command):
+            return None
+        if ran and "Bash" not in tools:
+            return None
+        lines = ["type: 'tool_used'", "tool: 'Bash'",
+                 "input_match: " + yaml_str(command_match(command), text)]
+        if not ran:
+            lines += ["min: 0", "max: 0", "arm: 'both'"]
+        return lines, command_samples(command, ran)
+    found = NAMES_LITERAL.match(text) or NAMES_SKILL.match(text)
+    if found:
+        token = found.group(1)
+        if NOT_LITERAL.search(token) or not token.strip():
+            return None
+        if found.re is NAMES_SKILL:
+            pattern = "\\/?" + regex_escape(token) + "(?![\\w:-])"
+            present = ["Use /%s next." % token, "Use %s next." % token]
+            absent = ["Use /%s-other next." % token, "No skill is named here."]
+        else:
+            pattern = regex_escape(token)
+            present = ["The answer names %s here." % token]
+            absent = ["The answer names nothing in particular."]
+        return (
+            ["type: 'regex'", "pattern: " + yaml_str(pattern, text),
+             "target: 'last_message'"],
+            {
+                "pass": [{"answer": a, "why": "names it"} for a in present],
+                "fail": [{"answer": a, "why": "does not name it"} for a in absent],
+            },
+        )
+    found = FILE_CREATED.match(text)
+    if found and not has_files and CREATES_FILES & set(tools):
+        path = found.group(1)
+        if ".." in path.split("/") or "/" not in path.rstrip("/") and "." not in path:
+            return None
+        glob = "**/" + path + ("**" if path.endswith("/") else "")
+        made = path + ("SKILL.md" if path.endswith("/") else "")
+        return (
+            ["type: 'file_exists'", "path: " + yaml_str(glob, text)],
+            {
+                "pass": [
+                    {"answer": [made], "why": "created, relative path"},
+                    {"answer": ["/work/" + made], "why": "created, absolute path"},
+                ],
+                "fail": [
+                    {"answer": [], "why": "nothing created"},
+                    {"answer": ["unrelated/notes.txt"], "why": "another file"},
+                ],
+            },
+        )
+    return None
+
+
 def expected_samples(expected):
     return {
         "pass": [
@@ -336,7 +547,7 @@ def sample_text(data):
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS):
+def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
     """Return (directory name, {relative path: text}, notes) for one case."""
     notes = []
     name = case_dir_name(skill, case, where)
@@ -400,35 +611,44 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS):
         "prompt.md": "---\n%s\n---\n\n%s\n" % ("\n".join(front), prompt.strip("\n"))
     }
 
+    slash_invoked = SLASH_COMMAND.match(prompt) is not None
     yaml_lines = ['schema_version: "1.1"', "name: " + yaml_str(name, where), "graders:"]
+    judged = []
     for grader, text in graders:
+        mapped = None
+        if criteria:
+            mapped = deterministic(
+                text, plugin, skill, skills, tools, slash_invoked, bool(files)
+            )
+        yaml_lines.append("  - name: '%s'" % grader)
+        if mapped:
+            options, samples = mapped
+            yaml_lines += ["    " + line for line in options]
+            files_out["samples/%s.json" % grader] = sample_text(samples)
+            continue
+        judged.append(grader)
         yaml_lines += [
-            "  - name: '%s'" % grader,
             "    type: 'llm'",
             "    criteria: " + yaml_str(text, where),
             "    focus: 'trace'",
         ]
     if criteria and expected:
-        for grader, _ in graders:
+        for grader in judged:
             files_out["samples/%s.json" % grader] = sample_text(
                 expected_samples(expected)
             )
-    elif criteria:
+    elif criteria and judged:
         notes.append(
             "has expectations but no expected_output, so its llm graders have no "
             "sample answers; add samples/<grader>.json by hand"
         )
-    slash_invoked = SLASH_COMMAND.match(prompt) is not None
     if not slash_invoked and any(NO_TRIGGER.search(t) for t in [expected] + criteria):
         notes.append(
             "its expectations may say the skill must not fire, so it has no Skill "
             "grader; add one by hand once the direction is known"
         )
     elif not slash_invoked:
-        pattern = '"skill"\\s*:\\s*"(?:%s:)?%s"' % (
-            regex_escape(plugin),
-            regex_escape(skill),
-        )
+        pattern = skill_match(plugin, skill)
         yaml_lines += [
             "  - name: 'skill-fired'",
             "    type: 'tool_used'",
@@ -454,6 +674,7 @@ def plan(plugin_dir):
     if os.path.lexists(eval_dir) and not os.path.isdir(eval_dir):
         raise Refusal("%s exists and is not a directory" % EVALS_DIR)
     sources, errors, owners = [], [], {}
+    skills = frozenset(skill_dirs(plugin_dir))
     for skill, path in source_files(plugin_dir):
         rel = os.path.relpath(path, plugin_dir).replace(os.sep, "/")
         try:
@@ -466,7 +687,9 @@ def plan(plugin_dir):
         for number, case in enumerate(cases, start=1):
             where = "%s case %d" % (rel, number)
             try:
-                name, files, notes = plan_case(plugin, skill, case, where, tools)
+                name, files, notes = plan_case(
+                    plugin, skill, case, where, tools, skills
+                )
             except Refusal as error:
                 errors.append(str(error))
                 continue
