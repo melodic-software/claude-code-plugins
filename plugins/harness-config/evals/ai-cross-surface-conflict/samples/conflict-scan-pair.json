@@ -125,6 +125,18 @@
         }
       ],
       "why": "one-file scan, another .md read after it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md\ncat services/billing/CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one-file scan, another .md read on the next line"
     }
   ]
 }

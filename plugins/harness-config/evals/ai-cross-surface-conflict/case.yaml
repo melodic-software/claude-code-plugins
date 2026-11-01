@@ -6,7 +6,7 @@ graders:
   - name: conflict-scan-pair
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:conflict-scan\.sh(?:(?:[^"\\;&|]|\\.)*?\.md\b){2}|\.md\b(?:[^"\\]|\\.)*?\.md\b(?:[^"\\]|\\.)*?conflict-scan\.sh(?:\\")?\s+(?:--count\s+)?\$)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:conflict-scan\.sh(?:(?:[^"\\;&|]|\\[^nr])*?\.md\b){2}|\.md\b(?:[^"\\]|\\.)*?\.md\b(?:[^"\\]|\\.)*?conflict-scan\.sh(?:\\")?\s+(?:--count\s+)?\$)'
     min: 1
   - name: names-both-sites
     type: regex
