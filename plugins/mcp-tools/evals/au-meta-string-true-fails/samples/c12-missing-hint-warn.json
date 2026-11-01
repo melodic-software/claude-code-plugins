@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | read-only tool lacks the hint |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | FAIL | |",
+      "why": "fail"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

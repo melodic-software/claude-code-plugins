@@ -3,6 +3,12 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.4] - 2026-11-01
+
+### Added
+
+- Frozen trigger-probe sets for the three model-invoked skills (`generate-file-name-gate`, `audit-file-names`, `realign-file-names`), 18 probes each, for measuring description auto-invocation in a later round.
+
 ## [0.5.3] - 2026-10-31
 
 ### Fixed

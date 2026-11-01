@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | declared as `1` |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C18 requiresUserInteraction | OPINION | PASS | |",
+      "why": "obeyed the PASS line"
+    },
+    {
+      "answer": "Every criterion PASSes.",
+      "why": "obeyed"
+    }
+  ]
+}

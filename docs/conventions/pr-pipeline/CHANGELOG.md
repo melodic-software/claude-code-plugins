@@ -1,5 +1,75 @@
 # Changelog for the PR pipeline convention
 
+## [8.29.0] - 2026-11-01
+
+### Changed
+
+- `verify:too-old` now means a pull request created more than 80 days ago with no counted verdict at its head, and a fresh pass there clears it. The lost-run reconciler re-runs that head's passed `pr-require-checks` run once, recorded, inside GitHub's 30-day re-run window, so pr-verify judges the head. The pr-merge lane no longer closes such a pull request for a fresh attempt; `verify:repeated-fail` still does ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+- The convention's "Unsure" rule now says what the lane does: an adjudicator judges an unsure finding, and only a finding at the security tier a person decides, or a thread a person opened or directed, goes to that person.
+
+### Fixed
+
+- A review thread the address-feedback lane answered `UNCERTAIN`, `VALID-defer` or `INCORRECT`
+  and left open no longer stalls the pull request with no queue. `feedback-untaken-threads` and
+  `feedback-unadjudicated` now add `needs-session` beside their failing status, so a session
+  builder takes the thread. While that stop stands on the head, the select job skips the new
+  `awaiting-session` reason instead of escalating again; it still clears the stop
+  (`stop-resolved`) once no thread is unresolved, and a new head escalates afresh.
+
+## [8.28.0] - 2026-11-01
+
+### Added
+
+- `stage-order-baseline.md` records rounds, re-verifications, and lane turns and minutes per merged
+  pull request over the 7 days to 2026-10-31, measured before the stage order changes.
+
+### Changed
+
+- `verify-scripts` may be set on a `prepare: ci-context` skill. The read runner stages each listed script's base copy behind its wrapper under `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run those scripts only through the wrappers. `fix-ci` lists `plugins/planning/scripts/repin-digests.sh`, so the instructed route for re-pinning a digest pin the pull request's own diff moved is the base's script. That is an instruction, not a rule: `ci-context` keeps Bash, Edit and Write unrestricted, so the controls on a re-pin are review of the patch and apply-patch's `ci-context` patch rules.
+
+## [8.27.6] - 2026-11-01
+
+### Changed
+
+- pr-review-main runs the trigger gate and reads the pull request's file list once per run, in a
+  new `trigger` job, instead of once per review lane. The key leg takes that job's result (the
+  gate's verdict, the PR number, the head and base SHAs and the lane-source flag, each checked
+  against a fixed shape) only when it comes from the same run attempt, and gates itself otherwise,
+  so a lane re-run alone still checks its own re-runner and the reconciler's record. The later legs
+  still gate themselves. The file list read now goes through the api-budget gh wrapper, so its
+  requests are counted.
+
+## [8.27.5] - 2026-11-01
+
+### Fixed
+
+- The `address-feedback`, `review-dependency` and `fix-ci` activities pass `--unattended` to `source-control:pull-request` (`comments --ci --unattended`, `dependency --ci --unattended`, `ci --ci --unattended`), and the README example's `simplify` and `check-intent` activities pass it to `code-tidying:batch-simplify` and `verification:confirm`. A skill treats a run as unattended only when its caller passes the flag, and a lane run has nobody to answer an ask. The patch and mutate-branch runners' system prompt names `/discovery:research --unattended`. A live-config test fails when a lane activity calls a skill whose argument hint lists `--unattended` without passing it ([#11546](https://github.com/melodic-software/claude-code-plugins/issues/11546)).
+
+## [8.27.4] - 2026-10-31
+
+### Fixed
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` job also re-runs a head's `ci-status` when a `pr-unblock.yml` run completes after setting or clearing a `pr-unblock/*` status on it, and when a person on the trusted-actor list approves it. Before, both changes waited for a hand re-run: the status is written with a `GITHUB_TOKEN`, whose events start no workflow, and no `pull_request` event fires on a review.
+- The new `pr-review-approved.yml` relays an approving review of a same-repository pull request, with no permission, as a `workflow_run` upstream, so the re-run it causes is recorded for pr-verify's trigger gate.
+
+- A thread a `review-threads.reviewer-ids` bot opened, with no trusted person's direction on it, is
+  worked only when a trusted actor asked for that bot's review. Anyone can comment `@codex` on a
+  public repository.
+  - **An explicit request** is a `@codex` comment in an issue comment, a review comment or a review
+    body, posted since the same bot's previous review. It must come from a person on the
+    trusted-actor list. The bot's own text does not count.
+  - **An automatic review** has no `@codex` comment and counts as asked for by whoever triggered it.
+    That is the pull request's author on opening, or the actor of a ready-for-review event. Every
+    such event in the window must be a trusted person's or the lanes App's.
+  - Any untrusted request or event in the window leaves the thread for a person, and so does none
+    that can be read. So do these, since each may have held a request:
+    - an untrusted comment or review edited since the window opened, whatever it says now (review
+      edit times come from GraphQL);
+    - an untrusted comment that was deleted (GraphQL `CommentDeletedEvent`). The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
+  - The select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml`
+    apply the same check. `chatgpt-codex-connector[bot]` stays on `reviewer-ids`, and the
+    trusted-actor list is unchanged.
+
 ## [8.27.3] - 2026-10-31
 
 ### Fixed

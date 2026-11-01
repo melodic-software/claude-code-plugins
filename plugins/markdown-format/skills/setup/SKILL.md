@@ -105,9 +105,10 @@ Report the probes informationally and note that re-enabling restores the FAIL se
 7. **Hook toggle.** Report the effective `markdown_format_enabled` value:
    `${user_config.markdown_format_enabled}` (unexpanded or empty means default `true`). Also
    report `markdown_format_end_of_turn`: `${user_config.markdown_format_end_of_turn}`
-   (unexpanded or empty means the shipped default `false`), as INFO: on, the Stop row checks
-   the uncommitted changes once per turn; off, only the batch rewrite and the git pre-commit
-   entry run.
+   (unexpanded or empty means unset, the default), as INFO: unset, the Stop row shows you the
+   findings in the uncommitted changes when a turn ends and the turn ends; `true`, it hands them
+   back to Claude once per turn; `false`, only the batch rewrite and the git pre-commit entry
+   run.
 8. **Hook registration.** INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 9. **Git pre-commit entry.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" verify`

@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: audit-stamp-declined-reported
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'check-stamps-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?!(?:[^"\\]|\\.)*?--(?:show-config|help)\b)(?:[^"\\]|\\.)*?check-stamps\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-expired'
+    type: 'regex'
+    pattern: 'retry-policy\.md(?:(?!\.md\b)[\s\S]){0,200}?(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale|out of date|days over|days past|past (?:its |the )?(?:expiry|180-day|window))\b|(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale)\b[^\n.;!?]{0,120}?retry-policy\.md|^(?![^\n]*\b(?:no|none|zero|not|0)\s+(?:[\w-]+\s+){0,3}(?:expired|overdue|stale)\b)[^\n]*\b(?:expired|overdue|stale|days over)\b[^\n]*\n(?:(?!\.md\b)[\s\S]){0,400}?retry-policy\.md'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'declined-reported'
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:no|zero|none|0)\s+(?:stamps?\s+(?:were\s+|was\s+)?)?(?:declined|unparsed)\b)(?:[^\n]*release-notes\.md[^\n]*(?:declined|unparsed|not parsed|month[- ]name|non-ISO|not ISO|could(?: not|n''t) (?:be )?(?:parsed?|read|checked|check)|can(?:not|''t) (?:be )?(?:parsed?|read|checked|check)|not checked|unreadable)|[^\n]*(?:declined|unparsed|not parsed|month[- ]name|non-ISO|not ISO|could(?: not|n''t) (?:be )?(?:parsed?|read|checked|check)|can(?:not|''t) (?:be )?(?:parsed?|read|checked|check)|not checked|unreadable)[^\n]*release-notes\.md|[^\n]*\b(?:declined|unparsed|not parsed)\b[^\n]*(?:month|ISO 8601|not ISO|non-ISO)|[^\n]*\b(?:declined|unparsed)\b[^\n]*\n(?:(?!\.md\b)[\s\S]){0,400}?release-notes\.md|[^\n]*release-notes\.md[^\n]*\n(?:(?!\.md\b)[\s\S]){0,400}?^(?![^\n]*\b(?:no|zero|none|0)\s+(?:[\w-]+\s+){0,3}(?:declined|unparsed)\b)[^\n]*(?:declined|unparsed|not parsed|month[- ]name|non-ISO|not ISO|could(?: not|n''t) (?:be )?(?:parsed?|read|checked|check)|can(?:not|''t) (?:be )?(?:parsed?|read|checked|check)|not checked|unreadable))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'no-write-fixture'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?docs/(?:retry-policy|cache-layout|release-notes)\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit-fixture'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?docs/(?:retry-policy|cache-layout|release-notes)\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-write-fixture'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?docs/(?:retry-policy|cache-layout|release-notes)\.md|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/(?:retry-policy|cache-layout|release-notes)\.md|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/(?:retry-policy|cache-layout|release-notes)\.md|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/(?:retry-policy|cache-layout|release-notes)\.md|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?docs/(?:retry-policy|cache-layout|release-notes)\.md(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'

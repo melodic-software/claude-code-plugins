@@ -96,9 +96,17 @@ missing `markdownlint-cli2` follows the check-placement contract: an agent commi
 with the install command, a person gets a notice, and `git -c
 checks.skipmissing=markdownlint-cli2 commit` skips it once.
 
-The opt-in `markdown_format_end_of_turn` option runs the same script with `--worktree` from a
-`Stop` row: when a turn ends it checks the uncommitted changes, rewrites nothing, and hands
-findings back to Claude, at most once per turn.
+A `Stop` row runs the same script with `--worktree`: when a turn ends it checks the
+uncommitted changes and rewrites nothing. The `markdown_format_end_of_turn` option picks what
+happens to the findings:
+
+- **Unset (the default):** a warning shows you the findings, and the turn ends. Claude does
+  not see them. The row exits 0 with a `systemMessage`.
+- **`true`:** the findings go back to Claude, which keeps working to fix them, at most once
+  per turn. The row exits 2.
+- **`false`:** the row runs no check.
+
+A missing `markdownlint-cli2` stays quiet here, since the `SessionStart` probe reports it.
 
 ## Requirements
 
@@ -142,8 +150,15 @@ registers it, ten fires per case; spawns are from `scripts/hook-census.sh`:
 
 The ceiling for a per-batch formatter row is 1 s median per fire, so the row ships.
 `.performance/ratchets.json` holds the no-Markdown row at 1 spawn, and the `Stop` row with
-`markdown_format_end_of_turn` off (its default) at 1 spawn. The remaining time of the
+`markdown_format_end_of_turn` set to `false` at 1 spawn. The remaining time of the
 rewrite case is `markdownlint-cli2` itself, one Node process per root.
+
+With the option unset, its default, the `Stop` row starts bash and the check script on every
+turn end. On a clean tree that costs 20 spawns (11 creations, 9 execs) and 45.6 ms mean against
+25.3 ms with the option `false` (WSL2 Ubuntu, `hyperfine -N`, 60 runs each), held at 20 spawns in
+`.performance/ratchets.json`. On Windows (Git Bash 5.3.15, 40 runs each) the same path takes 447.5 ms
+mean against 90.6 ms with the option `false`, about 357 ms per turn end: inside the 2,000 ms Stop
+wall and the 1 s per-fire ceiling, and the spawn count is what any reduction would cut.
 
 ## Install
 
@@ -174,7 +189,7 @@ Three `userConfig` options tune the hooks:
 |--------|------|---------|--------|
 | `markdown_format_enabled` | boolean | `true` | Kill switch for the hooks. Set `false` for a clean no-op. |
 | `markdown_format_lint_gitignored` | boolean | `false` | Bypass the batch row's git-ignore check. Off by default: an excluded path is not rewritten. It does not override markdownlint-cli2's own `ignores` / `gitignore` config. |
-| `markdown_format_end_of_turn` | boolean | `false` | Run the pre-commit check over the uncommitted changes when a turn ends; findings go back to Claude once per turn. Nothing is rewritten. |
+| `markdown_format_end_of_turn` | boolean | unset | Run the pre-commit check over the uncommitted changes when a turn ends. Nothing is rewritten. Unset, a warning shows you the findings and the turn ends; `true` hands them back to Claude once per turn; `false` runs no check. |
 
 Set them interactively with `/plugin configure markdown-format@<marketplace>`, or headless on
 the install command:
@@ -195,7 +210,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `markdown_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED` | Rewrite the Markdown files a batch of tool calls wrote (runs only when the repo carries a markdownlint config) |
 | `markdown_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED` | By default the hook leaves gitignored files alone: a scratch tier the repo excludes is not rewritten. Set true to bypass this hook's git check; markdownlint-cli2's own ignores and gitignore config still apply, so a path your markdownlint config excludes stays untouched. |
-| `markdown_format_end_of_turn` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN` | When a turn ends, run the pre-commit check over the uncommitted changes (nothing is rewritten) and hand any markdownlint findings back to Claude, at most once per turn. Off by default. |
+| `markdown_format_end_of_turn` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN` | When a turn ends, run the pre-commit check over the uncommitted changes; nothing is rewritten. Unset (the default) shows markdownlint findings to you in a warning and the turn ends. true hands them back to Claude, at most once per turn. false runs no check. |
 
 ### How to set these
 

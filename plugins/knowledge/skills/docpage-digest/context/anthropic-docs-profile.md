@@ -375,8 +375,10 @@ the page (a figure, a caption, a summary box):
 
 ## Digest-agent model matching
 
-A model-specific guide digests on the model it describes, since the subject model recognizes its own
-behavioral descriptions:
+A model-specific guide digests on the model it describes. The reason is this repository's
+heuristic, not an upstream claim: the subject model is assumed to recognize its own behavioral
+descriptions best. Recheck trigger: an eval comparing digest agents on a model-specific guide
+shows another model doing as well.
 
 | Doc subject | Digest-agent model |
 |---|---|

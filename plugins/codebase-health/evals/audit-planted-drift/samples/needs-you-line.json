@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n",
+      "why": "plain line"
+    },
+    {
+      "answer": "**Needs you:** decide whether `serve` was planned or abandoned.",
+      "why": "bold label, colon inside"
+    },
+    {
+      "answer": "**Needs you**: none",
+      "why": "bold label, colon outside"
+    },
+    {
+      "answer": "## Needs you\n\nNothing.",
+      "why": "hash heading"
+    },
+    {
+      "answer": "| Needs you | none |\n|---|---|",
+      "why": "table cell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "This needs your review before merging.",
+      "why": "needs your, not the line"
+    },
+    {
+      "answer": "Nothing here needs you to act.",
+      "why": "no label"
+    }
+  ]
+}

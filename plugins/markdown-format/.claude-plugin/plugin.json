@@ -1,7 +1,7 @@
 {
   "name": "markdown-format",
-  "version": "0.15.11",
-  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit.",
+  "version": "0.16.0",
+  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit and, unless markdown_format_end_of_turn is false, at each turn end for the uncommitted changes.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -30,8 +30,7 @@
     "markdown_format_end_of_turn": {
       "type": "boolean",
       "title": "Check markdown in uncommitted changes at turn end",
-      "description": "When a turn ends, run the pre-commit check over the uncommitted changes (nothing is rewritten) and hand any markdownlint findings back to Claude, at most once per turn. Off by default.",
-      "default": false
+      "description": "When a turn ends, run the pre-commit check over the uncommitted changes; nothing is rewritten. Unset (the default) shows markdownlint findings to you in a warning and the turn ends. true hands them back to Claude, at most once per turn. false runs no check."
     }
   }
 }
