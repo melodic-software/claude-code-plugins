@@ -71,7 +71,7 @@ dimension, gather whatever evidence its tier sources yield, then propose candida
 
 | Dimension | Examples of what to look at |
 |---|---|
-| Code / architecture | Churn×complexity hotspots, coupling and seam friction, dead or duplicated surface |
+| Code / architecture | Churn×complexity hotspots, coupling and seam friction, dead or duplicated surface, capabilities built but never wired up |
 | Performance | Slow CI, slow tests, slow builds, known-slow runtime paths named by telemetry |
 | Product-level behavior | Error rates, failure-prone user flows, gaps between documented and measured behavior |
 | Config / automation outside the codebase | GitHub labels, Actions workflows, synchronizations, branch protections, bot config |
@@ -90,7 +90,7 @@ confidence attached to the ranking (strongest first):
 2. **Repo and CI history**. Churn×complexity hotspots, CI failure ratios and duration trends,
    dependency staleness. Mechanical, reproducible, repo-native.
 3. **Structural presence signals**. Test-coverage presence/absence, TODO density, missing
-   automation where a class of toil demonstrably recurs.
+   automation where a class of toil demonstrably recurs, capabilities built but never wired up.
 4. **Model judgment**, the weakest rung: this session's read of the target. Always labeled as
    such, never dressed up as measurement.
 
@@ -111,7 +111,10 @@ Two hard rules follow:
 - **Tier 0. Repo-native, always available.** Git churn/hotspot analysis (recipe:
   context/hotspots.md, including its shallow-history gate), CI health via GitHub Actions run data
   (recipe: context/ci-health.md), dependency staleness from the repo's own manifests,
-  test-coverage presence, TODO density. These ship with the skill and need nothing installed.
+  test-coverage presence, TODO density, and built-but-unwired capabilities: exports or imports
+  nothing calls, stores written but never read, and off flags that hide built routes (recipe:
+  context/disconnected.md, run every time, before any net-new build is proposed). These ship
+  with the skill and need nothing installed.
 - **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
   it for session/cost/hook telemetry relevant to the operational-setup dimension.
 - **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
@@ -132,6 +135,8 @@ method:
 
 - `architecture:improve` (deepening lens). Depth for the code/architecture dimension.
 - `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
+- `code-tidying:audit-dead-code`. Unused exports, functions and files for the first shape of the
+  disconnected-capability scan (context/disconnected.md); without it, that recipe greps.
 - `/code-metrics:audit-duplication`, when it is among the available skills. Copy count and clone
   trend for the code dimension: run it with `--json --keep --all` and read the document it prints
   (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
@@ -219,6 +224,12 @@ this skill's own hands: interview the pick → `/discovery:explore` / `/discover
 `/planning:plan` → `/implementation:implement` → `/verification:confirm`, each delegated to its
 skill by invoking it via the Skill tool. An execution request changes where the handoff goes,
 not what this skill is allowed to touch.
+
+Show the ranked list first, even when the prompt asks to go straight to implementation. Write
+the full list, with its evidence-gap lines, in your reply before the Skill tool call that hands
+off a pick, and name which row you are handing off. The user then sees what the pick beat and can
+redirect it. When the prompt hands you the pick ("pick the top one"), hand off rank 1 in the same
+turn; otherwise stop after the list and wait for the pick, per Interactive flow step 2.
 
 ## What this skill does NOT do / Skip when
 
