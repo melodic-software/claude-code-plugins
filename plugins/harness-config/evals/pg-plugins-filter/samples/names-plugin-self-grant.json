@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "plugins/quay-tools/settings.json declares a permissions block (P3), which is inert."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "quay-tools grants nothing.",
+      "why": "missed"
+    }
+  ]
+}

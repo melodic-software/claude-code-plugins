@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/unhobble/scripts/instruction-files.sh\" list .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "list only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rm CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "strips"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/unhobble/scripts/instruction-files.sh\" strip . CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "helper strip"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m 'experiment: strip instruction surfaces for unhobble baseline'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "commits"
+    }
+  ]
+}
