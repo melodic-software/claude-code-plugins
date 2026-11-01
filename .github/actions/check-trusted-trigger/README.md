@@ -94,7 +94,7 @@ condition 1 and the actor and author parts of condition 2).
     and its `actor` and `triggering_actor` are both listed humans; the lanes App never vouches for
     it. The repository and head checks above apply unchanged. The relay's `GITHUB_REF` is the
     PR's merge ref, so its file is treated as PR-controlled and only these run facts, which GitHub
-    sets, are trusted ([ADR 0087](../../../docs/adr/0087-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+    sets, are trusted ([ADR 0088](../../../docs/adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
 
   Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
   `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler

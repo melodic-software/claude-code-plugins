@@ -795,7 +795,7 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 // runDispatcherRelay instead must have run on pull_request_review_comment,
 // name the PR among its pull_requests, and be started (and any re-run) by a
 // listed human, never the lanes App: a review comment relayed by path, event
-// and actor (ADR 0087). Returns this run's own record.
+// and actor (ADR 0088). Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,

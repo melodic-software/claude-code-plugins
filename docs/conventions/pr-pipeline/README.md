@@ -249,7 +249,7 @@ as the upstream the record names, only when the run succeeded, its actor and re-
 listed humans (never the lanes App), its `pull_requests` name the PR, and an unresolved thread
 the lane escalated was answered by a listed human (a fix request alone keeps the tick's sweep); only check runs started after the relay run count. The gate and
 the broker accept that upstream by path, event and actor id
-([ADR 0087](../../adr/0087-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+([ADR 0088](../../adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
 GitHub starts no such run on a conflicted PR; that reply is picked up by the review run after
 `resolve-conflicts` pushes.
 

@@ -871,7 +871,7 @@ test("a pr-verify run with no completed review run at the head dispatches nothin
 });
 
 // A pr-review-comment-relay.yml run a listed human's review comment on #42
-// started (ADR 0087): the event's run, and the same run read back from the API.
+// started (ADR 0088): the event's run, and the same run read back from the API.
 const KYLE_USER = { id: KYLE.databaseId, login: "kyle-sexton" };
 const RELAY_CREATED = "2026-10-17T21:00:00Z";
 const relayRun = (overrides = {}) =>

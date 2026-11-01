@@ -102,7 +102,7 @@
 // a run of the activity created since the request, is left alone.
 //
 // A completed pr-review-comment-relay.yml run, which a person's new review
-// comment on a lanes App PR starts, starts the file too (ADR 0087). main()
+// comment on a lanes App PR starts, starts the file too (ADR 0088). main()
 // reads the relay run back from the API and admits it only when it is a
 // successful pull_request_review_comment run of this repository whose actor
 // and re-runner are both listed humans, never the lanes App (relayUpstream).

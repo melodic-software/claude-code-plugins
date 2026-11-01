@@ -255,7 +255,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml`: that record may instead
    name a `pull_request_review_comment` run of the relay that lists the PR in `pull_requests`,
    started and any re-run by a listed human, never the lanes App, at the PR's current head
-   ([ADR 0087](../../adr/0087-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+   ([ADR 0088](../../adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
    A job after pr-unblock's model job
    passes that job's `head-sha` as `expected-upstream-head`, and apply-feedback-patch's
    `pushed-commit` output as `pushed-commit`: the review must then be of that head, and the PR

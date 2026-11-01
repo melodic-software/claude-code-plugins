@@ -69,7 +69,7 @@ name: pr-feedback-dispatch
 # A completed pr-review-comment-relay.yml run, which a person's new review
 # comment on a lane branch starts, starts the dispatch job too, so a listed
 # human's reply on a thread the lane escalated leads to an address-feedback
-# round without waiting for the next review (ADR 0087). The relay run is the
+# round without waiting for the next review (ADR 0088). The relay run is the
 # upstream the record names: the gate and the broker accept it by path, event
 # pull_request_review_comment and a listed human as its actor and re-runner.
 # GitHub runs no such event on a conflicted PR; the review run after

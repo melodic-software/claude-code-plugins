@@ -4,7 +4,7 @@ name: pr-review-comment-relay
 # pr-feedback-dispatch.yml, which lists this workflow's name under
 # workflow_run: a listed human's reply on a thread the pr-unblock lane
 # escalated then starts address-feedback within one dispatcher pass, with no
-# review round behind it (ADR 0087).
+# review round behind it (ADR 0088).
 #
 # Its GITHUB_REF is the PR's merge ref, so the file is treated as
 # PR-controlled. It holds nothing to change: no permission, no checkout, no

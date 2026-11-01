@@ -2340,7 +2340,7 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
 });
 
 // A listed human's review comment, relayed by pr-review-comment-relay.yml
-// (ADR 0087): the gate accepts that upstream by path, event and actor id.
+// (ADR 0088): the gate accepts that upstream by path, event and actor id.
 const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
 const RELAY = {
   path: RELAY_WORKFLOW,

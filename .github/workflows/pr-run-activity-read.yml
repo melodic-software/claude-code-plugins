@@ -751,7 +751,7 @@ jobs:
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
           run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
-          # Or a listed human's review comment, relayed (ADR 0087).
+          # Or a listed human's review comment, relayed (ADR 0088).
           run-dispatcher-relay: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
