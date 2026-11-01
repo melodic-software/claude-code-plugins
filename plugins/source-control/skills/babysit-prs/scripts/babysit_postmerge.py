@@ -2441,8 +2441,11 @@ def _judge(
         if not in_window(run):
             continue
         state, detail = ctx.outcome(run, attributable=True)
-        if state == RED:
+        if state in (RED, SETTLED):
+            # A superseded red run reads settled only within the compare
+            # budget (`_Context.superseded`), so it is not final either.
             final = False
+        if state == RED:
             new = ctx.regressions(signal, run, merged_at)
             if new:
                 failures.append(
@@ -3281,16 +3284,19 @@ class PinReader:
         )
 
 
-def settle(repo: str, merges: Any) -> tuple[list[int], list[str]]:
-    """Post the identity's settled marker on each merge a report's `settle`
-    lists, under the acting login. A failed post, or an entry of another
-    shape, is a warning and posts nothing: the next check lists the merge
-    again. Returns the numbers marked and the warnings."""
+def settle(repo: str, merges: Any, identity: str) -> tuple[list[int], list[str]]:
+    """Post the identity's settled marker, under the acting login, on each
+    merge a report's `settle` lists whose thread holds no such marker yet:
+    a reused report, or two runs at once, posts no second one. A failed read
+    or post, or an entry of another shape, is a warning and posts nothing
+    for it: the next check lists the merge again. Returns the numbers
+    marked and the warnings."""
     owner, name = _split_repo(repo)
     posted: list[int] = []
     warnings: list[str] = []
     if not is_json_array(merges):
         return posted, ["settle-unposted: the report lists no merges to settle"]
+    wanted: dict[int, str] = {}
     for entry in merges:
         number = json_object(entry).get("number")
         sha = json_object(entry).get("mergeCommit")
@@ -3302,6 +3308,18 @@ def settle(repo: str, merges: Any) -> tuple[list[int], list[str]]:
             or _FULL_SHA.fullmatch(sha) is None
         ):
             warnings.append(f"settle-unposted: not a merge: {entry!r}"[:300])
+        else:
+            wanted[number] = sha
+    try:
+        threads = _pin_threads(repo, wanted)
+    except PostMergeReadError as exc:
+        return posted, warnings + [f"settle-unposted: {exc}"]
+    for number, sha in wanted.items():
+        thread = threads.get(number)
+        if thread is None:
+            warnings.append(f"settle-unposted: #{number}: the thread was not read")
+            continue
+        if sha in _settled_shas(identity, thread[0]):
             continue
         try:
             _write(
@@ -4478,7 +4496,7 @@ def _judge_run(args: argparse.Namespace) -> int:
     return code
 
 
-def _settle_from(repo: str, path: str) -> int:
+def _settle_from(repo: str, path: str, identity: str) -> int:
     """`--settle-from`: mark settled each merge a readable check report lists
     in `settle`. Nothing here changes that check's verdict, so every outcome
     exits 0 and a post that failed, or a report that cannot be read, is a
@@ -4488,7 +4506,7 @@ def _settle_from(repo: str, path: str) -> int:
     except (OSError, ValueError) as exc:
         report = {"error": f"{type(exc).__name__}: {exc}"}
     if report.get("readable") is True:
-        posted, warnings = settle(repo, report.get("settle"))
+        posted, warnings = settle(repo, report.get("settle"), identity)
     else:
         posted, warnings = [], [f"settle-unposted: no readable report at {path}"]
     json.dump({"settled": posted, "warnings": warnings}, sys.stdout, indent=2)
@@ -4634,7 +4652,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write("\n")
         return 2
     if args.settle_from:
-        return _settle_from(args.repo, args.settle_from)
+        return _settle_from(args.repo, args.settle_from, args.agent_identity)
 
     is_human = _default_is_human(args.repo, args.agent_identity, args.self_login)
     since = args.since

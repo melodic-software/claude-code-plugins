@@ -1462,11 +1462,15 @@ jobs:
             exit 0
           fi
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
             --repo "$REPO" --agent-identity "$identity" --settle-from "$report" \
-            </dev/null >"$RUNNER_TEMP/post-merge-settle.json"
+            </dev/null >"$RUNNER_TEMP/post-merge-settle.json" || code=$?
           cat "$RUNNER_TEMP/post-merge-settle.json"
-          jq -r '.warnings[]' "$RUNNER_TEMP/post-merge-settle.json" | while IFS= read -r warning; do
+          if [ "$code" != 0 ]; then
+            echo "::warning::settling verified lane merges exited $code; no marker was posted"
+          fi
+          jq -r '.warnings[]?' "$RUNNER_TEMP/post-merge-settle.json" 2>/dev/null | while IFS= read -r warning; do
             echo "::warning::$warning"
           done
 

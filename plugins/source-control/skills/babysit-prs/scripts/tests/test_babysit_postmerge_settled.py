@@ -327,7 +327,7 @@ class Settle(SettledCase):
 
     def test_settle_posts_the_marker_the_check_reads_back(self) -> None:
         posted, warnings = pm.settle(
-            REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}]
+            REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}], IDENTITY
         )
         self.assertEqual((posted, warnings), ([NUMBER], []))
         body = next(a for a in self.comment_posts()[0] if a.startswith("body="))
@@ -337,7 +337,7 @@ class Settle(SettledCase):
     def test_a_failed_post_is_a_warning(self) -> None:
         self.gh.fail_reads = {f"issues/{NUMBER}/comments"}
         posted, warnings = pm.settle(
-            REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}]
+            REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}], IDENTITY
         )
         self.assertEqual(posted, [])
         self.assertEqual(len(warnings), 1)
@@ -345,9 +345,38 @@ class Settle(SettledCase):
 
     def test_an_entry_of_another_shape_posts_nothing(self) -> None:
         posted, warnings = pm.settle(
-            REPO, [{"number": "7001", "mergeCommit": MERGE_SHA}, {"number": 7001}]
+            REPO,
+            [{"number": "7001", "mergeCommit": MERGE_SHA}, {"number": 7001}],
+            IDENTITY,
         )
         self.assertEqual((posted, len(warnings)), ([], 2))
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_a_merge_already_marked_is_not_marked_again(self) -> None:
+        # A reused report, or two runs at once, lists a merge whose marker
+        # already stands: nothing is posted. A marker that does not stand
+        # (another author, edited, another commit) still gets one.
+        for comments, expected in (
+            ([marker()], []),
+            ([marker(author=HUMAN)], [NUMBER]),
+            ([marker(edited="2026-10-13T09:00:00Z")], [NUMBER]),
+            ([marker(OTHER_SHA)], [NUMBER]),
+        ):
+            with self.subTest(comments=comments):
+                self.gh.calls.clear()
+                self.gh.pin_comments = comments
+                posted, warnings = pm.settle(
+                    REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}], IDENTITY
+                )
+                self.assertEqual((posted, warnings), (expected, []))
+                self.assertEqual(len(self.comment_posts()), len(expected))
+
+    def test_an_unread_thread_posts_nothing(self) -> None:
+        self.gh.fail_reads = {"PostMergeHeadPins"}
+        posted, warnings = pm.settle(
+            REPO, [{"number": NUMBER, "mergeCommit": MERGE_SHA}], IDENTITY
+        )
+        self.assertEqual((posted, len(warnings)), ([], 1))
         self.assertEqual(self.gh.writes(), [])
 
     def run_settle_from(self, report: Any) -> tuple[int, dict[str, Any]]:
