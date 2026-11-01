@@ -1110,9 +1110,10 @@ bcd::auth() {
       ;;
     -*) ((keep && !wrapped)) && return 0 ;;
     \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
-      # A value the parse cut off (`= (gh auth token)`) is no word, where `''` is an empty one.
-      [[ "$w1" == *= && -z "${w[i + 1]+x}" ]] && return 0
-      [[ "$w1" != *=* && "${w[i + 1]-}" == = && -z "${w[i + 2]+x}" ]] && return 0
+      # A value the parse cut off (`= (gh auth token)`) is no word, where `''` is an empty one;
+      # an `''` joined to the word before it (`=''`) leaves that word's quoted flag set.
+      [[ "$w1" == *= && -z "${w[i + 1]+x}" && "${HOOK_SEG_WORD_QUOTED[i]-0}" == 0 ]] && return 0
+      [[ "$w1" != *=* && "${w[i + 1]-}" == = && -z "${w[i + 2]+x}" && "${HOOK_SEG_WORD_QUOTED[i + 1]-0}" == 0 ]] && return 0
       bcd::ps_assign bcd::auth_token "$w1" "${w[i + 1]-}" "${w[i + 2]-}"
       return 0
       ;;

@@ -601,6 +601,8 @@ conf "from a neutral cwd, env -u GH_TOKEN" allow "$NEUTRAL" 'env -u GH_TOKEN gh 
 CONF_TOOL=PowerShell
 conf "PowerShell: gh.exe auth switch" deny "$A_CWD" 'gh.exe auth switch' "GH_CONFIG_DIR=$GH_A"
 conf 'PowerShell: $env:GH_TOKEN = empty' deny "$A_CWD" "\$env:GH_TOKEN = ''" "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN= empty' deny "$A_CWD" "\$env:GH_TOKEN=''" "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN = empty, no space after' deny "$A_CWD" "\$env:GH_TOKEN =''" "GH_CONFIG_DIR=$GH_A"
 conf 'PowerShell: $env:gh_token = $null' deny "$A_CWD" '$env:gh_token = $null' "GH_CONFIG_DIR=$GH_A"
 conf "PowerShell: Remove-Item Env:GH_TOKEN" deny "$A_CWD" 'Remove-Item Env:\GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
 conf "PowerShell: plain gh with the domain's directory" allow "$A_CWD" 'gh pr list' "GH_CONFIG_DIR=$GH_A"
