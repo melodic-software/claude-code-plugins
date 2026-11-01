@@ -1,5 +1,29 @@
 # Changelog: evals
 
+## [0.13.2] - 2026-11-01
+
+### Fixed
+
+- `run-validity.py` warns, rather than fails, on a denied call other than Skill that every run of a case was denied in both arms, unless it is aimed at, under or above the plugin's directory, so an outcome pass whose skill reads a user-scope path such as `~/.claude/standards` is no longer INVALID for a denial the environment makes with or without the plugin
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+- `run-validity.py` no longer fails a run at 0 turns as "never started" when its trace holds assistant messages, so a slash-invoked `context: fork` skill that ran in a forked session passes `session started`
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+
+- `plugin-eval`'s headless stay-attached step no longer says a `-p` session that backgrounds the
+  CLI always ends the run. It keeps the foreground instruction, warns that a shell `&` gets no
+  wait, says a command started with the Bash tool's `run_in_background` holds a `-p` run open
+  until it exits or reaches its time limit, and points at the upstream sections on both. `records.md` now labels the old observations as seen on those versions and
+  records the 2026-10-31 probe on 2.1.316
+  ([#7022](https://github.com/melodic-software/claude-code-plugins/issues/7022)).
+
+- `/evals:plugin-eval`, `/evals:methodology` and `/evals:design` descriptions now name the jobs their eval cases showed the model answering without the skill: planning headless eval runs, judging whether an eval delta or validity verdict can be shared, writing a success criterion, and writing test cases for an LLM feature. `methodology` keeps its claude-api routing clause first and now says what it is preferred for: before a suite or its criteria exist.
+
+- `run-validity.py` adds a `probe tools` check: it warns when an invocation-probe run could call Read, Glob, Grep or Agent, and names the emitted README's `--disallow-tools Read Glob Grep Agent` run line. A probe run whose trace has no init tools list is a warning, and when no probe run's list can be read the check is UNCHECKED, which makes the run INVALID. A probe run without that line was failing on denied searches and subagent timeouts with no pointer to the cause. `reading-results.md` now states how the gate reads invocation probes.
+
+- `plugin-eval`'s `records.md` records the first WSL2 host run of the Docker link swap against
+  Docker Desktop's own store, and points at the captured refusal wording instead of saying it is
+  missing ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
+
 ## [0.13.1] - 2026-11-01
 
 ### Fixed

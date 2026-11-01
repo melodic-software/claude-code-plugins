@@ -22,7 +22,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat .work-item-tracker.json"
+            "command": "cat docs/conventions/work-items.yaml"
           }
         }
       ],

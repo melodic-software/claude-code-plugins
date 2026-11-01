@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claim <id> [--ttl-hours <n>] [--session-id <s>] [--holder <h>] [--lease-only] —
+# claim <id> [--ttl-hours <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>] —
 # CONTRACT.md "Lease protocol". Assignment is bare gh (@me = session identity); the
 # lease comment goes through the bot. Race arbitration is by lease-comment identity,
 # not session_id. --holder names the lease holder instead of `gh api user`, which an
@@ -8,13 +8,14 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>]
   --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0
   --holder names the lease holder instead of the authenticated login
-  --lease-only posts the lease comment and assigns no one'
+  --lease-only posts the lease comment and assigns no one
+  --phase (triage, discovery or implementation) records the work the lease is for; absent means implementation'
 wit_help_if_requested "$usage" "$@"
 
-ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id="" holder="" lease_only=false
+ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id="" holder="" lease_only=false phase=""
 id="${1:-}"
 [[ -n "$id" ]] || wit_usage_error "$usage"
 shift
@@ -44,10 +45,16 @@ while [[ $# -gt 0 ]]; do
       lease_only=true
       shift
       ;;
+    --phase)
+      [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--phase needs a value"
+      phase="$2"
+      shift 2
+      ;;
     *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
+[[ -z "$phase" ]] || wit_lease_phase_valid "$phase" || wit_usage_error "--phase must be triage, discovery or implementation"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
 if ! [[ "$ttl_minutes" =~ ^[0-9]{1,2}$ ]] || ((10#$ttl_minutes > 59)); then
   wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
@@ -106,11 +113,12 @@ fi
 # 3. Post our lease comment.
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "$now" \
-  --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" \
+  --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" --arg phase "$phase" \
   '{schema_version: $sv, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber)}
    + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
-   + (if $sid != "" then {session_id: $sid} else {} end)')"
+   + (if $sid != "" then {session_id: $sid} else {} end)
+   + (if $phase != "" then {phase: $phase} else {} end)')"
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"

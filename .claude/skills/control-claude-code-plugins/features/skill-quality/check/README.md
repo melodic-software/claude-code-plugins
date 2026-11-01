@@ -5,7 +5,9 @@ Lints a skill's `SKILL.md` and evals against the skill standard, and reports the
 ## Parts
 
 - `check <skill-or-root>`: the static contract gate, PASS or FAIL with warnings.
-- `validate-evals <skill>`: checks `evals/evals.json` against the bundled schema.
+- `validate-evals <skill>`: checks a skill's existing legacy `evals/evals.json` against the bundled
+  schema. New cases use the plugin suite format, `plugins/<plugin>/evals/<case>/case.yaml`, checked
+  with `/evals:validate`.
 - `listing-budget <root>`: the shared listing-budget estimate.
 - `measure-invocation`: scores description auto-invocation probes.
 

@@ -1,6 +1,6 @@
 # Pre-escalation resolution dispatch (explicit-`autopilot` only)
 
-The full contract for the one resolution attempt the explicit-`autopilot` widening adds ahead of an
+The full contract for the one resolution attempt the explicit-`autopilot` widening adds before an
 escalation. This path is reachable **only** when an invocation's own argument line typed both the
 literal `autopilot` tier argument and `--merge c3-this-run`; every other invocation escalates
 directly and never reads this file. `SKILL.md`'s "Escalation" section owns when the dispatch fires
@@ -28,7 +28,7 @@ and resolves threads through babysit-prs's guarded-mutation path, never a raw mu
 **Resolved dimension overrides gate this dispatch, ahead of everything else in this file.** The
 widening pair is necessary, never sufficient. Resolving review threads is an exercise of autonomy
 **dimension 3 (thread resolution)**, so the lane's resolved value for that dimension binds the
-dispatch itself and not merely the mechanic invoked after it (`SKILL.md` Cycle shape, step 4,
+dispatch itself, not only the mechanic invoked after it (`SKILL.md` Cycle shape, step 4,
 "Dimension overrides bind by tier flooring"). An invocation whose own argument line narrows thread
 resolution below the authority this dispatch needs gets **no dispatch at all**: the PR escalates and
 the cycle report names it override-constrained. The live shape of that narrowing is
@@ -38,8 +38,8 @@ resolution cannot be answered by dispatching a fresh subagent that resolves thre
 
 **The discipline the resolution owes is not this file's contract.** The D7.5 per-finding
 verification ledger, the independence requirements, the fresh-pin rule, the wrapper command shapes,
-and the per-PR worker lifecycle a code-change blocker still needs are all owned by
-`babysit-prs/reference/independent-resolution.md`, which this dispatch is one of two callers of.
+and the per-PR worker lifecycle a code-change blocker still needs are owned by
+`babysit-prs/reference/independent-resolution.md` (this dispatch is one of its two callers).
 Follow it; this file adds only the widening-specific bounds below. Any finding the dispatched agent
 cannot verify to that standard means **no resolution**: leave the thread unresolved, do not merge,
 and escalate with the unverifiable finding named.
@@ -49,15 +49,14 @@ bound of `--independent-resolver`: the mode refuses a security/P1 thread
 (`skipped-severity-marked`), which is terminal on the babysit-prs orchestrator route because the
 mode is its only form. It is not terminal here: the security/P1 exception this widening carries
 (`babysit-prs/reference/safety.md`, "Security/P1 escalation") is the one path permitted to attempt
-such a thread at all, through the autopilot-tier guarded form named there, and inheriting the mode's
+such a thread, through the autopilot-tier guarded form named there, and inheriting the mode's
 bound would delete the exception rather than guard it. The exception still changes only *who* may
 attempt the resolution, never what the wrappers permit, and it still escalates whenever the
 resolution is unverified or the resolver is uncertain.
 
 ## Four blocker classes this dispatch never touches
 
-Each because the invoked mechanic's own contract already owns them and this exception does not amend
-those contracts:
+The invoked mechanic's own contract already owns each, and this exception does not amend it:
 
 - **Operator-parked items.** The `needs-human` role label marks machine-*escalated* and
   operator-*parked* items alike; only the machine escalation marker distinguishes them (loop-lane
@@ -67,8 +66,7 @@ those contracts:
 - **Human blocking feedback.** A human `CHANGES_REQUESTED` review, explicit human blocking
   language, or an unresolved inline human thread stays a stop-and-ask condition until GitHub state
   resolves it. Escalate, never fix or resolve past it (`babysit-prs/reference/feedback.md`,
-  "Human Feedback"). No dispatch is made, and step 3 withholds the PR from the merge-capable
-  set. What the paired-argument invocation unlocks is this dispatch path alone
+  "Human Feedback"). No dispatch; step 3 withholds the PR from the merge-capable set. What the paired-argument invocation unlocks is this dispatch path alone
   (`babysit-prs/reference/safety.md`, "Security/P1 escalation has no exception"); it widens neither
   the severity bright line nor human blocks.
 - **Merge conflicts.** These route to the dedicated fresh conflict-resolution worker
@@ -88,5 +86,5 @@ that leaves the eligible set on that second partition escalates instead of mergi
 worker's own final push obeys the same head-pinning rule (`SKILL.md` Cycle shape, step 3, "The
 verdict authorizes a head SHA, not the PR"). If the dispatch cannot resolve the blocker, including
 any case where the subagent itself is uncertain the resolution is correct, the PR escalates exactly
-as it would without this exception; this dispatch adds one resolution attempt, it never removes
+as it would without this exception; this dispatch adds one resolution attempt, never removes
 the escalation path or lowers the gate's bar.

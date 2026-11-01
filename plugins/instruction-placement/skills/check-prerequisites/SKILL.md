@@ -31,7 +31,7 @@ Report the PASS/FAIL rows as a table. On a FAIL, give the install hints the chec
 
 ## Next
 
-A passing check has no successor. For the rule-glob gate, run `/instruction-placement:check`.
+`/instruction-placement:check` for the rule-glob gate. A passing check has no successor.
 
 ## Gotchas
 

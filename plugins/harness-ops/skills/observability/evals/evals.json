@@ -73,6 +73,20 @@
         "The response links the monitoring-usage docs, links the post section only as a correlate, and states no task count",
         "No telemetry store or file is written or modified"
       ]
+    },
+    {
+      "id": 7,
+      "name": "usage-per-work-item",
+      "prompt": "/harness-ops:observability items --session-map dispatch-map.tsv  (how much did each issue the lanes worked take?)",
+      "expected_output": "Runs the items action read-only: tokens by type and turns (user_prompt events) per autonomy.work_item.url, with cloud sessions joined to their item through the ccr.session.id map built from the store and the given file, and each item's cloud sessions listed. A cloud session the map ties to two items stays unattributed and is named. No price, cost figure or currency appears. When the store is absent or a token metric is not delta, it reports that it cannot evaluate instead of inventing numbers.",
+      "files": [],
+      "expectations": [
+        "The response runs or describes the items action rather than a scope report",
+        "Tokens and turns are grouped by the work item URL, with cloud sessions joined through ccr.session.id",
+        "A cloud session tied to more than one item is left unattributed and named, not split or guessed",
+        "No price, dollar figure or cost estimate appears in the response",
+        "No telemetry store or file is written or modified"
+      ]
     }
   ]
 }

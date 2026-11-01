@@ -40,9 +40,8 @@ line on stdout, where the reader reads it: only a 404 means no file, and any oth
 5xx, no response) fails closed.
 
 The reader honors the list only when the base is the base repository's default branch, read from
-that same repository. A failed lookup leaves the value empty, and the reader fails closed on it:
-on error `gh api` prints the error body to stdout, so each lookup clears its value on a non-zero
-exit.
+that same repository. A failed lookup leaves the value empty and the reader fails closed on it: on
+error `gh api` prints the error body to stdout, so each lookup clears its value on a non-zero exit.
 
 ```bash
 BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName') || BASE=""
@@ -115,17 +114,17 @@ comments, so the comment cannot set or lift a hold there.
 
 The run lists here and below name no workflow: they count every `pull_request` run for the head
 SHA, so they work in any repository without knowing its CI file name. A run listed for the head
-SHA means the push's event reached the workflows; the wait does not look at any run's result. The
-push starts one run per workflow, and they may register a few seconds apart, so the wait ends only
-when the count is above zero and unchanged across two polls, which keeps a late sibling out of the
-flip's snapshot. Skip the wait when the head is unchanged, but still run the `HEAD_SHA`
-assignment, which the flip block reads.
+SHA means the push's event reached the workflows; the wait never looks at a run's result. The push
+starts one run per workflow, possibly a few seconds apart, so the wait ends only when the count is
+above zero and unchanged across two polls, keeping a late sibling out of the flip's snapshot. Skip
+the wait when the head is unchanged, but still run the `HEAD_SHA` assignment, which the flip block
+reads.
 
 `HEAD_SHA` is the PR worktree's HEAD, the commit the verify gate recorded: `pr-worktree.sh`
 finds the worktree that has the PR's head branch checked out with the PR's head commit in its
 history, whichever checkout the shell sits in, and exits non-zero when none has. GitHub's
-`headRefOid` can lag a push by a read, so the block polls the PR's head until it equals `HEAD_SHA`, up to 60 seconds, instead of trusting the
-first read. A head that never matches (a peer push, a push that failed, local commits never
+`headRefOid` can lag a push by a read, so the block polls the PR's head until it equals
+`HEAD_SHA`, up to 60 seconds, instead of trusting the first read. A head that never matches (a peer push, a push that failed, local commits never
 pushed) leaves `HEAD_MATCH=0`, and the flip below refuses.
 
 ```bash
@@ -177,9 +176,8 @@ when `--skip` removed `verify` or `pre_ready` disabled it, for exactly `HEAD_SHA
 recorded failure and exit 2 a missing or unreadable result.
 The `&&` keeps the refusal and the flip in one command, so a refused check cannot be followed by
 the flip. `gh pr ready` takes no expected head, so a push landing between the last head read and
-the flip is not caught. The cloud-session routes below are not covered by the `&&`: before either,
-run everything before `gh pr ready` above as its own preceding command, and flip only when it
-exits 0.
+the flip is not caught. The `&&` does not cover the cloud-session routes below: before either, run
+everything before `gh pr ready` above as its own preceding command, and flip only on exit 0.
 
 In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. The proxy's REST
 route, guarded the same way:
@@ -222,7 +220,7 @@ which starts a run after the draft one has registered. Otherwise call it right a
 ready_run_seen
 ```
 
-When it returns 1, toggle once and wait again. A rerun replays the draft payload, so it does not
+When it returns 1, toggle once and wait again; a rerun replays the draft payload, so it does not
 help:
 
 ```bash
@@ -232,5 +230,5 @@ gh pr ready "$PR_NUMBER" --undo && gh pr ready "$PR_NUMBER" && ready_run_seen
 ```
 
 Exit 0 after the toggle means a new run appeared; report it as "a new run appeared", never as a
-confirmed ready run, and report the toggle either way. In a cloud session
-the toggle goes through the same routes as the flip.
+confirmed ready run, and report the toggle either way. In a cloud session the toggle goes through
+the same routes as the flip.

@@ -9,6 +9,7 @@
 // Usage of an entry point:
 //   setup-apply.mjs [--root <dir>] [--yes] [--home <dir>] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --decline
+//   setup-apply.mjs [--root <dir>] --state
 //   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
 //
 //   --root <dir>  repository root; default: git's toplevel for the current
@@ -31,6 +32,8 @@
 //   --decline     record that the repository declines a convention home: a
 //                 region holding a `declined` line, so the next run does not
 //                 offer again and writes <plugin>.yaml under docs/conventions.
+//   --state       print the repository's state (see "States" below) as one
+//                 line, `<state> <path>`, the path its evidence; write nothing.
 //   --check       validate the existing file and print one INFO, PASS or WARN
 //                 line per finding; write nothing. A WARN on one key's value,
 //                 or on a key outside the schema, leaves a PASS line for every
@@ -115,6 +118,34 @@
 // scalar, each provenance entry one of the forms above (an entry for a key
 // outside the schema is a warning, and a write that records provenance drops
 // it).
+//
+// States (docs/contracts/setup-lifecycle/README.md "Converge-by-state apply").
+// A write acts on the state it finds:
+//   init          no <home>/<plugin>.yaml and no retired file: the file is
+//                 created from the <key>=<value> and --default arguments.
+//   migrate       the retired file is present: the active migrate record of
+//                 kind file that the entry point names (config.retired, a
+//                 record id in config.retirements, default <schema
+//                 dir>/../retirements.yaml) finds a regular file at its path
+//                 whose content matches any content_match. Its top-level
+//                 scalars (a JSON object for a .json path, else the YAML
+//                 subset) are carried into <plugin>.yaml with each one's
+//                 provenance entry, a value without one as chosen, under the
+//                 provenance rules against the retired file's written_against
+//                 (a stale default value is carried at the new default). A key the
+//                 command line or <plugin>.yaml already sets keeps that value:
+//                 the new location wins, and a run that finds both files warns,
+//                 naming both. Each value not carried (a key outside the schema,
+//                 a value it does not allow, an empty key, a map or a list, or
+//                 one the new location sets differently) is printed, and the
+//                 retired file is left in place; with none, the retired file is
+//                 removed after the write. Carrying a value or removing the
+//                 file needs --yes; without it the plan is printed (exit 3). An
+//                 entry point without config.retired never migrates.
+//   configure     <plugin>.yaml exists: each key given is written over its
+//                 line or appended.
+// Only migrate runs with no <key>=<value> or --default (exit 2 elsewhere). A
+// second run with the same inputs writes nothing.
 //
 // Apply validates the existing file first and refuses it, with one line and
 // the file untouched, unless every problem is a fixable value on a key being
@@ -208,8 +239,8 @@ function real(p, what = p) {
 }
 
 function parseArgs(argv, withRef, withDefault) {
-  const opts = { root: "", yes: false, check: false, ref: null, home: null, decline: false, pairs: [], defaults: [] };
-  const usage = `usage: setup-apply.mjs [--root <dir>] [--yes] [--home <dir>]${withDefault ? " [--default <key>] ..." : ""} <key>=<value> ... | --decline | --check${withRef ? " [--ref <ref>]" : ""}`;
+  const opts = { root: "", yes: false, check: false, state: false, ref: null, home: null, decline: false, pairs: [], defaults: [] };
+  const usage = `usage: setup-apply.mjs [--root <dir>] [--yes] [--home <dir>]${withDefault ? " [--default <key>] ..." : ""} <key>=<value> ... | --decline | --state | --check${withRef ? " [--ref <ref>]" : ""}`;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--root") {
@@ -227,6 +258,7 @@ function parseArgs(argv, withRef, withDefault) {
       opts.ref = argv[++i];
     } else if (a === "--yes") opts.yes = true;
     else if (a === "--check") opts.check = true;
+    else if (a === "--state") opts.state = true;
     else if (/^[^=-][^=]*=/.test(a)) opts.pairs.push(a);
     else refuse(`unexpected argument: ${a}; ${usage}`, 2);
   }
@@ -243,7 +275,9 @@ function parseArgs(argv, withRef, withDefault) {
   if (r !== null && !(/^[0-9a-f]{40}$/.test(r) || (/^origin\/[A-Za-z0-9._/-]+$/.test(r) && !r.includes("..") && !r.startsWith("origin/-")))) {
     refuse(`invalid --ref ${JSON.stringify(r)}; expected a 40-hex commit id or origin/<name>`, 2);
   }
-  if (!opts.check && !opts.pairs.length && !opts.defaults.length && !opts.decline) refuse("nothing to write; pass at least one <key>=<value>", 2);
+  if (opts.state && (opts.yes || opts.check || opts.decline || opts.ref !== null || opts.home !== null || opts.pairs.length || opts.defaults.length)) {
+    refuse("--state takes only --root; it writes nothing", 2);
+  }
   return opts;
 }
 
@@ -338,6 +372,30 @@ function sourceText(source, seen) {
   const text = source === "chosen" && seen !== null ? `chosen (default ${seen})` : source;
   return /^[a-z]+(?: \(default [A-Za-z0-9_./@+-]+\))?$/.test(text) ? text : JSON.stringify(text);
 }
+
+// retirementRecords(text) reads a retirements.yaml manifest by its flat
+// grammar (docs/contracts/retired-conventions/README.md "Grammar"): records
+// split on a line that is exactly ---, each line `key: value` with one layer
+// of quotes stripped.
+function retirementRecords(text) {
+  const records = [];
+  let current = null;
+  for (const l of text.split("\n")) {
+    const line = l.replace(/\r$/, "");
+    if (line === "---") {
+      current = Object.create(null);
+      records.push(current);
+      continue;
+    }
+    const m = current === null ? null : /^([a-z_]+):[ \t]*(.*)$/.exec(line);
+    if (m) current[m[1]] = trimWs(m[2]).replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return records;
+}
+// safeRecordPath(p): a record path the manifest grammar allows, relative with
+// no `.`, `..` or empty segment, no leading ~, backslash or control character.
+const safeRecordPath = (p) =>
+  typeof p === "string" && p !== "" && !/^[/~]|[\\\x00-\x1f\x7f]/.test(p) && p.split("/").every((s) => s !== "" && s !== "." && s !== "..");
 
 // blockTree(text) is the document's key lines as a tree by indentation:
 // { raw, keys, dup, list } per key, raw its value as written (comment and
@@ -699,9 +757,10 @@ export function wholeFileReport({ rel, keys, problems, value }) {
 // exactKeyNames (refuse a quoted key with spaces around its name), schemaKey
 // (require $schema to hold one string), fixedTemp (a temp name without the
 // process id), report (a --check printer over validate()'s result that
-// returns the exit code), provenance (record written_against and provenance)
-// and manifest (the plugin.json provenance reads the version from). The
-// process exits with run's code.
+// returns the exit code), provenance (record written_against and provenance),
+// manifest (the plugin.json provenance reads the version from), retired (the
+// id of the retirements.yaml record whose file migrate carries from) and
+// retirements (that manifest's path). The process exits with run's code.
 export function run(config) {
   try {
     process.exitCode = main(config, process.argv.slice(2));
@@ -842,6 +901,17 @@ function main(config, argv) {
     return true;
   };
 
+  // Whether relPath is the shape checkFile accepts, tested without refusing:
+  // each parent a real directory, the path a regular file with one link.
+  const plainFile = (relPath) => {
+    for (const part of dirPrefixes(relPath)) {
+      const st = lstatOrNull(join(root, part), part);
+      if (!st || st.isSymbolicLink() || !st.isDirectory()) return false;
+    }
+    const st = lstatOrNull(join(root, relPath), relPath);
+    return st !== null && st.isFile() && st.nlink === 1;
+  };
+
   const readFile = (relPath) => {
     if (!checkFile(relPath)) return null;
     try {
@@ -851,6 +921,78 @@ function main(config, argv) {
     }
   };
   const readTarget = () => readFile(rel);
+
+  // The retired settings file the entry point's record names, as
+  // { path, text } when it is present and the record is active, else null.
+  // Its detection is check-retirements.sh's for kind file: a regular file at
+  // the path whose content matches any content_match.
+  const readRetired = () => {
+    if (!config.retired) return null;
+    const manifest = config.retirements ?? join(dirname(dirname(config.schema)), "retirements.yaml");
+    let manifestText;
+    try {
+      manifestText = readFileSync(manifest, "utf8");
+    } catch (e) {
+      refuse(`could not read the retirements manifest ${manifest} (${why(e)})`, 2);
+    }
+    const record = retirementRecords(manifestText).find((r) => r.id === config.retired);
+    if (!record) refuse(`the retirements manifest ${manifest} has no record ${config.retired}`, 2);
+    if (record.kind !== "file" || record.action !== "migrate") refuse(`record ${config.retired} is not a migrate record of kind file`, 2);
+    if (!safeRecordPath(record.path) || record.path === rel) refuse(`record ${config.retired} names an invalid path ${JSON.stringify(record.path)}`, 2);
+    if ((record.status ?? "active") !== "active") return null;
+    // Detection is read-only: anything but a plain regular file reached
+    // through real directories reads as absent, never as checkFile's refusal,
+    // so a symlinked .claude stops neither --state nor a settings write.
+    if (!plainFile(record.path)) return null;
+    const text = readFile(record.path);
+    if (text === null) return null;
+    if (record.content_match !== undefined) {
+      // As check-retirements.sh reads it: each line's trailing CR stripped.
+      const grep = spawnSync("grep", ["-Eq", "-e", record.content_match], { cwd: HERE, input: text.replace(/\r$/gm, ""), encoding: "utf8" });
+      if (grep.error || grep.status > 1) refuse(`record ${config.retired}: grep could not apply its content_match`, 2);
+      if (grep.status !== 0) return null;
+    }
+    return { path: record.path, text };
+  };
+
+  // The values in the retired file: top-level scalars of a .json object, else
+  // of the YAML subset, with the provenance a YAML file records (rec, null for
+  // JSON). bad names each key that holds something other than a scalar, or
+  // nothing.
+  const meta = new Set([AGAINST, PROVENANCE, "$schema"]);
+  const readOld = (old) => {
+    const values = new Map();
+    const bad = new Set();
+    let rec = null;
+    if (old.path.endsWith(".json")) {
+      let doc;
+      try {
+        doc = JSON.parse(old.text);
+      } catch (e) {
+        refuse(`${old.path}: ${why(e)}; carry its values by hand; nothing written`);
+      }
+      if (doc === null || typeof doc !== "object" || Array.isArray(doc)) refuse(`${old.path} is not a JSON object; carry its values by hand; nothing written`);
+      for (const [k, v] of Object.entries(doc)) {
+        if (meta.has(k)) continue;
+        if (["string", "number", "boolean"].includes(typeof v)) values.set(k, String(v));
+        else bad.add(`${k} holds ${v === null ? "null" : "a map or a list"}`);
+      }
+    } else {
+      const parsed = flatten(old.text);
+      if (parsed.error) refuse(`${old.path}: ${parsed.error}; carry its values by hand; nothing written`);
+      for (const r of parsed.records) {
+        if (meta.has(r.top)) continue;
+        if (r.nested) bad.add(`${r.top} holds a map or a list`);
+        else values.set(r.top, r.value);
+      }
+      // A key the parser gives no record for holds nothing it could carry.
+      for (const { key } of topLevelLines(old.text)) {
+        if (!meta.has(key) && !parsed.records.some((r) => r.top === key)) bad.add(`${key} is empty`);
+      }
+      rec = recordedIn(old.text);
+    }
+    return { values, rec, bad: [...bad] };
+  };
 
   // expected is the file as read at the start (null when absent); a target
   // that no longer matches it is refused rather than overwritten.
@@ -1046,26 +1188,33 @@ function main(config, argv) {
 
   // Command-line pairs are checked before the file is read, so a bad request
   // is refused the same way whether the file exists or not.
-  const wanted = new Map();
-  for (const pair of opts.pairs) {
-    const eq = pair.indexOf("=");
-    const k = pair.slice(0, eq).trim();
-    const v = pair.slice(eq + 1);
-    if (wanted.has(k)) refuse(`${k} is given more than once; pass each key once; nothing written`);
-    if (!Object.hasOwn(keys, k)) refuse(`${k} is not a key of ${rel} (keys: ${Object.keys(keys).join(", ")}); nothing written`);
+  // vet(k, v) checks one value given as a bare word, from the command line or
+  // carried from a retired file: { written, value }, or { error } saying why it
+  // cannot be written.
+  const vet = (k, v) => {
+    if (!Object.hasOwn(keys, k)) return { error: `${k} is not a key of ${rel} (keys: ${Object.keys(keys).join(", ")})` };
     const spec = keys[k];
     const values = allowedText(spec);
     if (values === null || isObject(spec)) {
-      refuse(`${k} takes ${values ?? "a value setup-apply does not check"} and is not set from the command line; edit ${rel} by hand; nothing written`);
+      return { error: `${k} takes ${values ?? "a value setup-apply does not check"} and is not set from the command line; edit ${rel} by hand` };
     }
     const control = [...v].some((c) => {
       const n = c.codePointAt(0);
       return n < 0x20 || (n >= 0x7f && n <= 0x9f) || n === 0x2028 || n === 0x2029;
     });
-    if (control) refuse(`${k}: the value holds a control character or a line or paragraph separator; nothing written`);
+    if (control) return { error: `${k}: the value holds a control character or a line or paragraph separator` };
     const w = written(spec, v);
-    if (/^["']/.test(v) || !allows(spec, w, v)) refuse(`${k}=${v} is not ${values}; nothing written`);
-    wanted.set(k, { written: w, value: v });
+    if (/^["']/.test(v) || !allows(spec, w, v)) return { error: `${k}=${v} is not ${values}` };
+    return { written: w, value: v };
+  };
+  const wanted = new Map();
+  for (const pair of opts.pairs) {
+    const eq = pair.indexOf("=");
+    const k = pair.slice(0, eq).trim();
+    if (wanted.has(k)) refuse(`${k} is given more than once; pass each key once; nothing written`);
+    const vetted = vet(k, pair.slice(eq + 1));
+    if (vetted.error) refuse(`${vetted.error}; nothing written`);
+    wanted.set(k, vetted);
   }
   // --default keys: written at the plugin's current default, marked default.
   const defaulted = new Map();
@@ -1094,6 +1243,18 @@ function main(config, argv) {
   } else {
     existing = readTarget();
   }
+
+  // The state the repository is in: migrate while the retired file is present,
+  // else configure when the settings file exists, else init.
+  const old = opts.check ? null : readRetired();
+  const setupState = old !== null ? "migrate" : existing === null ? "init" : "configure";
+  const bothLine = old !== null && existing !== null ? `WARN both ${old.path} and ${rel} exist; ${rel} wins for each key it sets\n` : "";
+  if (opts.state) {
+    process.stderr.write(printable(bothLine));
+    process.stdout.write(printable(`${setupState} ${old !== null ? old.path : rel}\n`));
+    return 0;
+  }
+  if (!opts.check && !settings.length && setupState !== "migrate") refuse("nothing to write; pass at least one <key>=<value>", 2);
 
   if (opts.check) {
     if (existing === null) {
@@ -1133,11 +1294,76 @@ function main(config, argv) {
     return moved.length ? 1 : code;
   }
 
+  // Migrate: each value in the retired file is carried into the settings file
+  // with its provenance entry, unless the command line or the settings file
+  // sets that key, which wins. A value not carried is named in kept, and the
+  // retired file is removed only when kept is empty: every value in it is then
+  // in the settings file as written.
+  const carried = new Map();
+  const kept = [];
+  let carriedNotes = "";
+  if (old !== null) {
+    const { values, rec: oldRec, bad } = readOld(old);
+    // A carried value follows the provenance rules against the version the
+    // retired file was written against: a default value whose plugin default
+    // changed is carried at the new default, and a chosen one is kept with the
+    // WARN a write prints.
+    const oldDrift = against === null || oldRec === null ? { stale: [], moved: [] } : drift(old.text, oldRec);
+    const inNew = new Map((existing === null ? [] : (flatten(existing).records ?? [])).filter((r) => !r.nested).map((r) => [r.top, r.value]));
+    const setInNew = new Set(existing === null ? [] : topLevelLines(existing).map((t) => t.key));
+    // A key the settings file sets is never carried, so a stale default in it
+    // is updated by this same run: compare against the value it will hold.
+    const newStale = against === null || existing === null ? [] : drift(existing, recordedIn(existing)).stale;
+    const afterRun = (k) => newStale.find((s) => s.k === k)?.to ?? inNew.get(k);
+    kept.push(...bad);
+    for (const [k, v] of values) {
+      // A stale default is vetted at the value written, the new default, so
+      // an old value the schema no longer allows does not block the carry.
+      // The command line and the settings file are compared against that
+      // value, the one the carry would write, so a rerun after the carry, or
+      // a settings file already at the new default or moved to it by this
+      // run, does not keep the key.
+      const stale = oldDrift.stale.find((s) => s.k === k);
+      const update = stale ? vet(k, stale.to) : null;
+      const effective = update && !update.error ? stale.to : v;
+      const cli = wanted.get(k) ?? defaulted.get(k);
+      if (cli) {
+        if (cli.value !== effective) kept.push(`${k}=${effective}: the command line sets ${k}=${cli.value}`);
+        continue;
+      }
+      if (setInNew.has(k)) {
+        if (afterRun(k) !== effective) kept.push(`${k}=${effective}: ${rel} sets ${k}=${afterRun(k) ?? ""}`);
+        continue;
+      }
+      const vetted = update && !update.error ? update : vet(k, v);
+      if (vetted.error) {
+        kept.push(vetted.error);
+        continue;
+      }
+      if (vetted === update) {
+        carriedNotes += `INFO ${old.path}: ${k}=${v} is marked default, written against ${oldRec.against ?? "an unrecorded version"}; it is carried at the plugin default now, ${stale.to}\n`;
+      }
+      carried.set(k, { ...vetted, source: oldRec?.entries.get(k)?.source ?? "chosen" });
+    }
+    carriedNotes += movedLines(oldDrift.moved.filter(({ k }) => carried.has(k)));
+  }
+  const removeOld = old !== null && kept.length === 0;
+  const migrateNotes =
+    old === null
+      ? ""
+      : printable(
+          bothLine +
+            carriedNotes +
+            kept.map((l) => `WARN ${old.path}: ${l}; not carried\n`).join("") +
+            (kept.length ? `${old.path} is left in place: carry each value above by hand, then clean it\n` : ""),
+        );
+  const writes = [...settings, ...carried];
+
   // With provenance, a default value whose plugin default changed is updated
   // and a chosen one is kept; neither happens for a key given on the command
-  // line, which is written as given.
+  // line or carried from the retired file, which is written as given.
   const rec = existing === null ? { against: null, entries: new Map(), present: true } : recordedIn(existing);
-  const given = (k) => wanted.has(k) || defaulted.has(k);
+  const given = (k) => wanted.has(k) || defaulted.has(k) || carried.has(k);
   const { stale, moved } = against === null || existing === null ? { stale: [], moved: [] } : drift(existing, rec);
   const updates = stale.filter(({ k }) => !given(k));
   const rewritten = (k) => given(k) || updates.some((u) => u.k === k);
@@ -1154,10 +1380,12 @@ function main(config, argv) {
 
   // The provenance block: one entry per scalar schema key the file will hold,
   // in schema order. A key given on the command line is chosen, a --default
-  // key is default, and any other key keeps its entry, or is chosen without
-  // one. A chosen entry records the default it is now written against.
-  const held = new Set([...(existing === null ? [] : topLevelLines(existing).map((t) => t.key)), ...wanted.keys(), ...defaulted.keys()]);
-  const sourceOf = (k) => (defaulted.has(k) ? "default" : wanted.has(k) ? "chosen" : (rec.entries.get(k)?.source ?? "chosen"));
+  // key is default, a carried key keeps the entry the retired file recorded,
+  // and any other key keeps its entry; a key without one is chosen. A chosen
+  // entry records the default it is now written against.
+  const held = new Set([...(existing === null ? [] : topLevelLines(existing).map((t) => t.key)), ...writes.map(([k]) => k)]);
+  const sourceOf = (k) =>
+    defaulted.has(k) ? "default" : wanted.has(k) ? "chosen" : carried.has(k) ? carried.get(k).source : (rec.entries.get(k)?.source ?? "chosen");
   const entries = Object.keys(keys)
     .filter((k) => held.has(k) && !isObject(keys[k]) && allowedText(keys[k]) !== null)
     .map((k) => `  ${k}: ${sourceText(sourceOf(k), defaultText(keys[k]))}`);
@@ -1166,7 +1394,7 @@ function main(config, argv) {
   let proposed;
   if (existing === null) {
     const head = against === null ? [] : [`${AGAINST}: ${against}`];
-    proposed = [`# yaml-language-server: $schema=${schema.$id}`, ...head, ...settings.map(([k, { written: w }]) => `${k}: ${w}`), ...block, ""].join("\n");
+    proposed = [`# yaml-language-server: $schema=${schema.$id}`, ...head, ...writes.map(([k, { written: w }]) => `${k}: ${w}`), ...block, ""].join("\n");
   } else {
     // Keep the file's line ending: CRLF when every line break is CRLF.
     const crlf = (existing.match(/\r\n/g) ?? []).length;
@@ -1187,7 +1415,7 @@ function main(config, argv) {
       if (line) lines[line.at] = `${lines[line.at].match(/^\s*/)[0]}${k}: ${w}`;
       else appended.push(`${pad}${k}: ${w}`);
     };
-    for (const [k, { written: w }] of settings) set(k, w);
+    for (const [k, { written: w }] of writes) set(k, w);
     if (against !== null) {
       for (const { k, to } of updates) set(k, written(keys[k], to));
       set(AGAINST, against);
@@ -1212,11 +1440,13 @@ function main(config, argv) {
   const problems = check(proposed).filter((p) => p.kind !== "unknown");
   if (problems.length) refuse(`the result would not validate: ${problems.map((p) => p.msg).join("; ")}; nothing written`);
   const readBack = new Map((flatten(proposed).records ?? []).filter((r) => !r.nested).map((r) => [r.top, r.value]));
-  for (const [k, { value }] of settings) {
+  for (const [k, { value }] of writes) {
     if ((readBack.get(k) ?? "") !== value) refuse(`${k}=${value} would not read back as given; nothing written`);
   }
 
-  const changes = existing === null || proposed !== existing;
+  // A migration that carries nothing creates no settings file.
+  const changes = existing === null ? writes.length > 0 : proposed !== existing;
+  const unchanged = existing === null ? `nothing in ${old?.path} can be carried into ${rel}; nothing written\n` : `${rel}: already configured; nothing written\n`;
 
   // The index of a home the repository already had lists our file. Creating it
   // needs no confirmation; changing an index that exists does.
@@ -1281,16 +1511,25 @@ function main(config, argv) {
   // for --yes, so a refusal before either stays one line.
   const provenanceNotes = against !== null && existing !== null ? printable(noRecord(rec) + movedLines(moved.filter(({ k }) => !given(k)))) : "";
   const unbound = offer !== null || offerRefused !== null;
-  if (!changes && index === null && !unbound) {
-    process.stdout.write(`${rel}: already configured; nothing written\n`);
+  if (!changes && index === null && !unbound && !removeOld) {
+    process.stdout.write(migrateNotes + unchanged);
     return 0;
   }
 
   // Without --yes a missing settings file is still created; changing an
   // existing file or index waits, and so does a file in a --home the pointer
-  // does not name yet, since an unbound repository reads docs/conventions.
+  // does not name yet, since an unbound repository reads docs/conventions,
+  // and so does a migration, which moves values out of the retired file.
   const strandedHome = unbound && home !== DEFAULT_HOME;
-  if (!opts.yes && ((existing !== null && changes) || (index !== null && index.existing !== null) || strandedHome)) {
+  const migrating = old !== null && (changes || removeOld);
+  if (!opts.yes && ((existing !== null && changes) || migrating || (index !== null && index.existing !== null) || strandedHome)) {
+    if (old !== null) {
+      process.stdout.write(migrateNotes);
+      process.stdout.write(printable([...carried].map(([k, { value }]) => `would carry ${k}=${value} from ${old.path} into ${rel}\n`).join("")));
+      if (removeOld) process.stdout.write(printable(`would remove ${old.path}: every value in it would be in ${rel}\n`));
+      if (existing === null && changes) process.stdout.write(printable(`would create ${rel}:\n${proposed}`));
+      if (migrating) process.stdout.write(printable(`${old.path} would be migrated into ${rel}; nothing written. Re-run with --yes once the operator confirms.\n`));
+    }
     if (existing !== null && changes) {
       process.stdout.write(provenanceNotes);
       const diff = spawnSync("diff", ["-u", "--label", `a/${rel}`, "--label", `b/${rel}`, join(root, rel), "-"], {
@@ -1316,7 +1555,22 @@ function main(config, argv) {
       process.stdout.write(printable(`updated ${k}: ${from} -> ${to}, its plugin default (it was marked default, written against ${rec.against ?? "an unrecorded version"})\n`));
     }
   } else {
-    process.stdout.write(`${rel}: already configured\n`);
+    process.stdout.write(unchanged.replace(/; nothing written\n$/, "\n"));
+  }
+  if (old !== null) {
+    process.stdout.write(migrateNotes);
+    process.stdout.write(printable([...carried].map(([k, { value }]) => `carried ${k}=${value} from ${old.path}\n`).join("")));
+  }
+  if (removeOld) {
+    // Removed only while it still holds what was read, after the settings
+    // file is written, so a failure here loses no value.
+    if (readFile(old.path) !== old.text) refuse(`${old.path} changed while this ran; ${rel} is written and ${old.path} is left in place; run again`);
+    try {
+      rmSync(join(root, old.path));
+    } catch (e) {
+      refuse(`${old.path}: could not remove it (${why(e)}); ${rel} is written`);
+    }
+    process.stdout.write(printable(`removed ${old.path}: every value in it is in ${rel}\n`));
   }
   if (index !== null) {
     writeFile(indexRel, index.proposed, index.existing);

@@ -189,6 +189,7 @@
         "setInRound": {"type": "integer"},
         "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
+        "questionPacing": {"description": "The `question_pacing` setting `ensure-running --pacing` recorded: under `single` the page shows no round index, and the session posts one question at a time.", "enum": ["round", "single"]},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"},
         "syncedLedger": {"description": "The absolute path of the ledger the last `sync-ledger` (or `add-round --sync-ledger`) wrote; `ledger-check` reads it before `seededFrom.ledger`.", "type": "string"},

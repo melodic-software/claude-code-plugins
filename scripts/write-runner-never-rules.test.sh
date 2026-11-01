@@ -108,7 +108,7 @@ for (const [id, run, scripts] of [
   }
 }
 const scriptEnv0 = byId("act-script").env ?? {};
-say(scriptEnv0.TREE_ENTRIES_SHA256 === "${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}"
+say(scriptEnv0.TREE_ENTRIES_SHA256 === "${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.merge-bin.outputs.tree-entries-sha256 || '' }}"
   && /sha256Of\(script\) !== merge\.treeEntries\.sha256/.test(applyPatch)
   && applyPatch.indexOf("sha256Of(script) !== merge.treeEntries.sha256") < applyPatch.indexOf('execFileSync("/usr/bin/bash", [merge.treeEntries.script'),
   "apply-patch.mjs checks tree-entries.sh's SHA-256 before running it");

@@ -4,7 +4,7 @@
 
 Resolve `<pr_number>` from the checked-out branch ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)). Pass it explicitly to every forge call in this phase.
 
-**Re-run full [readiness checklist](readiness.md) before merge execution.** This is the second run (first was in monitor 3.4). Catches late-arriving comments, status changes between monitor completion and merge, and race condition where a comment-only actor posts after readiness was declared.
+**Re-run full [readiness checklist](readiness.md) before merge execution.** This second run (the first was in monitor 3.4) catches late comments, status changes since monitor completed, and a comment-only actor posting after readiness was declared.
 
 Re-check all check runs for any state changes, then re-check for new comments since monitoring completed, reading the authors on all 3 comment surfaces, paginated ([GitHub](../../../reference/providers/github/pull-request/merge.md#re-check-checks-and-comments-before-merge)).
 
@@ -46,8 +46,8 @@ Re-check all check runs for any state changes, then re-check for new comments si
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
-3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exemption is calibrated by size and blast radius, NOT by file type: exempt only diffs the user can genuinely review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) gets the quiz even though it is docs-only: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
-4. Wait for user approval, since merge is an irreversible action, unless the PR qualifies for
+3. **Comprehension quiz (default-on, self-enforced).** When the PR carries substantial work the user didn't author line-by-line (multi-file feature/refactor, or a long agent session outran the user's reading), generate a self-contained HTML change report + quiz before asking for merge approval: the report explains the change with context and intuition (what was done, why, which existing code paths it leans on); the quiz at the bottom tests exactly that. The user merges after passing, self-enforced with no tooling gate; "skip quiz" skips it explicitly. Exempt by size and blast radius, NOT file type: only diffs the user can review at a glance (single-file, mechanical, or a handful of small localized edits). A large multi-file instruction-only change (skills, rules, agent instructions from a long session) still gets the quiz: instruction surfaces steer future agent behavior, so unread changes there carry real blast radius
+4. Wait for user approval (merge is irreversible) unless the PR qualifies for
    the merge after AI review under §4.2.1
 
 ## 4.2 Squash merge
@@ -89,7 +89,7 @@ poll until it reads `merged`, `enqueued`, or `failed`. `enqueued` means queued, 
 the head branch only once the PR reads `MERGED`. GitHub checks only basic PR state when it accepts
 the request and applies the base's rules when the merge runs, so 4.1 still comes first.
 
-**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
+**Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message, shaped to the resolved subject/title convention per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
 ### 4.2.1 Merge after AI review
 
@@ -173,7 +173,7 @@ Detect if currently in a worktree (`git worktree list`).
 
 **If in a worktree (primary pattern, worktree reuse):**
 
-Reuse the worktree for next task by creating a new branch from the latest default branch. Faster than remove+recreate and preserves gitignored files.
+Reuse the worktree for the next task by creating a new branch from the latest default branch: faster than remove+recreate, and it preserves gitignored files.
 
 First set `DEFAULT_BRANCH` to the repository's default branch; not every repo uses main ([GitHub](../../../reference/providers/github/README.md#identity-and-repository)).
 
@@ -197,7 +197,7 @@ git branch -D <old-branch>
 
 If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
 
-Worktree reuse (new branch from latest default branch in the same directory) is faster than leave+recreate and preserves gitignored files; the alternative is `ExitWorktree` with `action: "keep"` (never `"remove"`) + a fresh `EnterWorktree` for a clean slate.
+The alternative to worktree reuse is `ExitWorktree` with `action: "keep"` (never `"remove"`) + a fresh `EnterWorktree` for a clean slate.
 
 The worktree's lock stays while it is reused for the next task. When the worktree is not reused (leaving it with `ExitWorktree`), release the lock after the merge succeeds, so later cleanup does not find a lock nobody holds:
 
@@ -209,7 +209,7 @@ bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${C
 
 **If on a regular branch (not in worktree):**
 
-1. **Check for uncommitted changes BEFORE checkout** with `git status --porcelain`. If uncommitted changes exist, they will be lost on the default-branch checkout (conflicting changes fail, non-conflicting changes silently carry over, neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, since without it new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
+1. **Check for uncommitted changes BEFORE checkout** with `git status --porcelain`. If any exist, they do not survive the default-branch checkout intact (conflicting changes fail, non-conflicting ones silently carry over). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, which would otherwise be skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
 2. `git checkout "$DEFAULT_BRANCH"` (the repository's default branch, resolved as in the worktree case above)
 3. `git pull --ff-only`
 4. `git branch -D <merged-branch>`
@@ -217,7 +217,7 @@ bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${C
 
 ## 4.4 Run a session retrospective (optional)
 
-If your environment provides a retrospective skill (e.g. `/session-flow:retro`), invoke it via the Skill tool **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse, `CLAUDE_PROJECT_DIR` stays valid because the worktree directory persists, so skills remain fully discoverable. If no such capability exists, skip this step.
+If your environment provides a retrospective skill (e.g. `/session-flow:retro`), invoke it via the Skill tool **after the worktree transition (worktree reuse) or after merge (non-worktree)**. With worktree reuse the directory persists, so `CLAUDE_PROJECT_DIR` and skill discovery stay valid. If no such capability exists, skip this step.
 
 If the user declines or says "skip", proceed to step 4.5. In `full` mode, run automatically without pausing.
 
@@ -233,7 +233,7 @@ git branch              # merged branch should be gone, new branch active
 
 **Post-merge CI health check.** Verify CI on main is green after the merge commit lands: read the conclusion and title of the latest CI run on `$DEFAULT_BRANCH` ([GitHub](../../../reference/providers/github/pull-request/merge.md#latest-run-on-the-default-branch)).
 
-If latest run shows `failure`, flag it immediately: the merge may have introduced a regression on main. If run is still `in_progress`, note it and suggest checking back.
+If the latest run shows `failure`, flag it immediately as a possible regression on main. If it is still `in_progress`, note it and suggest checking back.
 
 Report: merge complete, transition successful, state verified.
 

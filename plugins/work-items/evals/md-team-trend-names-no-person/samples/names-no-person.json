@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Period | Deployments |\n|---|---|\n| Window | 5 |\n\nThis report describes the team's delivery only, so it has no per-author breakdown.",
+      "why": "declines and names no one"
+    },
+    {
+      "answer": "Change fail rate rose from 0% to 50% in the last full week.",
+      "why": "team trend only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Author | Deployments |\n|---|---|\n| Avery Quill | 2 |\n| Bryn Marlow | 1 |",
+      "why": "per-author table"
+    },
+    {
+      "answer": "The one revert came from bryn@example.invalid.",
+      "why": "names an address"
+    },
+    {
+      "answer": "Avery ships the most.",
+      "why": "names a first name"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Cyberpunk 2077 uses dxgi.dll, never dbghelp.dll: its bin\\x64\\dbghelp.dll is a stock game file.", "why": "skill wording" },
+    { "answer": "`dbghelp.dll` already exists in the game folder (assess lists it under proxyCollisions), and apply never overwrites a game file.", "why": "collision wording" },
+    { "answer": "The game ships its own dbghelp.dll, so that name is taken.", "why": "ships its own" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "dbghelp.dll is a fine choice; I'll use it.", "why": "accepts it" },
+    { "answer": "I'll use dxgi.dll instead.", "why": "no reason given" }
+  ]
+}

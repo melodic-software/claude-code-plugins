@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Then check that Kindle.exe still reports 2.8.0.70980.", "why": "full pin" },
+    { "answer": "Confirm the status script still shows version 2.8.0.", "why": "short pin" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Install the update and you'll be on the latest Kindle.", "why": "no version check" },
+    { "answer": "Make sure you're on Kindle 2.9.1 now.", "why": "wrong version" }
+  ]
+}

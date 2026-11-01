@@ -6,6 +6,7 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 ## Contents
 
 - [Read order](#read-order)
+- [Denials](#denials)
 - [Document fields](#document-fields)
 - [Per-case fields](#per-case-fields)
 - [Per-run fields](#per-run-fields)
@@ -20,7 +21,9 @@ statement of record: with `--json <file>` the terminal summary table is suppress
    [SKILL.md, Reading the delta](../SKILL.md#reading-the-delta). Add `--scaffolded` only when the
    eval ran with `--scaffold`. Without the flag, the `scaffold` check fails each case whose
    `case.yaml` sets `context.scaffold_script`; a `case.yaml` it cannot locate or read leaves that
-   check unchecked.
+   check unchecked. When the comparison measures whether a skill fires, as on the base side of a
+   change that makes it fire, name each such case with `--measured-fire <case>`: its misses are
+   reported as a measured rate, not a failure, and every other check still applies.
 
    - **Pointer**: [Add setup or history with case.yaml](https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml);
      the `--scaffold` row of [Command options](https://code.claude.com/docs/en/plugin-evals#command-options);
@@ -38,6 +41,34 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 5. Only then, the delta itself.
 6. Run the [noise report](#noise-report) over the same file and read its lines before calling any
    delta a gain.
+
+## Denials
+
+How the validity gate classifies a denied tool call, after the FAIL rule in
+[SKILL.md, Reading the delta](../SKILL.md#reading-the-delta) (a with-arm denial aimed at, under or
+above the plugin's directory, or with no absolute path or no known plugin directory).
+
+- A Bash denial's paths are its command's absolute arguments, plus no path when it has an
+  expansion or a relative word other than a flag, or does not parse.
+- One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
+  target) in every run of its case, in both arms, is a warning, with or without an absolute path,
+  unless an absolute path it names is at, under or above the plugin's directory. The environment
+  denied it with or without the plugin, such as a user-scope read of `~/.claude/standards`. In an
+  A/B pass, gate each version's result file.
+- Any other denial, in either arm, is a warning only when its case has denial-free runs in that arm
+  and its run scored the same as each; otherwise it is a FAIL.
+- A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
+  in a forked session, and the gate lists it under `session started` without failing it.
+- An invocation probe's denial of a named call other than Skill is a warning when it follows the
+  graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
+  gate prints each probe case's fire counts with and without denials.
+- An invocation probe is a case whose `prompt.md` tags include `invocation-probe`, as
+  `/skill-quality:check measure-invocation` emits it. Its should-fire misses are the trigger rate
+  it measures: `skill fired` reports them as a warning with per-case counts, never a FAIL. Run
+  errors and denials keep their full force, apart from the two probe exceptions above and a
+  max-turns error after the graded Skill call. `probe tools` warns when a probe run could call
+  Read, Glob, Grep or Agent, the tools the emitted README's run line removes, or its trace has no
+  init tools list; when no probe run's list can be read, the check is UNCHECKED.
 
 ## Document fields
 

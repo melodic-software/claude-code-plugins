@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_outside_prs=false (default)",
+      "why": "settings line"
+    },
+    {
+      "answer": "`triage_outside_prs` is unset, so it resolves to `false` and the view lists no pull request.",
+      "why": "prose"
+    },
+    {
+      "answer": "triage_outside_prs: false (layer default)",
+      "why": "colon form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: triage_outside_prs=true (repository)",
+      "why": "wrong value"
+    },
+    {
+      "answer": "Outside PRs are not listed.",
+      "why": "names no setting"
+    }
+  ]
+}

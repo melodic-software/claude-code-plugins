@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /sb/config/plugins/repo-hygiene/skills/clean/scripts/git-tree-reset.sh --dry-run",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "dry-run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "never ran the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "other call only"
+    }
+  ]
+}
