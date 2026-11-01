@@ -1,5 +1,7 @@
 schema_version: "1.1"
 name: ck-passing-no-successor
+context:
+  scaffold_script: scaffold.sh
 graders:
   - name: 'probes-actionlint'
     type: 'tool_used'
