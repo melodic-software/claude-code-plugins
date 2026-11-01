@@ -245,6 +245,16 @@ test("the lane-outcome record in output.text is read before the legacy summary l
   assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth", resets: undefined })), ended + 5 * HOUR);
 });
 
+test("a record's Claude model ids, with the [1m] suffix, are read", () => {
+  const models = { ...RECORD, models: ["claude-opus-5-5", "claude-haiku-5-5[1m]"] };
+  assert.equal(limitResetsAt(withText(models, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
+});
+
+test("an impossible stated reset (month 13) is no stated reset: it resets five hours after the run ended", () => {
+  assert.equal(limitResetsAt(withText({ ...RECORD, resets: { at: "2026-13-01T00:00:00Z", window: "five_hour" } })), ended + 5 * HOUR);
+  assert.equal(limitResetsAt(posted(`${LIMIT} resets=2026-13-01T00:00:00Z`)), ended + 5 * HOUR);
+});
+
 test("a key the reader does not know, top level or nested, is ignored and the record still read", () => {
   const extra = { ...RECORD, laterField: { note: "a } in a string" }, resets: { ...RECORD.resets, laterNested: 1 } };
   assert.equal(limitResetsAt(withText(extra, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
@@ -261,6 +271,9 @@ test("with no record, or an unreadable one, the legacy summary line is read", ()
     ["a class outside the enum", { ...RECORD, class: "rate limited" }],
     ["a failure with no class", { ...RECORD, class: undefined }],
     ["a handoff leg", { ...RECORD, handoff: true }],
+    ["an email as a model", { ...RECORD, models: ["kyle.sexton@example.com"] }],
+    ["a host:port as a model", { ...RECORD, models: ["runner-7.corp.internal:443"] }],
+    ["a key prefix as a model", { ...RECORD, models: ["sk-ant-api03-abcdef"] }],
   ]) {
     assert.equal(limitResetsAt(withText(record, LIMIT_LINE)), Date.parse("2026-10-17T13:00:00Z"), label);
   }

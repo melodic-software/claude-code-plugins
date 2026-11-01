@@ -10,11 +10,13 @@ export const MARKER = "lane-outcome ";
 const MAX_LENGTH = 1024;
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const ACTIVITY = /^(?=.{1,64}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const WINDOW = /^[a-z0-9_]{1,40}$/;
 const SECRET = /^(?:(?:([A-Z][A-Z0-9_]{0,75})_)?CLAUDE_CODE_OAUTH_TOKEN|([A-Z][A-Z0-9_]{0,84})_CLAUDE_API_KEY)$/;
-const MODEL = /^[\w.:@[\]-]{1,100}$/;
+// A Claude model id, with the optional [1m] context suffix: nothing else
+// (an email, a host:port, a key or token prefix) can be published as one.
+const MODEL = /^claude-[a-z0-9.-]{1,56}(?:\[1m\])?$/;
 const HEX32 = /^[0-9a-f]{32}$/;
 const HEX16 = /^[0-9a-f]{16}$/;
 const OUTCOMES = new Set(["success", "failure", "timeout", "skip", "cancellation", "error"]);

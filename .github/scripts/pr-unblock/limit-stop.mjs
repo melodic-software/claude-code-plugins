@@ -74,7 +74,9 @@ export function limitStop(run, limits = LIMIT_DEFAULTS) {
   if (!STOP_CLASSES.has(summary?.failureClass)) {
     return null;
   }
-  return { failureClass: summary.failureClass, resetsAt: clampReset(summary.resets ? Date.parse(summary.resets) : null, ended, limits) };
+  // An impossible date (month 13) parses to NaN: treat it as no stated reset.
+  const stated = summary.resets ? Date.parse(summary.resets) : Number.NaN;
+  return { failureClass: summary.failureClass, resetsAt: clampReset(Number.isFinite(stated) ? stated : null, ended, limits) };
 }
 
 // When the limit that stopped the failed `run` resets (epoch ms), or null when
