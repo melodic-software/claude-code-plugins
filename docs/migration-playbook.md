@@ -126,7 +126,7 @@ that way ("current state is evidence, never justification", `melodic-software/st
 Name a plugin and its units by this precedence, where an earlier rule wins on conflict:
 
 1. **Semantic accuracy, zero confusion.** The capability is unambiguous from the name; qualify an
-   overloaded generic term (a bare `audit` collides with other plugins' skills).
+   overloaded generic term (a bare `audit` is ambiguous beside other plugins' audit skills).
 2. **Official docs + ecosystem precedent.** kebab-case, no spaces; the namespace is the plugin's own
    `name` (not the marketplace name); mirror established Claude Code patterns.
 3. **Explicit naming.** A domain-noun plugin name; no noise suffix (`-plugin` / `-tool` / `-helper`);
