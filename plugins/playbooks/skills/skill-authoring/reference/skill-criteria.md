@@ -127,6 +127,13 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
   slashes only. State each dependency's install command, kept local to the project.
+- In this marketplace, a file several plugins share (a script or a reference page) stays a plain
+  copy in each plugin, because an installed plugin sees only its own directory (ADR 0019).
+  Register each copy in `scripts/shared-copies.txt`, the one shared-copies record, edit only the
+  canonical it names, and generate the copies with `scripts/sync-shared-copies.sh`. Copies at the
+  same path in two or more plugins also need their cluster listed in
+  `scripts/cross-plugin-source-registry.txt`, or the cross-plugin drift check fails them as
+  unregistered.
 - Name MCP tools fully: `mcp__<server>__<tool>`, or `mcp__plugin_<plugin>_<server>__<tool>` for a
   plugin-bundled server.
 - Keep a gotchas surface (`## Gotchas` or a gotchas spoke) and a `## Next` section per
@@ -138,6 +145,19 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   remedy. Aim for a short hub, not a short skill: SKILL.md carries the standing rules and routes
   each task to the file it needs, so a large skill is sound when the agent loads only what the
   work in front of it calls for. Never cut to reach a line count.
+
+## Stack-specific tools
+
+A skill whose job needs a tool tied to the project's stack (a formatter, linter, test runner or
+build tool) takes these steps in order:
+
+1. Detect what the project already uses, from its manifests, lockfiles and config. When a tool for
+   the job is there, use it as configured, without an interview: the project has already chosen.
+2. Otherwise research the current options live (`/discovery:research`), since a tool list written
+   into the skill goes stale between releases.
+3. Interview the user to choose among the researched options.
+4. Write the chosen setup into the project (its config file or manifest entry), not into the
+   skill, so the next run finds it at step 1.
 
 ## Reference files
 
@@ -225,6 +245,20 @@ never copy a case's text and never use held-back cases.
 7. Commit the skill's own artifacts: its outcome cases and its frozen probe file. Never commit
    what a run regenerates: cases emitted from probes, judge-calibration suites, run results, or
    copies of the plugin made for the run.
+
+**Cutting text.** Run Anthropic's skill-creator as it ships (`/skill-creator:skill-creator`); no
+skill here wraps it, because a wrapper restates upstream behavior that then drifts (the
+precedence rule at the top of this page). Cut text from a shipped skill by this route: make the cut
+(by hand or with `/docs-hygiene:compress`), label what it changed with
+`/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
+(`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
+non-inferiority rule; otherwise the removed text stays. A cut to a description also re-measures
+triggering on the probes (steps 3 and 4).
+
+**Re-auditing shipped skills.** On each model release, re-audit every shipped skill against this
+page on the new model, since a line the previous model needed may now fail the deletion test. Each
+cut the re-audit proposes takes the cutting-text route above, tested with and without the removed
+text.
 
 Re-run on any change: a description change re-measures triggering, a body change re-measures
 output (`/evals:plugin-eval` for a plugin suite). A skill's cases are `case.yaml` cases in its
