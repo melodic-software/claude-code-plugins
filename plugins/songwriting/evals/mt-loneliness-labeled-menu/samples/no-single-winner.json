@@ -47,6 +47,10 @@
     {
       "answer": "**How I'd choose:** \"the porch light still waits up\".",
       "why": "a single quoted pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** *the porch light still waits up*.",
+      "why": "a single italic pick on the choosing-guide line (review finding)"
     }
   ]
 }

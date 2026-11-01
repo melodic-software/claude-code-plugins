@@ -55,6 +55,10 @@
     {
       "answer": "*The evenings idle in the drive.* Verbal metaphor, medium-distance.\n\n*Loneliness is an off-season motel.* Expressed identity, far-distance.",
       "why": "two candidates labeled with the label-before-distance form (review finding)"
+    },
+    {
+      "answer": "*The evenings idle in the drive.* Verbal metaphor, medium distance.\n\n*Loneliness is an off-season motel.* Expressed identity, far distance.",
+      "why": "two candidates labeled with the space form (review finding)"
     }
   ]
 }
