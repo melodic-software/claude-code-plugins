@@ -82,9 +82,24 @@ adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 
-`/work-items:work` and `/work-items:track start` claim an item by **assigning it
-and writing a lease comment**, race-safe at the seam via lease-comment identity,
-so multiple concurrent agents never grab the same item. A session-start
+An item is claimed by **assigning it and writing a lease comment**, race-safe at
+the seam via lease-comment identity, so multiple concurrent agents never grab the
+same item. These skills claim:
+
+- `/work-items:work`, `/work-items:track start` and `/work-items:ship run`,
+  before they execute an item.
+- `/work-items:triage`, before its first write to an item (a comment, label,
+  edge or close), with `--phase triage`, clearing its assignee and releasing the
+  claim after its last write.
+- `/work-items:work-loop`, through the `/work-items:work` and
+  `/work-items:triage` runs it makes.
+- `/work-items:attend-queue`, before it writes to a row, with `--phase triage`,
+  releasing the claim after the row's disposition. Its `[intake]` rows are left
+  to triage's own claim.
+
+A claim lost to another session (exit `7`) skips the item. Read-only listings,
+such as the triage attention view and `/work-items:track stats`, never claim.
+A session-start
 `reclaim` runs idempotently to recover the stale leases of crashed or abandoned
 sessions. Claim assignments always run on the session's own authenticated
 identity, never a shared bot, so the race check stays sound.
