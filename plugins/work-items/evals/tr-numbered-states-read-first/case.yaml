@@ -19,7 +19,7 @@ graders:
   - name: no-tracker-write
     type: tool_used
     tool: Bash
-    input_match: '(?:\b|(?<=\\n))gh[ \t]+(?:issue|pr)[ \t]+(?:edit|comment|close)\b|(?:\b|(?<=\\n))gh[ \t]+label[ \t]+(?:create|edit|delete)\b|(?:\b|(?<=\\n))gh[ \t]+api\b(?:(?!\\n|;|&&|\|)[^\n])*?(?:-(?:X|-method)[ \t=]*(?:POST|PATCH|PUT|DELETE)\b|[ \t]-[fF]\b|--(?:raw-)?field\b|--input\b|\bmutation\b)'
+    input_match: '(?:\b|(?<=\\n))gh[ \t]+(?:issue|pr)[ \t]+(?:edit|comment|close)\b|(?:\b|(?<=\\n))gh[ \t]+label[ \t]+(?:create|edit|delete)\b|(?:\b|(?<=\\n))gh[ \t]+api\b(?:(?:(?!\\n|;|&&|\|)[^\n])*?(?:-(?:X|-method)[ \t=]*(?:POST|PATCH|PUT|DELETE)\b|\bmutation\b)|(?!(?:(?!\\n|;|&&|\|)[^\n])*?-(?:X|-method)[ \t=]*GET\b)(?:(?:(?!\\n|;|&&|\|)[^\n])*?--input\b|(?!(?:(?!\\n|;|&&|\|)[^\n])*?[ \t]graphql\b)(?:(?!\\n|;|&&|\|)[^\n])*?(?:[ \t]-[fF]\b|--(?:raw-)?field\b)))'
     min: 0
     max: 0
     arm: both

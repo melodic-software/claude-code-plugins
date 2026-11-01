@@ -25,6 +25,28 @@
         }
       ],
       "why": "reads the item through the API, then searches on its own line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X GET search/issues -f q='repo:o/r is:issue CSV'"
+          }
+        }
+      ],
+      "why": "searches through the API with an explicit GET and a field"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api graphql -f query='{ repository(owner:\"o\",name:\"r\"){ issue(number:31){ title labels(first:5){nodes{name}} } } }'"
+          }
+        }
+      ],
+      "why": "reads the item through a GraphQL query"
     }
   ],
   "fail": [
