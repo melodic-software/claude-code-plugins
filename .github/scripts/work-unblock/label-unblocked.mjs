@@ -66,7 +66,11 @@
 // ready` issues in no queue (neither agent-ready nor admission-deferred, no
 // hold or refuse label, no open blocker or sub-issue), at most
 // limits.readmit-per-run of them, oldest updated first (readmitReady), and
-// writes as intake's admission does.
+// writes as intake's admission does. A born-triaged issue (check-born-triaged
+// notBornTriaged: the marker as its body's last line, a listed human or the
+// App its author) that the rules refuse only for a Size or Uncertainty no one
+// set yet waits with no write: its filer sets them after filing, and if no one
+// does, the triage sweep dispatches intake for it.
 //
 // An agent-ready issue left with nothing running is stranded: no hold, no open
 // lane pull request or open pull request of a listed human's for it, no
@@ -265,6 +269,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
@@ -882,6 +887,14 @@ async function admissionDecision({ github, repo, number, issue, events, humans, 
   const decision = trustedLabeler(newestAdd(events, READY), { bot, humans })
     ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
     : { verdict: "skip", reasons: [`${READY} was added by neither a listed human nor the lanes App`] };
+  // A born-triaged issue's filer sets its fields after filing, so a refusal
+  // for unset fields alone is a wait (`fields`): readmitReady writes nothing,
+  // and a person's deferral says why and comes off, so the triage sweep still
+  // sends it to intake if they never land.
+  const trusted = (id) => humans.has(id) || (appId !== undefined && id === appId);
+  if (decision.unsetOnly && notBornTriaged(issue, trusted) === null) {
+    return { decision: { verdict: "wait", reasons: [`born triaged, ${decision.unsetOnly.join(" and ")} not set yet`], pulls: [], fields: true }, facts };
+  }
   return { decision, facts };
 }
 
@@ -964,6 +977,8 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // verdict within the gate's room gets agent-ready, past it admission-deferred;
 // a refusal parks at status: confirmed, or status: needs-decision when it
 // holds for a person; a wait on an open pull request adds admission-deferred.
+// A born-triaged issue whose fields are not set yet (admissionDecision `fields`)
+// gets no write, no comment and no share of `cap`.
 // Of the open-sub-issue issues left out, those whose number is the UTC hour of
 // `now` modulo 24 get refreshSplitWait: one comments read each, and a
 // sub-issues read only for a comment it may rewrite, so each is read once a
@@ -1056,6 +1071,8 @@ async function readmitReady({ github, repo, listed: open, humans, bot, gate, app
         await dropParked(github, base, [status], labelNames(issue));
         await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);
+      } else if (decision.fields) {
+        console.log(`label-unblocked: #${number} waits: ${reasons}`);
       } else if (decision.retriage) {
         await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
         console.log(`label-unblocked: #${number} sent back to intake: ${reasons}`);
