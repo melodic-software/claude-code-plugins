@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.1] - 2026-11-01
+
+### Added
+
+- Frozen description-trigger probes for `audit`, `check` and `clean` under `probes/`, for a later description round ([#6578](https://github.com/melodic-software/claude-code-plugins/issues/6578)). Skill text is unchanged.
+
 ## [0.50.0] - 2026-10-31
 
 ### Changed
