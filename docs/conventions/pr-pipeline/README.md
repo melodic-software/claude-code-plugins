@@ -967,8 +967,12 @@ post no check: a fork PR, whose read-only token cannot write checks; a `pull_req
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
 Each review finding goes to an independent validator. Valid: fix it and reply with a citation.
-Invalid: reply with a cited disagreement. Unsure: escalate. A script resolves bot threads after
-the reply; human threads stay open for the human.
+Invalid: reply with a cited disagreement. Unsure: an adjudicator judges it
+(`adjudicate-feedback.mjs`), as it judges a disputed finding; only a finding at the security tier a
+person decides (a `CRITICAL` rating, or a security-review finding with no rating the lane reads)
+and a thread a person opened or directed go to that person (`feedback-uncertain`,
+`feedback-disputed`). A script resolves bot threads after the reply; human threads stay open for
+the human.
 
 ## Merge authority
 
@@ -1964,7 +1968,7 @@ record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploade
 `enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
 (`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
 `linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
-it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
+it lists artifacts (an unread config or commit list) reaches `merge-holds.mjs`
 with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
 names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
 run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
@@ -2389,8 +2393,6 @@ other artifact with such a name is ignored. The resolver and the gate each hold 
 dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
 head:
 
-- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
-  repository (the retention maximum and its setting), so an older verdict may be gone;
 - counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
   request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
   says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
@@ -2511,7 +2513,13 @@ head:
   request opened. That comment stays out of the recorded spec comments, so the gate does not see
   it edited, hidden or replaced after a pass: an edit only takes it out of spec, and a person's
   correction made after a pass waits for the next head;
-- no counted verdict refuses (`verify:missing`).
+- no counted verdict refuses `verify:too-old` on a pull request created more than 80 days ago,
+  since its verdicts may be gone (artifacts last at most 90 days in this repository, the retention
+  maximum and its setting): the lost-run reconciler re-runs the head's passed `pr-require-checks`
+  run, recorded, inside GitHub's 30-day re-run window, so pr-verify judges the head, and a fresh
+  pass there clears it (owner decision 2026-11-01, #11023). A `fail` past that retention no longer
+  counts toward the cap;
+- otherwise no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
@@ -2527,10 +2535,10 @@ round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 `verify:spec-changed` holds for the lanes
 ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
-`verify:repeated-fail` and `verify:too-old` never clear for the pull request, so it never merges
-unattended, and no person's label goes on for either (owner decision 2026-10-29). Instead, while
-`merge.report-only` is false, the pr-merge lane closes a lanes App pull request at either one for
-a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
+`verify:too-old` waits for the fresh pass above, with no label. `verify:repeated-fail` never
+clears for the pull request, so it never merges unattended, and no person's label goes on for it
+(owner decision 2026-10-29). Instead, while `merge.report-only` is false, the pr-merge lane closes
+a lanes App pull request at it for a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
 `enable-auto-merge.mjs` through the reader's `capped-close` command, or by the gate under
 `merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
 lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
