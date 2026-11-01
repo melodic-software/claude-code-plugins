@@ -1,0 +1,17 @@
+{
+  "pass": [
+    { "answer": [], "why": "no subagent saw any brief" },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Name a TypeScript class. Responsibility: compares bank statement lines with ledger entries and reports mismatches; read-only. Blocklist: Helper (user-stated: says nothing); the word Sync (agent-inferred: it implies writing)." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Collision vocabulary: LedgerWriter, BankLine, LedgerEntry, Mismatch." } }
+      ],
+      "why": "brief carries the abstracted reason and siblings, never the rejected name"
+    }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "The user rejected LedgerSync. Suggest better names." } }], "why": "rejected name shown to a generator" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "Do not suggest ledger-sync or anything like it." } }], "why": "kebab form of the rejected name" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "Rename the class currently called Ledger_Sync." } }], "why": "snake form of the rejected name" }
+  ]
+}

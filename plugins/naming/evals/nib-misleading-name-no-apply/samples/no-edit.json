@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/work/src/cache/user-store.ts" } }], "why": "reads the class" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/work/src/cache/user-store.ts", "old_string": "export class UserStore", "new_string": "export class CachedUserLookup" } }], "why": "applies its own pick" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/work/src/routes/me.ts", "old_string": "UserStore", "new_string": "UserCache", "replace_all": true } }], "why": "propagates a rename" }
+  ]
+}

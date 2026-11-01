@@ -1,0 +1,132 @@
+{
+  "skill": "speech:narrate",
+  "plugin": "speech",
+  "skill_dir": "plugins/speech/skills/narrate",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are same-plugin siblings only: speech:check (a read-only report of missing text-to-speech prerequisites) and speech:setup (user-invoked only; downloading the Kokoro model and setting up text to speech). narrate owns turning a script or text into narration.wav plus words.json word timings, with the local kokoro backend or the optional third-party elevenlabs backend behind a quota go-ahead; transcribing existing audio is the near-miss it excludes.",
+  "competitors": [
+    "speech:check",
+    "speech:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's the script for my onboarding clip. Turn it into a spoken audio file I can drop into the edit."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need per-word start and end times along with the audio so I can sync captions to the voice."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Voice this paragraph with the local model, a bit slower than default, and save it to build/audio."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Use ElevenLabs to read out this product announcement; tell me how many characters it'll use first."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you make a voiceover for the README intro so people can listen instead of read?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Convert these release notes to speech offline, no cloud services."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Generate narration audio for the explainer I already wrote and the matching words.json."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Read this aloud in a different voice than last time and give me the wav."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want a spoken version of this blog post, with timestamps for each word so the page can highlight along."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Re-run the TTS on the updated script; only the last sentence changed."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Get me the transcript of this YouTube talk: https://youtu.be/abc123"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Narration failed with exit 2. Which speech prerequisites are missing?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make an animated explainer video of how TCP handshakes work, with the scenes and the voice timed together."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record a demo video of the new settings page for the PR, with captions and narration."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a Suno style prompt and tagged lyrics for a soft female vocal ballad."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I have a recording of our standup as an mp3. Write out what everyone said."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Download the Kokoro model files so text to speech can run on this machine."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compose an 8-bit background loop for the title screen and render it to wav."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need a coin pickup sound for my platformer as a wav file."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the speech plugin's espeak-ng and onnxruntime in place, without installing anything?"
+    }
+  ]
+}

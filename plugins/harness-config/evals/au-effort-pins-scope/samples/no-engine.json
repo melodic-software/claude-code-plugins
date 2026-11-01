@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/check-effort-pins.sh\" --docs-dir /tmp/d",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pin check only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh\" --table --out .work/harness-config-audit/findings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs the engine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh --json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "engine with --json"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Both lines govern `pnpm db:migrate`."
+    },
+    {
+      "answer": "db:migrate is required by one and forbidden by the other"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Migrations are mentioned twice.",
+      "why": "no command named"
+    }
+  ]
+}

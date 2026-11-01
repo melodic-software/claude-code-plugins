@@ -172,8 +172,7 @@ with the question for any blocking install.
   "just write the analyzer", decline and hand over the rung's pointer.
 - Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
   guardrail class, and neither implies the other.
-- It does not run the `retro` codify mode, `/review:audit-enforceability` or `style`; those keep
-  their own counters until a later slice removes them.
+- It does not run `/session-flow:audit-sessions style`, which keeps its own counter.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 

@@ -1,0 +1,136 @@
+{
+  "skill": "machine-health:audit",
+  "plugin": "machine-health",
+  "skill_dir": "plugins/machine-health/skills/audit",
+  "ranking_note": "Authored from the description at base commit ef4145fa41, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling machine-health:setup is in this plugin but user-invoked only (disable-model-invocation true), so it is not a model-invocation competitor, and setup-only phrasings (approve a remediation, schedule the monthly checkup, paste decision-page picks) are left out of both polarities. A request to check a Mac or a Linux box is a positive: the skill owns that answer (report UNKNOWN and stop). Near-misses sit beside installed skills that read machine or Claude Code state (harness-ops:audit-performance, harness-ops:machine-profile, harness-ops:audit-install-state, disk-hygiene:clean, disk-hygiene:audit, repo-hygiene:clean) and beside unrelated health vocabulary (service health endpoints, Kubernetes probes, a cross-machine dashboard, which the skill puts out of scope, a bare CISA KEV lookup, and writing a script rather than running the audit). Positives paraphrase the description rather than repeat its quoted phrases.",
+  "competitors": [
+    "harness-ops:audit-performance",
+    "harness-ops:machine-profile",
+    "harness-ops:audit-install-state",
+    "disk-hygiene:clean",
+    "disk-hygiene:audit",
+    "repo-hygiene:clean"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My Windows 11 desktop has felt off lately. Look over its free disk space, pending updates and Defender status and tell me what needs attention."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give this PC a once-over: anything risky, low on space or out of date that I should know about?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do the weekly checkup on my laptop as a dry run, without fixing anything."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is any app installed on my Windows workstation on the CISA known exploited vulnerabilities list?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How is my MacBook doing? Check its updates, firewall and free disk."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check my computer's overall security posture and storage, and give me a dated write-up I can keep."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Last month's checkup said C: was filling up. Run it again and tell me whether things got worse."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Inspect this Ubuntu box for problems: updates, disk and security settings."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "First time trying this: do an initial health pass of this Windows machine and record a baseline to compare against later."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I travel, make sure my work laptop has no stopped services, stale antivirus signatures or nearly full drives."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Claude Code lags every time I type in this session. Figure out why it's so slow."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find orphaned temp files and stale lock files under ~/projects that I can delete to free space."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our API's /health endpoint returns 503 right after each deploy. Help me debug the readiness check in Express."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Clear the build caches and prune the stale branches in this repository."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record which identity domains and git identities this host has configured, and show what changed since the stored profile."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build a Grafana dashboard showing CPU and disk usage across our 40 office workstations."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is CVE-2024-3400 in the CISA KEV catalog, and what remediation due date does it carry for federal agencies?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Kubernetes liveness probe for this pod that hits /healthz every 10 seconds."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What is taking up space in my ~/.claude folder, and does Claude Code clean up after itself?"
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a PowerShell function that lists Windows services set to start automatically but currently stopped, for our team's toolbox module."
+    }
+  ]
+}

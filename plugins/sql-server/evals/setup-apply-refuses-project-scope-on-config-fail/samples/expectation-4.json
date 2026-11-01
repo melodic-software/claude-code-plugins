@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Setup: no config file exists at the given path. Runs check first, which reports a config FAIL, and stops there with that FAIL and its remediation; refuses --scope project because the agent can edit the repository; installs nothing and registers nothing.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

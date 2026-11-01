@@ -37,6 +37,7 @@
 //   RUNNER_TEMP               read: where the artifact is downloaded
 //   PR_MERGE_READS_PATH       read: the job's shared GET answers
 //                             (rotation.mjs sharedReads), if set
+//   PR_MERGE_MAIN_TIP         read: main's tip from the job's ls-remote, if set
 //   GITHUB_API_URL
 //   HEAD_REFS_PATH            the map read before the gate
 //   BABYSIT_RUN_CACHE         write: this run's cache (babysit_run_cache.py)
@@ -86,7 +87,10 @@ function writeAtomic(path, text) {
 // main's tip, read once per process by the first onMain call, and only while
 // no tag is named main (a run on one reports head_branch main;
 // check-trusted-trigger.mjs readDefaultBranchTip). A failed or refused read
-// is remembered too, so every later run in the process is refused.
+// is remembered too, so every later run in the process is refused. A job that
+// listed refs/heads/main and refs/tags/main in one `git ls-remote` passes the
+// tip as PR_MERGE_MAIN_TIP, set only when that listing held no tag named
+// main, and then no process reads either ref; unset or not 40 hex, it is read.
 let mainTip;
 export function forgetMainTip() {
   mainTip = undefined;
@@ -94,9 +98,10 @@ export function forgetMainTip() {
 
 // Whether commit `sha` ran main's own code: that tip read held, and `sha` is
 // main's tip or behind it (requireBehindTip). Any failed read is a no.
-export async function onMain({ repo, actions, sha }) {
+export async function onMain({ repo, actions, sha, env = process.env }) {
   if (!SHA.test(sha ?? "")) return false;
-  mainTip ??= readDefaultBranchTip(actions, repo, "main", "off-main");
+  const listed = env.PR_MERGE_MAIN_TIP ?? "";
+  mainTip ??= SHA.test(listed) ? Promise.resolve(listed) : readDefaultBranchTip(actions, repo, "main", "off-main");
   try {
     await requireBehindTip(actions, repo, sha, await mainTip, "off-main");
     return true;

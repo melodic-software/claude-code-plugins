@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: use-reads-consumer-notes
+graders:
+  - name: reads-consumer-notes
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?consumer-notes\.md"'
+    arm: 'with-only'
+  - name: names-innerhtml
+    type: regex
+    pattern: '\binnerHTML\b'
+    flags: ''
+    target: last_message
+  - name: says-escape
+    type: regex
+    pattern: '\b(?:escap(?:e|es|ed|ing)|sanitiz(?:e|es|ed|ing|ation)|sanitis(?:e|es|ed|ing|ation))\b'
+    flags: 'i'
+    target: last_message
