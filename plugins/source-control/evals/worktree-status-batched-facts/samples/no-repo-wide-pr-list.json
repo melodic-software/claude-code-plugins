@@ -38,6 +38,28 @@
         {
           "tool": "Bash",
           "input": {
+            "command": "gh pr list --state all --json number,headRefName -L 100; gh pr list --head feat/a --json number"
+          }
+        }
+      ],
+      "why": "repo-wide list followed by a scoped one in one command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --state all --json number -L 100 && gh pr list --head feat/a --json number"
+          }
+        }
+      ],
+      "why": "repo-wide list chained with && before a scoped one"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
             "command": "gh pr list"
           }
         }
