@@ -211,6 +211,12 @@ runs:
           for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
             [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
           done
+          # check-changed-skills.sh --merge-base runs the skill checker from
+          # this copy, which sources and reads files beside itself.
+          if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
+            mkdir -p "$dir/plugins/skill-quality"
+            cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
+          fi
           for check in "${checks[@]}"; do
             script=${check%% *}
             flags=${check#"$script"}

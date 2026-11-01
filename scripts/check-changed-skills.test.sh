@@ -485,5 +485,121 @@ else
 fi
 rm -rf "$r"
 
+# --- --merge-base: the lane form -------------------------------------------
+# The tool tree holds the gate and its checker; the data tree is the checkout
+# the lane judges, with a decoy checker that must never run.
+# shellcheck disable=SC2016  # the stub expands these when it runs
+LANE_STUB='#!/usr/bin/env bash
+printf "self=%s args=%s skip=%s md=%s st=%s base=%s\n" "$0" "$*" "${CHECK_SKILL_SKIP_SCRIPT_TESTS-}" \
+  "${CHECK_SKILL_SKIP_MARKDOWNLINT-}" "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE-}" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
+for arg in "$@"; do [[ "$arg" == broken ]] && exit 1; done
+exit 0'
+
+# mk_lane_pair <tool-var> <data-var>: a tool tree with the stub checker, and a
+# data repo with a committed skill, a decoy checker and a settings baseline.
+mk_lane_pair() {
+  mk_repo "$1" || return 1
+  mk_repo "$2" || return 1
+  local tool="${!1}" data="${!2}"
+  mkdir -p "$tool/plugins/skill-quality/scripts" "$data/plugins/skill-quality/scripts"
+  printf '%s\n' "$LANE_STUB" >"$tool/plugins/skill-quality/scripts/check-skill.sh"
+  printf '#!/usr/bin/env bash\ntouch "%s/decoy-ran"\n' "$data" >"$data/plugins/skill-quality/scripts/check-skill.sh"
+  : >"$data/plugins/skill-quality/scripts/settings-token-baseline.txt"
+  add_skill "$data" p1 alpha
+  commit_all "$data" base >/dev/null
+}
+
+# run_lane <tool> <data> [args...]: run the tool tree's gate from outside both.
+run_lane() (
+  local tool="$1" data="$2"
+  shift 2
+  cd "$TMP_ROOT" && CHECK_DATA_ROOT="$data" CHECK_SKILL_BIN="$data/plugins/skill-quality/scripts/check-skill.sh" \
+    CHECK_LOG="$data/checklog" bash "$tool/scripts/check-changed-skills.sh" "$@"
+)
+
+t="" d=""
+mk_lane_pair t d
+b="$(base_sha "$d")"
+git_test_config "$d" update-ref refs/remotes/origin/main "$b"
+add_skill "$d" p1 alpha SKILL.md # tracked change
+add_skill "$d" p2 fresh          # untracked new skill
+if out="$(run_lane "$t" "$d" --merge-base 2>&1)" && grep -q "2 skill(s) checked, 0 failed" <<<"$out"; then
+  ok "--merge-base checks the data tree's tracked and untracked changed skills"
+else
+  fail "--merge-base should check alpha and fresh, got: $out"
+fi
+log="$(cat "$d/checklog" 2>/dev/null)"
+want_self="$t/scripts/../plugins/skill-quality/scripts/check-skill.sh"
+if grep -qxF "self=$want_self args=--require-evals alpha skip=1 md=1 st=$d/plugins/skill-quality/scripts/settings-token-baseline.txt base=$b" <<<"$log" &&
+  grep -qF "self=$want_self args=--require-evals fresh skip=1 md=1" <<<"$log"; then
+  ok "--merge-base runs the tool tree's checker with script tests skipped and the data tree's settings baseline"
+else
+  fail "unexpected checker invocations: $log"
+fi
+if [[ ! -e "$d/decoy-ran" ]]; then
+  ok "--merge-base never runs the data tree's checker, even when CHECK_SKILL_BIN names it"
+else
+  fail "the data tree's checker ran"
+fi
+rm -rf "$t" "$d"
+
+mk_lane_pair t d
+git_test_config "$d" branch -q -m lanework # no origin/main, origin/master, main or master
+add_skill "$d" p1 alpha SKILL.md
+out="$(run_lane "$t" "$d" --merge-base 2>&1)"
+rc=$?
+if ((rc == 0)) && grep -q "diffing against HEAD" <<<"$out" &&
+  grep -q "args=--require-evals alpha .* base=$(base_sha "$d")$" "$d/checklog" 2>/dev/null; then
+  ok "--merge-base falls back to HEAD, with a warning, when no default branch resolves"
+else
+  fail "expected the HEAD fallback, rc=$rc, got: $out / $(cat "$d/checklog" 2>/dev/null)"
+fi
+rm -rf "$t" "$d"
+
+mk_lane_pair t d
+if out="$(run_lane "$t" "$d" --merge-base HEAD 2>&1)"; then
+  fail "--merge-base with a ref should be a usage error, got: $out"
+elif [[ $? -eq 2 ]] && grep -q "usage:" <<<"$out"; then
+  ok "--merge-base takes no ref"
+else
+  fail "expected exit 2 with usage, got: $out"
+fi
+rm -rf "$t" "$d"
+
+# The positional form keeps checking its own tree and honoring CHECK_SKILL_BIN,
+# whatever CHECK_DATA_ROOT says, and leaves script tests to the checker.
+mk_repo r
+add_skill "$r" p1 alpha
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 alpha SKILL.md
+lane_stub="$TMP_ROOT/lane-stub.sh"
+printf '%s\n' "$LANE_STUB" >"$lane_stub"
+if out="$( (cd "$r" && CHECK_DATA_ROOT=/nonexistent CHECK_SKILL_BIN="$lane_stub" CHECK_LOG="$r/checklog" \
+  bash scripts/check-changed-skills.sh "$b") 2>&1)" &&
+  grep -qxF "self=$lane_stub args=--require-evals alpha skip= md=1 st= base=$b" "$r/checklog"; then
+  ok "the positional form ignores CHECK_DATA_ROOT and keeps its checker and environment"
+else
+  fail "positional form changed, got: $out / $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r" "$lane_stub"
+
+# End to end through the real checker: a new, untracked skill with no evals
+# fails the lane form, as it fails CI once committed.
+mk_lane_pair t d
+stage_checker "$t"
+git_test_config "$d" update-ref refs/remotes/origin/main "$(base_sha "$d")"
+mkdir -p "$d/plugins/p3/skills/newbie"
+printf -- '---\ndescription: "Fixture skill. Use when: '"'"'run newbie'"'"'."\n---\n\n## Purpose\n\nFixture.\n\n## Gotchas\n\nNone known.\n' \
+  >"$d/plugins/p3/skills/newbie/SKILL.md"
+if out="$(run_lane "$t" "$d" --merge-base 2>&1)"; then
+  fail "an untracked skill with no evals should fail the lane form, got: $out"
+elif grep -q 'skill ships no evals/evals.json' <<<"$out" && [[ ! -e "$d/decoy-ran" ]]; then
+  ok "an untracked skill with no evals fails the lane form through the tool tree's real checker"
+else
+  fail "lane form failed, but not on the missing evals: $out"
+fi
+rm -rf "$t" "$d"
+
 rm -f "$STUB"
 test_harness::report

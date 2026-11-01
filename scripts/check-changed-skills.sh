@@ -35,10 +35,28 @@
 # 2 = usage / environment error (fail closed — never a silent skip).
 #
 # CHECK_SKILL_BIN overrides the checker path (test injection).
+#   scripts/check-changed-skills.sh --merge-base
+#
+# The lane form, for a run that checks a tree it must not execute: the base is
+# origin's default branch (changed_files::resolve_base), else HEAD with a
+# warning, since a shallow checkout of one commit holds no remote ref and its
+# HEAD is the base the work started from. The checked tree is CHECK_DATA_ROOT
+# (default: the tree holding this script), read only as data; the checker is
+# always this tree's copy, CHECK_SKILL_BIN is ignored, untracked files count as
+# changed, each skill's scripts/*.test.sh is skipped
+# (CHECK_SKILL_SKIP_SCRIPT_TESTS=1), and the checked tree's settings-token
+# baseline is named so the checker judges it as CI does.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+lane=0
+if [[ "${1-}" == --merge-base ]]; then
+  lane=1
+  GE_FLAGS=("--merge-base")
+  cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
+else
+  cd "$SCRIPT_DIR/.." || exit 2
+fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/read-list.sh
@@ -48,11 +66,25 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
-if ! gate_entry::classify "$@" || [[ "$GE_MODE" != base ]]; then
-  echo "usage: check-changed-skills.sh <base-ref>" >&2
+if ! gate_entry::classify "$@" || [[ "$GE_MODE" != base && "$GE_MODE" != --merge-base ]]; then
+  echo "usage: check-changed-skills.sh <base-ref> | --merge-base" >&2
   exit 2
 fi
 BASE="$GE_REF"
+CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
+if ((lane)); then
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case
+  if ! changed_files::resolve_base BASE; then
+    printf 'Warning: no origin/main, origin/master, main or master; diffing against HEAD.\n' >&2
+    BASE=HEAD
+  fi
+  CHECKER="$SCRIPT_DIR/../plugins/skill-quality/scripts/check-skill.sh"
+  export CHECK_SKILL_SKIP_SCRIPT_TESTS=1
+  st_baseline="$PWD/plugins/skill-quality/scripts/settings-token-baseline.txt"
+  if [[ -z "${CHECK_SKILL_SETTINGS_TOKEN_BASELINE:-}" && -f "$st_baseline" ]]; then
+    export CHECK_SKILL_SETTINGS_TOKEN_BASELINE="$st_baseline"
+  fi
+fi
 # A branch behind $BASE must not inherit $BASE's own newer commits (#7014).
 if merge_base="$(git merge-base "$BASE" HEAD 2>/dev/null)" && [[ -n "$merge_base" ]]; then
   BASE="$merge_base"
@@ -60,7 +92,6 @@ else
   printf 'Warning: no merge base for %s and HEAD; diffing against the ref as given.\n' "$BASE" >&2
 fi
 
-CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if [[ ! -f "$CHECKER" ]]; then
   printf 'Error: skill checker not found: %s\n' "$CHECKER" >&2
   exit 2
@@ -119,6 +150,18 @@ evals_warrant_skip() {
 # them.
 changed_paths=()
 changed_files::into changed_paths "$BASE" --include-deleted -- 'plugins/' || exit 2
+# A lane run's edits are uncommitted, so a skill it adds is untracked, which
+# git diff does not list.
+declare -A untracked=()
+if ((lane)); then
+  untracked_out="$(mktemp)" || exit 2
+  git ls-files --others --exclude-standard -z -- 'plugins/' >"$untracked_out" || exit 2
+  while IFS= read -r -d '' path; do
+    changed_paths+=("$path")
+    untracked["$path"]=1
+  done <"$untracked_out"
+  rm -f "$untracked_out"
+fi
 changed=()
 declare -A seen_dirs=()
 for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
@@ -170,7 +213,8 @@ for skill_dir in ${changed[@]+"${changed[@]}"}; do
   {
     printf '=== %s ===\n' "$skill_dir"
     require_evals_args=()
-    if grep -q . < <(git diff --name-only "$BASE" -- "$skill_dir/SKILL.md"); then
+    skill_md="$skill_dir/SKILL.md"
+    if grep -q . < <(git diff --name-only "$BASE" -- "$skill_md") || [[ -n "${untracked["$skill_md"]:-}" ]]; then
       if evals_warrant_skip "$skill_dir"; then
         printf 'evals skip recorded for %s — not passing --require-evals\n' "$skill_dir"
       else
