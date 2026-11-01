@@ -1376,6 +1376,7 @@ jobs:
           RULES: .github/actions/resolve-config/patch-rules.json
           DEST: ${{ runner.temp }}/apply-patch-base
           PATCH_PREPARE: ${{ inputs.patch-prepare }}
+          MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$DEST/$(dirname "$RULES")"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
@@ -1389,11 +1390,12 @@ jobs:
           if [ -f .base/.github/dependabot.yml ]; then
             cp .base/.github/dependabot.yml "$DEST/.github/dependabot.yml"
           fi
-          # The shared-copies row admits only the copies the base registry
-          # lists (apply-patch.mjs sharedCopiesFrom).
+          # The shared-copies row admits only the copies the registry lists
+          # (apply-patch.mjs sharedCopiesFrom), read at the pinned base the
+          # patch was built from, not the base tip, which may have moved since.
           if [ "$PATCH_PREPARE" = shared-copies ]; then
             mkdir -p "$DEST/scripts"
-            cp .base/scripts/shared-copies.txt "$DEST/scripts/shared-copies.txt"
+            git -C .base show "$MERGE_BASE_SHA:scripts/shared-copies.txt" >"$DEST/scripts/shared-copies.txt"
           fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
