@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/fixture/t-01-proposal.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/fixture/t-02-proposal.md",
+            "content": "Source: .work/reviews/fixture/findings.md row 2."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/reviews/fixture/t-01-proposal.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

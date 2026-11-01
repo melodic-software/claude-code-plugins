@@ -425,23 +425,27 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
   "$SKILL" \
   "64cb5a334e5874682e1f67df8f8871ddb9474518dc21679dc7728f19dae42dcd"
 
-# The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
-# the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
-# reattach-slice.test.sh holds it there). It is a twin of the full rules in Step 1.5, the
-# Action Router and Step 3, so it is digested and each line is pinned once inside it: an
-# unpinned twin could be inverted while the originals stand.
+# The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
+# confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
+# compaction's re-attach still reaches (#5332; reattach-slice.test.sh holds it there). It is a
+# twin of the full rules in Step 1.5, the Action Router, Step 3 and Step 4, so it is digested
+# and each line is pinned once inside it: an unpinned twin could be inverted while the
+# originals stand.
 # The `lock` gate line now says `lock` confirms the problem with one question; it adds a
 # question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-pin_section "SKILL.md Gates section is unchanged (the early twin of the three gates)" \
+# The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
+pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "778c930474c42f0ea28d68825df583964fb9733566cd135ce5d3d8b90dc1cc9c"
+  "51a7dec1194745926cd9e191ef719c090e1625f724e61f4c1fa5df39a985de2b"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
-  "**The register gate runs before the contract locks.**"; do
+  "**The register gate runs before the contract locks.**" \
+  "**The confirmation gate holds the contract until the user confirms.**" \
+  "**The Brief is cross-checked once it exists.**"; do
   pin_once "Gates names: $gate_line" "$SKILL" "$gate_line"
   within "Gates holds: $gate_line" "$SKILL" "$gate_line" "## Gates" "## Action Router"
 done
@@ -521,11 +525,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
 # Adds the read-back of an answer that departs from the recommendation, or arrives dictated or unclear (#11187); its row stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
+# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "a8d02bbb1eed311dafc0c60d31d462f20c94260e88384e43c19a9c95fe22b3d3"
+  "83310a75a7a3041b1f15df32b3edafbf7f6bfdd988197b51dfb99b2953430880"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -570,11 +575,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # gate reads only the Restatement stamp (#9912); no defense weakened
 # Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "f29b7ece9b59231aede06fc4e63b5bad413b918574f05b091ee6549ad12040d8"
+  "d81a5c609d8d477dbd3939d2ba37bd2247d74eed655e6ffb7363b1f00c4333a3"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -719,9 +725,10 @@ pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts i
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
+# The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "903332451df15c686d46259080f54f82824287b1efe4199a42716e5e95609c6f"
+  "9b0ef001c95777aaec490eb8b4b5d5a28b7662ae0da00107db7c01f4b5ce481d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.

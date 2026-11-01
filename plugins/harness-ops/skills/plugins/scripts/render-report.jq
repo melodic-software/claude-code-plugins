@@ -73,6 +73,7 @@ def block($d):
   | (.in_repo.would_update + (.user_sweep.would_update | map(. + {scope: "user"}))) as $would
   | (.in_repo.failed + (.user_sweep.failed | map(. + {scope: "user"}))) as $failed
   | .user_sweep.withheld_downgrades as $withheld
+  | (.other_paths // {}) as $op
   | ([.installed[] | select(.rc == 0)]) as $installed_ok
   | ([.installed[] | select(.rc != 0)]) as $installed_failed
   | (.install_gap - ($installed_ok | map(.id))) as $install_left
@@ -147,10 +148,10 @@ def block($d):
   # `needs update`: refresh, update and failure state only. Audit predicts what sync
   # would update, install or enable itself.
   | (if $audit then
-       (($would | length) > 0 or ($would_enable | length) > 0
+       (($would | length) > 0 or ($would_enable | length) > 0 or (($op.would_update // []) | length) > 0
         or ($d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true))
      else
-       (($failed | length) > 0 or .install_enable_deferred == true
+       (($failed | length) > 0 or .install_enable_deferred == true or (($op.failed // []) | length) > 0
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
         or (.errors | length) > 0)
      end) as $needs
@@ -164,6 +165,7 @@ def block($d):
   | (if $audit then ($needs or ($norm | test("^would-normalize")) or ($withheld | length) > 0)
      else
        (($updated | length) > 0 or (.downgraded | length) > 0 or ($installed_ok | length) > 0
+        or (($op.updated // []) | length) > 0
         or ($enabled_ok | length) > 0 or ($norm | test("^normalized ")) or $pull.status == "pulled")
      end) as $changed
   # Action needed: omitted entirely when nothing needs action.
@@ -189,7 +191,10 @@ def block($d):
          listed("enable gap deferred (marketplace refresh failed)"; .enable_gap)
        else empty end),
       $enable_pending[],
-      ($failed[] | ["update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"]),
+      ($failed[] | if .stopped == true then ["update stopped in \(.path): \(.id) -s \(.scope): \(.reason)"]
+                   else ["update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"] end),
+      (($op.failed // [])[]
+       | ["update \(if .stopped then "stopped" else "failed" end) in \(.path): \(.id) -s \(.scope): \(.reason)"]),
       ($installed_failed[] | ["install failed (exit \(.rc)): \(.id): \(reported)"]),
       ($enabled_failed[] | ["enable failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"]),
       $disabled_pending[],
@@ -275,6 +280,23 @@ def block($d):
          (if ($updated | length) > 0 then
             "Updated: \($updated | length) plugin(s)",
             ($updated[] | "  - \(scoped): \(pair)")
+          else empty end)
+       end),
+
+      # The records of every other present path, updated from that path.
+      (if $audit then
+         (if (($op.would_update // []) | length) > 0 then
+            "Would update in other paths: \($op.would_update | length) record(s)",
+            ($op.would_update[] | "  would run: (cd \"\(.path)\" && claude plugin update \(.id) -s \(.scope)) (installed \(.old))")
+          else empty end)
+       else
+         (if (($op.updated // []) | length) > 0 then
+            "Updated in other paths: \($op.updated | length) record(s)",
+            ($op.updated[] | "  - \(scoped) in \(.path): \(.old) -> \(.new)")
+          else empty end),
+         (if (($op.not_moved // []) | length) > 0 then
+            "Not moved in other paths: \($op.not_moved | length) record(s)",
+            ($op.not_moved[] | "  - \(scoped) in \(.path): did not move from \(.version) (\(.label))")
           else empty end)
        end),
 

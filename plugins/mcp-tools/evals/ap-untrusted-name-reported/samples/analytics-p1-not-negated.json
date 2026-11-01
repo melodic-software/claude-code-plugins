@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| analytics | P1 Floating version | FAIL | unversioned |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "analytics does not FAIL P1; marking all PASS.",
+      "why": "negated verdict"
+    }
+  ]
+}

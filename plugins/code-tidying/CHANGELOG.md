@@ -3,6 +3,16 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-11-01
+
+### Fixed
+
+- The `acr-dir-batch-skips` eval case's `markdown-skipped` grader opened with Python's `\A`, which
+  the JavaScript engine that runs it reads as a literal `A`. It now opens with `(?<![\s\S])`, a
+  start-of-input anchor in both engines, so every sample passes or fails as it states.
+
+- The `acr-dir-batch-skips` eval's `markdown-skipped` grader now anchors at the start of the answer with `(?<![\s\S])` instead of `\A`. JavaScript, which runs the grader, reads `\A` as a literal `A`, so `/evals:validate` reported a FAIL for the case.
+
 ## [0.34.0] - 2026-10-31
 
 ### Changed
