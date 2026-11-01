@@ -83,7 +83,7 @@ test("verify-scripts with effect read and no applied-by.patch fails the schema",
 });
 
 // The read runner stages them under prepare: ci-context too, as base copies the
-// skill runs in place of the checkout's (the live config's fix-ci, which
+// skill is told to run in place of the checkout's (the live config's fix-ci, which
 // live-config.test.mjs resolves); checks stay refused there.
 test("checks on a prepare: ci-context skill fail the schema", () => {
   rejected({ effect: "read", prepare: "ci-context", "applied-by": { patch: "apply-patch" }, checks: ["scripts/check-x.sh"] });

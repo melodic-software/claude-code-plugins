@@ -554,7 +554,7 @@
         { "$ref": "#/$defs/edit-runner" },
         { "required": ["prepare"], "properties": { "prepare": { "const": "ci-context" } } }
       ],
-      "description": "verify-scripts are staged where checks are, and under prepare: ci-context too, where the skill runs a listed script only from its base copy."
+      "description": "verify-scripts are staged where checks are, and under prepare: ci-context too, where the skill is told to run a listed script only from its base copy."
     },
     "no-head-test-check": {
       "not": { "pattern": "^scripts/(affected-tests|run-outside-node-suites|selection-audit|check-guardrails-ps-differential|run-test-file)\\.sh( |$)" },

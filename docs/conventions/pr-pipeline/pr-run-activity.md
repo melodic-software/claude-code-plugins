@@ -752,12 +752,13 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    review-thread tool: [`prepare: review-threads`](#prepare-review-threads)), and fails red on
    any other prepare mode, and on `checks`, `self-checks` or `verify-scripts` outside the
    no-prepare patch skill, `verify-scripts` under `prepare: ci-context` excepted: that skill's Bash
-   is bare, so its wrappers get no rule of their own, and the preamble names them as the only way
-   to run those scripts. That skill's check and verify-script wrappers are the ones
-   [Skill activities](#skill-activities) describes, staged for `.lane/checks` and `.lane/verify`,
-   which the run job makes read-only after the copy, named there in their `Bash` rules and the
-   preamble, and denied to `Edit`, `Write` and `NotebookEdit`. An issue lane's skill also gets
-   `.lane/git/git-read`, read-only and denied to the file tools, as its one way to git:
+   is bare, so its wrappers get no rule of their own, and the preamble tells the skill to run those
+   scripts only through them: an instruction, not a rule. That skill's check and verify-script
+   wrappers are the ones [Skill activities](#skill-activities) describes, staged for
+   `.lane/checks` and `.lane/verify`, which the run job makes read-only after the copy, named
+   there in their `Bash` rules and the preamble, and denied to `Edit`, `Write` and
+   `NotebookEdit`. An issue lane's skill also gets `.lane/git/git-read`, read-only and denied to
+   the file tools, as its one way to git:
    `Bash(<workspace>/.lane/git/git-read *)` runs only `git status`, `diff`, `log` and `show`, with
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
@@ -1469,8 +1470,11 @@ its fallback call on the role's OAuth token after the key call hands off
    reruns the failing checks. The launcher's preamble names the file, since run-claude-cli takes
    no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)). Each
    of the activity's `verify-scripts` is staged as its base copy behind a wrapper under
-   `.lane/verify`, read-only and denied to the file tools, and the preamble names the wrappers as
-   the only way to run those scripts, so a script the pull request edits never stands in for one.
+   `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run
+   those scripts only through the wrappers. Nothing enforces that: Bash, Edit and Write stay open,
+   so the skill could run the checkout's copy or edit a digest by hand. The controls are review of
+   the patch and apply-patch's `ci-context` patch rules, which refuse workflow, settings and
+   similar paths but admit a test file.
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it

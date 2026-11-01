@@ -477,9 +477,10 @@ runs:
             denied+=("Edit(./.lane/ci/**)" "Write(./.lane/ci/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The context file is $lane/ci/context.json. Leave every fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes."
             # verify-scripts: a base copy of each listed script behind its
-            # wrapper, the one copy the skill may run in place of the
+            # wrapper, the copy the skill is told to run in place of the
             # checkout's (ci-ci.md, "A digest pin the pull request moved").
-            # Bash is bare here, so the wrappers need no rule of their own.
+            # Bash is bare here, so the wrappers need no rule of their own and
+            # nothing enforces the route: review of the patch is the control.
             if ((${#verify[@]})); then
               stage_verify "$STAGE/verify" "$lane/verify"
               denied+=("Edit(./.lane/verify/**)" "Write(./.lane/verify/**)" "NotebookEdit(./.lane/verify/**)")
