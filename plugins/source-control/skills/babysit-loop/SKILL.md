@@ -224,9 +224,10 @@ Stripping it happens only behind the explicit `--strip-do-not-merge` invocation 
 Escalation is the convention's contract
 ([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 §2), held by
-citation: a tracker item carrying the human-gated role label, resolved from the consumer's
-`.work-item-tracker.json` `config.role_labels` map, never compared as a literal (when that file is
-absent, the canonical `needs-human` default applies with a loud notice), plus a machine-marked
+citation: a tracker item carrying the human-gated role label, resolved from the `config.role_labels`
+map of the consumer's tracker binding (the `tracker` mapping of `docs/conventions/work-items.yaml`,
+else the legacy JSON binding), never compared as a literal (when no binding is
+present, the canonical `needs-human` default applies with a loud notice), plus a machine-marked
 escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the writer

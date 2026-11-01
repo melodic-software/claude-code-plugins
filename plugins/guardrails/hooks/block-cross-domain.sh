@@ -72,7 +72,9 @@
 #   5. the prefilter: the command text, lowercased with `\` read as `/` and
 #      its quotes dropped, is tested for each path and marker, and, from a cwd
 #      in a domain of a map with a gh or az config directory, for the word `gh`
-#      or `az`, and, from every cwd, for both `git` and `config` or the last
+#      or `az`, and, from a cwd in a domain with a gh config directory, for
+#      the word `gh` or the text `gh_token`, and, from every cwd, for both
+#      `git` and `config` or the last
 #      name of an identity file the map lists. A command that names none
 #      leaves here, before it is parsed;
 #   6. the parse: on the Bash tool hook::bash_parse_segments, whose argv words
@@ -81,7 +83,8 @@
 #      below;
 #   7. the decision: from a cwd in a domain, a path of another domain named in
 #      step 6 denies the call, a read as much as a write, as does a gh or az
-#      call that breaks the CONFIG DIRECTORIES rule below. A marker never
+#      call that breaks the CONFIG DIRECTORIES rule below, and an account
+#      switch or GH_TOKEN removal the AUTH SWITCHES rule names. A marker never
 #      denies here. From every cwd, neutral included, an identity write denies
 #      the call; from a neutral cwd nothing else is denied.
 #
@@ -134,6 +137,18 @@
 # as HOME and, on Windows, a `/c/`, `/cygdrive/c/` or `/mnt/c/` prefix read as
 # `c:/`.
 #
+# AUTH SWITCHES. From a cwd in a domain that has a `gh_config_dir`, a call is
+# denied that switches gh's account or removes GH_TOKEN, whatever GH_CONFIG_DIR
+# it runs with: `gh auth switch`, `gh auth login` and `gh auth logout` (behind
+# the same wrappers CONFIG DIRECTORIES reads); `unset GH_TOKEN`, `export -n
+# GH_TOKEN`, and `env -u GH_TOKEN` in each spelling (`-uGH_TOKEN`, `--unset
+# GH_TOKEN`, `--unset=GH_TOKEN`); an assignment that empties it (`GH_TOKEN=`
+# before a command, alone, after `export` or `env`, and PowerShell's
+# `$env:GH_TOKEN = ''` or `= $null`); and, on PowerShell, `Remove-Item
+# Env:GH_TOKEN` and its aliases. A plain gh call, `gh auth status` and `gh auth
+# token` included, is left to CONFIG DIRECTORIES. From a domain with no
+# `gh_config_dir`, or a neutral cwd, the rule denies nothing.
+#
 # GIT IDENTITY WRITES. From every cwd, in a domain or neutral, and on a host
 # with no map, a call is denied that writes the machine's git identity:
 #   - `git config` with `--global`, `--system` or `--file <identity file>`
@@ -160,9 +175,9 @@
 #
 # Steps 4, 6 and 7 feed the telemetry envelope: `cwd` is domain or neutral,
 # `form` is prefilter-miss, not-named, own-domain (the cwd's domain alone is
-# named), other-domain, identity-deny, config-deny, identity-write-deny, or
-# map-malformed (whose cwd is always neutral), and `status` is blocked for a
-# denied call, else ok. The envelope
+# named), other-domain, identity-deny, config-deny, auth-deny,
+# identity-write-deny, or map-malformed (whose cwd is always neutral), and
+# `status` is blocked for a denied call, else ok. The envelope
 # names no domain; `subject` is the command word, as in every guard's. The
 # path deny reason, on the model's channel, names the cwd's domain and the
 # others.
@@ -185,6 +200,11 @@
 #   - an export inside a subshell or a pipeline, which counts for later
 #     commands, and `export NAME` with no value after a bare `NAME=value`,
 #     which does not
+#   - a GH_TOKEN removal by `env -i`, `declare` and its kin, `builtin unset`,
+#     a value that only expands to empty (`GH_TOKEN=$unset`), a name spelled
+#     with an escape (`GH\_TOKEN`), PowerShell's `Clear-Item`, a glob, list or
+#     pipeline into `Remove-Item`, or a .NET call; and an account switch
+#     through a gh alias
 #   - an identity write inside a `bash -c` or `sh -c` operand, through a git
 #     alias (`git -c alias.c=config c --global ...`), after a wrapper option
 #     that takes a value (`sudo -u <user> tee`), by a redirection with no
@@ -304,6 +324,8 @@ BCD_CONF_DOMAIN=()
 BCD_CONF_DIR=()
 BCD_CONF_RAW=()
 BCD_CONFIG_DENY=()
+BCD_AUTH=0
+BCD_AUTH_DENY=()
 # What the command text set GH_CONFIG_DIR and AZURE_CONFIG_DIR to for later
 # commands: _SET is 1 for set, 0 for removed, empty for untouched.
 BCD_GH_SET=""
@@ -682,6 +704,7 @@ bcd::segment() {
   fi
   ((BCD_IDENTITY)) && bcd::identity "$@"
   ((BCD_CONFIG)) && bcd::config "$@"
+  ((BCD_AUTH)) && bcd::auth "$@"
   ((BCD_WRITES)) && bcd::writes "$@"
   return 0
 }
@@ -1012,6 +1035,130 @@ bcd::config_deny() {
   exit 0
 }
 
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::auth_found() { # <what the command does, as written>
+  local p
+  for p in ${BCD_AUTH_DENY[@]+"${BCD_AUTH_DENY[@]}"}; do
+    [[ "$p" == "$1" ]] && return 0
+  done
+  BCD_AUTH_DENY+=("$1")
+}
+
+# bcd::auth_token <assigned name, or PowerShell's $env:<name>> <value>: an
+# assignment that empties GH_TOKEN (an empty value, or `$null` in any case).
+# A value the parse cut off at a backtick or `(` arrives empty and is no removal.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::auth_token() {
+  local u
+  bcd::env_name_to u "$1"
+  [[ "$u" == GH_TOKEN ]] || return 0
+  # shellcheck disable=SC2016  # a backtick and PowerShell's $null, matched as text
+  if [[ -z "$2" ]]; then
+    [[ "$BCD_SUBJECT" == *'gh_token=`'* || "$BCD_SUBJECT" == *'gh_token=('* ]] || bcd::auth_found "an empty GH_TOKEN"
+  elif [[ "${2,,}" == '$null' ]]; then
+    bcd::auth_found "an empty GH_TOKEN"
+  fi
+  return 0
+}
+
+# bcd::auth <words...>: the gh account switches and GH_TOKEN removals of one
+# segment (AUTH SWITCHES), into BCD_AUTH_DENY.
+# shellcheck disable=SC2329  # reached from the parse callback
+bcd::auth() {
+  local -a w=("$@")
+  local n=$# i=0 w1 cmd="" keep=1 wrapped=0 unexport=0 tool
+  while ((i < n)); do
+    w1=${w[i]}
+    case "$w1" in
+    if | then | elif | else | do | while | until | '{' | '!') ;;
+    time | command | exec | nohup) wrapped=1 ;;
+    export)
+      for ((i++; i < n; i++)); do
+        case "${w[i]}" in
+        -n) unexport=1 ;;
+        GH_TOKEN) ((unexport)) && bcd::auth_found "export -n GH_TOKEN" ;;
+        [A-Za-z_]*=*) bcd::auth_token "${w[i]%%=*}" "${w[i]#*=}" ;;
+        *) ;;
+        esac
+      done
+      return 0
+      ;;
+    unset)
+      for ((i++; i < n; i++)); do
+        # `unset -f` removes functions, not variables.
+        [[ "${w[i]}" == -f ]] && return 0
+        [[ "${w[i]}" == GH_TOKEN ]] && bcd::auth_found "unset GH_TOKEN"
+      done
+      return 0
+      ;;
+    env | */env) keep=0 ;;
+    -u | --unset)
+      ((keep)) && return 0
+      i=$((i + 1))
+      [[ "${w[i]-}" == GH_TOKEN ]] && bcd::auth_found "env $w1 GH_TOKEN"
+      ;;
+    --unset=* | -u?*)
+      ((keep)) && return 0
+      [[ "$w1" == --unset=GH_TOKEN || "$w1" == -uGH_TOKEN ]] && bcd::auth_found "env $w1"
+      ;;
+    -C | --chdir)
+      ((keep)) && return 0
+      i=$((i + 1))
+      ;;
+    -v | -V)
+      ((wrapped || keep)) && return 0
+      ;;
+    -*) ((keep && !wrapped)) && return 0 ;;
+    \$[Ee][Nn][Vv]:* | \$\{[Ee][Nn][Vv]:*)
+      # A value the parse cut off (`= (gh auth token)`) is no word, where `''` is an empty one;
+      # an `''` joined to the word before it (`=''`) leaves that word's quoted flag set.
+      [[ "$w1" == *= && -z "${w[i + 1]+x}" && "${HOOK_SEG_WORD_QUOTED[i]-0}" == 0 ]] && return 0
+      [[ "$w1" != *=* && "${w[i + 1]-}" == = && -z "${w[i + 2]+x}" && "${HOOK_SEG_WORD_QUOTED[i + 1]-0}" == 0 ]] && return 0
+      bcd::ps_assign bcd::auth_token "$w1" "${w[i + 1]-}" "${w[i + 2]-}"
+      return 0
+      ;;
+    [A-Za-z_]*=*) bcd::auth_token "${w1%%=*}" "${w1#*=}" ;;
+    *)
+      cmd=$w1
+      break
+      ;;
+    esac
+    i=$((i + 1))
+  done
+  tool=${cmd##*/}
+  tool=${tool,,}
+  tool=${tool%.exe}
+  case "${tool%.cmd}" in
+  gh)
+    [[ "${w[i + 1]-}" == auth ]] || return 0
+    case "${w[i + 2]-}" in
+    switch | login | logout) bcd::auth_found "gh auth ${w[i + 2]}" ;;
+    *) ;;
+    esac
+    ;;
+  remove-item | ri | rm | del | erase | rd | rmdir)
+    [[ "$TOOL_NAME" == PowerShell ]] || return 0
+    for ((i++; i < n; i++)); do
+      w1=${w[i],,}
+      [[ "$w1" == env:gh_token || "$w1" == env:/gh_token ]] && bcd::auth_found "Remove-Item ${w[i]}"
+    done
+    ;;
+  *) ;;
+  esac
+  return 0
+}
+
+# bcd::auth_deny: the PreToolUse deny naming each account switch and GH_TOKEN
+# removal, then exit 0.
+bcd::auth_deny() {
+  local m list="" reason
+  for m in "${BCD_AUTH_DENY[@]}"; do list+="${list:+; }$m"; done
+  hook::json_escape_to reason "guardrails block-cross-domain: denied. This session's directory is in identity domain '$BCD_CWD_DOMAIN', which gives gh its own GH_CONFIG_DIR, and the command switches gh's account or removes GH_TOKEN ($list). Either one lets gh act as an account other than this session's. Ask the user to make the change. If the map is wrong, fix $BCD_MAP; to turn the guard off, set block_cross_domain_enabled to false."
+  bcd::emit_tel auth-deny blocked
+  hook::emit_document '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"'"$reason"'"}'"$BCD_NOTICE_JSON"'}'
+  exit 0
+}
+
 # bcd::write_prefilter: whether the folded command text could hold an identity
 # write: both `git` and `config`, or the last name of a listed identity file.
 bcd::write_prefilter() {
@@ -1320,9 +1467,18 @@ if [[ -n "$BCD_CWD_DOMAIN" ]] && ((${#BCD_CONF_KIND[@]})); then
   *[!a-z0-9_-]gh[!a-z0-9_-]* | *[!a-z0-9_-]az[!a-z0-9_-]*) BCD_CONFIG=1 ;;
   *) ;;
   esac
+  # AUTH SWITCHES: only from a domain with a gh config directory.
+  for ((BCD_I = 0; BCD_I < ${#BCD_CONF_KIND[@]}; BCD_I++)); do
+    [[ "${BCD_CONF_KIND[BCD_I]}" == gh && "${BCD_CONF_DOMAIN[BCD_I]}" == "$BCD_CWD_DOMAIN" ]] || continue
+    case " $BCD_SUBJECT " in
+    *[!a-z0-9_-]gh[!a-z0-9_-]* | *gh_token*) BCD_AUTH=1 ;;
+    *) ;;
+    esac
+    break
+  done
 fi
 bcd::write_prefilter && BCD_WRITES=1
-if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_WRITES == 0)); then
+if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_AUTH == 0 && BCD_WRITES == 0)); then
   # With no map this is nearly every call on every host: it leaves untraced.
   [[ -n "$BCD_MAP" ]] || exit 0
   bcd::trace prefilter-miss
@@ -1331,6 +1487,7 @@ if ((BCD_PATHS == 0 && BCD_CONFIG == 0 && BCD_WRITES == 0)); then
 fi
 ((BCD_PATHS)) && bcd::trace prefilter-hit
 ((BCD_CONFIG)) && bcd::trace config-hit
+((BCD_AUTH)) && bcd::trace auth-hit
 ((BCD_WRITES)) && bcd::trace write-hit
 
 # Identity positions are read only from a cwd in a domain, and only when the
@@ -1349,7 +1506,7 @@ if [[ "$TOOL_NAME" == Bash ]]; then
   BCD_NAMED=" "
   BCD_DENY=()
   hook::bash_parse_segments "$COMMAND" bcd::segment
-elif ((BCD_IDENTITY || BCD_CONFIG || BCD_WRITES)); then
+elif ((BCD_IDENTITY || BCD_CONFIG || BCD_AUTH || BCD_WRITES)); then
   bcd::trace identity-parse
   BCD_PATHS=0
   hook::bash_parse_segments "${COMMAND//\\//}" bcd::segment
@@ -1357,6 +1514,7 @@ fi
 ((BCD_WRITES)) && bcd::text_redirs
 ((${#BCD_WRITE_DENY[@]})) && bcd::write_deny
 ((${#BCD_IDENTITY_DENY[@]})) && bcd::identity_deny
+((${#BCD_AUTH_DENY[@]})) && bcd::auth_deny
 ((${#BCD_CONFIG_DENY[@]})) && bcd::config_deny
 
 if [[ "$BCD_NAMED" == " " ]]; then

@@ -1765,6 +1765,24 @@ else
   fail "skill limits should fail per file: $out"
 fi
 
+# --- Autonomy changelog fragments carry the plugin's fleet-token ban: release
+#     copies them into plugins/autonomy/CHANGELOG.md. ------------------------
+reset_fixture
+cp "$SCRIPT_DIR/org-agnosticism-tokens.txt" "$TMP/scripts/"
+write_manifest autonomy ''
+mkdir -p "$TMP/.changes/autonomy"
+printf -- '---\nbump: patch\n---\n\n- Fixed ([#1](https://github.com/melodic-software/x/issues/1)).\n' \
+  >"$TMP/.changes/autonomy/linked.md"
+printf -- '---\nbump: patch\n---\n\n- Fixed (#1).\n' >"$TMP/.changes/autonomy/bare.md"
+out="$(run_fixture)"
+if grep -qE '^- \.changes.autonomy.linked\.md: autonomy plugin must not name the org' <<<"$out" &&
+  ! grep -q 'bare\.md' <<<"$out"; then
+  ok "an autonomy fragment naming the org fails, and a bare issue reference passes"
+else
+  fail "an autonomy fragment naming the org should fail: $out"
+fi
+rm -rf "$TMP/.changes" "$TMP/scripts/org-agnosticism-tokens.txt"
+
 # The shipping tree itself, clean and with zero warnings, is the job of
 # scripts/validate-plugins.sh in check-catalog, which runs this validator over
 # the whole tree on every pull request; run here, it read every plugin file.

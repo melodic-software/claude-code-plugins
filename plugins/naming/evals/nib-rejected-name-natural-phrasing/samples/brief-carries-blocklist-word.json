@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Word-level blocklist: Helper (user-stated: contentless)." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Word-level blocklist: Helper (user-stated: contentless)." } },
+        { "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Word-level blocklist: helper (user-stated: contentless)." } }
+      ],
+      "why": "every generator brief carries the banned word"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "no generators" },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Name a read-only reconciler class." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Name a read-only reconciler class." } },
+        { "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Name a read-only reconciler class." } }
+      ],
+      "why": "the user-stated blocklist word never reached the brief"
+    },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Blocklist: Helper (user-stated)." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Name a read-only reconciler class." } },
+        { "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Name a read-only reconciler class." } }
+      ],
+      "why": "only one of three briefs carries it"
+    }
+  ]
+}

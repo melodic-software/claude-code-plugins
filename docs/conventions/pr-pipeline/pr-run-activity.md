@@ -438,7 +438,8 @@ starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets nei
 sentence says to leave every change uncommitted for the runner to collect; a
 `prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` and
+`plugins/skill-quality/scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
 pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on
@@ -469,7 +470,9 @@ with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-lin
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
 itself, or hand the run a power it may hold. `resolve-issue` lists no script that runs
 checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
-each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. Its check
+`scripts/check-changed-skills.sh --merge-base` runs the base copy of `check-skill.sh` over the
+skills the change touches, untracked ones included, with both of those skipped. It lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
 limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
@@ -498,7 +501,11 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 --show-toplevel` from its working directory (exit 2 outside one), writes only new
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
-`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry. The
+issue lane's checkout is detached, so in an issue lane its wrapper exports
+`CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-<n>-<run id>-<attempt>` from the run's own
+ids, and the script names a detached HEAD's fragment after it; a person's run on a branch ignores
+the variable.
 Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,

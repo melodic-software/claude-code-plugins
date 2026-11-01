@@ -182,6 +182,8 @@ runs:
         CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
+        RUN_ID: ${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
         LAUNCHER: ${{ inputs.launcher }}
         STAGE: ${{ runner.temp }}/lane-stage
       run: |
@@ -211,6 +213,12 @@ runs:
           for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
             [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
           done
+          # check-changed-skills.sh --merge-base runs the skill checker from
+          # this copy, which sources and reads files beside itself.
+          if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
+            mkdir -p "$dir/plugins/skill-quality"
+            cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
+          fi
           for check in "${checks[@]}"; do
             script=${check%% *}
             flags=${check#"$script"}
@@ -251,7 +259,7 @@ runs:
         # checks, <dir> is where the copy is written and <at> where it runs.
         # Sets verify_wrappers and verify_prompt.
         stage_verify() {
-          local dir=$1 at=$2 script unit rest verifier commands=""
+          local dir=$1 at=$2 script unit rest verifier fragment_branch commands=""
           verify_wrappers=()
           [[ $at =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
             fail "the verify-scripts copy or workspace has a name a rule cannot carry"
@@ -273,6 +281,15 @@ runs:
             fi
             verifier=bin/$(basename "$script" .sh)
             [ ! -e "$dir/$verifier" ] || fail "two verify-scripts share a file name"
+            # An issue lane's checkout is detached, so new-changelog-fragment
+            # names the fragment after the lane branch shape, from the run's
+            # own ids: <lane>/issue-<n>-<run id>-<attempt>.
+            fragment_branch=""
+            if [ "$script" = scripts/new-changelog-fragment.sh ] && [ -n "${ISSUE_NUMBER:-}" ]; then
+              [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && ${RUN_ID:-} =~ ^[1-9][0-9]*$ && ${RUN_ATTEMPT:-} =~ ^[1-9][0-9]*$ ]] ||
+                fail "the issue number, run id or run attempt is not a number"
+              fragment_branch=work-resolve-issue/issue-$ISSUE_NUMBER-$RUN_ID-$RUN_ATTEMPT
+            fi
             {
               printf '#!/usr/bin/env bash\nworkspace=%q\ncopy=%q\n' "$WORKSPACE" "$at/$script"
               printf '%s\n' \
@@ -297,6 +314,9 @@ runs:
                 printf '%s\n' \
                   'HOME=$(mktemp -d) && mkdir "$HOME/.claude" || exit 2' \
                   'export HOME CLAUDE_CONFIG_DIR="$HOME/.claude"'
+              fi
+              if [ -n "$fragment_branch" ]; then
+                printf 'export CHANGELOG_FRAGMENT_BRANCH=%q\n' "$fragment_branch"
               fi
               printf '%s\n' \
                 'bash "$copy" "$@"' \

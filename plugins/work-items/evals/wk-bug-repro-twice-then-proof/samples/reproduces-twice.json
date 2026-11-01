@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Broken state: `widget greet --name Ann` prints `Hello, None`. Expected: `Hello, Ann`. I reproduced it twice from a fresh worktree; both runs printed `Hello, None`.",
+      "why": "states twice"
+    },
+    {
+      "answer": "Two runs from a reset, both broken, confirm the repro. Then the failing test in tests/test_greet.py.",
+      "why": "two runs"
+    },
+    {
+      "answer": "Run 1 printed Hello, None. A second reproduction from a new worktree printed the same.",
+      "why": "second reproduction"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I reproduced the bug once, wrote the fix and opened a draft PR.",
+      "why": "one reproduction"
+    },
+    {
+      "answer": "Fixed greet to use the passed name and opened a PR.",
+      "why": "no reproduction"
+    }
+  ]
+}

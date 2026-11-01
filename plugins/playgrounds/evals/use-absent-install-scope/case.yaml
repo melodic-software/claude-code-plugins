@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: use-absent-install-scope
+graders:
+  - name: install-command
+    type: regex
+    pattern: '\bplugin install (?:--scope[ =]\w+ )?playground@claude-plugins-official\b'
+    flags: 'i'
+    target: last_message
+  - name: scope-guidance
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\buser\b[^\n]{0,30}\bscope\b|\bscope\b[^\n]{0,15}\buser\b))(?=[\s\S]*(?:\bproject\b[^\n]{0,30}\bscope\b|\bscope\b[^\n]{0,15}\bproject\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-html-reply
+    type: regex
+    pattern: '<!doctype html|<html\b|<input[^>]*type=["'']?range'
+    flags: 'i'
+    match: not_contains
+    target: last_message

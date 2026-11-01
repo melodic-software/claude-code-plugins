@@ -965,7 +965,9 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), `stop-resolved` (an address-feedback or fix-ci select job found
 no stop standing on its head, whether or not one ever did), `awaiting-session` (an address-feedback
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
-again), or, for an issue run under
+again), `owned-branch` (a fix-ci select job on a pull request whose head branch
+`merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
+would race the rebuild), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -2007,7 +2009,8 @@ at once goes cold together, so the step first lists every artifact page once and
 starts only when the token's core pool then has at least one cold read's worst case under the
 listing's caps (the step's own listing, 3 reads per listed FAIL, 3 incremental reads of at most 13
 pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1`
-pages, each with a top-up of at most 7: 1,623 at 7,522 artifacts and 264 FAILs) times
+pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
+1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
 read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
 An entry with a carried run cache but no carried listing pays the listing's part
@@ -2637,6 +2640,11 @@ listing there, and later candidates and their queued-entry checks read it instea
 No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
 two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
 would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
+The one exception is a candidate's `verify:missing` on the saved listing: its gate reads the head's
+two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no
+listing, and judges a pass found there with the saved listing, so a pass uploaded after that listing
+is seen in the same run. Its allow is judged again on a listing of its own like any other; a failed
+read, or no pass that counts, leaves `verify:missing`.
 A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
@@ -2648,16 +2656,25 @@ hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merg
 fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
-kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
+kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages
+around kept entries near expiry, up to a page cap, since GitHub can delete an artifact up to an hour
+before its `expires_at` (`EARLY_DELETION_LEAD`, `NEAR_EXPIRY_PAGE_CAP`). Those pages can skip an
+entry at a boundary, so an entry they omit is dropped only when its own read answers 404, up to an
+id-read cap (`NEAR_EXPIRY_ID_READ_CAP`). Any count still other than it, a missing, older or
 malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
 lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
 A whole listing is held to the same count: deduplicated by id, added to the whole listings read
 before it and checked by a top-up from the first page, since one can skip an artifact at a page
 boundary while an earlier one expires (#10486); after three whole listings that never hold the
 live count the candidate refuses `verify:unreadable`, and after the first when its top-up holds more
-than the count or does not read, which another whole listing cannot cure. A listing that fails once
+than the count or does not read, or the pages read before it held more, which another whole listing
+cannot cure. A listing that fails once
 it began a whole listing is noted beside the saved listing, and every later reader in the job
-refuses on that note without paging.
+refuses on that note without paging. An over-count is the exception to that note's limits: once the
+one whole listing an over-count takes starts paging, a later reader in the job whose pages
+over-count refuses without another, even when that listing failed transiently or on a caller's
+limit (then with the caller-limit prefix). A refusal before paging leaves that listing to the next
+reader.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run

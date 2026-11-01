@@ -158,9 +158,11 @@
 #      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
 #      blocks carrying an as-of date and a recheck trigger are exempt)
 #  30. Skill size: description above 419 chars or body above 160 lines
-#      (Pocock's measured max; his medians print as INFO), or either grown vs
-#      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
-#      skipped with an INFO when no base resolves or the skill is new)
+#      (Pocock's measured max; his medians print as INFO), SKILL.md above the
+#      5000-token router cap (estimated at 4 chars/token), or description or
+#      body grown vs CHECK_SKILL_BASE_REF, else the merge-base with origin
+#      (WARN; growth is skipped with an INFO when no base resolves or the skill
+#      is new)
 #  31. A `${user_config.KEY}` token used as the subject of a condition ("When
 #      `${user_config.x}` is true") with no inline fallback for the unexpanded
 #      token, in SKILL.md or any skill `.md` prose (FAIL where a baseline
@@ -572,6 +574,13 @@ POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
+# Check 30: the router cap, a house setting of `/playbooks:skill-authoring`
+# (`## Body`, router standard): a SKILL.md stays under this many tokens. The
+# count is an estimate, whole-file codepoints divided by ROUTER_CHARS_PER_TOKEN
+# and rounded up, the same 4 chars/token check-listing-budget.sh defaults to,
+# not a tokenizer count.
+ROUTER_TOKEN_CAP=5000
+ROUTER_CHARS_PER_TOKEN=4
 
 FAILED=0
 WARNINGS=0
@@ -2499,8 +2508,9 @@ fi
 # --- Check 30: skill size vs Pocock's measured max and the base ref (WARN) -----
 # The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
 # `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
-# not grow a skill. WARNs on a description or body above Pocock's max (see the
-# constants), and on growth of either against the base ref. The base ref is
+# not grow a skill. WARNs on a description or body above Pocock's max, on a
+# SKILL.md above the router cap (see the constants), and on growth of the
+# description or body against the base ref. The base ref is
 # CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
 # or origin/main; with neither, or for a skill new at that ref, the growth half
 # is skipped with an INFO. Never a FAIL.
@@ -2516,6 +2526,19 @@ note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock media
   warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
 ((BODY_LINES > POCOCK_BODY_MAX)) &&
   warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
+# Read from the file, not a command substitution, so trailing newlines count;
+# -c drops an invalid UTF-8 byte instead of stopping the count at it.
+if command -v iconv >/dev/null 2>&1; then
+  ROUTER_CHARS=$(($(iconv -c -f UTF-8 -t UTF-32BE <"$SKILL_MD" 2>/dev/null | wc -c) / 4))
+else
+  ROUTER_CHARS=$(($(LC_ALL=C.UTF-8 wc -m <"$SKILL_MD")))
+fi
+ROUTER_TOKENS=$(((ROUTER_CHARS + ROUTER_CHARS_PER_TOKEN - 1) / ROUTER_CHARS_PER_TOKEN))
+if ((ROUTER_TOKENS > ROUTER_TOKEN_CAP)); then
+  warn "SKILL.md is about $ROUTER_TOKENS tokens ($ROUTER_CHARS chars / $ROUTER_CHARS_PER_TOKEN), above the router cap of $ROUTER_TOKEN_CAP: move per-action detail into actions/ (/playbooks:skill-authoring, Body)"
+else
+  note "SKILL.md about $ROUTER_TOKENS/$ROUTER_TOKEN_CAP tokens (router cap)"
+fi
 
 SIZE_BASE=""
 SIZE_BASE_LABEL=""

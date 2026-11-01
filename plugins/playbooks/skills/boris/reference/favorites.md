@@ -97,7 +97,7 @@ Source: https://x.com/bcherny/status/2038454347156398333
 
 ## 52. Desktop App: Built-in Web Server Testing
 
-Desktop app bundles the ability for Claude to auto-start and test web servers in a built-in browser. You can set up similar in CLI or VSCode via Chrome extension, or just use Desktop app.
+Desktop app bundles the ability for Claude to auto-start and test web servers in a built-in browser. You can set up similar in CLI or VSCode via Chrome extension, or use Desktop app.
 
 Source: https://x.com/bcherny/status/2038454348804714642
 

@@ -641,14 +641,31 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const roundOf = q => (S.doc.rounds || []).find(x => (x.stage || "") === (q.stage || "") && x.round === (q.round || 1));
   const SWEEP = "Sweep: reconciling earlier answers";
   const sweepChip = q => (roundOf(q) || {}).kind === "sweep" ? '<span class="chip plain" title="' + SWEEP + '">Sweep</span>' : "";
-  function roundRestateCard(q){ // the round's restate, pinned above the round's first question
-    const stage = q.stage || "", round = q.round || 1, r = roundOf(q);
-    if (!r || !r.restate) return "";
-    const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
-    if (!first || first.id !== q.id) return "";
+  const roundQs = q => S.doc.questions.filter(x => (x.stage || "") === (q.stage || "") && (x.round || 1) === (q.round || 1)).sort(byIdCmp);
+  const roundHead = q => { const r = roundOf(q), first = roundQs(q)[0]; return r && r.restate && first && first.id === q.id ? r : null; }; // the round's header and index sit on its first question only
+  const single = () => (S.doc.meta || {}).questionPacing === "single";
+  function heldLine(q){ // every question of the stage still held for research, up to this round, and what each waits on
+    const held = S.doc.questions.filter(x => (x.stage || "") === (q.stage || "") && (x.round || 1) <= (q.round || 1) && stateOf(x) === "wait").sort(byIdCmp);
+    return held.length ? '<p id="roundHeld"><b>Held:</b> ' + held.map(x => refHtml(x.id) + " waiting on " + lineHtml(x.waitsOn || "research")).join("; ") + "</p>" : "";
+  }
+  function roundRestateCard(q){ // the round's restate, pinned above the round's first question, with the Held line; under single pacing every later question carries the Held line too
+    const r = roundHead(q), round = q.round || 1;
+    if (!r) { const hl = single() ? heldLine(q) : ""; return hl ? '<section class="blk roundrestate">' + hl + "</section>" : ""; }
     const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
     const head = r.kind === "sweep" ? SWEEP + " (round " + round + ")" : "Where round " + round + " starts";
-    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + mdHtml(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + mdHtml(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + heldLine(q) + "</section>";
+  }
+  function basisCell(q){ // the first sentence of the basis's first line past a bare outcome label, its inline markdown kept
+    const lines = String(q.basis || "").split("\n").map(s => s.replace(/^\s*(?:[-*>]\s*)+/, "").trim()).filter(Boolean);
+    const line = lines.find(s => !/^\**(?:basis\s*:\s*)?(?:verified|judgment)\**\s*[.:]?$/i.test(s)) || lines[0] || "";
+    return line.split(/(?<=[.!?])\s/)[0];
+  }
+  function roundIndex(q){ // closes the round's first question: one row per question asked now (a held one is on the Held line), so the user can answer by exception; single pacing has no index
+    const qs = roundHead(q) && !single() ? roundQs(q).filter(x => live(x) && !["prop", "wait"].includes(stateOf(x))) : [];
+    if (!qs.length) return "";
+    const alt = x => { const a = altsOf(x)[0]; return a ? "(" + a.key + ") " + a.text : ""; };
+    return '<section class="blk" id="roundIndex"><h4>Round index</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Q</th><th>Recommendation</th><th>Basis</th><th>Main alternative</th></tr></thead><tbody>' +
+      qs.map(x => "<tr><td>" + refHtml(x.id) + "</td><td>" + lineHtml(firstLine(x.recommendation)) + "</td><td>" + lineHtml(basisCell(x)) + "</td><td>" + lineHtml(alt(x)) + "</td></tr>").join("") + "</tbody></table></div></section>";
   }
   function reconcilesHtml(q){ // each earlier answer a sweep question reconciles, beside the question
     const ids = (q.reconciles || []).filter(id => Q[id]);
@@ -1456,7 +1473,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
       (more ? '<div class="dpanel" id="more" role="region" aria-labelledby="moreBtn"' + (moreOpen ? "" : " hidden") + ">" + more + "</div>" : "") + "</div>";
-    h += threadHtml(q);
+    h += roundIndex(q) + threadHtml(q);
     el.innerHTML = h;
     el.scrollTop = opts.top ? 0 : top;
     if (opts.animate) { el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter"); }

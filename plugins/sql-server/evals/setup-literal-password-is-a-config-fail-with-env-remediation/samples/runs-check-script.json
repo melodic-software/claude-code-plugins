@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_SKILL_DIR}/scripts/check-setup.mjs\" --config ~/sql-server/config.json --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "skill-dir form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/plugins/sql-server/skills/setup/scripts/check-setup.mjs --config /srv/sql-server/config.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "expanded form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/sql-server/config.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the config instead of running the check"
+    }
+  ]
+}

@@ -1039,6 +1039,95 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
+    def denied_in_sandbox(self, calls, trace_at=("claude-eval-ab", "out")):
+        """The clean result at two runs per arm, measurable-criterion's second
+        with-arm run scoring 0 against its sibling's 1 and denied each (tool,
+        input) in calls, its trace at <dir>/<trace_at...>/trace.jsonl. The
+        sandbox's own plugin-data directory is <dir>/claude-eval-ab/config/plugins/data."""
+        trace = self.dir.joinpath(*trace_at, "trace.jsonl")
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        entries = [
+            {"tool_name": tool, "tool_use_id": "d%d" % i, "tool_input": tool_input}
+            for i, (tool, tool_input) in enumerate(calls)
+        ]
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "result", "is_error": False, "permission_denials": entries})
+            + "\n",
+            encoding="utf-8",
+        )
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        for case in data["cases"]:
+            for name in ("with", "without"):
+                case["arms"][name].append(copy.deepcopy(case["arms"][name][0]))
+        row = data["cases"][1]["arms"]["with"][1]
+        row["tracePath"], row["score"] = str(trace), 0
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "2")
+
+    def own_data(self, *parts):
+        return str(self.dir.joinpath("claude-eval-ab", "config", "plugins", "data", *parts))
+
+    def test_a_denial_only_under_the_runs_own_plugin_data_is_a_warning(self):
+        lease = self.own_data("harness-config-inline", "runs", "ap-1", "lease")
+        for calls in (
+            [("Read", {"file_path": lease})],
+            [("Bash", {"command": "cat " + lease})],
+            [("Write", {"file_path": lease, "content": "x"}),
+             ("Read", {"file_path": self.own_data("other", "last-audit.md")})],
+        ):
+            proc = self.denied_in_sandbox(calls)
+            self.assertDenials(proc, "WARN")
+            self.assertIn("aimed only under the run's own plugin-data directory", proc.stdout)
+            self.assertIn("compare it only with runs denied the same way", proc.stdout)
+            for _, tool_input in calls:
+                target = tool_input.get("file_path") or tool_input["command"]
+                self.assertIn(
+                    "  case measurable-criterion, with-arm run 2: %s %s (" % (_, target),
+                    proc.stdout,
+                )
+
+    def test_a_mixed_run_fails_counting_only_its_other_denials(self):
+        proc = self.denied_in_sandbox([
+            ("Read", {"file_path": self.own_data("p", "lease")}),
+            ("Bash", {"command": "cat " + self.own_data("p", "state.json")}),
+            ("Read", {"file_path": "/etc/hosts"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn(
+            "FAIL (3 denials in 1 run; 2 denials under the run's own plugin-data"
+            " directory, not counted)",
+            proc.stdout,
+        )
+        self.assertIn("Read " + self.own_data("p", "lease") + " (", proc.stdout)
+
+    def test_a_denial_beside_or_outside_the_runs_own_plugin_data_is_a_fail(self):
+        sandbox = self.dir / "claude-eval-ab"
+        lease = self.own_data("p", "lease")
+        for calls, trace_at in (
+            # The rest of the run's config directory is not plugin data.
+            ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
+            ([("Bash", {"command": "ls " + str(sandbox / "config")})], None),
+            ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
+            # A Bash call with one path inside plugin data and one outside.
+            ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
+            # Another sandbox's plugin data is not this run's.
+            ([("Read", {"file_path": str(self.dir.joinpath(
+                "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),
+            # One denial in plugin data does not excuse one outside it.
+            ([("Read", {"file_path": lease}), ("Read", {"file_path": "/etc/hosts"})], None),
+            # A Skill denial, or one with no rooted path, never qualifies.
+            ([("Skill", {"skill": "harness-config:audit-pass"})], None),
+            ([("Read", {"file_path": "config/plugins/data/p/lease"})], None),
+            # A trace outside <sandbox>/out names no sandbox to read data from.
+            ([("Read", {"file_path": lease})], ("claude-eval-ab",)),
+        ):
+            proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(
@@ -1118,6 +1207,36 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
         self.assertNotIn("unfired:", proc.stdout)
+
+    def test_an_unfired_case_named_measured_fire_is_its_measured_rate(self):
+        result = self.clean()
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        path = self.write(result)
+        proc = self.run_script(path, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        proc = self.run_script(
+            path, "--runs", "1", "--measured-fire", "noise-before-gain"
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check skill fired: WARN", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertIn("measured cases fired in 0 of 1", proc.stdout)
+        self.assertNotIn("invocation probes", proc.stdout)
+        self.assertNotIn("unfired:", proc.stdout)
+
+    def test_measured_fire_leaves_other_unfired_cases_invalid(self):
+        result = self.clean()
+        result["cases"][1]["arms"]["with"][0]["graders"][1]["passed"] = False
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        proc = self.run_script(
+            self.write(result), "--runs", "1", "--measured-fire", "noise-before-gain"
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("  unfired: case measurable-criterion, with-arm run 1", proc.stdout)
+        self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
 
     def test_an_unfired_case_beside_an_unfired_probe_is_still_invalid(self):
         result = self.clean()

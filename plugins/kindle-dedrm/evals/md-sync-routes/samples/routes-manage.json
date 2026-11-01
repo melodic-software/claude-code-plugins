@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "kindle-dedrm:manage" } }], "why": "namespaced skill call" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "manage", "args": "sync" } }], "why": "bare name with args" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call: a text-only referral to /kindle-dedrm:manage fails" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "kindle-dedrm:setup" } }], "why": "same-plugin sibling" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "kindle-dedrm:setup", "args": "then kindle-dedrm:manage" } }], "why": "target named only in args" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "kindle-dedrm:manage-extra" } }], "why": "prefix collision" }
+  ]
+}

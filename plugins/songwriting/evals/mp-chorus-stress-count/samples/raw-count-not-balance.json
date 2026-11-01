@@ -44,6 +44,26 @@
     {
       "answer": "The chorus looks even, but the 8/9/9/8 count isn't what shows it: by stress it reads 4/3/4/4.",
       "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "Your syllable counts are right: 8/9/9/8. But this method measures line length in stressed syllables, and by that count the chorus is 3/4/4/3, so I wouldn't call it \"nicely balanced\" yet.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "The raw counts happen to land on the same shape as the stresses, a mirror. Syllable counts are still the wrong measure for \"balanced\", and here the stress count gives the answer.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "Your 8/9/9/8 is a raw-syllable count, and this method measures line length in stressed syllables. By stress the chorus is 3/3/4/3, so it isn't balanced the way the raw count suggests.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "The 8/9/9/8 syllable count is real, but this method doesn't measure balance in syllables. It counts stressed syllables.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "**Why the syllable count misleads:** a line's length is the number of stressed syllables, not total syllables.",
+      "why": "a with-arm reply the earlier pattern failed"
     }
   ],
   "fail": [
@@ -108,6 +128,18 @@
     },
     {
       "answer": ""
+    },
+    {
+      "answer": "This method measures line length in stressed syllables, and by that count the chorus is balanced at 4/4/4/4, just like your 8/9/9/8.",
+      "why": "names the stress measure but endorses the raw count"
+    },
+    {
+      "answer": "Stress counts are the wrong measure here; the 8/9/9/8 syllable count shows the balance.",
+      "why": "calls the stress count the wrong measure"
+    },
+    {
+      "answer": "This method measures line length in stressed syllables, and I'm not surprised the chorus is balanced at 4/4/4/4.",
+      "why": "a negation about something else before the balance claim"
     }
   ]
 }

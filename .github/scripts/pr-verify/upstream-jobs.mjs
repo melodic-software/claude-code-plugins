@@ -1,8 +1,9 @@
 // Writes JOBS_FILE, the jobs of the pr-require-checks run pr-verify.yml was
 // started by, each with its name and conclusion, for the verifier to judge
-// whether the suites that cover the changed files ran (prompt.md). It reads
-// the run's latest attempt, the one heldOnly in resolve-pr.mjs reads, with the
-// job's token. Names come from the pull request's copy of
+// whether the suites that cover the changed files ran (prompt.md). It takes
+// the run's latest attempt as resolve-pr.mjs read it for draftRun, from
+// KEPT_JOBS in RUNNER_TEMP (keptJobs), and otherwise reads it with the job's
+// token. Names come from the pull request's copy of
 // pr-require-checks.yml, so they are data, never instructions. A list that
 // cannot be read whole throws, and the job writes no verdict.
 //
@@ -17,10 +18,32 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { KEPT_JOBS, keptJobsPath, shapeJobs } from "./resolve-pr.mjs";
+
+export { KEPT_JOBS, keptJobsPath, shapeJobs };
 
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
+
+
+// The resolver's jobs for run `runId`, or null when the file is missing, is
+// for another run, or is not a job list as shapeJobs writes it.
+export function keptJobs(env, runId) {
+  const file = keptJobsPath(env);
+  let kept;
+  try {
+    kept = file && JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+  const valid =
+    RUN_ID.test(String(runId)) &&
+    kept?.run_id === Number(runId) &&
+    Array.isArray(kept.jobs) &&
+    kept.jobs.every((job) => typeof job?.name === "string" && (job.conclusion === null || typeof job.conclusion === "string"));
+  return valid ? shapeJobs(runId, kept.jobs) : null;
+}
 
 export async function upstreamJobs(github, repository, runId) {
   if (!RUN_ID.test(String(runId))) {
@@ -38,7 +61,7 @@ export async function upstreamJobs(github, repository, runId) {
       if (jobs.length !== listed.total_count) {
         throw new Error(`run ${runId} lists ${listed.total_count} jobs but ${jobs.length} were read`);
       }
-      return { run_id: Number(runId), jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null })) };
+      return shapeJobs(runId, jobs);
     }
   }
   throw new Error(`the jobs of run ${runId} have more than ${MAX_PAGES} pages`);
@@ -68,10 +91,11 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     }
   }
   const tree = readFileSync(env.HEAD_PATHS_FILE, "utf8");
-  const listed = await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, env.UPSTREAM_RUN_ID);
+  const kept = keptJobs(env, env.UPSTREAM_RUN_ID);
+  const listed = kept ?? (await upstreamJobs(github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl }), env.GITHUB_REPOSITORY, env.UPSTREAM_RUN_ID));
   const file = jobsFile(listed, tree);
   writeFileSync(env.JOBS_FILE, `${JSON.stringify(file, null, 2)}\n`);
-  console.log(`upstream-jobs: wrote ${file.jobs.length} jobs of run ${file.run_id} and ${file.wrapped_node_suites.length} Node suites test-bash runs`);
+  console.log(`upstream-jobs: wrote ${file.jobs.length} jobs of run ${file.run_id}${kept ? " as the resolver read them" : ""} and ${file.wrapped_node_suites.length} Node suites test-bash runs`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -67,6 +67,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import babysit_tracker_binding as tracker_binding
 import babysit_verify_evidence as verify_evidence
 from babysit_gh import gh_json
 from babysit_util import is_json_array, is_json_object, json_array, json_object
@@ -98,7 +99,7 @@ MAIN_PATHS = (
     "docs/conventions/pr-pipeline.yaml",
     ".claude/source-control.md",
     ".github/standards/trusted-actors/trusted-actors.json",
-    ".work-item-tracker.json",
+    *tracker_binding.PATHS,
     ".github/workflows/pr-merge.yml",
     ".github/actions/resolve-config",
     "plugins/source-control/scripts",

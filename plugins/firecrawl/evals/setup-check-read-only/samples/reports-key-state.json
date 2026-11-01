@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "| `FIRECRAWL_API_KEY` | INFO | unset |",
+      "why": "table row"
+    },
+    {
+      "answer": "- FIRECRAWL_API_KEY: **set** (value not shown)",
+      "why": "list, bold"
+    },
+    {
+      "answer": "### FIRECRAWL_API_KEY\n\nPresence: not set.",
+      "why": "heading then line"
+    },
+    {
+      "answer": "**FIRECRAWL_API_KEY**\n\nset",
+      "why": "bold heading"
+    },
+    {
+      "answer": "FIRECRAWL_API_KEY is SET.",
+      "why": "upper case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Obtain a key from the dashboard and set `FIRECRAWL_API_KEY` as an OS user environment variable.",
+      "why": "remediation only, no state"
+    },
+    {
+      "answer": "| FIRECRAWL_API_KEY | fc-3f9a8b7c |",
+      "why": "value instead of state"
+    },
+    {
+      "answer": "- FIRECRAWL_API_URL: unset",
+      "why": "a different variable"
+    },
+    {
+      "answer": "FIRECRAWL_API_KEY must be reset on the dashboard.",
+      "why": "reset is not a state"
+    }
+  ]
+}

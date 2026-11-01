@@ -661,6 +661,15 @@ export async function loadBaseAdoption(env) {
   return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base config's merge.refire-skip-branches, the same way: head branches a
+// workflow owns and rebuilds, which never get fix-ci.
+export async function loadBaseOwnedBranches(env) {
+  const { ownedBranchesFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 function wrapRunIds(base, env) {
@@ -702,6 +711,7 @@ export async function main(
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
+    loadOwnedBranches = loadBaseOwnedBranches,
     // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
     // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
@@ -724,7 +734,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, verifyCapped, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -732,9 +742,10 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, verifyCapped, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
+  const ownedBranches = await loadOwnedBranches(env);
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
@@ -791,6 +802,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       restarts: limits["fix-ci-restarts"] ?? 1,
       maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
+      ownedBranches,
       holdLabels,
       gateLabel,
       verifyCapped,

@@ -539,7 +539,6 @@ and is empty until one is made.
 | `plugins/repo-hygiene/skills/clean/scripts/scan.test.sh` | 0 | |
 | `plugins/retro-audio/scripts/audio.test.sh` | 1 | |
 | `plugins/review/hooks/connected-page-gate.test.sh` | 1 | |
-| `plugins/review/skills/audit-enforceability/scripts/emit-stubs.test.sh` | 2 | |
 | `plugins/review/skills/check/scripts/check.test.sh` | 0 | |
 | `plugins/review/skills/fanout/scripts/diff-vs-base.test.sh` | 0 | |
 | `plugins/review/skills/setup/scripts/setup-apply.test.sh` | 9 | |
