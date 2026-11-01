@@ -1829,8 +1829,19 @@ jobs:
           credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
+
       - name: Upload the skill's final reply
-        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        if: >-
+          (always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
@@ -2165,10 +2176,19 @@ jobs:
           jq --arg branch "$BRANCH" '.branch = $branch' "$OUT_DIR/lane.json" >"$OUT_DIR/lane.json.new"
           mv "$OUT_DIR/lane.json.new" "$OUT_DIR/lane.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != ''
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: |
+            ${{ runner.temp }}/work-outcome/lane.json
+            ${{ runner.temp }}/work-outcome/work-outcome.json
+
       - name: Upload the named issue outcome
         if: >-
-          inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch'
-          && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != ''
+          (inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != '') && steps.scan-upload-2.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: work-outcome-${{ inputs.issue-number }}
@@ -2231,8 +2251,17 @@ jobs:
               "dirty-tree": null
             }' >"$VERDICT_DIR/verdict.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          always()
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/verdict/verdict.json
+
       - name: Upload the verdict
-        if: always()
+        if: >-
+          (always()) && steps.scan-upload-3.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.patch-model-rung == '1' && '-rung-up' || '' }}

@@ -678,8 +678,17 @@ jobs:
         if: steps.select.outputs.refine == 'true'
         run: echo "sha256=$(sha256sum "$RUNNER_TEMP/refine-context/context.json" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.select.outputs.refine == 'true'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/refine-context/context.json
+
       - name: Upload the context
-        if: steps.select.outputs.refine == 'true'
+        if: >-
+          (steps.select.outputs.refine == 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: refine-context-${{ github.run_attempt }}
@@ -1005,9 +1014,18 @@ jobs:
             '{version: 1, issue: $issue, output: ($output | try fromjson catch null)}' \
             > "$RUNNER_TEMP/refinement/refinement.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.collect.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/refinement/refinement.json
+
       - name: Upload the refinement
         id: upload
-        if: steps.collect.outcome == 'success'
+        if: >-
+          (steps.collect.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: refinement-${{ github.run_attempt }}
@@ -1297,9 +1315,18 @@ jobs:
             '{version: 1, issue: $issue, output: ($output | try fromjson catch null)}' \
             > "$RUNNER_TEMP/refinement/refinement.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.collect.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/refinement/refinement.json
+
       - name: Upload the refinement
         id: upload
-        if: steps.collect.outcome == 'success'
+        if: >-
+          (steps.collect.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: refinement-${{ github.run_attempt }}

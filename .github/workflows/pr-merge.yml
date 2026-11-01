@@ -293,8 +293,17 @@ jobs:
       # neither runs the check again then. They download it from this run
       # only. The next run's post-merge-dispatch reads it too (the step
       # above), and reuses it while it is younger than SHARED_MAX_AGE.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.post-merge.conclusion == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/post-merge-report/
+
       - name: Keep the post-merge report for enable-auto-merge
-        if: steps.post-merge.conclusion == 'success'
+        if: >-
+          (steps.post-merge.conclusion == 'success') && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -514,8 +523,17 @@ jobs:
           echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
           echo "run-id=$id" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          steps.dispatch.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/dispatched.json
+
       - name: Record the dispatched run
-        if: steps.dispatch.outputs.run-id != ''
+        if: >-
+          (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
@@ -621,8 +639,17 @@ jobs:
           echo "{\"rerunner_run_id\":$GITHUB_RUN_ID,\"run_id\":$RUN_ID,\"attempt\":2}" >"$RUNNER_TEMP/rerun.json"
           echo "recorded=true" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          !cancelled() && steps.rerun.outputs.recorded == 'true'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/rerun.json
+
       - name: Record the re-run
-        if: "!cancelled() && steps.rerun.outputs.recorded == 'true'"
+        if: >-
+          (!cancelled() && steps.rerun.outputs.recorded == 'true') && steps.scan-upload-3.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
@@ -757,8 +784,17 @@ jobs:
             exit 0
           done <<<"$runs"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-4
+        if: >-
+          !cancelled() && steps.alert.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/alerted.json
+
       - name: Record the alert sent
-        if: "!cancelled() && steps.alert.outputs.run-id != ''"
+        if: >-
+          (!cancelled() && steps.alert.outputs.run-id != '') && steps.scan-upload-4.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
@@ -1622,8 +1658,17 @@ jobs:
       # The next run's starting point (rotation.mjs reads it), uploaded even
       # when the job is cancelled, since cursor.json is rewritten after each
       # candidate.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.gate.outcome != 'skipped'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/gate-cursor/cursor.json
+
       - name: Record where the gate stopped
-        if: always() && steps.gate.outcome != 'skipped'
+        if: >-
+          (always() && steps.gate.outcome != 'skipped') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-gate-cursor
@@ -1652,8 +1697,17 @@ jobs:
           mkdir -p "${HEAD_REFS_OUT%/*}"
           node .base/.github/scripts/pr-merge/head-ref-map.mjs write
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.head-refs.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/head-refs/head-refs.json
+
       - name: Upload them for the next run
-        if: always() && steps.head-refs.outcome == 'success'
+        if: >-
+          (always() && steps.head-refs.outcome == 'success') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1681,8 +1735,17 @@ jobs:
           mkdir -p "${LANE_RECORDS_OUT%/*}"
           node .base/.github/scripts/pr-merge/lane-records.mjs write
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          always() && steps.lane-records.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/lane-records/lane-records.json
+
       - name: Upload the lane records for the next run
-        if: always() && steps.lane-records.outcome == 'success'
+        if: >-
+          (always() && steps.lane-records.outcome == 'success') && steps.scan-upload-3.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1717,8 +1780,17 @@ jobs:
             --keys "$RUNNER_TEMP/skip-keys.json" --summary "$RUNNER_TEMP/pr-merge-summary.json" \
             --outputs-dir "$RUNNER_TEMP" --store "$RUNNER_TEMP/pr-merge-carried.json" --run-id "$GITHUB_RUN_ID"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-4
+        if: >-
+          always() && steps.carry.outputs.carried == 'true'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+
       - name: Upload the verdict reads for the next run
-        if: always() && steps.carry.outputs.carried == 'true'
+        if: >-
+          (always() && steps.carry.outputs.carried == 'true') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1805,8 +1877,17 @@ jobs:
           node .base/.github/scripts/pr-merge/sweep-summary.mjs
           jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-5
+        if: >-
+          always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+
       - name: Upload the sweep's verdicts
-        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
+        if: >-
+          (always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')) && steps.scan-upload-5.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1819,11 +1900,18 @@ jobs:
       # The gate-check job below writes each candidate's check run from these
       # rows. Not while the lane is report-only, nor after the gate's
       # rate-limit stop: that job's own stop file would not hold it.
+      - name: Scan the upload for credentials
+        id: scan-upload-6
+        if: >-
+          always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-merge-summary.json
+
       - name: Hand the gate's rows to the check writer
         id: rows
         if: >-
-          always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
-          && steps.gate.outputs.rate-limited != 'true'
+          (always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true') && steps.scan-upload-6.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1922,10 +2010,17 @@ jobs:
       # the pages since a base, holding GitHub's live count). Only a
       # scheduled or hand-started run's file is read back, so only one
       # uploads it. Rules: .github/scripts/pr-merge/listing-carry.mjs.
+      - name: Scan the upload for credentials
+        id: scan-upload-7
+        if: >-
+          always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/verify-listing.json
+
       - name: Keep the artifact listing for the next run
         if: >-
-          always() && steps.gate.outcome != 'skipped'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          (always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload-7.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -2330,10 +2425,19 @@ jobs:
       # each to expire within the hour, with the arm step's skip records. A
       # file name of its own: the merge job uploads pr-merge-head-refs. Only a
       # scheduled or hand-started run's file is read back.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: |
+            ${{ runner.temp }}/verify-answers/verify-answers.json
+            ${{ runner.temp }}/verify-answers/eam-skip.json
+
       - name: Upload the verifier answers for the next run
         if: >-
-          always() && steps.arm.outcome != 'skipped'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -2364,8 +2468,17 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.carry.outputs.kept == 'true'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+
       - name: Upload the verdict reads for the next run
-        if: always() && steps.carry.outputs.kept == 'true'
+        if: >-
+          (always() && steps.carry.outputs.kept == 'true') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -2509,6 +2622,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/log-api-budget/
+            /.github/actions/scan-upload/
+            /lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
 
       # At most one full run of main per CAP_MINUTES, each of main's tip,
@@ -2683,8 +2798,17 @@ jobs:
       # The post-merge check counts a full run started by github-actions[bot]
       # only when a pr-merge.yml run on main uploaded an artifact naming it.
       # Only this run's own steps can upload this run's artifacts.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.dispatch.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/dispatched.json
+
       - name: Record the dispatched run
-        if: steps.dispatch.outputs.run-id != ''
+        if: >-
+          (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}

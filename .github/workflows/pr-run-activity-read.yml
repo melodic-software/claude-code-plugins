@@ -2474,7 +2474,9 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             .github/actions/open-lane-output
+            .github/actions/scan-upload
             .github/lane-keys
+            lib
 
       - name: Read the scan-carrier key id
         id: key
@@ -3039,7 +3041,14 @@ jobs:
       # Only after every step above succeeded: a run that stopped before head
       # code skipped the scan and still posts its skip; a scan hit leaves no
       # verdict, which the report job reads as a failure.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/verdict/verdict.json
+
       - name: Upload the verdict
+        if: steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
@@ -3339,8 +3348,17 @@ jobs:
             '{version: 1, issue: $issue, branch: $branch, tip: $tip, output: ($output | try fromjson catch null)}' \
             >"$OUT_DIR/reuse-summary.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.summary-collect.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
+
       - name: Upload the reused branch's summary
-        if: steps.summary-collect.outcome == 'success'
+        if: >-
+          (steps.summary-collect.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

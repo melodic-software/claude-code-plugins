@@ -768,8 +768,17 @@ jobs:
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -1554,8 +1563,17 @@ jobs:
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -2312,8 +2330,17 @@ jobs:
           echo "::notice title=pr-review-main stop::reason=chunk-failed lane=$LANE pr=$PR_NUMBER; a chunk's review left no verdict, so no verdict binds and the lanes stay unbound"
           { echo "$LANE-stop=chunk-failed"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.verdict.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload
+        with:
+          path: ${{ runner.temp }}/pr-review-main-verdict/verdict.json
+
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: >-
+          (steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
