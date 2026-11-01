@@ -56,11 +56,13 @@ The ledger's `## Open-question register` is emitted the moment **any** round is 
 
 ## Gates
 
-Three gates halt this skill. They are stated here, near the top of the file, so they stay in view; the full rule is in the step each line names, and the two never differ in what they forbid.
+Five gates halt this skill. They are stated here, near the top of the file, so they stay in view; the full rule is in the step each line names, and the two never differ in what they forbid.
 
 - **The user's decisions are never synthesized.** Synthesize-directly and the Mixed path's synthesized rest resolve only codebase-resolvable facts and unambiguous conventional defaults. A decision that is genuinely the user's is asked, never folded into the Brief or captured as an assumption. Unattended, and only when the caller declares it, that decision is recorded `blocked` with arbiter `USER-RESERVED` and named as a blocker. Full rule: Step 1.5, the auto-guard and its unattended path.
 - **A gap during `lock` synthesis halts the run.** Stop and surface the gap to the user; never fudge it with a guess. `lock` confirms the problem with one question and takes its invocation as confirmation of the rest; neither exempts it from this halt. Full rule: the Action Router `lock` row and Step 1.5.
 - **The register gate runs before the contract locks.** Before persisting the contract or handing off, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md`; exit 1 and exit 2 both halt. Only a run that asked no question skips it; the acceptance-criteria coverage prompt is not a question for this purpose, and any other question is ([`context/coverage-prompt.md`](context/coverage-prompt.md)). Full rule: Step 3, "Register gate".
+- **The confirmation gate holds the contract until the user confirms.** In `me` and `auto`, the interview ends only on the user's explicit confirmation: before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and wait for that confirmation. `lock` confirms the problem with one registered question and its invocation confirms the rest; its STOP-on-gap rule still applies. Full rule: Step 3, "Confirmation gate".
+- **The Brief is cross-checked once it exists.** Immediately after writing the Brief, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure --brief <memory_dir>/<topic-slug>/PLAN.md`, plus `--surface '<data_dir>'` on a page-surface run; a non-zero exit halts. Fix a missing deferred question or heading in the Brief, never by retiring a row; exit 1 with `brief=unconfirmed` clears only after the user confirms a fresh `restate` and the Brief is exported again. A run that writes no Brief (a general session, `scope`) skips it. Full rule: Step 4, "Cross-check the Brief once it exists".
 
 ## Action Router
 

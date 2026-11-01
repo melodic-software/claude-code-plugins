@@ -1,0 +1,5 @@
+---
+type: regex
+pattern: '^#!\/usr\/bin\/env bash\n# Pins docs\/rules\.md: any edit fails this test until the pin is updated\. Re-read the change,\n# confirm the rule still holds, then re-pin with scripts\/repin\.sh ''<pin label>'' ''<why it holds>'',\n# which rewrites the sha256 literal below\.\nset -u\ngot="\$\(sha256sum docs\/rules\.md \| cut -d'' '' -f1\)"\n# \S[^\n]*\nwant="68ffbfc622141c25439c2d10b7dac78db789cf3fc4325cfc3fff0143094d83f7"\nif \[ "\$got" != "\$want" \]; then\n  echo "FAIL: rules\.md is unchanged \(the never-merge-on-red rule\) - docs\/rules\.md changed \(want \$want, got \$got\)\."\n  exit 1\nfi\necho "PASS: rules\.md is unchanged"\n(?![\s\S])'
+target: { source: file, path: tests/rules-pin.test.sh }
+---

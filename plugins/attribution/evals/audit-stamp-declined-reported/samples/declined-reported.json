@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "Declined: 1 stamp (month name form, not ISO 8601), docs/release-notes.md:5.",
+      "why": "count, reason and file"
+    },
+    {
+      "answer": "- docs/release-notes.md:5 `Verified March 2024`: month-name date, so the parser declined it.",
+      "why": "file line"
+    },
+    {
+      "answer": "| Reason | Count |\n|---|---|\n| unparsed stamp date: month name form, not ISO 8601 | 1 |",
+      "why": "declined table copied from the script"
+    },
+    {
+      "answer": "The stamp in release-notes.md could not be parsed (March 2024 has no day).",
+      "why": "could not be parsed"
+    },
+    {
+      "answer": "release-notes.md: couldn't parse `Verified March 2024`.",
+      "why": "contracted could not"
+    },
+    {
+      "answer": "**Declined (1)**\n\n- docs/release-notes.md:5 `Verified March 2024 against the vendor changelog.`",
+      "why": "decline word in the heading, file on the next line"
+    },
+    {
+      "answer": "**`docs/release-notes.md`**\n- **Lines 3-5**, the 4.x pin: cleared by all three reviewers.\n- **Line 5, stamp not checked:** `Verified March 2024 against the vendor changelog.` uses a month name instead of an ISO date (YYYY-MM-DD), so the expiry check could not read it.",
+      "why": "observed reply: file on a bold heading, reason in a bullet below"
+    },
+    {
+      "answer": "### release-notes.md\n\nThe stamp on line 5 could not be checked: it has no day.",
+      "why": "file heading, could not be checked below"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "docs/release-notes.md: Verified March 2024 is expired.",
+      "why": "guessed a date instead of declining"
+    },
+    {
+      "answer": "No stamps were declined; every date is ISO 8601.",
+      "why": "near-miss: says none declined"
+    },
+    {
+      "answer": "Checked three files; one stamp expired.",
+      "why": "silent about the declined one"
+    },
+    {
+      "answer": "1 expired, 0 declined.\n\ndocs/release-notes.md has no ISO stamp worth checking.",
+      "why": "zero declined line, file later"
+    },
+    {
+      "answer": "**`docs/release-notes.md`**\n- Line 5: `Verified March 2024` is expired.\n\nNo stamps were declined.",
+      "why": "file heading, then a guessed expiry and a none-declined line"
+    },
+    {
+      "answer": "**`docs/release-notes.md`**\n- nothing to report\n\n**`docs/cache-layout.md`**\n- stamp not checked: month name",
+      "why": "decline wording belongs to another file's heading"
+    }
+  ]
+}
