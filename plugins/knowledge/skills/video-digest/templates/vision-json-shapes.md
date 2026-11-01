@@ -33,7 +33,7 @@ Worked example, for a short last sheet whose index entry lists four cells:
 {
   "sheetId": "sheet_007",
   "reviewedAt": "2026-10-10T19:54:41Z",
-  "model": "claude-opus-5-5",
+  "model": "<model id the subagent ran on>",
   "cells": [
     { "cell": "R1C1", "frame": "scene_0421.png", "verdict": "promote-key-frame", "note": "Architecture diagram: queue, worker pool, retry topic" },
     { "cell": "R1C2", "frame": "scene_0422.png", "verdict": "duplicate", "note": "Same diagram as R1C1" },

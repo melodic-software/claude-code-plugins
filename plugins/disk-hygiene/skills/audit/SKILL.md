@@ -17,10 +17,11 @@ subcommand and nothing else, and it changes nothing in the target. A filename pa
 discovery hint, never proof that an entry is junk.
 
 This skill carries no hooks of its own. Safety rests on the plugin-level engine-gate in
-`hooks/hooks.json`, which checks every Bash or PowerShell call that names `hygiene.py`. Run no
-engine subcommand other than `scan`, no shell command that writes, moves, or deletes under the
-target, and no compound shell around an engine call. A subagent follows that contract itself, from
-the worker brief in step 2.
+`hooks/hooks.json`, which checks every Bash or PowerShell call that names `hygiene.py`. Run
+`hygiene.py` only through the Bash tool; the gate denies an engine call made through the PowerShell
+tool. Run no engine subcommand other than `scan`, no shell command that writes, moves, or deletes
+under the target, and no compound shell around an engine call. A subagent follows that contract
+itself, from the worker brief in step 2.
 
 ## 1. Bootstrap
 

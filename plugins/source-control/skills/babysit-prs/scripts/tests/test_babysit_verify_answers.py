@@ -708,6 +708,16 @@ class AnsweredTest(unittest.TestCase):
             self.written()[str(PR)]["expiresAt"], "2026-10-16T13:00:00+00:00"
         )
 
+    def test_only_a_missing_verdict_is_capped_by_the_age(self) -> None:
+        # Age turns only verify:missing into verify:too-old, so any other
+        # answer of an old pull request keeps the hour.
+        self.world.repository["pullRequest"]["createdAt"] = "2026-07-27T23:00:00Z"
+        self.fresh = MISSING | {"refusal": "verify:spec-changed"}
+        self.run_main()
+        self.assertEqual(
+            self.written()[str(PR)]["expiresAt"], "2026-10-16T13:00:00+00:00"
+        )
+
     def test_a_kept_refusal_expires_with_a_pass_artifact_at_the_head(self) -> None:
         self.world.listing.append(
             artifact(f"pr-verify-{PR}-{HEAD}-pass", 8, expires="2026-10-16T12:10:00Z")

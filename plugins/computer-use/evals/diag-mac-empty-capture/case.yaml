@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: diag-mac-empty-capture
+graders:
+  - name: environment-not-tool-bug
+    type: regex
+    pattern: '\benvironment(?:al)?\b|\bnot[\s*_]+(?:an?[\s*_]+)?(?:tool |software |plugin |computer-use )?(?:bug|defect|fault)\b|\b(?:tool|computer use) (?:isn''t|is not) broken\b|\bmachine state\b'
+    flags: 'i'
+    target: last_message
+  - name: ladder-four-rungs
+    type: regex
+    pattern: '^(?=[\s\S]*\bscreen ?savers?\b)(?=[\s\S]*(?:\b(?:un)?locked\b|\bsecure desktop\b|(?<!not )(?<!not\* )(?<!not\*\* )(?<!not a )(?<!not\* a )(?<!not\*\* a )(?<!n''t )(?<!n''t a )(?<!nor )(?<!nor a )(?<!neither )(?<!neither a )\block\b))(?=[\s\S]*(?:\b(?:asleep|sleeping|awake)\b|\b(?:go|goes|went|gone|going) to sleep\b|\bpowered (?:off|down)\b|\bdisplay (?:is |was |has )?(?:turned |gone |switched )?off\b|(?<!not )(?<!not\* )(?<!not\*\* )(?<!not a )(?<!not\* a )(?<!not\*\* a )(?<!n''t )(?<!n''t a )(?<!nor )(?<!nor a )(?<!neither )(?<!neither a )\bdisplay sleep\b|(?<!not )(?<!not\* )(?<!not\*\* )(?<!not a )(?<!not\* a )(?<!not\*\* a )(?<!n''t )(?<!n''t a )(?<!nor )(?<!nor a )(?<!neither )(?<!neither a )(?<!display )\bsleep\b))(?=[\s\S]*(?:\bauto\b|\bpinned\b|switch_display))'
+    flags: 'i'
+    target: last_message
+  - name: zoom-recaptures
+    type: regex
+    pattern: '\bre-?(?:captures|captured|capturing|capture)\b|\bfresh (?:capture|screenshot)\b|\bnew capture\b|\bnot (?:just )?a crop\b|\b(?:doesn''t|does not|not) (?:crop|crops|cropping)\b|\b(?:takes|captures) (?:its own|another|a new) (?:screenshot|capture)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-macos-probes
+    type: regex
+    pattern: '\bno (?:[\w-]+ ){0,3}(?:probes?|commands?)\b[^\n.]{0,20}\b(?:ship|ships|shipped|exist|exists|included)\b|\bunverified\b|\bun-verified\b|(?:\bnot|n''t) (?:been )?verified\b|\bno (?:\w+ ){0,2}verified\b|\bnone (?:has|have) been verified\b|\b(?:only|were) (?:been )?(?:verified|measured|tested) on Windows\b|\b(?:can''t|cannot|can not|won''t|will not|don''t|do not) (?:give|provide|offer|supply|have|ship)\b[^\n.]{0,40}\b(?:verified|tested|checked)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-system-settings
+    type: regex
+    pattern: '\bSystem (?:Settings|Preferences)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-fabricated-mac-command
+    type: regex
+    pattern: '`[^`\n]*\b(?:pmset|ioreg|osascript|caffeinate)\s+[^\s`][^`\n]*`|`[^`\n]*\bdefaults\s+(?:-currentHost\s+)?(?:read|write)\b[^`\n]*`|^[ \t]*(?:\$[ \t]+)?(?:sudo[ \t]+)?(?:pmset|ioreg|osascript|caffeinate)[ \t]+\S|^[ \t]*(?:\$[ \t]+)?(?:sudo[ \t]+)?defaults[ \t]+(?:-currentHost[ \t]+)?(?:read|write)\b|\b(?:run|use|try|type|enter|check with)\s+(?:(?:pmset|ioreg)\s+[^\s.,;:]|defaults\s+(?:-currentHost\s+)?(?:read|write)\b)'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: reads-failures-spoke
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?failure-diagnostics\.md"'
+    arm: 'with-only'
