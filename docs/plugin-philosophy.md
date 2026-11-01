@@ -1660,8 +1660,10 @@ Agent-tool spawn of an unpinned agent where the skill has resolved one.
 - **Recheck trigger:** a docs page starts covering it, or any section above changes how the flag,
   the field, or the per-call `effort` ranks, or which spawns honor the per-call `effort`.
 
-**A skill's pin reaches the subagents it dispatches.** We treat a skill's frontmatter `effort` pin
-as applying to the main turns while that skill is active and to the subagents it dispatches.
+**A skill's pin holds for the current turn and a forked subagent.** We treat a skill's frontmatter
+`effort` pin as applying to the rest of the current turn and, with `context: fork`, to the forked
+subagent, as the field's docs row scopes it. Our older probe saw a wider reach (every main turn while
+the skill was active, and every dispatched subagent); that wider reach is unproven.
 
 - **Pointer:** our probe, two headless sessions on Claude Code 2.1.285. Session
   `ec6654fe-076a-4c3d-970c-363339cb63b3` ran a throwaway plugin skill pinned `effort: high` under
@@ -1669,11 +1671,10 @@ as applying to the main turns while that skill is active and to the subagents it
   `908560cb-3f30-4157-a672-5e00112bba0a` ran without the pin and stayed at `low` throughout. The
   throwaway plugin no longer exists, so the session ids are the artifact. For the skill field, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference);
-  no docs page covers the pin's reach into dispatched subagents. The field's row now scopes the
-  pin to the rest of the current turn and, with `context: fork`, to the forked subagent.
-- **Status:** UNVERIFIED on the current CLI. The trigger below fired (seen at 2.1.316 on
-  2026-11-01) and the probe has not been re-run; until it is, treat the reach into dispatched
-  subagents as unproven.
+  its row scopes the pin to the rest of the current turn and, with `context: fork`, to the forked
+  subagent. No docs page covers a subagent dispatched without `context: fork`.
+- **Status:** the documented scope above is current. The probe's wider reach is UNVERIFIED: both
+  triggers below fired (2.1.316 and the docs row, seen 2026-11-01) and the probe has not been re-run.
 - **As of:** 2026-09-29.
 - **Recheck trigger:** the Claude Code CLI version moves past 2.1.285, or a docs page starts
   covering pin propagation to subagents.
