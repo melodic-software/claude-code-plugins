@@ -570,9 +570,10 @@ jobs:
       API_BUDGET_TOKEN: github-token
     steps:
       # The list the record check reads, from the default branch, never the
-      # PR head, the reconciler-record check and the api-budget library. A
-      # failed checkout leaves no list: ci-status is still re-run, unrecorded
-      # unless the review run is a first attempt, and no reading is logged.
+      # PR head, the reconciler-record check, the api-budget library and the
+      # upload scanner. A failed checkout leaves no list and no scanner:
+      # ci-status is still re-run, unrecorded unless the review run is a first
+      # attempt, and no reading is logged.
       - name: Check out the trusted-actors list
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -904,6 +905,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.find.outputs.record != ''
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/rerun-ci-status-record.json
