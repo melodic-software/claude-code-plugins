@@ -1029,10 +1029,12 @@ branch-cleanup:
   max-deletes-per-run: 25
 
 merge:
-  # The lane treats every PR the lanes App opened for one closing issue as
-  # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
-  # no `work-class:` label. Its merge criterion is the verifier verdict below.
-  rung: C2
+  # The rung is a pacing cap: off merges nothing without a human; merge lets
+  # the merge authority merge; merge-reviewed also needs AI review to be
+  # blocking on the local babysit lane. C2 and C3 are accepted aliases for
+  # merge and merge-reviewed. The lane reads no `work-class:` label: its merge
+  # criterion is the verifier verdict below.
+  rung: merge
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
   # The Apps whose touch holds a trust-gate path change for a person in

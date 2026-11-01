@@ -993,7 +993,7 @@
           "if": {
             "required": ["rung", "authority"],
             "properties": {
-              "rung": { "enum": ["C2", "C3"] },
+              "rung": { "enum": ["merge", "merge-reviewed", "C2", "C3"] },
               "authority": { "const": "local-babysit" }
             }
           },
@@ -1018,7 +1018,7 @@
           "if": {
             "required": ["rung", "agent-identity"],
             "properties": {
-              "rung": { "enum": ["C2", "C3"] },
+              "rung": { "enum": ["merge", "merge-reviewed", "C2", "C3"] },
               "authority": { "const": "pr-merge" }
             }
           },
@@ -1030,9 +1030,9 @@
       ],
       "properties": {
         "rung": {
-          "enum": ["off", "C2", "C3"],
+          "enum": ["off", "merge", "merge-reviewed", "C2", "C3"],
           "default": "off",
-          "description": "Pacing cap for the merge authority: off merges nothing without a human; C2 or C3 lets it merge. No work class is read; the only class-named check is the local babysit lane's untrusted-provenance hold (README.md, Merge authority)."
+          "description": "Pacing cap for the merge authority: off merges nothing without a human; merge or merge-reviewed lets it merge, and on the local babysit lane merge-reviewed also needs AI review to be blocking. C2 and C3 are accepted aliases for merge and merge-reviewed. No work class is read; the only class-named check is the local babysit lane's untrusted-provenance hold (README.md, Merge authority)."
         },
         "authority": {
           "enum": ["local-babysit", "pr-merge"],
