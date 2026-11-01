@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: setup-skip-wants-extend
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-extend-skip
+    type: regex
+    pattern: '--extend-skip\b|\bskipAppend\b'
+    target: last_message
+  - name: no-conf-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?repo-fleet-hygiene\.conf"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-conf-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?repo-fleet-hygiene\.conf"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-audit-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:repo-fleet-hygiene:)?audit"'
+    min: 0
+    max: 0
+    arm: 'both'
