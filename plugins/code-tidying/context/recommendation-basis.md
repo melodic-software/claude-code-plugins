@@ -37,4 +37,5 @@ convention, with its boundary and adopters, is
   evidence is dispatched work that returned while open items wait on the
   user, the async-round-presentation contract governs instead: the message
   ends with every open item in full, the moved one marked
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/async-round-presentation/README.md>).
+  (`docs/contracts/async-round-presentation/README.md` in the marketplace
+  repository).
