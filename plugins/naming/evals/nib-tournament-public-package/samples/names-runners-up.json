@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "Finalist: `@acme/spec-diff`. Runners-up: `@acme/spec-breaks`, `@acme/spec-guard`. Which do you want?", "why": "runners-up" },
+    { "answer": "Winner `@acme/spec-diff`; runner up `@acme/spec-breaks`.", "why": "singular, spaced" }
+  ],
+  "fail": [
+    { "answer": "Final answer: `@acme/spec-diff`. I've locked it in.", "why": "one name, no alternatives for the human" }
+  ]
+}

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: nib-misleading-name-no-apply
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: routes-name-it-better
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
+    arm: 'both'
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-source-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path"\s*:\s*"[^"]*\.(?:ts|tsx|js)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-bash-rename
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:[\s;&|(]|\\n))?(?:git\s+mv\b|mv\s+\S|sed\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*i|perl\s+-[A-Za-z]*i)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: hands-back-choice
+    type: regex
+    pattern: '\b(?:which (?:one|name|of these)|pick|choose|your call|your choice|prefer|go with)\b'
+    flags: 'i'
+    target: last_message

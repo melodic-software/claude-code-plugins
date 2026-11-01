@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: nib-blast-radius-basis
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: routes-name-it-better
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
+    arm: 'both'
+  - name: searched-call-sites
+    type: tool_used
+    tool: 'Grep'
+    input_match: 'calcTotal'
+    min: 1
+    arm: 'both'
+  - name: states-blast-radius
+    type: regex
+    pattern: '\bblast radius\b|\b(?:[1-9][0-9]*|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s+(?:[\w-]+\s+){0,2}(?:files?|references?|call[- ]?sites?|callers?|usages?|places|imports?|occurrences?)\b'
+    flags: 'i'
+    target: last_message
+  - name: basis-label
+    type: regex
+    pattern: '\bBasis\b[*_:\s]{1,6}(?:verified|judgment)\b'
+    flags: 'i'
+    target: last_message

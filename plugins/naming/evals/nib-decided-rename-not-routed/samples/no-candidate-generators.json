@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [], "why": "no subagent" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "find stale refs", "prompt": "Search the repo for every occurrence of fetchUser and report file and line.", "subagent_type": "Explore" } }], "why": "a search subagent" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Name a function that loads a user record." } }], "why": "a naming lens generator" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "names", "prompt": "Suggest better names for loadUser." } }], "why": "asks for names" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "You are one of three lenses naming a user loader." } }], "why": "plural lenses" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "Return five candidate identifiers." } }], "why": "asks for candidates" }
+  ]
+}

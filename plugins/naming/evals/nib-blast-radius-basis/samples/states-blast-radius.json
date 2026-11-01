@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "RECOMMENDED: `computeOrderTotal`. A rename touches 3 files beyond the definition: src/cart/cart.js, src/billing/invoice.js, test/total.test.js.", "why": "counted files" },
+    { "answer": "Blast radius: the definition plus seven call sites across four modules.", "why": "names the blast radius" },
+    { "answer": "Renaming it changes 8 references.", "why": "counted references" }
+  ],
+  "fail": [
+    { "answer": "RECOMMENDED: `computeOrderTotal`. It says the coupon and tax are included. Which one do you want?", "why": "no blast radius" },
+    { "answer": "Options: `totalWithTax`, `computeOrderTotal`, `priceCart`. It applies 2 discounts.", "why": "a number, but not of references" }
+  ]
+}
