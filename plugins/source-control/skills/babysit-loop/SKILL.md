@@ -182,8 +182,7 @@ Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 
 **Promotion-evidence gate (trusted seam, fail-closed).** This condition stays here, not in that
 file, because it decides whether anything merges. A PR is merge-eligible when its
 item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
-C2 at `c2-mechanical`, C2 through C4 at `c3-autonomous` and `full-autonomy` (C4 against the
-`C3-auto-merge` cell, its blocking AI review the gate); no rung admits C5. Before
+C2 at `c2-mechanical`, C2-C4 at `c3-autonomous` and `full-autonomy` (C4 on the `C3-auto-merge` cell); no rung admits C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
 lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
@@ -487,8 +486,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **C5 never merges autonomously through this loop.** Not at `full-autonomy`, the `autopilot` exception,
   or any rung name, current or future. It is the one class hold, a floor from the autonomy matrix's
   promotion contract, not a `babysit_loop_merge` value: step 3's rung partition derives it from the PR,
-  and the merge gate's one class check enforces it (`trust_refusal`). C4 is not a hold: it
-  partitions like C3, at the C3 rungs, against the `C3-auto-merge` cell.
+  and the merge gate's one class check enforces it (`trust_refusal`). C4 partitions like C3.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: it never autonomously merges a Dependabot/Renovate-class
   PR, whatever its work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.
