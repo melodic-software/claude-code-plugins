@@ -135,7 +135,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
-   `c2-mechanical`, C2 through C4 at `c3-autonomous` and `full-autonomy` (C4 against the `C3-auto-merge`
+   `c2-mechanical`, C2 through C4 at `c3-autonomous`, C1 through C4 at `full-autonomy` (C4 against the `C3-auto-merge`
    cell, so its blocking AI review is the gate; no rung admits C5). Before
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run

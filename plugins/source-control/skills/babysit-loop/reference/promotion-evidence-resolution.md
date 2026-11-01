@@ -15,7 +15,7 @@ when evidence is unavailable, untrusted, partial, or forgeable
 |---|---|---|
 | `c2-mechanical` | C2 mechanical only | `C2-auto-merge` |
 | `c3-autonomous` | C2, C3 and C4 | `C2-auto-merge`, `C3-auto-merge` (and `C3-ai-review-blocking` as a prerequisite of `C3-auto-merge`) |
-| `full-autonomy` | every class but C5 | same as `c3-autonomous` |
+| `full-autonomy` | C1 through C4 (every class but C5) | same as `c3-autonomous` |
 | `human-only` | none | none. Promotion resolution is skipped (eligible set empty) |
 
 C4 takes the `C3-auto-merge` cell, so its blocking AI review (`C3-ai-review-blocking`) is the gate;

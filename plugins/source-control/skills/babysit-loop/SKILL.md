@@ -182,7 +182,7 @@ Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 
 **Promotion-evidence gate (trusted seam, fail-closed).** This condition stays here, not in that
 file, because it decides whether anything merges. A PR is merge-eligible when its
 item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
-C2 at `c2-mechanical`, C2-C4 at `c3-autonomous` and `full-autonomy` (C4 on the `C3-auto-merge` cell); no rung admits C5. Before
+C2 at `c2-mechanical`, C2-C4 at `c3-autonomous`, C1-C4 at `full-autonomy` (C4 on the `C3-auto-merge` cell); no rung admits C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
 lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
