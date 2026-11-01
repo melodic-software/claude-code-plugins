@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q6 is still open: what happens to an event after its last failed attempt.\n\nRecorded: Q5, exponential backoff from 30 seconds. Q4 is now marked as under discussion in the ledger.\n\nOn Q4: with backoff from 30 seconds, five attempts wait 30 s, 1 min, 2 min and 4 min, so the last attempt lands about 7.5 minutes after the first. A receiver that is down for an hour misses all five, and every event sent during its deploy would end up wherever Q6 sends it.\n\nQ4: **How many delivery attempts before the sender gives up?**\nContext: the sender makes one POST today; Q5 set backoff from 30 seconds; a receiver deploy can take an hour (user, round 2).\nMy recommendation: was five attempts; now eight attempts, because on the backoff you accepted for Q5 the eighth attempt lands about 63.5 minutes after the first and covers the deploy window you described.\nOrigin: new (ours)\nBasis: verified, user, round 2 (one-hour outage), Q5 answer (backoff from 30 seconds)\nAlternatives:\n- (a) Five attempts. Gives up in under 8 minutes, so a one-hour outage dead-letters every event (origin: new (ours))\n- (b) Retry for 24 hours. Survives long outages, but holds events a day before Q6 applies (origin: new (ours))\n\nIs there something else that would change this recommendation?",
+      "why": "discusses the hour-long outage, Q4 stays under discussion and is re-asked with old, new and why, Q5 recorded, Q6 named open"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Good point. Five attempts with backoff from 30 seconds only covers about 7.5 minutes, so I'll go with ten attempts capped at 15 minutes. Recorded: Q4, ten attempts; Q5, exponential backoff from 30 seconds.\n\nNext round: Q7, who is alerted when one endpoint keeps failing?",
+      "why": "settles Q4 on the user's behalf after the discussion and drops Q6"
+    },
+    {
+      "answer": "Recorded: Q4, five attempts as recommended; Q5, exponential backoff from 30 seconds. Q6 is still open: what happens to an event after its last failed attempt?",
+      "why": "records Q4 as answered instead of discussing it"
+    }
+  ]
+}

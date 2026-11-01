@@ -72,7 +72,7 @@ const FALLBACK_READY = [
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
-const KEY_CLASS = "${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}";
+const KEY_CLASS = "${{ steps.judge.outputs.lane-class }}";
 const KEY_REPORT_IF =
   "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')";
 const SUB_REPORT_IF =
@@ -433,7 +433,6 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
           .replace(/if: \(steps\.(judge(?:-\d+|-spec)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
-          .replace(/known-failure-class: \$\{\{ steps\.(judge(?:-\d+|-spec)?)\.outputs\.lane-class == 'credit-stop' && 'rate-limit' \|\| steps\.\1\.outputs\.lane-class \}\}/, "known-failure-class: ${{ steps.$1.outputs.lane-class }}")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
           .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
@@ -587,8 +586,7 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   assert.equal(input(report, "lane"), "pr-verify");
   assert.equal(input(report, "fallback-reason"), undefined);
   // A key leg that is not clean hands nothing on, so the key job records the
-  // stop itself: a credit stop as rate-limit, the class report-lane-outcome
-  // knows for it, and auth as auth.
+  // stop itself under the leg's own class, credit-stop or auth.
   assert.equal(input(report, "known-failure-class"), KEY_CLASS);
   // A clean handoff skips this report; the subscription job, which runs
   // exactly when key-leg-clean is true, records the run with a plain lane
@@ -609,11 +607,15 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   }
 });
 
-test("every ci-workflows action is pinned to one commit", () => {
-  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@([0-9a-f]{40}) # \S.*$/gm)].map((m) => m[1]);
-  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+test("every ci-workflows action is pinned to one commit, report-lane-outcome to its own", () => {
+  const all = [...text.matchAll(/uses: melodic-software\/ci-workflows\/([^@\s]+)@([0-9a-f]{40}) # \S.*$/gm)].map((m) => ({ action: m[1], sha: m[2] }));
+  assert.equal(all.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+  const isReport = (r) => r.action.endsWith("/report-lane-outcome");
+  const refs = all.filter((r) => !isReport(r)).map((r) => r.sha);
+  const reportRefs = all.filter(isReport).map((r) => r.sha);
   assert.ok(refs.length >= 6);
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
+  assert.equal(new Set(reportRefs).size, 1, `one report-lane-outcome pin: ${[...new Set(reportRefs)].join(", ")}`);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {

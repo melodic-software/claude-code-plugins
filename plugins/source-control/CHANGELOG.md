@@ -3,6 +3,78 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.10.1] - 2026-11-01
+
+### Fixed
+
+- The pr-merge gate's verdict read (`babysit_verify_evidence.py` `Reader.evidence`, provisional) no longer refuses `verify:missing` for a pass uploaded after the run's saved artifact listing was read. When that refusal still stands on the saved listing, the reader reads the head's two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no listing. A pass found there is judged with the saved listing in memory, and an allow stays provisional, so the gate judges it again on a listing of its own that must hold the live count. A failed read, a pass whose run does not count, or none found leaves `verify:missing`. Each find prints one `babysit-late-pass` line.
+
+## [4.10.0] - 2026-11-01
+
+### Added
+
+- The pr-merge lane's verdict gate reader (`babysit_verify_evidence.py` `evidence`) now reports `supersededAtHead`: true when a counted FAIL at the head gave way under `_superseded` (a pass recorded after it and a trusted body edit or relink), false otherwise, including when the FAIL cap decided first or a read failed. pr-unblock's pass-only round reads it to resolve that FAIL's fail-note threads. The gate's decisions do not change.
+
+- `/source-control:pull-request evidence` posts one evidence comment per pull request after the verifier passes for its head, and updates it in place for a new head with `gh pr comment --edit-last --create-if-none --attach`. It attaches only the captures in the run's `publishable` list, a video only when every frame passed the masking check, in collapsed sections laid out by `templates/evidence-comment.md`, and links the CI capture artifact with its expiry or says media was not uploaded. A file outside the list, a leak-scan hit on the body, or an account that posts other comments on the PR posts nothing. When `gh` rejects `--attach` beside `--edit-last`, it deletes the earlier evidence comment and posts a new one ([#11391](https://github.com/melodic-software/claude-code-plugins/issues/11391)).
+
+- The babysit merge gate reads the `merge.rung` names `merge` and `merge-reviewed` as the rungs `C2` and `C3`, at the same rank and with the same promotion cells, in the config, `CLAUDE_LANES_MERGE_RUNG_CAP` and `--lane-rung-cap`. `C2` and `C3` stay accepted as aliases, and the gate still reports the rung by its code ([#7469](https://github.com/melodic-software/claude-code-plugins/issues/7469)).
+
+### Changed
+
+- Every D5 answer to a review finding, inline or issue-level, now carries one `<!-- d5 finding=<#> label=<LABEL> lane=<lane> -->` line per finding. Its `label` is `VALID`, `VALID-defer`, `INCORRECT`, `UNCERTAIN` or `INTENTIONAL`, so a reader can tell how each finding was answered. The own-reply filter in `review-discipline.md` §1 and in the pull-request monitor recognizes the marker, and still accepts the older classification table ([#11805](https://github.com/melodic-software/claude-code-plugins/issues/11805)).
+
+- `reference/config-resolution.md` "Drafting vs enforcement" records that commit-subject enforcement falls back to the operator's git-ignored `docs/conventions/source-control.local.yaml` `subject_pattern` where the team layer sets none, never merged with a team pattern, and that drafting does not read that file.
+
+- `babysit_merge.py` no longer says no lane acts on a `shared-copy-sources-changed` refusal: on a lanes App pull request, pr-unblock's `sync-shared-copies` activity merges the base and regenerates the copies.
+
+- `create`'s Visual evidence step no longer asks the person to drag captures into the PR description: it points at the evidence step, which attaches them ([#11391](https://github.com/melodic-software/claude-code-plugins/issues/11391)).
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+- Skill bodies and their reference, context and template files say the same rules in fewer words: filler, repeated statements and history asides are cut, while every rule, gate, threshold, command, heading and code block is kept. The commit and babysit-prs skills keep their previous text.
+
+- The babysit-prs safe-tier eval's three record graders no longer pass on an empty call record. `forge-read` now reads the stand-in's `calls.jsonl` instead of the trace. It passes only on a served `read` row other than the skill's two pre-computed reads (`gh api user`, `gh pr list`), so a failed real-`gh` call no longer counts. `no-merge-recorded` and `no-resolve-recorded` require that same row and no merge or resolve row, so an empty or missing record fails them.
+
+- The babysit merge gate and post-merge check read the work-item tracker binding through one reader, `babysit_tracker_binding.py`: the `tracker` mapping of `docs/conventions/work-items.yaml` (on the default branch, or at the base branch for the admission label), else the legacy root JSON binding when that file is absent or sets no `tracker` key. The human-gated, standards-sync and admission role labels come from it, and the skip-unchanged key covers the YAML file too.
+
+### Fixed
+
+- The babysit risk scorer now reads a quoted `secrets: inherit` (`secrets: "inherit"`, `secrets: 'inherit'`, `'secrets': inherit`) as the bare form. Such a line in a workflow now rates HIGH as `secret-exposure-review` and puts the workflow in the `gate` floor class. A quoted `id-token` key (`"id-token": write`, `'id-token': write`) now gates the workflow too ([#10943](https://github.com/melodic-software/claude-code-plugins/issues/10943)).
+
+- The pr-merge lane's verdict gate (`babysit_verify_evidence.py`) no longer counts a pr-verify FAIL whose verifier run judged a `pr-require-checks` run that started while the pull request was a draft. Such a run skips every suite, so its FAIL ("no tests ran") said nothing about the change. Before, it refused the head as `verify:fail`, later heads as `verify:earlier-fail`, and counted toward `merge.max-verify-fails` for this and other pull requests for the same issue. The FAIL is dropped only when every checks run at its head created before the verifier run ran ci-status's `Note a draft` step. Any failed or short read keeps it, and so does a step the jobs API lists empty or with no conclusion. This is the same rule resolve-pr.mjs uses.
+
+- The pr-merge lane's verdict gate (`babysit_verify_evidence.py`) now lets a pass supersede a FAIL at the same head after a trusted person fixed the pull request's body. Before, a pass that recorded the same linked issues as the FAIL never superseded it, so the gate refused the head as `verify:fail` even after pr-verify judged the fixed body and passed. Now such a pass supersedes the FAIL when the pass run was created after every FAIL there and, from the last FAIL's creation to the pass run's completion, at least one body edit falls and every body edit and issue link change was by a person on the trusted-actor list. The superseded FAIL no longer refuses `verify:fail` and still counts toward `merge.max-verify-fails`. A Bot's edit, a link change alone, or a read that fails keeps the refusal. This is the same rule resolve-pr.mjs uses.
+
+- The babysit merge gate reads a pull request's force pushes 100 at a time up to 1,000, so a pull request rebased more than 100 times no longer fails its risk gate with `force pushes: unread or past one page` on every run and never arms. A listing past 1,000, a missing cursor or a count the pages do not reach still raises.
+
+- `babysit_verify_evidence.py capped-close` takes `--reason feedback-not-converging`: it closes a lanes App pull request whose review rounds the pr-unblock lane stopped as not converging at the head, judged again from the lanes App's lane-stopped comment, and re-admits its issue for a fresh attempt, as it does at the verify cap ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+
+- The pr-verify verdict reader (`babysit_verify_evidence.py`) no longer pages three whole artifact listings when a whole listing's top-up holds more artifacts than GitHub's live count, which a further whole listing cannot cure since each one only adds ids. It refuses `verify:unreadable` after the first, as before after the third. Under-count misses, the page-boundary skips a further listing restores, keep their three reads.
+- A listing that fails after it began a whole listing is noted beside the job's saved listing, and every later reader in the job refuses on that note without paging, in the same process or another. A 5xx, network error or cut-short body that outlasts its waits is not noted, so one blip does not refuse every later candidate. A failure for want of a caller's time is not noted: when a caller's limit (`BABYSIT_VERIFY_DEADLINE_SECONDS`) cut the listing's timeout and the listing ran out of it, the refusal starts with the caller-limit detail, so pr-unblock `verify-cap.mjs` skips the round for that run, and a later reader with more time still lists. On 2026-11-01 between 08:00Z and 09:00Z, GitHub's count dropped artifacts up to an hour before the `expires_at` it listed. Each lanes merge-queue ci-status job then paged three whole listings, about 450 calls, and each pr-merge `merge` job paged them once per candidate, 825 to 1,015 calls.
+
+- The verdict gate reader (`babysit_verify_evidence.py`) settles an over-count from early deletion
+  before it falls back to a whole listing. GitHub can delete artifacts before their `expires_at`.
+  When the incremental listing or a whole listing's top-up holds more than GitHub's live count, the
+  reader first re-reads only the pages around the carried entries that expire within
+  `EARLY_DELETION_LEAD`. Those pages add every id they hold. An id inside their span that they omit
+  is dropped only when its own read answers 404 or shows it expired, because pages read one at a
+  time can skip a live entry at a boundary when an artifact above it is deleted. The re-read takes
+  at most `NEAR_EXPIRY_PAGE_CAP` (24) pages and `NEAR_EXPIRY_ID_READ_CAP` (34) id reads per listing.
+  A count it leaves unsettled, or an id read with any other answer, goes to the single whole listing
+  added in #11926, which refuses `verify:unreadable` when its top-up misses the count. An id read
+  that answers a 5xx is read again after each of `LISTING_WAITS`, as a page is; one still failing
+  then fails the read as transient, so a top-up refuses without noting a failed listing for the job.
+- An over-count now takes that whole listing at most once a job, even when its top-up comes up
+  short. Once that listing starts paging, it is noted beside the saved listing
+  (`.overcount-fallback`) with its outcome. A later reader in the job whose pages over-count then
+  refuses without another whole listing, keeping the caller-limit prefix when that listing ran out
+  of a caller's time. A refusal before paging leaves the listing to the next reader.
+- On the carried listing behind the `verify:unreadable` refusal of #11903, the re-read finished
+  incrementally in 21 page reads and 15.9 s, measured before the per-id reads were added. With
+  #11926 alone, that over-count goes to a whole listing of about 133 pages, past verify-cap's 120 s
+  limit, so it refuses (derived from the measured page count, not re-run). Each
+  `babysit-listing-miss` line also reports `region_pages`.
+
 ## [4.9.2] - 2026-11-01
 
 ### Fixed
