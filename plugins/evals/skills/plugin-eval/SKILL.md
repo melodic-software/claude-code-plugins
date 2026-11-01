@@ -286,16 +286,10 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
-   for a plugin file it could not read, so the fact belongs in the hub. A Bash denial's paths are
-   its command's absolute arguments, plus no path when it has an expansion or a relative
-   word other than a flag, or does not parse. One exception overrides that FAIL: a denial of the same named
-   call other than Skill (tool and target) in every run of its case, in both arms, is a warning, with or
-   without an absolute path, unless an absolute path it names is at, under or above the plugin's directory.
-   The environment denied it with or without the plugin, such as a user-scope read of `~/.claude/standards`. In an A/B
-   pass, gate each version's result file. Any other denial, in either arm, is a warning only when its case has
-   denial-free runs in that arm and its run scored the same as each; otherwise it is a FAIL. A run at 0 turns
-   whose trace holds assistant messages ran a slash-invoked `context: fork` skill in a forked session, and the
-   gate lists it under `session started` without failing it. An invocation probe's denial of a named call other than Skill is a warning when it follows the graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the gate prints each probe case's fire counts with and without denials.
+   for a plugin file it could not read, so the fact belongs in the hub. The exceptions (a denial the
+   environment makes in both arms, such as a user-scope read of `~/.claude/standards`), a Bash
+   denial's paths, gating an A/B pass, and a slash-invoked `context: fork` run at 0 turns, which is
+   not failed: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
