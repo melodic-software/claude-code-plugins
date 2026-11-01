@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "After you quit Kindle, re-enable the firewall block.", "why": "skill wording" },
+    { "answer": "Your firewall rule is off (`False`); put it back on with `firewall.ps1 -Action enable`.", "why": "wrapper enable" },
+    { "answer": "Run `Enable-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)'` from an elevated prompt.", "why": "raw cmdlet" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Delete the installer and keep syncing with the firewall off.", "why": "leaves the block down" },
+    { "answer": "Disable the firewall block again if the book still fails.", "why": "lowers it further" }
+  ]
+}

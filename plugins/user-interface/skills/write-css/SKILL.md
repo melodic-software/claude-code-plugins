@@ -1,5 +1,5 @@
 ---
-description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win, and asking when no token fits instead of inventing one. Use when: 'write the CSS for', 'style this component', 'add a variant to this stylesheet', 'restyle this page', 'review this CSS'."
+description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win, and asking when no token fits instead of inventing one. Use when: 'write the CSS for', 'style this component', 'fix this layout in the stylesheet', 'add a variant to this stylesheet', 'restyle this page', 'review this CSS'."
 argument-hint: "[review] [--no-lint] [--show-suppressed] [--target <query>] [what to style or review]"
 user-invocable: true
 disable-model-invocation: false

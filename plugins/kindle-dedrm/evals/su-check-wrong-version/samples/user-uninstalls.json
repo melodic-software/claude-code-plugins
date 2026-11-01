@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "Uninstall it yourself: Settings → Apps → Amazon Kindle → Uninstall.", "why": "workflow wording" },
+    { "answer": "The skill never auto-uninstalls Kindle; that step is yours.", "why": "never auto-uninstalls" },
+    { "answer": "You'll need to uninstall 2.9.1 before running apply.", "why": "you uninstall" },
+    { "answer": "I **can't** uninstall it from here, and check is read-only.", "why": "bold can't" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "I'll uninstall it for you now with winget.", "why": "agent uninstalls" },
+    { "answer": "Run apply and it will replace 2.9.1 with 2.8.0.", "why": "implies apply replaces it" }
+  ]
+}
