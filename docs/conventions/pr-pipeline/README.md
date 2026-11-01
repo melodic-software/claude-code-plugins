@@ -3177,7 +3177,10 @@ refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
+number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
+still closes. A sub-issue closed as not planned, as a duplicate or with no reason
 leaves the parent open. A split record covers the done-when when its parts number every item and
 match the filed sub-issues; a split by hand when its body has a task list whose open items each
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
@@ -3274,6 +3277,7 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
+| `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
