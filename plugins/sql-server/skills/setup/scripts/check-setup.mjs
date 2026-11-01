@@ -19,8 +19,8 @@ export const DEPENDENCIES = ['tedious', '@azure/identity'];
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const shellQuote = (text) => (/^[\w@%+=:,./-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`);
 
-// install-server.mjs writes this manifest last, after npm ci succeeds, so its
-// presence marks a finished copy.
+// install-server.mjs swaps a copy in only after npm ci succeeds there, so the
+// manifest's presence marks a finished copy.
 export const installedVersion = (serverDir) => {
   const manifest = join(serverDir, '.claude-plugin', 'plugin.json');
   if (!existsSync(manifest)) return undefined;
@@ -38,8 +38,7 @@ function credentialVariables(auth) {
   return auth.type === 'sql-login' ? [auth.user.env, auth.password.env] : [];
 }
 
-// The variables reach the server as ${NAME} references the client expands at
-// launch, so the stored registration holds no credential value.
+// Credentials are registered as ${NAME} references, never as values.
 export function registrationCommand({ environment, configPath, serverDir, auth }) {
   const envFlags = credentialVariables(auth).map((name) => `--env ${shellQuote(`${name}=\${${name}}`)}`);
   return [

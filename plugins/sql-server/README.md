@@ -17,9 +17,9 @@ is off by default.
 3. Run `/sql-server:setup check --config <path>`, then `/sql-server:setup apply --config <path>`.
    `apply` installs the server into the plugin's data directory, which keeps its path across
    plugin updates, and prints one `claude mcp add` command per environment, which it runs once you
-   confirm. The command names each credential as `--env 'NAME=${NAME}'`, a reference Claude Code
-   expands when it starts the server, so the stored registration holds no secret. Project scope is
-   refused, because the agent can write the repository's `.mcp.json`.
+   confirm. The command names each credential by reference, `--env 'NAME=${NAME}'`, never by
+   value, and `apply` reads each registration back to confirm it. Project scope is refused, because
+   the agent can edit the repository.
 
 The check is a script you can run on its own. From a checkout of this repository:
 

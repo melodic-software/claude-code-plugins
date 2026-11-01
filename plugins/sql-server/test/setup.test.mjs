@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -110,5 +110,30 @@ describe('check-setup.mjs', () => {
   it('refuses a missing --config or an empty --data-dir as a usage error', () => {
     assert.equal(check().status, 2);
     assert.equal(check('--config', writeConfig('usage.json', examples[0].text), '--data-dir', '').status, 2);
+  });
+});
+
+describe('install-server.mjs', () => {
+  it('leaves the live server copy untouched when npm ci fails', { skip: process.platform === 'win32' }, () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'sql-server-setup-data-'));
+    const bin = mkdtempSync(join(tmpdir(), 'sql-server-setup-bin-'));
+    try {
+      const live = join(dataDir, 'server');
+      mkdirSync(join(live, '.claude-plugin'), { recursive: true });
+      writeFileSync(join(live, '.claude-plugin', 'plugin.json'), JSON.stringify({ version: '0.0.1' }));
+      writeFileSync(join(bin, 'npm'), '#!/bin/sh\nexit 1\n');
+      chmodSync(join(bin, 'npm'), 0o755);
+      const run = spawnSync(process.execPath, [pluginFile('skills/setup/scripts/install-server.mjs'), '--data-dir', dataDir], {
+        encoding: 'utf8',
+        env: { PATH: `${bin}:${process.env.PATH}` },
+      });
+      assert.equal(run.status, 1);
+      assert.match(run.stderr, /is unchanged/);
+      assert.equal(JSON.parse(readFileSync(join(live, '.claude-plugin', 'plugin.json'), 'utf8')).version, '0.0.1');
+      assert.equal(existsSync(join(live, 'src')), false);
+    } finally {
+      rmSync(dataDir, { recursive: true, force: true });
+      rmSync(bin, { recursive: true, force: true });
+    }
   });
 });

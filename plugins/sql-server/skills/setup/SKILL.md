@@ -69,9 +69,10 @@ Modify nothing in `check`.
    `installed:` or `unchanged:` and exits 0; on exit 1, report its error and stop.
 3. **Register.** Rerun `check` and show each `register <environment>` row's command. Each one
    registers `sql-<environment>` at user scope; the name is yours to change, and so is `--scope
-   local`. Refuse `--scope project`: it writes the repository's `.mcp.json`, which the agent can
-   edit. Each `--env 'NAME=${NAME}'` stores a reference that Claude Code expands when it starts the
-   server, so the stored registration holds no credential. The commands are for a POSIX shell.
+   local`. Refuse `--scope project`: a registration lives only where the agent cannot edit it, and
+   the repository is not such a place. Credentials are registered by reference (`--env
+   'NAME=${NAME}'`), never by value; the `claude mcp get` readback below and the grants call in
+   `check` step 4 are what confirm a credential arrived. The commands are for a POSIX shell.
    Skip an environment whose registration row already shows the same command and arguments, and
    report it as already in place; when that row shows different ones, show both and leave the
    change to the user. Run each other command only after the user confirms it (ADR 0086 section 3
@@ -92,5 +93,12 @@ was skipped or refused, and each FAIL with its remediation.
 - Never write a config file, a credential, or a project-scope registration.
 - Never print a credential value; the scripts print variable names only.
 - Never create or alter a database principal or grant: those stay with the database owner.
-- Writes only `${CLAUDE_PLUGIN_DATA}/server` and, after confirmation, the user's own MCP
-  registrations.
+- Writes only `${CLAUDE_PLUGIN_DATA}/server` (built in `server.next` and swapped in) and, after
+  confirmation, the user's own MCP registrations.
+
+## Upstream record
+
+- MCP scopes and environment variable expansion in registrations:
+  <https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json>, as of
+  2026-11-01. Recheck when Claude Code changes how `claude mcp add --env` stores a value or which
+  scopes expand `${VAR}`, or when a readback shows a literal `${NAME}` reaching the server.
