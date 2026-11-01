@@ -2,13 +2,10 @@
   "skill": "speech:check",
   "plugin": "speech",
   "skill_dir": "plugins/speech/skills/check",
-  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are speech:narrate (turning a script into narration.wav and words.json with the kokoro or elevenlabs backend), speech:setup (user-invoked only; downloading the pinned Kokoro model files and setting up text to speech, a rival for setup and download wording), harness-ops:prerequisites (a fleet-wide report of external tools every enabled plugin declares), knowledge:check (whether yt-dlp, ffmpeg, ImageMagick and the other knowledge-plugin tools resolve) and explainer-video:produce (rendering a narrated ManimCE explainer video). check owns a read-only report of the speech plugin's own text-to-speech prerequisites (Python 3.12+, Node.js, espeak-ng, numpy and onnxruntime, the Kokoro model files), each missing one with its remedy, installing nothing.",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are same-plugin siblings only: speech:narrate (turning a script into narration.wav and words.json with the kokoro or elevenlabs backend) and speech:setup (user-invoked only; downloading the pinned Kokoro model files and setting up text to speech, a rival for setup and download wording). check owns a read-only report of the speech plugin's own text-to-speech prerequisites (Python 3.12+, Node.js, espeak-ng, numpy and onnxruntime, the Kokoro model files), each missing one with its remedy, installing nothing.",
   "competitors": [
     "speech:narrate",
-    "speech:setup",
-    "harness-ops:prerequisites",
-    "knowledge:check",
-    "explainer-video:produce"
+    "speech:setup"
   ],
   "queries": [
     {

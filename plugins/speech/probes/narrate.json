@@ -2,16 +2,10 @@
   "skill": "speech:narrate",
   "plugin": "speech",
   "skill_dir": "plugins/speech/skills/narrate",
-  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are speech:check (a read-only report of missing text-to-speech prerequisites), speech:setup (user-invoked only; downloading the Kokoro model and setting up text to speech), explainer-video:produce (a whole ManimCE explainer video, narrated when the speech plugin is installed), playwright:demo-video (a produced PR demo video of a web UI flow, with optional narration), knowledge:video-digest (fetching the transcript of an existing YouTube or X video, the near-miss of transcribing existing audio), retro-audio:music (a chiptune loop rendered from MML), retro-audio:sfx (a retro sound effect) and songwriting:suno (Suno prompts and tagged lyrics for sung vocals). narrate owns turning a script or text into narration.wav plus words.json word timings, with the local kokoro backend or the optional third-party elevenlabs backend behind a quota go-ahead.",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are same-plugin siblings only: speech:check (a read-only report of missing text-to-speech prerequisites) and speech:setup (user-invoked only; downloading the Kokoro model and setting up text to speech). narrate owns turning a script or text into narration.wav plus words.json word timings, with the local kokoro backend or the optional third-party elevenlabs backend behind a quota go-ahead; transcribing existing audio is the near-miss it excludes.",
   "competitors": [
     "speech:check",
-    "speech:setup",
-    "explainer-video:produce",
-    "playwright:demo-video",
-    "knowledge:video-digest",
-    "retro-audio:music",
-    "retro-audio:sfx",
-    "songwriting:suno"
+    "speech:setup"
   ],
   "queries": [
     {
