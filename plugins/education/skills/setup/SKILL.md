@@ -115,6 +115,12 @@ Report a PASS/INFO/WARN table. Write nothing.
    "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" explain_starting_rung=peer
    ```
 
+   Pass a key the operator accepts at the plugin default as `--default <key>` instead of
+   `<key>=<value>`, so a later change to that default reaches it; `<key>=<value>` records the
+   team's choice, which the script never changes. The script also records `written_against` and
+   `provenance:`, so a file with no record, or one written against another plugin version, shows a
+   diff even when no value changes.
+
    The script writes only the keys named on the command line and keeps every other line of an
    existing file. It validates the existing file first, and over it fixes only a value that is
    outside the key's list, empty or null. It refuses with one line, exits 1 and leaves the file

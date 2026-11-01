@@ -64,6 +64,12 @@ Report a PASS/INFO/WARN table. Do not write anything.
    node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" "proof_level=live" "live_workers=3"
    ```
 
+   Pass a key the operator accepts at the plugin default as `--default <key>` instead of
+   `<key>=<value>`, so a later change to that default reaches it; `<key>=<value>` records the
+   team's choice, which the script never changes. The script also records `written_against` and
+   `provenance:`, so a file with no record, or one written against another plugin version, shows a
+   diff even when no value changes.
+
    The script checks each value against the schema (`live_workers` takes an unquoted whole number
    of at least 1, so `0`, `1.5` and `'2'` are refused), refuses a key given twice, validates the
    existing file, and validates the whole resulting document before it writes. In the existing file
