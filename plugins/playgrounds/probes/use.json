@@ -1,0 +1,22 @@
+{"skill":"playgrounds:use","plugin":"playgrounds","skill_dir":"plugins/playgrounds/skills/use","ranking_note":"Authored blind from the before description, frozen before any description rewrite; protocol per /playbooks:skill-authoring ## Measurement. This is the plugin's only skill, so there is no same-plugin competitor; the near-miss negatives test quietness.","competitors":[],"queries":[
+{"id":"pos-train-01","split":"train","expect_trigger":true,"request":"I want a little HTML page with sliders for the easing curve control points and a live view of the motion. When I'm happy with it, it should give me text I can paste back to you."},
+{"id":"pos-train-02","split":"train","expect_trigger":true,"request":"Can you set up Anthropic's playground plugin from their marketplace? I don't think it's installed for Claude Code in this repo."},
+{"id":"pos-train-03","split":"train","expect_trigger":true,"request":"Build me a page where I can go through the design doc section by section, mark each one approve or reject with a comment, and then get a summary prompt back."},
+{"id":"pos-train-04","split":"train","expect_trigger":true,"request":"I'm balancing damage, cooldown and mana cost for the new spells. Give me something with knobs so I can see the DPS numbers shift as I drag them."},
+{"id":"pos-train-05","split":"train","expect_trigger":true,"request":"I'm in a cloud session, so no browser will pop up on my end. I still want the interactive tuner for the color palette; how do I get the file onto my laptop?"},
+{"id":"pos-train-06","split":"train","expect_trigger":true,"request":"Is the playground skill even present in this setup? If not, print the commands I need to run to add it."},
+{"id":"pos-train-07","split":"train","expect_trigger":true,"request":"Do you have tested prompt recipes for getting good results out of the playground skill? Mine keep coming out cluttered."},
+{"id":"pos-val-01","split":"validation","expect_trigger":true,"request":"Let me play with the debounce delay, retry backoff and batch size and watch a simulated request timeline update as I change them."},
+{"id":"pos-val-02","split":"validation","expect_trigger":true,"request":"Spin up a single-file explorer for our CSS grid layout options so I can toggle columns and gaps, then copy the result out as a prompt."},
+{"id":"pos-val-03","split":"validation","expect_trigger":true,"request":"What are the known limitations of the playground skill when I run it in a remote session?"},
+{"id":"neg-train-01","split":"train","expect_trigger":false,"request":"Draw a mermaid sequence diagram of the login flow we just talked through."},
+{"id":"neg-train-02","split":"train","expect_trigger":false,"request":"Make a bar chart of the test failure counts we listed above, grouped by suite."},
+{"id":"neg-train-03","split":"train","expect_trigger":false,"request":"Give me three different layouts for our settings page in the actual app so I can compare them and keep one."},
+{"id":"neg-train-04","split":"train","expect_trigger":false,"request":"Mock up a few variants of the pricing card in our React app with a floating switcher to flip between them."},
+{"id":"neg-train-05","split":"train","expect_trigger":false,"request":"Which visual form would best show the comparison between these three database options we just discussed?"},
+{"id":"neg-train-06","split":"train","expect_trigger":false,"request":"Install the eslint plugin for React hooks and add it to our lint config."},
+{"id":"neg-train-07","split":"train","expect_trigger":false,"request":"Write a unit test for the range slider component's onChange handler in our design system."},
+{"id":"neg-val-01","split":"validation","expect_trigger":false,"request":"Prototype the refund state machine as a terminal app so I can step through awkward event sequences."},
+{"id":"neg-val-02","split":"validation","expect_trigger":false,"request":"Turn these notes into a slide deck for Friday's team talk."},
+{"id":"neg-val-03","split":"validation","expect_trigger":false,"request":"Review this PR for accessibility problems in the new color picker component."}
+]}

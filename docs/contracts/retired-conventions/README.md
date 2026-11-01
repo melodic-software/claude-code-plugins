@@ -231,8 +231,11 @@ the prerequisite, and the setup's overall result cannot be PASS.
 A plugin's setup `evals/evals.json` carries **one eval case per record id** in its manifest,
 covering the detect-hit path (a fixture repo with the leftover present yields the row) and the clean
 path (`--clean <id>` removes exactly that artifact and a re-run is clean; for `migrate`, that
-`--clean` without `--i-migrated` refuses). The validator fails a plugin whose manifest has a record
-with no matching eval. The eval is what turns "we retired X" from a claim into a probe a reviewer
+`--clean` without `--i-migrated` refuses). The validator (`scripts/validate-plugin-contracts.mjs`)
+reads only that `skills/setup/evals/evals.json` file and fails a plugin whose manifest has a record
+with no matching eval there; a plugin suite case does not satisfy it yet, so these cases stay in
+that file even though new eval cases elsewhere use the suite format (`case.yaml`, checked with
+`/evals:validate`). The eval is what turns "we retired X" from a claim into a probe a reviewer
 can run; it costs minutes at authoring time and is the coverage the prose-only alternative could
 never offer.
 

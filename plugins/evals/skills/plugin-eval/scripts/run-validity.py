@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
-    run-validity <aggregate-result.json> --runs N [--scaffolded]
+    run-validity <aggregate-result.json> --runs N [--scaffolded] [--measured-fire CASE]...
 
 --runs is the run count the eval was invoked with (its --runs, else the case
 default). --scaffolded records that the eval was invoked with --scaffold, which
-the result file does not record. Reads the result file, each case's case.yaml,
+the result file does not record. --measured-fire names a should-trigger case
+whose firing is the quantity a comparison measures, such as the base side of a
+change that makes a skill fire; the skill-fired check reports its misses as a
+measured rate, as for an invocation probe, and every other check is unchanged. Reads the result file, each case's case.yaml,
 and, where each run's tracePath resolves, the kept trace (`--keep-temp`). A
 relative tracePath or suite root is read relative to the result file. Prints
 one line per check, detail lines indented under it:
@@ -41,7 +44,15 @@ one line per check, detail lines indented under it:
                       other than Skill (tool and target) with no absolute path
                       at, under or above the plugin's directory, since the
                       environment then denied it with or without the plugin,
-                      such as a user-scope read of ~/.claude. Otherwise a
+                      such as a user-scope read of ~/.claude. A denial of a
+                      named call other than Skill aimed only under the run's
+                      own plugin-data directory (<sandbox>/config/plugins/data,
+                      CLAUDE_PLUGIN_DATA), which the sandbox denies to any
+                      skill that persists state, is always a warning and is
+                      set aside before the rules here judge the run's other
+                      denials, so it never counts toward a FAIL; the run's
+                      score was taken under it, so compare it only with runs
+                      denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -53,8 +64,9 @@ one line per check, detail lines indented under it:
                       held; a should-fire miss with a denial takes the rules
                       above
     skill fired       every with-arm run of a should-trigger case fired the skill;
-                      in an invocation-probe case a miss is the trigger rate it
-                      measures, reported per case and overall as a warning
+                      in an invocation-probe case, or one named by
+                      --measured-fire, a miss is the trigger rate it measures,
+                      reported per case and overall as a warning
     probe tools       no invocation-probe run's session could call Read, Glob,
                       Grep or Agent, which the emitted README removes with
                       --disallow-tools; one that could is a warning naming that
@@ -143,6 +155,8 @@ TRACE_RESULT = "result"  # type of the closing line
 TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
+# A run's plugin-data directory (CLAUDE_PLUGIN_DATA), under its sandbox, beside out/.
+SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
 MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
@@ -906,6 +920,45 @@ def in_every_run(run, found, runs, roots):
     return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
 
 
+def own_data_dir(run):
+    """The run's own plugin-data directory, <sandbox>/config/plugins/data, for a
+    trace at <sandbox>/out/trace.jsonl; None for a trace anywhere else."""
+    if not run.trace_path:
+        return None
+    out = os.path.dirname(os.path.realpath(run.trace_path))
+    if os.path.basename(out) != "out":
+        return None
+    return os.path.join(os.path.dirname(out), *SANDBOX_PLUGIN_DATA)
+
+
+def under(path, directory):
+    """True when path is rooted and at or under directory, symlinks resolved."""
+    if not rooted(path) or "\0" in path:
+        return False
+    path, directory = os.path.realpath(path), os.path.realpath(directory)
+    try:
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:
+        return False
+
+
+def own_data_denial(run, denial):
+    """True when the denial names a call other than Skill whose every target path
+    is under the run's own plugin-data directory. The eval sandbox keeps that
+    directory, where CLAUDE_PLUGIN_DATA points, out of reach, so a skill that
+    persists state is denied there in every run whatever it does; no case or
+    skill change can avoid it. A denial elsewhere in the run's config directory,
+    or with no rooted path, never qualifies."""
+    _, paths, name, _, _ = denial
+    data = own_data_dir(run)
+    return (
+        bool(data)
+        and name not in (None, SKILL_TOOL)
+        and bool(paths)
+        and all(under(p, data) for p in paths)
+    )
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -953,18 +1006,27 @@ def probe_split(case, runs, found, root):
 
 def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
-    found = {r: denials(r) for r in traced}
-    denied = [r for r in traced if found[r]]
+    every = {r: denials(r) for r in traced}
+    # Plugin-data denials are environment: they warn and never count toward a FAIL,
+    # so every other rule judges a run on the denials left.
+    found = {r: [d for d in every[r] if not own_data_denial(r, d)] for r in traced}
+    denied = [r for r in traced if every[r]]
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, runs, root)
+        if not found[r]
+        or probe_denial(r, found, runs, root)
         or same_as_clean(r, found, runs, roots)
         or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _, _ in found[r]]
+    details = [line for r in denied for line, _, _, _, _ in every[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
+    set_aside = sum(len(every[r]) - len(found[r]) for r in denied)
+    if set_aside:
+        summary += "; %s under the run's own plugin-data directory, not counted" % plural(
+            set_aside, "denial"
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -978,7 +1040,11 @@ def check_denials(runs, roots, root):
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
             " plugin; or a run denied only named calls other than Skill that every"
-            " run of its case was denied in both arms, none inside the plugin): %s"
+            " run of its case was denied in both arms, none inside the plugin; and"
+            " any named call other than Skill aimed only under the run's own"
+            " plugin-data directory, which never counts toward a FAIL; a run's score"
+            " was taken under such a denial, so compare it only with runs denied the"
+            " same way): %s"
             % ", ".join(warned_cases)
         )
     if failed:
@@ -1011,9 +1077,9 @@ def check_denials(runs, roots, root):
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 
 
-def check_fired(cases, runs, root):
+def check_fired(cases, runs, root, measured_fire=frozenset()):
     unfired, unread, controls, unknown, checked = [], [], [], [], 0
-    measured = {}  # invocation-probe case name -> [fired, with-arm runs]
+    measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
     for case in cases:
         requiring, _ = skill_graders(case, root)
         if is_control(case, root):
@@ -1022,7 +1088,7 @@ def check_fired(cases, runs, root):
         if not requiring:
             unknown.append(case.get(CASE_NAME))
             continue
-        probe = is_probe(case, root)
+        probe = is_probe(case, root) or case.get(CASE_NAME) in measured_fire
         for r in runs:
             if r.case is not case or r.arm != "with":
                 continue
@@ -1047,10 +1113,11 @@ def check_fired(cases, runs, root):
         notes.append("no skill-fired grader, so not checked: %s" % ", ".join(unknown))
     fired = sum(f for f, _ in measured.values())
     probed = sum(n for _, n in measured.values())
+    label = "measured cases" if set(measured) & measured_fire else "invocation probes"
     if measured:
         notes.append(
-            "invocation probes fired in %d of %s, the measured rate, not gated"
-            % (fired, plural(probed, "with-arm run"))
+            "%s fired in %d of %s, the measured rate, not gated"
+            % (label, fired, plural(probed, "with-arm run"))
         )
     rates = [
         "measured: case %s fired in %d of %s" % (name, f, plural(n, "with-arm run"))
@@ -1060,7 +1127,7 @@ def check_fired(cases, runs, root):
     tail = ("; " + "; ".join(notes)) if notes else ""
     fired_in = "fired in %s" % plural(checked, "with-arm run")
     if measured and not checked:
-        fired_in = "no should-trigger case outside the invocation probes"
+        fired_in = "no should-trigger case outside the %s" % label
     if unfired:
         return (
             FAIL,
@@ -1085,7 +1152,7 @@ def check_fired(cases, runs, root):
             fired_in + tail,
             rates,
             (
-                "invocation probes fired in %d of %s" % (fired, plural(probed, "run"))
+                "%s fired in %d of %s" % (label, fired, plural(probed, "run"))
                 if rates
                 else None
             ),
@@ -1322,6 +1389,13 @@ def main(argv=None):
         action="store_true",
         help="the eval was invoked with --scaffold",
     )
+    parser.add_argument(
+        "--measured-fire",
+        action="append",
+        default=[],
+        metavar="CASE",
+        help="a should-trigger case whose firing is the quantity compared (repeatable)",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -1383,7 +1457,7 @@ def main(argv=None):
     later = [
         ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots, root)),
-        ("skill fired", check_fired(cases, runs, root)),
+        ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),

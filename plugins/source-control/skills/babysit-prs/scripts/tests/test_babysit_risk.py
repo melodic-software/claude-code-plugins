@@ -22,6 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy
 import babysit_risk
+import babysit_tracker_binding
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
@@ -293,7 +294,7 @@ class HighReasonTests(unittest.TestCase):
         # generated copies hold; here the count of each class.
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 19, "gate": 50, "enforcement": 50},
+            {"trust": 19, "gate": 50, "enforcement": 51},
         )
         self.assertEqual(
             FLOOR.high,
@@ -1300,7 +1301,7 @@ class LanePathFloorTests(unittest.TestCase):
             "scripts/x.sh",
             "lib/x.sh",
             ".gitleaks.toml",
-            ".work-item-tracker.json",
+            babysit_tracker_binding.LEGACY_PATH,
             ".node-version",
             ".python-version",
             ".gitattributes",
@@ -2295,7 +2296,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 50)
+        self.assertEqual(len(FLOOR.review), 51)
         for glob in FLOOR.review:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
