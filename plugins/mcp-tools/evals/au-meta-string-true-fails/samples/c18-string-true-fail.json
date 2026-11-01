@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | Declared as the string \"true\" |",
+      "why": "row"
+    },
+    {
+      "answer": "approve_refund fails C18: `anthropic/requiresUserInteraction` is the string \"true\", so Claude Code ignores it.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C18 requiresUserInteraction | OPINION | PASS | set to true |",
+      "why": "pass"
+    },
+    {
+      "answer": "| C6 Every parameter has a description | ANTHROPIC | FAIL | |",
+      "why": "other criterion"
+    }
+  ]
+}

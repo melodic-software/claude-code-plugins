@@ -147,7 +147,7 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   connection.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
   `<skill-dir>/scripts/<name>`. `scripts/check-spoke-plugin-root.sh` gates the plugin-root
-  variable in this marketplace.
+  and skill-dir variables in this marketplace.
 - A long spoke opens with a `## Contents` block; `/skill-quality:check` warns when a spoke over
   its own line setting lacks one.
 - A spoke is free until read and then costs like the body: the deletion test applies in full.

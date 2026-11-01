@@ -3,6 +3,13 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9] - 2026-11-01
+
+### Added
+
+- Ten `claude plugin eval` outcome cases: five for `/mcp-tools:audit-posture` (`ap-`: floating versions, a mutable image tag, withheld env and header values, an instruction-shaped server name, unverified provenance) and five for `/mcp-tools:audit` (`au-`: a string `requiresUserInteraction`, undescribed parameters, over-long server instructions, path scoping, edits nothing). Every grader is deterministic and carries offline samples. Shared fixtures are written by seed scripts under `evals/fixtures/`.
+- The frozen `/mcp-tools:audit-posture` invocation probe set, `probes/audit-posture.json`, with 18 queries.
+
 ## [0.8.8] - 2026-10-30
 
 ### Changed

@@ -1,0 +1,123 @@
+{
+  "skill": "mcp-tools:audit-posture",
+  "plugin": "mcp-tools",
+  "skill_dir": "plugins/mcp-tools/skills/audit-posture",
+  "ranking_note": "Authored from the before description at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin tool-definition audit (mcp-tools:audit), the settings and MCP config correctness audit (harness-config:audit), the effective permission report (harness-config:audit-permission-state), and the mod inventory (harness-ops:audit-mod-posture), which shares the posture vocabulary, and the ~/.claude install inventory (harness-ops:audit-install-state).",
+  "competitors": [
+    "mcp-tools:audit",
+    "harness-config:audit",
+    "harness-config:audit-permission-state",
+    "harness-ops:audit-mod-posture",
+    "harness-ops:audit-install-state"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Half my MCP servers launch with npx and no version. Can you check which ones aren't pinned?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List every MCP server Claude Code would start on this machine, with where each one is configured and how it's launched."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm worried one of my MCP packages could get swapped for a malicious release. How exposed am I?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of my MCP servers run as local processes when the vendor also offers a hosted URL I could use instead?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Who actually publishes the MCP servers in my user and project config? I want to know if any come from random accounts."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a security posture pass over the MCP servers I've got set up, without starting any of them."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "There's an MCP config file bundled inside a plugin I installed. Fold it in too and tell me if those servers pull a moving tag like latest."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a dated inventory of my MCP servers I can diff next month to see what changed."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is there a Docker image for any of my MCP servers that I'm ignoring in favor of running the npm package directly?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the tool descriptions in my MCP server code and tell me which parameters lack docs."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My GitHub MCP server shows as failed in /mcp and won't connect. Is my .mcp.json wrong?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which allow and deny rules are actually in effect across my settings files right now?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run npm audit on this web app and tell me which dependencies have known CVEs."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What mods are installed in my Claude Code, and is the built-in security guard active?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Should the delete_record tool in my server set destructiveHint, and is readOnlyHint right on the list tools?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check my settings.json and hooks for drift against the current Claude Code docs."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our Python service's requirements.txt has unpinned packages. Can you pin them and check for typosquats?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Why is my ~/.claude folder several gigabytes? Show me what's taking the space."
+    }
+  ]
+}

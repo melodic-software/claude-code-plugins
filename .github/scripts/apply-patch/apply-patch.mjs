@@ -690,10 +690,10 @@ const workflowEntries = (git, tree) =>
       return `${mode} ${oid} ${record.slice(tab + 1)}`;
     });
 
-// post.sh's workflows_are_base_own: a merge tree whose workflows differ from
-// the head's is admitted only when the PR's own diff against every merge base
-// touches no workflow, the workflows are exactly the base's, and no head
-// workflow is dropped.
+// A merge tree whose workflows differ from the head's is admitted only when
+// the PR's own diff against every merge base touches no workflow and the
+// workflows are exactly the base's. A head workflow the base deleted or
+// renamed is then dropped with the base's own change.
 function workflowsAreBaseOwn(git, headSha, baseSha, tree) {
   const head = workflowEntries(git, headSha);
   const merged = workflowEntries(git, tree);
@@ -716,9 +716,7 @@ function workflowsAreBaseOwn(git, headSha, baseSha, tree) {
       return false;
     }
   }
-  const base = workflowEntries(git, baseSha);
-  const basePaths = new Set(base.map((record) => record.split(" ").slice(2).join(" ")));
-  return JSON.stringify(base) === JSON.stringify(merged) && head.every((record) => basePaths.has(record.split(" ").slice(2).join(" ")));
+  return JSON.stringify(workflowEntries(git, baseSha)) === JSON.stringify(merged);
 }
 
 // A merge row's push. `merge` is { baseSha, conflictTree, state, unmerged

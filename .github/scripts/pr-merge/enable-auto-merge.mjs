@@ -572,10 +572,11 @@ async function changedFiles(github, slug, number) {
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
 // The verifier refusals that never clear for the pull request
-// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap and an old pull
-// request. decide closes such a pull request for a fresh attempt at its
-// issue (pythonClose), never adding a person's label.
-export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
+// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap. decide closes
+// such a pull request for a fresh attempt at its issue (pythonClose), never
+// adding a person's label. An old pull request's verify:too-old waits for a
+// fresh pass at its head instead.
+export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail"]);
 
 // How verifyHold opens the reason for each answer that refuses: the issue
 // link, the verifier verdict and the risk score.

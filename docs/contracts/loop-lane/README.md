@@ -402,7 +402,8 @@ Three labels take work off the unattended path, and each means one thing (owner 
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
-not fix, an unfinished dependency review)
+not fix, an unfinished dependency review, a review thread the lane left open with no verdict to
+settle it)
 goes to an agent session, which removes the label once it has made the change; pr-merge's
 `clear-escalations` sweep removes it when a same-head retry cleared the stop
 ([routing table](../../conventions/pr-pipeline/README.md#activities)).
