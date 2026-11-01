@@ -108,6 +108,14 @@
     {
       "answer": "1. Where we landed\n   - Q3 churn: [__]\n2. What customers said\n   - Top theme: pricing clarity\n   - \"I finally understand what I'm paying for.\"\n3. Decision\n   - Keep or drop the Starter tier.",
       "why": "an invented quote inside the quote slide of a compact numbered outline"
+    },
+    {
+      "answer": "**Slide 2: What customers said**\n1. Top theme: pricing clarity\n2. \"I finally understand what I'm paying for.\"",
+      "why": "an invented quote below a numbered theme in a section a bold slide label opens"
+    },
+    {
+      "answer": "What customers said:\n1. Top theme: pricing clarity\n2. \"I finally understand what I'm paying for.\"",
+      "why": "an invented quote below a numbered theme in a section a plain label opens"
     }
   ]
 }
