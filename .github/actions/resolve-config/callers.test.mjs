@@ -7414,3 +7414,26 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
   }
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
 });
+
+// A job that runs on a main-scoped event and checks out, runs or feeds a model
+// PR, issue or lane-branch content restores the Actions cache but never saves
+// to it, so that content cannot plant an entry a main run later restores.
+test("every job that runs or reads untrusted head content has a read-only Actions cache", () => {
+  const readOnly = {
+    "pr-run-activity-read.yml": ["run", "scan"],
+    "pr-run-activity-write.yml": ["run"],
+    "work-resolve-issue.yml": ["pick-slot", "run-checks"],
+    "pr-unblock.yml": ["resolve-conflicts-select"],
+    "eval-browser-dispatch.yml": ["eval"],
+    "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
+    "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
+    "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
+  };
+  for (const [file, names] of Object.entries(readOnly)) {
+    const { jobs } = workflow(file);
+    for (const name of names) {
+      assert.ok(jobs[name], `${file} has no job ${name}`);
+      assert.equal(jobs[name]["cache-mode"], "read", `${file}: ${name}`);
+    }
+  }
+});

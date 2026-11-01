@@ -124,6 +124,7 @@ jobs:
       && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    cache-mode: read
     permissions:
       contents: read # check out main and the PR head
       pull-requests: read # the PR's head and mergeable state
