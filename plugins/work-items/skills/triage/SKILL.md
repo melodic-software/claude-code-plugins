@@ -346,8 +346,6 @@ admission gate enforces the window.
 - An idea issue parked at `needs-spec`: `/planning:interview`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
 - A briefed item too large for one vertical slice, or sized `split`: `/work-items:decompose`.
-- Items that keep the human-gated label after a sweep: `/work-items:attend-queue`.
-- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer
 

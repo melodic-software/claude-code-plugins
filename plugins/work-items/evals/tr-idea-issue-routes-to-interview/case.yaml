@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: tr-idea-issue-routes-to-interview
-description: 'Idea issue: /work-items:triage named on item #1, a raw feature request ("We should add a plugin system to the ledger.") that states no problem, user or outcome, routes the item to /planning:interview and parks it with needs-spec. It runs no exploration first: no code search, no source read, no research. The prompt authorizes mutations up front, so the run is not held at the direction gate. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+description: 'Idea issue: /work-items:triage named on item #1, a raw feature request ("We should add a plugin system to the ledger.") that states no problem, user or outcome, routes the item to /planning:interview and names needs-spec as the label that parks it. It runs no exploration first: no code search, no source read, no research. The prompt authorizes mutations up front, so the run is not held at the direction gate. The case grades the route and the absence of exploration only, not the park itself: the local-markdown tracker has no label listing, so the needs-spec preflight in context/apply-outcome.md may stop the label edit, and no grader reads the final labels of item #1. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
 tags: [triage, idea-issue, must-not]
 plugins: ["../.."]
-expected_outcome: 'The run reads item #1, judges it an idea issue because it says nothing about what the plugin system is for, names /planning:interview as the next step and parks the item with needs-spec. It searches no code and reads nothing under src/ before or after routing.'
+expected_outcome: 'The run reads item #1, judges it an idea issue because it says nothing about what the plugin system is for, names /planning:interview as the next step and names needs-spec as the label that parks it. It searches no code and reads nothing under src/ before or after routing. Whether the park lands is not graded: on this tracker, which has no label listing, the needs-spec preflight may stop the label edit.'
 context:
   scaffold_script: scaffold.sh
 execution:
