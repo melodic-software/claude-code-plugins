@@ -344,11 +344,12 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     # EPOCHREALTIME; without it the line reports '?'.
     declare -A jms=() jcount=()
     jtime() { # kind command...
-      local t0=${EPOCHREALTIME/./} rc
+      local t0=${EPOCHREALTIME:-} t1 rc
       "${@:2}"
       rc=$?
-      if [[ -n "$t0" ]]; then
-        jms[$1]=$((${jms[$1]:-0} + (${EPOCHREALTIME/./} - t0) / 1000))
+      t1=${EPOCHREALTIME:-}
+      if [[ -n "$t0" && -n "$t1" ]]; then
+        jms[$1]=$((${jms[$1]:-0} + (${t1/./} - ${t0/./}) / 1000))
         jcount[$1]=$((${jcount[$1]:-0} + 1))
       fi
       return "$rc"
