@@ -2,14 +2,9 @@
   "skill": "event-storming:simulation",
   "plugin": "event-storming",
   "skill_dir": "plugins/event-storming/skills/simulation",
-  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are event-storming:methodology (facilitation knowledge and reference, and choosing a format for a workshop humans run), planning:design (types, contracts and module boundaries resolved before a plan), architecture:map-events (async message topology read from committed C# code), domain-driven-design:curate-language (maintaining the ubiquitous-language glossary), prototype:pressure-test (a throwaway app stepping business rules through awkward event sequences) and user-experience:evaluate (usability evaluation of a design, flow or app, a rival for the --ux pass). simulation owns AI agents playing personas to run an EventStorming workshop, typically on a Miro board, plus deep-dives, evaluation, retrospective and bounded-context discovery against an existing board.",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. The one competitor is event-storming:methodology (facilitation knowledge and reference, and choosing a format for a workshop humans run), the plugin's only sibling skill. simulation owns AI agents playing personas to run an EventStorming workshop, typically on a Miro board, plus deep-dives, evaluation, retrospective and bounded-context discovery against an existing board.",
   "competitors": [
-    "event-storming:methodology",
-    "planning:design",
-    "architecture:map-events",
-    "domain-driven-design:curate-language",
-    "prototype:pressure-test",
-    "user-experience:evaluate"
+    "event-storming:methodology"
   ],
   "queries": [
     {
