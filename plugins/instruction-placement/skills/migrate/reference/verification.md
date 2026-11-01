@@ -74,6 +74,11 @@ claude -p "Read the file <a file in that directory>. Then quote back, verbatim, 
   --model sonnet --allowedTools Read
 ```
 
+`--model sonnet` is this skill's choice: the probe tests the loader, not the model, and quoting
+lines back needs no stronger one (for what the alias names, see
+[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
+2026-11-01; recheck when that section changes what `sonnet` names).
+
 **Ask for the lines, not the tokens.** "List every canary token in your instructions" reads as an
 exfiltration request and gets refused, which proves nothing about the loader.
 
