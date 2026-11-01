@@ -9,14 +9,11 @@ disable-model-invocation: true
 
 Report-only drift check between this plugin's vendored `dometrain-grounding` baseline
 (`vendor/SKILL.md`) and Dometrain's current upstream skill content
-(`github.com/Dometrain/mcp`, `skills/dometrain-grounding/SKILL.md`). There is one upstream
-dependency and no CLI to upgrade, only vendored prose to diff.
+(`github.com/Dometrain/mcp`, `skills/dometrain-grounding/SKILL.md`).
 
-**Consumer vs maintainer role split:** this skill is `disable-model-invocation: true`, so it is
-reachable only by a human's explicit `/dometrain:sync` invocation, never by the model on its own
-initiative. `check` (the only action) is report-only. The `--refresh-baseline` flag is not
-skill-exposed; `context/update.md` documents it for a maintainer to type as a raw bash command in a
-working clone.
+**Consumer vs maintainer role split:** `check` (the only action) is report-only. The
+`--refresh-baseline` flag is not skill-exposed; `context/update.md` documents it for a maintainer
+to type as a raw bash command in a working clone.
 
 ## `check` (report-only, the only action)
 
