@@ -437,9 +437,8 @@ jobs:
 
       # One lane record per run: a clean handoff is recorded by the
       # subscription job; a handoff the check above refused, on a denial or
-      # a log it cannot read, here: a
-      # credit stop as rate-limit, the class report-lane-outcome knows for
-      # it, and auth as auth.
+      # a log it cannot read, here, under the leg's own class: credit-stop
+      # or auth.
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
         continue-on-error: true
@@ -454,7 +453,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -565,7 +564,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
@@ -664,7 +663,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.judge-3.outputs.execution-file != ''
@@ -764,7 +763,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.judge-4.outputs.execution-file != ''
@@ -866,7 +865,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-5.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-5.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-5.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
 
       - name: Upload chunk 5's sealed transcript
         if: always() && steps.judge-5.outputs.execution-file != ''
@@ -968,7 +967,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-6.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-6.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-6.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
 
       - name: Upload chunk 6's sealed transcript
         if: always() && steps.judge-6.outputs.execution-file != ''
@@ -1071,7 +1070,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-7.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-7.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-7.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
 
       - name: Upload chunk 7's sealed transcript
         if: always() && steps.judge-7.outputs.execution-file != ''
@@ -1175,7 +1174,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-8.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-8.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-8.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
 
       - name: Upload chunk 8's sealed transcript
         if: always() && steps.judge-8.outputs.execution-file != ''
@@ -1280,7 +1279,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-9.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-9.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-9.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
 
       - name: Upload chunk 9's sealed transcript
         if: always() && steps.judge-9.outputs.execution-file != ''
@@ -1386,7 +1385,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-10.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-10.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-10.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
 
       - name: Upload chunk 10's sealed transcript
         if: always() && steps.judge-10.outputs.execution-file != ''
@@ -1493,7 +1492,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-11.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-11.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-11.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
 
       - name: Upload chunk 11's sealed transcript
         if: always() && steps.judge-11.outputs.execution-file != ''
@@ -1601,7 +1600,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-12.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-12.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-12.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
 
       - name: Upload chunk 12's sealed transcript
         if: always() && steps.judge-12.outputs.execution-file != ''
@@ -1775,7 +1774,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-spec.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-spec.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-spec.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
 
       - name: Upload the spec judgment's sealed transcript
         if: always() && steps.judge-spec.outputs.execution-file != ''

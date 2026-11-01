@@ -2108,10 +2108,11 @@ MODELS_JQ="$LANE_DEFS"'
 '
 # The key lines: per credential role named by the runs' lane-outcome records,
 # the runs whose key was refused (a fallback for auth, or a key leg that
-# failed with class auth) and the runs that fell back on a credit stop. The
-# fallback reason, not the class, marks a credit stop: pr-verify records one
-# as class rate-limit. The secret to replace is the role's
-# <ROLE>_CLAUDE_API_KEY, the name the record contract builds the role from.
+# failed with class auth) and the runs that fell back on a credit stop or whose
+# key leg failed with class credit-stop. Older records carry a key leg's credit
+# stop as class rate-limit, so the fallback reason counts too. The secret to
+# replace is the role's <ROLE>_CLAUDE_API_KEY, the name the record contract
+# builds the role from.
 # shellcheck disable=SC2016  # jq variables, as above
 KEYS_JQ="$LANE_DEFS"'
   [ $lanes[] as $wf | lane_runs($wf)[] | ($ann[0][.id | tostring] // "" | records)
@@ -2119,7 +2120,7 @@ KEYS_JQ="$LANE_DEFS"'
     | group_by(.credential.role)[]
     | {role: .[0].credential.role,
        auth: any(.[]; .fallback.reason == "auth" or (.credential.kind == "api-key" and .class == "auth")),
-       credit: any(.[]; .fallback.reason == "credit-stop")} ]
+       credit: any(.[]; .fallback.reason == "credit-stop" or (.credential.kind == "api-key" and .class == "credit-stop"))} ]
   | group_by(.role)[]
   | length as $m
   | (map(select(.auth)) | length) as $a

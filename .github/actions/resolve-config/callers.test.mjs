@@ -1574,6 +1574,21 @@ const CLAUDE_SECRETS = { "claude-api-key": "CLAUDE_API_KEY", "claude-code-oauth-
 const READ_FALLBACK_SECRET = "fallback-claude-code-oauth-token";
 const atStep = (expression, context) => evaluate(String(expression).replaceAll("always()", "true"), context);
 
+test("every report-lane-outcome step records a credit stop as credit-stop, never as rate-limit", () => {
+  const sites = [];
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      for (const step of job?.steps ?? []) {
+        const known = step?.with?.["known-failure-class"];
+        if (!String(step?.uses ?? "").includes("/report-lane-outcome@") || known === undefined) continue;
+        sites.push(`${file} ${id}`);
+        assert.doesNotMatch(String(known), /'rate-limit'|'credit-stop'/, `${file} ${id} ${step.name}`);
+      }
+    }
+  }
+  assert.ok(sites.length >= 26, `found ${sites.length} report-lane-outcome steps with known-failure-class`);
+});
+
 test("every read-runner caller job passes exactly one Claude secret, named for its role, beside the scan-carrier key", () => {
   const callers = [];
   for (const file of workflowFiles()) {
