@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from four
-// serial searches: the lanes App's pull requests in this repository (the open
-// ones, the ones merged in the rolling window, and the ones opened in it), then
-// the open agent-ready issues with no hold label; and one pull request read per
+// check-wip-cap.mjs: the issue lane's WIP cap and admission pace, from three
+// serial searches for the lanes App's pull requests in this repository (the
+// open ones, the ones merged in the rolling window, and the ones opened in it),
+// then the repository issues listing of open agent-ready issues, oldest first,
+// with pull requests and hold labels left out; and one pull request read per
 // open lane PR whose first body line names no issue.
 //
 // The cap is the merged count per hour times wip.target-lead-time-hours,
@@ -28,7 +29,8 @@
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
 // queued issue leaves the count only by running. A search that answers
 // incomplete_results: true closes admissions whatever wip.pause-from says. A
-// failed queued read without that flag leaves admissions open.
+// failed queued listing leaves admissions open here (`admission_basis`
+// `fail-open`), which admit.mjs and work-unblock treat as no room.
 //
 // With `pauseOnly` (WIP_READS=pause) it makes only the open listing and the
 // merged count, the two reads the run pause depends on, and leaves the
@@ -63,11 +65,14 @@ const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 const HOUR_MS = 3_600_000;
 export const HOLD_LABELS = new Set(["needs-human", "do-not-merge"]);
 export const HOLD_LINE = "Hold: a human merges this";
-// Issue labels a person decides; an issue carrying one is not queued work.
-const ISSUE_HOLDS = ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"];
+// Issue labels a person decides; an issue carrying one, in any case, is not
+// queued work.
+const ISSUE_HOLDS = new Set(["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]);
+const issueHeld = (issue) => (issue?.labels ?? []).some((label) => typeof label?.name === "string" && ISSUE_HOLDS.has(label.name.toLowerCase()));
 // The issue a lane PR's first body line names, as report-outcome writes it.
 const NAMES_ISSUE = /^(?:Closes|Refs:) #([1-9][0-9]*)$/;
-// The search API returns at most 1000 results, 100 per page.
+// The search API returns at most 1000 results, 100 per page; the queued
+// listing stops at the same 10 pages.
 const PAGE = 100;
 const MAX_PAGES = 10;
 // The most blocker-list reads one check makes for queued issues.
@@ -99,11 +104,14 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
   let searchIncomplete = false;
-  const search = async (q, page, perPage) => {
+  const checkBudget = () => {
     const left = remaining();
     if (left !== null && left <= 0) {
       throw new Error("the rate limit has no requests left");
     }
+  };
+  const search = async (q, page, perPage) => {
+    checkBudget();
     const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=${perPage}&page=${page}`);
     if (answer?.incomplete_results !== false) {
       searchIncomplete ||= answer?.incomplete_results === true;
@@ -155,8 +163,32 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     return { open, merged, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete, pauseOnly };
   }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
-  const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
-  const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
+  // The queued issues come from the issues listing, not the search index,
+  // whose results carry no recency guarantee: admit.mjs counts its racing
+  // admissions against this count. The listing holds pull requests too and
+  // takes no label exclusion, so both are left out here; a full last page
+  // leaves at least one unlisted. A failed page or one that is not a list
+  // leaves the count unread.
+  const listQueued = async () => {
+    const numbers = [];
+    try {
+      for (let page = 1; page <= MAX_PAGES; page += 1) {
+        checkBudget();
+        const items = await github("GET", `/repos/${repo}/issues?labels=agent-ready&state=open&sort=created&direction=asc&per_page=${PAGE}&page=${page}`);
+        if (!Array.isArray(items)) {
+          throw new Error("the issues listing answered no list");
+        }
+        numbers.push(...items.filter((item) => !item?.pull_request && !issueHeld(item)).map((item) => Number(item?.number)));
+        if (items.length < PAGE) {
+          return { items: numbers, unlisted: 0 };
+        }
+      }
+      return { items: numbers, unlisted: 1 };
+    } catch {
+      return null;
+    }
+  };
+  const queued = await listQueued();
   // A search item carries no head ref, so a lane PR whose first body line
   // names no issue (a person edited it) costs one pull request read for its
   // lane branch. One that fails leaves the PR unmatched.
@@ -217,8 +249,8 @@ export function wipStatus(
   const perHour = Math.max(computed ? (admission["admission-factor"] * merged) / window : 0, admission["admission-min-per-hour"]);
   const queuedCap = Number((perHour * window).toFixed(9));
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
-  // Issues the search counted past its listing count as queued, and a count
-  // cut short that way never admits.
+  // Issues past the listing's last page count as queued, and a count cut
+  // short that way never admits.
   const truncated = (queuedUnlisted ?? 0) > 0;
   const waiting = new Set(blocked);
   const queuedIssues =

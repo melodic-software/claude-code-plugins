@@ -1211,14 +1211,14 @@ test("the required-run read takes the newest pr-require-checks run that tested t
       workflow_runs: [
         failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"),
         failed(12, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:00Z"),
-        failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z"),
+        failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z"),
         failed(14, ".github/workflows/pr-require-checks.yml", "2026-10-22T03:00:14Z"),
       ],
     },
     { total_count: 2, jobs: contractOnly },
     { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
     { total_count: 0, workflow_runs: [] },
-    { total_count: 1, workflow_runs: [failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"), failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z")] },
+    { total_count: 1, workflow_runs: [failed(11, ".github/workflows/pr-require-checks.yml", "2026-10-22T02:00:00Z"), failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z")] },
     { total_count: 1, jobs: [{ name: "test-macos-planning-shared", conclusion: "failure" }] },
   ];
   const api = createGitHubApi({
@@ -1242,8 +1242,8 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   ]);
   assert.deepEqual(await api.readRequiredRun(head), { run: null, jobs: [] });
   // A named workflow reads that workflow's runs instead.
-  assert.deepEqual(await api.readRequiredRun(head, ".github/workflows/pr-test-windows.yml"), {
-    run: failed(13, ".github/workflows/pr-test-windows.yml", "2026-10-22T04:00:00Z"),
+  assert.deepEqual(await api.readRequiredRun(head, ".github/workflows/pr-test-platforms.yml"), {
+    run: failed(13, ".github/workflows/pr-test-platforms.yml", "2026-10-22T04:00:00Z"),
     jobs: [{ name: "test-macos-planning-shared", conclusion: "failure" }],
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");

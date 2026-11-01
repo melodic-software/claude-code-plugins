@@ -159,54 +159,6 @@ else
 fi
 rm -rf "$f"
 
-# --- allowlisted file with token passes -------------------------------------
-new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
-printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
-if out="$(run_check "$f" 2>&1)"; then
-  ok "allowlisted hook config passes"
-else
-  fail "allowlisted hook config should pass, got: $out"
-fi
-rm -rf "$f"
-
-# --- stale allowlist entry (file clean) fails -------------------------------
-new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
-printf '%s\n' 'plugins/alpha/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
-if out="$(run_check "$f" 2>&1)"; then
-  fail "stale allowlist entry should fail, got success: $out"
-else
-  if grep -q "STALE BASELINE: .*: 'plugins/alpha/hooks/hooks.json' names no scanned hook config" <<<"$out"; then
-    ok "stale allowlist entry (clean file) fails under the shared STALE BASELINE prefix"
-  else
-    fail "expected the shared STALE BASELINE diagnostic, got: $out"
-  fi
-fi
-rm -rf "$f"
-
-# --- stale allowlist entry (file missing) fails -----------------------------
-new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
-printf '%s\n' 'plugins/gone/hooks/hooks.json' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
-if run_check "$f" >/dev/null 2>&1; then
-  fail "allowlist entry for a missing file should fail"
-else
-  ok "stale allowlist entry (missing file) fails"
-fi
-rm -rf "$f"
-
-# --- allowlist comments and blank lines are inert ---------------------------
-new_fixture f
-plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
-printf '%s\n' '# reserved for a ratified channel D adoption' '' >"$f/scripts/hook-userconfig-argv-allowlist.txt"
-if out="$(run_check "$f" 2>&1)"; then
-  ok "allowlist comments and blank lines are inert"
-else
-  fail "comment-only allowlist should pass, got: $out"
-fi
-rm -rf "$f"
-
 # --- JSON-escaped token spelling is caught by the decoded pass --------------
 # The fixture spells the underscore as the JSON backslash-u005f escape (built
 # via printf so the literal backslash survives this file's own quoting): raw

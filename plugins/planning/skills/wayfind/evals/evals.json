@@ -59,7 +59,7 @@
       "files": [],
       "expectations": [
         "Output does NOT resolve any needs-human (interview/design/prototype) item on the user's behalf",
-        "Output reports that the frontier is empty because all remaining items require a human, rather than silently proceeding",
+        "Output reports that the frontier holds no workable item because all remaining items require a human, rather than silently proceeding",
         "Output does not fabricate an answer to any of the HITL decisions to force the map toward closure"
       ]
     },

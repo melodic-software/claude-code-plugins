@@ -1,6 +1,6 @@
 ---
-description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), audit (read-only dry run), converge (explicit scope consolidation). Use when: 'sync plugins', 'update my plugins', 'are my plugins current', 'check plugin drift', 'converge plugin scopes', or before relying on a plugin that might be stale."
-argument-hint: "[sync|audit|converge] [<marketplace>|all] [--allow-downgrade]"
+description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), converge (explicit scope consolidation); the read-only dry run is /harness-ops:plugins-audit. Use when: 'sync plugins', 'update my plugins', 'converge plugin scopes'."
+argument-hint: "[sync|converge] [<marketplace>|all] [--allow-downgrade]"
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[sync|audit|converge] [<marketplace>|all] [--allow-downgrade]`. Full form: [action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), audit, converge
+**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade]`. Full form: [action] [<marketplace>|all] [--allow-downgrade]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update committed plugin pins in every repository on disk
 
 ## Variables
 
@@ -45,7 +45,7 @@ project-scope map. `converge` is the one action that can touch committed setting
 an explicit per-plugin confirm. See [context/scope-semantics.md](context/scope-semantics.md) for
 which CLI calls write that file.
 
-**For `sync` and `audit`, the script computes every number and the model reports it.** Steps 1
+**For `sync` and the audit, the script computes every number and the model reports it.** Steps 1
 through 5b and the Step 6 render are one `sync-run.sh` call; the digest and the rendered report
 are the record, and the model adds the reload guidance and answers questions. Nothing in the
 report is retyped, recounted, or re-derived by the model. `converge` follows the same rule for
@@ -70,13 +70,12 @@ a marketplace name, or `all`).
 `--allow-downgrade` is position-independent: remove it from `$ARGUMENTS` first, then apply the
 first-token / second-token parse to what remains, so it reads the same before, between, or after the
 other two. It applies to `sync` only, and it opts that run into moving an install backward when the
-marketplace catalog reads lower than what is installed. `audit` ignores the flag and says so in its
-report: a read-only run issues no update either way, and its prediction already names the withheld
-downgrades. See [context/sync.md](context/sync.md)'s "Downgrade guard".
+marketplace catalog reads lower than what is installed. See [context/sync.md](context/sync.md)'s
+"Downgrade guard".
 
 This table is an index, not a substitute: read the linked detail file before executing any action,
-except `sync` and `audit`, which one script runs and which load their file on the triggers under
-"Running `sync` and `audit`". Each Description names the territory an action covers, never its algorithm, the steps, their
+except `sync`, which one script runs and which loads its file on the triggers under
+"Running `sync`". Each Description names the territory an action covers, never its algorithm, the steps, their
 ordering, and their failure handling live only in the linked file.
 
 One block below is a deliberate exception to that index-only rule and has to live in the hub
@@ -90,15 +89,15 @@ itself is rendered by the script.
 | Action | Mutates | Description | Detail |
 |---|---|---|---|
 | `sync` (default) | Yes. CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
-| `audit` | No | Same algorithm as `sync`, every mutating CLI call replaced with a prediction; the reads those calls sit beside still run | "Action: audit" below |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
 Bare invocation (no arguments) → `sync` against the default marketplace. `update` is an alias for
-`sync`. `help` or an unrecognized action → show this table.
+`sync`. `audit` → run nothing here and point the user to `/harness-ops:plugins-audit`, the
+read-only dry run of this algorithm. `help` or an unrecognized action → show this table.
 
-## Running `sync` and `audit`
+## Running `sync`
 
-Both actions execute Steps 1 through 5b and render Step 6's report as ONE bundled script call:
+`sync` executes Steps 1 through 5b and renders Step 6's report as ONE bundled script call:
 it prints the JSON digest, then the report. The step sequence, and the reason behind every step,
 stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
@@ -113,9 +112,6 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
      --install-new <policy> --source-pull <pull> [--quiet-auto-update <names>] \
      [--allow-downgrade] --render
    ```
-
-   `audit` is the same command with `--audit` instead of `--journal-root` (it writes to a scratch
-   directory it deletes) and never `--allow-downgrade`, which it ignores and says so.
 
    `<pull>` is the word from the **Configured value** line under "userConfig:
    `directory_source_pull`", and `ask` while that line shows the unset placeholder token. Pass
@@ -198,47 +194,22 @@ Every action reads the fleet through the bundled read-only `fleet-state.sh`, che
 through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map only through
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
-extraction where a script's `--ids` form exists. The one sanctioned exception is `converge`'s
-committed-enable check ([context/converge.md](context/converge.md) Step 2): a read-only look at the
-`enabledPlugins` keys of a tracked project settings file, which `converge-plan.sh` makes and the
-model does not. `sync-run.sh` calls all three during `sync` and `audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
+extraction where a script's `--ids` form exists. `converge`'s
+committed-enable check ([context/converge.md](context/converge.md) Step 2) reads each path's
+`enabledPlugins` entry from `fleet-state.sh`'s `projectEnabledEntry`, never from the file. `sync-run.sh` calls all three during `sync` and `/harness-ops:plugins-audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
 carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
 `cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
 Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
 when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
 `sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
 
-## Action: audit
+## The read-only audit
 
-Read-only dry run of what `sync` (and, where relevant, `converge`) would do. Run the full algorithm
-in [context/sync.md](context/sync.md) with every mutating CLI call replaced by "would run: `<command>`"
-in the report. Call `fleet-state.sh`, compute the same install/enable/divergence deltas, but issue
-**zero** `plugin install|update|uninstall|marketplace update` invocations. Predict `converge`'s
-per-plugin intent (context/converge.md's preview step) the same way, without executing it. An
-`audit` run writes no state file (`installed_plugins.json`, `known_marketplaces.json`, committed
-settings); a concurrent session or background `autoUpdate` sweep can still change them while it
-runs.
-
-**A read that sits beside a mutating call is still taken.** Step 1 is the case that matters: its
-pre-refresh `fleet-state.sh` snapshot is a read and `audit` takes it, and only the
-`claude plugin marketplace update` beside it becomes a prediction. That snapshot is the first link in
-the catalog regression check's chain, so an `audit` that skipped it would start the check at `pre`
-and lose the interval that isolates the refresh point. See [context/sync.md](context/sync.md) Step 1.
-
-`audit` runs the same steps, and those steps write reports from Step 1's snapshot onward, so it does
-write them: to a throwaway `mktemp -d` scratch directory, created before Step 1 and deleted when the
-run ends, never to the durable run journal under this plugin's data directory. That keeps one algorithm
-for both actions while leaving nothing behind, which is what "mutates nothing" means here. See
-[context/sync.md](context/sync.md)'s "Run journal" section.
-
-`audit` ignores `--allow-downgrade` and says so when the flag is passed: it issues no update in
-either case, and it predicts `Would withhold: <N> downgrade(s)` beside `Would update` regardless.
-See [context/sync.md](context/sync.md) Step 3.
-
-Because `audit` issues no `marketplace update`, its Step 3 prediction is computed against an
-**unrefreshed** catalog and is therefore a lower bound on what `sync` would update. Report it as one,
-carrying the catalog's `lastUpdated`. See [context/sync.md](context/sync.md) Step 3. An `audit`
-that predicts zero updates has not established that the fleet is current.
+`/harness-ops:plugins-audit` runs this skill's algorithm through `sync-run.sh --audit`, with every
+mutating CLI call replaced by a prediction, and the model may start it. It is a separate skill
+because `disable-model-invocation` applies to a whole skill, and only the read-only action is safe
+for the model to start. The Report section below still describes its render, since one
+`render-report.jq` prints both.
 
 ## Operator script: refresh
 
@@ -297,7 +268,10 @@ it for a `directory` source (branch, upstream, ahead/behind as of the checkout's
 tracked files, or why freshness was not checked; the run fetches or pulls the checkout only on a
 `--pull-source` request, and then the row names the commits it fast-forwarded from and to); the fixed `In-repo:` row in its three variants (`skipped` naming
 the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
-counted variant, forward moves only); `Updated:` (forward moves and pairs flagged
+counted variant, forward moves only); `Updated in other paths:` and `Not moved in other paths:`
+(the records of every other present path that sync forward-updated from that path, and the
+linked-worktree or user-home ones the call left behind; `Would update in other paths:` under audit);
+`Updated:` (forward moves and pairs flagged
 `(direction unknown)`) and `Downgraded:` (a backward move that happened during the run says so); `Moved during this run:` (ids
 whose update call the CLI answered "already at the latest version" while the run's snapshots show
 their version changed, which the run did not do and does not attribute; with a `Not verified:` row
@@ -393,7 +367,7 @@ named third-party catalog) the same word means "install every plugin published i
 machine knows about." One observed run installed 2,231 plugins before it was killed; see
 [context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
 every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
-proceed unattended:** resolve the total install gap first (one `audit all`, or `fleet-state.sh
+proceed unattended:** resolve the total install gap first (one `/harness-ops:plugins-audit all`, or `fleet-state.sh
 --marketplace <name> --ids missing-user-install` per marketplace, which is the selector
 `sync-run.sh` itself projects for Step 4), state the number, and get an explicit human yes. Treat the
 configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
@@ -435,7 +409,7 @@ files), on a branch with an upstream, not ahead of it and behind it. A `string` 
 values below, default `"ask"`, read and rendered the same way as `install_new` above:
 
 - `ask` (default). Pass `--source-pull ask`; the digest marks such a checkout `offered`, and
-  step 3 of "Running `sync` and `audit`" asks once per marketplace and reruns with
+  step 3 of "Running `sync`" asks once per marketplace and reruns with
   `--pull-source` on a yes. A dirty, ahead, diverged, detached or upstream-less checkout is never
   offered, and the script refuses a `--pull-source` for one, so the pull cannot discard or tangle
   local work.
@@ -482,7 +456,7 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 | File | Load when |
 |---|---|
-| [context/sync.md](context/sync.md) | A `sync` or `audit` digest meets a trigger under "Running `sync` and `audit`", or the user asks why a step behaved as it did; it is the step sequence both actions execute, and the script is bound to it. |
+| [context/sync.md](context/sync.md) | A `sync` digest meets a trigger under "Running `sync`", or the user asks why a step behaved as it did; it is the step sequence `sync` and `/harness-ops:plugins-audit` both execute, and the script is bound to it. |
 | [context/sync-install-enable.md](context/sync-install-enable.md) | A digest block has a non-empty `install_gap` or `enable_gap`, or `install_enable_deferred: true`. Both gaps are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
 | [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |

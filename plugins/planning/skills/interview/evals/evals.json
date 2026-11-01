@@ -293,11 +293,11 @@
     {
       "id": 21,
       "name": "assumption-sweep-before-confirmation-gate",
-      "prompt": "/planning:interview me Add a retention policy for uploaded course videos. [after three rounds the frontier is empty: Q2 was answered \"yes?\", the accepted Q4 recommendation also assumes deletion runs in the primary region, and Q6 (keep drafts forever) contradicts the confirmed constraint C1 (no stored data older than two years)]",
-      "expected_output": "Once the frontier is empty, and before the Step 3 register gate and the confirmation restate, the skill dispatches a fresh-context (non-fork) sub-agent that inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and composed artifacts. Items come back as `S<N>` lines with id, category, class, source, dependencies, blocking, and hidden-default fields. The skill, not the sub-agent, turns the region assumption and the Q6/C1 contradiction into register rows at the next contiguous `Q<N>`, asks them, and returns to Step 2; Q2's `hedged:` row is listed for the confirmation restate. The contract is not confirmed or locked while any row the sweep added is `open`.",
+      "prompt": "/planning:interview me Add a retention policy for uploaded course videos. [after three rounds no open question remains on the frontier: Q2 was answered \"yes?\", the accepted Q4 recommendation also assumes deletion runs in the primary region, and Q6 (keep drafts forever) contradicts the confirmed constraint C1 (no stored data older than two years)]",
+      "expected_output": "Once no open question remains on the frontier, and before the Step 3 register gate and the confirmation restate, the skill dispatches a fresh-context (non-fork) sub-agent that inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows across the ledger, the recommendations, and composed artifacts. Items come back as `S<N>` lines with id, category, class, source, dependencies, blocking, and hidden-default fields. The skill, not the sub-agent, turns the region assumption and the Q6/C1 contradiction into register rows at the next contiguous `Q<N>`, asks them, and returns to Step 2; Q2's `hedged:` row is listed for the confirmation restate. The contract is not confirmed or locked while any row the sweep added is `open`.",
       "files": [],
       "expectations": [
-        "The sweep runs after the frontier is empty and before the Step 3 register gate and confirmation gate",
+        "The sweep runs after no open question remains on the frontier and before the Step 3 register gate and confirmation gate",
         "The sweep is dispatched to a fresh-context (non-fork) sub-agent with the recommendations' rationale withheld",
         "Each sweep item carries an id, category, class, source location, dependencies, a blocking flag, and a hidden-default flag",
         "The unlisted primary-region assumption and the Q6 versus C1 contradiction each become a register row at the next contiguous `Q<N>` (no gap, no `S<N>` id in the register) and are asked",
@@ -533,7 +533,7 @@
     {
       "id": 38,
       "name": "person-deferred-routes-to-questionnaire",
-      "prompt": "/planning:interview me — add a purge job that deletes closed support tickets after their retention window.\n\n[Session state: an engineering session. The frontier is empty and the assumption sweep has run. It returned `S1 | hidden-default | person | Q3 recommendation, retention window | depends: Q3 | blocking: yes | hidden-default: yes`: the draft fixes a 90-day retention window, and the user said in round 2 that the window is set by Dana, the team's DBA, and that they cannot answer for Dana. No document or connected system records the window.]",
+      "prompt": "/planning:interview me — add a purge job that deletes closed support tickets after their retention window.\n\n[Session state: an engineering session. No open question remains on the frontier and the assumption sweep has run. It returned `S1 | hidden-default | person | Q3 recommendation, retention window | depends: Q3 | blocking: yes | hidden-default: yes`: the draft fixes a 90-day retention window, and the user said in round 2 that the window is set by Dana, the team's DBA, and that they cannot answer for Dana. No document or connected system records the window.]",
       "expected_output": "The sweep item is a `person` item the user cannot answer, so it gets the next contiguous register row and is `deferred` to the Brief's Deferred questions with its arbiter tag naming Dana, the DBA. No retention window is resolved on Dana's behalf: the 90-day default is not recorded as answered or captured as an assumption. At the Step 5 handoff the run recommends /planning:questionnaire to turn the deferred question into a document Dana fills in, beside the next pipeline step rather than in place of it, and it neither invokes /planning:questionnaire nor sends anything to Dana itself.",
       "files": [],
       "expectations": [
@@ -546,7 +546,7 @@
     {
       "id": 39,
       "name": "sweep-decision-item-not-settled-by-unsupported-fact",
-      "prompt": "/planning:interview me — set per-issue turn caps for the automation lanes.\n\n[Session state: an engineering session. Round 6 answered Q22: turn caps come from config by issue size (small 75, medium 150), and large issues are split during planning. No round decided where an issue's size is recorded or who sets it. The frontier is empty and the assumption sweep has returned `S10 | undecided | decision | Q22 | depends: Q22 | blocking: yes | hidden-default: yes`: nothing says who or what classifies an issue as small, medium or large. Earlier in this session your code research found that the triage lane does not vary anything by size. Your draft disposition reads: \"Settled from facts: the triage lane already sets each issue's size (decided 2026-10-17)\", and no file, URL or register row records that decision.]",
+      "prompt": "/planning:interview me — set per-issue turn caps for the automation lanes.\n\n[Session state: an engineering session. Round 6 answered Q22: turn caps come from config by issue size (small 75, medium 150), and large issues are split during planning. No round decided where an issue's size is recorded or who sets it. No open question remains on the frontier and the assumption sweep has returned `S10 | undecided | decision | Q22 | depends: Q22 | blocking: yes | hidden-default: yes`: nothing says who or what classifies an issue as small, medium or large. Earlier in this session your code research found that the triage lane does not vary anything by size. Your draft disposition reads: \"Settled from facts: the triage lane already sets each issue's size (decided 2026-10-17)\", and no file, URL or register row records that decision.]",
       "expected_output": "The run does not settle S10 from facts. S10 is a `decision` item, and the claimed fact has no quoted source; the session's own research contradicts it. The run writes S10 as a register row at the next contiguous `Q<N>`, `open`, and asks it in the next round (a sweep round) with a recommendation for where size is recorded and who sets it. It records S10 in the ledger's `## Assumption sweep` section with that `Q<N>` as its disposition, writes no F-line for it, and returns to Step 2. It does not lock the contract or tick the Step 2 exit box while that row is `open`.",
       "files": [],
       "expectations": [
@@ -571,6 +571,39 @@
         "The item becomes a register row at the next contiguous `Q<N>` (no `S<N>` id in the register) asking the user to confirm the literal address",
         "The new question states the literal `alerts-old@example.com` and cites `infra/Pulumi.production.yaml:14` as where it was read, never only \"the existing budget's address\"",
         "The address found in config is not stated as a settled fact with no register row; the run returns to Step 2 and does not lock the contract while that row is `open`"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "product-first-reply-is-one-question-with-strong-answer",
+      "prompt": "/planning:interview product a habit tracker for dog walkers",
+      "expected_output": "The `product` action reads context/product.md and opens with one question and nothing else: no survey paragraph, no quality-bar or intake question, no session-config recommendation, and no assessment of the idea, plan, or praise. The question comes from a Reason to exist principle (1 to 5), the one the pitch looks weakest on, and it carries what a strong answer sounds like in one or two lines, with a Basis line citing the principle by number and name. The reply asks no second question and pays the idea no compliment.",
+      "files": [],
+      "expectations": [
+        "The first reply opens with a question, with no assessment, plan, or praise of the idea before it",
+        "The reply asks exactly one question, not a numbered round of several",
+        "The question comes from a Reason to exist principle (1 to 5)",
+        "The question carries what a strong answer sounds like, in one or two lines, with its principle number as the basis",
+        "The reply contains no compliment on the idea",
+        "Nothing precedes the question: no \"Here is what I see\" survey paragraph, no quality-bar or starting-point question, and no model or effort recommendation"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "product-run-ends-in-six-item-verdict",
+      "prompt": "/planning:interview product a habit tracker for dog walkers\n\n[Session state: the `product` action, terminal lane. Fourteen questions have been asked, one per turn, Q1 to Q14, and each was registered `open` at ask-time with round field `round <N>`. Q1 to Q11, Q13 and Q14 are `answered`. Q12 (principle 11: which requests the product will refuse categorically) is still `open`: the user replied \"skip that one\" and the restate did not get an answer. In the reply to Q4 the user named a walker who has the problem, Dana Reyes, with her email dana.reyes@example.com; the ledger recorded Q4 as answered with \"a named walker the user can message today\". Q15 (principle 13: the chain of must-be-trues) was asked and registered `open`. The user has just answered Q15 with four links: walkers log walks daily, owners check the log, owners pay for the log, walkers recruit other walkers, and said the first link is the one under test this month.]",
+      "expected_output": "Q15's answer resolves its row and the fifteen-question cap is reached, so the interview ends and asks no sixteenth question. Before the verdict, Q12, the one row still `open`, is retired as `deferred` with the resolution `carried into verdict item 6`, and the register gate (check-open-questions.sh --ledger) runs and exits 0. The verdict then has exactly six items in order: the product's one idea in one sentence; the chain of four must-be-trues with the first link marked as under test; the biggest unanswered risk with the cheapest test for it; this month's 100% work and deliberate half-builds; violated principles by number; and what the interview did not resolve, which names Q12's refusal question. Neither the verdict nor the ledger carries Dana Reyes's name or email. No PLAN.md Brief, ADR or glossary entry is written, and the next step is recommended, never invoked.",
+      "files": [],
+      "expectations": [
+        "No sixteenth question is asked: the run moves to the verdict after Q15's answer",
+        "Q12 is retired as `deferred` with the resolution `carried into verdict item 6` before the verdict is written",
+        "The register gate (check-open-questions.sh --ledger) runs and exits 0 before the verdict is written",
+        "The verdict has exactly six items, in this order: the one idea in a sentence, chain of must-be-trues, biggest unanswered risk with its cheapest test, this month, violated principles by number, what the interview did not resolve",
+        "The chain item lists the four links in order and marks the first one as the link under test",
+        "Item 6 names the unanswered Q12 question about which requests to refuse",
+        "Neither the verdict nor the ledger contains the name Dana Reyes or the address dana.reyes@example.com",
+        "No PLAN.md Brief, ADR or glossary entry is written",
+        "The next step is recommended by name and no other skill is invoked"
       ]
     }
   ]

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n# relayd configuration settings\n\nrelayd reads its settings from `/etc/relayd/relayd.toml`.\n\n```toml\nlisten_port = 8080\nmax_connections = 64\n```\n\n| Setting | Meaning | Default | Allowed values |\n|---|---|---|---|\n| `listen_port` | TCP port relayd listens on | `8080` | 1 to 65535 |\n| `max_connections` | Cap on concurrent client connections | `64` | `0` means unlimited |\n| `idle_timeout` | Seconds an idle connection stays open | `300` | |\n| `tls_cert_path` | Path to a PEM certificate | empty (TLS off) | |\n| `log_level` | Log verbosity | `info` | `error`, `warn`, `info`, `debug` |\n````\n\nThis page is reference, not a tutorial: its readers are on the job and looking a value up. If you want a tutorial, write it as its own page and link the two.",
+      "why": "table with inner toml fence"
+    },
+    {
+      "answer": "````markdown\n## relayd.toml reference\n\n### listen_port\nTCP port. Default `8080`. Range 1 to 65535.\n\n### max_connections\nMaximum concurrent clients. Default `64`; `0` is unlimited.\n\n### idle_timeout\nSeconds before an idle connection closes. Default `300`.\n\n### tls_cert_path\nPEM certificate path. Default empty, which disables TLS.\n\n### log_level\nOne of `error`, `warn`, `info`, `debug`. Default `info`.\n````\n\nThe old page mixed a lesson voice with reference content. A separate getting-started tutorial could walk a new user through a first config.",
+      "why": "heading per setting"
+    },
+    {
+      "answer": "````markdown\n# Tutorial: Getting started with relayd\n\nIn this tutorial we will configure relayd step by step.\n\n1. Open `/etc/relayd/relayd.toml`.\n2. Set `listen_port` (default 8080), `max_connections` (default 64), `idle_timeout` (default 300), `tls_cert_path` (empty), and `log_level` (default `info`).\n3. Restart relayd.\n\nGreat job!\n````",
+      "why": "all named, title not judged here"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "relayd is a TCP relay written in Go.",
+      "why": "different question"
+    },
+    {
+      "answer": "````markdown\n# relayd configuration settings\n\n| Setting | Default |\n|---|---|\n| `listen_port` | 8080 |\n| `max_connections` | 64 |\n| `log_level` | `info` |\n````",
+      "why": "two settings dropped"
+    },
+    {
+      "answer": "```markdown\n# relayd settings\nlisten_port max_connections idle_timeout tls_cert_path log_level\n```",
+      "why": "three-backtick fence"
+    }
+  ]
+}

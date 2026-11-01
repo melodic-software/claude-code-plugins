@@ -4,6 +4,7 @@
 # against a forge that lags one read behind a push: its first head read still returns the
 # pre-push commit. Black-box, with the
 # blocks extracted from the reference and run in a fixture repository against a stubbed `gh`.
+# test-scope: plugins/source-control/skills/pull-request/scripts/pr-worktree.sh
 
 set -uo pipefail
 

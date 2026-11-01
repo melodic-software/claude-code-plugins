@@ -1,0 +1,125 @@
+{
+  "skill": "docs-hygiene:audit-noise",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/audit-noise",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the code-comment residue audit, the compression, derivability and SSOT extraction siblings, the AI-slop audit, the skill QA check and the attribution audit.",
+  "competitors": [
+    "code-tidying:audit-comment-residue",
+    "docs-hygiene:compress",
+    "ai-slop:audit",
+    "docs-hygiene:audit-derivability",
+    "docs-hygiene:extract-ssot",
+    "skill-quality:check",
+    "attribution:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through .claude/rules/testing.md and point out the lines that are leftover clutter from how it was written."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This convention page still says 'per our discussion' and 'see PR #812'. Find everything like that in docs/conventions."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Some of our docs cite paths under .work/ that will vanish when the slice closes. Find them."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check the skill body for dated 'observed on 2026-..' notes that should move to a Sources footer."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our runbook opens with a long section on why the file exists. Is that worth keeping on a reference page?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Scan the docs folder for prose that talks to whoever asked for the page instead of to the reader."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "List the 'Do not X' instructions in this rule file that never say what to do instead."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does README.md say 'in this PR we' or 'replaces the old' anywhere it shouldn't?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find hard-coded lists of consumer skills in our docs that go stale every time one is added."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick check before merge: flag the leftover noise lines in the markdown I changed."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find TODO comments and 'added for ticket 42' notes in the Python source."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make this README shorter; drop the hedging and filler words."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Does this blog post read like an AI wrote it? Check for em dashes and buzzwords."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is docs/architecture.md worth keeping at all, or can an agent just read the code?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Clean up the stale ticket references in the code comments under src/."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The same caveat paragraph appears in six skill files; give it one home."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Lint my SKILL.md frontmatter before I publish the plugin."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which sections of our guide were copied from the Stripe docs?"
+    }
+  ]
+}

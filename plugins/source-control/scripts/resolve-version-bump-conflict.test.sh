@@ -171,4 +171,27 @@ for listed in demo other; do
   fi
 done
 
+# 9. A symlink at either path: refused, and nothing written through the link.
+#    The target exists, is missing, or is a directory.
+for file in CHANGELOG.md .claude-plugin/plugin.json; do
+  r=$(mkfixture 1.2.1 desc '' 1.2.1)
+  git -C "$r" merge -q main >/dev/null 2>&1
+  outside="$(mktemp "$TEST_TMPDIR/outsideXXXXXX")"
+  printf 'outside\n' >"$outside"
+  rm -f "$r/$P/$file"
+  ln -s "$outside" "$r/$P/$file"
+  out=$(run "$r")
+  assert_exit "symlinked $file: exit 1" 1 "$?"
+  assert_contains "symlinked $file: names the plugin" "$out" "left for manual resolution: $P"
+  assert_eq "symlinked $file: target untouched" outside "$(cat "$outside")"
+  assert_eq "symlinked $file: link kept" "$outside" "$(readlink "$r/$P/$file")"
+  for target in "$TEST_TMPDIR/missing" "$TEST_TMPDIR"; do
+    rm -f "$r/$P/$file"
+    ln -s "$target" "$r/$P/$file"
+    out=$(run "$r")
+    assert_exit "$file linked to $target: exit 1" 1 "$?"
+    assert_contains "$file linked to $target: names the plugin" "$out" "left for manual resolution: $P"
+  done
+done
+
 [[ $FAILED -eq 0 ]] || exit 1

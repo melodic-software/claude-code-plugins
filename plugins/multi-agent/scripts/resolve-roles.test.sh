@@ -365,8 +365,8 @@ assert_contains "guarded consumer model: single config, fan-out the bundled guar
 
 # A bundled workload value carries its own basis, not the role's.
 out="$(run plain worker --session-model opus --workload mechanical)"
-assert_contains "mechanical workload: sonnet model has its own upstream basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"upstream","fanout_model":"upstream","effort":"upstream"}'
-assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tupstream'
+assert_contains "mechanical workload: sonnet model has its own judgment basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"upstream"}'
+assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tjudgment'
 
 # A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig

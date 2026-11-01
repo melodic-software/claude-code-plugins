@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Important\n\n- `src/settings-menu.css:5`: the dialog and its backdrop close on different durations (150ms and 300ms). Close both at 150ms.",
+      "why": "the mismatch sits under an Important heading"
+    },
+    {
+      "answer": "**Important**: an overlay and its content with different close durations. Match the backdrop to the dialog.\n\n**Suggestion**: the backdrop's 300ms exit is also longer than its 200ms entrance allows.",
+      "why": "graded Important, with a separate exit-length Suggestion beside it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Suggestion**: the backdrop's exit runs longer than its entrance; shorten it to 150ms.",
+      "why": "near miss: the right change, but graded only as an exit that runs too long"
+    },
+    {
+      "answer": "**Blocking**: the backdrop is still at 0.71 opacity at 210ms after the dialog is gone. Match the durations.",
+      "why": "graded Blocking"
+    },
+    {
+      "answer": "The backdrop outlives the dialog by 150ms; give both the same close duration.",
+      "why": "no severity given"
+    }
+  ]
+}

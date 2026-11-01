@@ -1,5 +1,5 @@
 ---
-description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator evals.json format."
+description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator JSON eval format."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -230,8 +230,8 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 2. Run "Calibrating a judge" first unless every `llm` grader it can reproduce has passed with this
    run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
 
-3. Invoke the CLI. The target comes first: placed after `--tag`, `--allow-tools`, or `--json` it
-   is swallowed as their value (`--json output path must end in .json`).
+3. Invoke the CLI with the target first, ahead of every flag. Pointer for how the target is parsed:
+   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>, as of 2026-10-31; recheck when a release changes a flag that takes values.
 
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
@@ -289,7 +289,7 @@ Read in this order. Stopping early at any step is the finding.
    for a plugin file it could not read, so the fact belongs in the hub. A Bash denial's paths are
    its command's absolute arguments, plus no path when it has an expansion or a relative
    word other than a flag, or does not parse. Any other denial, in either arm, is a warning only when its case has
-   denial-free runs in that arm and its run scored the same as each; otherwise it is a FAIL.
+   denial-free runs in that arm and its run scored the same as each; otherwise it is a FAIL. An invocation probe's denial of a named call other than Skill is a warning when it follows the graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the gate prints each probe case's fire counts with and without denials.
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
@@ -354,8 +354,7 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- Spoke reach is version-bound ([records.md](reference/records.md#spoke-reach)): on 2.1.270 and 2.1.287
-  every with-arm `Read` under the plugin directory was denied, so only the hub reached the model; on 2.1.289 a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded with no grant.
+- Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the probe pair in [records.md](reference/records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code release by re-running one case with `--keep-temp`.
   Check the trace for a denied `Read` before crediting a spoke.
 
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
@@ -433,9 +432,9 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   command is available. This skill owns what surrounds a spend: the preflight, the no-spend
   validation, the estimate and ceiling, target routing and the reading discipline. It never re-implements grading and never simulates a run or a score.
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
-- `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
-  validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
-  installed; otherwise state that the file follows that format and validation was skipped.
+- The skill-creator JSON eval format is not a suite this command reads. Convert its cases to case
+  directories (`/evals:design skill <name>` writes them), check those with `/evals:validate`, then
+  run them here. To move one plugin's `evals.json` cases into its suite, run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/convert-evals-json.py" <plugin-dir>` (`--dry-run` prints the case count and writes nothing; `--help` prints what it writes), then `/evals:validate` on the plugin's `evals/`.
 
 ## Next
 
@@ -485,7 +484,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
-| Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.312 ([records.md](reference/records.md#worktrees)) | 2026-10-29 | A release note touches worktree isolation or `plugin eval` |
+| Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.316 ([records.md](reference/records.md#worktrees)) | 2026-10-31 | A release note touches worktree isolation or `plugin eval` |
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.toast {\n  translate: 0 calc(var(--index) * -72px);\n  transition: translate 250ms var(--ease-out), opacity 250ms var(--ease-out);\n}\n@starting-style {\n  .toast[data-state=\"open\"] { opacity: 0; translate: 0 16px; }\n}\n```",
+      "why": "transitions on translate driven by --index; the entry uses @starting-style, not keyframes"
+    },
+    {
+      "answer": "```css\n.toast {\n  transform: translateY(calc(var(--index) * -100% - var(--index) * 8px));\n  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1), opacity 220ms cubic-bezier(0.23, 1, 0.32, 1);\n}\n```",
+      "why": "the stack moves by transform transitions that retarget mid-burst"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.toast { animation: toast-in 250ms ease-out; }\n@keyframes toast-in { from { opacity: 0; transform: translateY(16px); } }\n.toast { bottom: calc(var(--index) * 72px); }\n```",
+      "why": "keyframe entrance that replays on a burst, and the stack placed by bottom with no transition"
+    },
+    {
+      "answer": "```css\n.toast {\n  bottom: calc(var(--index) * 72px);\n  transition: bottom 250ms ease-out, opacity 250ms ease-out;\n}\n```",
+      "why": "near miss: retargeting transitions, but the restack animates the bottom offset, a layout property"
+    },
+    {
+      "answer": "```css\n.toast { transform: translateY(calc(var(--index) * -72px)); transition: opacity 200ms ease-out; }\n```\n\nThe stack slides smoothly when a toast is added.",
+      "why": "near miss: positioned by transform but only opacity transitions, so the claimed restack motion does not happen"
+    }
+  ]
+}

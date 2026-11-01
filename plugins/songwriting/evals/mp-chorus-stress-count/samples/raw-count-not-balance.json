@@ -32,6 +32,18 @@
     },
     {
       "answer": "The raw syllable count says nothing about balance."
+    },
+    {
+      "answer": "By stress the chorus is 4/3/4/4. The 8/9/9/8 doesn't measure balance here.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "Raw syllables: 8/9/9/8. They aren't the measure this method uses; by stress it's 4/3/4/4.",
+      "why": "a with-arm reply the earlier pattern failed"
+    },
+    {
+      "answer": "The chorus looks even, but the 8/9/9/8 count isn't what shows it: by stress it reads 4/3/4/4.",
+      "why": "a with-arm reply the earlier pattern failed"
     }
   ],
   "fail": [
@@ -61,6 +73,38 @@
     {
       "answer": "Your syllable count isn't perfectly even, but 8/9/9/8 is balanced enough.",
       "why": "a hedged endorsement of the raw count"
+    },
+    {
+      "answer": "The raw counts, 8/9/9/8, show real symmetry, so the chorus is balanced and doesn't need work.",
+      "why": "endorses the raw count; the negation is about the work, not the measure"
+    },
+    {
+      "answer": "Stress count is not the metric for balance; the raw syllable counts of 8/9/9/8 show that the chorus is balanced.",
+      "why": "negates the stress count and endorses the raw count (review finding)"
+    },
+    {
+      "answer": "Stress isn't the measure that matters here; the 8/9/9/8 syllable counts are balanced.",
+      "why": "endorses the raw count (review finding)"
+    },
+    {
+      "answer": "Stress doesn't show symmetry, but the 8/9/9/8 count does.",
+      "why": "endorses the raw count (review finding)"
+    },
+    {
+      "answer": "The stress pattern isn't what shows it, the 8/9/9/8 count does.",
+      "why": "endorses the raw count (review finding)"
+    },
+    {
+      "answer": "8/9/9/8 is balanced; you can't measure balance better than a syllable count.",
+      "why": "endorses the raw count (review finding)"
+    },
+    {
+      "answer": "The rhythm doesn't determine the length, the syllables do.",
+      "why": "endorses the raw count (review finding)"
+    },
+    {
+      "answer": "The chorus doesn't show balance.",
+      "why": "a negative description with no raw-count subject (review finding)"
     },
     {
       "answer": ""

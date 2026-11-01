@@ -1,6 +1,6 @@
 ---
 description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'why is this session sluggish', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /harness-ops:known-issues. Stale files: /harness-ops:audit-install-state."
-argument-hint: "[unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
+argument-hint: "[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. The skill consumes `unattended`: never pass it to the engine or read it as a root; under it, record the suggestion in the report instead of asking.
+**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, record the suggestion in the report instead of asking. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
 ## Purpose
 
@@ -30,7 +30,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Why is Claude Code slow right now? | **this skill** |
 | The historical cost of these hooks over past sessions | Not this engine (Never read bars transcripts); the person asks a `/doctor` session (see Reading the report) |
 | What exactly is in the install tree, and is anything stale? | `/harness-ops:audit-install-state` |
-| Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins audit` |
+| Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins-audit` |
 | Is this a known upstream bug? | `/harness-ops:known-issues` (compose: search the symptoms this report surfaces) |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 | Shed one project's `~/.claude.json` state | `claude purge <path>` |
@@ -170,7 +170,7 @@ directly.
 **Suspect 3. Component bloat.** Evidence: `plugin_fleet` counts and `processes`. Community-
 confirmed slowness causes cluster here (many MCP servers/plugins each add per-tool-call and
 startup cost). This report only counts; the enablement-and-scope verdict belongs to
-`/harness-ops:plugins audit`. Tell the user to run it rather than eyeballing.
+`/harness-ops:plugins-audit`. Tell the user to run it rather than eyeballing.
 
 **Suspect 4, the fan-out layer.** What the machine pays per spawn, multiplied by everything that
 spawns. Read `fan_out` in this order:
@@ -307,7 +307,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (claim: `/doctor` is reserved for the person to run, `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, both fetched 2026-09-29, and the 2.1.263 binary registering it as model-invocation-disabled on 2026-09-11; as of 2026-09-29; recheck: either page drops that gate, or a release lets the model invoke it), run it for the quick health-and-fix pass this timed capture does not perform.
 
-**`unattended`:** record the suggestion in the report's final section; do not ask.
+**`--unattended`:** record the suggestion in the report's final section; do not ask.
 
 ## Gotchas
 

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "# Encapsulation audit — 2 violations\n\n| File | Line | Cite | Suggested path |\n|---|---|---|---|\n| docs/releasing.md | 5 | `.claude/skills/release-notes/reference/changelog-format.md` | A |\n| docs/releasing.md | 8 | `.claude/skills/release-notes/SKILL.md#version-bump-rules` | A |", "why": "skill output shape"},
+    {"answer": "Two things in docs/releasing.md reach inside the skill: step 2 points at reference/changelog-format.md and step 3 links a heading in SKILL.md.", "why": "prose, short path"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Nothing outside the skill depends on its internals; docs only call /release-notes.", "why": "missed the leak"},
+    {"answer": "The changelog format doc is cited from docs/releasing.md.", "why": "named in words, path not given"},
+    {"answer": "Release notes are drafted by running /release-notes draft 2.4.0.", "why": "answers a different question"}
+  ]
+}

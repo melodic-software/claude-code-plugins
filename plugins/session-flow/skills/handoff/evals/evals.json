@@ -119,7 +119,7 @@
     {
       "id": 9,
       "name": "purpose-argument-tailors-emphasis-only",
-      "prompt": "Earlier in this session I worked on the api-refactor task. That work is recorded in evals/fixtures/api-refactor-session-state.md (relative to the skill directory): the goal in my words, what is done, the decisions, the uncommitted change, the open questions and the remaining work. The draft it produced is evals/fixtures/api-refactor-endpoint-design.md. Treat that record as this session's history. If the current working directory is not inside a git work tree, use `.work` in the current working directory as the memory dir. Now run exactly: /session-flow:handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
+      "prompt": "Earlier in this session I worked on the api-refactor task. That work is recorded in evals/fixtures/api-refactor-session-state.md (relative to the current working directory): the goal in my words, what is done, the decisions, the uncommitted change, the open questions and the remaining work. The draft it produced is evals/fixtures/api-refactor-endpoint-design.md. Treat that record as this session's history. If the current working directory is not inside a git work tree, use `.work` in the current working directory as the memory dir. Now run exactly: /session-flow:handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
       "expected_output": "The session's prior work comes from the fixture record, so the handoff summarizes it rather than refusing for lack of history. The trailing free text after the topic token is parsed as the purpose argument — no quoting needed. It tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review use, and Remaining actions are ordered to put the review-relevant items first where ordering is otherwise free. Every mandatory body section is still present in the structure doc's order, and the resume prompt between the rails keeps its standard shape (Read directive, Prior session line, Handoff origin line) — purpose changes what is emphasized, never what is emitted. The case grades the hot file the run writes, read from disk, since a judge of the trace alone cannot see that file's contents.",
       "files": [
         "evals/fixtures/api-refactor-session-state.md",
@@ -309,13 +309,13 @@
     },
     {
       "id": 22,
-      "name": "leading-unattended-consumed-before-method",
-      "prompt": "/session-flow:handoff unattended prompt",
-      "expected_output": "The leading bare `unattended` token is consumed before method detection, so `prompt` is read as the method (prompt-only path, no durable file) and `unattended` is never taken as the topic or a method. The only effect of `unattended` is on the /export step: the suggestion is recorded in the output and the operator is not asked. The skill still STOPS after emitting the resume prompt.",
+      "name": "leading-unattended-flag-consumed-before-method",
+      "prompt": "/session-flow:handoff --unattended prompt",
+      "expected_output": "The `--unattended` flag is taken out of the arguments before method detection, though it comes first, so `prompt` is read as the method (prompt-only path, no durable file) and `--unattended` is never taken as the topic or a method. The only effect of `--unattended` is on the /export step: the suggestion is recorded in the output and the operator is not asked. The skill still STOPS after emitting the resume prompt.",
       "files": [],
       "expectations": [
-        "The leading `unattended` token is consumed before method detection, and `prompt` is then read as the method (first remaining token)",
-        "No durable handoff file is written (prompt-only path), and the topic is not 'unattended'",
+        "The `--unattended` flag is taken out before method detection, and `prompt` is then read as the method (first remaining token)",
+        "No durable handoff file is written (prompt-only path), and the topic is not '--unattended' or 'unattended'",
         "The /export step records the suggestion in the output and does not ask the operator",
         "The self-contained resume prompt is emitted between two dashed U+2500 rails and the skill STOPS after emitting it"
       ]
@@ -535,12 +535,12 @@
     {
       "id": 39,
       "name": "stuck-dependent-work-under-unattended-is-recorded-in-flight",
-      "prompt": "/session-flow:handoff unattended file migration-pass\n\n(Context: earlier this session you spawned a background subagent named `schema-diff` to compare the two schemas; the next action, writing the migration, depends on its diff. Its transcript has shown no new output for the last 40 minutes and its last line is a retry of the same failing connection.)",
-      "expected_output": "The model reads `schema-diff`'s real state, judges that the handoff depends on it, and sees from the stalled, repeating transcript that it is stuck. Because the invocation is `unattended`, it asks no one: it says the subagent is stuck, citing the transcript evidence, and writes the save-point with `schema-diff` recorded as in flight in Environment and its pending diff marked `UNVERIFIED (schema-diff still running)` wherever the save-point leans on it. It does not wait indefinitely, does not cancel the subagent on its own, and does not invent the diff's result.",
+      "prompt": "/session-flow:handoff file --unattended migration-pass\n\n(Context: earlier this session you spawned a background subagent named `schema-diff` to compare the two schemas; the next action, writing the migration, depends on its diff. Its transcript has shown no new output for the last 40 minutes and its last line is a retry of the same failing connection.)",
+      "expected_output": "The model reads `schema-diff`'s real state, judges that the handoff depends on it, and sees from the stalled, repeating transcript that it is stuck. Because the invocation passes `--unattended`, it asks no one: it says the subagent is stuck, citing the transcript evidence, and writes the save-point with `schema-diff` recorded as in flight in Environment and its pending diff marked `UNVERIFIED (schema-diff still running)` wherever the save-point leans on it. It does not wait indefinitely, does not cancel the subagent on its own, and does not invent the diff's result.",
       "files": [],
       "expectations": [
         "The response reads `schema-diff`'s actual state and cites the stalled transcript as evidence that it is stuck",
-        "The response asks the user no question about waiting or cancelling, because the invocation is `unattended`, and says it is handing off with the work recorded in flight",
+        "The response asks the user no question about waiting or cancelling, because the invocation passes `--unattended`, and says it is handing off with the work recorded in flight",
         "The save-point records `schema-diff` as still running and marks its pending result `UNVERIFIED (schema-diff still running)` or an equivalent `UNVERIFIED` marker",
         "The response neither cancels the subagent itself nor states a schema diff result it never received"
       ]

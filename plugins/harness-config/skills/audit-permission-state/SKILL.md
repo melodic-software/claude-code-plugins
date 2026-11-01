@@ -1,6 +1,6 @@
 ---
 description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it to reduce prompts via an allowlist; this skill to see the state in effect. Report-only: merges every settings scope into the allow/ask/deny set in effect with source and precedence per rule, and flags allow rules auto mode drops. Use when: 'what permissions are actually in effect', 'which of my rules survive auto mode', 'is my managed policy being read'. A rule ignored for its shape: `audit-permission-grants`."
-argument-hint: "[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
+argument-hint: "[--unattended] [--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Report the permission rules actually in effect and what auto mode drops
 ---
 
-**Arguments.** `[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]`. Full form: (none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced
+**Arguments.** `[--unattended] [--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]`. Full form: (none) every read-only stage | [--scopes] [--entry-diff] [--lint] [--managed] [--block] narrow | [--oracle] [--critique] priced
 
 ## Purpose
 
@@ -60,8 +60,9 @@ for reducing prompts by writing an allowlist; prefer this skill to see what is i
 report ends with a rule the person wants added, removed, or moved, offer it to the person:
 If /permissions is available in your session (gate basis: it varies by version and host; records
 in [reference/native-surfaces.md](reference/native-surfaces.md)), you can run it to view and edit
-these rules interactively. An unattended run records that
-offer in its output instead of asking.
+these rules interactively. When the caller passes
+`--unattended`, the run records that offer in its output instead of asking;
+without that flag it asks.
 
 **Mutation gate.** `fewer-permission-prompts` writes project settings, and `/permissions` writes
 whichever scope the person edits. This skill never chains into either on its own behalf.
@@ -86,6 +87,9 @@ plugin could not author them even if it wanted to.
 Parse `$ARGUMENTS`. **Flags narrow; they never widen.**
 
 - (no argument): every read-only stage, in order, through one entry point. See "Run it" below.
+- `--unattended`, anywhere: the caller declares nobody is present, which changes only the
+  `/permissions` offer (see "Boundary" above). It is not a stage flag and `audit.sh` refuses it: drop
+  it from the arguments "Run it" passes.
 - `--scopes`: surface records only, no rule inventory and no downstream stage. Use when the question
   is "which scopes exist and which could you read", not "what is in them".
 - `--entry-diff`: inventory, merge, and the auto-mode entry diff (Phase 3).
@@ -101,7 +105,7 @@ Parse `$ARGUMENTS`. **Flags narrow; they never widen.**
 ## Run it
 
 One entry point runs each stage once and fans the inventory out, instead of walking every scope once
-per pipeline:
+per pipeline (with `--unattended` dropped from the arguments):
 
 ```shell
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/audit.sh" $ARGUMENTS
@@ -364,7 +368,8 @@ session by `CLAUDE_CODE_REMOTE`, the only entrypoint variable it branches on.
 ## Prerequisites
 
 - **`jq`, required for correctness.** Absent, the script stops at the entry point with
-  `ERROR: jq required` and exit 2. Report the environment gap; do not report a clean bill.
+  `ERROR: jq required` and exit 2, followed by the install command for the platform when it finds
+  one. Report the environment gap and that install line; do not report a clean bill.
 - **`reg` (Windows) and `defaults` (macOS), required for an optional feature.** Absent, that one
   managed surface is `skipped` with a visible notice and everything else still runs.
 

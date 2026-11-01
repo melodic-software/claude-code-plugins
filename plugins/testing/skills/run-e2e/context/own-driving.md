@@ -3,9 +3,9 @@
 Loaded when SKILL.md Step 1 picks own driving: app-control does not drive this run, so this skill
 launches, operates and captures itself. Prerequisites, Resolve run config and the browser-driver
 check in Drive run first, in that order, before the drive subagent is dispatched; a stop in any of
-them dispatches no subagent and opens no browser session. The drive subagent then runs the rest. The three commands that carry the run's settings stay in
-SKILL.md, under "Own driving", because only that file expands the values they need; the steps below
-name them.
+them dispatches no subagent and opens no browser session. The drive subagent runs the rest. The
+three commands that carry the run's settings stay in SKILL.md, under "Own driving", because only
+that file expands the values they need; the steps below name them.
 
 ## Contents
 
@@ -20,15 +20,15 @@ name them.
 
 ## Prerequisites
 
-Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails. STOP and report what's missing and how to fix it; do not attempt workarounds, because a substitute path produces unverified pass/fail results, defeating live verification.
+Check tool availability per the prerequisite matrix in [e2e.md](e2e.md). When the consuming project names a prerequisite orchestrator tool/MCP, its absence hard-fails: STOP and report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
 
-On a hard-fail, STOP **and** write a structured verification-environment gap report to the run's evidence output before stopping. The report lists what is missing, each key, CLI, MCP, or environment the run needs, and what the operator must provide to make the run possible. The STOP still holds; the gap report is its actionable half, so the operator receives a precise list of what to supply rather than a bare failure.
+On a hard-fail, before stopping, write a structured verification-environment gap report to the run's evidence output: what is missing (each key, CLI, MCP, or environment the run needs) and what the operator must provide to make the run possible. The STOP still holds; the report gives the operator a precise list to supply instead of a bare failure.
 
 ## Resolve run config
 
 Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`), `reuse_running_instance` (`auto | true | false`) and `browser_driver`. [e2e-config.md](e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
 
-- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
+- `recording` and `browser_mode`: anchor at the repo root, read every layer of `.claude/testing/e2e.md` that exists (user-global, team, local overlay), and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md)'s; this step names only the surface path, the keys, and the per-key merge.
 - `e2e_driver` and `reuse_running_instance`: run SKILL.md's resolve command (Own driving) as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
   being the file that set it, `userConfig`, or `default`, and names on stderr any value it
   rejected. Use the printed values; a rejected value has already resolved to the default.
@@ -42,9 +42,9 @@ Five keys govern this path: `recording` (`video | gif | off`), `browser_mode` (`
 
 When the bundled `run` skill resolves in this session, the drive subagent invokes it through
 the Skill tool as `run`, asking it only to launch the app and report how to reach it (URL, port,
-process). The driving stays with this skill: screenshots, responses, and logs are layered on top of
-`run`'s result under the evidence contract in [e2e.md](e2e.md). Prerequisites, run
-config, evidence, and handoff stay with this skill too. The step runs only under the
+process). Driving, prerequisites, run config, evidence and handoff stay with this skill:
+screenshots, responses and logs are layered on `run`'s result under the evidence contract in
+[e2e.md](e2e.md). The step runs only under the
 one-launch-path rule in SKILL.md's Boundary section: it is skipped when the project's orchestrator governs
 the start, when the app is already running, and on the non-UI route, where there is no app to
 launch.
@@ -63,8 +63,8 @@ after a scoped invocation**: the run exits degraded and the report names the pat
 `diff --git` section differs between the files. A path that was already dirty and is unchanged is
 not named.
 
-**Already running.** [e2e.md](e2e.md) requires a running app. On this path the
-launch meets that requirement, so Prerequisites does not stop on a missing app. Before invoking `run`, or
+**Already running.** [e2e.md](e2e.md) requires a running app; on this path the launch meets that
+requirement, so Prerequisites does not stop on a missing app. Before invoking `run`, or
 before `up` when a Workspace environment entry exists, the drive subagent probes the URL or
 port the scenario or the project's documented start command names. The scenario is free-form input,
 so the target is used only when it is a bare
@@ -108,7 +108,7 @@ State: ran | resolved but degraded (<disclosure>) | did not resolve in this sess
 Outside-scope changes: none | <paths>
 ```
 
-**`unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
+**`--unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
 records `State: skipped (unattended)` without asking.
 
 ## Drive
@@ -122,8 +122,8 @@ Before dispatching the drive subagent, once the driver for the run is known: whe
 as one Bash call. It exits non-zero when the resolved `browser_driver` command is not on PATH, and
 its message names the setting, the value, where the value came from, and the two ways forward
 (install that tool, or set `browser_driver` to a browser tool you have). On a non-zero exit, STOP
-before driving anything and write the gap report from Prerequisites with that message. No other browser
-tool is a silent substitute, and the run never switches tools partway through.
+before driving anything and write the gap report from Prerequisites with that message. No other
+browser tool is a silent substitute, and the run never switches tools partway through.
 
 Pass the resolved config through to the executor:
 
@@ -192,8 +192,8 @@ map) and:
 ## Teardown
 
 Teardown closes each session this run opened, by its name (`playwright-cli -s='<name>' close`), and
-stops only processes this run started. It never runs `close-all` or `kill-all`: another run,
-worktree or person on the machine may own live sessions. A session that will not close is reported
+stops only processes this run started. Never `close-all` or `kill-all`: another run, worktree or
+person on the machine may own live sessions. A session that will not close is reported
 by name; recovery is the playwright skill's "Recover from stale sessions" step, not part of the run.
 
 After teardown, check that every evidence path the report names still exists and is not empty, one

@@ -660,7 +660,7 @@ def plugin_fleet(root: Path) -> dict:
         if d.is_dir():
             out[sub + "_entries"] = sum(1 for _ in d.iterdir())
     out["note"] = (
-        "counts only; enablement and scope verdicts belong to /harness-ops:plugins audit"
+        "counts only; enablement and scope verdicts belong to /harness-ops:plugins-audit"
     )
     return out
 

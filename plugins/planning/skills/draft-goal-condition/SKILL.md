@@ -1,6 +1,6 @@
 ---
 description: "Pick the repetition lever (/goal, /loop, routines and /schedule, a workflow, a Stop hook, or a one-shot prompt) and, when /goal fits, draft a transcript-demonstrable completion condition, checked against the documented limit by a deterministic counter. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
-argument-hint: "[intent]"
+argument-hint: "[--unattended] [intent]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,8 @@ metadata:
 ## Variables
 
 Arguments: `$ARGUMENTS`. The natural-language intent for the autonomous run, plus any constraints
-or bounds the user volunteers.
+or bounds the user volunteers. `--unattended`, anywhere in the arguments, is not part of the intent: it is the caller
+declaring that nobody is present, which governs the offer under "Routing". Take it out first.
 
 ## Purpose
 
@@ -49,7 +50,9 @@ see the result. When either is missing, prompt once instead.
 - **Custom per-turn logic across all sessions** (deterministic script check, settings-scoped) → a
   prompt-based Stop hook.
 - **More agents than one conversation can coordinate** (or orchestration worth codifying as a
-  rerunnable script) → a dynamic workflow. This row composes with `/goal`: the workflow does the
+  rerunnable script; for the scale each approach fits, see
+  [When to use a workflow](https://code.claude.com/docs/en/workflows#when-to-use-a-workflow), as of
+  2026-10-31; recheck when that section's comparison table changes) → a dynamic workflow. This row composes with `/goal`: the workflow does the
   parallel work, the goal sets the hard completion requirement. Route away from drafting only when
   the intent wants the fan-out and *no* across-turn completion condition; when it wants both, draft
   the condition here and say the workflow rides alongside it.
@@ -77,7 +80,10 @@ Two caveats on the workflow row, each of which turns a plausible recommendation 
   workflow lever reaches all paid plans (on Pro it is switched on from the **Dynamic workflows**
   row in `/config`), while the standing setting needs a model that offers `xhigh` effort.
 - **The lever is unreachable from an ordinary subagent.** The `Workflow` tool is filtered out of
-  every non-fork subagent (the filter is on `https://code.claude.com/docs/en/sub-agents`;
+  every non-fork subagent (the filter is in
+  [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), as of
+  2026-10-31; recheck when `Workflow` leaves that list or a fork stops keeping the main session's
+  tools;
   `/discovery:research`, if enabled, selects its workflow-backed deep tier only in the main
   conversation for this reason). A lever whose work lands in dispatched non-fork subagents (the
   loop lanes' workers, for instance) cannot be the workflow row; recommend it only where the
@@ -252,8 +258,9 @@ drafted text, instead of or alongside continuing by hand. Also
 propose it with `ProposeGoal`, leaving `ask_user` true, only when all of these hold: the tool
 resolves in this session, the session is the main thread of an interactive local session (not a
 subagent), plan mode is not active, and the condition passes the counter at the tool's own cap.
-When the lever check routes away from `/goal`, make no offer. An unattended run records the
-paste-ready line in its output instead of asking.
+When the lever check routes away from `/goal`, make no offer. When the caller passes
+`--unattended`, the run records the paste-ready line in its output instead of
+asking; without that flag it asks.
 
 **Mutation gate.** Only the person's approval arms a goal: their `/goal` run or their keypress on
 a `ProposeGoal` dialog. This skill never sets `ask_user` false, and never sets, replaces, or

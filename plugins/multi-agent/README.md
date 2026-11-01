@@ -107,8 +107,8 @@ relative to mod hooks is read live:
 
 ## The fan-out guard
 
-A stage that runs more than one agent never runs them on a frontier model by
-default. Under a Fable session, or when the caller does not say which model
+The resolver names no frontier model for a stage that runs more than one agent.
+Under a Fable session, or when the caller does not say which model
 the session runs, every fan-out variant names `opus`; a single synthesis or
 judge agent may still inherit the session model. The verifier role stays at
 least as strong as what it checks: `opus` verifiers over `opus` workers. Turning

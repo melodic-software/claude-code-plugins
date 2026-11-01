@@ -156,19 +156,40 @@ if [[ -n "${CLAUDE_CODE_REMOTE:-}" ]]; then
   echo "REFUSED: CLAUDE_CODE_REMOTE is set; run refresh from a terminal on this machine" >&2
   exit 2
 fi
-if ! command -v pgrep >/dev/null 2>&1; then
-  echo "REFUSED: pgrep not found, so no running claude process can be ruled out" >&2
-  exit 2
-fi
-pids=$(pgrep -x claude)
-pgrep_rc=$?
-if ((pgrep_rc == 0)); then
-  echo "REFUSED: a claude process is running (pid ${pids//$'\n'/ }); close every session first" >&2
-  exit 2
-elif ((pgrep_rc != 1)); then
-  echo "REFUSED: pgrep failed (exit $pgrep_rc), so no running claude process can be ruled out" >&2
-  exit 2
-fi
+# Git Bash has no pgrep; Windows lists its processes through tasklist.exe. `//` keeps
+# MSYS from rewriting the `/FI` switches as paths.
+case "$(uname -s 2>/dev/null)" in
+MINGW* | MSYS* | CYGWIN*)
+  if ! command -v tasklist.exe >/dev/null 2>&1; then
+    echo "REFUSED: tasklist.exe not found, so no running claude process can be ruled out" >&2
+    exit 2
+  fi
+  if ! listing=$(tasklist.exe //FI "IMAGENAME eq claude.exe" //NH //FO CSV); then
+    echo "REFUSED: tasklist.exe failed, so no running claude process can be ruled out" >&2
+    exit 2
+  fi
+  pids=$(printf '%s\n' "$listing" | tr -d '\r' | awk -F'","' '/^"claude\.exe"/ {print $2}')
+  if [[ -n "$pids" ]]; then
+    echo "REFUSED: a claude process is running (pid ${pids//$'\n'/ }); close every session first" >&2
+    exit 2
+  fi
+  ;;
+*)
+  if ! command -v pgrep >/dev/null 2>&1; then
+    echo "REFUSED: pgrep not found, so no running claude process can be ruled out" >&2
+    exit 2
+  fi
+  pids=$(pgrep -x claude)
+  pgrep_rc=$?
+  if ((pgrep_rc == 0)); then
+    echo "REFUSED: a claude process is running (pid ${pids//$'\n'/ }); close every session first" >&2
+    exit 2
+  elif ((pgrep_rc != 1)); then
+    echo "REFUSED: pgrep failed (exit $pgrep_rc), so no running claude process can be ruled out" >&2
+    exit 2
+  fi
+  ;;
+esac
 
 if [[ -z "${RESET_REFRESH_RUN_DIR:-}" ]]; then
   # Judged on the nearest existing ancestor, so a refused root is never created.

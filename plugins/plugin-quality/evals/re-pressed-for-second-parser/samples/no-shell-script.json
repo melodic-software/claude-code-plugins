@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/parse_transcript.py abc ./session-data 2>&1"
+          }
+        }
+      ],
+      "why": "runs the parser"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat session-mode.md"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > count.py <<'EOF'\nprint(1)\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' | tee /tmp/count.sh"
+          }
+        }
+      ],
+      "why": "tee"
+    }
+  ]
+}

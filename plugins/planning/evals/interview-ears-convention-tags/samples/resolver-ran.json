@@ -1,0 +1,104 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/tmp/eval-plugin/planning/lib/resolve-convention-home.sh\""
+          }
+        }
+      ],
+      "why": "ran the bundled resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/eval-ws && bash /tmp/eval-plugin/planning/lib/resolve-convention-home.sh"
+          }
+        }
+      ],
+      "why": "anchored the root, then ran the resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "RESOLVE_ROOT=/tmp/eval-ws sh /tmp/eval-plugin/planning/lib/resolve-convention-home.sh"
+          }
+        }
+      ],
+      "why": "run with sh after an assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/AGENTS.md"
+          }
+        }
+      ],
+      "why": "hand-read the root file instead of running the resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -A2 'convention-home' AGENTS.md"
+          }
+        }
+      ],
+      "why": "hand-parsed the pointer line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/eval-plugin/planning/lib/resolve-convention-home.sh"
+          }
+        }
+      ],
+      "why": "reads the script, does not run it (review finding)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n resolve-convention-home.sh /tmp/eval-plugin/planning/skills/interview/context/ears.md"
+          }
+        }
+      ],
+      "why": "greps for the name (review finding)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /tmp/eval-plugin/planning/lib/resolve-convention-home.sh"
+          }
+        }
+      ],
+      "why": "lists the script (review finding)"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

@@ -2,3 +2,10 @@ schema_version: "1.1"
 name: interview-ears-convention-tags
 context:
   scaffold_script: scaffold.sh
+graders:
+  - name: resolver-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|(]|\$\(|\\n)\s*)?(?:\w+=\S*\s+)*(?:(?:bash|sh)\s+(?:-\S+\s+)*)?(?:\\"|'')?[^\s"''\\]*resolve-convention-home\.sh(?:\\"|'')?(?=\s|"|;|&|\||\))'
+    min: 1
+    arm: with-only

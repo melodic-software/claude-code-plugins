@@ -77,6 +77,24 @@
         "reviewed": "2026-10-24",
         "basis": "plugins/harness-ops/skills/control-claude-code/driver/driver.mjs:245 installs this lockfile on the user's machine, :420-422 load the engine and its per-platform native binary (package-lock.json:22-30) into the session holder and start claude in it after :87 clears the API credential variables, so the session runs on the saved claude.ai subscription login and a hijacked release runs beside it.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/plugins/sql-server",
+        "dependency": "tedious",
+        "reviewed": "2026-10-31",
+        "basis": "plugins/sql-server/package-lock.json is the tree Claude Code's automatic dependency install puts on the user's machine when the plugin is cached; src/executor.mjs:71 (claude-code-plugins#11550) loads tedious into the MCP server process and :131 hands it the SQL login, so a hijacked release receives that login.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
+      },
+      {
+        "repository": "melodic-software/claude-code-plugins",
+        "ecosystem": "npm",
+        "directory": "/plugins/sql-server",
+        "dependency": "@azure/identity",
+        "reviewed": "2026-10-31",
+        "basis": "plugins/sql-server/package-lock.json is the tree Claude Code's automatic dependency install puts on the user's machine when the plugin is cached; src/executor.mjs:81 (claude-code-plugins#11550) loads @azure/identity into the MCP server process and :85 builds its DefaultAzureCredential, so a hijacked release runs with the user's Entra tokens.",
+        "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       }
     ],
     "excludeSemverMajor": true,

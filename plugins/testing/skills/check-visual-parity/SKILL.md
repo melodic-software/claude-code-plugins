@@ -17,7 +17,7 @@ pixels differ. The count is held to the repository's `pixel_tolerance`, which is
 records a reason for more.
 
 The baseline is the reference the change answers to. This skill never edits, replaces or
-re-captures it, and it never edits a capture harness or the app's styles to make a compare pass.
+re-captures it, and never edits a capture harness or the app's styles to make a compare pass.
 
 ## Arguments
 
@@ -45,28 +45,30 @@ re-captures it, and it never edits a capture harness or the app's styles to make
    and another renderer's capture would measure the renderer change.
 2. **A driver that writes PNG files.** When `/app-control:drive` is among the available skills,
    capture each state with `/app-control:drive capture --kind screenshot --out <the baseline or
-   after directory>`, and use the result only when drive reports a PNG file at that path that is
-   not empty. Drive names its files for the feature and a step number
-   (`checkout-cart-02-screenshot.png`), and compare pairs images by filename, so rename or copy each
-   drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory, and
-   record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a capability gap, or writes no PNG, fall through
-   to the next choice. Otherwise capture only through the Playwright CLI
-   (`/playwright:playwright`, when it is among the available skills) or through the repository's
-   own harness when that harness writes PNG files. Any other driver, including one that returns
-   screenshots only into the conversation, cannot feed a pixel count: stop with the gap report
-   (what to hold, which driver resolved, and that a PNG-writing driver is needed).
+   after directory>`, and use the result only when drive reports a non-empty PNG file at that
+   path. Drive names its files for the feature and a step number
+   (`checkout-cart-02-screenshot.png`), and compare pairs images by filename, so rename or copy
+   each drive PNG to its state name (`invoice-list-empty.png`) in the baseline or after directory,
+   and record that state name in `baseline-routes.txt`. When drive reports `screenshot` as a
+   capability gap, or writes no PNG, fall through to the next choice. Otherwise capture only
+   through the Playwright CLI (`/playwright:playwright`, when it is among the available skills) or
+   through the repository's own harness when that harness writes PNG files. Any other driver,
+   including one that returns screenshots only into the conversation, cannot feed a pixel count:
+   stop with the gap report (what to hold, which driver resolved, and that a PNG-writing driver is
+   needed).
 3. **One launch path.** When drive captures, drive's own launch is the one launch path: do not
    also start the app the way `/testing:run-e2e` starts it. For the other routes, start and
-   restart the app the way `/testing:run-e2e` starts it, through its launch path (its
-   orchestrator rule, the bundled `run` skill, or the already-running app). Never start a second
-   instance beside the one that path starts.
+   restart the app through `/testing:run-e2e`'s launch path (its orchestrator rule, the bundled
+   `run` skill, or the already-running app). Never start a second instance beside the one that
+   path starts.
 
 This step is done when each listed state has a route: the repository's suite, a PNG-writing
 driver, or the gap report.
 
 Fix the capture settings before the baseline and keep them for every compare, on the drive route
 too: the browser and its version, the viewport, the device scale factor, and the same seed data,
-clock and fonts the app renders with. Freeze or hide anything that changes on its own (a clock, a spinner, a caret).
+clock and fonts the app renders with. Freeze or hide anything that changes on its own (a clock, a
+spinner, a caret).
 
 ## Step 2: Resolve the tolerance
 
@@ -77,7 +79,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/check-visual-parity/scripts/visual-compare.sh
 ```
 
 It prints one line, `pixel_tolerance=<n> source=<layer> reason=<text>`. The team value lives in
-`docs/conventions/testing.yaml` as a map, read from origin's default branch:
+`docs/conventions/testing.yaml` as a `pixel_tolerance` map with `pixels` and `reason`, read from
+origin's default branch:
 
 ```yaml
 pixel_tolerance:
@@ -87,8 +90,13 @@ pixel_tolerance:
 
 The user-global `~/.claude/testing.yaml`, the overlay `.claude/testing.local.yaml` and the plugin
 option can only lower the team value. The script reports a raise as ignored, and names an invalid
-layer and drops it. Quote a `reason` that holds a colon followed by a space. A tolerance above 0 is used only with its
-recorded reason; never pass a higher `--tolerance` than this line gives.
+layer and drops it. Quote a `reason` that holds a colon followed by a space.
+
+A tolerance above 0 is used only with its recorded reason; never pass a higher `--tolerance` than
+this line gives. To keep a known baseline mismatch under tolerance, the team records a
+`pixel_tolerance` map with the pixel count and a reason in `docs/conventions/testing.yaml`; this
+skill never raises it. Whenever a reply proposes or declines a higher tolerance, it names that
+file and the `pixel_tolerance` map.
 
 ## Step 3: baseline
 
@@ -98,9 +106,9 @@ Before the first edit of the change:
    `<memory_dir>/<branch-slug>/visual-parity/baseline/` (`<memory_dir>` is `.work/` unless the
    project's instructions name another root). Name each file for its state, such as
    `invoice-list-empty.png`. Write the route that captured each state to
-   `<memory_dir>/<branch-slug>/visual-parity/baseline-routes.txt`, one `<image name>: <route>` line per
-   state (`drive`, `playwright` or `harness`), outside the baseline directory so the manifest does not
-   hash it. `compare` reads it there and reuses each route.
+   `<memory_dir>/<branch-slug>/visual-parity/baseline-routes.txt`, one `<image name>: <route>`
+   line per state (`drive`, `playwright` or `harness`), outside the baseline directory so the
+   manifest does not hash it. `compare` reads it there and reuses each route.
 2. Record the manifest:
 
    ```bash
@@ -115,12 +123,12 @@ Before the first edit of the change:
 
 At each green checkpoint:
 
-1. Capture each state through the route that captured its baseline (read it from `baseline-routes.txt`). When
-   that route is unavailable now, for example drive reports a capability gap or writes an empty
-   PNG, do not fall through to another route: two renderers differ in browser build, font
-   rasterisation and scale factor, so the count would measure the renderer change. Stop that
-   state with the gap report and name the route it needs. Capture the same states, on the same
-   host with the same settings, into
+1. Capture each state through the route that captured its baseline (read it from
+   `baseline-routes.txt`). When that route is unavailable now, for example drive reports a
+   capability gap or writes an empty PNG, do not fall through to another route: two renderers
+   differ in browser build, font rasterisation and scale factor, so the count would measure the
+   renderer change. Stop that state with the gap report and name the route it needs. Capture the
+   same states, on the same host with the same settings, into
    `<memory_dir>/<branch-slug>/visual-parity/after/<checkpoint>/`, and run `manifest` on that
    directory with the same `--browser`, `--viewport` and `--scale`.
 2. Compare:
@@ -137,16 +145,16 @@ At each green checkpoint:
    differs from the baseline's, or the install is broken).
 
 A failing image is a finding, not something to fix here. Report it with its diff image and stop
-the checkpoint. A change that the person accepts as intended is recorded by them as a new baseline
-in a new directory, never by overwriting this one.
+the checkpoint. A change the person accepts as intended is recorded by them as a new baseline in a
+new directory, never by overwriting this one.
 
 ## Report
 
 Per checkpoint: the `pixel_tolerance` line from Step 2; each image's
 `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>` line; the diff image path for each
 failure; when route 1 ran the repository's visual suite, the command that ran it and its verdict,
-or its environment failure with its last lines; each gap report; the route that captured each state (drive, the
-Playwright CLI or the repository's harness); and the capture cost, as the number of
+or its environment failure with its last lines; each gap report; the route that captured each state
+(drive, the Playwright CLI or the repository's harness); and the capture cost, as the number of
 images captured and the seconds the capture and compare took.
 
 ## Upstream facts this rests on

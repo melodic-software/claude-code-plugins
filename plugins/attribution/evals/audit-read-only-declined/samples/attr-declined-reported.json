@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Declined (2):\n\n| Pattern | Count | Reason |\n|---|---|---|\n| `**/vendor/**` | 1 | vendored tree |\n| `linguist-vendored` | 1 | gitattributes |",
+      "why": "declined table"
+    },
+    {
+      "answer": "third_party/gizmo/NOTES.md is marked linguist-vendored in .gitattributes, so it was not scanned.",
+      "why": "sentence"
+    },
+    {
+      "answer": "Skipped 2 files: one under vendor/, one marked linguist-vendored.",
+      "why": "skipped with count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Scanned docs/guide.md. No findings.",
+      "why": "silent skip"
+    },
+    {
+      "answer": "None excluded: third_party/gizmo/NOTES.md was read like any other file.",
+      "why": "near-miss negation"
+    }
+  ]
+}

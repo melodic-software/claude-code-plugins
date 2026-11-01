@@ -29,7 +29,7 @@ single-file cleanup, use /simplify instead` clause is the routing half of this r
 ## Presence
 
 When the bundled skill resolves, the SKILL.md Native step runs it per group in place of the
-simplifier agent, except in `docs` mode or under `unattended`; otherwise the agent runs as before.
+simplifier agent, except in `docs` mode or under `--unattended`; otherwise the agent runs as before.
 
 ## Extraction record
 

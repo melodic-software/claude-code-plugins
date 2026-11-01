@@ -9,10 +9,17 @@
 # docs/conventions/planning.yaml at the repository root.
 # Labels and one fixture path hold a literal $HOME or $(...) on purpose.
 # shellcheck disable=SC2016
+# test-scope: plugins/planning/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$SCRIPT_DIR/setup-apply.mjs"
 READER="$SCRIPT_DIR/parse-concern-value.sh"
 
@@ -82,7 +89,7 @@ check 'the existing file is untouched without --yes' test "$(cat "$f")" = "$befo
 run "$repo" --yes phase_order=subtraction-first
 check 'with --yes the change is written' test "$CODE" -eq 0
 check 'the written file keeps the comment and plan_store' \
-  test "$(cat "$f")" = $'# team pick\nplan_store: local\nphase_order: subtraction-first'
+  test "$(settings "$f")" = $'# team pick\nplan_store: local\nphase_order: subtraction-first'
 
 # Adding a key the file does not hold yet appends it.
 repo="$(new_repo)"
@@ -90,7 +97,7 @@ f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
 printf 'plan_store: tracker\n' >"$f"
 run "$repo" --yes phase_order=composed
-check 'a new key is appended to an existing file' test "$CODE" -eq 0 -a "$(cat "$f")" = $'plan_store: tracker\nphase_order: composed'
+check 'a new key is appended to an existing file' test "$CODE" -eq 0 -a "$(settings "$f")" = $'plan_store: tracker\nphase_order: composed'
 
 # Invalid value and unknown key: refused, nothing created.
 repo="$(new_repo)"
@@ -112,7 +119,7 @@ printf 'phase_order: composed\nverbosity: high\n' >"$f"
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS phase_order: composed"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes phase_order=riskiest-first
-if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$f")" == $'phase_order: riskiest-first\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$f")" == $'phase_order: riskiest-first\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # An invalid existing value is replaced by a valid one.
 printf 'phase_order: risky-first\n' >"$f"
@@ -136,7 +143,7 @@ shape_case() { # shape_case <label> <refuse|replace> <warning text> <file conten
   run "$repo" --yes phase_order=riskiest-first
   if [[ "$want" == refuse ]]; then
     if one_line_refusal && [[ "$(cat "$f")" == "$before" ]]; then pass "apply refuses $label in one line and leaves the file"; else fail "apply refuses $label in one line and leaves the file"; fi
-  elif [[ "$CODE" -eq 0 && "$(cat "$f")" == "phase_order: riskiest-first" ]]; then
+  elif [[ "$CODE" -eq 0 && "$(settings "$f")" == "phase_order: riskiest-first" ]]; then
     pass "apply replaces $label with the given value"
   else
     fail "apply replaces $label with the given value"
@@ -188,7 +195,7 @@ bool_case() { # bool_case <label> <refuse|replace> <warning text> <file content>
   run "$repo" --yes scaffold_stubs=true
   if [[ "$want" == refuse ]]; then
     if one_line_refusal && [[ "$(cat "$f")" == "$before" ]]; then pass "apply refuses $label in one line and leaves the file"; else fail "apply refuses $label in one line and leaves the file"; fi
-  elif [[ "$CODE" -eq 0 && "$(cat "$f")" == "scaffold_stubs: true" ]]; then
+  elif [[ "$CODE" -eq 0 && "$(settings "$f")" == "scaffold_stubs: true" ]]; then
     pass "apply replaces $label with true"
   else
     fail "apply replaces $label with true"
@@ -243,7 +250,7 @@ mkdir -p "$repo/docs/conventions"
 ln -s "$outside/shared.yaml" "$repo/docs/conventions/planning.yaml"
 run "$repo" --yes phase_order=riskiest-first
 check 'a symlinked target is refused and its target untouched' \
-  test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'phase_order: composed'
+  test "$CODE" -eq 1 -a "$(settings "$outside/shared.yaml")" = 'phase_order: composed'
 
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
@@ -252,7 +259,7 @@ mkdir -p "$repo/docs/conventions"
 ln "$outside/shared.yaml" "$repo/docs/conventions/planning.yaml"
 run "$repo" --yes phase_order=riskiest-first
 check 'a hard-linked target is refused and the other link is untouched' \
-  test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'phase_order: composed'
+  test "$CODE" -eq 1 -a "$(settings "$outside/shared.yaml")" = 'phase_order: composed'
 
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions/planning.yaml"
@@ -355,6 +362,20 @@ check '--check with a pair exits 2' test "$CODE" -eq 2
 OUT="$(cd "$WORKROOT" && HOME="$FAKE_HOME" GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" phase_order=composed 2>&1)"
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+repo="$(new_repo)"
+run "$repo" phase_order=riskiest-first
+record="$(grep -v '^# ' "$repo/docs/conventions/planning.yaml")"
+record_ok=0
+[[ "$CODE" -eq 0 && "$record" == $'written_against: planning@'"$VERSION"$'\nphase_order: riskiest-first\nprovenance:\n  phase_order: chosen'* ]] && record_ok=1
+repo="$(new_repo)"
+run "$repo" --default phase_order
+default_ok=0
+[[ "$CODE" -eq 0 && "$(grep -c '^  phase_order: default$' "$repo/docs/conventions/planning.yaml")" -eq 1 ]] && default_ok=1
+check 'the file records written_against and a chosen entry' test "$record_ok" -eq 1
+check '--default records a default entry' test "$default_ok" -eq 1
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2

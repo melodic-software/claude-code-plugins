@@ -4,7 +4,7 @@ tags: [interview, acceptance-criteria, ears, convention]
 runs: 3
 max_turns: 25
 timeout_seconds: 900
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: "The Brief's acceptance criteria use the '- AC<n>: [<pattern>] <criterion>' shape with tags from the five EARS names, such as [event-driven] and [unwanted-behavior]"
 ---
 

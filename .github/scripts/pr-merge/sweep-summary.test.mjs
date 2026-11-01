@@ -41,6 +41,38 @@ const meta = {
   startedAt: "2026-10-19T10:11:00Z",
 };
 
+test("a held listing's summary says so, and why; a sweep that listed says it did not hold", () => {
+  const dir = tempDir("pr-merge-sweep-held-");
+  try {
+    const to = join(dir, "sweep.json");
+    const missing = join(dir, "none.json");
+    main({
+      SWEEP_SUMMARY_TO: to,
+      GITHUB_RUN_ID: "41",
+      EVENT: "schedule",
+      LIVE: "true",
+      GATE_OUTCOME: "skipped",
+      SUMMARY_PATH: missing,
+      HELD_PATH: missing,
+      CANDIDATES_PATH: missing,
+      LISTING_HELD: "true",
+      LISTING_HELD_REASON: "rate limited (core until 2026-10-31T10:00:00Z)",
+    });
+    const heldRun = JSON.parse(readFileSync(to, "utf8"));
+    assert.equal(heldRun.listing_held, true);
+    assert.equal(heldRun.listing_held_reason, "rate limited (core until 2026-10-31T10:00:00Z)");
+    assert.equal(heldRun.candidates, null);
+    assert.equal(heldRun.held, 0);
+    assert.equal(heldRun.budget_stop, null);
+    assert.deepEqual(heldRun.results, []);
+    const listedRun = summarize({ ...meta, results: [row(8601)], candidates: 1, held: [], gateOutcome: "success", cursor: null });
+    assert.equal(listedRun.listing_held, false);
+    assert.equal(listedRun.listing_held_reason, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("drops the PR number, run list or free text a reason ends with", () => {
   assert.equal(
     normalizeReason("in-flight:unverified-auto-merge:#8099"),

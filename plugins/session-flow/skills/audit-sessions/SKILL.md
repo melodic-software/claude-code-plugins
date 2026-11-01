@@ -1,6 +1,6 @@
 ---
 description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:recommend-skills; a whole-process speed sweep is /performance:go-faster."
-argument-hint: "[sweep|now|ticket|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
+argument-hint: "[sweep…] [--unattended] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|now|ticket|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01
+**Arguments.** `[sweep…] [--unattended] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. Full form: [sweep|sweep-only|now|ticket|style|correction] and the options above. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01
 
 ## Purpose
 
@@ -27,7 +27,8 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 
 ## Arguments
 
-Read `$ARGUMENTS` whole. Six actions: `sweep`, which is also what a bare invocation does,
+Read `$ARGUMENTS` whole. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present
+(see "Boundary" below); take it out before reading the rest. Six actions: `sweep`, which is also what a bare invocation does,
 `sweep-only`, the consumer mode below, `now` ("Current session" below), `ticket` ("Ticket
 rollup" below), `style` ("Style pass" below) and `correction` ("Correction lens" below). `--scope`,
 `--since`, `--until` and `--write-report` pass through to `sweep.py` unchanged (dates are
@@ -324,7 +325,8 @@ This skill keeps a durable store, flags sessions over the shipped thresholds and
 finding; `/insights` is a separate report the person runs. We treat them as complementary:
 If /insights is available in your session (gate basis: this skill never assumes it resolves; the
 **Pointer** record below), suggest that the person run it alongside this skill. It
-is reserved for the person, so this skill never runs it.
+is reserved for the person, so this skill never runs it. When the caller passes `--unattended`, record the `/insights` suggestion in the run's output and do not ask the person;
+without that flag, make the suggestion to the person.
 
 - **Pointer**: for what `/insights` reports, see <https://code.claude.com/docs/en/commands>, the
   `/insights` row.

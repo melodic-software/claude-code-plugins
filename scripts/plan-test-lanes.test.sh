@@ -5,8 +5,8 @@
 # selected suite no lane runs fails the plan. The fixture cases run a copy of
 # the planner and the selector in a throwaway repo; the LIVE cases hold the
 # real tree: scripts/test-windows-plan.txt names exactly the steps
-# pr-test-windows.yml gates.
-# test-scope: .github/workflows/pr-test-windows.yml
+# pr-test-platforms.yml gates.
+# test-scope: .github/workflows/pr-test-platforms.yml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -78,7 +78,7 @@ mk .python-version 3.14
 mk pyproject.toml "[project]"
 mk .node-version 24
 mk .github/workflows/pr-require-checks.yml "name: ci"
-mk .github/workflows/pr-test-windows.yml "name: test-windows"
+mk .github/workflows/pr-test-platforms.yml "name: test-windows"
 printf '%s\n' "# seconds" \
   "plugins/a/a.test.sh 100" "plugins/b/b.test.sh 30" "plugins/c/c.test.sh 90" "plugins/d/d.test.sh 60" \
   "plugins/e/e.test.sh 50" "plugins/f/f.test.sh 40" "plugins/g/g.test.sh 20" "plugins/h/h.test.sh 10" \
@@ -371,9 +371,9 @@ plan -- .github/actions/other/action.yml
 is "$(key bash)" false && is "$(key python)" false && is "$(key windows_jobs)" "[]"
 check "another local action plans no lane whole" $?
 
-plan -- .github/workflows/pr-test-windows.yml
+plan -- .github/workflows/pr-test-platforms.yml
 is "$(key windows_jobs)" '["win-a","win-b"]' && is "$(key bash)" false
-check "a pr-test-windows.yml change runs every Windows step and no pr-require-checks.yml lane" $?
+check "a pr-test-platforms.yml change runs every Windows step and no pr-require-checks.yml lane" $?
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
@@ -400,23 +400,23 @@ check "--base with no ref is a usage error" $?
 # `test-plan-corpus` gate step of pr-require-checks.yml's lint-repo job, which
 # runs on every pull request, not a case here.
 
-# The (job, key) pairs pr-test-windows.yml gates on, against the plan's lines.
+# The (job, key) pairs pr-test-platforms.yml gates on, against the plan's lines.
 yml_pairs="$(awk '
   /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1; sub(/:$/, "", job) }
   match($0, /outputs\.steps\), '\''[^'\'']+'\''\)/) {
     k = substr($0, RSTART, RLENGTH); sub(/^outputs\.steps\), '\''/, "", k); sub(/'\''\)$/, "", k)
     print job " " k
-  }' "$REPO_ROOT/.github/workflows/pr-test-windows.yml" | LC_ALL=C sort -u)"
+  }' "$REPO_ROOT/.github/workflows/pr-test-platforms.yml" | LC_ALL=C sort -u)"
 plan_pairs="$(awk '!/^[[:blank:]]*(#|$)/ { print $1 " " $2 }' "$REPO_ROOT/scripts/test-windows-plan.txt" | LC_ALL=C sort -u)"
 same "$yml_pairs" "$plan_pairs"
-check "live: pr-test-windows.yml gates exactly the steps scripts/test-windows-plan.txt names" $?
+check "live: pr-test-platforms.yml gates exactly the steps scripts/test-windows-plan.txt names" $?
 yml_jobs="$(awk '
   /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1; sub(/:$/, "", job) }
   match($0, /outputs\.jobs \|\| '\''\[\]'\''\), '\''[^'\'']+'\''\)/) {
     k = substr($0, RSTART, RLENGTH); sub(/^.*\), '\''/, "", k); sub(/'\''\)$/, "", k)
     print (k == job ? job : "MISMATCH " job " gates on " k)
-  }' "$REPO_ROOT/.github/workflows/pr-test-windows.yml" | LC_ALL=C sort -u)"
+  }' "$REPO_ROOT/.github/workflows/pr-test-platforms.yml" | LC_ALL=C sort -u)"
 same "$yml_jobs" "$(cut -d' ' -f1 <<<"$plan_pairs" | LC_ALL=C sort -u)"
-check "live: every pr-test-windows.yml job gates on the plan's job list under its own name" $?
+check "live: every pr-test-platforms.yml job gates on the plan's job list under its own name" $?
 
 test_harness::report

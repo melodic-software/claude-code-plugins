@@ -263,6 +263,64 @@ mkdir -p "$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill"
 printf '%s' "$GRANT" >"$D6D/node_modules/@scope/pkg/.claude/skills/pkg-skill/SKILL.md"
 assert_eq "node_modules nested skill is audited" "1" "$(run "$D6D" --count)"
 
+# --- Case 6e: installed plugin cache layout is loadable ----------------------
+# The cache puts a plugin root at cache/<marketplace>/<plugin>/<version>/, so a
+# scan root pointed at a marketplace's cache directory has no plugins/<name>/
+# segment. The plugin root's .claude-plugin/plugin.json is what admits it.
+D6E="$TEST_TMPDIR/plugin-cache/acme"
+D6E_PLUGIN="$D6E/tools/1.2.0"
+mkdir -p "$D6E_PLUGIN/.claude-plugin" "$D6E_PLUGIN/skills/deploy" "$D6E_PLUGIN/agents" \
+  "$D6E_PLUGIN/commands" "$D6E/bare/0.1.0/skills/orphan"
+printf '{"name":"tools"}\n' >"$D6E_PLUGIN/.claude-plugin/plugin.json"
+printf '%s' "$GRANT" >"$D6E_PLUGIN/skills/deploy/SKILL.md"
+printf '%s' "$GRANT" >"$D6E_PLUGIN/agents/reviewer.md"
+printf '%s' "$GRANT" >"$D6E_PLUGIN/commands/status.md"
+printf '%s' "$GRANT" >"$D6E/bare/0.1.0/skills/orphan/SKILL.md"
+OUT_CACHE=$(run "$D6E")
+assert_contains "cache layout: skill frontmatter is parsed" "$OUT_CACHE" \
+  "tools/1.2.0/skills/deploy/SKILL.md allowed-tools"
+assert_contains "cache layout: agent frontmatter is parsed" "$OUT_CACHE" \
+  "tools/1.2.0/agents/reviewer.md allowed-tools"
+assert_contains "cache layout: command frontmatter is parsed" "$OUT_CACHE" \
+  "tools/1.2.0/commands/status.md allowed-tools"
+assert_not_contains "cache layout: a directory with no manifest is not a plugin root" "$OUT_CACHE" \
+  "orphan/SKILL.md"
+assert_contains "cache layout: three blocks parsed, one excluded" "$OUT_CACHE" \
+  "3 allowed-tools block(s) parsed from 4 candidate file(s); 1 excluded as non-loadable"
+
+# --- Case 6f: a single-plugin repository root is loadable --------------------
+D6F="$TEST_TMPDIR/single-plugin-repo"
+mkdir -p "$D6F/.claude-plugin" "$D6F/skills/lint" "$D6F/agents" "$D6F/commands"
+printf '{"name":"solo"}\n' >"$D6F/.claude-plugin/plugin.json"
+printf '%s' "$GRANT" >"$D6F/skills/lint/SKILL.md"
+printf '%s' "$GRANT" >"$D6F/agents/checker.md"
+printf '%s' "$GRANT" >"$D6F/commands/run.md"
+OUT_SOLO=$(run "$D6F")
+assert_contains "single-plugin root: skill frontmatter is parsed" "$OUT_SOLO" "skills/lint/SKILL.md allowed-tools"
+assert_contains "single-plugin root: agent frontmatter is parsed" "$OUT_SOLO" "agents/checker.md allowed-tools"
+assert_contains "single-plugin root: command frontmatter is parsed" "$OUT_SOLO" "commands/run.md allowed-tools"
+assert_eq "single-plugin root: every grant is audited" "3" "$(run "$D6F" --count)"
+
+# --- Case 6g: every candidate excluded is a coverage warning, not a clean bill
+# A healthy user or project settings scope keeps the denominator above zero, so
+# NOTHING TO AUDIT never prints; the run must still not claim the clean bill.
+D6G="$TEST_TMPDIR/all-excluded"
+mkdir -p "$D6G/.claude" "$D6G/vendor/skills/x"
+jq -n '{permissions:{allow:["Bash(npm test)"]}}' >"$D6G/.claude/settings.json"
+printf '%s' "$GRANT" >"$D6G/vendor/skills/x/SKILL.md"
+OUT_EXCL=$(run "$D6G")
+assert_contains "all-excluded run prints the coverage warning" "$OUT_EXCL" "NO FRONTMATTER AUDITED, NOT A CLEAN BILL"
+assert_not_contains "all-excluded run is not a clean bill" "$OUT_EXCL" "No fragile permission grants found."
+assert_contains "all-excluded run still prints the coverage block" "$OUT_EXCL" "1 excluded as non-loadable"
+# The warning is advisory: the gate modes print it and still exit 0 (see the
+# gate-exit comment block in the script).
+for gate_flag in --check --strict; do
+  rc=0
+  OUT_EXCL_GATE=$(run "$D6G" "$gate_flag" 2>&1) || rc=$?
+  assert_exit "all-excluded run: $gate_flag exits 0 (advisory warning)" 0 "$rc"
+  assert_contains "all-excluded run: $gate_flag still prints the warning" "$OUT_EXCL_GATE" "NO FRONTMATTER AUDITED, NOT A CLEAN BILL"
+done
+
 # --- Case 7: P3 plugin self-grant -------------------------------------------
 D7="$TEST_TMPDIR/p3"
 mkdir -p "$D7/plugins/foo/.claude-plugin" "$D7/plugins/ok/.claude-plugin"
@@ -1247,6 +1305,26 @@ rc=0
 err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
+
+# On a Linux host with apt-get and no jq (a stock WSL Ubuntu install), the stop
+# names the apt-get command and the prerequisites check. bash keeps an OSTYPE it
+# inherits, so each case pins the platform and runs on any host. CLAUDE_PLUGIN_ROOT
+# is unset so the message library resolves from this checkout.
+apt_path_dir="$TEST_TMPDIR/apt-path"
+mkdir -p "$apt_path_dir"
+printf '#!%s\nexit 0\n' "$real_bash" >"$apt_path_dir/apt-get"
+chmod +x "$apt_path_dir/apt-get"
+nojq() { (
+  unset CLAUDE_PLUGIN_ROOT
+  PATH="$1" OSTYPE="$2" "$real_bash" "$SCRIPT" 2>&1
+); }
+rc=0
+err_out=$(nojq "$apt_path_dir" linux-gnu) || rc=$?
+assert_exit "exit 2 when jq missing on an apt host" 2 "$rc"
+assert_contains "an apt host is told the apt-get command" "$err_out" "Install it: sudo apt-get install jq"
+assert_contains "the stop points at the prerequisites check" "$err_out" "/harness-ops:prerequisites"
+assert_contains "macOS is told the brew command" "$(nojq "$empty_path_dir" darwin23)" "Install it: brew install jq"
+assert_contains "Windows is told the winget command" "$(nojq "$empty_path_dir" msys)" "Install it: winget install jqlang.jq"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

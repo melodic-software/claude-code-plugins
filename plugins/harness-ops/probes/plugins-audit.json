@@ -1,0 +1,135 @@
+{
+  "skill": "harness-ops:plugins-audit",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/plugins-audit",
+  "ranking_note": "Authored before the first model-graded run; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:changelog",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:morning-brief",
+    "harness-ops:observability",
+    "harness-ops:plugins",
+    "harness-ops:prerequisites",
+    "harness-ops:setup",
+    "harness-config:audit",
+    "disk-hygiene:clean"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is anything in my plugin setup out of date? Don't touch anything, just tell me."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I start, would a sync change anything on this machine?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of my installed plugins are behind the marketplace right now?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me what a plugin sync is going to do without actually doing it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Preview the updates and installs I'd get from the marketplace, read-only."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My project and user scopes may hold different plugin versions. Report it and change nothing."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Has my plugin fleet drifted? Just report."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A plugin I rely on may be old. Check it without updating it."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a dry run of the plugin update."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Update all my plugins now."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which external CLIs do my enabled plugins need that aren't on this machine?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List every skill and agent my plugins give me."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is my ~/.claude folder so large?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Does this repository's settings.json still match the docs?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is there a known bug in plugin install on Claude Code?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Install the new plugins from the marketplace."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check that node and jq resolve for the harness-ops hooks."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What changed in the latest Claude Code release?"
+    }
+  ]
+}

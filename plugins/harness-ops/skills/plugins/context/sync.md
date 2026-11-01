@@ -11,6 +11,7 @@
 - [Projecting a step's id list: the shape every mutating step uses](#projecting-a-steps-id-list-the-shape-every-mutating-step-uses)
 - [Step 1: Marketplace refresh](#step-1-marketplace-refresh)
 - [Step 2: In-repo update (the primary value path)](#step-2-in-repo-update-the-primary-value-path)
+- [Step 3a: Forward update in every other present path](#step-3a-forward-update-in-every-other-present-path)
 - [Step 3: User-scope update sweep](#step-3-user-scope-update-sweep)
 - [Steps 4 and 5: install and enable](#steps-4-and-5-install-and-enable)
 - [Step 5b: Cache content check](#step-5b-cache-content-check)
@@ -19,7 +20,7 @@
 `sync` is the default action: bring the effective fleet current where you stand. Every step below
 is CLI-mediated: never edit `installed_plugins.json`, `known_marketplaces.json`, or any
 `.claude/settings*.json` directly. `audit` runs this same sequence with every mutating call replaced
-by a prediction (see SKILL.md's "Action: audit").
+by a prediction (see `/harness-ops:plugins-audit`).
 
 ## Execution: one script runs Steps 1 through 5b
 
@@ -331,8 +332,8 @@ Then, for the rest of the run:
   snapshots the attribution split needs come from the three saved reports. Do not re-derive any of
   it from memory of the run.
 
-**`audit` writes no durable journal: it uses a throwaway scratch directory instead.** SKILL.md's
-action table says `audit` mutates nothing, and a run that leaves directories behind under the plugin
+**`audit` writes no durable journal: it uses a throwaway scratch directory instead.**
+`/harness-ops:plugins-audit` says `audit` mutates nothing, and a run that leaves directories behind under the plugin
 data dir does not match that line even though the data dir is not fleet state. But `audit` runs this
 same algorithm, and it writes reports: Step 1 saves its pre-refresh snapshot, and Steps 2–5 project
 their id lists with `--from` against a saved report. So it does need somewhere to put them, and that
@@ -604,7 +605,9 @@ catalog that moved backward roll back exactly the deliberate pins this step is m
 holding. Verified safe: `plugin update
 -s project` does not write the committed `.claude/settings.json` (see
 [scope-semantics.md](scope-semantics.md)), so no settings-diff review is needed for this step,
-unlike `converge`.
+unlike `converge`. The step still checks it, with the same `.claude/` check as Step 3a run in the
+project root: a change after a call stops the step, that call is a failure, and each record after it
+is reported as not tried.
 
 **The call can update a sibling worktree's record instead of the run's own**
 ([scope-semantics.md](scope-semantics.md)). `sync-run.sh` reads a project/local version only from
@@ -617,6 +620,30 @@ record is still below the catalog version, the id is a failed row too, never a q
 in a linked git worktree ([scope-semantics.md](scope-semantics.md)), the row's reason carries the label
 `update ineffective, uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
 this step only; an `--allow-downgrade` project/local rollback is not compared.
+
+## Step 3a: Forward update in every other present path
+
+Step 2 covers the repo the run stands in. Right after the mid read, before the user-scope sweep,
+`sync-run.sh` takes the project/local records of every other path that is present, a user home and a
+linked worktree included, and runs `claude plugin update <id> -s <scope> --json` from that path
+(`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
+called only when its version and the catalog's both parse and the record is below. A record with no
+readable catalog version, one at or above the catalog, and one in an absent path take no call;
+absent paths stay in the stale project records section.
+
+The step does not rest on `update` leaving the settings files alone (the record for that is in
+[scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); it checks: before the first call in a path and after each call it takes `git status --porcelain --
+.claude/` where the path is in a git work tree, and a checksum of `.claude/settings.json` and
+`.claude/settings.local.json` in every path, since git status cannot see a change to an ignored
+`settings.local.json`. A change stops that path: the call is a failure, and each record after it in
+that path is reported as not tried.
+
+After the post read, each called record is read back by id, scope and path. A record that moved
+forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
+renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
+the home stays in the `User-home project records` row. Any other record left behind, a failed call,
+and a stopped path go under `Action needed`. Audit runs no call and lists `Would update in other
+paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
 
 ## Step 3: User-scope update sweep
 
@@ -901,7 +928,11 @@ project/local pins that differ from the row's highest version (a pin already at 
 any such pin that is present and not in a linked worktree makes the row actionable (a row with no
 such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
 every such pin is in a path that is not present and the row is blocked. An actionable row is
-`here` when its id has a record for the repo the run stands in. A scope whose `projectPathIsHome` is
+`here` when its id has a record for the repo the run stands in. Under audit nothing moves, so a pin
+sync would forward-update (Step 2 or Step 3a, present, not in a linked worktree, below a readable
+catalog version) is read at the catalog version first: work `sync` does is not work for
+`converge`. In `sync` the post read already shows those pins moved, and one whose update did not take
+stays counted. A scope whose `projectPathIsHome` is
 true is not a project ([scope-semantics.md](scope-semantics.md)), so it is dropped before any of this:
 it never makes a row skewed or actionable, and a divergence that exists only because of such a record
 is in no class and not in `post`. A linked worktree is a present path

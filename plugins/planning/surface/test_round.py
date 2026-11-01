@@ -2986,14 +2986,45 @@ class TestReviseSetsAsideOwn(DirCase):
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
-    def test_accept_and_alt_answers_are_not_set_aside(self):
-        for kind in ("accept", "alt"):
+    def test_alt_and_defer_answers_are_not_set_aside(self):
+        for kind in ("alt", "defer"):
+            self.write_doc(base_doc())
             self.answer(kind)
             rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
-            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_of_the_old_recommendation_is_set_aside(self):
+        for kind in ("accept", "hedged"):
+            self.write_doc(base_doc())
+            self.answer(kind, "if it holds" if kind == "hedged" else "")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
+            self.assertEqual(rc, 0, out + err)
+            q = self.q("Q1")
+            self.assertEqual(q["setAsideSeq"], 1)
+            self.assertEqual(q["asideRecommendation"]["text"], "Yes. It keeps things simple.")
+            self.assertEqual(q["asideRecommendation"]["seq"], 1)
+            self.assertIsNone(self.latest())
+            self.assertIn(self.OPEN, self.status())
+
+    def test_an_accept_survives_a_revision_to_the_same_recommendation(self):
+        self.answer("accept")
+        rec = {**self.REC, "rec": "Yes. It keeps things simple."}
+        rc, out, err = self.op("revise", id="Q1", **rec, seq=1)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_after_the_revision_counts(self):
+        self.answer("accept")
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="accept")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "accept")
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
 
     def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
         sys.path.insert(0, str(HERE))
@@ -3002,7 +3033,7 @@ class TestReviseSetsAsideOwn(DirCase):
         snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
         self.answer("own", "arrived after the guard read")
         q = self.q("Q1")
-        r.set_aside_own(snapshot, self.doc(), q)
+        r.set_aside_answer(snapshot, self.doc(), q, "Use the lock.")
         self.assertNotIn("setAsideSeq", q)
 
     def test_a_terminal_own_answer_is_set_aside_too(self):
@@ -4010,6 +4041,24 @@ class TestRoundTooling(DirCase):
         rows = ledger.read_text(encoding="utf-8").splitlines()
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
+    def test_sync_ledger_names_the_ledger_ledger_check_reads(self):
+        ledger = self.ledger()
+        self.assertNotIn("seededFrom", self.doc()["meta"])
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["syncedLedger"], str(ledger.resolve()))
+        self.assertEqual(meta["ledgerSync"], {"rev": self.doc()["rev"], "rows": []})
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+
     def test_sync_ledger_with_a_missing_ledger_writes_nothing(self):
         self.assert_refused(
             "add-round",
@@ -4543,7 +4592,7 @@ class TestSupersedeResolve(DirCase):
                 text=True,
                 timeout=60,
             )
-            self.assertEqual(p.returncode, 2, (args, p.stdout, p.stderr))
+            self.assertEqual(p.returncode, 1, (args, p.stdout, p.stderr))
         rc, out, err = self.cmd(
             "supersede", "Q1", "--proposes-file", str(self.tmp / "missing.txt"),
             "--ledger", str(self.ledger),
@@ -4623,12 +4672,12 @@ class TestLedgerCheck(DirCase):
     def test_a_disagreeing_row_is_recorded_and_logged_once(self):
         self.drift_one_row()
         rc, out, err = self.rp("ledger-check")
-        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(rc, 6, out + err)
         self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
         self.assertEqual(len(self.activity()), 1)
         self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
         rc, out, err = self.rp("ledger-check")
-        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(rc, 6, out + err)
         self.assertEqual(len(self.activity()), 1)
 
     def test_a_page_without_a_ledger_is_not_checked(self):
@@ -4638,6 +4687,18 @@ class TestLedgerCheck(DirCase):
         rc, out, err = self.rp("ledger-check")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_a_page_synced_to_a_ledger_is_checked_against_it(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 6, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
 
     def test_wake_logs_the_disagreeing_row_after_apply(self):
         self.drift_one_row()
@@ -5031,6 +5092,82 @@ class TestCliHygiene(DirCase):
             self.assertIn(op, out)
 
 
+class TestExitCodes(DirCase):
+    """One exit code per outcome: 1 refused, 2 a missing prerequisite, 5 a server that did not
+    start, 6 a ledger the page disagrees with (TestLedgerCheck and the --diff tests in
+    test_exporters.py cover 6)."""
+
+    def test_round_sh_help_lists_every_exit_code(self):
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not on PATH")
+        p = subprocess.run(
+            [bash, str(HERE / "round.sh"), "--help"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        for line in (
+            "  0  done",
+            "  1  refused:",
+            "  2  a prerequisite is missing:",
+            "  5  ensure-running started the page server, but it did not answer",
+            "  6  the page and a ledger disagree:",
+        ):
+            self.assertIn(line, p.stdout)
+
+    def test_a_refusal_exits_1(self):
+        out = self.assert_refused("group-order", "g1")
+        self.assertIn("refused: group-order", out)
+
+    def test_a_usage_error_exits_1_not_the_prerequisite_code(self):
+        for args in (("status", "--no-such-flag"), ("add",)):
+            with self.subTest(args=args):
+                rc, out, err = self.rp(*args)
+                self.assertEqual(rc, 1, out + err)
+                self.assertIn("error:", err)
+
+    def test_missing_curl_exits_2_from_ensure_running_and_watch_sh(self):
+        empty = self.tmp / "empty-path"
+        empty.mkdir()
+        rc, out, err = self.rp(
+            "ensure-running", "--port", "0", env={**os.environ, "PATH": str(empty)}
+        )
+        self.assertEqual(rc, 2, out + err)
+        self.assertIn("missing prerequisite: curl", err)
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not on PATH")
+        p = subprocess.run(
+            [bash, str(HERE / "watch.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "WATCH_CURL": str(self.tmp / "no-such-curl")},
+        )
+        self.assertEqual(p.returncode, rc, p.stdout + p.stderr)
+        self.assertIn("missing prerequisite: curl", p.stderr)
+
+    def test_a_server_that_does_not_start_exits_5(self):
+        if not shutil.which("curl"):
+            self.skipTest("curl is not on PATH")
+        import contextlib
+        import io
+        from unittest import mock
+
+        import round as r
+
+        dead = subprocess.Popen([sys.executable, "-c", "pass"])
+        self.addCleanup(dead.wait)
+        err = io.StringIO()
+        with mock.patch.object(r, "start_server", return_value=dead):
+            with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+                r.main(["--dir", str(self.dir), "ensure-running", "--port", "0"])
+        self.assertEqual(cm.exception.code, 5)
+        self.assertIn("the server did not start", err.getvalue())
+
+
 class TestRoundRestate(DirCase):
     """G7: a round with questions opens with a restate, as R1 requires `commits`."""
 
@@ -5243,6 +5380,9 @@ class TestConstraintRecheck(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.status(), {"Q2": ["C2"]})
         self.assertEqual(self.state("Q1"), "open")
+        line = self.q("Q1")["history"][-1]
+        self.assertEqual(line["changed"], ["checkedAgainst"])
+        self.assertEqual(line["text"], "Revised constraints checked.")
 
     def test_a_revise_that_does_not_name_it_leaves_the_mark(self):
         self.new_constraint()

@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "kept"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls mockup-run"
+          }
+        }
+      ],
+      "why": "listed only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -rf mockup-run"
+          }
+        }
+      ],
+      "why": "deletes the run directory before the combine matrix is answered"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm mockup-run/explore-directions.html"
+          }
+        }
+      ],
+      "why": "deletes the mockup before the combine matrix is answered"
+    }
+  ]
+}

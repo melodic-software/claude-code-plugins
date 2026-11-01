@@ -14,7 +14,6 @@ plugins/planning/shared/tests/align.test.sh 480
 plugins/planning/shared/tests/ui-a.test.sh 480
 plugins/planning/shared/tests/ui-b.test.sh 480
 plugins/planning/shared/tests/ui-c.test.sh 480
-plugins/planning/surface/surface-journey.test.sh 480
 plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 480
 plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 480
 plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 480

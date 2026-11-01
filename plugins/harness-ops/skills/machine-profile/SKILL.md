@@ -56,7 +56,7 @@ Discovery reads identity domains from the `includeIf "gitdir:..."` entries in `g
 ## Next
 
 - A binary row is missing: /harness-ops:prerequisites
-- The fleet's plugin versions, a different question: /harness-ops:plugins audit
+- The fleet's plugin versions, a different question: /harness-ops:plugins-audit
 
 ## Gotchas
 

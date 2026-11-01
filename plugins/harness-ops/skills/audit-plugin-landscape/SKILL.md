@@ -43,7 +43,7 @@ output.
 
 | Question | Owner |
 |---|---|
-| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
+| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | Do our skills duplicate a native Claude Code surface? | `/harness-ops:audit-native-overlap` |
 | Has an installed plugin or marketplace gone stale, and what replaces it? | **this skill** |
 

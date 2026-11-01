@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "check-skills: escalated weaken-required the only cut that fits SKILL.md under the cap removes a line issue #87's criteria name."
+    },
+    {
+      "answer": "- `check-skills: escalated weaken-required` every line left names a criterion, and the over line is the one address-feedback added."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "check-skills: fixed"
+    },
+    {
+      "answer": "check-skills: escalated unfixed three fixes still failed."
+    },
+    {
+      "answer": "I removed the transcript line so SKILL.md fits the cap."
+    }
+  ]
+}

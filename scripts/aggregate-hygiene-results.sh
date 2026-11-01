@@ -10,7 +10,8 @@
 # STEP_LOG_CHECKS (whitespace-separated) runs as a `uses:` action whose output
 # cannot be captured, so its annotation quotes the `::error` annotations the
 # job's check run holds (CHECK_RUN_ID in GITHUB_REPOSITORY, read with gh api,
-# GH_TOKEN needing checks: read), less the runner's exit-code lines, this
+# GH_TOKEN needing checks: read, counted in the job's api-calls notice on a
+# runner), less the runner's exit-code lines, this
 # script's own and any a captured gate printed. The check run does not say
 # which step wrote an annotation, so when several such gates failed each
 # quotes the same set and names them all. With no check run id, an API
@@ -69,6 +70,8 @@ is_step_log_check() {
 gate_annotations() {
   [[ -n "${CHECK_RUN_ID:-}" && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
   local json dir n path line message
+  # shellcheck source=/dev/null
+  [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   json=$(gh api --paginate "repos/$GITHUB_REPOSITORY/check-runs/$CHECK_RUN_ID/annotations?per_page=50") || return 1
   dir=$(output_dir)
   n=${HYGIENE_TAIL_LINES:-10}
@@ -281,6 +284,7 @@ self_test() {
   # check-exec-bit's with line 0.
   mkdir -p "$tmp/bin"
   printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$*" >>"$GH_CALLS"' \
+    '[[ -z "${GH_DEBUG:-}" ]] || echo "* Request to https://api.github.com/x" >&2' \
     '[[ "${GH_EXIT:-0}" -eq 0 ]] || { echo "HTTP 403" >&2; exit "$GH_EXIT"; }' 'cat "$GH_FIXTURE"' >"$tmp/bin/gh"
   chmod +x "$tmp/bin/gh"
   cat >"$tmp/annotations.json" <<'JSON'
@@ -292,7 +296,7 @@ self_test() {
  {"path":"plugins/ai-briefing/skills/generate/scripts/source-bookmarks.sh","start_line":0,"annotation_level":"failure","title":"","message":"plugins/ai-briefing/skills/generate/scripts/source-bookmarks.sh has a shebang but git index mode is 100644"}]
 JSON
   printf '::error file=docs/adr/0001-x.md,line=1::ADR number 0001 is used twice\n' >"$tmp/out/adr-numbers.log"
-  local -a api=("GH_CALLS=$tmp/gh-calls" "GH_FIXTURE=$tmp/annotations.json" "PATH=$tmp/bin:$PATH")
+  local -a api=("GH_CALLS=$tmp/gh-calls" "GH_FIXTURE=$tmp/annotations.json" "PATH=$tmp/bin:$PATH" RUNNER_TEMP=)
   : >"$tmp/gh-calls"
   : >"$summary"
   out=$(env "${api[@]}" "HYGIENE_OUTPUT_DIR=$tmp/out" "GITHUB_STEP_SUMMARY=$summary" STEP_LOG_CHECKS='markdown typos' \
@@ -309,6 +313,14 @@ JSON
     fail "the annotations must come from this job's check run, got: $(cat "$tmp/gh-calls")"
   grep -qxF 'plugins/knowledge/skills/docpage-digest/SKILL.md:172: Lists should be surrounded by blank lines [Context: "- **Pointer**: <https://code.c..."]' "$summary" ||
     fail "the job summary must list a composite gate's annotations, got: $(cat "$summary")"
+
+  # On a runner the read goes through the job's gh wrapper, so the job's
+  # api-calls notice counts it.
+  mkdir -p "$tmp/runner"
+  env "${api[@]}" "RUNNER_TEMP=$tmp/runner" "HYGIENE_OUTPUT_DIR=$tmp/out" GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS=markdown \
+    GITHUB_REPOSITORY=o/r CHECK_RUN_ID=1 GH_TOKEN=t CHECK_RESULTS=$'markdown=failure\n' bash "$self" >/dev/null
+  [[ "$(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)" == "request {x}" ]] ||
+    fail "the annotation read must count one request, got: $(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)"
 
   # Two failed composite gates share the one set: the API does not say which
   # step wrote an annotation, so the text names both.

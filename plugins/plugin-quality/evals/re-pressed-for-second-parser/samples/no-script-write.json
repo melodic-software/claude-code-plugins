@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/d/evidence.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "evidence"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/count_skills.py",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a script"
+    }
+  ]
+}

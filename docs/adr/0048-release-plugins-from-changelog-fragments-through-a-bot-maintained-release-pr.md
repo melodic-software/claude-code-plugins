@@ -1,8 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
-  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
-  amendments below
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild),
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments) and
+  2026-10-31 (a push run rebuilds unless checks are running), see the amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -358,3 +358,52 @@ either is missing. While fragments keep landing, the
 previous rule made every release stale before its checks finished, so each scheduled run would
 rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
 pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.
+
+## Amendment (2026-10-31): a push run rebuilds unless checks are running
+
+A push run now rebuilds an open release pull request on the same conditions as a scheduled run,
+unless its checks are running: its GitHub Actions `ci-status` reads pending (`ci-status.sh`: no run
+yet, or one not completed), or any GitHub Actions check run on the head has not completed
+(`ci-status.sh --unfinished`). While either holds the push run defers to a later run, as every push
+run did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
+"current" rule stands. Scheduled and dispatched runs rebuild regardless of running checks, as
+before, and are the escape valve for a stuck check.
+
+A conflicted head gets no `pull_request` run
+([events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)),
+so its `ci-status` stays pending with nothing behind it. On a merge conflict a push run defers only
+on an unfinished check run.
+
+A failed `ci-status` on a base behind main starts no rebuild, on any event, while the release pull
+request holds a label the merge lane's `labelHolds` lists: a rebuild cannot clear a label's red, and
+it changes held content. `pr-verify-failed` is left out, since a pass at a new head removes it.
+
+`ci-status` alone cannot show a full run in flight: it has no run from that full run until the lanes
+finish. The release build's own pull request edit starts a contract-only run, whose `ci-status` can
+fail with `superseded by full run` at its yield ceiling, so a completed red can stand on the head
+while the lanes run. The release token reads the check-run list already: the queue step reads this
+endpoint with it.
+
+Advisory lanes count, since the read takes every GitHub Actions check run, so a slow one such as
+`pr-test-windows.yml` also defers a rebuild. Between two jobs of a run a head can show no unfinished
+check run for some seconds. A push read landing there rebuilds; the accepted worst case is one
+cancelled run per such gap.
+
+The 2026-10-20 rule existed because a rebuild cancels running checks. With every check run
+completed there is nothing to cancel, yet a release ejected from the queue waited up to three hours
+for the next scheduled run. A running check still defers, so fragments landing faster than the
+checks finish cannot cancel them run after run. A failed read in `decide-rebuild.sh` stops the run.
+The owner decided this on 2026-10-31.
+
+The 2026-10-17 amendment's "every run" now includes every fragment push: while main keeps moving, a
+failing release pull request is rebuilt by each fragment push that finds its checks finished, so
+these rebuilds run no faster than the checks.
+
+Pushes still wait for a running run, and a scheduled or dispatched run still cancels one. Since a
+push run can now write, that cancel can land between its head write and its pull request edit,
+leaving a new head under the old title and body. No later run corrects them when that head stays
+current, so they can merge as they are. The released content is correct; only the description of
+it is stale, and nothing reads it. This risk is accepted: the window is the seconds between two
+steps, and a run must start inside it.
+Refreshing the body from the merge job would need the release report only the build job produces,
+and a rebuild for a stale description would cancel checks to correct text.

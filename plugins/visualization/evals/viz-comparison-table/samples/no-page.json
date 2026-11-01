@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nForm: a markdown table, since this compares attributes across items. Medium: terminal, chosen by the shipped default (no argument or preference set)."
+    },
+    {
+      "answer": "Medium: inline in the terminal (auto, the default tier: a small static table needs no page).\n\n| | Kestrel | Ripple | Harbor | Tern |\n|:--|:--|:--|:--|:--|\n| Throughput | 120k/s | 45k/s | 80k/s | 15k/s |\n| Persistence | disk log | memory | disk + replicas | SQLite |\n| License | Apache-2.0 | MIT | BSL | MIT |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nForm: a markdown table, since this compares attributes across items. Medium: terminal, chosen by the shipped default (no argument or preference set).\n\nI also wrote a page: /tmp/visualize-a1b2c3/visualize.html"
+    },
+    {
+      "answer": "Published as an Artifact: https://claude.ai/artifact/9f2e. It shows the four queues side by side."
+    }
+  ]
+}

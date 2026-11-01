@@ -3,8 +3,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { readingLine, recordReading } from "./api-budget.mjs";
-import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
+import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
+import { apiLimits, createRateLimitLatch, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
@@ -60,7 +60,7 @@ test("api_budget_read reads only the leading header block and passes the body th
     const body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter\n";
     const out = bash(dir, `${READ} github-token "$f"`, { input: head({ used: 120 }) + body });
     assert.equal(out.stdout, body);
-    assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core\n");
+    assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core other\n");
     // Output with no header block is passed on and read as nothing.
     assert.equal(bash(dir, `${READ} lanes-app "$f"`, { input: "[1]\n" }).stdout, "[1]\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
@@ -93,7 +93,7 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     });
     assert.equal(out.stdout, 'exit=1\n{"message":"rate limit"}\n');
     assert.match(out.stderr, /^gh: rate limit \(HTTP 403\)\n::error::'gh api route --jq \.' hit GitHub's core API rate limit/);
-    assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core\n");
+    assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core {x}\n");
     rmSync(join(dir, "api-budget", "stop"), { force: true });
     // A call that is not `gh api`, or already asks for headers, is passed on as it is.
     for (const args of ["pr view 1", "api route --paginate --jq .", "api --silent route"]) {
@@ -103,21 +103,70 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     }
   }));
 
-test("api_budget_emit writes the hub line for the last reading, cost since the first with the same reset", () =>
+test("api_budget_emit writes the hub line for each reset's last reading, cost since the first with the same reset", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 100, reset: 1792748100 }), head({ used: 328, reset: 1792748100 }));
     assert.equal(
       bash(dir, "api_budget_emit github-token").stdout,
-      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4987 used=13 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
     );
   }));
 
-test("api_budget_emit writes cost=na when the last reading has no earlier one in its window", () =>
+test("api_budget_emit writes cost=na for a reset with one reading", () =>
   withDir((dir) => {
     readEach(dir, "lanes-app", head({ used: 900 }), head({ used: 3, reset: 1792751642 }));
     assert.equal(
       bash(dir, "api_budget_emit lanes-app").stdout,
-      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4100 used=900 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+    );
+  }));
+
+test("api_budget_emit shows both core counters of one token, the job's latest core reading last", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ used: 3800, reset: B }),
+      head({ used: 1200, reset: A }),
+      head({ used: 7, reset: A, resource: "graphql" }),
+      head({ used: 3805, reset: B }),
+      head({ used: 1210, reset: A }),
+    );
+    const out = bash(dir, `lines=$(api_budget_emit github-token); printf "%s\\n" "$lines"; echo "last cost \${lines##*cost=}"`).stdout;
+    assert.deepEqual(
+      out
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => (line.startsWith(NOTICE) ? line.slice(line.indexOf(" used=")) : line)),
+      [
+        ` used=7 reset=${A} resource=graphql cost=na`,
+        ` used=3805 reset=${B} resource=core cost=5`,
+        ` used=1210 reset=${A} resource=core cost=10`,
+        "last cost 10",
+      ],
+    );
+  }));
+
+test("api_budget_emit keeps a refused reading that is not its counter's last, and does not repeat one that is", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ status: 403, used: 5000, reset: A }),
+      head({ used: 3900, reset: B }),
+      head({ status: 403, used: 3950, reset: B }),
+      head({ used: 3960, reset: B }),
+    );
+    assert.deepEqual(
+      bash(dir, "api_budget_emit github-token")
+        .stdout.split("\n")
+        .filter(Boolean)
+        .map((line) => line.slice(line.indexOf(" used="))),
+      [` used=3950 reset=${B} resource=core cost=50`, ` used=5000 reset=${A} resource=core cost=na`, ` used=3960 reset=${B} resource=core cost=60`],
     );
   }));
 
@@ -148,11 +197,143 @@ test("api_budget_emit names unset runner fields na and skips a token with no rea
 test("recordReading appends the same line shape, na for a missing or malformed value, and needs a token name", () =>
   withDir((dir) => {
     const headers = new Headers({ "x-ratelimit-limit": "5000", "x-ratelimit-used": "12", "x-ratelimit-resource": "Core!" });
-    assert.equal(readingLine(304, headers), "304 5000 na 12 na na\n");
+    assert.equal(readingLine(304, headers), "304 5000 na 12 na na other\n");
     recordReading({ token: "github-token", dir, status: 200, headers });
     recordReading({ token: "", dir, status: 200, headers });
-    assert.equal(state(dir, "github-token"), "200 5000 na 12 na na\n");
+    assert.equal(state(dir, "github-token"), "200 5000 na 12 na na other\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
+  }));
+
+// [URL or gh api path, route, the names in the input no route may carry].
+// A token-shaped segment, built so no secret scanner reads it as one.
+const PAT = ["ghp", "abcdefghijklmnopqrstuvwxyz0123456789"].join("_");
+const ROUTES = [
+  ["https://api.github.com/repos/melodic-software/claude-code-plugins/issues/42/comments?per_page=100&page=2", "repos/{repo}/issues/{n}/comments", ["melodic", "claude-code-plugins", "per_page", "page=2"]],
+  ["repos/{owner}/{repo}/pulls/7/files", "repos/{repo}/pulls/{n}/files", ["{owner}"]],
+  ["/repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs", "repos/{repo}/commits/{sha}/check-runs", ["0123456789abcdef"]],
+  ["repos/o/r/actions/runs/39931677333/attempts/2/jobs", "repos/{repo}/actions/runs/{n}/attempts/{n}/jobs", ["39931677333"]],
+  ["https://api.github.com/graphql", "graphql", []],
+  ["https://ghe.example/api/graphql", "graphql", ["ghe.example"]],
+  ["https://ghe.example/api/v3/repos/o/r/labels/needs-human", "repos/{repo}/labels/{x}", ["ghe.example", "needs-human"]],
+  [`search/issues?q=repo:o/r+is:open&access_token=${PAT}`, "search/issues", [PAT, "access_token", "is:open"]],
+  [`repos/o/r/contents/.github/${PAT}`, "repos/{repo}/contents/{x}/{x}", [PAT, ".github"]],
+  [`user/${PAT}`, "user/{x}", [PAT]],
+  ["user/github_pat_abc", "user/{x}", ["github_pat_abc"]],
+  ["repos/o/r/git/ref/heads/feature/fix-it", "repos/{repo}/git/ref/{x}/{x}/{x}", ["feature", "fix-it"]],
+  ["repos/o/r/branches/main/protection", "repos/{repo}/branches/{x}/protection", ["main"]],
+  ["users/SomeLogin/repos", "users/{x}/repos", ["SomeLogin"]],
+  ["repos/o/r/actions/workflows/pr-verify.yml/runs", "repos/{repo}/actions/workflows/{x}/runs", ["pr-verify"]],
+  ["repos/o/r/issues/1/comments#frag", "repos/{repo}/issues/{n}/comments", ["frag"]],
+  ["repos/o/r/hello world", "repos/{repo}/{x}", ["hello"]],
+  ["/repos/o/r/rules/branches/stale-feature-name", "repos/{repo}/rules/branches/{x}", ["stale-feature-name"]],
+  ["repos/o/r/branches/feat/secret-topic/protection", "repos/{repo}/branches/{x}/{x}/protection", ["feat", "secret-topic"]],
+  ["repos/o/r/commits/release-candidate/status", "repos/{repo}/commits/{x}/status", ["release-candidate"]],
+  ["repos/o/r/git/trees/main?recursive=1", "repos/{repo}/git/trees/{x}", ["main", "recursive"]],
+  ["repos/o/r/labels/area/ci", "repos/{repo}/labels/{x}/{x}", ["area", "ci"]],
+  ["repos/o/r/actions/runners/build-box-seven", "repos/{repo}/actions/{x}/{x}", ["runners", "build-box-seven"]],
+  ["repos/someowner", "repos/{x}", ["someowner"]],
+  ["applications/Iv1abcdef/token", "{x}/{x}/{x}", ["applications", "Iv1abcdef", "token"]],
+  ["https://github.com/someowner/somerepo/pull/5", "other", ["someowner", "somerepo", "github.com"]],
+  ["https://uploads.github.com/repos/o/r/releases/9/assets?name=secret-asset.zip", "repos/{repo}/releases/{n}/{x}", ["secret-asset", "assets"]],
+  ["rate_limit", "rate_limit", []],
+  ["", "other", []],
+  ["https://api.github.com/", "other", []],
+  [`repos/o/r/${"issues/".repeat(12)}comments`, "other", []],
+];
+
+test("routeOf and the shell's api_route template each request path alike, leaking nothing", () =>
+  withDir((dir) => {
+    const shell = bash(dir, `while IFS= read -r u; do api_budget_route api "$u"; done`, { input: `${ROUTES.map(([url]) => url).join("\n")}\n` });
+    const fromShell = shell.stdout.split("\n").slice(0, -1);
+    const fromNode = ROUTES.map(([url]) => routeOf(url));
+    assert.deepEqual(fromShell, ROUTES.map(([, route]) => route), shell.stderr);
+    assert.deepEqual(fromNode, ROUTES.map(([, route]) => route));
+    // Every name the input carried is absent from what each templater wrote,
+    // and every segment written is a REST path word or a placeholder.
+    ROUTES.forEach(([url, , names], i) => {
+      for (const out of [fromShell[i], fromNode[i]]) {
+        for (const name of names) assert.ok(!out.includes(name), `${url} -> ${out} carries ${name}`);
+        assert.ok(routeOk(out), `${url} -> ${out}`);
+      }
+    });
+    // The gh args around the path change nothing.
+    assert.equal(bash(dir, "api_budget_route api -X PATCH -H 'Accept: x' --jq .id repos/o/r/issues/3 -f body=hi").stdout, "repos/{repo}/issues/{n}\n");
+    assert.equal(bash(dir, "api_budget_route api --method=POST -fquery='query { viewer { login } }' graphql").stdout, "graphql\n");
+    assert.equal(bash(dir, "api_budget_route pr view 1").stdout, "other\n");
+  }));
+
+test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () =>
+  withDir((dir) => {
+    // Every key api_words loads, whatever line adds it, against the JS words
+    // and placeholders.
+    const keys = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) print k }'`);
+    assert.deepEqual(keys.stdout.split("\n").filter(Boolean).sort(), [...REST_PATH_WORDS, ...PLACEHOLDERS].sort(), keys.stderr);
+    const placeholders = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) if (k ~ /^[{]/) print k }'`);
+    assert.deepEqual(placeholders.stdout.split("\n").filter(Boolean).sort(), [...PLACEHOLDERS].sort());
+  }));
+
+test("both writers append the route last, and every reader keeps its fields", () =>
+  withDir((dir) => {
+    const headers = new Headers({ "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4990", "x-ratelimit-used": "10", "x-ratelimit-reset": "1792748042", "x-ratelimit-resource": "core" });
+    assert.equal(readingLine(200, headers, "repos/{repo}/pulls/{n}"), "200 5000 4990 10 1792748042 core repos/{repo}/pulls/{n}\n");
+    // A route not in the templater's shape is never written.
+    assert.equal(readingLine(200, headers, "repos/o/r?token=x"), "200 5000 4990 10 1792748042 core other\n");
+    recordReading({ token: "github-token", dir, status: 200, headers, route: routeOf("https://api.github.com/repos/o/r/pulls/9") });
+    bash(dir, `${READ} github-token "$f" 'repos/{repo}/issues/{n}/comments' >/dev/null`, { input: head({ used: 11 }) });
+    bash(dir, `${READ} github-token "$f" 'repos/o/r?x=1' >/dev/null`, { input: head({ used: 12 }) });
+    assert.equal(
+      state(dir, "github-token"),
+      "200 5000 4990 10 1792748042 core repos/{repo}/pulls/{n}\n" +
+        "200 5000 4989 11 1792748042 core repos/{repo}/issues/{n}/comments\n" +
+        "200 5000 4988 12 1792748042 core other\n",
+    );
+    // api_budget_emit still reads seven-field lines.
+    assert.match(bash(dir, "api_budget_emit github-token").stdout, /used=12 reset=1792748042 resource=core cost=2\n$/);
+  }));
+
+// [count, route] lines in a token's file, in the order given.
+const routeLines = (dir, rows) => {
+  mkdirSync(join(dir, "api-budget"), { recursive: true });
+  writeFileSync(join(dir, "api-budget", "github-token"), rows.flatMap(([n, line]) => Array(n).fill(`${line}\n`)).join(""));
+};
+
+test("api_budget_emit_routes counts N by route, most first, 304s left out, a line with no route as other", () =>
+  withDir((dir) => {
+    routeLines(dir, [
+      [3, "200 5000 1 2 3 core repos/{repo}/issues/{n}/comments"],
+      [2, "304 5000 1 2 3 core repos/{repo}/issues/{n}/comments"],
+      [2, "request graphql"],
+      [2, "request repos/{repo}/pulls/{n}"],
+      [1, "200 5000 1 2 3 core"],
+      [1, "request"],
+      [1, "200 5000 1 2 3 core repos/{repo}/x?y=ghp_1"],
+    ]);
+    assert.equal(
+      bash(dir, "api_budget_emit_routes github-token").stdout,
+      "::notice title=api-routes::github-token other=3 repos/{repo}/issues/{n}/comments=3 graphql=2 repos/{repo}/pulls/{n}=2 rest=0\n",
+    );
+    // The routes sum to api-calls' N.
+    assert.equal(bash(dir, "api_budget_emit_calls github-token").stdout, "::notice title=api-calls::github-token=10 not-modified=2 graphql=2\n");
+    assert.equal(bash(dir, "api_budget_emit_routes lanes-app").stdout, "::notice title=api-routes::lanes-app rest=0\n");
+  }));
+
+test("api_budget_emit_routes names at most 15 routes in at most 1000 bytes and sums the rest", () =>
+  withDir((dir) => {
+    const words = [...REST_PATH_WORDS].filter((w) => w.length <= 9 && !["api", "v3", "graphql"].includes(w)).slice(0, 20).sort();
+    routeLines(dir, words.map((w, i) => [30 - i, `request repos/{repo}/${w}`]));
+    const line = bash(dir, "api_budget_emit_routes github-token").stdout;
+    const shown = words.slice(0, 15).map((w, i) => `repos/{repo}/${w}=${30 - i}`);
+    assert.equal(line, `::notice title=api-routes::github-token ${shown.join(" ")} rest=${15 + 14 + 13 + 12 + 11}\n`);
+    // Long routes stop at the byte cap before 15, and the rest holds the others.
+    const long = (w) => `repos/{repo}/pending_deployments/requested_reviewers/rerun-failed-jobs/${w}`;
+    routeLines(dir, words.map((w, i) => [30 - i, `request ${long(w)}`]));
+    const capped = bash(dir, "api_budget_emit_routes github-token").stdout;
+    assert.ok(Buffer.byteLength(capped) <= 1001, `${Buffer.byteLength(capped)} bytes`);
+    const named = [...capped.matchAll(/ (\S+)=(\d+)/g)].filter(([, route]) => route !== "rest");
+    assert.ok(named.length < 15 && named.length > 0);
+    assert.deepEqual(named.map(([, route]) => route), words.slice(0, named.length).map(long));
+    const total = words.reduce((sum, _, i) => sum + 30 - i, 0);
+    assert.equal(named.reduce((sum, [, , n]) => sum + Number(n), 0) + Number(/ rest=(\d+)\n$/.exec(capped)[1]), total);
   }));
 
 test("the action emits each named token, the call count as an api-calls notice the hub reads (0 with no reading), the summary and the calls and costs outputs, and reads no /rate_limit", () =>
@@ -179,13 +360,15 @@ test("the action emits each named token, the call count as an api-calls notice t
       out,
       "::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0\n" +
         `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n",
+        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n" +
+        "::notice title=api-routes::lanes-app rest=0\n::notice title=api-routes::github-token other=2 rest=0\n",
     );
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
       "api-calls lanes-app=0 not-modified=0 graphql=0\n" +
         `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "api-calls github-token=2 not-modified=1 graphql=0\ngithub-token-cost=28\n",
+        "api-calls github-token=2 not-modified=1 graphql=0\n" +
+        "api-routes lanes-app rest=0\napi-routes github-token other=2 rest=0\ngithub-token-cost=28\n",
     );
     // calls: each token's own requests (2 counted plus a 304 is 2), not the counter's rise (28).
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=lanes-app-calls=0 github-token-calls=2\ncosts=github-token-cost=28\n");
@@ -211,13 +394,14 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     assert.equal(
       out,
       `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
-        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n",
+        "::notice title=api-calls::github-token=2 not-modified=1 graphql=0\n" +
+        "::notice title=api-routes::github-token other=2 rest=0\n",
     );
     // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
     assert.equal(
       execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
-      "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n",
+      "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n::notice title=api-routes::github-token rest=0\n",
     );
   }));
 
@@ -782,10 +966,10 @@ test("the action writes the content-creation notice after the token lines", () =
         TOKENS: "github-token",
       },
     });
-    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n`);
+    assert.equal(out, `::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n${NOTICE}content-creation ${WHERE} count=1 max-per-minute=1\n::notice title=api-routes::github-token rest=0\n`);
     assert.equal(
       readFileSync(join(dir, "summary"), "utf8"),
-      `api-calls github-token=0 not-modified=0 graphql=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\n`,
+      `api-calls github-token=0 not-modified=0 graphql=0\napi-budget: content-creation ${WHERE} count=1 max-per-minute=1\napi-routes github-token rest=0\n`,
     );
   }));
 
@@ -881,10 +1065,11 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
-    "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
+    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
     "dependabot-fragments.yml": { write: "./" },
+    "pr-require-checks.yml": { "lint-repo": "./", "lint-shell": "./", "check-plugins": "./", "check-skills": "./" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -893,7 +1078,8 @@ test("each job that holds the job token and calls no guarded client ends with th
       const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
       assert.equal(
         last,
-        "Log the API budget at the end\n        if: always()\n        continue-on-error: true\n        timeout-minutes: 1\n" +
+        // check-lane-coverage reads a continue-on-error step in this workflow as a gate.
+        `Log the API budget at the end\n        if: always()\n${file === "pr-require-checks.yml" ? "" : "        continue-on-error: true\n"}        timeout-minutes: 1\n` +
           `        uses: ${root}.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token`,
         `${file} ${job}`,
       );
@@ -933,12 +1119,59 @@ test("ci-status sets the shell read floor to the read-floor default", () => {
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);
 });
 
-test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () => {
-  const block = /\n {6}API_BUDGET_SH: \|\n((?: {8}[^\n]*\n|\n)+)/.exec(CI);
-  assert.ok(block, "ci-status sets API_BUDGET_SH as a block scalar");
-  const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
-  assert.equal(carried, readFileSync(LIB, "utf8"));
+test("ci-status and mark-lanes carry api-budget.bash verbatim in their API_BUDGET_SH env", () => {
+  const blocks = [...CI.matchAll(/\n( +)API_BUDGET_SH: \|\n((?:\1 {2}[^\n]*\n|\n)+)/g)];
+  assert.deepEqual(
+    blocks.map(([, pad]) => pad.length),
+    [10, 6],
+    "the mark-lanes step, then the ci-status job, set API_BUDGET_SH as a block scalar",
+  );
+  for (const [, pad, body] of blocks) {
+    const carried = body.replace(new RegExp(`^${pad} {2}`, "gm"), "").replace(/\n+$/, "\n");
+    assert.equal(carried, readFileSync(LIB, "utf8"));
+  }
 });
+
+// The mark-lanes step as shipped, against a gh that answers `api -i`, failing
+// its first `fails` calls. RUNNER_TEMP holds the fake and the readings.
+function markLanes(dir, fails) {
+  const job = CI.slice(CI.indexOf("\n  mark-lanes:\n"), CI.indexOf("\n  select-tests:\n"));
+  const body = /\n {8}run: \|\n((?: {10}[^\n]*\n)+)/.exec(job)[1].replace(/^ {10}/gm, "").replace(/sleep \$\(\(attempt \* 5\)\)/, ":");
+  const answer = head({ used: 12 }).replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+  writeFileSync(
+    join(dir, "gh"),
+    `#!/usr/bin/env bash\nn=$(($(cat "${dir}/n" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/n"\n` +
+      `[[ $1 == api && $2 == -i ]] || exit 9\n[ -z "\${GH_DEBUG:-}" ] || echo "* Request to https://api.github.com/x" >&2\n` +
+      `printf '${answer}{}'\n((n > ${fails}))\n`,
+  );
+  chmodSync(join(dir, "gh"), 0o755);
+  return spawnSync("bash", ["-e", "-c", body], {
+    encoding: "utf8",
+    env: { PATH: `${dir}:${process.env.PATH}`, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8"), HEAD_SHA: "a", GITHUB_REPOSITORY: "o/r", GITHUB_SERVER_URL: "s", GH_TOKEN: "t" },
+  });
+}
+
+test("mark-lanes counts its status write, and each retry of it", () =>
+  withDir((dir) => {
+    const once = markLanes(dir, 0);
+    assert.equal(once.status, 0, once.stderr);
+    assert.match(once.stdout, /^Marked ci-lanes pending on a\.$/m);
+    assert.match(once.stdout, /used=12 reset=1792748042 resource=core cost=na\n/);
+    assert.match(once.stdout, /^::notice title=api-calls::github-token=1 not-modified=0 graphql=0$/m);
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    rmSync(join(dir, "n"));
+    const retried = markLanes(dir, 1);
+    assert.equal(retried.status, 0, retried.stderr);
+    assert.match(retried.stdout, /^::notice title=api-calls::github-token=2 not-modified=0 graphql=0$/m);
+  }));
+
+test("mark-lanes still fails, and still reports its calls, when every attempt fails", () =>
+  withDir((dir) => {
+    const out = markLanes(dir, 3);
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /^::error::could not mark ci-lanes pending on a;/m);
+    assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+  }));
 
 test("ci-status emits the api-calls notice beside its api-budget notice", () => {
   assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
@@ -1024,5 +1257,19 @@ test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artif
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "::notice::run 77 uploaded no verdict; nothing to post\n");
-    assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core\n");
+    assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core repos/{repo}/actions/runs/{n}/artifacts\n");
+  }));
+
+test("the gh wrapper routes each traced request by its URL", () =>
+  withDir((dir) => {
+    scriptedGh(dir, [
+      ...request("https://api.github.com/repos/o/r/pulls?per_page=100&page=1"),
+      ...request("https://api.github.com/repos/o/r/pulls?per_page=100&page=2"),
+      ...request("https://api.github.com/graphql"),
+    ]);
+    const path = `${dir}:${process.env.PATH}`;
+    bash(dir, "api_budget_wrap_gh github-token\ngh api --paginate 'repos/o/r/pulls?per_page=100' >/dev/null", { path });
+    assert.equal(state(dir, "github-token"), "request repos/{repo}/pulls\nrequest repos/{repo}/pulls\nrequest graphql\n");
+    const calls = bash(dir, "api_budget_emit_calls github-token").stdout;
+    assert.equal(calls, "::notice title=api-calls::github-token=3 not-modified=0 graphql=1\n");
   }));

@@ -27,13 +27,13 @@ Per-target gates before any dispatch:
 2. Path ends in `.md` (case-insensitive) → otherwise skip with `reason=non-markdown`
 3. Path NOT a symlink escaping repo root → otherwise skip with `reason=symlink-escape`
 4. Path NOT inside `.git/` → otherwise skip with `reason=git-internal`
-5. Default (mutating) action with an ENUMERATED target set only, meaning any target set the user did not name file-by-file: the empty-arg uncommitted-`.md` batch (argument-shape row 1, enumerated from `git status`), directory expansion, or the repo-wide interview sweep: path NOT under a fixture convention directory (`evals/fixtures/`, and also `testdata/`, `__fixtures__/`, `test/fixtures/` when those appear; the skill's own layout uses `evals/fixtures/`, other conventions are acknowledged so consumers are not surprised, match case-insensitive on path segments) → otherwise skip with `reason=fixture` (fixture verbosity is deliberate test input, and compressing it corrupts the eval). An explicitly-named single-file target bypasses this gate, because naming a fixture is an intentional act, same philosophy as `--force`; the audit action is read-only and never applies it.
+5. Default (mutating) action with an ENUMERATED target set only, meaning any set the user did not name file-by-file: the empty-arg uncommitted-`.md` batch (argument-shape row 1, enumerated from `git status`), directory expansion, or the repo-wide interview sweep: path NOT under a fixture convention directory (`evals/fixtures/`, and also `testdata/`, `__fixtures__/`, `test/fixtures/` when those appear, so consumers on other conventions are not surprised; match case-insensitive on path segments) → otherwise skip with `reason=fixture` (fixture verbosity is deliberate test input, and compressing it corrupts the eval). An explicitly-named single-file target bypasses this gate, because naming a fixture is an intentional act, same philosophy as `--force`; the audit action is read-only and never applies it.
 
 Binary files and non-markdown files are out of scope per `../SKILL.md` "When NOT to use".
 
 ## Author-time-signal heuristic (audit action only)
 
-Audit is a pure mechanical scan: no subagent dispatch, no edits. Per target, compute an expected-yield estimate from six signals via `scripts/audit-scan.sh` (preferred; deterministic) or the table below; emit SKIP / COMPRESS / UNCERTAIN per the classification table.
+Audit is a pure mechanical scan: no subagent dispatch, no edits. Per target, estimate expected yield from six signals via `scripts/audit-scan.sh` (preferred; deterministic) or the table below, and emit SKIP / COMPRESS / UNCERTAIN per the classification table.
 
 ### Six signals
 
@@ -70,9 +70,9 @@ Aggregate at end: `Total: K skips, M compress-recommended, P uncertain`.
 
 ## Why mechanical not subagent
 
-`audit` is a READ-ONLY pre-flight check. Dispatching a subagent per target would burn request budget against the default rule (`<3% AND 0SL → REVERT`) which audits predict cheaply. Mechanical scan ~50ms per file; subagent dispatch ~5-15s + request cost.
+`audit` is a READ-ONLY pre-flight check. A subagent per target would burn request budget predicting the default rule (`<3% AND 0SL → REVERT`), which a mechanical scan predicts cheaply: ~50ms per file against ~5-15s + request cost per subagent dispatch.
 
-Empirically (authoring-repo baseline): instruction-file paths produce <3% yield 3/3 attempts. Heuristic encodes that signal as a path glob, so no subagent is needed to predict the same verdict.
+Empirically (authoring-repo baseline), instruction-file paths produce <3% yield 3/3 attempts; the heuristic encodes that as a path glob, so no subagent is needed to predict the same verdict.
 
 ## Recheck triggers
 

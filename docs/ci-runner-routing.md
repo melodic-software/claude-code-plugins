@@ -3,7 +3,7 @@
 This repository is public, so every lane runs on GitHub-hosted runners, free for
 public repositories: `ubuntu-24.04` for all of them except the informational
 Windows lane `test-windows`, which runs `windows-2025` in its own workflow,
-`.github/workflows/pr-test-windows.yml`, and that workflow's informational
+`.github/workflows/pr-test-platforms.yml`, and that workflow's informational
 `test-macos-planning-shared` job, which runs `macos-26`. The organization's
 runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
@@ -56,7 +56,7 @@ ready_for_review run lints and tests this SHA` (`scripts/check-docs-only-gate.sh
 pins both forms). The `ready_for_review` run lints and tests the same SHA, and a
 green draft cannot admit a merge: the merge-queue ruleset has no bypass actor, so
 every merge waits for the merge-group run, which runs every lane. `test-windows` is deliberately outside that
-aggregate, as an informational platform lane; `pr-test-windows.yml` says so at the
+aggregate, as an informational platform lane; `pr-test-platforms.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `pr-require-checks.yml`, it was the
 longest job in the run: time-to-green is measured to the run's completion, so an
@@ -112,7 +112,7 @@ diff-scoped step diffs against it:
   detect-changes groups read only a pull request's files and report true here;
   the check-25 scan diffs its own inputs instead.
 - **Push to `main`:** no run, in `pr-require-checks.yml` or
-  `pr-test-windows.yml`. Every commit reaches `main` through the merge queue,
+  `pr-test-platforms.yml`. Every commit reaches `main` through the merge queue,
   whose merge-group run already tested that SHA.
 - **Schedule (09:17 and 16:17 UTC, two of the workflow's quietest hours) and
   dispatch:** the whole tree. That means

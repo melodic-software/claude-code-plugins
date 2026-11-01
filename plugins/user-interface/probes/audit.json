@@ -1,0 +1,146 @@
+{
+  "skill": "user-interface:audit",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/audit",
+  "ranking_note": "Written from the description of user-interface:audit on main, which reviews interface code one concern lane at a time over the diff, the whole tree, or every lane before a launch. Most positives exercise the motion lane (the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes); pos-train-08 asks for the launch sweep and pos-validation-05 for a non-motion lane. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output.",
+  "competitors": [
+    "user-interface:write-animation",
+    "user-interface:glossary",
+    "user-interface:write-css",
+    "user-interface:design"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the transitions I added on this branch and tell me which ones are a problem."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look over every keyframe and transition in the repo and rank what is wrong with each."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The sidebar slide stutters on my laptop. Figure out why it is dropping frames."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which spots in the checkout flow would benefit from some motion, and where should things stay still?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check the motion in my pull request for timing and reduced-motion problems before I merge."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our modal fade feels laggy on cheap Android phones. Diagnose it."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Review the animation code under src/components/drawer and fix the worst issue once I agree."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We ship on Friday. Sweep the whole app's interface and tell me what should block the release."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Animate the toast sliding in from the bottom right."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the name for the effect where list items appear one after another?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Style the card so it lifts a little on hover, using our shadow tokens."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Design the props for our shared Tooltip component."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a spring to the drawer so I can drag it closed."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a severity-ranked pass over every animation in the marketing site."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are any of the hover and entrance effects in my diff too slow or missing a reduced-motion fallback?"
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The list reorder animation looks choppy with 200 rows. What is causing it?"
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Where does this onboarding screen need movement to explain itself, and where would animation just get in the way?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check the form screens I changed on this branch for accessibility problems, worst first."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make the accordion open and close smoothly."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Are easing and timing function the same thing, or different?"
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Restyle the settings page so it matches our spacing tokens."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How should the progress output of our CLI look during a long download?"
+    }
+  ]
+}

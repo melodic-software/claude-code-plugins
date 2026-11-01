@@ -2,17 +2,17 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view|list|review-venue] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view…] [--unattended] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view|list|review-venue] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
+**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
-The read actions `view`, `list` and `review-venue`, `comments --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
+The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
 **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
@@ -78,6 +78,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
 | `view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]` | Read only | One PR's facts as JSON, or its diff with `--diff`; no number reads the current branch's PR. See [reference/read.md](reference/read.md) |
 | `list [--head <branch>\|--head-match <ERE>] [--search <text>] [--state open\|closed\|merged\|all] [--repo <owner/repo>]` | Read only | PRs as a JSON array, open by default |
+| `review-comments --prs <n> [--repo <owner/repo>]` | Read only | The review comments of the last `<n>` merged PRs as JSON lines. See [reference/read.md](reference/read.md) |
 | `review-venue [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]` | Read only | Per AI review lane (code, security): `ci` when the repository's CI lane is present and healthy, so no local review runs for it, else `local`; with `--head`, a `tests` line: `ci` when CI's test lanes passed on that commit. See [reference/review-venue.md](reference/review-venue.md) |
 
 For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use
@@ -104,7 +105,10 @@ After resolving once at phase entry, **pass `<pr_number>` explicitly to all subs
 
 ## Phase 0: Parse action and detect state
 
-Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments.
+Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments, after taking out
+`--unattended` wherever it appears: it is the caller declaring that nobody is present. Pass it on
+to `ready` (which takes it as its own flag) and to no script; with nothing else left, the action
+is the smart default.
 
 **Smart default** (empty args): read live state from the forge to determine the right phase:
 
@@ -288,7 +292,9 @@ basis: it registers gated and needs forge CLI and cloud-session access; records 
 [reference/native-surfaces.md](reference/native-surfaces.md)), the person can run it instead of or
 alongside this skill's monitor, with a filled-in prompt carrying this skill's review discipline. The
 matrix and the prompt:
-[reference/watch-handoff.md](reference/watch-handoff.md).
+[reference/watch-handoff.md](reference/watch-handoff.md). When the caller passes `--unattended`,
+with any action, the run records that recommendation and the `/autofix-pr` prompt in its output
+and does not ask the person; without that flag it asks.
 
 **Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes
 fixes to the PR branch from a cloud session. This skill never chains into any of them on its own

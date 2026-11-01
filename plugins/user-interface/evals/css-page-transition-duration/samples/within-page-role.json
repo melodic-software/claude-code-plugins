@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "@view-transition { navigation: auto; }\n::view-transition-old(root), ::view-transition-new(root) { animation-duration: 300ms; }",
+      "why": "300ms"
+    },
+    {
+      "answer": "@view-transition { navigation: auto; }",
+      "why": "the browser default duration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@view-transition { navigation: auto; }\n::view-transition-old(root), ::view-transition-new(root) { animation-duration: 1.5s; }",
+      "why": "the 1.5s asked for"
+    },
+    {
+      "answer": "@view-transition { navigation: auto; }\n::view-transition-group(root) { animation-duration: 700ms; }",
+      "why": "near miss: 700ms"
+    },
+    {
+      "answer": "@view-transition { navigation: auto; }\n::view-transition-old(root), ::view-transition-new(root) { animation-duration: 450ms; }",
+      "why": "near miss: 450ms, inside large but over the 400ms page role"
+    }
+  ]
+}

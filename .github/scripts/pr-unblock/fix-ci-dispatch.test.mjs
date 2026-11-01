@@ -22,7 +22,7 @@ const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 // A tested pr-require-checks run that failed, an hour before NOW unless named.
 const NOW = Date.parse("2026-10-22T12:00:00Z");
 const REQUIRED = ".github/workflows/pr-require-checks.yml";
-const ADVISORY = ".github/workflows/pr-test-windows.yml";
+const ADVISORY = ".github/workflows/pr-test-platforms.yml";
 const tested = (attempt, hoursAgo = 1) => ({
   id: 40119285048,
   status: "completed",
@@ -1207,9 +1207,9 @@ test("a tested run that is missing or malformed dispatches fix-ci with the reaso
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: infra failure, run field run_attempt unreadable)")), lines.join("\n"));
 });
 
-// pr-test-windows is not in ci-status, but the merge gate holds a PR on any
+// pr-test-platforms is not in ci-status, but the merge gate holds a PR on any
 // failing check, such as a macOS test_tunnel flake.
-test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
+test("a failed advisory pr-test-platforms run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
   const requiredRuns = new Map([
@@ -1225,7 +1225,7 @@ test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unl
     [5, 6],
   );
   assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY, ADVISORY]);
-  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #8:")), lines.join("\n"));
 });
 
@@ -1431,6 +1431,27 @@ test("an escalated head whose rollup shows a passed fix-ci check is retried once
   // With no stop in the rollup, the listing pass skips the head unread.
   const unread = await run({ pages: [[pr(7, { checks: rollup.slice(0, 2) })]], history: new Map([[head, [fixCi]]]) });
   assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
+});
+
+// Run 41217248303's refusal, on the push job instead of its report job: the
+// model's patch never landed, so the passed fix-ci check does not handle the
+// head. Any other push job failure still does.
+test("a head whose apply-patch failed on a token refusal is retried; any other apply-patch failure is not", async () => {
+  const head = "7".padStart(40, "a");
+  const passed = { title: "Passed: 1 commit", completedAt: "2026-10-22T08:50:00Z" };
+  const failed = check("pr-unblock / apply-patch", "FAILURE", { title: "Failed" });
+  const rollup = [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", passed), failed];
+  const fixCi = { ...toRest(check("pr-unblock / fix-ci", "SUCCESS", passed)), started_at: "2026-10-22T08:40:00Z", external_id: "pr-unblock:fix-ci:41217248303:1" };
+  const stop = (summary) => {
+    const rest = toRest(failed);
+    return { ...rest, output: { ...rest.output, summary }, started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:41217248303:1" };
+  };
+  const refused = stop("The run job did not succeed: lane-token-denied: the broker answered 403 with reason workflow-modified: .github/workflows/pr-unblock-dispatch.yml differs from refs/heads/main");
+  const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [refused]]]) });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
+  const other = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop("The run job did not succeed.")]]]) });
+  assert.deepEqual(other.api.calls.dispatch, []);
+  assert.ok(other.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), other.lines.join("\n"));
 });
 
 // A re-run is the same run id at its next attempt (external_id

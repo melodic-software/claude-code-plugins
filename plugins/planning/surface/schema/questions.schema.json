@@ -191,11 +191,12 @@
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"},
+        "syncedLedger": {"description": "The absolute path of the ledger the last `sync-ledger` (or `add-round --sync-ledger`) wrote; `ledger-check` reads it before `seededFrom.ledger`.", "type": "string"},
         "ledgerSync": {"$ref": "#/$defs/ledgerSync"}
       }
     },
     "ledgerSync": {
-      "description": "What `ledger-check` last found when it compared the page with the ledger the data dir was seeded from; the page header reads it. A file without it shows no ledger line.",
+      "description": "What `ledger-check` last found when it compared the page with its ledger (`syncedLedger`, else `seededFrom.ledger`); the page header reads it. A file without it shows no ledger line.",
       "type": "object",
       "required": ["rev", "rows"],
       "additionalProperties": false,
@@ -443,6 +444,17 @@
           }
         },
         "previousRecommendation": {"type": "string"},
+        "asideRecommendation": {
+          "description": "The recommendation a counted accept or hedged accept was given against, written when a recommendation revision sets that decision aside. It applies only while that decision is the newest set-aside one, and a record-terminal decision removes it: `seq` is its page event seq (absent on a terminal answer) and `decidedAt` its updatedAt.",
+          "type": "object",
+          "required": ["text", "decidedAt"],
+          "additionalProperties": false,
+          "properties": {
+            "text": {"type": "string"},
+            "seq": {"type": "integer"},
+            "decidedAt": {"type": "string"}
+          }
+        },
         "revised": {
           "type": ["string", "boolean"],
           "description": "Set by a recommendation change: its `why` as given, else true"

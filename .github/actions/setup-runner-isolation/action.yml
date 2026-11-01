@@ -23,10 +23,18 @@ runs:
       if: inputs.install-subprocess-isolation == 'true'
       shell: bash
       run: |
+        # Each apt call is bounded, so a stalled mirror or held lock fails this
+        # step in minutes instead of holding the job to its timeout; a run that
+        # cannot install fails closed below. An image that already ships both
+        # tools skips apt.
+        apt=(-o Acquire::Retries=2 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o DPkg::Lock::Timeout=60)
         for i in 1 2 3; do
-          sudo apt-get update -qq &&
-            sudo apt-get install -y --no-install-recommends bubblewrap socat && break
-          echo "apt-get attempt $i failed, retrying..."
+          if command -v bwrap >/dev/null && command -v socat >/dev/null; then
+            break
+          fi
+          timeout 180 sudo apt-get "${apt[@]}" update -qq &&
+            timeout 180 sudo apt-get "${apt[@]}" install -y --no-install-recommends bubblewrap socat && break
+          echo "apt-get attempt $i failed or timed out, retrying..."
           sleep 5
         done
         # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.

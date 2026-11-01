@@ -1,7 +1,7 @@
 {
   "name": "knowledge",
-  "version": "0.30.0",
-  "description": "Ingests external knowledge into synthesized artifacts: distill (PDF or EPUB into attributed reference files), video-digest (one YouTube or X video into repo applicability), course-digest (Dometrain and Teachable courses), docpage-digest (one docs page into a verified slice), map-corpus (a docs corpus into an approved docpage-digest queue), and absorb-upstream (an outside repository or post into a docs/upstream record). setup sets where artifacts land.",
+  "version": "0.31.0",
+  "description": "Ingests external knowledge into synthesized artifacts: distill (a book or an author's web corpus into attributed reference files), video-digest (one YouTube or X video into repo applicability), course-digest (Dometrain and Teachable courses), docpage-digest (one docs page into a verified slice), map-corpus (a docs corpus into an approved docpage-digest queue), and absorb-upstream (an outside repository or post into a docs/upstream record). setup sets where artifacts land.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

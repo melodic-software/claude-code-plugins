@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/*
 """The lane-record carry of the post-merge check (`babysit_postmerge`).
 
 Expected values come from the carry's rules: a `pr-merge-dispatched-<id>` or

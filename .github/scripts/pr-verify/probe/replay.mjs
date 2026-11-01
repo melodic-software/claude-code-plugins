@@ -1,11 +1,12 @@
 // Offline replay of pr-verify's judgment over the synthetic planted-defect
 // fixtures in ./fixtures. Per case it lays out the data directory
 // pr-verify.yml builds (diff.patch, pr.json, context.json, spec.json,
-// spec-text.json), with the spec files from the real resolvePull and the
-// context from the real buildTrustedContext, both reading one stub GitHub that
-// serves the fixture's issue and pull request. It fills in this checkout's
-// prompt.md the way the "Write the prompt and schema" step does, runs `claude
-// -p` with the argv run-claude-cli builds at the pinned SHA (lane.cjs cliArgs)
+// spec-text.json, upstream-jobs.json), with the spec files from the real
+// resolvePull, the context from the real buildTrustedContext and the jobs from
+// the real upstreamJobs, all reading one stub GitHub that serves the fixture's
+// issue and pull request and a pr-require-checks run whose jobs all passed.
+// It fills in this checkout's prompt.md the way the "Write the prompt and
+// schema" step does, runs `claude -p` with the argv run-claude-cli builds at the pinned SHA (lane.cjs cliArgs)
 // and the verify-pr model route resolve-config resolves, and scores the
 // result through the real structuredOutput and buildVerdict.
 //
@@ -49,12 +50,30 @@ import { parseArgs } from "node:util";
 import { loadTrustedList } from "../../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { buildTrustedContext } from "../../../actions/select-trusted-text/select-trusted-text.mjs";
 import { resolvePull } from "../resolve-pr.mjs";
+import { upstreamJobs } from "../upstream-jobs.mjs";
 import { buildVerdict, structuredOutput } from "../write-verdict.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, "../../../..");
 export const FIXTURES_DIR = path.join(HERE, "fixtures");
 const REPOSITORY = "melodic-software/claude-code-plugins";
+// The jobs of pr-require-checks.yml as a run lists them, a matrix leg named
+// with its leg; each fixture's run passed every one.
+export const UPSTREAM_JOBS = Object.freeze([
+  "mark-lanes",
+  "select-tests",
+  "lint-repo",
+  "lint-shell",
+  "check-plugins",
+  "check-catalog",
+  "check-skills",
+  "test-bash (0)",
+  "test-python (0)",
+  "test-node",
+  "check-managed-files",
+  "check-tests",
+  "ci-status",
+]);
 
 // The ci-workflows SHA pr-verify.yml pins run-claude-cli and
 // apply-claude-managed-settings to. cliArgs, LEG_ENV, CLI_VERSION and
@@ -80,7 +99,7 @@ export const LEG_ENV = Object.freeze({
 export const JUDGE = Object.freeze({
   dataDir: "pr-verify-data",
   modelRoute: "verify-pr",
-  preamble: "You run unattended; return only the verdict the schema asks for; nothing you write is posted.",
+  preamble: "You run unattended; return only the verdict the schema asks for; your summary and notes are public, so never quote a credential.",
   permissionMode: "dontAsk",
   tools: ["Read"],
   allowedTools: ["Read(./pr-verify-data/**)"],
@@ -104,6 +123,7 @@ export const JUDGE = Object.freeze({
     ["PR_FILE", "pr.json"],
     ["SPEC_TEXT_FILE", "spec-text.json"],
     ["SPEC_FILE", "spec.json"],
+    ["JOBS_FILE", "upstream-jobs.json"],
   ],
   schema: {
     type: "object",
@@ -273,6 +293,7 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       repository: { full_name: REPOSITORY },
       head_repository: { full_name: REPOSITORY },
     },
+    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,
@@ -305,6 +326,7 @@ export function stubGitHub(s) {
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
   const gets = [
     [`${R}/actions/runs/${s.runId}`, () => s.run],
+    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=1$/.test(apiPath) ? { total_count: s.jobs.length, jobs: s.jobs } : { total_count: s.jobs.length, jobs: [] })],
     [`${R}/commits/${s.head}/pulls?`, page([s.pull])],
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
@@ -356,8 +378,9 @@ export function actorsFrom(trustedActorsPath, laneIdentity) {
   };
 }
 
-// The five data files, written as resolve-pr.mjs, select-trusted-text.mjs and
-// the "Write the diff" step write them. Returns the resolved PR facts.
+// The six data files, written as resolve-pr.mjs, select-trusted-text.mjs,
+// upstream-jobs.mjs and the "Write the diff" step write them. Returns the
+// resolved PR facts.
 export async function writeData({ testCase, index, dataDir, trustedActorsPath, verifyAuthors, laneIdentity }) {
   const s = scenario(testCase, index, actorsFrom(trustedActorsPath, laneIdentity));
   const github = stubGitHub(s);
@@ -382,6 +405,7 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
   writeFileSync(path.join(dataDir, "context.json"), json(context));
   writeFileSync(path.join(dataDir, "diff.patch"), testCase.diff);
   writeFileSync(path.join(dataDir, "pr.json"), json({ pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha }));
+  writeFileSync(path.join(dataDir, "upstream-jobs.json"), json(await upstreamJobs(github, s.repository, s.runId)));
   return resolved;
 }
 

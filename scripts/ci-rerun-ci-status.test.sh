@@ -59,7 +59,7 @@ for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{
   'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
   'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
-  'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
+  'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'RUN_TITLE: ${{ github.event.workflow_run.display_title }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
   'RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml' \
   'RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs' \
   'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash'; do
@@ -142,12 +142,22 @@ if [[ -n "${STUB_ETAG:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\
     echo "gh: HTTP 304" >&2
     exit 1
   fi
-  if [[ "$*" == *" -H If-None-Match: "* ]]; then body=$(tail -n 1 <<<"$STUB_RUN_SEQ"); else body=$(head -n 1 <<<"$STUB_RUN_SEQ"); fi
+  # The first read gets the first line; any later one, the last.
+  if [[ "$(grep -cE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG")" -gt 1 ]]; then body=$(tail -n 1 <<<"$STUB_RUN_SEQ"); else body=$(head -n 1 <<<"$STUB_RUN_SEQ"); fi
   printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$STUB_ETAG" "$body"
   exit 0
 fi
 case "$*" in
-*/pulls/*) ok200 "$STUB_PR" ;;
+*/pulls/*)
+  # STUB_PR_SEQ, when set, answers the nth read with its nth line.
+  if [[ -n "${STUB_PR_SEQ:-}" ]]; then
+    n=$(grep -c '/pulls/' "$STUB_LOG")
+    ok200 "$(sed -n "${n}p" <<<"$STUB_PR_SEQ")"
+  else
+    ok200 "$STUB_PR"
+  fi
+  ;;
+*/commits/*/statuses*) ok200 "$STUB_STATUSES" ;;
 */actions/workflows/pr-review-hosted.yml/runs* | */actions/workflows/pr-review-security-hosted.yml/runs*)
   [[ -z "${STUB_LANE_FAIL:-}" ]] || exit 1
   ok200 "$STUB_LANE_RUNS"
@@ -156,10 +166,13 @@ case "$*" in
   [[ -z "${STUB_RUNS_FAIL:-}" ]] || exit 1
   ok200 "$STUB_RUNS"
   ;;
+*/actions/runs/31/jobs*) ok200 "$STUB_UNBLOCK_JOBS" ;;
 */actions/runs/*/jobs*) ok200 "$STUB_JOBS" ;;
 "api -i repos/o/r/actions/runs/"[0-9]*)
   n=$(grep -c '^api -i repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
   total=$(wc -l <<<"$STUB_RUN_SEQ")
+  # With no sequence, the run read last before the re-run finds it as listed.
+  [[ -n "$STUB_RUN_SEQ" ]] || { ok200 '{"status":"completed","run_attempt":1}'; exit 0; }
   ok200 "$(sed -n "$((n < total ? n : total))p" <<<"$STUB_RUN_SEQ")"
   ;;
 "api -X POST "*/rerun)
@@ -209,7 +222,7 @@ STUB
 KYLE=153232337 LANES_APP=337595936 STRANGER=9999001
 jq -n --argjson h "$KYLE" --argjson b "$LANES_APP" '{version: 1, actors: [{id: $h, login: "kyle-sexton", kind: "human"},
   {id: $b, login: "melodic-automation-lanes[bot]", kind: "bot"}]}' >"$TMP_ROOT/trusted-actors.json"
-export STUB_PR STUB_LANE_RUNS STUB_RUNS STUB_JOBS STUB_RUN_SEQ
+export STUB_UNBLOCK_JOBS STUB_STATUSES STUB_PR STUB_LANE_RUNS STUB_RUNS STUB_JOBS STUB_RUN_SEQ
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
@@ -221,7 +234,7 @@ expect() {
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$DONE}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
-    REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
+    REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RUN_TITLE="${RUN_TITLE-}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
     API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -262,7 +275,7 @@ STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 STUB_RUNS="$(runs "$(run 5)" "$(run 9)" "$(run 8)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
 expect "both lanes finished: a finished run's ci-status is re-run" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
 check_reran 1 "only the ci-status job of the newest run is re-run"
-check_calls 4 "the last lane reads the other lane, the runs, the jobs and the PR"
+check_calls 5 "the last lane reads the other lane, the runs, the jobs, the PR and the run again"
 if grep -qxF "api -i repos/o/r/actions/workflows/pr-review-security-hosted.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
   grep -qxF "api -i repos/o/r/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
   grep -qxF "api -i repos/o/r/actions/runs/9/jobs?filter=latest&per_page=100" "$TMP_ROOT/log"; then
@@ -301,7 +314,7 @@ check_reran 1 "only the other lane's newest run decides"
 STUB_LANE_RUNS="$(runs)"
 expect "no run of the other lane: re-run on this lane alone" 0 "Re-running ci-status (job 77) of run 9"
 check_reran 1 "a single-lane head is re-run"
-check_calls 4 "a single-lane head costs the same as the last lane"
+check_calls 5 "a single-lane head costs the same as the last lane"
 for c in skipped cancelled failure; do
   STUB_LANE_RUNS="$(runs "$(jq -c --arg c "$c" '. + {conclusion: $c}' <<<"$(run 3 completed "$HEAD" "$SEC")")")"
   expect "the other lane completed $c counts as finished" 0 "Re-running ci-status (job 77)"
@@ -340,7 +353,7 @@ $(run 9)"
 expect "a ci-status in progress is polled, then re-run once its run finishes" 0 "Re-running ci-status (job 77) of run 9"
 check_reran 1 "the polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 2 ]]; then ok "it polled every 60 s"; else fail "polls: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
-check_calls 6 "each poll reads the run only"
+check_calls 7 "each poll reads the run only"
 if [[ "$(grep -c '/jobs?' "$TMP_ROOT/log")" == 1 ]]; then ok "the job list is read once"; else fail "job list reads: $(grep -c '/jobs?' "$TMP_ROOT/log")"; fi
 # A poll read again is a conditional GET: a 304 stands for the last 200's
 # body, so the run still reads in progress, and the polls keep their 60 s pace.
@@ -349,7 +362,7 @@ STUB_ETAG='W/"e1"' STUB_NOT_MODIFIED_FILE="$TMP_ROOT/not-modified" \
   expect "a poll answered 304 reads the run as last read, then re-runs once it finishes" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
 check_reran 1 "the conditionally polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 4 && "$(grep -c '^sleep' "$TMP_ROOT/log")" == 4 ]]; then ok "two 304s cost two 60 s polls and no retry"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
-check_calls 8 "each poll still sends one read"
+check_calls 9 "each poll still sends one read"
 if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 3 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
   ok "every repeat poll is conditional, and each 304 keeps its reading"
 else
@@ -386,19 +399,19 @@ PR_NUMBER='' expect "a review run with no pull request is left alone" 0 "names n
 if [[ -s "$TMP_ROOT/log" ]]; then fail "a run with no pull request read the API"; else ok "a run with no pull request reads nothing"; fi
 PR_NUMBER='1;id' expect "a pull request number that is not a number is left alone" 0 "names no pull request"
 HEAD_SHA=main expect "a head that is not a commit SHA fails" 1 "::error::the review run's head 'main' is not a commit SHA."
-LANE_PATH=.github/workflows/pr-verify.yml expect "a run of another file fails" 1 "::error::'.github/workflows/pr-verify.yml' is not a review lane."
+LANE_PATH=.github/workflows/pr-verify.yml expect "a run of another file fails" 1 "::error::'.github/workflows/pr-verify.yml' is not a review lane, pr-unblock or an approval relay."
 LANE_DONE_AT='2026-10-23 10:00' expect "a finish time that is not a UTC timestamp fails" 1 "is not a UTC timestamp."
 if [[ -s "$TMP_ROOT/log" ]]; then fail "a bad finish time read the API"; else ok "a bad finish time reads nothing"; fi
 
 # A primary rate limit waits for its reset inside the cap, then reads again.
 export STUB_LIMIT_FILE="$TMP_ROOT/limit" STUB_RESET=1119
-STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
+STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
 echo 1 >"$STUB_LIMIT_FILE"
 expect "a rate-limited read waits for the reset, then re-runs" 0 "Rate limited reading the pr-require-checks runs on $HEAD; waiting 120s for the reset."
 check_reran 1 "the read after the reset goes on to the re-run"
 if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 ]]; then ok "it slept until one second past the reset"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
-check_calls 5 "the refused read is counted and its reading kept"
-if grep -qx '403 na 0 na 1119 na' "$TMP_ROOT/rt/api-budget/github-token"; then ok "the refusal's reading names its status and reset"; else fail "readings: $(paste -sd'|' "$TMP_ROOT/rt/api-budget/github-token")"; fi
+check_calls 6 "the refused read is counted and its reading kept"
+if grep -qx '403 na 0 na 1119 na repos/{repo}/actions/workflows/{x}/runs' "$TMP_ROOT/rt/api-budget/github-token"; then ok "the refusal's reading names its status and reset"; else fail "readings: $(paste -sd'|' "$TMP_ROOT/rt/api-budget/github-token")"; fi
 echo 1 >"$STUB_LIMIT_FILE"
 STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
 check_reran 1 "the read after retry-after goes on to the re-run"
@@ -421,7 +434,7 @@ expect "an unreadable run list fails" 1 "::error::could not read the pr-require-
 unset STUB_RUNS_FAIL
 # The record names the run, the attempt the re-run starts and the head, and
 # carries the PR, the job, the lane and the reason.
-STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")"
+STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")" STUB_RUN_SEQ="$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)"
 expect "a run at attempt 2 is re-run as attempt 3" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 3."
 check_reran 1 "the record names attempt 3" "rerun-ci-status-9-3-$HEAD"
 want_record="$(jq -cn --arg h "$HEAD" --arg l "$CODE" '{recorder_run_id: 555, run_id: 9, attempt: 3, head_sha: $h, pr_number: 42,
@@ -451,7 +464,7 @@ check_unrecorded() {
 }
 REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$KYLE expect "a review run a listed human re-ran is recorded" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
 check_reran 1 "a listed human's review re-run hands on the record"
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$STRANGER expect "a review run an unlisted user re-ran is not recorded" 0 "::notice::review attempt 2 was started by $STRANGER"
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$STRANGER expect "a review run an unlisted user re-ran is not recorded" 0 "::notice::upstream attempt 2 was started by $STRANGER"
 check_unrecorded "an unlisted re-runner's review re-run hands on the job and no record"
 REVIEW_ATTEMPT=3 REVIEW_RERUNNER_ID=$LANES_APP expect "a review run a listed bot re-ran is not recorded" 0 "is not a listed human"
 check_unrecorded "a bot re-runner's review re-run hands on no record"
@@ -487,6 +500,120 @@ check_unrecorded "a non-bot re-runner hands on no record"
 if [[ "$(record_checks)" == 0 ]]; then ok "a non-bot re-runner never asks the record check"; else fail "a non-bot re-runner asked the record check"; fi
 REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$ACTIONS_BOT REVIEW_RUN_ID='' STUB_RECORD_RC=0 expect "a reconciler re-run with no review run id is not recorded" 0 "no reconciler record vouches"
 check_unrecorded "a missing review run id hands on no record"
+
+# A pr-unblock run (a dispatch on main) and a relayed approval also re-run
+# ci-status, judged as a finished lane with both review lanes as the others.
+UNBLOCK=.github/workflows/pr-unblock.yml APPROVED=.github/workflows/pr-review-approved.yml
+MAIN_TIP=fedcba9876543210fedcba9876543210fedcba98 BOT=41898282
+# status <context> <state> <created_at> [creator]
+status() { jq -cn --arg c "$1" --arg s "$2" --arg at "$3" --arg by "${4:-github-actions[bot]}" '{context: $c, state: $s, created_at: $at, creator: {login: $by}}'; }
+BOTH_LANES="$(runs "$(run 3 completed "$HEAD" "$CODE" pull_request "$DONE")" "$(run 4 completed "$HEAD" "$SEC" pull_request "$DONE")")"
+unblock_case() {
+  HEAD_SHA=$MAIN_TIP PR_NUMBER='' LANE_PATH=$UNBLOCK RUN_TITLE="${TITLE-pr-unblock address-feedback #42}" REVIEW_RUN_ID=31 \
+    REVIEW_RERUNNER_ID="${RERUNNER-$BOT}" expect "$@"
+}
+# unblock_jobs <report-stop-status conclusion>: the pr-unblock run's jobs.
+unblock_jobs() { jq -cn --arg c "$1" '{jobs: [{id: 1, name: "address-feedback-select", conclusion: "success"}, {id: 2, name: "report-stop-status", conclusion: $c}]}'; }
+STUB_UNBLOCK_JOBS="$(unblock_jobs success)"
+STUB_PR="$(pr)" STUB_LANE_RUNS="$BOTH_LANES" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)" STUB_RUN_SEQ=''
+STUB_STATUSES="[$(status ci/other failure "$AFTER"),$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
+unblock_case "a pr-unblock status set after ci-status read the head re-runs it" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "the PR's live head, not main's, is re-run and recorded"
+check_calls 9 "a pr-unblock run reads its jobs, the PR twice, the statuses, both lanes, the runs, the jobs and the run again"
+if grep -qxF "api -i repos/o/r/commits/$HEAD/statuses?per_page=100" "$TMP_ROOT/log" && ! grep -q "$MAIN_TIP" "$TMP_ROOT/log" &&
+  [[ "$(grep -c '/pulls/42$' "$TMP_ROOT/log")" == 2 ]]; then
+  ok "the live head's statuses are read, main's tip never, and the PR again before the re-run"
+else
+  fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"
+fi
+if [[ "$(jq -r '"\(.lane_path) \(.reason)"' "$TMP_ROOT/record.json")" == "$UNBLOCK a pr-unblock status changed after ci-status read it" ]]; then
+  ok "the record names the pr-unblock run and why"
+else
+  fail "record: $(cat "$TMP_ROOT/record.json")"
+fi
+STUB_STATUSES="[$(status ci/other success "$AFTER"),$(status pr-unblock/address-feedback success "$AFTER" someone-else)]"
+unblock_case "a status of an unlisted context or writer is no change ci-status reads" 0 "No pr-unblock/* status on $HEAD; ci-status holds on none"
+check_reran 0 "nothing is re-run for a status ci-status does not read"
+check_calls 3 "it stops after its jobs, the PR and its statuses"
+STUB_STATUSES="[$(status pr-unblock/fix-ci success "$EARLY")]" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$CODE" pull_request "$EARLY")")"
+STUB_JOBS="$(cijob completed "$DONE")" unblock_case "a ci-status started after the newest pr-unblock status read it" 0 "after both lanes finished ($EARLY); it read them."
+check_reran 0 "a ci-status that read the status is left alone"
+STUB_LANE_RUNS="$BOTH_LANES" STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER")]"
+STUB_PR="$(pr closed)" unblock_case "a closed PR is left alone" 0 "#42 is closed or has no head; nothing to re-run."
+check_calls 2 "a closed PR stops after its jobs and the PR"
+for title in 'pr-unblock address-feedback #0' 'pr-unblock address-feedback 42' 'other #42' 'pr-unblock address-feedback #42 x'; do
+  TITLE=$title unblock_case "run name '$title' names no PR" 0 "the upstream run names no pull request"
+  if grep -q "^api " "$TMP_ROOT/log"; then fail "a run name with no PR reaches no API: $(paste -sd"|" "$TMP_ROOT/log")"; else ok "a run name with no PR reaches no API"; fi
+done
+# unblock_jobs <report-stop-status conclusion>, or no such job: the run wrote no status.
+for c in failure skipped 'no conclusion'; do
+  STUB_UNBLOCK_JOBS="$(unblock_jobs "${c/no conclusion/}")" unblock_case "a pr-unblock run whose report-stop-status has $c re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
+  check_reran 0 "a run whose report-stop-status has $c re-runs nothing"
+  check_calls 1 "it stops after the run's jobs ($c)"
+done
+STUB_UNBLOCK_JOBS='{"jobs":[]}' unblock_case "a pr-unblock run with no report-stop-status job re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
+check_reran 0 "a run with no report-stop-status job re-runs nothing"
+check_calls 1 "it stops after the run's jobs (no such job)"
+# Statuses come newest first, as GitHub lists them. Any github-actions[bot]
+# pr-unblock/* status newer than ci-status's start less the 60 s margin
+# re-runs it, whatever its state: a repeated stop costs one extra re-run.
+STARTED=2026-10-23T09:55:00Z
+STUB_STATUSES="[$(status pr-unblock/address-feedback failure "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a failure re-posted over a failure re-runs ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a repeated stop re-runs once"
+# fix-ci fails 90 s after ci-status started and clears at 200 s: ci-status
+# may have read the failure, so the clear re-runs it.
+STUB_STATUSES="[$(status pr-unblock/fix-ci success 2026-10-23T09:58:20Z),$(status pr-unblock/fix-ci failure 2026-10-23T09:56:30Z)]"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$CODE" pull_request "$EARLY")")"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a stop and clear both after ci-status started re-run it" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a clear after an unseen-or-seen stop re-runs"
+# A status set more than 60 s before ci-status started was read.
+STUB_STATUSES="[$(status pr-unblock/fix-ci success 2026-10-23T09:53:59Z)]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a status ci-status started after is already read" 0 "after both lanes finished (2026-10-23T09:53:59Z); it read them."
+check_reran 0 "an already read status re-runs nothing"
+# A full first page may hide a newer pr-unblock status: re-run anyway.
+page="$(jq -cn --arg at 2026-10-23T09:00:00Z '[range(100) | {context: "ci/other", state: "success", created_at: $at, creator: {login: "someone"}}]')"
+STUB_STATUSES=$page STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a full page with no pr-unblock status re-runs ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a full page fails open"
+STUB_STATUSES="$(jq -c --arg at 2026-10-23T09:00:00Z '.[0] = {context: "pr-unblock/fix-ci", state: "success", created_at: $at, creator: {login: "github-actions[bot]"}}' <<<"$page")"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a full page whose pr-unblock status ci-status read still re-runs it" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a full page skips the already-read exit"
+STUB_LANE_RUNS="$BOTH_LANES"
+STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
+# The head moving between the first PR read and the one before the re-run is left alone.
+STUB_PR_SEQ="$(pr)
+$(pr open "${HEAD//0/e}")" unblock_case "a head that moved while ci-status was read is left alone" 0 "#42 is closed or no longer at $HEAD; nothing to re-run."
+check_reran 0 "a superseded head is neither re-run nor recorded"
+RERUNNER=$STRANGER unblock_case "a pr-unblock run another account dispatched still re-runs" 0 "the re-run is not recorded"
+if [[ "$(cat "$TMP_ROOT/out")" == "job-id=77" && ! -e "$TMP_ROOT/record.json" ]]; then ok "it is re-run unrecorded"; else fail "outputs: $(paste -sd'|' "$TMP_ROOT/out")"; fi
+RERUNNER=$KYLE unblock_case "a pr-unblock run a listed human dispatched is recorded" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a listed human's dispatch is recorded"
+
+approval_case() { LANE_PATH=$APPROVED REVIEW_RERUNNER_ID="${RERUNNER-$KYLE}" expect "$@"; }
+approval_case "a listed person's approval re-runs ci-status" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "the approval's re-run is recorded"
+check_calls 6 "an approval reads both lanes, the runs, the jobs, the PR and the run again"
+if [[ "$(grep -c '/actions/workflows/pr-review-\(security-\)\?hosted.yml/runs?' "$TMP_ROOT/log")" == 2 ]]; then ok "both review lanes are read"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
+REVIEW_ATTEMPT=2 approval_case "a re-run of the relay re-runs nothing" 0 "Relay attempt 2 names its re-runner, not the reviewer; nothing to re-run."
+check_reran 0 "nothing is re-run for a relay re-run"
+if grep -q "^api " "$TMP_ROOT/log"; then fail "a relay re-run reached the API"; else ok "a relay re-run reaches no API"; fi
+RERUNNER=$STRANGER approval_case "an unlisted reviewer's approval does nothing" 0 "not a person on the trusted-actor list"
+check_reran 0 "nothing is re-run for an unlisted reviewer"
+if grep -q "^api " "$TMP_ROOT/log"; then fail "an unlisted reviewer reaches no API: $(paste -sd"|" "$TMP_ROOT/log")"; else ok "an unlisted reviewer reaches no API"; fi
+RERUNNER=$LANES_APP approval_case "a listed bot's approval does nothing" 0 "not a person on the trusted-actor list"
+if grep -q "^api " "$TMP_ROOT/log"; then fail "a bot reviewer reaches no API: $(paste -sd"|" "$TMP_ROOT/log")"; else ok "a bot reviewer reaches no API"; fi
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$CODE")" "$(run 4 in_progress "$HEAD" "$SEC")")"
+approval_case "an approval while a lane runs waits for that lane" 0 "pr-review-security-hosted.yml has not finished on $HEAD"
+check_reran 0 "the lane's own completion re-runs ci-status"
+
+# Another run of this job re-ran ci-status after this one read the run:
+# the last read before the re-run finds the attempt moved or running.
+STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
+for seq in "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)" "$(run 9 in_progress "$HEAD" "$RCF" pull_request "$LATER" 2)" "$(run 9 in_progress)"; do
+  STUB_RUN_SEQ=$seq expect "a run that moved to $(jq -r '"\(.status) attempt \(.run_attempt)"' <<<"$seq") is left to that re-run" 0 "moved past attempt 1 or is running again"
+  check_reran 0 "nothing is recorded or re-run over another re-run"
+done
+STUB_RUN_SEQ=''
 
 # Without the library (a failed checkout) the job runs as before and keeps no reading.
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"

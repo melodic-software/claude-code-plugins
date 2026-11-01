@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "That is the playground plugin's job.",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is your explorer.",
+      "why": "not named"
+    }
+  ]
+}

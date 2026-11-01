@@ -2,7 +2,7 @@
 description: "Read-only orientation from durable state: where the session stands and why, from ledgers, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work items, and git, which the built-in /recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Writes nothing; freshness checks, recovery, and the next stage belong to sibling skills. Skip: what past sessions tried on a topic is /session-flow:recall."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[catch-up]"
+argument-hint: "[catch-up] [--unattended]"
 metadata:
   workflow-stage: session
   summary: Read-only situation report from durable and off-thread state
@@ -78,7 +78,9 @@ and point at `/session-flow:reanchor` to verify which still holds.
 ## Catch-up scope. `/session-flow:orient catch-up`
 
 The four-part briefing above stays the default. This scope runs **only** on the explicit
-argument `catch-up`; a bare "catch me up" keeps the four-part briefing. It answers "what
+argument `catch-up`; a bare "catch me up" keeps the four-part briefing. `--unattended`, anywhere in the arguments,
+is not that argument: it is the caller declaring that nobody is present, so take it out first and
+match `catch-up` against the rest. It answers "what
 happened since my last message, and what needs me", still read-only.
 
 **Word cap.** The whole reply stays within `${user_config.orient_catch_up_word_cap}` words,
@@ -146,8 +148,8 @@ it, as **Availability is never assumed** below says; records in
 [reference/native-recap.md](reference/native-recap.md)), you can run it instead of or alongside this
 skill. Make the offer at the end
 of the briefing, or at the start when the ask names only the current conversation. Prefer this
-skill whenever durable or off-thread state matters. An unattended run records the offer in its
-output instead of asking.
+skill whenever durable or off-thread state matters. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag
+it asks.
 
 **Mutation gate.** Neither writes files. This skill never runs `/recap` on the person's behalf.
 

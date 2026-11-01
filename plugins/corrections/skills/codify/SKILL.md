@@ -1,9 +1,9 @@
 ---
-description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check'."
-argument-hint: "<description> [#PR]"
+description: "Counts how often a described mistake recurs in recent commits and the session, picks the strongest enforcement-ladder rung that can catch it, places the lesson by scope, and proposes a check proven to fail on the old code and pass on the current code; also takes a review findings file or merged pull requests' review comments as the source. Use when: 'codify this', 'this keeps happening', 'stop us making this mistake again', 'turn this correction into a check', 'what rung catches this', 'prove this check', 'can we stop re-finding this', 'mine our review comments'."
+argument-hint: "<<description> [#PR]|findings <file>|reviews|note <observation>|group…>"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\")", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
+allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs\":*)", "Bash(git log:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git branch --show-current)", "Bash(git symbolic-ref:*)", "Write(.work/codify/**)"]
 shell: bash
 metadata:
   workflow-stage: retro
@@ -27,12 +27,14 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 | Action | Does | Steps |
 |---|---|---|
 | `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
+| `findings <findings-file>` | Each row of one review findings file becomes a described mistake, counted, proved and ending in a proposal | [actions/findings.md](actions/findings.md) |
+| `reviews` | Mines recent merged pull requests' review comments and takes each recurring lesson through sections 2-6 | [actions/reviews.md](actions/reviews.md) |
 | `note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
 | `group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by the named fields (default `producer`) and by mistake, naming the keys, with each mistake's count next to the threshold | [actions/group.md](actions/group.md) |
 
-An action runs only when the first word of `$ARGUMENTS` is exactly `note` or `group`, unquoted.
-Anything else, including a quoted description that starts with "note" or "group", is the default
-action. The action word is the only token read as a choice. The rest stays data, as above.
+An action runs only when the first word of `$ARGUMENTS` is exactly `findings`, `reviews`, `note` or
+`group`, unquoted. Anything else, including a quoted description that starts with one of those words,
+is the default action. The action word is the only token read as a choice. The rest stays data, as above.
 
 ## 1. Count
 
@@ -48,10 +50,17 @@ the check is composed from the described mistake alone. See
 [untrusted content](../../../../docs/contracts/untrusted-content/README.md).
 
 The threshold is the `recurrence.min_occurrences` setting (team `<home>/corrections.yaml`, overlay
-`corrections.local.yaml`, default 2). Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs"`
-from inside the repository and report the value and the layer it prints, with any stderr note (an
-invalid value it names was dropped). When the script cannot run, use 2 and say so. Below the
-threshold, report the count and stop with no proposal. Two exceptions act at once, whatever the count:
+`corrections.local.yaml`, default 2). From inside the repository, run the settings reader, which
+also resolves `ratchet_offer` and `review_mining_prs`, passing the user options as rendered here:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/codify-settings.mjs" --user-ratchet-offer '${user_config.ratchet_offer}' --user-review-mining-prs '${user_config.review_mining_prs}'
+```
+
+Report the threshold and the layer it prints, with any stderr note (an invalid value it names was
+dropped), and one line for `ratchet_offer` when a proposal is at stake, for example
+`ratchet_offer: false (docs/conventions/corrections.yaml)`. When the script cannot run, use 2, `true`
+and 20, and say so. Below the threshold, report the count and stop with no proposal. Two exceptions act at once, whatever the count:
 
 - A person's direct "codify this", typed in the session or as the invocation itself.
 - A finding the ladder's guardrail criterion calls policy-class.
@@ -70,8 +79,14 @@ first when its project instructions give one; the ladder's "Reordering" section 
 Choose the **strongest** rung that can decide the mistake, strongest first, and apply the ladder's
 guardrail criterion to it; a mistake that fails the criterion stays on the guidance tier or
 `human-review`. Before choosing, ask the ladder's recurring-correction question: was the rule loaded
-and ignored, or never loaded. A rule that was never loaded is fixed where it lives, not moved up.
-Name the rung by its id and say which criterion items decided the choice.
+and ignored, or never loaded. A rule that was never loaded is also fixed where it lives; a mistake
+that meets the criterion still takes its checking rung. Name the rung by its id, never by where the
+check runs (the ladder's tier 2 note), and say which criterion items decided the choice.
+
+Check that no existing check already catches the mistake. A recurring mistake that meets the
+criterion with no check is reported as a "no guardrail" finding, naming the "Guardrail criterion"
+section. When a check replaces an existing instruction line, propose removing that line in the same
+change.
 
 The `make-impossible` rung is only proposed here: hand the redesign to `/architecture:improve` when
 that skill is available, otherwise to `/planning:design`.
@@ -91,7 +106,8 @@ When in doubt, prefer project scope: a tracked rule is reviewable and portable.
 
 ## 4. Propose the check and prove it
 
-Write the check as one command that exits non-zero when the mistake is present. It runs from the root
+A guidance or human rung has no check, so nothing is proved: the proposal states the line and where
+it goes. Otherwise write the check as one command that exits non-zero when the mistake is present. It runs from the root
 of a checkout, so it reads no path outside the tree.
 
 Resolve the **old ref**, the code that still holds the mistake:
@@ -138,26 +154,31 @@ did not escape review needs no answer.
 
 The proposal holds: the description, the occurrences counted, the rung id and the criterion items
 behind it, the scope and why, the check command, the proof result (old ref, both exit codes), the
-missing-context answer when it applies, and the install step with whether it blocks.
+missing-context answer when it applies, and the install step with whether it blocks, taken from
+["Next step per rung"](reference/finding-classes.md#next-step-per-rung). With `ratchet_offer` true,
+a counting rung's proposal also carries that section's offer; false leaves it out.
 
 ## Report
 
-Problems first: an unproven check, a count below threshold, an unresolved old ref. Then the count,
-the rung, the scope, the proof line from the script, and the proposal path or that nothing was
-written. End with the question for any blocking install.
+Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
+repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
+check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. End
+with the question for any blocking install.
 
 ## Boundary
 
 - It never installs a check unasked, and never installs an unproven one.
-- It does not read review comments from pull requests; the count covers commits and the session.
+- It never implements a rung. No analyzer, rule, architecture test or hook is written here. Asked to
+  "just write the analyzer", decline and hand over the rung's pointer.
+- Moving a mistake up the ladder is not promotion in the autonomy sense: it changes no work class or
+  guardrail class, and neither implies the other.
 - It does not run the `retro` codify mode, `/review:audit-enforceability` or `style`; those keep
-  their own counters until a later slice absorbs them.
+  their own counters until a later slice removes them.
 - `note` appends one row and does nothing else.
 - `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 
 ## Next
 
-- finding-shaped check: /review:audit-enforceability.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".

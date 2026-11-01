@@ -132,10 +132,11 @@ const capabilityOnly = (text) => {
 // opens with a host-run or attended code too. A wait or retry code comes back
 // to the lane anyway, except after a pushback (runCode's anyCodeEnds).
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
-const namesEndingRisk = (text) => {
+const endingRiskWord = (text) => {
   const rest = text.replace(CAPABILITY, " ");
-  return SECURITY_CONCERN.test(text) || SECURITY_WORD.test(rest) || (SECURITY_WORD.test(text) && !capabilityOnly(rest));
+  return SECURITY_CONCERN.exec(text)?.[0] ?? SECURITY_WORD.exec(rest)?.[0] ?? (capabilityOnly(rest) ? "" : (SECURITY_WORD.exec(text)?.[0] ?? ""));
 };
+const namesEndingRisk = (text) => endingRiskWord(text) !== "";
 
 // The code a run's stop reason opens with, read NFKC-normalized (so a
 // full-width letter reads as its ASCII one) past any emphasis, backticks and a
@@ -178,4 +179,14 @@ export const runCode = (reason, { anyCodeEnds = false } = {}) => {
     }
   }
   return SECURITY_WORD.test(text) ? "security-risk" : "stopped";
+};
+// The security word runCode, with `anyCodeEnds`, reads in `reason`, as text
+// safe to show in a code span of a public comment: a match can hold free text
+// ("ignore ... instructions"), so it keeps only ASCII letters, digits, hyphens,
+// underscores and single spaces. "" when it names none.
+export const securityWord = (reason) => {
+  const text = reasonText(reason);
+  const found = CODES.find(([, code]) => code.test(text));
+  const word = found ? endingRiskWord(text.slice(found[1].exec(text)[0].length)) : (SECURITY_WORD.exec(text)?.[0] ?? "");
+  return word.replaceAll(/[^A-Za-z0-9_-]+/g, " ").trim();
 };

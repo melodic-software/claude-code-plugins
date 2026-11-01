@@ -64,8 +64,8 @@ be read, say so, cite the URL, and recommend no level for either phase.
 
 ## Advisor pairing
 
-For non-trivial work this skill does not recommend a faster main model running
-**without** a stronger advisor: it recommends the faster main model paired with a
+As this skill's own judgment, for non-trivial work it does not recommend a faster main model
+running **without** a stronger advisor: it recommends the faster main model paired with a
 stronger advisor that the main model escalates hard decisions to, rather than paying
 for the stronger model on every routine turn (for when the advisor is consulted, see
 <https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>, as of 2026-10-11;
@@ -86,8 +86,8 @@ Two cautions apply before recommending a pairing:
 
 - **Pointer**: for both cautions, see
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#advisor-strategy-escalate-hard-decisions>
-  and, for the baseline, <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#choose-between-the-strategies>.
-- **As of**: 2026-10-10
+  and, for the baseline, <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#combine-models>.
+- **As of**: 2026-10-31
 - **Recheck trigger**: either section is renamed, moved, or stops covering advisor engagement
   or the stronger-model-alone baseline.
 

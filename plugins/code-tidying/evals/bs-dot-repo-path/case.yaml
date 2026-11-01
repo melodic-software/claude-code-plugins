@@ -6,7 +6,7 @@ expected_outcome: 'Only repo/tool.sh is simplified. src/greet.sh, changed in the
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/code-tidying:batch-simplify unattended ./repo'
+  prompt: '/code-tidying:batch-simplify --unattended ./repo'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
   max_turns: 150
   timeout_seconds: 2400

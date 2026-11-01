@@ -4,7 +4,7 @@ description: An unattended run with app-control installed and a control skill pr
 tags: [run-e2e, app-control, route, unattended, invented]
 expected_outcome: The reply asks nothing and uses /app-control:drive for the run, passing --unattended. It does not fall back to run-e2e's own driving.
 execution:
-  prompt: "/testing:run-e2e unattended the timer page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has the control skill .claude/skills/control-timer/, whose features/start-a-timer/README.md lists the dashboard `Start` button; its index maps src/timers/** to that feature. This branch changes src/timers/start.ts. Nobody is present to answer. Tell me which route the run takes and how it invokes what drives the app, then stop."
+  prompt: "/testing:run-e2e --unattended the timer page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has the control skill .claude/skills/control-timer/, whose features/start-a-timer/README.md lists the dashboard `Start` button; its index maps src/timers/** to that feature. This branch changes src/timers/start.ts. Nobody is present to answer. Tell me which route the run takes and how it invokes what drives the app, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 8
   timeout_seconds: 300

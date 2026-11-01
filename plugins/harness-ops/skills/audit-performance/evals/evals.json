@@ -5,7 +5,7 @@
       "id": 1,
       "name": "capture-while-slow-happy-path",
       "prompt": "Claude Code is being really sluggish right now — typing takes seconds to show up. Figure out what's going on.",
-      "expected_output": "Runs the bundled audit_performance.py engine immediately, while the symptom is live, writing the report outside the install root. Reports sweep_health findings first, then works the three suspects in order — accumulated state (walk_seconds, total_files, unswept files), version regression (cli.version against the bundled known-issues reference), component bloat (fleet counts, routed to /harness-ops:plugins audit) — and asks the operator for the context paragraph the engine cannot see (what was slow, terminal count, Defender/disk in Task Manager). Treats slow engine phases as evidence rather than failure. Recommends no deletion.",
+      "expected_output": "Runs the bundled audit_performance.py engine immediately, while the symptom is live, writing the report outside the install root. Reports sweep_health findings first, then works the three suspects in order — accumulated state (walk_seconds, total_files, unswept files), version regression (cli.version against the bundled known-issues reference), component bloat (fleet counts, routed to /harness-ops:plugins-audit) — and asks the operator for the context paragraph the engine cannot see (what was slow, terminal count, Defender/disk in Task Manager). Treats slow engine phases as evidence rather than failure. Recommends no deletion.",
       "files": [],
       "expectations": [
         "Output runs the bundled audit_performance.py engine rather than ad-hoc shell inspection",
@@ -70,11 +70,11 @@
       "id": 6,
       "name": "fleet-verdict-routes-out",
       "prompt": "The report says my plugin fleet has 60+ entries. Tell me which plugins to disable to speed things up.",
-      "expected_output": "Declines to issue per-plugin verdicts from counts alone: this skill counts, and enablement spans several scopes that counts cannot see. Routes the enablement-and-scope analysis to /harness-ops:plugins audit (presence-gated: if not installed, says what it would have answered and suggests the upstream issue tracker for per-component cost evidence). Notes the version coupling: per-tool-call MCP overhead was cut up to 7x in v2.1.208, so the same fleet costs far more on older versions.",
+      "expected_output": "Declines to issue per-plugin verdicts from counts alone: this skill counts, and enablement spans several scopes that counts cannot see. Routes the enablement-and-scope analysis to /harness-ops:plugins-audit (presence-gated: if not installed, says what it would have answered and suggests the upstream issue tracker for per-component cost evidence). Notes the version coupling: per-tool-call MCP overhead was cut up to 7x in v2.1.208, so the same fleet costs far more on older versions.",
       "files": [],
       "expectations": [
         "Output does not name specific plugins to disable based on counts alone",
-        "Output routes the enablement and scope verdict to /harness-ops:plugins audit",
+        "Output routes the enablement and scope verdict to /harness-ops:plugins-audit",
         "Output notes that fleet cost depends on version (v2.1.208 MCP overhead fix) rather than treating fleet size as version-independent"
       ]
     },

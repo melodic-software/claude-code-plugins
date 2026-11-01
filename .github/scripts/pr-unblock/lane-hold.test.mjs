@@ -98,7 +98,7 @@ test("the default client keeps each answer's rate-limit reading under API_BUDGET
     };
     await main(env, { log: () => {} });
     assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "held=false\nlane-escalated=false\n");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1800000000 core\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1800000000 core repos/{repo}/pulls/{n}\n");
   } finally {
     globalThis.fetch = saved.fetch;
     for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {

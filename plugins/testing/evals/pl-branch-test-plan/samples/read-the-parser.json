@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/ws/src/duration.py\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff main...HEAD\",\"description\":\"Show branch diff\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\"diff --git a/src/duration.py b/src/duration.py\\nnew file mode 100644\\nindex 0000000..1111111\\n--- /dev/null\\n+++ b/src/duration.py\\n@@ -0,0 +1,3 @@\\n+import re\\n+def parse_duration(text):\\n+    ...\\n\",\"is_error\":false}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat src/duration.py\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"head -40 \\\"src/duration.py\\\"\"}}]}}"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show HEAD:src/duration.py\"}}]}}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/ws/tests/test_routes.py\"}}]}}",
+      "why": "read only the existing tests"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\" src/duration.py     | 11 +++++++++++\\n src/models/types.py | 12 ++++++++++++\\n\",\"is_error\":false}]}}",
+      "why": "planned from --stat alone"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --name-only main...HEAD\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\"src/api/routes.py\\nsrc/duration.py\\nsrc/models/types.py\\n\",\"is_error\":false}]}}",
+      "why": "planned from --name-only alone"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --name-status main...HEAD\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\"A\\tsrc/duration.py\\n\",\"is_error\":false}]}}",
+      "why": "planned from --name-status alone"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff --stat main...HEAD -- src/duration.py | head\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_1\",\"type\":\"tool_result\",\"content\":\" src/duration.py     | 11 +++++++++++\\n src/models/types.py | 12 ++++++++++++\\n\",\"is_error\":false}]}}",
+      "why": "piped a stat through head; the parser body never shown"
+    }
+  ]
+}

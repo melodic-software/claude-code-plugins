@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "It requires elevation (Assert-Elevation -Mode Required).",
+      "why": "elevation"
+    },
+    {
+      "answer": "Open PowerShell 7 as Administrator.",
+      "why": "as administrator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run it from any terminal.",
+      "why": "no elevation"
+    }
+  ]
+}

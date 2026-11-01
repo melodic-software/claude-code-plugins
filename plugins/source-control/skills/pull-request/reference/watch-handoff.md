@@ -78,8 +78,9 @@ applies to a watcher that opted in to pausing.
 
 "Are you staying in this session, leaving with this machine left on, or leaving with it off?"
 For "left on", also ask whether this conversation should keep going or a fresh agent is enough.
-When the person already said (for example "I'm heading out"), use that and do not ask. An
-unattended run asks nothing, starts nothing, and records the matrix row it would pick in its output.
+When the person already said (for example "I'm heading out"), use that and do not ask. When the
+caller passes `--unattended`, the run asks nothing, starts nothing, and records the matrix row it
+would pick in its output; without that flag it asks.
 
 ## The matrix
 

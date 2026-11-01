@@ -75,7 +75,8 @@ Write the code, then at most a few lines:
 - **Ingredients**: stack, tool, properties, curve, duration or spring, one line each, naming each
   `animation:` default used and the lookup rung that confirmed the stack's syntax.
 - **Feel check**: when the result depends on feel code cannot settle, the check from catalog.md
-  "Feel check".
+  "Feel check". Why: an agent can build almost any motion asked of it, but it can't tell whether the
+  result is good; that part is still on the person, so name the check instead of claiming the feel.
 
 ## Next
 

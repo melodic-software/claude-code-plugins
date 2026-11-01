@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "<li class=\"tile\"><img src=\"/c/maps.jpg\" alt=\"\"><a class=\"tile-link\" href=\"/c/maps\">Maps</a></li>\n<style>.tile{position:relative}.tile-link::after{content:\"\";position:absolute;inset:0}</style>",
+      "why": "a stretched link over the tile"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<li class=\"tile\"><img src=\"/c/maps.jpg\" alt=\"\"><a href=\"/c/maps\">Maps</a></li>",
+      "why": "only the label is clickable"
+    },
+    {
+      "answer": "<li class=\"tile\" onclick=\"location.href='/c/maps'\"><img src=\"/c/maps.jpg\" alt=\"\"><span>Maps</span></li>",
+      "why": "a script on a non-link element"
+    }
+  ]
+}

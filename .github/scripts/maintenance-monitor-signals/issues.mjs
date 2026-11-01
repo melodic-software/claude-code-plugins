@@ -17,6 +17,7 @@ export const SIGNALS = [
   "9 lane stop",
   "10 stalled lane stop",
   "11 post-merge unreadable",
+  "12 listing held",
 ];
 export const LOG_ONLY = new Set(["7 platform incident"]);
 const MUTED = new Set(["not_planned", "duplicate"]);
@@ -118,7 +119,8 @@ const SOURCES = {
   "failed runs": ["3 throttling"],
   "main full run": ["1 main red"],
   "merge-queue ejections": ["4 merge-queue ejections"],
-  "pr-merge sweep": ["5 held PRs", "8 throughput"],
+  "pr-merge sweep": ["3 throttling", "5 held PRs", "8 throughput", "12 listing held"],
+  "pr-merge listed sweep": ["5 held PRs", "8 throughput"],
   "lane merges": ["8 throughput"],
   "lane stops": ["9 lane stop"],
   "stalled stops": ["10 stalled lane stop"],

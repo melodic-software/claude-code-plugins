@@ -94,6 +94,15 @@ test("a partly read family keeps its open issue as it is, even with findings", (
   assert.deepEqual(partial.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
 });
 
+test("an unread signal with nothing open files nothing unless a finding fires", () => {
+  const unread = unreadSignals(["pr-merge listed sweep: the newest is over 70 minutes old"]);
+  const quiet = planIssues({ findings: [], existing: [], unread });
+  assert.deepEqual(quiet.file, []);
+  assert.deepEqual(quiet.skip, []);
+  const firing = planIssues({ findings: [findingFor([1])], existing: [], unread });
+  assert.deepEqual(firing.file.map((f) => f.family.signal), ["3 throttling"]);
+});
+
 test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
   const text = readFileSync(new URL("./collect.mjs", import.meta.url), "utf8");
   const sources = [...text.matchAll(/await source\("([^"]+)"/g)].map((m) => m[1]);
@@ -101,6 +110,8 @@ test("each collect source maps to the signals it feeds, and an unknown gap leave
   for (const name of sources) assert.notDeepEqual([...unreadSignals([`${name}: x`])], SIGNALS, name);
   assert.deepEqual([...unreadSignals(["audits: x"])], ["6 report-only audit"]);
   assert.deepEqual([...unreadSignals(["post-merge reports: x"])], ["11 post-merge unreadable"]);
+  assert.deepEqual([...unreadSignals(["pr-merge sweep: x"])], ["3 throttling", "5 held PRs", "8 throughput", "12 listing held"]);
+  assert.deepEqual([...unreadSignals(["pr-merge listed sweep: x"])], ["5 held PRs", "8 throughput"]);
   assert.deepEqual(new Set(unreadSignals(["new source: x"])), new Set(SIGNALS));
   assert.equal(unreadSignals([]).size, 0);
 });
@@ -203,6 +214,7 @@ test("every detector's signal is a rolling family or logged only, and an unknown
     laneStops: [{ id: 1, outcome: "funding", issue: 3, createdAt: "t", url: "u" }],
     stalledStops: [{ pr: 5, head: "a", activity: "fix-ci", reason: "ci-fix-invalid", stoppedAt: "t", url: "u" }],
     postMergeReports: [4, 3, 2, 1].map((runId) => ({ runId, url: "u", code: "3", reason: "r", createdAt: "t" })),
+    heldSweeps: [4, 3, 2, 1].map((runId) => ({ runId, url: "u", reason: "r", createdAt: "t" })),
   });
   assert.deepEqual(new Set(all.map((f) => f.signal)), new Set([...SIGNALS, ...LOG_ONLY]));
   const plan = planIssues({ findings: [{ ...findingFor([1]), signal: "10 renamed" }], existing: [] });

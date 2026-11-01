@@ -18,6 +18,7 @@
 # the push brought, and no record lists, reverts a pull request the lanes App
 # enqueued.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
+# test-scope: .github/scripts/post-merge-demotion-alert/failing-checks.mjs .github/scripts/post-merge-demotion-alert/red-main.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

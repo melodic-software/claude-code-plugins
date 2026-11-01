@@ -90,7 +90,9 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/workflows/, and writes replies to a file.
-    args: comments --ci
+    # --unattended: nobody is present to answer an ask (live-config.test.mjs
+    # fails a lane call of a skill that takes it without it).
+    args: comments --ci --unattended
     # Before any model turn pr-unblock.yml's address-feedback-select job, which
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
@@ -169,7 +171,7 @@ activities:
     # checkout and upstream release notes, runs no command, and leaves a fix
     # to npm or pip manifest and lock files outside .github/ uncommitted;
     # patch-rules.json's dependency-review row lands no other fix.
-    args: dependency --ci
+    args: dependency --ci --unattended
     # Before any model turn pr-unblock.yml's review-dependency-select job,
     # which runs only base code, skips a pull request Dependabot did not open
     # or one sorted `auto`, hands it to a person once
@@ -238,7 +240,7 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
     # edits .github/workflows/, and reports each check fixed or escalated.
-    args: ci --ci
+    args: ci --ci --unattended
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
     # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
@@ -323,12 +325,19 @@ activities:
     # work tree it runs in, refusing a plugin name with a path in it and a
     # linked .changes directory (--carriers-of also makes and removes one
     # temp file); it runs no checkout code and reaches no network.
+    # repin-digests.sh re-pins planning's interview-defenses digest pins: it
+    # reads the checkout's test file and the files it pins as text, computes
+    # each digest with its own copy's lib/pin-digests.sh, rewrites the sha256
+    # literals in that test file, refuses a pin argument that is not a plain
+    # string or names a file outside the plugin, and runs no checkout code
+    # (tests/repin.sh, which also runs the test, stays off this list).
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
+      - plugins/planning/scripts/repin-digests.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
     # issue's quote. It may search the web, fetch any page and run the
@@ -683,8 +692,11 @@ models:
     review:
       model: opus
       max-turns: 60
+    # Both review lanes judge work the code-fix and standard profiles write
+    # (opus), with no objective signal on the head when the model is chosen:
+    # docs/plugin-philosophy.md, Model tiers, rules 3 and 4.
     pr-review:
-      model: sonnet
+      model: opus
       effort: high
       max-turns: 75
     triage:
@@ -841,6 +853,13 @@ limits:
   # Admissions per hour the queued cap never falls below, so a day with no
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
+  # Stranded issues work-unblock's hourly sweep re-fires per run. The SLOTS
+  # queues in work-resolve-issue.yml pace the API quota (3 runs at once, the
+  # rest wait without a runner), so this only needs to cover about two hours
+  # of slot capacity: below that the slots sit idle after each sweep while
+  # stranded issues wait for the next one; far above it, queued runs go stale
+  # on a lane workflow change.
+  restarts-per-run: 10
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
   # graphql, owner-token, content-creation). limit-cap sets each pool's planned
   # budget, the header's x-ratelimit-limit at most the cap (github-token:
@@ -995,10 +1014,41 @@ merge:
   # head (lane PRs under lane-prs native are not listed). Must be true at a
   # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
-  # Lane merges in flight at once (queued plus merged and not yet verified).
-  # The merge queue tests each PR against the latest base plus the PRs ahead
-  # of it.
-  max-in-flight: 10
+  # Lane merges in flight at once (queued plus merged and not yet verified,
+  # and armed pull requests the queue has not taken). The merge queue tests
+  # each PR against the latest base plus the PRs ahead of it. Computed from
+  # in-flight-sizing below: scripts/compute-max-in-flight.py prints it, and
+  # its --check test fails any other value.
+  max-in-flight: 11
+  # max-in-flight = min(ceil(peak-merges-per-hour * mean-minutes-in-flight / 60),
+  #   floor((app-hourly-limit * app-target-percent / 100 - app-peak-hourly-used)
+  #   / (reader-runs-per-hour * app-calls-per-candidate))), at least 1.
+  # The first term is Little's law (in flight = rate * time in flight) at the
+  # burst the cap must not hold back, not at the mean rate (1.8 an hour). The
+  # measured day's whole-day means agree with it: 1.7 in flight at 1.75 merges
+  # an hour over 58 minutes (peak over mean is judgment). The second term keeps
+  # candidate reads inside the 70% planned-load target for the lanes App bucket.
+  # The merge-queue ruleset stays 5 and 5 above a cap of 5: max_entries_to_build
+  # limits pull requests requesting checks at once, max_entries_to_merge sizes
+  # a group, and neither limits the queue's length. The queue held at least 8
+  # at 2026-10-30T22:39Z with the ruleset at 5 and 5, and this count also holds
+  # merges already out of the queue.
+  # Inputs, for the day ending at measured: rate and time from each lanes
+  # App-enqueued merge's arming, or its AddedToMergeQueueEvent when it was
+  # never armed first, to the first pr-merge run after the next full run of
+  # main finished; app-peak-hourly-used and the calls from
+  # pr-merge's api-budget notices and `calls=` log lines on 16 scheduled runs.
+  # Measure again when a pr-merge run logs `merge.max-in-flight is`: the cap is
+  # holding work back.
+  in-flight-sizing:
+    measured: 2026-10-31
+    peak-merges-per-hour: 11
+    mean-minutes-in-flight: 58
+    app-hourly-limit: 5200
+    app-target-percent: 70
+    app-peak-hourly-used: 1974
+    app-calls-per-candidate: 9
+    reader-runs-per-hour: 4
   # Paths the PR checks read (git pathspecs). When main changed one since a
   # PR's merge base, the gate updates the PR from main instead of enqueuing
   # it, and a later run enqueues the new head once its checks pass: a head
@@ -1103,6 +1153,13 @@ merge:
   dependabot:
     mode: enforce
     majors: review
+    # Action owners whose bumps skip ci-status's trust-gate hold on a
+    # Dependabot PR (Q24 below): every change block must swap only the SHA
+    # ref of one `uses: <owner>/...` line, to a commit a tag of that
+    # repository points to. Owner decision Q-ANTHROPIC-DEPS
+    # (2026-10-31). Absent or empty, Q24 holds every Dependabot PR.
+    trusted-action-owners:
+      - anthropics
   # No path is held for being trusted alone (owner direction 2026-10-24)
   # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, the paths
   # every consumer shares, joined to `floor-paths` below, this repository's
@@ -1133,7 +1190,9 @@ merge:
   # `path-holds` also sets whether ci-status holds an exempt author's PR for
   # a trust-gate path or an App-authored one (`trust-path-hold-apps`), except
   # that ci-status holds a Dependabot PR for one either way (owner decision
-  # Q24, 2026-10-29: its action-pin bumps bring in third-party code).
+  # Q24, 2026-10-29: its action-pin bumps bring in third-party code), unless
+  # it only bumps actions of `dependabot.trusted-action-owners` above (owner
+  # decision Q-ANTHROPIC-DEPS, 2026-10-31).
   # `path-holds: false`: no changed path holds a pull request for its path
   # alone, not the floor above, denied-paths nor `review-path:` (owner
   # decision Q15, 2026-10-29: "We shouldn't really have any path
@@ -1175,6 +1234,8 @@ merge:
       - glob: ".github/scripts/pr-merge/last-report.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/rate-stop.bash"
+        class: gate
+      - glob: ".github/scripts/pr-merge/retry-call.bash"
         class: gate
       - glob: ".github/scripts/pr-merge/refire-refused.mjs"
         class: gate
@@ -1304,6 +1365,8 @@ merge:
       - glob: ".github/workflows/pr-refine.yml"
         class: gate
       - glob: ".github/workflows/pr-require-checks.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-approved.yml"
         class: gate
       - glob: ".github/workflows/pr-review-hosted.yml"
         class: gate

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.signin input[type=\"email\"] { font-size: max(16px, 1rem); padding: 0.5rem 0.75rem; }\n```",
+      "why": "16px at least whatever the root size"
+    },
+    {
+      "answer": "```css\n.signin input[type=\"email\"] { font-size: 0.875rem; padding: 0.5rem 0.75rem; }\n@media (pointer: coarse) {\n  .signin input[type=\"email\"] { font-size: 16px; }\n}\n```",
+      "why": "smaller on desktop, 16px where the primary pointer is coarse"
+    },
+    {
+      "answer": "Drop the 87.5% root, take the font size off the .signin rule, and keep the field small only where a mouse or trackpad is the pointer:\n```html\n<input type=\"email\" class=\"text-base pointer-fine:text-sm\" />\n```\n```css\nhtml { font-size: 100%; }\n.signin input[type=\"email\"] { padding: 0.5rem 0.75rem; }\n```",
+      "why": "16px on touch, the smaller size gated on a fine pointer, with the root back at 16px"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```css\n.signin input[type=\"email\"] { font-size: 1rem; padding: 0.5rem 0.75rem; }\n```",
+      "why": "near miss: 1rem under the page's 87.5% root computes to 14px, so the field still zooms"
+    },
+    {
+      "answer": "Drop the 87.5% root, take the font size off the .signin rule, and keep the field small only on wide screens:\n```html\n<input type=\"email\" class=\"text-base md:text-sm\" />\n```\n```css\nhtml { font-size: 100%; }\n.signin input[type=\"email\"] { padding: 0.5rem 0.75rem; }\n```",
+      "why": "near miss: the smaller size is gated on screen width, so a touch tablet wider than md gets 14px and zooms"
+    },
+    {
+      "answer": "```css\n.signin input[type=\"email\"] { font-size: 0.875rem; }\n.signin input[type=\"email\"]:focus { font-size: 16px; }\n```",
+      "why": "raised only on focus, which is when the zoom already fires"
+    },
+    {
+      "answer": "Set the email field's text to 16px on phones and keep 14px on desktop.",
+      "why": "the fix only in prose, no CSS"
+    }
+  ]
+}

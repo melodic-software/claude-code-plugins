@@ -21,12 +21,6 @@
 # Also: an exec-form `--require-true NAME` gate in those configs needs a
 # `userConfig.<name>` key in the plugin's manifest, else no user can enable it.
 #
-# Escape hatch: scripts/hook-userconfig-argv-allowlist.txt lists repo-relative
-# file paths permitted to carry the token — reserved for a ratified channel D
-# (`required:true` + argv, no unset case) adoption per the convention's
-# Open-gaps probe. An allowlist entry whose file is missing or clean is stale
-# and fails the gate, so the list can only shrink back to reality.
-#
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script
 # contract", and held by scripts/check-script-contract.test.sh.
@@ -34,8 +28,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
-# shellcheck source=lib/read-list.sh
-. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/manifest-path-guard.sh
 . "$SCRIPT_DIR/lib/manifest-path-guard.sh" || exit 2
 
@@ -44,41 +36,13 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-ALLOWLIST="scripts/hook-userconfig-argv-allowlist.txt"
 # shellcheck disable=SC2016  # single quotes are deliberate: the token is matched literally, never expanded
 TOKEN='${user_config.'
-
-# The allowlist is read ONCE here and both consumers below share the result:
-# one read means one answer to "what is an active entry".
-#
-# `leading`: entries are hook-config paths, so `#` is a comment only at line
-# start. CRLF tolerance (Windows / Git Bash) lives in the shared reader.
-declare -a ALLOWED_ENTRIES=()
-if [[ -f "$ALLOWLIST" ]]; then
-  read_list::into ALLOWED_ENTRIES "$ALLOWLIST" --comments leading
-fi
-
-allowed() {
-  local path="$1" entry
-  for entry in ${ALLOWED_ENTRIES[@]+"${ALLOWED_ENTRIES[@]}"}; do
-    [[ "$entry" == "$path" ]] && return 0
-  done
-  return 1
-}
 
 errors=0
 
 flag() {
   local file="$1" where="$2"
-  # An allowlist entry naming this file is still doing its job. Marked for every
-  # flagged file, allowed or not, so the stale guard below reports only entries
-  # that name nothing the scan reached. scripts/lib/read-list.sh owns the
-  # consumed-set and the diagnostic.
-  read_list::mark_used "$file"
-  # shellcheck disable=SC2310  # allowed only greps a static file; nothing inside it can fail unexpectedly
-  if allowed "$file"; then
-    return 0
-  fi
   echo "USERCONFIG ARGV: ${file}:${where}: bare \${user_config.*} in plugin hook config" >&2
   errors=$((errors + 1))
 }
@@ -174,17 +138,6 @@ for plugin in plugins/*/; do
     ;;
   *) ;; # null, absent, or unparsable manifest (manifest validity has its own gate)
   esac
-done
-
-# Stale-allowlist guard: every entry must name a scanned hook config that still
-# carries the token; anything else is drift the list must shed.
-stale_entries=()
-read_list::stale_to stale_entries ALLOWED_ENTRIES
-for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do
-  # shellcheck disable=SC2016  # ${user_config.*} is the literal token being described
-  read_list::stale_line "$ALLOWLIST" "$entry" \
-    'names no scanned hook config carrying ${user_config.*} — remove it'
-  errors=$((errors + 1))
 done
 
 if ((errors > 0)); then

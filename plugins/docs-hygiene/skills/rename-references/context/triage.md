@@ -10,7 +10,7 @@
 - [Special case: Memory entries](#special-case-memory-entries)
 - [Reporting bucket counts](#reporting-bucket-counts)
 
-After running the pattern library from `patterns.md`, every match goes into one of three buckets. Triage logic is the difference between mass-mangling prose and a clean rename.
+After running the pattern library from `patterns.md`, put every match into one of three buckets.
 
 ## Bucket 1: Certain (auto-apply candidate)
 
@@ -18,7 +18,7 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 
 **Bucket criteria:**
 
-- Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`): slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-guard`; a bare `\b` would, and this bucket auto-applies
+- Form 1: slash-prefixed token (`\B/<old>([^\w-]|$)`): slash-tokens are skill names by convention, virtually never an English word with a leading slash. The trailing class excludes a hyphen, so `/context` does not match the unrelated `/context-guard`; a bare `\b` would, and this bucket auto-applies
 - Form 3: path references (`context/<old>.md`, `skills/<old>/`, and a container-root segment
   ending in the token, `plugins/<old>`): paths are inherently specific
 - Form 8: frontmatter glob set (`{a,b,<old>,c}`): brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12. A glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")
@@ -30,11 +30,11 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 
 **User flow:** present count and 1-2 example matches via `AskUserQuestion`. Two options: "auto-apply N matches" or "review one-by-one." Default: auto-apply.
 
-**Why default-apply:** these forms have near-zero false-positive rate empirically. Treating them as ambiguous burdens the user without value.
+**Why default-apply:** these forms have near-zero false-positive rate empirically, so treating them as ambiguous burdens the user without value.
 
 ## Bucket 2: Chain-context (review-recommended)
 
-Match patterns where rename intent is highly likely given surrounding context, but verification is cheap and the cost of a wrong rename in chain prose is high (workflow documentation drift).
+Match patterns where rename intent is highly likely given surrounding context, but verification is cheap and a wrong rename in chain prose is costly (workflow documentation drift).
 
 **Bucket criteria:**
 
@@ -65,7 +65,7 @@ misclassification.
 
 **User flow:** present matches in groups of up to 10 with 2-line context per match. Three options via `AskUserQuestion`: "auto-apply all", "review one-by-one", "skip bucket".
 
-**Why not auto-apply:** chain prose appears in user-facing documentation (CLAUDE.md, AGENTS.md, README files). A wrong rename in a workflow diagram is loud and embarrassing. The cost of one round of confirmation is much lower than the cost of breaking the diagram.
+**Why not auto-apply:** chain prose appears in user-facing documentation (CLAUDE.md, AGENTS.md, README files), where a wrong rename in a workflow diagram is loud and embarrassing; one round of confirmation costs much less.
 
 ## Bucket 3: Ambiguous (mandatory per-match confirmation)
 
@@ -77,7 +77,7 @@ Match patterns where the token is a common English word AND surrounding context 
   Form 14 title match outside a container-owned file or with a common-word token, a Form 15
   possessive where `<old>` is a common noun. Span-precedence attributes the occurrence to that
   form; it does NOT override the form's demotion (`patterns.md` "Phase 0"). A Form 14
-  manifest/catalog `name` declaration is NOT demoted here, because the scope rule and the common-word
+  manifest/catalog `name` declaration is NOT demoted here: the scope rule and the common-word
   rule both exempt it, because the key is the registration rather than evidence of one.
   **Form 13 is deliberately absent:** its demoted alternative lands in Bucket 2, not here
 - Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist, and, under
@@ -99,52 +99,49 @@ load, save, copy, move, write, read, parse, render, print, format,
 
 (Extend as new collisions surface.)
 
-**Verb-sense collision the blocklist cannot serve.** The blocklist is a static list of tokens
-that are English verbs *in general*. It cannot cover a token that is a verb **in the consuming
-codebase**, meaning a coined or hyphenated term the project uses verbally hundreds of times. Both
-branches fail for such a token:
+**Verb-sense collision the blocklist cannot serve.** The blocklist lists tokens that are English
+verbs *in general*. It cannot cover a token that is a verb **in the consuming codebase**, a coined
+or hyphenated term the project uses verbally hundreds of times. Both branches fail for such a
+token:
 
 - **Absent from the blocklist** → every bare-token hit is rated Certain, so the sweep proposes
   rewriting the verb uses.
 - **Added to the blocklist** → every hit lands ambiguous, and the per-match rule below turns a
   handful of real defects into hundreds of confirmation prompts.
 
-Extending the blocklist is therefore the WRONG remedy here; it swaps one unusable bucket for
-another. The remedy is position: `patterns.md` Forms 13–15 anchor on syntax that only the
-container sense can occupy (argument-to-a-management-command, a heading that IS the token, the
-possessive clitic), so they stay Certain regardless of blocklist membership.
-
-Measured on the `re-anchor` → `discipline` rename, over that plugin's own tree: Form 2 matched
-134 lines for 8 real defects; Forms 13–15 matched 9. Reach for a position-anchored form before
+Extending the blocklist is therefore the WRONG remedy; it swaps one unusable bucket for another.
+The remedy is position: `patterns.md` Forms 13–15 anchor on syntax that only the container sense
+can occupy (argument-to-a-management-command, a heading that IS the token, the possessive clitic),
+so they stay Certain regardless of blocklist membership. Reach for a position-anchored form before
 reaching for the blocklist.
 
 **Position-anchoring alone does not finish the job.** Forms 13–15 resolve only the lines they
 match; the remaining bare-token lines still reach Form 2 and take its Certain default. What
 removes them is `patterns.md` "Phase 0b: container-rename mode": when the renamed thing is a
-container, bare-token position carries no signal at all, so the residue is excluded from Certain
-and reported as an aggregate rather than as prompts. That mode rule is an ALLOWLIST over forms,
-not a Form 2 filter: Forms 1, 3 and 13–15 are the whole Certain-eligible set, so Forms 8 and 12
-lose their Certain default there too and land in the Ambiguous bucket. Mode is decided by WHAT is being renamed,
-which is why it works where the blocklist cannot. It does not depend on anyone having listed
-the token in advance.
+container, bare-token position carries no signal, so the residue is excluded from Certain and
+reported as an aggregate rather than as prompts. That mode rule is an ALLOWLIST over forms, not a
+Form 2 filter: Forms 1, 3 and 13–15 are the whole Certain-eligible set, so Forms 8 and 12 lose
+their Certain default there too and land in the Ambiguous bucket. Mode is decided by WHAT is being
+renamed, so it works where the blocklist cannot: it does not depend on anyone having listed the
+token in advance.
 
 **User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one, because batched confirmation defeats the safety purpose.
 
-**Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. In a codebase that renames a token which is also a common verb, most bare-token hits are ordinary prose: research vocabulary, user-confirmation prompts, domain logic. All of them must be preserved. Per-match confirmation lets the user catch each.
+**Why per-match:** renaming the `confirm` skill does NOT mean every English use of "confirm" should change. When the renamed token is also a common verb, most bare-token hits are ordinary prose (research vocabulary, user-confirmation prompts, domain logic) and must be preserved; per-match confirmation lets the user catch each.
 
 ## Special case: Rename-documenting plan docs
 
-Auto-exclude any match in the active plan/work-notes documents that document THIS rename (a plan file, migration notes, a changelog entry drafted for the rename) from ALL buckets. Those documents *document the rename*; both old and new names appear by design in scope tables, success criteria, and decision logs.
+Auto-exclude any match in the active plan/work-notes documents that document THIS rename (a plan file, migration notes, a changelog entry drafted for the rename) from ALL buckets. Both old and new names appear there by design in scope tables, success criteria, and decision logs.
 
 Identify these documents from conversation context and the consuming repository's work-notes conventions (its CLAUDE.md / rules). When in doubt, exclude the file that documents the rename and report it in the Excluded row so the user can widen scope deliberately.
 
 ## Special case: Frozen historical records
 
-Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). They are a frozen-in-time record of finished work. If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
+Auto-exclude archived/completed work notes and frozen records of past work (finished plan documents, past changelog entries, retired design notes). If the consuming repository marks work-notes status in frontmatter or by directory convention, use that signal; otherwise treat clearly-archived paths as frozen.
 
 ## Special case: Memory entries
 
-Claude Code auto-memory entries (the directory [SKILL.md "Auto-memory location"](../SKILL.md#auto-memory-location) resolves) and `MEMORY.md` indices describe past renames as part of the user's institutional knowledge. They are intentionally append-only historical record.
+Claude Code auto-memory entries (the directory [SKILL.md "Auto-memory location"](../SKILL.md#auto-memory-location) resolves) and `MEMORY.md` indices describe past renames as append-only historical record.
 
 Auto-exclude all memory paths from sweeps. If user explicitly wants to rename within memory (rare), they must opt in: `/docs-hygiene:rename-references <old> to <new> --include-memory`.
 

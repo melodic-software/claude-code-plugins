@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```html\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n```",
+      "why": "the zoom lock is gone"
+    },
+    {
+      "answer": "Remove `maximum-scale=1`; it locks low-vision users out on browsers that obey it.\n```html\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\" />\n```",
+      "why": "quotes the old key only to remove it, and the new tag has no zoom key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```html\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\" />\n```",
+      "why": "near miss: the input text is fixed elsewhere but the tag keeps the zoom lock"
+    },
+    {
+      "answer": "```html\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\" />\n```",
+      "why": "swaps one zoom lock for another"
+    },
+    {
+      "answer": "```js\nexport const viewport = { width: 'device-width', initialScale: 1, maximumScale: 1 };\n```",
+      "why": "the same lock through the framework's viewport setting"
+    }
+  ]
+}

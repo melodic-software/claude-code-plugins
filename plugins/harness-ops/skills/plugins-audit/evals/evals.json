@@ -1,0 +1,58 @@
+{
+  "skill_name": "plugins-audit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "audit-issues-zero-mutating-calls",
+      "prompt": "/harness-ops:plugins-audit",
+      "expected_output": "audit runs the same algorithm as sync but every mutating CLI call becomes a prediction: no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The reads those calls sit beside still run. Step 1's pre-refresh fleet-state.sh snapshot is taken (into the run's throwaway scratch directory) so the catalog-regression check keeps its first interval, and only the `claude plugin marketplace update` beside it is replaced by a prediction. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "files": [],
+      "expectations": [
+        "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
+        "The response still computes state from the read-only fleet-state.sh reads, which sync-run.sh --audit takes",
+        "The response still takes Step 1's pre-refresh fleet-state.sh snapshot before declining the refresh: it does not treat the whole of Step 1 as skipped, and the catalog-regression check still has its pre-refresh to pre interval available",
+        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed",
+        "If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "rendered-report-is-pasted-not-restated",
+      "prompt": "/harness-ops:plugins-audit — sync-run.sh --audit --render printed the digest line and then the rendered report, whose rows read `Would update: 3 plugin(s)` with three `would run: claude plugin update … -s user` lines, `Would withhold: 1 downgrade(s)` naming gamma@market1 0.5.0 → 0.1.0, `Divergences: 2 behind here → run /harness-ops:plugins converge; on this whole machine 7 actionable: …`, and a `Timing:` row.",
+      "expected_output": "The response pastes the rendered report as printed and appends exactly one line of its own: the reload guidance, stated as the docs' two-step (run /reload-plugins; if it warns that the next message would re-read the conversation, run /reload-plugins --force). It does not retype, paraphrase, or recompute any count, id, scope, or version the render already carries (the 3, the 1, gamma's versions, the 2 and 7 of the Divergences line), does not add rows the render omitted, and does not compute its own Divergences split from the digest. It also does not add a monitor call-out of its own: that bullet is the render's, under Action needed, when the digest's updated_with_monitors is non-empty.",
+      "files": [],
+      "expectations": [
+        "The response reproduces the rendered report verbatim rather than summarizing it in its own words",
+        "The response does not restate a number, id, scope, or version that the render already printed (no separate 'three plugins would be updated' sentence, no re-listing of gamma@market1's versions)",
+        "The response does not add a row, section, or count the render omitted, and does not recompute the Divergences split from the digest",
+        "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
+        "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "model-starts-audit-not-sync",
+      "prompt": "Are my plugins current? Don't change anything yet.",
+      "expected_output": "The skill runs sync-run.sh with --audit (never --journal-root, --pull-source or --only-install), pastes the rendered prediction, and tells the user that applying it is /harness-ops:plugins sync, which they run themselves. It reports a zero-update prediction as a lower bound against the unrefreshed catalog, not as proof the fleet is current.",
+      "files": [],
+      "expectations": [
+        "The script call carries --audit and none of --journal-root, --pull-source or --only-install",
+        "The response does not run or start /harness-ops:plugins sync or converge itself; it names sync as the user's next step",
+        "A prediction of zero updates is framed as a lower bound against the unrefreshed catalog, not as the fleet being current"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "divergence-report-collapses-bulk-names-conflicts",
+      "prompt": "/harness-ops:plugins-audit — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under delisted_settings_only (true in enabledPlugins, no install record, and no matching catalog entry).",
+      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/harness-ops:plugins converge` as the fix — it does NOT list all 29 individually (at most one sub-line per project path, each naming that path's record count and up to 3 ids, then `+K more` when more ids remain), and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one delisted_settings_only plugin id gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count.",
+      "files": [],
+      "expectations": [
+        "The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one; per-project-path sub-lines under it are allowed, each naming at most 3 ids, followed by `+K more` when more ids remain",
+        "The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count",
+        "The delisted_settings_only plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line",
+        "The response never claims to detect or report an enable-state mismatch (true in one scope, false in another) — fleet-state.sh only exposes the merged effective value, not each scope's raw enabledPlugins map"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
-argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix]"
+argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Measure the startup context payload per item and ledger every lever's real delta
 ---
 
-**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [--measure-only] read-only startup figures, see below | [fix] guided trim (explicit override)
+**Arguments.** `[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix] [--unattended]`. Full form: [--full-sweep] every live tool, engine flag --tools from-baseline | [--tools T1,T2] | [--ledger] history | [--measure-only] read-only startup figures, see below | [fix] guided trim (explicit override) | [--unattended] nobody is present, see the Boundary sections
 
 ## Measure-only mode (`--measure-only`)
 
@@ -107,8 +107,9 @@ Both show what fills a context window, so "what is eating my context" can land o
 **Routing.** When the person wants a live look at the current session's window, offer it to the
 person: If /context is available in your session (gate basis: the verification record below), you
 can run `/context` to see what fills the current window. Prefer this skill for startup cost,
-per-tool attribution, and whether a settings change saved anything. An unattended run records the
-offer in its output instead of asking.
+per-tool attribution, and whether a settings change saved anything. When the caller passes
+`--unattended`, the run records the offer in its output instead of asking;
+without that flag it asks.
 
 **Mutation gate.** Neither writes files by default. This skill never runs `/context` in the
 person's session. The engine's headless capture of `/context` output in a spawned measurement
@@ -144,7 +145,8 @@ The remaining records live in [reference/native-context.md](reference/native-con
 **Routing.** When the person asks which skills to turn off, offer it to the person:
 If /skill-doctor is available in your session (gate basis: the records linked below), you can run
 `/skill-doctor` to choose which skills to turn off. Prefer this skill to measure what a toggle
-saved. An unattended run records the offer in its output instead of asking.
+saved. When the caller passes `--unattended`, the run records the offer in its
+output instead of asking; without that flag it asks.
 
 **Mutation gate.** This skill never runs `/skill-doctor` and never turns a skill off on its
 behalf; it stays read-only unless `fix` is passed.

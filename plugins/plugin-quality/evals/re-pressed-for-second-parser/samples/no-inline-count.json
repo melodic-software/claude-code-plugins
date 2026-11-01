@@ -1,0 +1,160 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/session-flow/skills/retro/scripts/parse_transcript.py abc ./session-data | jq .data.plugin_usage"
+          }
+        }
+      ],
+      "why": "the parser, piped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data | grep jsonl"
+          }
+        }
+      ],
+      "why": "a listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find / -path '*session-flow/skills/retro/scripts/parse_transcript.py' 2>/dev/null"
+          }
+        }
+      ],
+      "why": "searching for the parser"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep plugin_usage .work/running-retros/x.md"
+          }
+        }
+      ],
+      "why": "reads a ledger, not the transcript"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wc -l session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a size check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -o '\"skill\":\"[^\"]*\"' session-data/abc.jsonl | sort | uniq -c"
+          }
+        }
+      ],
+      "why": "grep count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.loads(open('session-data/abc.jsonl').readline()))\""
+          }
+        }
+      ],
+      "why": "one-liner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.message.content[]?.input.skill?' session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "jq"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ./session-data/abc.jsonl | python3 count.py"
+          }
+        }
+      ],
+      "why": "piped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF'\nopen('session-data/abc.jsonl')\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data\ngrep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a listing chained by newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data/*.jsonl | xargs grep -c Skill"
+          }
+        }
+      ],
+      "why": "a listing piped through xargs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data || grep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a listing chained by ||"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data | grep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a pipe whose grep reads the transcript by name"
+    }
+  ]
+}

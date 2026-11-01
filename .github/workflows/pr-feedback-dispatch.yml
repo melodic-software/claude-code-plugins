@@ -69,7 +69,13 @@ name: pr-feedback-dispatch
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
 # last review lane has finished, so it reads both reviews, and records each
-# re-run for pr-verify's trigger gate (see that job).
+# re-run for pr-verify's trigger gate (see that job). So does a completed
+# pr-unblock.yml run, whose report-stop-status job sets or clears a
+# pr-unblock/* status ci-status holds on, and a completed
+# pr-review-approved.yml run, a trusted person's approval that lifts a
+# ci-status hold. Neither has an event of its own: the status is posted with
+# a GITHUB_TOKEN, whose events start no workflow, and a review event would
+# run the PR's copy of this file.
 #
 # Every completed review run at a head starts this file, so a run leaves a
 # record for the next one at that head in the Actions cache
@@ -81,7 +87,7 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge, pr-unblock, pr-review-approved]
     types: [completed]
 
 permissions: {}
@@ -91,12 +97,17 @@ permissions: {}
 # the sweeps share one. Runs at a head wait in line (`queue: max`): GitHub
 # otherwise keeps one pending run per group and cancels it for a newer one,
 # so a pr-merge completion, or a review re-run's, could drop the later review
-# lane's run and with it the one rerun-ci-status after both lanes.
+# lane's run and with it the one rerun-ci-status after both lanes. A
+# pr-unblock.yml run's head is main's, so its runs share one group per
+# activity and PR (its run name), apart from that head's group; the
+# rerun-ci-status job reads the run's attempt again just before it re-runs,
+# which makes two groups re-running one attempt twice rare, not impossible.
 concurrency:
   group: >-
     pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
     && format('verify-{0}', github.event.workflow_run.id)
     || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
+    || github.event.workflow_run.path == '.github/workflows/pr-unblock.yml' && format('unblock-{0}', github.event.workflow_run.display_title)
     || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
   queue: max
@@ -476,7 +487,9 @@ jobs:
   # only be red, and that lane's own completion starts this job again. Each
   # run of this job starts after its own lane completed, so the later lane's
   # run finds the earlier lane finished; the per-head concurrency group keeps
-  # the two from re-running ci-status at once. A head with no run of the
+  # the two from re-running ci-status at once, and a pr-unblock run's group,
+  # which differs, rarely re-runs the same attempt, not never: a last read of
+  # the run's attempt comes just before the re-run. A head with no run of the
   # other lane (one lane only) re-runs on this lane alone. A head the PR has
   # moved past, or a closed PR, is left alone. A ci-status job not started
   # yet, or one that started more than 60 s after both lanes finished (the
@@ -499,13 +512,33 @@ jobs:
   # under a record the gate accepts (reconciler-record.mjs), is recorded;
   # another re-runner's re-run of ci-status goes ahead unrecorded, and the
   # gate refuses it.
+  #
+  # Two more upstreams change what ci-status reads, and each is judged as a
+  # finished lane is, with both review lanes as the other lanes:
+  # - A pr-unblock.yml run (a workflow_dispatch on main, named
+  #   `pr-unblock <activity> #<PR>`): the PR comes from its run name and the
+  #   head from the live PR, and the newest pr-unblock/* status
+  #   github-actions[bot] set on that head stands in for the lane's finish
+  #   time. No such status, nothing to re-run. Recorded only at attempt 1
+  #   started by github-actions[bot] (the dispatchers' GITHUB_TOKEN) or when a
+  #   listed human started it.
+  # - A pr-review-approved.yml run (an approving review, relayed): re-run only
+  #   when its triggering actor, the reviewer, is a listed human, checked
+  #   before any API call, and recorded. ci-status still judges the review.
+  # A status event itself starts nothing: report-stop-status posts with a
+  # GITHUB_TOKEN, whose events start no workflow run.
   # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
   rerun-ci-status:
     if: >-
       github.ref == 'refs/heads/main'
-      && (github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'
+      && ((github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'
       || github.event.workflow_run.path == '.github/workflows/pr-review-security-hosted.yml')
       && github.event.workflow_run.event == 'pull_request'
+      || github.event.workflow_run.path == '.github/workflows/pr-unblock.yml'
+      && github.event.workflow_run.event == 'workflow_dispatch'
+      && github.event.workflow_run.head_branch == 'main'
+      || github.event.workflow_run.path == '.github/workflows/pr-review-approved.yml'
+      && github.event.workflow_run.event == 'pull_request_review')
       && github.event.workflow_run.conclusion != 'skipped'
       && github.event.workflow_run.repository.full_name == github.repository
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -562,6 +595,7 @@ jobs:
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
           REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_TITLE: ${{ github.event.workflow_run.display_title }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml
@@ -570,17 +604,40 @@ jobs:
         run: |
           # shellcheck source=/dev/null
           . "$API_BUDGET_SH" 2>/dev/null || true
-          # budget <gh api -i output>: keeps its rate-limit reading for the
-          # job-end api-budget notice; nothing without the library.
+          # budget <gh api -i output> <path>: keeps its rate-limit reading, under
+          # the path's route, for the job-end notices; nothing without the library.
           budget() {
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$1" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "$(! declare -F api_budget_route >/dev/null || api_budget_route api "$2")" <<<"$1" >/dev/null
           }
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
             exit 1
           fi
+          unblock=.github/workflows/pr-unblock.yml approved=.github/workflows/pr-review-approved.yml
+          # listed_human: the upstream run's triggering actor is a person on the
+          # default branch's list; an unreadable list or id is not.
+          listed_human() {
+            [[ $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
+              jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
+          }
+          # Only a listed person's approval lifts a hold: any other ends here, before any API call.
+          if [[ $LANE_PATH == "$approved" ]] && ! listed_human; then
+            echo "The approval is by ${REVIEW_RERUNNER_ID:-an unnamed actor}, not a person on the trusted-actor list; it lifts no ci-status hold."
+            exit 0
+          fi
+          # A relay re-run's triggering actor is the re-runner, not the reviewer, and
+          # its re-run could not be recorded, so pr-verify would refuse it.
+          if [[ $LANE_PATH == "$approved" && $REVIEW_ATTEMPT != 1 ]]; then
+            echo "Relay attempt ${REVIEW_ATTEMPT:-?} names its re-runner, not the reviewer; nothing to re-run."
+            exit 0
+          fi
+          # A pr-unblock run is a dispatch on main; its run name names the PR.
+          if [[ $LANE_PATH == "$unblock" ]]; then
+            PR_NUMBER=
+            [[ ! $RUN_TITLE =~ ^pr-unblock\ [a-z-]+\ \#([1-9][0-9]{0,9})$ ]] || PR_NUMBER=${BASH_REMATCH[1]}
+          fi
           if [[ ! $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
-            echo "::notice::the review run names no pull request; nothing to re-run."
+            echo "::notice::the upstream run names no pull request; nothing to re-run."
             exit 0
           fi
           utc='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
@@ -589,10 +646,11 @@ jobs:
             exit 1
           fi
           case $LANE_PATH in
-          .github/workflows/pr-review-hosted.yml) other='pr-review-security-hosted.yml' ;;
-          .github/workflows/pr-review-security-hosted.yml) other='pr-review-hosted.yml' ;;
+          .github/workflows/pr-review-hosted.yml) others='pr-review-security-hosted.yml' ;;
+          .github/workflows/pr-review-security-hosted.yml) others='pr-review-hosted.yml' ;;
+          "$unblock" | "$approved") others='pr-review-hosted.yml pr-review-security-hosted.yml' ;;
           *)
-            echo "::error::'$LANE_PATH' is not a review lane."
+            echo "::error::'$LANE_PATH' is not a review lane, pr-unblock or an approval relay."
             exit 1
             ;;
           esac
@@ -617,13 +675,13 @@ jobs:
               cond=()
               [[ $3 != "$etag_path" || -z $etag ]] || cond=(-H "If-None-Match: $etag")
               if out=$(gh api -i "$3" "${cond[@]}"); then
-                budget "$out"
+                budget "$out" "$3"
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
                 etag_path=$3 etag_body=${!1}
                 etag=$(sed '/^\r\?$/q' <<<"$out" | tr -d '\r' | awk -F': *' 'tolower($1) == "etag" { print $2; exit }')
                 return 0
               fi
-              budget "$out"
+              budget "$out" "$3"
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
               if [[ $status == 304 && ${#cond[@]} -gt 0 ]]; then
@@ -665,20 +723,59 @@ jobs:
                 and .head_repository.full_name == $repo)]
               | max_by(.id) // empty'
           }
-          read_api runs "the $other runs on $HEAD_SHA" \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/$other/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
-          lane=$(newest "$other" <<<"$runs")
-          done_at=$LANE_DONE_AT
-          if [ -n "$lane" ]; then
-            if [ "$(jq -r .status <<<"$lane")" != completed ]; then
-              echo "$other has not finished on $HEAD_SHA; its completion re-runs ci-status."
+          done_at=$LANE_DONE_AT pr='' page_full=false
+          # A pr-unblock run's head is main's: the PR's live head is the one. Its
+          # newest pr-unblock/* status github-actions[bot] set (the writer
+          # ci-status reads, merge-holds.mjs unblockStops) stands in for a lane's
+          # finish: when it may be newer than ci-status's read, ci-status is re-run.
+          # A repeated stop costs one extra re-run, bounded by the dispatchers' caps.
+          if [[ $LANE_PATH == "$unblock" ]]; then
+            # Any workflow's GITHUB_TOKEN can dispatch pr-unblock.yml, and a run its
+            # trust gate refused still completes. Only its report-stop-status job,
+            # behind that gate, writes a status, so its success is required; it
+            # does not prove a status was written (the statuses below decide that).
+            if [[ ! $REVIEW_RUN_ID =~ ^[1-9][0-9]{0,19}$ ]]; then
+              echo "::error::the pr-unblock run id '$REVIEW_RUN_ID' is not a number."
+              exit 1
+            fi
+            read_api unblock_jobs "the jobs of pr-unblock run $REVIEW_RUN_ID" \
+              "repos/$GITHUB_REPOSITORY/actions/runs/$REVIEW_RUN_ID/jobs?filter=latest&per_page=100"
+            if [ "$(jq -r '[.jobs[] | select(.name == "report-stop-status")] | max_by(.id) | .conclusion // ""' <<<"$unblock_jobs")" != success ]; then
+              echo "pr-unblock run $REVIEW_RUN_ID wrote no status (its report-stop-status job did not succeed); nothing to re-run."
               exit 0
             fi
-            other_at=$(jq -r '.updated_at // ""' <<<"$lane")
-            if [[ $other_at > $done_at ]]; then
-              done_at=$other_at
+            read_api pr "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
+            HEAD_SHA=$(jq -r 'select(.state == "open") | .head.sha // ""' <<<"$pr")
+            if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+              echo "#$PR_NUMBER is closed or has no head; nothing to re-run."
+              exit 0
+            fi
+            read_api statuses "the statuses of $HEAD_SHA" "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100"
+            # One page, newest first. A full page may hide more, so it fails open:
+            # neither exit below that could skip the re-run is taken.
+            [ "$(jq 'length >= 100' <<<"$statuses")" != true ] || page_full=true
+            done_at=$(jq -r '[.[] | select((.context | startswith("pr-unblock/")) and .creator.login == "github-actions[bot]")]
+              | first | .created_at // ""' <<<"$statuses")
+            if [[ ! $done_at =~ $utc && $page_full != true ]]; then
+              echo "No pr-unblock/* status on $HEAD_SHA; ci-status holds on none, so nothing to re-run."
+              exit 0
             fi
           fi
+          for other in $others; do
+            read_api runs "the $other runs on $HEAD_SHA" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$other/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
+            lane=$(newest "$other" <<<"$runs")
+            if [ -n "$lane" ]; then
+              if [ "$(jq -r .status <<<"$lane")" != completed ]; then
+                echo "$other has not finished on $HEAD_SHA; its completion re-runs ci-status."
+                exit 0
+              fi
+              other_at=$(jq -r '.updated_at // ""' <<<"$lane")
+              if [[ $other_at > $done_at ]]; then
+                done_at=$other_at
+              fi
+            fi
+          done
           read_api runs "the pr-require-checks runs on $HEAD_SHA" \
             "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
           run=$(newest pr-require-checks.yml <<<"$runs")
@@ -699,7 +796,7 @@ jobs:
             esac
           fi
           started_at=$(jq -r '.started_at // ""' <<<"${job:-null}")
-          if [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
+          if [ "$page_full" != true ] && [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
             'try (($s | fromdateiso8601) > ($d | fromdateiso8601) + 60) catch false' <<<null)" = true ]; then
             echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
             exit 0
@@ -718,6 +815,7 @@ jobs:
             echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."
             exit 1
           fi
+          # Read again: the poll above can take minutes, and a moved head is left alone.
           read_api pr "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
           if [ "$(jq -r '"\(.state) \(.head.sha)"' <<<"$pr")" != "open $HEAD_SHA" ]; then
             echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
@@ -729,6 +827,15 @@ jobs:
             exit 1
           fi
           next=$((attempt + 1))
+          # Another upstream's run of this job (a lane's and a pr-unblock run's
+          # groups differ) may have re-run it since: read the run once more, last
+          # before the record and the re-run, and leave a moved attempt or a
+          # running one to that re-run.
+          read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
+          if [ "$(jq -r '"\(.status) \(.run_attempt)"' <<<"$run")" != "completed $attempt" ]; then
+            echo "Run $id on $HEAD_SHA moved past attempt $attempt or is running again; that re-run reads the change."
+            exit 0
+          fi
           echo "job-id=$job_id" >>"$GITHUB_OUTPUT"
           echo "Re-running ci-status (job $job_id) of run $id on $HEAD_SHA as attempt $next."
           # Recorded only for a first review attempt, a listed human's re-run,
@@ -744,17 +851,32 @@ jobs:
             [[ $REVIEW_ATTEMPT == 2 && $REVIEW_RERUNNER_ID == 41898282 && $REVIEW_RUN_ID =~ ^[1-9][0-9]{0,19}$ ]] &&
               node "$RECONCILER_RECORD"
           }
-          if [[ $REVIEW_ATTEMPT != 1 ]] && ! {
-            [[ $REVIEW_ATTEMPT =~ ^[1-9][0-9]{0,4}$ && $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
-              jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
-          } && ! reconciled; then
-            echo "::notice::review attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human, and no reconciler record vouches for it; the re-run is not recorded, so pr-verify's gate refuses it."
+          # An approval reaches here only at attempt 1, where the triggering actor
+          # is the reviewer, a listed human (both checked above).
+          # A pr-unblock run whose report-stop-status succeeded (checked above)
+          # counts at attempt 1 when github-actions[bot] started it (a workflow's
+          # GITHUB_TOKEN, as both dispatchers use), or when a listed human did.
+          case $LANE_PATH in
+          "$approved")
+            vouched=true reason='a listed person approved the head after ci-status read it'
+            ;;
+          "$unblock")
+            vouched=false reason='a pr-unblock status changed after ci-status read it'
+            if [[ $REVIEW_ATTEMPT == 1 && $REVIEW_RERUNNER_ID == 41898282 ]] || listed_human; then vouched=true; fi
+            ;;
+          *)
+            vouched=false reason='the review lanes finished after ci-status read them'
+            if [[ $REVIEW_ATTEMPT == 1 ]] || { [[ $REVIEW_ATTEMPT =~ ^[1-9][0-9]{0,4}$ ]] && listed_human; } || reconciled; then vouched=true; fi
+            ;;
+          esac
+          if [ "$vouched" != true ]; then
+            echo "::notice::upstream attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human, and no reconciler record vouches for it; the re-run is not recorded, so pr-verify's gate refuses it."
             exit 0
           fi
           jq -cn --argjson recorder "$GITHUB_RUN_ID" --argjson run "$id" --argjson attempt "$next" --arg head "$HEAD_SHA" \
-            --argjson pr "$PR_NUMBER" --argjson job "$job_id" --arg lane "$LANE_PATH" \
+            --argjson pr "$PR_NUMBER" --argjson job "$job_id" --arg lane "$LANE_PATH" --arg reason "$reason" \
             '{recorder_run_id: $recorder, run_id: $run, attempt: $attempt, head_sha: $head, pr_number: $pr,
-              job_id: $job, lane_path: $lane, reason: "the review lanes finished after ci-status read them"}' >"$RECORD_FILE"
+              job_id: $job, lane_path: $lane, reason: $reason}' >"$RECORD_FILE"
           echo "record=rerun-ci-status-$id-$next-$HEAD_SHA" >>"$GITHUB_OUTPUT"
 
       # Uploaded last before the re-run, so the record names the attempt the

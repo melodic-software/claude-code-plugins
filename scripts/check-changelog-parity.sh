@@ -57,9 +57,8 @@
 #     to be newly added, so reusing a heading that already existed at <ref>
 #     (a bump with no fresh release note) cannot satisfy it either. An entry
 #     documented as `## <version>` (no brackets) is a separate FORMAT failure,
-#     reported as such rather than as undocumented. It applies to EVERY plugin,
-#     grandfathered or not — the moment a debt-listed plugin bumps again it must
-#     start its changelog. A bump must also be MONOTONIC: strictly greater than
+#     reported as such rather than as undocumented. It applies to EVERY plugin.
+#     A bump must also be MONOTONIC: strictly greater than
 #     the version at <ref>, so a branch briefed against a stale base can neither
 #     regress a version main has already moved past nor collide on a number
 #     another change set claimed first (see the VERSION REGRESSION / VERSION
@@ -110,15 +109,7 @@
 #     them. A listed convention (docs/contracts/<name>/ or docs/conventions/<name>/) gets the same
 #     added-heading check.
 #
-# Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
-# scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
-# scripts/orphaned-fixtures-baseline.txt): --check exempts a listed plugin but
-# fails on a STALE entry — one that now has a CHANGELOG.md (or no version) — so
-# the exemption cannot outlive the debt. The baseline never relaxes --check-bump.
-#
-# Fail-closed: a versioned plugin with neither a CHANGELOG.md nor a baseline
-# entry fails. CHANGELOG_PARITY_BASELINE overrides the baseline path (test
-# injection).
+# Fail-closed: a versioned plugin with no CHANGELOG.md fails.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script
@@ -146,7 +137,6 @@ cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # Bodies shorter than this many characters may repeat (see --check-bump).
 MIN_REPEATED_BODY=120
 
-BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 NO_OP_BUMPS="${CHANGELOG_NO_OP_BUMPS:-scripts/changelog-no-op-bumps.txt}"
 
 GE_FLAGS=("--check" "--check-bump:ref" "--check-order" "--check-preserved:ref")
@@ -165,22 +155,12 @@ if ! gate_entry::classify "$@"; then
 fi
 mode="$GE_MODE"
 
-# Grandfathered plugin names (static-check exemptions).
-declare -A grandfathered
-baseline_names=()
-if [[ -f "$BASELINE" ]]; then
-  # `inline`: entries are plugin names, never regexes (scripts/lib/read-list.sh
-  # owns the two comment families and why they must stay distinct).
-  read_list::into baseline_names "$BASELINE" --comments inline || exit 2
-  for name in ${baseline_names[@]+"${baseline_names[@]}"}; do
-    grandfathered["$name"]=1
-  done
-fi
-
 # Sanctioned no-op re-releases (--check-bump), one `<plugin>@<version>` per line.
 declare -A no_op_bump
 no_op_rows=()
 if [[ -f "$NO_OP_BUMPS" ]]; then
+  # `inline`: entries are literal names, never regexes (scripts/lib/read-list.sh
+  # owns the two comment families and why they must stay distinct).
   read_list::into no_op_rows "$NO_OP_BUMPS" --comments inline || exit 2
   for row in ${no_op_rows[@]+"${no_op_rows[@]}"}; do
     no_op_bump["$row"]=1
@@ -450,13 +430,6 @@ if [[ "$mode" == "--check" ]]; then
     version="$(version_of "$manifest")"
     [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
-      if [[ -n "${grandfathered[$name]:-}" ]]; then
-        read_list::stale_line "$BASELINE" "$name" 'now has a CHANGELOG.md — remove it.'
-        missing=$((missing + 1))
-        # Marked so the sweep below does not report the same entry a second time
-        # under its other reason. scripts/lib/read-list.sh owns the consumed-set.
-        read_list::mark_used "$name"
-      fi
       # Validated for EVERY plugin that keeps a changelog, not only one with a
       # heading to compare against: an uncomparable manifest version is a defect
       # in its own right, and --check-bump refuses it unconditionally for every
@@ -485,29 +458,15 @@ if [[ "$mode" == "--check" ]]; then
       fi
       continue
     fi
-    if [[ -n "${grandfathered[$name]:-}" ]]; then
-      # The entry still names a versioned plugin with no CHANGELOG.md, which is
-      # exactly the debt it records.
-      read_list::mark_used "$name"
-      continue
-    fi
     echo "MISSING CHANGELOG: $plugin_dir carries a versioned $manifest but no $plugin_dir/CHANGELOG.md." >&2
-    echo "  Add $plugin_dir/CHANGELOG.md, or grandfather '$name' in $BASELINE with its owning issue." >&2
-    missing=$((missing + 1))
-  done
-  # A baseline name that matches no versioned-and-changelog-less plugin is stale.
-  stale_names=()
-  read_list::stale_to stale_names baseline_names
-  for name in ${stale_names[@]+"${stale_names[@]}"}; do
-    read_list::stale_line "$BASELINE" "$name" \
-      'no longer names a versioned plugin missing a CHANGELOG.md — remove it.'
+    echo "  Add $plugin_dir/CHANGELOG.md." >&2
     missing=$((missing + 1))
   done
   if ((missing > 0 || ahead > 0)); then
     ((ahead > 0)) && echo "A changelog entry must not name a version the manifest has not reached; the manifest may sit above the newest heading, never below it." >&2
     gate_entry::finish 1
   fi
-  echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry), and none documents a version above its manifest."
+  echo "Every versioned plugin has a CHANGELOG.md, and none documents a version above its manifest."
   gate_entry::finish 0
 fi
 

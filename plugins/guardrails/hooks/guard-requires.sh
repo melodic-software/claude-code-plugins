@@ -53,6 +53,7 @@ _GUARD_REQUIRES_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS=(
   ["run-guards.sh"]='.tool_name .hook_event_name .tool_input.command'
+  ["block-cd-prefix.sh"]='.tool_input.command .tool_name .cwd'
   ["block-convention-violation.sh"]='.tool_input.command .tool_name .cwd'
   ["block-credential-read.sh"]='.tool_input.command'
   ["block-cross-domain.sh"]='.tool_input.command .tool_name .cwd'

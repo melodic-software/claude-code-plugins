@@ -5,6 +5,17 @@ Each row is a four-part record: the claim, the basis it rests on, the date it wa
 event that makes it worth checking again. The `visualization` plugin's `visualize` skill keeps its
 own record against the same surface.
 
+## The two compared
+
+- **`ClaudeDesign` (built-in tool)**: lists the person's claude.ai/design projects and reads and
+  writes files in an existing one (list, get a project, write, copy, and plan writes). The model
+  calls it by name. It does not create a new Design artifact; that is the bundled `design` skill,
+  which the person runs.
+- **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
+  the real stack on request; only the winning-variant key survives.
+
+## Records
+
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
 | A built-in tool named `ClaudeDesign` is registered model-invocable, not user-invocable, gated and not deferred; its search hint ties it to existing claude.ai/design projects | Probe: the `ClaudeDesign` records in `docs/native-surfaces/records.json` (the 2.1.285 `/harness-ops:inventory` binary extraction, `builtin_tools` lane) | 2026-09-29 | A release renames or removes the tool, or changes its invocability, gating, or deferral |

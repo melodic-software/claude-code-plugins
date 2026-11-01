@@ -713,7 +713,7 @@ if [[ -f .claude-plugin/marketplace.json && "$have_jq" -eq 1 ]]; then
     printf '  %-10s %-12s %s\n' catalog invalid-json .claude-plugin/marketplace.json
   fi
 fi
-printf '  No effective enablement is computed here. Run /harness-ops:plugins audit for the verdict.\n'
+printf '  No effective enablement is computed here. Run /harness-ops:plugins-audit for the verdict.\n'
 
 # --- Notes --------------------------------------------------------------------
 

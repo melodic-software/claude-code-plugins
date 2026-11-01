@@ -21,14 +21,11 @@ SCRIPT="$SELF_DIR/check-changelog-parity.sh"
 # declaring the out-var here is what tells it (SC2154) the name is written.
 repo=""
 
-# mk_repo <out-var> [baseline-content]. A fixture runs a COPY of the gate, so
-# the builder stages scripts/lib/ with it: without those, the copy dies on a
-# missing source at line 1 and every assertion below turns into the same opaque
-# failure.
+# mk_repo <out-var>. A fixture runs a COPY of the gate, so the builder stages
+# scripts/lib/ with it: without those, the copy dies on a missing source at line
+# 1 and every assertion below turns into the same opaque failure.
 mk_repo() {
-  local out="$1"
-  fixture_tree::build "$out" --sut "$SCRIPT" || return 1
-  printf '%s' "${2:-}" >"${!out}/scripts/changelog-parity-baseline.txt"
+  fixture_tree::build "$1" --sut "$SCRIPT"
 }
 
 mk_plugin() {
@@ -56,21 +53,6 @@ mk_plugin "$repo" alpha 1.0.0 no
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"MISSING CHANGELOG"*"alpha"* ]]; then ok "versioned plugin without CHANGELOG fails --check (synthetic gap caught)"; else fail "missing-changelog not caught: rc=$rc out='$out'"; fi
-rm -rf "$repo"
-
-# grandfathered plugin without a changelog -> passes
-mk_repo repo $'alpha\n'
-mk_plugin "$repo" alpha 1.0.0 no
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check >/dev/null 2>&1); then ok "grandfathered missing-changelog passes --check"; else fail "grandfathered plugin wrongly failed"; fi
-rm -rf "$repo"
-
-# STALE baseline: grandfathered plugin that DOES have a changelog -> fails
-mk_repo repo $'alpha\n'
-mk_plugin "$repo" alpha 1.0.0 yes
-out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
-rc=$?
-stale_count="$(printf '%s\n' "$out" | grep -c 'STALE BASELINE')"
-if [[ $rc -ne 0 && "$stale_count" == "1" ]]; then ok "stale baseline entry fails --check (reported exactly once)"; else fail "stale baseline: rc=$rc count=$stale_count out='$out'"; fi
 rm -rf "$repo"
 
 # ------------------- --check reverse parity ----------------------

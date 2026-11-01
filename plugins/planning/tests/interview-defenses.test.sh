@@ -73,9 +73,11 @@
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
 # then update the skill body and this suite in one change. Any session, a lane included, may
-# re-pin a digest after that re-read: tests/repin.sh rewrites the sha256 literal of each pin
-# it names, and the commit records the old and new digest and why the defense still holds, so
-# the PR review judges the change against the text it guards.
+# re-pin a digest after that re-read: scripts/repin-digests.sh rewrites the sha256 literal of
+# each pin it names from the files alone, running no test (the issue lane's path), and
+# tests/repin.sh does the same and then runs this suite. The commit records the old and new
+# digest and why the defense still holds, so the PR review judges the change against the text
+# it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -105,9 +107,9 @@ EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
 UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
-# Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
+# Appended to the digest-pin failures only: a re-pin rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>' (or, where no test may run, plugins/planning/scripts/repin-digests.sh with the same arguments)"
 PASS=0
 FAIL=0
 fail() {
@@ -184,51 +186,14 @@ pin_exact() {
   fi
 }
 
-# sha256 of stdin. GNU coreutils ships sha256sum; a BSD userland (macOS) ships
-# `shasum -a 256` instead. Probe both — a missing digest tool would otherwise silently
-# vacate every section and case pin below, which is the one failure mode this suite may
-# never have.
-sha256_stdin() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | cut -d' ' -f1
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
-  else
-    echo "NO-DIGEST-TOOL"
-  fi
-}
-
-# sha256 of jq's stdout. A Windows jq writes through a text-mode stdout, so every record
-# it prints ends CRLF where the same jq on Linux ends LF — which moves every case and
-# roster digest below on that host alone, for a file nobody touched. The only literal CR
-# jq can emit is a line terminator (a CR inside a JSON string is escaped `\r`), so
-# dropping it is the identity wherever stdout is already LF. Deliberately NOT folded into
-# `sha256_stdin`: `pin_file` hashes a fixture's own bytes and must keep hashing them raw.
-sha256_jq_stdin() {
-  tr -d '\r' | sha256_stdin
-}
-
-# section_digest <file> <open heading line> <close heading line>
-# sha256 of everything strictly BETWEEN the two heading lines, each matched as a WHOLE
-# LINE. Whole-line matching is load-bearing, not tidiness: a prefix match let a crafted
-# heading MOVE the region's own boundary. Appending
-# `### Step 2 — Drive the frontier-rounds loop, and how to read Step 1.5 before it` plus an
-# override paragraph as the last thing inside Step 1.5 closed the region early under a
-# prefix match, so the override fell outside the hash and the suite stayed green. Under
-# whole-line matching that crafted heading is just another line inside the region, and the
-# digest changes. `pin_section` additionally requires each boundary to occur EXACTLY ONCE,
-# so a duplicated heading cannot truncate the region either.
-#
-# `close` is a builtin in mawk (and `open` reads badly beside it), so the awk variables are
-# named h_open / h_close — assigning to a builtin name is a run-time error, not a warning,
-# and mawk is the default awk on Debian-family runners.
-section_digest() {
-  awk -v h_open="$2" -v h_close="$3" '
-    $0 == h_open { inside = 1; next }
-    $0 == h_close { inside = 0 }
-    inside { print }
-  ' "$1" | sha256_stdin
-}
+# The digest computations (section_digest, frontmatter_digest, case_digest, case_set_digest,
+# file_digest) live in scripts/lib/pin-digests.sh, which scripts/repin-digests.sh also sources,
+# so a re-pin computes each digest exactly as the pins below grade it.
+# shellcheck source=../scripts/lib/pin-digests.sh
+if ! source "$PLUGIN_DIR/scripts/lib/pin-digests.sh"; then
+  echo "FAIL: cannot load $PLUGIN_DIR/scripts/lib/pin-digests.sh" >&2
+  exit 1
+fi
 
 # pin_section <label> <file> <open heading> <close heading> <expected sha256>
 # WHOLE-SECTION digest. `pin_exact` closes the same-line neutralize-in-place edit; it is
@@ -270,7 +235,7 @@ pin_section() {
 # every key is covered, present and future.
 pin_frontmatter() {
   local label="$1" file="$2" want="$3" got
-  got="$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { exit } inside { print }' "$file" | sha256_stdin)"
+  got="$(frontmatter_digest "$file")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the frontmatter pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -288,7 +253,7 @@ pin_frontmatter() {
 # survives. Digesting the whole case object closes that.
 pin_case_digest() {
   local label="$1" name="$2" want="$3" got
-  got="$(jq -S -c --arg n "$name" '.evals[] | select(.name == $n)' "$EVALS" | sha256_jq_stdin)"
+  got="$(case_digest "$EVALS" "$name")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the case pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -305,7 +270,7 @@ pin_case_digest() {
 # the case's input; they are pinned like the case itself.
 pin_file() {
   local label="$1" file="$2" want="$3" got
-  got="$(sha256_stdin <"$file")"
+  got="$(file_digest "$file")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the fixture pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -325,7 +290,7 @@ pin_file() {
 # below.
 pin_case_set() {
   local label="$1" want="$2" got
-  got="$(jq -r '.evals[] | "\(.id):\(.name)"' "$EVALS" | sort | sha256_jq_stdin)"
+  got="$(case_set_digest "$EVALS")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the roster pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -434,7 +399,7 @@ declares_both_fixtures B "$CASE_B"
 #
 # Update procedure when one of these fires: read `git diff` for the named section or case,
 # confirm in words that neither defense was weakened, qualified, or contradicted by the
-# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh), with old -> new
+# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh, or scripts/repin-digests.sh where no test may run), with old -> new
 # and that reason in the commit message.
 #
 # The boundary tests below MUST match `section_digest`'s — whole-line equality, not a
@@ -453,29 +418,34 @@ declares_both_fixtures B "$CASE_B"
 
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope|share] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# `[me|lock|scope|share|product] [topic]`, with the invocation examples in the body's `Arguments.` line.
 # Adds idea-shaped trigger phrases
+# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "f89db949cdbfbf49e51d4724ecd22b3d0c35d22dd0c5c16e4ea29f9d2c3a4bac"
+  "64cb5a334e5874682e1f67df8f8871ddb9474518dc21679dc7728f19dae42dcd"
 
-# The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
-# the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
-# reattach-slice.test.sh holds it there). It is a twin of the full rules in Step 1.5, the
-# Action Router and Step 3, so it is digested and each line is pinned once inside it: an
-# unpinned twin could be inverted while the originals stand.
+# The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
+# confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
+# compaction's re-attach still reaches (#5332; reattach-slice.test.sh holds it there). It is a
+# twin of the full rules in Step 1.5, the Action Router, Step 3 and Step 4, so it is digested
+# and each line is pinned once inside it: an unpinned twin could be inverted while the
+# originals stand.
 # The `lock` gate line now says `lock` confirms the problem with one question; it adds a
 # question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-pin_section "SKILL.md Gates section is unchanged (the early twin of the three gates)" \
+# The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
+pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "778c930474c42f0ea28d68825df583964fb9733566cd135ce5d3d8b90dc1cc9c"
+  "51a7dec1194745926cd9e191ef719c090e1625f724e61f4c1fa5df39a985de2b"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
-  "**The register gate runs before the contract locks.**"; do
+  "**The register gate runs before the contract locks.**" \
+  "**The confirmation gate holds the contract until the user confirms.**" \
+  "**The Brief is cross-checked once it exists.**"; do
   pin_once "Gates names: $gate_line" "$SKILL" "$gate_line"
   within "Gates holds: $gate_line" "$SKILL" "$gate_line" "## Gates" "## Action Router"
 done
@@ -520,11 +490,13 @@ done
 # Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
 # The Recommended answers paragraph adds that the Flips if: line counts toward the basis prose 3-sentence budget (surface.md R12), from review feedback on #11190; it caps recommendation prose, resolves no row, and the no-silent-resolve line is byte-identical
 # Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
+# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
+# The round-close sentence words the closing probe "something else", never "anything else" (#11191); it changes how the probe is phrased, resolves no row, and the no-silent-resolve line is byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "313d1e7c3516348b072299bdb009cd0907fc8793d0afc05081b81eaf880e1cc1"
+  "ce76ce8aa628e5fccd6a699b2656a862afb2b434c2a429e18f8da9be340d19b7"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -552,11 +524,13 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # gate reads only the Restatement stamp (#9912); no defense weakened
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
+# Adds the read-back of an answer that departs from the recommendation, or arrives dictated or unclear (#11187); its row stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
+# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "e562afcdb204a94b3e236e179de3e598373c780194d46c8e01ef951f13e623cb"
+  "83310a75a7a3041b1f15df32b3edafbf7f6bfdd988197b51dfb99b2953430880"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -601,11 +575,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # gate reads only the Restatement stamp (#9912); no defense weakened
 # Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "f29b7ece9b59231aede06fc4e63b5bad413b918574f05b091ee6549ad12040d8"
+  "d81a5c609d8d477dbd3939d2ba37bd2247d74eed655e6ffb7363b1f00c4333a3"
 # The `me` and `scope` routing lines also run loop.md's "Problem first" paragraph; it adds a
 # question and leaves the auto-guard, unattended and `lock` lines byte-identical.
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
@@ -648,11 +623,14 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
 # The `lock` row now confirms the one-line problem with one question before synthesis; its STOP-on-gap clause is unchanged.
 # The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
+# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
+# The product row's When-to-use cell says product is reached by its argument or by an idea-test phrase, and a grill me about a task stays auto; the lock row and STOP-on-gap are byte-identical
+# The empty-argument line says auto never picks product, and the product row says only the product action reaches it, selected by its idea phrases; the lock row and STOP-on-gap are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "2d05ea862c0eff118cbfc001d03d57bb9530c04a253202471fadc4c6ce6ce20c"
+  "2227f544c7df588f6306738b057dc423664305863cab2387dfa9d9a96619e5b5"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -666,16 +644,20 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # from the register on disk, and the gate, the procedure check and its halt are unchanged.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
+# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
+# The confirmation restate lists only answers changed since their read-back when every answer was accepted or read back (#11189), using a saved recap and the generated --changed recap; it resolves no row, and the confirmation-gate exemption and procedure check are unchanged
+# Step 3 gains the page-surface exception that #11583 Observed requires ("The restate must go out over exit 1" while an accepted row stays open only on unticked commitments the restatement box offers): it is limited to accepted rows held open by unticked commitments, any other defect still halts, the register gate still holds those rows until they are ticked, and the pinned halt line and confirmation gate are byte-identical
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "db3a9ec42b6b48739965251b879a32c285d38b2d3972104c6503dd3acbc34bff"
+  "615810e2204f03af8f43009577082011b1ae972fa78d96e64a348bbe3b3c80b6"
+# The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "388885092247a4f349330d3192845e5546b3efd58299cb7c250b201b593a98fb"
+  "10b531a30584c37a65f14c574157fc19e413dad9ac98251f9da46b71b005e5c1"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -687,11 +669,12 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
 # The re-grounding paragraph checks open recommendations on resume, before a queued round and on a new constraint; it adds a check and resolves no row.
 # The pre-round contradiction pass revises a draft recommendation or asks one question naming both sides before a round is shown; it resolves no row and qualifies neither STOP-on-gap nor the auto-guard.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates, currency, tripwire, sweep)" \
   "$SKILL" \
   "### Step 2. Drive the frontier-rounds loop" \
   "### Step 3. Recognize the stop condition" \
-  "811d2c177b553e1ee6c8e884b34652a013f4a2ffade8fbdd23fccc0358406f8e"
+  "3976f6672e6048f18c69f4195ed198788dbf75d6db9219f4c8e666b86d73d1de"
 # Frontier-rounds step 4 now requires a `Basis:` line and limits convention-only recommending
 # to non-consequential questions; an unsettled consequential one is asked open, withheld. It adds
 # a requirement and resolves nothing new.
@@ -727,9 +710,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Re-pin for #8293 review: each sweep records the register high-water mark before it runs and a non-hedged item must land above it; categories, item shape and dispositions are unchanged, and a decision still becomes a register row, so cases A and B survive.
 # Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 # Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
+# Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "d514db02ca49f4aa7946ebb8f7e82cddb875f0fb534661cdb8cbe6222f5d72a8"
+  "5309a7feecb1686f5c3b4f9e1a3729f9e577c25a209e48eab28f60a789270bd4"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -741,9 +725,10 @@ pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts i
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
+# The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "903332451df15c686d46259080f54f82824287b1efe4199a42716e5e95609c6f"
+  "9b0ef001c95777aaec490eb8b4b5d5a28b7662ae0da00107db7c01f4b5ce481d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -780,8 +765,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 38 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
 # Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
 # Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
+# Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "0fdbbab551669483faa6e82da5f15b6133cfbf811dae8286f53b9c75b2e68ac7"
+  "68cb522d7950419009b3e7a1718c7c8100f509bc498b437fbbb1d573180410c0"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -1052,12 +1038,15 @@ pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview
 #     them ("in practice a gap counts as real only when …") changes the line and fails here.
 #     The router row and the confirmation-gate line now give `lock` one problem question; each
 #     keeps its STOP-on-gap clause word for word.
+#     The confirmation-gate line's opening clause now uses Step 3's stop wording ("no question is
+#     left to ask") in place of "an empty frontier is necessary but not sufficient" (#9790); it
+#     still withholds the stop until the user confirms, and the `lock` clause is unchanged.
 pin_exact "router \`lock\` row is byte-identical to the pinned defense" "$SKILL" \
   '| `lock` | **Force synthesis, one problem question** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, confirm the one-line problem with one question, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
 pin_exact "Step 1.5 \`lock\` routing line is byte-identical to the pinned defense" "$SKILL" \
   'For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.'
 pin_exact "the confirmation-gate paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).'
+  '**Confirmation gate (`me` and `auto`):** that no question is left to ask does not end the interview on its own. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).'
 pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense" "$SKILL" \
   '- **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \

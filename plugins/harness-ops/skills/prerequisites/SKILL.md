@@ -34,7 +34,7 @@ We read `claude plugin list --json` as one row per install with `id`, `scope`, `
 
 - A formatter or linter binary is missing: /actionlint:check, /bash-format:check, /biome-format:check, /go-format:check, /markdown-format:check, /powershell-format:check, /ruff-format:check or /typos-format:check
 - Record the whole machine's facts and identity domains, not only binaries: /harness-ops:machine-profile
-- The fleet's versions, a different question: /harness-ops:plugins audit
+- The fleet's versions, a different question: /harness-ops:plugins-audit
 
 ## Gotchas
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Open file:///tmp/explore-directions-a1B2c3/explore-directions.html (arrow keys switch).\n- A Checklist: populated, empty, done\n- B Path: populated, empty, done\n- C Cards: populated, empty, done\nNo screenshots: Playwright is not available.\n| Variant | Axis | Right when | Costs |\n| A | layout | few steps | dense |\n| B | interaction | linear | slow to skim |\n| C | hierarchy | visual | space |\n```\ndirection: <key or graft>\nsteal: <piece> from <variant>\n```",
+      "why": "full handover"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Built three options at /tmp/x.html. I recommend B; it is clearly the best.",
+      "why": "pre-picks, no template, no states"
+    }
+  ]
+}

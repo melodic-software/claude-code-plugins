@@ -25,6 +25,6 @@ run it alongside; the model offers it and does not start it.
 
 Bundled surfaces vary by settings, plan, platform, and host (whether `disableBundledSkills` also
 hides bundled workflows is not established), and this workflow has its own tool requirement (the
-third row). The offer names the command for the person to try; an
-unattended run records the offer in its output. Recheck when a release or docs change adds,
+third row). The offer names the command for the person to try; a run the caller passes
+`--unattended` records the offer in its output. Recheck when a release or docs change adds,
 removes, or renames a gating axis.

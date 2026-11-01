@@ -228,6 +228,19 @@
         "It names the body's `Draft:` line as the reason the draft is held",
         "It reports the PR as a held draft, not a silent skip"
       ]
+    },
+    {
+      "id": 19,
+      "name": "unattended-modifier-grants-no-tier",
+      "prompt": "/source-control:babysit-prs #87 --unattended",
+      "expected_output": "`--unattended` is taken out before parsing, so `#87` is the scope and no tier keyword remains: the run stays at the configured default tier (safe), with no merge and no thread resolution. The modifier reaches no script, the `--unattended` of babysit_merge.py included, and any `/autofix-pr` offer is recorded in the output instead of asked.",
+      "files": [],
+      "expectations": [
+        "It treats `--unattended` as a modifier, not as a tier, a mode or a scope",
+        "It runs the configured default tier on #87 and does not run the worker or autopilot tier",
+        "It does not pass `--unattended` to babysit_merge.py or to any other script",
+        "It does not ask the person about `/autofix-pr`; any offer is recorded in the output"
+      ]
     }
   ]
 }

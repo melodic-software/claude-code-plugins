@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Encapsulation audit \u2014 2 violations\n\n## Violations\n| File | Line | Cite | Suggested path |\n|---|---|---|---|\n| docs/releasing.md | 5 | `.claude/skills/release-notes/reference/changelog-format.md` | A |\n| docs/releasing.md | 8 | `.claude/skills/release-notes/SKILL.md#version-bump-rules` | A |\n\n## Filtered (legal)\n| File | Line | Filter applied |\n|---|---|---|\n| .github/workflows/release.yml | 12 | scripts/ entry surface |\n| docs/tooling.md | 4 | bare SKILL.md path |\n\n## Recommended next step\n`/docs-hygiene:audit-encapsulation fix docs/releasing.md:5`",
+      "why": "canonical"
+    },
+    {
+      "answer": "Two cites reach into private parts of the skill, both in docs/releasing.md: the changelog-format.md file under reference/, and the #version-bump-rules heading anchor. The /release-notes calls, the plain SKILL.md path in docs/tooling.md (discouraged, but allowed) and the CI step running scripts/collect-prs.sh are public surface. I have not changed anything; say which one to fix first.",
+      "why": "prose, legal cites named as public"
+    },
+    {
+      "answer": "Violations (2), both in docs/releasing.md: step 2 cites reference/changelog-format.md and step 3 cites SKILL.md#version-bump-rules. Not violations: the /release-notes calls, the bare SKILL.md path in docs/tooling.md, and the release workflow's call to scripts/collect-prs.sh, which is the skill's public entry surface. Note that if you rename or move collect-prs.sh, the workflow will break, so keep scripts/ stable during the reorganization.",
+      "why": "CI breakage noted while classified legal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Violations: docs/releasing.md cites reference/changelog-format.md, and .github/workflows/release.yml calls scripts/collect-prs.sh, which breaks if scripts/ moves.",
+      "why": "scripts/ entry call flagged; anchor missed"
+    },
+    {
+      "answer": "One violation: docs/releasing.md cites reference/changelog-format.md. Everything else uses /release-notes or the SKILL.md entry point.",
+      "why": "anchor cite missed"
+    },
+    {
+      "answer": "I found two leaks in docs/releasing.md (reference/changelog-format.md and SKILL.md#version-bump-rules) and rewrote both steps to call /release-notes instead.",
+      "why": "edited without a fix request"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The release workflow runs on tag pushes and drafts notes from merged pull requests.",
+      "why": "answers a different question"
+    }
+  ]
+}

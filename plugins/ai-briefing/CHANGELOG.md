@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.11] - 2026-10-31
+
+### Security
+
+- Override `glob` to 14.0.3 in the generate skill's build tooling, pulling `minimatch` 11.0.3, to fix GHSA-g3hv-75wg-m249 and GHSA-3g3m-2fjr-6pw4.
+
 ## [0.9.10] - 2026-10-30
 
 ### Changed

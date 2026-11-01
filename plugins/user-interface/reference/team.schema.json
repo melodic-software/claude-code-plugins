@@ -71,22 +71,68 @@
           "additionalProperties": false,
           "description": "Easing curves as four cubic Bezier control points [x1, y1, x2, y2]; a skill maps them to the project stack's own form.",
           "properties": {
-            "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering or leaving, and the default."},
+            "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering, and leaving unless the exit is permanent; the default."},
+            "in": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "An accelerate curve for an element leaving the screen for good, such as a modal closing or a toast dismissed."},
             "in_out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements already on screen moving or morphing."},
-            "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets."}
+            "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets, on the way in and out."}
+          }
+        },
+        "easing_library": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Named curves to pick from when the configured curve does not fit; four cubic Bezier control points each.",
+          "properties": {
+            "out": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Ease-out curves for enters, exits and user-initiated UI.",
+              "properties": {
+                "quad": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "cubic": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "quart": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "quint": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "expo": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "circ": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4}
+              }
+            },
+            "in_out": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Ease-in-out curves for elements moving or morphing on screen.",
+              "properties": {
+                "quad": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "cubic": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "quart": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "quint": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "expo": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+                "circ": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4}
+              }
+            }
           }
         },
         "duration_ms": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The longest duration each role allows, in milliseconds.",
+          "description": "The longest duration each role allows, in milliseconds, and exit_factor, the unitless fraction of its entrance an exit may last.",
           "properties": {
             "press": {"type": "integer", "minimum": 0, "description": "Press feedback."},
             "small": {"type": "integer", "minimum": 0, "description": "Tooltips and small popovers."},
             "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus, selects and any other UI transition."},
-            "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers, sheets and toasts."}
+            "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers, sheets and toasts."},
+            "page": {"type": "integer", "minimum": 0, "description": "Page-level and full-screen transitions."},
+            "exit_factor": {"type": "number", "minimum": 0, "maximum": 1, "description": "The longest an exit may run, as a fraction of its entrance's duration."}
           }
         },
+        "stagger_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Staggered group entrances, in milliseconds.",
+          "properties": {
+            "interval": {"type": "integer", "minimum": 0, "description": "The gap between two items' entrances."},
+            "max_total": {"type": "integer", "minimum": 0, "description": "The longest the interval times the item count may run."}
+          }
+        },
+        "blur_max_px": {"type": "integer", "minimum": 0, "description": "The largest blur radius in px an animated element takes by default; a heuristic, not a measured limit."},
         "gesture": {
           "type": "object",
           "additionalProperties": false,
@@ -96,12 +142,12 @@
         }
       }
     },
-    "design": {
+    "components": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Settings read by /user-interface:design.",
+      "description": "Settings read by reference/component-libraries.md when /user-interface:design picks a component library. A library the project already uses, and its design system, beat every layer.",
       "properties": {
-        "concern_spoke_cap": {"type": "integer", "minimum": 1, "description": "The most concern spokes from reference/concerns.json one design pass loads; the rest are named as next steps."}
+        "primitives_default": {"enum": ["base-ui", "radix", "react-aria"], "description": "The accessible primitives library a React project with none installed builds on, by its setting value in the primitives table in reference/component-libraries.md; a setting value is not a package name."}
       }
     },
     "routing": {

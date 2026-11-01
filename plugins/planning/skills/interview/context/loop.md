@@ -367,6 +367,8 @@ The register, not the transcript, is the authority here. After a compaction the 
 
 Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open; your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
 
+**Read back an answer that departs from the recommendation.** In the same check, an answer that departs from the recommendation, or that arrives dictated or unclear, is restated in your own words, one line per question, naming each interpretation you made (a misheard term, such as "fee chair flag" taken as "feature flag"), and its row stays `open` until the user confirms or corrects that restatement. An answer that accepts the recommendation, dictated or not, needs no read-back and resolves at once, and a hedged reply follows "Hedged flag" instead. The page lane's narrower counterpart is R-D in [`surface.md`](surface.md), the read-back of a long or unclear dictated answer. Eval evidence: `interview-readback-dictated-answer`.
+
 `superseded-by-plan` rows get the same check and the same restate as `open` rows, with the proposed and displaced answers: *"Q11 still superseded by plan: plan proposes a rollback tag; was: redeploy previous artifact"*.
 
 ### Out-of-band drift: a return that lands before the reply
@@ -420,7 +422,14 @@ bash "<plugin-root>/scripts/check-open-questions.sh" \
 bash "<plugin-root>/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <memory_dir>/<topic-slug>/PLAN.md
+
+# Step 4 on a page-surface run: the same, plus the page's data dir.
+bash "<plugin-root>/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
+  --brief <memory_dir>/<topic-slug>/PLAN.md --surface '<data_dir>'
 ```
+
+`--surface` checks the Brief against the page's export; [`surface.md`](surface.md) "Wrap-up" lists what it fails.
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 

@@ -27,7 +27,7 @@ const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
 const STATUS = JSON.parse(readFileSync(new URL("./fixtures/components.json", import.meta.url), "utf8"));
 const CHECKS = ".github/workflows/pr-require-checks.yml";
-const WINDOWS = ".github/workflows/pr-test-windows.yml";
+const WINDOWS = ".github/workflows/pr-test-platforms.yml";
 const REVIEW = ".github/workflows/pr-review-hosted.yml";
 const VERIFY = ".github/workflows/pr-verify.yml";
 const MAIN_REVIEW = ".github/workflows/pr-review-main.yml";
@@ -558,7 +558,7 @@ test("pr-verify still names its judge step as the reconciler reads it, in every 
     assert.equal(names[judge], JUDGE_STEP, name);
     assert.equal(names[judge - 1], JUDGE_PREDECESSOR, name);
     assert.ok(judge < names.indexOf("Upload the verdict"), name);
-    // The verdict is written only on the judge step's true outcome.
+    // The verdict is written only once a judgment finished.
     const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
     assert.equal(writes.length, 1, name);
     assert.match(writes[0], /\n[ ]+if: \$\{\{ !cancelled\(\) && \(steps\.chunk-fail\.outputs\.fail == 'true' \|\| /, name);
@@ -1026,7 +1026,7 @@ test("an infra-only failed run has its failed jobs re-run", async () => {
 });
 
 // A failed CI run with a real failure (a flaky test the diff did not cause, as
-// pr-test-windows run 39867317913's macOS test_tunnel) has its failed jobs
+// pr-test-platforms run 39867317913's macOS test_tunnel) has its failed jobs
 // re-run once, at attempt 1, whatever the status pages show; a second failure
 // is fix-ci's.
 test("a run with a real failure at attempt 1 has its failed jobs re-run once", async () => {
@@ -1320,7 +1320,7 @@ test("each re-run that makes attempt 2 of pr-require-checks is recorded before i
   assert.deepEqual(failedJobReruns, [103, 102]);
 });
 
-test("a pr-test-windows re-run is not recorded", async () => {
+test("a pr-test-platforms re-run is not recorded", async () => {
   const { code, outputs, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(101, sha(1), { path: WINDOWS })] });
   assert.equal(code, 0);
   assert.deepEqual(records(outputs), ["", "", ""]);

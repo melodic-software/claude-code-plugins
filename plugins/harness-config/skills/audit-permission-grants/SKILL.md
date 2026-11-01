@@ -1,6 +1,6 @@
 ---
 description: "Audit Claude Code permission grants (allowed-tools frontmatter and permissions.allow in every settings scope) for portability and auto-mode durability: dropped interpreter wildcards, machine-specific paths, literal substitution tokens, inert plugin self-grants. Report-only. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', or a guarded helper is denied despite an allow rule. Effective state: audit-permission-state."
-argument-hint: "[frontmatter|settings|plugins|all]"
+argument-hint: "[frontmatter|settings|plugins|all] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit permission grants for portability and auto-mode durability
 ---
 
-**Arguments.** `[frontmatter|settings|plugins|all]`. default: all
+**Arguments.** `[frontmatter|settings|plugins|all] [--unattended]`. default: all
 
 ## Purpose
 
@@ -43,6 +43,10 @@ applied to its output:
 - `plugins`: plugin `settings.json` self-grant (P3) only
 - `all`: everything (default)
 
+`--unattended`, anywhere in the arguments, is not a filter: the caller declares nobody is present, which changes only
+the `/permissions` offer (see "Boundary" below). Take it out before reading the filter, and never
+pass it to the detector.
+
 The filter reads like a scan-scope, but a detector-side scope flag would buy nothing: the root is a
 git toplevel, `$CLAUDE_PROJECT_DIR`, or an explicitly named directory, never an unbounded sweep, and
 the walk takes well under a second. A second place for scope to be defined would only add drift. The
@@ -65,9 +69,11 @@ It scans frontmatter `allowed-tools` and settings `permissions.allow` across the
 the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
 finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
 **Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** It is raised by a
-missing `jq`, a missing shared pattern library, a scan root that resolves to neither a git toplevel
-nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
-scope is not one of them: the run records it in the coverage block, says so on stderr, and continues.
+missing `jq` (its message names the platform's install command when it finds one), a missing
+shared pattern library, a scan root that resolves to neither a git toplevel nor
+`$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
+scope is not one of them: the run records it in the coverage block, says so on stderr, and
+continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
@@ -89,6 +95,10 @@ result readable. Carry its numbers into the report:
   audited and blocked counts. Relay that as the outcome too. The rule is the same one the denominator
   serves: the run cannot speak for a scope it never read, and the violation it missed may be sitting
   in the file it could not parse.
+- **A clean bill needs frontmatter coverage when there was frontmatter to cover.** When a run
+  with no finding and no unreadable input excluded every frontmatter candidate as non-loadable, it
+  prints `NO FRONTMATTER AUDITED, NOT A CLEAN BILL` in place of the clean bill. Relay it as the outcome, and check that each plugin
+  directory under the root sits at `plugins/<name>/` or holds `.claude-plugin/plugin.json`.
 - **Say what was not read.** The block counts paths the walk could not open, settings files present
   but not valid JSON (whose rules were skipped entirely), and files an exclusion rule removed. Each
   of those is a hole in the denominator, and each belongs in the report next to the finding count.
@@ -161,8 +171,9 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 the person: If /permissions is available in your session (gate basis: not gated in the extraction,
 though a host may lack it; records in [reference/native-surfaces.md](reference/native-surfaces.md)),
 you can run it instead of or alongside editing the file by hand. A grant
-in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. An
-unattended run records the offer in its output instead of asking.
+in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. When
+the caller passes `--unattended`, the run records the offer in its output
+instead of asking; without that flag it asks.
 
 **Mutation gate.** `/permissions` writes whichever scope the person edits. This skill never runs
 it on the person's behalf.

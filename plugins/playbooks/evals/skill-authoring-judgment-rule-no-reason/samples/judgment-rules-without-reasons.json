@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense: readers scan the notes after the release ships, so the entry describes something that already happened.\n- Lead each entry with the user-visible effect, not the code change, because most readers stop after the first clause.",
+      "why": "both rules firm, each with its reason"
+    },
+    {
+      "answer": "## Writing entries\n\n- Past tense, since the notes are read once the release is out.\n- Open with what the user sees change; most readers stop after the first clause, so the code change comes after.",
+      "why": "both rules firm, reasons in other words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense.\n- Lead each entry with the user-visible effect, not the code change.",
+      "why": "neither rule carries its reason"
+    },
+    {
+      "answer": "## Writing entries\n\n- Write each entry in past tense: readers scan the notes after the release ships.\n- Lead with the user-visible effect.",
+      "why": "near miss: the second rule has no reason"
+    },
+    {
+      "answer": "## Writing entries\n\n- Entries could be in past tense, since readers scan the notes after the release.\n- Try to lead with the user-visible effect, because most readers stop after the first clause.",
+      "why": "rules still hedged"
+    }
+  ]
+}

@@ -72,7 +72,7 @@ So: write the report outside the target root. If a destination inside it is unav
 | `keep` / secret-bearing | Nothing to do |
 | `unclassified-report-only`, and you want it gone | `/disk-hygiene:clean`, the engine that owns exact-path deletion with a live-handle preflight |
 | Permission-rule or settings-key findings | `/harness-config:audit`, `/harness-config:audit-permission-grants` |
-| Which plugins are actually installed / at what scope | `/harness-ops:plugins audit` |
+| Which plugins are actually installed / at what scope | `/harness-ops:plugins-audit` |
 
 ## Detect a deliberate state before classifying anything
 
@@ -101,7 +101,7 @@ Two calibrations:
   plugin system entirely, and enablement is read at session start so a running session keeps what it
   loaded. Any single-file answer will confidently contradict reality. The engine emits
   `recent_writers`, behavioral evidence that something wrote to the tree, and leaves the verdict
-  to `/harness-ops:plugins audit`.
+  to `/harness-ops:plugins-audit`.
 - **No parsing of sibling-plugin state.** A plugin owns its own state. Those paths are inventoried by
   name, size, and mtime; nothing is opened and no owner is attributed from a directory name.
 - **No rule dedupe or subsumption.** See `evidence-discipline.md` §4.

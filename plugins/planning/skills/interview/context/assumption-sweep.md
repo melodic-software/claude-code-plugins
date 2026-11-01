@@ -5,8 +5,8 @@ is asked, stated, or blocked before the confirmation gate.
 
 ## When
 
-- `me` and `auto` runs with a register, once the frontier is empty and before the Step 3 register
-  gate and confirmation gate. The `auto` Mixed path runs it after its residue round.
+- `me` and `auto` runs with a register, once no open question remains on the frontier and before
+  the Step 3 register gate and confirmation gate. The `auto` Mixed path runs it after its residue round.
 - Skipped when the run asked no question (no register exists) and in `lock`.
 - After the answers to sweep rows land, sweep again over what those answers changed. Step 3 starts
   when a sweep adds no `open` row.
@@ -162,7 +162,7 @@ rather than at the next sweep.
 - **Scope:** only the **Contradictions** category of "What it looks for", read with the draft
   round's recommendations standing in for answers: a recommendation that cannot hold beside an
   `answered` row or a `confirmed` constraint. No other category runs here; the sweep still runs
-  once the frontier is empty.
+  once no open question remains on the frontier.
 - **Return:** one line per conflict in the "Item shape" above, category `contradiction`, with the
   draft question and the earlier row as its dependencies; nothing when there is none.
 - **Disposition:** fix each in the draft before posting. A conflict with a `confirmed` constraint

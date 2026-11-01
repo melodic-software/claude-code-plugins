@@ -2,7 +2,8 @@
 // closes, each issue it blocked gets `agent-ready` only when every blocker is
 // closed as completed, it is open, and it carries no hold label; the label
 // alone admits it to resolve-issue. Every fact is
-// read from the API when the run starts, never from the event payload. The kill switch and
+// read from the API when the run starts, never from the event payload, but the
+// closed issue's labels, which mark a sweep kick. The kill switch and
 // a close by any bot sender stop the run before any API call.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -28,6 +29,7 @@ import {
   refsMergedComment,
   infraComment,
   skipText,
+  SWEEP_LABEL,
 } from "./label-unblocked.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -106,7 +108,7 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
-// `queuedIssues` are the numbers the open agent-ready issue search lists,
+// `queuedIssues` are the numbers check-wip-cap's open agent-ready listing answers,
 // `deferred` what the open admission-deferred listing answers, and `ready`
 // what the open `status: ready` listing answers.
 // `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
@@ -163,6 +165,12 @@ function world({
         assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
         return listed(ready);
       }
+      // check-wip-cap's queued read, oldest first.
+      if (params.get("labels") === "agent-ready" && params.get("sort") === "created") {
+        assert.equal(params.get("state"), "open");
+        assert.equal(params.get("direction"), "asc");
+        return queuedIssues.map((number) => ({ number })).slice((page - 1) * 100, page * 100);
+      }
       return listed(params.get("state") === "open" ? openReady : closedList);
     }
     if (route === `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs` && method === "GET") {
@@ -181,10 +189,6 @@ function world({
         return { total_count: 0, incomplete_results: true, items: [] };
       }
       const q = new URL(path, "https://x").searchParams.get("q");
-      if (q.startsWith(`repo:${REPO} is:issue is:open label:agent-ready `)) {
-        const items = queuedIssues.map((number) => ({ number }));
-        return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
-      }
       // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
       if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
@@ -1747,7 +1751,7 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   const { github, actions, calls } = stalledRun();
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1830,7 +1834,7 @@ test("a failed mint is re-fired again on the same workflow files up to the bound
   const { github, actions, calls } = stalledRun(earlierPumps(2));
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1866,7 +1870,7 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
   const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -3739,6 +3743,108 @@ test("a person's mark on an issue a merged Refs pull request may have done parks
   ]);
 });
 
+// Number 20 parked at status: confirmed, blocked by number 10 alone, closed at
+// CLOSED. `parkedAt` is when status: confirmed was added.
+const PARKED_AT = "2026-10-16T11:00:00Z";
+const parkedIssue = ({ labels = ["status: confirmed"], ...rest } = {}) => ({ ...issue(20, { labels }), user: OWNER, ...rest });
+const parkedWorld = ({ labels, parkedAt = PARKED_AT, comments = [{ id: 9, body: `${ADMIT_MARKER}\nNot admitted.`, user: LANES_BOT, created_at: STAMP, updated_at: STAMP }], siblings = [], rest = {}, extra = {} } = {}) =>
+  world({
+    blocking: [parkedIssue({ labels })],
+    issues: { 20: parkedIssue({ labels, ...rest }) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), ...siblings] },
+    comments: { 20: comments },
+    events: { 20: [{ event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: parkedAt }] },
+    ...extra,
+  });
+const unparked = `DELETE /repos/${REPO}/issues/20/labels/status%3A%20confirmed`;
+const onClose = (world_) => main({ env: envFor(), github: world_.github, admission: admissionFor() });
+
+test("the last blocker closing takes status: confirmed off an issue admission parked, once, and never adds agent-ready", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld();
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("a parked issue stays parked for each reason the close does not send it to intake", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const cases = {
+    "an open sibling blocker": { siblings: [issue(11)] },
+    "a re-park after the close": { parkedAt: "2026-10-16T11:45:00Z" },
+    "no admission comment": { comments: [note()] },
+    "the cordoned milestone": { rest: { milestone: { title: "After zero" } } },
+    "an author intake does not admit": { rest: { user: { id: 4242, login: "drive-by" } } },
+    "a refuse label": { labels: ["status: confirmed", "host-run"] },
+    "a hold": { labels: ["status: confirmed", "needs-human"] },
+    "needs-decision beside it": { labels: ["status: confirmed", "status: needs-decision"] },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const parked = parkedWorld(options);
+    assert.equal(await onClose(parked), 0, name);
+    assert.deepEqual(writes(parked.calls), [], name);
+  }
+});
+
+test("another milestone does not cordon a parked issue", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld({ rest: { milestone: { title: "Next" } } });
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("the sweep reads only issues a closed blocker blocked, and logs the count before the removal", async (t) => {
+  const lines = [];
+  t.mock.method(console, "log", (line) => lines.push(line));
+  const parked = parkedWorld({ extra: { closedList: [issue(10, { state: "closed" })], blockingOf: { 10: [parkedIssue()] } } });
+  assert.equal(await sweep({ github: parked.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+  const count = lines.findIndex((line) => String(line).includes("1 of 1 parked issue(s) go back to intake"));
+  const removal = lines.findIndex((line) => String(line).includes("removed; intake-reenter"));
+  assert.ok(count >= 0 && count < removal, lines.join("\n"));
+});
+
+// Sweep windows overlap, so a sweep reads the same close while intake runs.
+test("an issue sent to intake is not labeled until a status: ready follows the removal", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removal = { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: CLOSED };
+  const sent = (labels, events) => parkedWorld({ labels, extra: { closedList: [issue(10, { state: "closed" })], blockingOf: { 10: [parkedIssue({ labels })] }, events: { 20: events } } });
+  for (const labels of [["needs-triage"], []]) {
+    const waiting = sent(labels, [removal]);
+    assert.equal(await sweep({ github: waiting.github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(waiting.calls), [], String(labels));
+  }
+  const decided = sent(["status: ready"], [removal, { event: "labeled", label: { name: "status: ready" }, actor: LANES_BOT, created_at: STAMP }]);
+  assert.equal(await sweep({ github: decided.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(writes(decided.calls).includes(labeled(20)), writes(decided.calls).join("\n"));
+});
+
+test("an issue intake parked again after an unpark goes back to intake when a later blocker closes", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const events = [
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: PARKED_AT },
+    { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:05:00Z" },
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:10:00Z" },
+  ];
+  const parked = parkedWorld({ extra: { events: { 20: events } } });
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("a failed removal fails the run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld({ extra: { failOn: (method, path) => method === "DELETE" && path.endsWith("status%3A%20confirmed") } });
+  assert.equal(await onClose(parked), 1);
+});
+
+test("a person's mark refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
+  assert.equal(await sweep({ github, admission: admissionFor(4242) }, PAUSING), 0);
+  const posted = writes(calls);
+  const hold = posted.indexOf(`POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`);
+  assert.ok(hold >= 0 && posted.indexOf(`DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`) > hold, posted.join("\n"));
+});
+
 test("a person's mark refused for a merged Refs pull request and another reason keeps needs-decision", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
@@ -4364,9 +4470,9 @@ test("the ACTIONS_TOKEN clients' readings land under github-token, the App clien
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
     await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
-    const line = "200 5000 4999 1 1792378942 core\n";
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
-    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+    const line = (route) => `200 5000 4999 1 1792378942 core ${route}\n`;
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line("other") + line("other"));
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line("other"));
   } finally {
     for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
       if (value === undefined) delete process.env[key];
@@ -4531,6 +4637,17 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
 });
 
+test("a status: ready issue in no queue refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ items: [readyIssue(26, { labels: ["status: ready", "status: confirmed"], user: { id: 4242, login: "drive-by" } })] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls).slice(0, 3), [
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: needs-decision"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20confirmed`,
+  ]);
+});
+
 test("a status: ready issue in no queue refused for a manual external step parks at status: confirmed with attended", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls } = readyWorld({ extra: { specs: { 26: manualSpec(readyIssue(26).body) } } });
@@ -4689,4 +4806,98 @@ test("the sweep rewrites the split-pending comment of an open-sub-issue parent w
   assert.equal(await sweep({ github }), 0);
   assert.deepEqual(writes(calls), [refreshed("sub-issue #41 is open")]);
   assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/37/`)));
+});
+
+// The sweep kick: a listed human closing the marker issue (labeled
+// SWEEP_LABEL, read from the payload) runs the scheduled sweep at once, after
+// the same closer check as any close. A second kick is one more sweep.
+const MARKER = 50;
+const KICK_AT = "2026-10-16T11:59:00Z";
+const SWEEP_LISTING = `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`;
+const markerEvent = (labels = [SWEEP_LABEL], extra = {}) => ({ issue: issue(MARKER, { state: "closed", labels, at: KICK_AT }), ...extra });
+// This run's record for the closer check; any other read goes to `fallback`,
+// or answers no earlier scheduled sweep.
+function kickActions(fallback) {
+  const own = ownRun();
+  return async (method, path, ...rest) =>
+    path === `/repos/${REPO}/actions/runs/${RUN_ID}` ? own(method, path) : fallback ? fallback(method, path, ...rest) : { workflow_runs: [], jobs: [] };
+}
+const kick = ({ event = markerEvent(), env = {}, ...args }) => main({ now: NOW, env: envFor(event, env), actions: kickActions(), ...args });
+
+test("a listed human closing the marker issue runs the sweep, with a sweep-kick notice", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, calls } = world({
+    // The marker's own close is in the swept window too.
+    closedList: [closedAt(10, "2026-10-16T11:30:00Z"), issue(MARKER, { state: "closed", labels: [SWEEP_LABEL], at: KICK_AT })],
+    blocking: [issue(20)],
+    issues: { 20: issue(20) },
+    blockedBy: { 20: [issue(10, { state: "closed" })] },
+    comments: { 20: [note()] },
+  });
+  assert.equal(await kick({ github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+  assert.ok(calls.includes(SWEEP_LISTING));
+  // The marker blocks nothing: no write touches it.
+  assert.deepEqual(writes(calls).filter((call) => new RegExp(`/issues/${MARKER}(/|$| )`).test(call)), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} closed=2026-10-16T11:59:00.000Z started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
+});
+
+test("a sweep-kick notice leaves out a close time that does not parse", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github } = sweptDependent();
+  const event = { issue: { ...issue(MARKER, { state: "closed", labels: [SWEEP_LABEL] }), closed_at: "not a time" } };
+  assert.equal(await kick({ github, event }), 0);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`::notice title=work-unblock::sweep-kick marker=#${MARKER} started=2026-10-16T12:00:00.000Z`), lines.join("\n"));
+});
+
+test("a close of an issue without the marker label keeps the close path and lists no closed issues", async () => {
+  const { github, calls } = oneDependent();
+  assert.equal(await main({ now: NOW, env: envFor({ issue: issue(10, { state: "closed", labels: ["bug"] }) }), github }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+  assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=closed`)));
+});
+
+test("a marker close by a bot sender, or by a closer or re-runner who is not a listed human, reads nothing", async () => {
+  for (const [name, args] of [
+    ["bot sender", { event: markerEvent([SWEEP_LABEL], { sender: LANES_BOT }) }],
+    ["unlisted closer", { env: { ACTOR_ID: "1234" } }],
+    ["unlisted re-runner", { actions: ownRun({ id: 1234, login: "someone-else" }) }],
+  ]) {
+    const { github, calls } = sweptDependent();
+    assert.equal(await kick({ github, ...args }), 0, name);
+    assert.deepEqual(calls, [], name);
+  }
+});
+
+test("two back-to-back marker closes each sweep, and the issue the kill switch stopped at broker-check is re-fired once", async () => {
+  const kickOn = (fake) =>
+    kick({
+      github: fake.github,
+      actions: kickActions(fake.github),
+      jobLog: (repo, id, options) => fake.github("GET", `/repos/${repo}/actions/jobs/${id}/logs`, undefined, {}, options),
+    });
+  // The first kick re-fires the stopped issue: its breaker record, then the
+  // App's remove and re-add.
+  const first = stalledRun({ jobs: BROKER_REFUSED, logs: CHECK_KILLED });
+  assert.equal(await kickOn(first), 0);
+  tripped(first.calls);
+  const posted = writes(first.calls)[0];
+  const record = JSON.parse(posted.slice(posted.indexOf(" {") + 1)).body;
+  // The second kick, queued behind it, sees what the first left: the record
+  // and the re-add, with no lane run since. It sweeps and writes nothing.
+  const second = stalledRun({
+    jobs: BROKER_REFUSED,
+    logs: CHECK_KILLED,
+    comments: [note(), { id: 71, body: record, user: LANES_BOT, created_at: "2026-10-16T11:59:30Z" }],
+    events: [
+      added(LABELED_AT, OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T11:59:30Z" },
+      added("2026-10-16T11:59:31Z"),
+    ],
+  });
+  assert.equal(await kickOn(second), 0);
+  assert.ok(second.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues?state=open&labels=agent-ready`)));
+  assert.deepEqual(writes(second.calls), []);
 });

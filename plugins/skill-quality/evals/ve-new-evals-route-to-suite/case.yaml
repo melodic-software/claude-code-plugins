@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ve-new-evals-route-to-suite
+description: "Hard case. Why hard: the validate-evals action and its schema both describe the skill-creator JSON file, so scaffolding a new one looks like the action's own answer; this plugin's check skill points new evals at case.yaml suite cases instead. Source: the owner's decision to make case.yaml the one eval format for skills."
+tags: [check, validate-evals, hard]
+runs: 3
+expected_outcome: "The answer points the new skill's evals at case.yaml cases in the plugin's evals/ directory, written with /evals:design and checked with /evals:validate, and does not tell the author to create a new evals.json"
+execution:
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: 'names-case-yaml'
+    type: 'regex'
+    pattern: '\bcase\.yaml\b'
+    flags: 'i'
+    arm: 'both'
+  - name: 'names-evals-skill'
+    type: 'regex'
+    pattern: '/?\bevals:(?:design|validate)\b'
+    flags: 'i'
+    arm: 'both'
+  - name: 'no-new-json'
+    type: 'llm'
+    arm: 'both'
+    criteria: "PASS if the answer tells the author to write the new skill's evals as case.yaml cases in the plugin's evals/ directory (one directory per case) rather than as a JSON eval file in the skill's directory. A note that a gate running check --require-evals still looks for the JSON file is fine. FAIL if it tells the author to write the new skill's cases in an evals/evals.json instead of case.yaml cases, presents both formats as equal choices, or later contradicts or retracts this."
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"skill-quality:check"'

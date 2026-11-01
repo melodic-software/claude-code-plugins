@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for group-findings.mjs: grouping rows from a bound adapter and the local file, the named
 # keys, occurrence counts, the exact --since cut, escaping, an empty buffer, usage and a failed read.
+# test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 

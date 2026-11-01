@@ -3,6 +3,43 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+- Two eval cases check that `setup apply` passes a key the operator accepts at the plugin default as
+  `--default <key>`, and a value the operator chose as `<key>=<value>` even when it equals the
+  default, and that the written file records `default` or `chosen` to match.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer, so `ratchet_offer`, `downstream_probe` and `fanout_diversity` fall back to their defaults for that session. Update everyone sharing a repository before anyone
+  writes the file.
+
+## [2.0.8] - 2026-10-31
+
+### Changed
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: the page stamp it removes before scanning now matches only the builders' own stamp names, so a token inside a look-alike comment is still found; no other change to this plugin.
+
+## [2.0.7] - 2026-10-31
+
+### Fixed
+
+- The publish gate now catches a credential that a line break splits in two: it also reads each pair of adjacent lines joined, raw and normalized. A password or secret assignment split across two lines is caught too. The OpenAI key and the R2 key pair patterns still read one line at a time, so an `sk-` word ending a line or an md5 line above a sha256 line raises nothing. Machine paths and hostnames are still read one line at a time.
+
+## [2.0.6] - 2026-10-31
+
+### Fixed
+
+- The publish gate now catches a credential or machine path hidden by fullwidth look-alike characters, zero-width characters or soft hyphens, JSON `\uXXXX` escapes, nested tags or double-encoded entities, or a markdown backslash escape such as `\_`. A backslash before `/`, `.`, `"` or `'` is still read as written. The lanes' leak scan now also reads each file as UTF-8, so a credential hidden by a zero-width character, a soft hyphen or a fullwidth look-alike blocks there too.
+
 ## [2.0.5] - 2026-10-31
 
 ### Fixed

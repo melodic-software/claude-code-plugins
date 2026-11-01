@@ -3,6 +3,70 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1] - 2026-11-01
+
+### Changed
+
+- The config cascade skips the setup writer's top-level `written_against` and `provenance` keys, so
+  neither reaches `values`, a layer's errors or a userConfig name.
+
+### Fixed
+
+- The `animation-audit-readonly` eval case no longer lists Edit and Write in `allowed_tools`, which
+  a case cannot grant itself. Its `no-write` and `no-edit` graders now read the trace for any write
+  or edit call, or a Skill call with `--fix`, the same shape as `audit-launch-command-palette`, so
+  they can still fail when those tools are absent.
+- The `--fix` arm of the `no-write` grader in `animation-audit-readonly` and
+  `audit-launch-command-palette` now matches only inside the Skill call's input, so a reply that
+  offers `--fix` in text beside a bare audit call no longer fails it.
+- The `motion-dropdown` and `motion-toast-stack` eval samples that used the drawer curve for an
+  entrance now use the configured `out` curve, `cubic-bezier(0.23, 1, 0.32, 1)`. The graders are
+  unchanged.
+
+- The `motion-dialog` eval samples that used the drawer curve for a centered dialog's entrance now
+  use the configured `out` curve, `cubic-bezier(0.23, 1, 0.32, 1)`. The graders and each sample's
+  pass or fail expectation are unchanged.
+
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- Touch and mobile web guidance for `/user-interface:design` and `/user-interface:audit`: a symptom table, hover gated by pointer capability, tap highlight and instant taps, 44px targets, long press, 16px inputs, the on-screen keyboard, no zoom lock, dynamic viewport units, safe areas, anchors under sticky headers, scroll chaining, gesture axes and nothing scrolling sideways, plus a document head for web pages and `/user-interface:write-css` recipes for full-height layouts, gesture surfaces, sideways overflow, small scrollbars and edge fades, a card that links from its own call to action, and scroll fades that clear when nothing is left to scroll.
+
+- `/user-interface:audit`'s motion lane reviews an animation from its captured frame state: slow it down, record and scrub it, annotate the frame that feels wrong, and read a pasted export as data (its frame, recorded speed, per-element values and the timing between an input and a change). With nothing pasted it offers a capture through `/app-control:drive capture --kind animation` and runs it only after a yes. An ungated `:hover` rule is left to the `touch` lane, and the motion catalog now grades an ease-in on an exit that is not permanent as Important.
+
+- `/user-interface:audit` reviews a diff the way a design engineer would, leading with a verdict and a Before, After, Why table and naming what needs a real device, applies the plain-language copy rules at every scope, and its `launch` scope adds a pre-launch sweep: recon, a leftovers pass (dev tools, scaffolding routes, debug output, secrets, stale markers), a Ship or Not yet verdict, and the keyboard, screen reader, form, theme and phone checks a person still has to run.
+
+- `/user-interface:design` and `/user-interface:audit` principles gain plain-language copy rules (buttons that name their outcome, errors that say how to fix them, sentence case, no "please") with audit severities, a stop-the-prompt-loop step that proposes `/prototype:build-generator` for the person to run after one missed round of variants, a delegate-or-build rule, restraint and habits-versus-conventions lines, a system font stack kept as the app UI default, a fuller reduced-motion list, and style-imposing tools offered only on a marketing page or for a requested redesign.
+
+- `/user-interface:design` gains an "Order of work": which skill or concern to run for a screen and in what order (decide, start with layout, type and color, build the pieces, refine, check, then the launch sweep), the overlaps that get confused, a complaint-to-skill table and what to say when no skill fits, in its own reference file; it now sits in the design stage of the workflow, offers a style-imposing tool only where the principles' "Project first" allows, and names the glossary, the audit, `/planning:design` and `/prototype:build-generator` as next steps.
+
+- Trigger probe files `probes/audit.json`, `probes/design.json` and `probes/write-css.json`. The audit probes cover the motion lane, the launch sweep and a non-motion lane; the design probes cover the component API, the design-system note and the order of work; the write-css probes include requests for a style whose value has no matching token.
+
+- `reference/component-libraries.md` gains a table of React primitives libraries by how each lets a part render another element, with a configurable default for a project that has none.
+
+### Changed
+
+- `/user-interface:write-css`'s text-and-media recipes name the concern rules they implement.
+
+- Motion guidance for `/user-interface:write-animation`, `/user-interface:audit` and `/user-interface:write-css` grows: graded findings for frequency, purpose, easing, duration, origin, paired timing, interruption, missing exits, page-load entrances, stagger, reduced motion, hover motion and frame cost; permanent exits accelerate away on their own curve and run shorter than their entrance; element-scale motion stays under 300ms with a separate page duration; a named easing library; component recipes for section entrances, exits, icon swaps and tooltip groups; and write-css recipes for a popover that scales from its trigger, a popover inside a modal, a reduced-motion swap and a hover that keeps its hit area.
+
+- The `/user-interface:write-css` recipe `concentric-nested-radius` now takes the outer radius as input and subtracts the parent's border width and padding, floored at zero.
+
+- The write-css layout recipes link to the web layout spoke.
+
+- The animation glossary moved from `reference/animation/glossary.md` to the glossary skill's `reference/motion.md`; the animation catalog now points at `/user-interface:glossary` for effect names.
+
+### Fixed
+
+- `/user-interface:write-css` now fires on a request to add a variant whose color or value has no matching token, and asks before inventing one.
+
+## [0.14.0] - 2026-10-31
+
+### Removed
+
+- The `design.concern_spoke_cap` setting. `/user-interface:design` now reads every concern spoke whose `read_when` holds in one pass instead of stopping at two and listing the rest as next steps. No observed failure backed the cap. A team or local file that still sets it gets an unknown-key error for `design`, and the rest of the file still loads.
+
 ## [0.13.0] - 2026-10-31
 
 ### Added

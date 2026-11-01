@@ -28,6 +28,10 @@
 // pull-requests: write token. A refused dequeue fails the job red, naming the
 // PR. No round starts. A PASS or PASS-NOTES at its head removes the label.
 //
+// A FAIL write-verdict.mjs recorded as withheld also holds the pull request
+// for a person (holdForCredential), in any state and at any head, apart from
+// the rest: a failure there still posts the notes, then fails the job.
+//
 // On a lanes App pull request a PASS or PASS-NOTES posts nothing and resolves
 // nothing. For an open pull request still at the head it judged, it names
 // that head in the pass-head-sha output when a fail-note thread from an
@@ -49,8 +53,9 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { personReasonLines } from "../lib/stop-reason.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, humanGatedLabelFrom, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The label that holds a person's pull request after a FAIL (ci-status's
 // merge-queue label step reads the same name).
@@ -113,7 +118,75 @@ export function failComment({ head, summary, notes }) {
   ].join("\n");
 }
 
-const hasLabel = async (api, pr) => (await api.listLabels(pr)).some((label) => label.name === FAILED_LABEL);
+const hasLabel = async (api, pr, name = FAILED_LABEL) => (await api.listLabels(pr)).some((label) => label.name === name);
+
+// Runs every step, so one failure leaves the others done, then throws the first.
+async function everyStep(log, steps) {
+  const failures = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  for (const error of failures.slice(1)) {
+    log(`::error::${error.message}`);
+  }
+  if (failures.length > 0) {
+    throw failures[0];
+  }
+}
+
+// Called after the label, so a re-queue meets ci-status's label read.
+async function leaveQueue({ api, pr, log }) {
+  const entry = await api.readQueueEntry(pr);
+  if (!entry.queued) {
+    return;
+  }
+  try {
+    await api.dequeuePull(entry.id);
+  } catch (error) {
+    log(`::error::#${pr}: could not dequeue it (${error.message}); its queued merge was not stopped`);
+    throw error;
+  }
+  log(`#${pr}: dequeued from the merge queue`);
+}
+
+// A withheld fail may mean a live credential in the pull request's commits,
+// which a later clean commit does not rotate: it holds for a person, at
+// whatever head the pull request has moved to. The label goes on in any state,
+// so a closed pull request that reopens is still held; only an open one has a
+// queue step. The label is the hold, so it goes first; the comment, whose first line gate-source.mjs CREDENTIAL_HOLD reads,
+// keeps the clear paths off that label. It posts once per head whatever else
+// the label stands for, and names no text.
+async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedLabel, log }) {
+  await everyStep(log, [
+    async () => {
+      const label = humanGatedLabel();
+      if (!(await hasLabel(api, pr, label))) {
+        await api.addLabels(pr, [label]);
+      }
+    },
+    async () => {
+      const reason = personReasonLines("pr-verify", "security");
+      const said = `pr-verify withheld its fail at head \`${head}\``;
+      const posted = (await api.listIssueComments(pr)).some((comment) => comment.user?.id === MARKER_AUTHOR_ID && firstLine(comment.body) === reason[0] && comment.body.includes(said));
+      if (!posted) {
+        await api.createIssueComment(
+          pr,
+          [...reason, "", `${said}: its text was shaped like a credential, or its step stopped on the credential scan. Check this pull request's commits for a credential and rotate any that is real; removing it from the head does not. A person removing the human-gated label lifts this hold.`].join("\n"),
+        );
+      }
+    },
+    async () => {
+      if (pull.state === "open") {
+        await leaveQueue({ api, pr, log });
+      }
+    },
+  ]);
+  log(`#${pr}: withheld fail at ${head}; held for a person`);
+}
 
 // A person's pull request at the FAIL's head: its fail comment, then the label.
 async function holdPersonPull({ api, verdict, log }) {
@@ -129,17 +202,7 @@ async function holdPersonPull({ api, verdict, log }) {
   if (!(await hasLabel(api, pr))) {
     await api.addLabels(pr, [FAILED_LABEL]);
   }
-  // After the label, so a re-queue meets ci-status's label read.
-  const entry = await api.readQueueEntry(pr);
-  if (entry.queued) {
-    try {
-      await api.dequeuePull(entry.id);
-    } catch (error) {
-      log(`::error::#${pr}: could not dequeue it (${error.message}); its queued merge was not stopped`);
-      throw error;
-    }
-    log(`#${pr}: dequeued from the merge queue`);
-  }
+  await leaveQueue({ api, pr, log });
   log(`#${pr}: a person's pull request; the fail at ${head} is in its fail comment and the ${FAILED_LABEL} label holds it`);
 }
 
@@ -165,7 +228,8 @@ export function readVerdict(name, text) {
     verdict.pr !== Number(pr) ||
     verdict.head_sha !== head ||
     (digest !== undefined && headRefDigest(verdict.head_ref) !== digest) ||
-    (issues !== undefined && !sameIssues(issues, verdict.linked_issues))
+    (issues !== undefined && !sameIssues(issues, verdict.linked_issues)) ||
+    ![undefined, true].includes(verdict.withheld)
   ) {
     throw new Error("the verdict file does not record the verdict its name names");
   }
@@ -175,7 +239,7 @@ export function readVerdict(name, text) {
   if (typeof verdict.summary !== "string" || !Array.isArray(verdict.notes) || !verdict.notes.every((note) => typeof note === "string")) {
     throw new Error("the verdict file does not record the fail its name names");
   }
-  return { pr: verdict.pr, head: verdict.head_sha, verdict: kind, summary: verdict.summary, notes: verdict.notes };
+  return { pr: verdict.pr, head: verdict.head_sha, verdict: kind, summary: verdict.summary, notes: verdict.notes, withheld: verdict.withheld === true };
 }
 
 // For a pass: whether a lanes App pull request is open at the head it judged
@@ -203,10 +267,23 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
 
 // For a fail: whether its notes are on a lanes App pull request, so a round
 // starts. A person's pull request gets its fail comment and label instead.
-export async function postNotes({ api, verdict, appId, log }) {
-  const { pr, head } = verdict;
+// `humanGatedLabel` reads the label's name, and only the credential hold calls
+// it, so a config it cannot read stops no other fail.
+export async function postNotes({ api, verdict, appId, humanGatedLabel = () => "needs-human", log }) {
   laneAppId(appId);
-  const pull = await api.getPull(pr);
+  const pull = await api.getPull(verdict.pr);
+  let posted = false;
+  await everyStep(log, [
+    ...(verdict.withheld ? [() => holdForCredential({ api, pull, verdict, humanGatedLabel, log })] : []),
+    async () => {
+      posted = await postAtHead({ api, pull, verdict, appId, log });
+    },
+  ]);
+  return posted;
+}
+
+async function postAtHead({ api, pull, verdict, appId, log }) {
+  const { pr, head } = verdict;
   if (pull.state !== "open" || pull.head?.sha !== head) {
     log(`skip: #${pr} is not open at head ${head}`);
     return false;
@@ -252,7 +329,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     if (await findStaleNotes({ api: client, verdict, appId, log })) {
       appendFileSync(env.GITHUB_OUTPUT, `pass-head-sha=${verdict.head}\n`);
     }
-  } else if (await postNotes({ api: client, verdict, appId, log })) {
+  } else if (await postNotes({ api: client, verdict, appId, humanGatedLabel: () => humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"), log })) {
     appendFileSync(env.GITHUB_OUTPUT, `pr-number=${verdict.pr}\nhead-sha=${verdict.head}\n`);
   }
   return 0;

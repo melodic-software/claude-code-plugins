@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playbooks:skill-authoring"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/skill-authoring/reference/skill-criteria.md"
+          }
+        }
+      ],
+      "why": "the skill fired and its criteria reference was read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playbooks:skill-authoring"
+          }
+        }
+      ],
+      "why": "criteria never read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/root/.claude/plugins/cache/melodic-software/playbooks/1.0.0/skills/skill-authoring/reference/rewrite-a-plugin.md"
+          }
+        }
+      ],
+      "why": "a different reference file"
+    }
+  ]
+}

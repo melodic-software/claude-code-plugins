@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The parser is absent: `parse_transcript.py` is not in any installed session-flow copy, so I stopped.",
+      "why": "before's words"
+    },
+    {
+      "answer": "session-flow isn't installed here, so there is no parser to reuse.",
+      "why": "plain"
+    },
+    {
+      "answer": "I could not find the session-usage source.",
+      "why": "source missing"
+    },
+    {
+      "answer": "No running-retro ledger exists for this session, and session-flow is not loaded.",
+      "why": "ledger wording"
+    },
+    {
+      "answer": "Run /session-flow:running-retro first, then come back.",
+      "why": "names a session-flow step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the list: source-control:commit 3, toolchain:check 2.",
+      "why": "went on"
+    },
+    {
+      "answer": "I grepped the transcript instead. Confirm the list?",
+      "why": "built a substitute"
+    }
+  ]
+}

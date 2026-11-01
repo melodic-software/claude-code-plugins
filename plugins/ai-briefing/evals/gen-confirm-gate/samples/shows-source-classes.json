@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\n",
+      "why": "full list"
+    },
+    {
+      "answer": "Sources: vendor publications first, then configured feeds.",
+      "why": "short form"
+    },
+    {
+      "answer": "I will read first-party announcements and GitHub release pages.",
+      "why": "first-party wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Window: 2026-10-20. Providers: Northwind, Contoso. Profile: default. Format: markdown. Proceed?",
+      "why": "no source classes"
+    },
+    {
+      "answer": "I will search the web for news.",
+      "why": "no classes named"
+    }
+  ]
+}

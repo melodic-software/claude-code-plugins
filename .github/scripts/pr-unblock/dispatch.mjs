@@ -20,7 +20,7 @@
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
 // `adoption` section, PRs of the base's trusted actors, whose ci-status or
-// pr-test-windows run failed past the lost-run reconciler's re-run
+// pr-test-platforms run failed past the lost-run reconciler's re-run
 // (fix-ci-dispatch.mjs) and pr-refine.yml's fix-docs once per ready PR that
 // changes Markdown (fix-docs-dispatch.mjs), and their run ids join the same
 // record.
