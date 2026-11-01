@@ -554,6 +554,36 @@ class DeterministicTest(ConverterTestCase):
         self.assertFalse(grade("expectation-2", "npm install -g ctx7@latest"))
         self.assertFalse(grade("expectation-2", "cd /w && npm install -g ctx7@latest"))
 
+    def test_a_must_not_run_guard_catches_a_wrapped_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert(
+            "alpha", ["Does not run `npm install -g ctx7@latest` itself"]
+        )
+
+        def held(command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders["expectation-1"], calls)[0]
+
+        for command in (
+            "sudo npm install -g ctx7@latest",
+            "env CI=1 npm install -g ctx7@latest",
+            "bash -c 'npm install -g ctx7@latest'",
+            'bash -c "npm install -g ctx7@latest"',
+            "time npm install -g ctx7@latest",
+            "(npm install -g ctx7@latest)",
+            "echo y | xargs npm install -g ctx7@latest",
+            "/usr/bin/npm install -g ctx7@latest",
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(held(command))
+        for command in (
+            "echo 'npm install -g ctx7@latest'",
+            "cat notes.txt; grep 'npm install -g ctx7@latest' README.md",
+            "pnpm install -g ctx7@latest",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(held(command))
+
     def test_a_path_keeps_out_the_closing_period(self):
         self.skill_with_tools("alpha", "Write")
         graders, _ = self.convert("alpha", ["Writes the record at docs/result.md."])

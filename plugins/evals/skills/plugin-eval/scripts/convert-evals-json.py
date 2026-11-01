@@ -32,8 +32,12 @@ samples instead:
                                                      maybe via an interpreter),
                                                      not echoed or read, when
                                                      the case grants Bash
-    Does not run `<command>` [itself]                the same, min 0, max 0,
-                                                     arm both
+    Does not run `<command>` [itself]                tool_used on Bash, min 0,
+                                                     max 0, arm both, catching
+                                                     the command anywhere a run
+                                                     could hide it (sudo, env,
+                                                     bash -c, xargs) but not
+                                                     after echo, cat or grep
     Names|Prints|Reports [the line] `<literal>`,
     Names|Points at /<plugin>:<skill>                regex over the final reply
     Writes|Creates the <thing> at|to|under <path>    file_exists on **/<path>,
@@ -424,22 +428,31 @@ def own_skill(ref, plugin, skills):
     return name if name in skills else None
 
 
-# Where a command can start inside a Bash call's JSON `command` value: its
-# start, or after a separator, then an optional interpreter and an optional
-# quoted or absolute directory before the first word. Text after `echo`, `cat`
-# or `grep` is a mention, not a run.
+# The two directions err opposite ways. A must-run grader credits only a
+# command that starts the value or follows a separator, after an optional
+# interpreter and a quoted or absolute directory, so a mention never passes it.
+# A must-not-run guard counts the words anywhere a run could hide them (sudo,
+# env, time, bash -c, a subshell, xargs), unless the segment since the last
+# separator starts with a command that only shows text, such as echo or grep.
 COMMAND_START = (
     r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n)\s*)?'
     r"(?:(?:python3?|bash|sh|node|npx|uv run)\s+)?(?:\\\"|')?(?:[^\s\"'\\]*/)?"
+)
+COMMAND_ANYWHERE = (
+    r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n))?'
+    r"(?!\s*(?:echo|printf|cat|grep|head|tail|less|more)\b)"
+    r'(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])'
 )
 # Between two words: whitespace, with an optional closing and opening quote.
 COMMAND_GAP = r"(?:\\\"|')?\s+(?:\\\"|')?"
 
 
-def command_match(command):
-    """input_match for a Bash call that runs these words as one command."""
+def command_match(command, ran):
+    """input_match for a Bash call that runs these words as one command:
+    strict for a must-run grader, broad for a must-not-run guard."""
     words = [regex_escape(word) for word in command.split()]
-    return COMMAND_START + COMMAND_GAP.join(words) + r"(?![^\s\"'\\;&|)])"
+    start = COMMAND_START if ran else COMMAND_ANYWHERE
+    return start + COMMAND_GAP.join(words) + r"(?![^\s\"'\\;&|)])"
 
 
 def bash(command):
@@ -453,6 +466,11 @@ def command_samples(command, ran):
         {"answer": bash(command), "why": "the command as written"},
         {"answer": bash(quoted.rstrip()), "why": "a quoted absolute path"},
     ]
+    if not ran:
+        present += [
+            {"answer": bash("sudo " + command), "why": "run under sudo"},
+            {"answer": bash("bash -c '%s'" % command), "why": "run through bash -c"},
+        ]
     absent = [
         {"answer": [], "why": "no Bash call"},
         {"answer": bash("echo unrelated"), "why": "another command"},
@@ -505,7 +523,7 @@ def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_
         if ran and "Bash" not in tools:
             return None
         lines = ["type: 'tool_used'", "tool: 'Bash'",
-                 "input_match: " + yaml_str(command_match(command), where)]
+                 "input_match: " + yaml_str(command_match(command, ran), where)]
         if not ran:
             lines += ["min: 0", "max: 0", "arm: 'both'"]
         return lines, command_samples(command, ran), None
