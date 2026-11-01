@@ -3846,7 +3846,12 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
   const { createRequire } = await import("node:module");
   const outputs = {};
   const core = { setFailed: (message) => assert.fail(message), info: () => {}, setOutput: (name, value) => (outputs[name] = value) };
-  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root } });
+  // The base's act-turns.mjs, which the copy step stages with its hash.
+  const module = fileURLToPath(new URL("../../scripts/lib/act-turns.mjs", import.meta.url));
+  const sha256 = createHash("sha256").update(readFileSync(module)).digest("hex");
+  await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, {
+    env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root, ACT_TURNS_MODULE: module, ACT_TURNS_SHA256: sha256 },
+  });
   assert.ok(/^[1-9][0-9]*$/.test(outputs.turns), outputs.turns);
   assert.ok(outputs.models, "the run's models are an output");
   const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
