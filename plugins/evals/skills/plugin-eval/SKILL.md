@@ -52,12 +52,9 @@ tmp_free:            <free space on the temp dir's filesystem> | unknown
 eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) | n/a
 ```
 
-`eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, and `n/a` on
-any other platform. **Refuse before any spend** when it is longer than 24 characters and any case
-requests `Bash` or `PowerShell`: the shell sandbox's sockets are created below `<dir>`, a Unix
-socket path holds at most 107 bytes, and past that limit every shell call fails while the run
-still exits 0 and scores. 24 is the longest length measured to work, not the failure point. The
-route is a shorter `<dir>`, for example `/run/user/<uid>/ev`.
+`eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, else `n/a`.
+**Refuse before any spend** when it is longer than 24 characters, the longest length measured to
+work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is a shorter `<dir>`, as in Run step 3.
 
 Preflight removes nothing and blocks on neither `leftover_sandboxes` nor `tmp_free`. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
 
@@ -120,7 +117,8 @@ Under Claude Code's worktree isolation a Bash guard can refuse the CLI; which se
 covers is in [records](reference/records.md#worktrees). It matters only when `run` or `init` invokes
 the CLI. Never retry, wrap, reroute, or otherwise bypass a refusal. Build the command with absolute
 paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; for `init`,
-`cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route that fits:
+`cd <absolute plugin root> && claude plugin eval init --bare <name>`. Take the first route that fits,
+and after a `run`, read the `--json` file back with the `read` action:
 
 1. A `run` in a session entered with `EnterWorktree`: ask the user whether to leave the worktree
    for it. Only on a yes, `ExitWorktree` with `keep`, run it, then `EnterWorktree` back by the
@@ -128,8 +126,6 @@ paths: for `run`, an absolute `<target>` and `--json` path inside the worktree; 
 2. A subagent: return the exact command to the caller, which takes these same routes.
 3. Otherwise print it for the user to run in a terminal outside Claude Code, or in a session
    started with plain `claude` (not `--worktree`) in the worktree.
-
-After a `run`, read the `--json` file back with the `read` action.
 
 Separately, the CLI refuses a plugin inside a repository with many linked worktrees (`registers
 more linked worktrees than can be screened`). Copy the plugin into a new empty directory outside
@@ -194,10 +190,7 @@ any spend: four cases at three runs and two arms is 4.8 USD. Once a suite has ru
 own last `costUsd` instead, estimating each arm from its own runs. Use 0.8 USD for a case's
 without-arm only when a kept trace shows that arm loading a large skill; a suite with no such trace
 is priced at 0.2 alone, and the older anchor is no caveat or risk to that estimate. An opus-judged
-run costs more; size it from its own first run. Re-derive the anchors in
-[records.md](reference/records.md#cost-anchors) from the last three passes when a Claude Code
-release note touches `plugin eval`, the model a run serves changes, or a pass averages more than
-0.2 USD per run.
+run costs more; size it from its own first run. When to re-derive the anchors: [records.md](reference/records.md#cost-anchors).
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -271,8 +264,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    the JSON is the only record of what happened.
 
 Where a harness guard other than the worktree refusal above blocks a Bash command containing the
-bare word `eval`, run the same command through the PowerShell tool instead. The command text is
-unchanged; only the tool differs.
+bare word `eval`, run the same command text, unchanged, through the PowerShell tool instead.
 
 ## Reading the delta
 
@@ -289,11 +281,10 @@ Read in this order. Stopping early at any step is the finding.
    delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
    `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
    fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of
-   the number; "post nothing" is not the instruction. A `harness failure:` reason means the
-   session never ran or had no working shell: report the run as a harness failure, never as the skill's
-   result or a null delta, whatever the CLI's exit code, and rerun by
-   [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). Exit 2 means the file
-   could not be read or an argument was wrong: say which. The steps below still apply to a VALID run.
+   the number; "post nothing" is not the instruction. Report a `harness failure:` reason as a
+   harness failure, never as the skill's result or a null delta, whatever the CLI's exit code, and
+   rerun by [Sandbox start](reference/sandboxes.md#sandbox-start). Exit 2 means the file could not
+   be read or an argument was wrong: say which. The steps below still apply to a VALID run.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
@@ -387,8 +378,7 @@ conditions that failed. Then remove the run's sandboxes, once its traces are no 
   tighten the rubric until it survives a rubric silent on form.
 4. Iterate on one case with `--case <name> --runs 1 --ablation none` (it reports `SCORE` and
   `PASS%`, no delta). One run is noisy, so confirm any change at 3 runs per case, the only repeat
-  count this repository sets
-  ([local-decisions.md, Repeat count](../methodology/reference/local-decisions.md#repeat-count)),
+  count this repository sets ([local-decisions.md, Repeat count](../methodology/reference/local-decisions.md#repeat-count)),
   and read the confirm's noise report before trusting it.
 5. Give each case one grader on the result and one on how the model got there (`tool_used` or
   `tool_order`). That pairing separates "the answer was right" from "the plugin is why".
@@ -417,8 +407,7 @@ must-fail case differ only in the sample text. `build` skips a grader that judge
 calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers
 an empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
 deterministic failure that needs no judge. The appended prompt does not reach a `focus: trace`
-judge. `--threshold 0` keeps the CLI's exit
-code about errors, since must-fail cases are meant to score 0.
+judge. `--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are meant to score 0.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
