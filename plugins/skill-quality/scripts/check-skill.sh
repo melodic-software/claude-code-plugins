@@ -1554,8 +1554,8 @@ plugin_case_tags_skill() {
     [[ -f "$d/case.yaml" ]] || continue
     grep -qE "$re" "$d/case.yaml" && return 0
     [[ -f "$d/prompt.md" ]] &&
-      awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { exit } { print }' "$d/prompt.md" |
-      grep -qE "$re" && return 0
+      grep -qE "$re" < <(awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { exit } { print }' "$d/prompt.md") &&
+      return 0
   done
   return 1
 }
