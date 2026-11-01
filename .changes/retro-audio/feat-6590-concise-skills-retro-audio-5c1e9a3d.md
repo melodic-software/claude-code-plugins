@@ -1,5 +1,7 @@
 ---
-bump: none
+bump: patch
 ---
 
-Adds frozen trigger probes for the music and sfx skills; no shipped skill text changes, so no release.
+### Added
+
+- Frozen trigger-probe sets for the two model-invoked skills (`music` and `sfx`, 20 probes each), for measuring description auto-invocation in a later round.
