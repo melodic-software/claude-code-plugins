@@ -2,15 +2,9 @@
   "skill": "verification:confirm",
   "plugin": "verification",
   "skill_dir": "plugins/verification/skills/confirm",
-  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are verification:measure (a measurable-improvement claim checked against a baseline taken before the change), toolchain:check (build, test and lint of changed files with no outcome judgment), toolchain:lint (lint and format feedback without a build), testing:run-e2e (driving the running app through UI or API flows and capturing evidence), review:quality-gate (a single-lens review of code, design, security or spec), testing:diagnose (root-causing and fixing failing tests) and testing:plan (which tests a change needs and where coverage is missing). confirm owns proving a finished change achieved its intended outcome: a mechanical build, test and lint prerequisite that stops when broken, then a check that the change matches its plan or intent and works, judged by change type (feature, fix, refactor).",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitor only: verification:measure (a measurable-improvement claim checked against a baseline taken before the change). confirm owns proving a finished change achieved its intended outcome: a mechanical build, test and lint prerequisite that stops when broken, then a check that the change matches its plan or intent and works, judged by change type (feature, fix, refactor).",
   "competitors": [
-    "verification:measure",
-    "toolchain:check",
-    "toolchain:lint",
-    "testing:run-e2e",
-    "review:quality-gate",
-    "testing:diagnose",
-    "testing:plan"
+    "verification:measure"
   ],
   "queries": [
     {

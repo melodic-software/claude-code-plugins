@@ -2,13 +2,9 @@
   "skill": "verification:measure",
   "plugin": "verification",
   "skill_dir": "plugins/verification/skills/measure",
-  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are verification:confirm (proving a change achieved its intended outcome after a build, test and lint prerequisite), performance:snapshot (qualifying a noisy host and capturing interleaved before/after snapshots against a performance goal), toolchain:ratchet (freezing a lint, suppression or telemetry count as a CI ceiling), testing:plan (which tests a change needs and where coverage gaps sit) and architecture:improve (scanning for shallow modules and seam leaks, then a design interview). measure owns checking a measurable-improvement claim against a baseline captured before the change: performance (wall time, memory, allocations, throughput, latency) or code metrics (complexity, coverage, coupling), each with a baseline phase and a compare phase, and an honest cannot-quantify when no baseline exists.",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitor only: verification:confirm (proving a change achieved its intended outcome after a build, test and lint prerequisite). measure owns checking a measurable-improvement claim against a baseline captured before the change: performance (wall time, memory, allocations, throughput, latency) or code metrics (complexity, coverage, coupling), each with a baseline phase and a compare phase, and an honest cannot-quantify when no baseline exists.",
   "competitors": [
-    "verification:confirm",
-    "performance:snapshot",
-    "toolchain:ratchet",
-    "testing:plan",
-    "architecture:improve"
+    "verification:confirm"
   ],
   "queries": [
     {
