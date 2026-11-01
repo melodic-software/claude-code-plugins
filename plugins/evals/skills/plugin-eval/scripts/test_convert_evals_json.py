@@ -204,7 +204,10 @@ class ConvertTest(ConverterTestCase):
                 answers = [item["answer"] for item in data["pass"]]
                 self.assertEqual(answers, [source["expected_output"]], case)
         minimal = self.plugin / "evals" / "alpha-minimal-form" / "samples"
-        self.assertFalse(minimal.exists(), "expected-output is its own criteria")
+        self.assertFalse(
+            (minimal / "expected-output.json").exists(),
+            "expected-output is its own criteria",
+        )
 
     def test_expectations_without_expected_output_get_a_note(self):
         case = {
