@@ -960,8 +960,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
-   (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
-   only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
+   (routed to a failing status and the `needs-session` queue) while any review thread is
+   unresolved, and skips `not-applicable` only when none is. While the PR carries `needs-session`
+   and the lanes App's address-feedback lane-stopped comment names this head with a reason routed
+   to it, an unresolved thread skips `awaiting-session` instead, so the stop stands without a
+   second escalation. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
    unresolved thread, so such a head reaches this step once: its lane-stopped check then ends the
    head, which a reply job's skip does not release. A failed reply job with no escalation reason
    (its lane token, a script error) stops as `feedback-publish-failed`, which `pr-unblock.yml`
