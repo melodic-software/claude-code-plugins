@@ -1443,9 +1443,11 @@ jobs:
       # pull request under the lane token, as the pin comment is posted, since
       # only the identity's unedited marker counts. Later checks count a
       # settled merge verified without reading its runs or its
-      # pr-merge-dispatched artifact, so the 30-day retention of that artifact
-      # no longer fails an old merge. A failed post is a warning: the merge is
-      # listed again on the next run's check.
+      # pr-merge-dispatched artifact, so only a settled merge stops depending
+      # on that artifact's 30-day retention. A merge with a red, superseded or
+      # flaked full run in its window is never settled and still needs it. A
+      # failed post is a warning: the merge is listed again on the next run's
+      # check.
       - name: Settle verified lane merges
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'

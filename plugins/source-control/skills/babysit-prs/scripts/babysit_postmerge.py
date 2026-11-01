@@ -2441,9 +2441,9 @@ def _judge(
         if not in_window(run):
             continue
         state, detail = ctx.outcome(run, attributable=True)
-        if state in (RED, SETTLED):
-            # A superseded red run reads settled only within the compare
-            # budget (`_Context.superseded`), so it is not final either.
+        if state in (RED, SETTLED, FLAKE):
+            # A superseded red run reads settled or flake only within the
+            # compare budget (`_Context.superseded`), so neither is final.
             final = False
         if state == RED:
             new = ctx.regressions(signal, run, merged_at)
@@ -2569,15 +2569,32 @@ def _judge(
     )
 
 
-def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
+def _lane_reruns(
+    ctx: _Context, now: datetime, tally: _Tally, *, list_schedule: bool = False
+) -> list[str]:
     """Mark each red attempt 1 of a lane-dispatched full run created within
     `_Context.lane_rerun_lookback`, with a newly failing check that demotes, for the
     lane's one re-run, newest first after any a judged merge marked. A run
     at attempt 2 is never marked again. The probe files no quarantine (the
     alert's `--judge-run` does), and a failed read is a warning, not an
-    unreadable verdict."""
+    unreadable verdict. With `list_schedule` (no judged merge listed the
+    full runs), schedule runs in the lookback are listed first, so a later
+    green one still settles a red run (`_Context.superseded`)."""
     excused = dict(ctx.quarantines)
     try:
+        if list_schedule:
+            ctx.held_full_runs.update(
+                (r.id, (SIGNAL_SCHEDULE, r))
+                for r in _runs(
+                    ctx.owner,
+                    ctx.name,
+                    FULL_RUN_WORKFLOW,
+                    "schedule",
+                    ctx.branch,
+                    now - ctx.lane_rerun_lookback(),
+                )
+                if ctx.on_branch(r) and not ctx.replaced(r)
+            )
         runs = _runs(
             ctx.owner,
             ctx.name,
@@ -2708,7 +2725,7 @@ def check(
         judged = [m for m in merges if m.number not in done]
         if not judged:
             if lane_merges_only:
-                warnings += _lane_reruns(ctx, now, tally)
+                warnings += _lane_reruns(ctx, now, tally, list_schedule=bool(done))
             return PostMergeVerdict(
                 True,
                 merges=tuple(_settled_state(m) for m in merges),

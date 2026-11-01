@@ -40,7 +40,7 @@
     "pr-merge-dispatched-*": {
       "retention-days": 30,
       "readers": [
-        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _Context.lane_dispatched (LANE_DISPATCH_ARTIFACT) reads the record of each dispatch run covering a lane merge not yet settled (a merge carrying the identity's babysit-merge-settled marker reads none), on every check, back to merged_since with no cursor; the run listing it reads from stops at RUN_SEARCH_CAP",
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _Context.lane_dispatched (LANE_DISPATCH_ARTIFACT) reads the record of each dispatch run covering a lane merge not yet settled (only a merge carrying the identity's babysit-merge-settled marker reads none; a merge with a red, superseded or flaked full run in its window is never settled and still reads it), on every check, back to merged_since with no cursor; the run listing it reads from stops at RUN_SEARCH_CAP",
         "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _lane_reruns reads records of runs created within confirm-wait-minutes plus FULL_RUN_ALLOWANCE",
         ".github/scripts/pr-merge/lane-records.mjs carries the records the post-merge check proved, each only until its artifact's expires_at, so the carry adds no lifetime"
       ],

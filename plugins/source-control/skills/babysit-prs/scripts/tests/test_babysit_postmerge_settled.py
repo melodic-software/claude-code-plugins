@@ -38,13 +38,16 @@ from test_babysit_postmerge import (  # noqa: E402
     OTHER_SHA,
     REPO,
     SINCE,
+    TIP_SHA,
     CheckCase,
     by,
     canary_run,
     dispatch_run,
+    failed_job,
     human,
     identity_merge,
     merged_pr,
+    schedule_run,
 )
 from test_babysit_postmerge import pin as pin_comment  # noqa: E402
 
@@ -292,6 +295,68 @@ class WhatGetsSettled(SettledCase):
         ]
         verdict = self.settled_check(now=datetime(2026, 10, 12, 18, 0, tzinfo=UTC))
         self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.report()["settle"], [])
+
+    def green_canary(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+
+    def test_a_pre_existing_red_run_in_the_window_is_not_listed(self) -> None:
+        # Schedule run 31, red again on the identity's re-run inside the
+        # window, fails only a check already failing on run 30 before the
+        # merge: charged to no merge, but a quarantine or baseline change
+        # could still charge it, so the merge stays unsettled.
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.green_canary()
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, head_sha=HEAD_SHA, created_at="2026-10-12T09:30:00Z"),
+            schedule_run(
+                31,
+                run_attempt=2,
+                triggering_actor=by(IDENTITY),
+                created_at="2026-10-12T10:02:00Z",
+            ),
+        )
+        self.gh.attempts[(31, 1)] = schedule_run(31, created_at="2026-10-12T10:02:00Z")
+        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
+        self.gh.jobs[(31, 2)] = [failed_job(312, "test-bash", "Run the bash tests")]
+        verdict = self.settled_check(now=SOON)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.unattributed)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.report()["settle"], [])
+
+    def test_a_superseded_red_run_in_the_window_is_not_listed(self) -> None:
+        # Red attempt 1 of run 11, then green run 12 on a later commit that
+        # descends from it: run 11 reads settled, within the compare budget.
+        self.gh.descendants.add(TIP_SHA)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure"),
+            dispatch_run(12, head_sha=TIP_SHA, created_at="2026-10-12T10:10:00Z"),
+        )
+        self.green_canary()
+        verdict = self.settled_check(now=SOON)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.reruns, ())
+        self.assertEqual(verdict.report()["settle"], [])
+
+    def test_a_flake_in_the_window_is_not_listed(self) -> None:
+        # Attempt 1 red, the identity's one re-run green.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, run_attempt=2),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.green_canary()
+        verdict = self.settled_check(now=SOON)
+        self.assertEqual(
+            verdict.flakes, (f"https://github.com/{REPO}/actions/runs/11",)
+        )
         self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
         self.assertEqual(verdict.report()["settle"], [])
 
