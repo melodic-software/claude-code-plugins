@@ -46,6 +46,10 @@
     {
       "answer": "## Slide 2: What customers said\n- Hartwell survey quote: [__]\n\n3. Decision\n- \"Keep or drop the Starter tier?\"\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
       "why": "a plain numbered item ends the quote section"
+    },
+    {
+      "answer": "1. Where we landed\n   - Q3 churn: [__]\n2. What customers said\n   - Hartwell quote: [__]\n3. Decision\n   - \"Keep or drop the Starter tier?\"",
+      "why": "in a compact numbered outline, the next numbered slide ends the quote section"
     }
   ],
   "fail": [
@@ -100,6 +104,10 @@
     {
       "answer": "## Slide 2: What customers said\n**Top themes**\n- \"I finally understand what I'm paying for.\"",
       "why": "an invented quote below a bold sub-label inside the quote section"
+    },
+    {
+      "answer": "1. Where we landed\n   - Q3 churn: [__]\n2. What customers said\n   - Top theme: pricing clarity\n   - \"I finally understand what I'm paying for.\"\n3. Decision\n   - Keep or drop the Starter tier.",
+      "why": "an invented quote inside the quote slide of a compact numbered outline"
     }
   ]
 }
