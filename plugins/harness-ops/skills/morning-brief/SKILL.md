@@ -1,7 +1,7 @@
 ---
 description: "Operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, loop-lane telemetry freshness, per CI lane the week's failures by class, limit stops, restarts and turn headroom, and model usage per activity and profile, owner touches per day, and whether anything on GitHub or Azure is charging or could start charging; never mutates issues, PRs, labels, comments, or billing and Azure settings. Use when: 'morning brief', 'ops dashboard', 'what needs attention', 'daily standup view', 'how do we monitor lane failures', 'which models do the lanes use', 'are we being charged'."
-argument-hint: "[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]"
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)"]
+argument-hint: "[precision] [--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N]"
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/review-precision.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/review-precision.mjs\":*)"]
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -11,7 +11,7 @@ metadata:
   cadence: daily
 ---
 
-**Arguments.** `[--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N] [--pr-limit N]`. Full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--stuck-days N] [--stuck-limit N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--touch-days N] [--owner-login L] [--lane-identity L] [--hold-label L] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
+**Arguments.** `[precision] [--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N]`. The `precision` action and its flags are under [Precision series](#precision-series). The brief's full form: [--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--decision-label L] [--stale-hours N] [--stranded-days N] [--stuck-days N] [--stuck-limit N] [--pr-limit N] [--lane-workflows A,B] [--lane-read-limit N] [--max-turns-hits N] [--touch-days N] [--owner-login L] [--lane-identity L] [--hold-label L] [--org ORG] [--subscription ID] [--actions-included-minutes N] [--actions-included-storage-gb N] [--usage-alert-percent N] [--log-cap-alert-percent N] [--forecast-alert N] [--required-budgets A,B] [--anomaly-alert NAME] [--expiry-days N] [--allowed-collaborators A,B] [--workflow-read-limit N] [--config-home DIR]. `--org` defaults to the repo's owner, `--subscription` to az's current subscription; the Cost section's other settings are described under "What each section reports". Read-only on GitHub and Azure; omit to view the current repo
 
 ## Pre-computed context
 
@@ -45,7 +45,8 @@ own.
 "${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
 ```
 
-Print the script's output verbatim; do not re-query the sections by hand.
+Print the script's output verbatim; do not re-query the sections by hand. When the first word of
+`$ARGUMENTS` is `precision`, run the precision series below instead of the brief.
 
 Pass the data dir on the command line: the script cannot read it from its
 environment under the Bash tool.
@@ -68,6 +69,17 @@ In the Cost section, an `ALERT` line is the one to act on: say what it shows is 
 could start charging. An `UNREADABLE` line names its fix: "org admin needed" wants `gh auth login`
 with an org admin account (who may call the billing endpoints: the usage pointer below), "install
 az" wants az installed, and "run az login" wants `az login`.
+
+## Precision series
+
+`precision [--since <date>] [--until <date>] [--repo owner/name] [--format md] [--save-snapshot <file>] [--snapshot <file>]`
+reports how each review-lane finding on the pull requests merged in a closed UTC window was
+answered, with reposts and rounds to pass, to tune the lanes. Read
+[context/precision.md](context/precision.md) before running it or reading its output, then run:
+
+```bash
+"${CLAUDE_SKILL_DIR}/scripts/review-precision.mjs" <the arguments after precision>
+```
 
 ## Untrusted content and the lethal trifecta
 
