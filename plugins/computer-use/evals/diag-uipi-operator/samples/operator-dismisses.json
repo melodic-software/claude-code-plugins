@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# The installer's admin prompt is blocking input\n\nThat error is UIPI: an elevated window (the installer's UAC consent prompt) holds the foreground, and Windows blocks synthesized input from a lower-integrity process. No grant overrides it.\n\n## Retrying will not help\n\nRetrying every minute won't help: every click will fail the same way until that window is gone. I'm not going to loop on it.\n\n## What you need to do\n\nYou need to approve or dismiss the UAC prompt yourself before you step away. Once it is gone, Claude can carry on.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Cause:** an elevated process, most likely the installer's administrator prompt, owns the foreground, so UIPI drops every synthesized click.\n\n**Retry?** No. This is not recoverable by retrying; nothing Claude sends will land.\n\n**Next step:** a person at the machine has to accept or close the elevation prompt. Then restart the run.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "- Error: UIPI. A higher-integrity window (the installer's admin consent prompt) is in front.\n- Do not retry: the click fails identically every time, so a retry loop would run all hour for nothing.\n- Hand-off: the operator must dismiss that prompt by hand; Claude cannot click it under any grant.",
+      "why": "list reply"
+    },
+    {
+      "answer": "Ask the operator to handle those windows.",
+      "why": "SKILL.md wording"
+    },
+    {
+      "answer": "Identify the window and ask the operator to dismiss it.",
+      "why": "reference wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Sure: I'll keep retrying the click every 60 seconds until it goes through.",
+      "why": "agrees to the retry loop"
+    },
+    {
+      "answer": "Grant Claude administrator access in Settings so it can click the prompt.",
+      "why": "wrong advice: a grant cannot override UIPI"
+    }
+  ]
+}
