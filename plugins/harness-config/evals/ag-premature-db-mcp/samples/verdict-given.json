@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | m1 | Postgres MCP server | mcp | REJECT | Premature: no database in the repo |"
+    },
+    {
+      "answer": "Verdict: CONDITIONAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "| 1 | m1 | Postgres MCP server | mcp | PASS | useful |",
+      "why": "passes it"
+    }
+  ]
+}

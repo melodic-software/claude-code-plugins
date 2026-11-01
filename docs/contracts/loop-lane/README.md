@@ -51,11 +51,9 @@ Merge authority is a configurable ladder with the safest rung shipped by default
 every PR except gate-proven C2-mechanical ones**. In the babysit loop's partition the exception is
 a *work-class* test, not an authorship test. There a PR qualifies only when the item classifies C2
 (mechanical), whether a bot, a human, or a worker authored it; bot authorship alone is never
-sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. **In the babysit loop's partition, no rung, no
-tracked config, and no invocation argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
-promotion contract, under which they never promote: "No merge rung reaches these cells, and no
-evidence predicate exists for them"
-([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
+sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. The partition's
+rungs admit classes up to C3, so C4 (structural) sits outside every rung. **C5 (untrusted-provenance)
+is the one class hold: no rung, no tracked config, and no invocation argument reaches it.**
 The pr-merge lane reads no class: it merges a pull request the lanes App opened for one closing
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
 too ([the pr-merge lane](../../conventions/pr-pipeline/README.md#the-pr-merge-lane),
@@ -67,7 +65,7 @@ no class caps its rung, its promotion evidence is read by rung, not class (`merg
 check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
 untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
-conflicts, answer review comments, and drive a PR to merge, and they are bounded by that C4/C5 floor
+conflicts, answer review comments, and drive a PR to merge, and they are bounded by the C5 hold
 regardless of rung name.
 
 This shipped default is itself the recorded baseline rung, versioned in this convention and in the
@@ -92,8 +90,8 @@ The one exception: an invocation whose own argument line explicitly types **both
 `autopilot` tier keyword **and** the dedicated raise argument `--merge c3-this-run` (each never
 inherited, never defaulted, never supplied by a config layer, never composed by a model on the
 caller's behalf), in a repository that has already adopted the baseline rung above, widens that
-single run's merge authority to cover every work class up to and including C3, still short of the
-unconditional C4/C5 floor. The pair is deliberate: `autopilot` predates the exception as a
+single run's merge authority to cover every work class up to and including C3, still bounded by
+the C5 hold. The pair is deliberate: `autopilot` predates the exception as a
 merge-inert tier keyword, so a saved invocation, alias, or expanded template that already carries
 it must acquire no merge authority. The tier keyword alone leaves the merge rung at its
 tracked-config value. `c3-this-run` exists for this exception alone, so its presence is never a leftover; it is
@@ -107,7 +105,7 @@ that config change; this exception only ever covers the one invocation that name
 mutually exclusive with a safer cap by grammar: every merge-dimension argument value other than
 `c3-this-run` only ever selects a lower rung, so an invocation naming `autopilot` and an explicit
 `human-only` merge rung merges nothing. The resolution order is tracked rung, then the paired
-raise, then the C4/C5 ceiling.
+raise, then the C5 hold.
 
 **The paired raise never widens an unattended merge.** The unattended merge path
 (`/source-control:babysit-prs`, the merge gate's `--unattended`) takes its rung only from tracked
@@ -116,8 +114,8 @@ files read at the pull request's base SHA and at the default branch head, the lo
 argument reaches it, so `autopilot --merge c3-this-run` widens a worker-tier run and never an
 unattended merge.
 
-**The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
-risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
+**The partition tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
+risk-property bundle, "not the task's surface description", so a lane implementing the partition derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's
 provenance, which "dominates every other property": a cross-repository head, or an author neither
 attested by the provider as an owner or member of the base repository nor attested by that
@@ -134,9 +132,9 @@ reference (`plugins/source-control/reference/config-resolution.md`,
 `babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor,
 migration, or contract change is C4
 however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
-to escalation. The floor's verdict attaches to the exact head SHA it examined: any push after the
+to escalation. The partition's verdict attaches to the exact head SHA it examined: any push after the
 verdict, whether the pre-escalation resolver's or the merge-capable worker's own fix, re-derives
-the verdict on the new head before any merge, so no head merges that the floor never examined.
+the verdict on the new head before any merge, so no head merges that the partition never examined.
 
 Every PR this exception reaches that is blocked on a **machine-escalated** `needs-human` item, a
 contradictory or security-relevant **machine-authored** review thread, or an open finding gets a

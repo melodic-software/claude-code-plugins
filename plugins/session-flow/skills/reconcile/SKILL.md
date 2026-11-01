@@ -1,5 +1,5 @@
 ---
-description: "Off-thread work retirement and task-ledger reconciliation: inspects each spawned item's real state, closes items proven done, reports siblings read-only. Gates killing running work. Use when: 'reconcile the session', 'retire finished work', 'square up the task ledger', 'is anything still running that should be retired', 'close out finished tasks', 'prune done work', 'reconcile the ledger'. Stuck is /session-flow:keep-going; status is /session-flow:orient; shutdown is /session-flow:clean-stop."
+description: "Retire finished off-thread work and reconcile the task ledger: inspect each spawned item's real state and close those proven done. Use when: 'reconcile the session', 'retire finished work', 'is anything still running'. Stuck work: /session-flow:keep-going."
 user-invocable: true
 disable-model-invocation: false
 metadata:

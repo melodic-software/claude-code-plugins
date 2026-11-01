@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/audit.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the entry point"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/permission-state.sh | bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/permission-merge.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the stages"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq .permissions .claude/settings.local.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand read"
+    }
+  ]
+}

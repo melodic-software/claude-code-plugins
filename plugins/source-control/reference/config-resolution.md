@@ -413,7 +413,7 @@ raise supplied by any of them is ignored and reported.
 convention's "one named, explicit paired-argument exception" (§1), an invocation whose own argument
 line types both the literal `autopilot` tier keyword and the explicit raise argument
 `--merge c3-this-run` widens *that single invocation's* merge dimension up to and including C3,
-still bounded by the unconditional C4/C5 floor (below). Either token alone does nothing to the
+still bounded by the C5 hold (below). Either token alone does nothing to the
 merge dimension: `autopilot` is a merge-inert tier keyword, so a saved invocation or template
 carrying it acquires no merge authority, and `c3-this-run` without the typed `autopilot` tier is
 reported and ignored. The pair is not a config value and is never persisted: the next invocation
@@ -424,7 +424,7 @@ precedence above. It requires baseline adoption (next paragraph) like every othe
 exclusive with the raise by grammar.** The sentence above ("an invocation argument may each select
 a *lower* (safer) rung … never a higher one") keeps its lower half intact for every `--merge` value
 other than `c3-this-run`, so `autopilot --merge human-only` merges nothing. The order is tracked
-rung → the paired raise → the C4/C5 ceiling below.
+rung → the paired raise → the C5 hold below.
 
 **No config layer or key ever supplies the exception's tokens.** The exception reads the literal
 tokens on the invocation line and nothing else: `babysit_loop_tier: autopilot` in any of the three
@@ -459,17 +459,19 @@ unpromoted when evidence is unavailable or unqualified
 Until that gate returns a qualified read, C2/C3 classes stay off the merge-eligible set regardless of
 `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
-**C4/C5 floor, unconditional.** No rung, no config key, and no invocation argument, including the
-explicit-`autopilot` exception above, ever grants merge authority over a `work-class: structural`
-(C4) or `work-class: untrusted-provenance` (C5) item. It is not a `babysit_loop_merge` value but a
-ceiling the resolved rung always composes under, per the autonomy matrix's "never promotes" cells
-(`work-classes.md#suggested-default-predicates`). Both classes are decided from the pull request,
-not the class stamped on the item it closes. C5 comes from the code's own provenance, because
+**C5 hold.** Untrusted provenance is the one work class that holds a merge: no rung, no config
+key, and no invocation argument, including the explicit-`autopilot` exception above, grants merge
+authority over a `work-class: untrusted-provenance` (C5) pull request. It is not a
+`babysit_loop_merge` value but a hold the resolved rung always composes under. The unattended merge
+gate enforces it in code (`trust_refusal` in `babysit_merge_policy.py`: a linked issue carrying a
+label naming untrusted work, or one a non-human removed) and refuses a fork head; the loop's rung
+partition derives C5 from the pull request, not the class stamped on the item it closes, because
 provenance "dominates every other property" (`work-classes.md`, `C5`): a cross-repository head, or
 a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
 `babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
-closed to C5 when its field is unavailable. C4 comes from the diff's blast radius, with a class/diff
-mismatch failing closed. **Never derive C5 by testing the PR author's login against
+closed to C5 when its field is unavailable. The rungs admit classes up to C3, and the partition
+compares the pull request's own class to the rung (the C4 diff veto: a diff that no longer matches
+its recorded class fails closed), so a C4 pull request sits outside every current rung. **Never derive C5 by testing the PR author's login against
 `babysit_watched_owners`.** That key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
 

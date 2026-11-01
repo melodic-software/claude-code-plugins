@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: wfh-grounding-howto
+description: "Gap probe for a grounding rule write-for-humans does not carry yet: introduce each concept before a sentence relies on it, or name it as assumed reader knowledge. Edge: the runbook's numbered steps use cordon, lease, grace period and fencing token, and the definitions sit in a notes block after the steps, so a how-to that keeps the runbook's order hands a new on-call engineer each term before saying what it means. Both arms are expected to score alike unless the skill already grounds terms; a with-arm fail is the evidence that would justify adding the rule"
+tags: [write-for-humans, grounding, gap-probe]
+runs: 3
+expected_outcome: "The fenced how-to introduces cordon, lease, grace period and fencing token at or before the first step or sentence that relies on each, or names a term as knowledge it assumes the reader has; all four commands and the 10 s renewal, drain.grace and 15 min default are kept"
