@@ -51,7 +51,7 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
 // The values rate-limits.json ships, which the guard plans to when that file
 // cannot be read, so a checkout that misses it still keeps every floor
-// (log-api-budget.test.mjs holds the two equal).
+// (rate-guard.test.mjs holds the two equal).
 const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1 };
 export const BUILT_IN_LIMITS = Object.freeze({
   "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2 },
