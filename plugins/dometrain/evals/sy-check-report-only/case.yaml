@@ -37,6 +37,6 @@ graders:
     arm: 'both'
   - name: 'reports-exit-code'
     type: 'regex'
-    pattern: '\bexit(?:ed)?(?:\s+(?:with\s+)?(?:code|status))?\b[\s:|=*`]*(?:(?:of|was|is|with)\s+)?[`*]*[012]\b(?![`*]*\s+(?:no drift|drift|unverifiable)\s*,\s*[`*]*[012]\b)'
+    pattern: '\bexit(?:ed)?(?:\s+(?:with\s+)?[`*]*(?:code|status))?\b[\s:|=*`]*(?:(?:of|was|is|with)\s+)?[`*]*[012]\b(?![`*]*\s+(?:no drift|drift|unverifiable)\s*,\s*[`*]*[012]\b)'
     flags: 'i'
     target: 'last_message'
