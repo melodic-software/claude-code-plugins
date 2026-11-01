@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.1] - 2026-11-01
+
+### Changed
+
+- `/planning:plan`'s agent-teams gate keeps its rule that teammates own disjoint files but no
+  longer restates how teammates share a checkout. It leaves the reason to its existing link to
+  the agent-teams page, rechecked on 2026-11-01.
+
 ## [0.136.0] - 2026-11-01
 
 ### Added

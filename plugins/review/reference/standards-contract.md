@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.1.1
+standards-contract: 1.1.2
 ---
 
 <!-- GENERATED from docs/contracts/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -201,9 +201,10 @@ and all repo-relative paths resolve against it.
    → use it: match task context against `Applies when` clues, load the
    matched files.
 4. Index absent → infer from repository context that is NOT auto-loaded:
-   docs directories, ecosystem configs, a standards location declared in
-   the consumer's `CLAUDE.md` (its ambient content is an inference source:
-   auto-loaded surfaces are never re-fetched). On a successful
+   docs directories, ecosystem configs, a `CODING_STANDARDS.md` and a
+   `CONTRIBUTING.md` at the resolution root, a standards location declared
+   in the consumer's `CLAUDE.md` (its ambient content is an inference
+   source: auto-loaded surfaces are never re-fetched). On a successful
    inference, OFFER to persist the finding (index bootstrap via setup, or
    the concern file); never write unprompted.
 5. Cannot infer, interactive session → ask once, then offer to persist
@@ -262,7 +263,8 @@ skills implement this section by reference; they do not restate it.
 **Bootstrap (first run, interactive):**
 
 1. Read state: concern file → index presence test → inference sources
-   (existing docs, ecosystem configs, ambient `CLAUDE.md` content).
+   (existing docs, ecosystem configs, a root `CODING_STANDARDS.md` and
+   `CONTRIBUTING.md`, ambient `CLAUDE.md` content).
 2. Short-circuit: a conforming index whose `standards-contract` version
    equals the bundled contract version → validate row paths, report
    healthy, exit without interview.

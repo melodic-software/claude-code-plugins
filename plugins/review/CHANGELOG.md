@@ -3,6 +3,13 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.3] - 2026-11-01
+
+### Security
+
+- The publish gate keeps a view local (and refuses the hosted page) when it carries an npm, Google API, Pulumi or Azure storage key, a JWT, Docker registry auth, a base64-encoded PEM block or a netrc password.
+- netrc passwords are caught in the `default` entry and on a `password` line of their own.
+
 ## [2.3.2] - 2026-11-01
 
 ### Changed
