@@ -35,6 +35,18 @@
         }
       ],
       "why": "files passed through a variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh \\\n  CLAUDE.md \\\n  services/billing/CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two files on continuation lines"
     }
   ],
   "fail": [
