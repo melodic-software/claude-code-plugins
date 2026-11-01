@@ -3177,7 +3177,10 @@ refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
+number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
+still closes. A sub-issue closed as not planned, as a duplicate or with no reason
 leaves the parent open. A split record covers the done-when when its parts number every item and
 match the filed sub-issues; a split by hand when its body has a task list whose open items each
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
@@ -3274,8 +3277,9 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
+| `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
-| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
+| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. Also the most immediate re-fires `report-outcome` makes of runs that stopped on stale workflow files, since a person last added `agent-ready` or a run last reported; past it, work-unblock's sweep re-fires them. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
 | `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
@@ -3395,7 +3399,11 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. Restarts, re-fires and relabels re-run issues already admitted and are never
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. A
+born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
+nothing else, waits with no write and uses none of that cap; a person's mark on such an issue instead
+comments why it is not admitted yet and removes `admission-deferred`, so the sweep admits it once the
+fields land. If the fields never land, the triage sweep sends it to intake. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 
