@@ -9,6 +9,10 @@
       "why": "harness script run with python after cd"
     },
     {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 \\\"/tmp/pressure-test-a1B2c3/harness.py\\\"\",\"description\":\"Run both variants\"}}]}}",
+      "why": "harness script run with python3 on a double-quoted path"
+    },
+    {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -c 'import csv, io; print(next(csv.reader(io.StringIO(\\\"7,x,3\\\"))))'\",\"description\":\"Run the csv variant\"}}]}}",
       "why": "variant run with python3 -c"
     }
