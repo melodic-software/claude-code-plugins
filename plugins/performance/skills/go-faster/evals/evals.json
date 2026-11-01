@@ -142,7 +142,7 @@
         "The sweeper never runs `gh run list`, `gh api` or `gh pr list` itself",
         "No command redirects or tees gh output to a file",
         "Every `findings.py add` call passes its JSON as a single-quoted `--json` argument in one plain command, never on stdin or through a heredoc; no JSON file is written and passed by path",
-        "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing",
+        "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing, except a pr-review delivery finding, whose command is `/work-items:measure-delivery`",
         "No number whose `samples` is 0 is recorded as measured"
       ],
       "difficulty": "hard",
@@ -254,6 +254,21 @@
       ],
       "difficulty": "routine",
       "source": "issue 7236"
+    },
+    {
+      "id": 17,
+      "name": "delivery-metrics-without-work-items-degrade",
+      "prompt": "/performance:go-faster, and how is our change lead time trending?",
+      "expected_output": "Setup: the work-items plugin is disabled, so /work-items:measure-delivery is not in the skill listing. The pr-review area keeps its pull request findings and adds a not checked delivery finding with owner-unavailable and the owner table's reason, which names the work-items plugin to enable; the sweeper computes no lead time from git itself and reads no work-items file.",
+      "files": [],
+      "expectations": [
+        "pr-review has a 'Not checked' finding with reason code owner-unavailable and the reason 'delivery metrics need /work-items:measure-delivery; enable the work-items plugin and rerun /performance:go-faster'",
+        "The sweeper reads no work-items file and runs none of its scripts, and records no change lead time it computed from git history itself",
+        "Every other area still has an outcome, and findings.json passes `findings.py validate`",
+        "The run finishes with a report; the missing owner does not end the sweep"
+      ],
+      "difficulty": "routine",
+      "source": "issue 11883"
     }
   ]
 }
