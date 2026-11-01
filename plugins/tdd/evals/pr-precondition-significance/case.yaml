@@ -5,7 +5,7 @@ graders:
     type: 'tool_used'
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
-    arm: 'both'
+    arm: 'with-only'
   - name: 'skips-technical'
     type: 'regex'
     pattern: '(?:\(b\)|^[\s>*_#|]*b[).:]|CsvRowParser|field[- ]count|Split\()(?:(?!\(a\)|^[\s>*_#|]*a[).:]|Account\.Withdraw|\byes\b)[\s\S]){0,160}?(?:(?:^|[\s:*|(—–-])no\b(?!\s+(?:harm|downside|reason|matter))|(?<!n[''’]t )(?<!not )\bskip\b|\bnot worth\b|\bunnecessary\b)'

@@ -5,7 +5,7 @@ graders:
     type: 'tool_used'
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
-    arm: 'both'
+    arm: 'with-only'
   - name: 'asserts-output'
     type: 'regex'
     pattern: '\boutput[- ]based\b|\b(?:assert|check|verify|compare|expect)\w*\b[^\n]{0,80}?\b(?:returned|return value|result|total|output)\b|\b(?:returned|return value|result|total|output)\b[^\n]{0,80}?\b(?:assert|check|verify|compare|expect)\w*\b'

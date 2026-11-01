@@ -5,7 +5,7 @@ graders:
     type: 'tool_used'
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
-    arm: 'both'
+    arm: 'with-only'
   - name: 'writes-first'
     type: 'regex'
     pattern: '\b(?:writes?|write operations?|state[- ]changing(?: operations?)?|mutations?|mutating operations?|commands?)\b[^\n]{0,100}?\b(?:first|priority|priorities|prioriti[sz]\w*|always|higher|more important|most important|top|thoroughly)\b|\b(?:start with|begin with|cover first|first cover|prioriti[sz]e|priority 1|top priority)\b[^\n]{0,60}?\b(?:writes?|write operations?|state[- ]changing|mutations?|commands?|CreateAccount|ChangeEmail|CloseAccount)\b'
