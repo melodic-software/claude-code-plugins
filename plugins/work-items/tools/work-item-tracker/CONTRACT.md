@@ -398,8 +398,8 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
   `features.list_items_label_filter: true` and puts the label in the provider query, so the
   ceiling counts labeled items only; it MAY match more loosely than exact, since core filters
   exactly afterward ("Verbs"), and it MAY refuse with exit `2` a label its provider cannot
-  hold. An adapter without the feature never receives `--label`. Every bundled adapter
-  declares it: github (`gh issue list --label`, which gh serves from the search API; that API
+  hold. An adapter without the feature never receives `--label`. Every bundled adapter and
+  seed declares it: github (`gh issue list --label`, which gh serves from the search API; that API
   returns at most 1000 results, so a labeled listing that reaches 1000 reports `truncated: true`), gitea (the `labels` query parameter), jira
   (a `labels = "<name>"` JQL clause), linear (a `labels.some.name.eq` issue filter), and
   local-markdown (filtered in its walk before the ceiling check).
@@ -428,7 +428,8 @@ Two independent resolutions, deliberately opposite:
   that exists, else `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/`, so a consuming repo runs the
   plugin's engine by default and a vendored copy still works.
 - **Adapters** (`adapters/<provider>/`): **consumer-local-first, plugin-bundled fallback; first match
-  wins.** For the bound `<provider>`, the dispatcher searches
+  wins.** The plugin bundles two adapters, `github` and `local-markdown`. For the bound
+  `<provider>`, the dispatcher searches
   `<repo root>/tools/work-item-tracker/adapters/<provider>/` first, then its own bundled
   `adapters/<provider>/`. The repo root is the same anchor the binding read resolved,
   `${CLAUDE_PROJECT_DIR}` when set, else the git toplevel, which can differ inside a worktree
@@ -436,6 +437,14 @@ Two independent resolutions, deliberately opposite:
   does not ship, or shadow a bundled adapter with a local copy it owns fully, without forking the
   plugin. `WIT_ADAPTERS_DIR` overrides the search with a single explicit adapter root (tests,
   conformance).
+- **Seeds** (`seeds/<provider>/`: `jira`, `gitea`, `linear`): **never dispatched from the plugin.**
+  `/work-items:setup apply` runs `seed-copy.sh <provider>`, which copies the seed into
+  `<repo root>/tools/work-item-tracker/adapters/<provider>/`, where the consumer owns it and the
+  consumer-local search above finds it. A binding to a seeded provider with no copy exits `3`
+  naming that setup step. The copy carries a `.seed-hash` record: on a re-run an untouched copy
+  fast-forwards to the current seed and an edited one prints its diff and is left as it is
+  (`seeds/README.md`). Versioning is the manifest's `schema_version` and the handshake below,
+  with no header in the copied files.
 
 The binding (`.work-item-tracker.json`) and any consumer-local adapters live in the consuming repo
 (the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
@@ -448,7 +457,8 @@ that adapter's own `../../lib` points at a seam copy the consumer never vendored
 `${WIT_SEAM_LIB_DIR}` instead resolves the libs of the engine actually dispatching it, the same
 engine its manifest handshook against a step earlier. A consumer-local adapter therefore does NOT
 require vendoring the seam. Bundled adapters resolve relatively and ignore it; an adapter run
-directly (outside the dispatcher) falls back to its own relative path.
+directly (outside the dispatcher) falls back to its own relative path. Seeds source it too, since a
+copied seed is a consumer-local adapter.
 
 ## JSON output contract
 
@@ -480,7 +490,7 @@ Normalized item object:
 - `state` is normalized lowercase: `open` | `closed`.
 - `created_at` is when the provider created the item, in UTC to the second
   (`YYYY-MM-DDTHH:MM:SSZ`), so values from one adapter sort as text; `null` when the
-  provider gives none or one the adapter cannot parse. Every bundled adapter reads the
+  provider gives none or one the adapter cannot parse. Every bundled adapter and seed reads the
   provider's own creation time (github `createdAt`, gitea `created_at`, jira `created`,
   linear `createdAt`); local-markdown records one at `create-item`, and its items created
   before that read `null`. Additive field: an adapter written before it emits none, which a
@@ -1106,7 +1116,7 @@ concurrent assignment is arbitrated cannot be settled without a live instance, a
 lease over last-write-wins loses races silently.
 
 Provider divergences that shaped it, each verified against the Gitea source rather than assumed
-from GitHub's API, and all documented in `adapters/gitea/README.md`:
+from GitHub's API, and all documented in `seeds/gitea/README.md`:
 
 - A pull request **is** an issue (`pull_request` populated); `list-items` drops them.
 - `create-item` takes label **IDs**, not names; the adapter resolves names first and refuses an
@@ -1156,6 +1166,10 @@ every suite-exercised path is pre-network (capabilities cats the manifest, write
 touch no network tool. The jira read verbs are covered offline by the adapter's own
 `*.test.sh` with a mocked curl; a live-Jira conformance pass is deferred to the work-laptop
 pass that settles the exact `statusCategory` "done" key and blocker link type.
+
+The dispatcher never resolves a seed from the plugin ("Adapter resolution"), so a conformance
+run against the `jira`, `gitea` or `linear` seed itself sets `WIT_ADAPTERS_DIR` to `seeds/`, as
+`bindings/jira.test.sh` does; with it unset, the run covers the consuming repo's copy.
 
 The `gitea` and `linear` bindings are **on-demand like GitHub's**, not offline like jira's:
 both manifests declare `create-item` true, so the suite seeds a real item and every case after

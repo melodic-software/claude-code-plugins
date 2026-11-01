@@ -552,9 +552,10 @@ DISPATCH_VERB_LIST="$({
 assert_eq "the generator's verb set is non-empty" "true" "$([[ -n "$ADAPTER_VERB_LIST" ]] && echo true || echo false)"
 assert_eq "ADAPTER_VERBS equals the dispatcher's verbs plus list-items" "$DISPATCH_VERB_LIST" "$ADAPTER_VERB_LIST"
 
-for f in "$SEAM"/adapters/*/capabilities.json "$SEAM"/adapters/*/adapter-spec.json; do
+for f in "$SEAM"/adapters/*/capabilities.json "$SEAM"/adapters/*/adapter-spec.json \
+  "$SEAM"/seeds/*/capabilities.json "$SEAM"/seeds/*/adapter-spec.json; do
   [[ -f "$f" ]] || continue
-  label="${f#"$SEAM"/adapters/}"
+  label="${f#"$SEAM"/}"
   assert_eq "$label carries exactly the adapter verbs" "$ADAPTER_VERB_LIST" \
     "$(jq -r '.verbs | keys[]' "$f" | tr -d '\r' | sort)"
   assert_eq "$label declares every verb as a boolean" "boolean" \

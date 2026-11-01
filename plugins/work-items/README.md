@@ -19,7 +19,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:ship                       # macro map over a spec container: status, shape, next step
 /work-items:ship run #300              # run the container's ready items under its shape (attended)
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
-/work-items:onboard-adapter gitea      # generate an adapter for an unbundled tracker
+/work-items:onboard-adapter youtrack   # generate an adapter for a tracker with no adapter or seed
 ```
 
 ## Skills
@@ -34,7 +34,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
 | `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
-| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters cover the majors. |
+| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters and seeds cover the majors. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows, inferring candidate items from the repo and interviewing per item, is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
 
 ## Naming
@@ -121,9 +121,12 @@ enough that one skill no longer predicts its contents.
   correctness: when it is missing, stop and surface that remediation instead
   of improvising a parse.
 - **The work-item-tracker seam.** The plugin **ships** the seam under
-  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`: the dispatcher, `lib/`, and the `github`,
-  `local-markdown`, `jira`, `gitea`, and `linear` adapters. The consuming repo declares only its
-  active provider, in `.work-item-tracker.json` at the repo root. Run `/work-items:setup` to write
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`: the dispatcher, `lib/`, and two bundled
+  adapters, `github` and `local-markdown`. The `jira`, `gitea`, and `linear` adapters ship as
+  seeds under `seeds/`: `/work-items:setup apply` copies the bound one into the consuming repo,
+  which owns the copy from then on. On a re-run, setup fast-forwards a copy nobody edited and
+  stops with the diff on one somebody did. The consuming repo declares its
+  active provider in `.work-item-tracker.json` at the repo root. Run `/work-items:setup` to write
   that file. A gitignored `.work-item-tracker.local.json` overlay beside it may carry the per-user
   lease TTL and the per-provider auth identity: `auth_email` and `auth_env` for jira, `auth_env`
   for linear, and `auth_env` for gitea. A repo
