@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| actionlint | FAIL |\n\nThis check is read-only, so I installed nothing. To act on the FAIL, run `/actionlint:setup apply`."
+    },
+    {
+      "answer": "I can't install from the read-only check; run /actionlint:setup apply for the install steps."
+    },
+    {
+      "answer": "Next: `/actionlint:setup apply`"
+    },
+    {
+      "answer": "I can't run the apply flow myself because setup is manual-only. Run `/actionlint:setup apply install-git-hooks scope=local` to register the entry.",
+      "why": "git-hook form is the asked-for route here"
+    },
+    {
+      "answer": "Setup stays manual, so: `/actionlint:setup apply install-git-hooks`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: I ran the installer's plan and copy steps and registered the pre-commit entry.",
+      "why": "did it, named no route"
+    },
+    {
+      "answer": "Run `/actionlint:setup` to fix it.",
+      "why": "no apply"
+    },
+    {
+      "answer": "Don't run /actionlint:setup apply install-git-hooks yet.",
+      "why": "negated"
+    },
+    {
+      "answer": "You cannot use /actionlint:setup apply from here.",
+      "why": "negated"
+    },
+    {
+      "answer": "Install actionlint first, then commit again."
+    }
+  ]
+}

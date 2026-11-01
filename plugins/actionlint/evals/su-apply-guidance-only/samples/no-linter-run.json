@@ -1,0 +1,195 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=${CLAUDE_PLUGIN_ROOT}/../actionlint && ls \"$R/skills\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "assignment holding a path ending in actionlint (the pilot regression)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/opt/plugins/actionlint; cat \"$R/README.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "assignment then read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint node",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading the entry (setup:49)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .github/actionlint.yaml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "config path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -40 ${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reading the hook"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bare run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -oneline .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/proj && actionlint -shellcheck= -pyflakes=",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/tools/bin/actionlint .github/workflows/release.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\" --worktree",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the git-hook entry run by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh ${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "entry under sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' | bash \"${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh\" --end-of-turn",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "the Stop hook run by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint && actionlint .github/workflows/*.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe then run"
+    }
+  ]
+}

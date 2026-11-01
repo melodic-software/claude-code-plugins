@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "All checks pass. Already configured; nothing changed."
+    },
+    {
+      "answer": "Everything is already in place, so apply changed nothing."
+    },
+    {
+      "answer": "actionlint is missing. Install it with a method from https://github.com/rhysd/actionlint/blob/main/docs/install.md, then rerun the check."
+    },
+    {
+      "answer": "FAIL: actionlint. See github.com/rhysd/actionlint for install options."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I installed actionlint for you."
+    },
+    {
+      "answer": "Done."
+    },
+    {
+      "answer": "actionlint is missing; install it.",
+      "why": "no guide and no 'already configured'"
+    }
+  ]
+}

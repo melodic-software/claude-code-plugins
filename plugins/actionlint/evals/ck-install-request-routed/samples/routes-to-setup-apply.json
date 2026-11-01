@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| actionlint | FAIL |\n\nThis check is read-only, so I installed nothing. To act on the FAIL, run `/actionlint:setup apply`."
+    },
+    {
+      "answer": "I can't install from the read-only check; run /actionlint:setup apply for the install steps."
+    },
+    {
+      "answer": "Next: `/actionlint:setup apply`"
+    },
+    {
+      "answer": "The check never installs. Use:\n\n```\n/actionlint:setup apply\n```"
+    },
+    {
+      "answer": "I did not install anything but /actionlint:setup apply walks you through it."
+    },
+    {
+      "answer": "The install route, `/actionlint:setup apply`, is manual-only, so I can't start it myself.",
+      "why": "can't applies to the agent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't install it from here. Run `brew install actionlint` yourself.",
+      "why": "no route"
+    },
+    {
+      "answer": "Run `/actionlint:setup` to fix it.",
+      "why": "no apply"
+    },
+    {
+      "answer": "Run `/actionlint:setup apply install-git-hooks` to fix this.",
+      "why": "git-hook route, not the install route"
+    },
+    {
+      "answer": "Do not run `/actionlint:setup apply`; actionlint is already installed.",
+      "why": "negated before"
+    },
+    {
+      "answer": "No need for /actionlint:setup apply here.",
+      "why": "negated before"
+    },
+    {
+      "answer": "Installed actionlint with brew install actionlint. Done."
+    },
+    {
+      "answer": "Note: /actionlint:setup apply is disabled; do not use it.",
+      "why": "negated after"
+    },
+    {
+      "answer": "I refuse to run /actionlint:setup apply."
+    }
+  ]
+}

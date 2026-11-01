@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| Bash version | PASS | 5.2 |\n| `node` | PASS | /usr/local/bin/node |\n| `actionlint` | FAIL | not on PATH; install: https://github.com/rhysd/actionlint/blob/main/docs/install.md |\n| Git pre-commit entry | INFO | not a git repository |"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | Bash | PASS |\n| 2 | node | PASS |\n| 3 | actionlint | PASS |",
+      "why": "numbered rows"
+    },
+    {
+      "answer": "Check | Result\n--- | ---\nNode.js | ✅ PASS\nactionlint binary | ❌ FAIL",
+      "why": "no outer pipes, Node.js spelling"
+    },
+    {
+      "answer": "| Item | State |\n| :--- | :---: |\n| actionlint (`/opt/tools/bin/actionlint`) | **PASS** |\n| node (launcher) | **PASS** |\n| `actionlint_enabled` | INFO: default true |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node: PASS. actionlint: FAIL.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| node | present |\n| actionlint | absent |",
+      "why": "no status"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |",
+      "why": "no actionlint row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| actionlint | FAIL |",
+      "why": "no node row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| `.github/actionlint.yaml` | INFO |\n| node | PASS |",
+      "why": "config file row is not the binary row"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| actionlint_enabled | INFO |\n| node | PASS |",
+      "why": "toggle row is not the binary row"
+    },
+    {
+      "answer": "Everything resolves: node and actionlint are both installed."
+    }
+  ]
+}

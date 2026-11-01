@@ -1,0 +1,114 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node; command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "two names in one probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint || echo absent",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -a actionlint",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "node only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/git-hooks/actionlint-check.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reads the script, probes nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /opt/plugins/actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "path, not a probe"
+    }
+  ]
+}

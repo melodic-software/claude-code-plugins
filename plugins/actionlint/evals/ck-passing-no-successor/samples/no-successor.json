@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |\n| Git pre-commit entry | INFO | not a git repository |\n\nEverything the hook needs resolves. Nothing to do.",
+      "why": "passing, no route"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |\n\nAll prerequisites pass, so there is no need to run /actionlint:setup apply.",
+      "why": "route only negated"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | FAIL |\n\nTo act on the FAIL, run `/actionlint:setup apply`.",
+      "why": "a FAIL row makes the route legitimate"
+    },
+    {
+      "answer": "Check | Result\n--- | ---\nnode | ✅ PASS\nactionlint | ❌ not on PATH\n\nRun /actionlint:setup apply for install guidance.",
+      "why": "a cross mark counts as a failing row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |\n\nNext, run `/actionlint:setup apply` to finish configuring it.",
+      "why": "successor after a passing check"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |\n| Git pre-commit entry | INFO | not a git repository |\n\nWhen you're in a repository, run /actionlint:setup apply install-git-hooks to register the entry.",
+      "why": "git-hook successor after a passing check"
+    },
+    {
+      "answer": "All good. Then /actionlint:setup apply to lock it in."
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| node | PASS |\n| actionlint | PASS |\n\nNothing here will fail a commit. Next: `/actionlint:setup apply`.",
+      "why": "the word fail in prose is not a FAIL row"
+    }
+  ]
+}

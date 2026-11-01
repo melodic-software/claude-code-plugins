@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: su-apply-reprobe-live
+graders:
+  - name: 'probes-actionlint'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(])(?:[^\s"\\;&|=]*/)?actionlint\s+-{1,2}version\b)'
+    min: 1
+    arm: 'both'
+  - name: 'no-install'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:install|reinstall|add|upgrade|i)\b|\bpacman\s+-S|\bgo\s+install\b|\b(?:mise|asdf|rtx|aqua)\s+(?:install|use|plugin\s+add)\b|\bnix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|\bdocker\s+(?:pull|run)\b|\b(?:curl|wget)\b(?:[^"\\]|\\.)*?\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b|\b(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'reports-probe-result'
+    type: 'regex'
+    pattern: '^(?=[^\n]*actionlint(?![\w.\-/:]))[^\n]*?(?:\b(?:PASS|FAIL|found|present|absent|missing|resolves?|resolved to|installed at|not on (?:the )?PATH|on (?:the )?PATH)\b|✅|❌)'
+    flags: 'm'
+    target: 'last_message'

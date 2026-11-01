@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Hook toggle | INFO | `actionlint_enabled`: true (default) |"
+    },
+    {
+      "answer": "- actionlint_enabled is unset, so the default true applies; actionlint_end_of_turn is off."
+    },
+    {
+      "answer": "| actionlint_enabled | PASS | enabled |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Hook toggle | INFO | default |",
+      "why": "option not named"
+    },
+    {
+      "answer": "The actionlint_enabled option controls the hooks.",
+      "why": "named, no value"
+    },
+    {
+      "answer": "Hooks are on."
+    }
+  ]
+}

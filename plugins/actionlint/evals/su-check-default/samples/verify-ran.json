@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}
