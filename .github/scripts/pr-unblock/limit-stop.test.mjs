@@ -245,11 +245,17 @@ test("the lane-outcome record in output.text is read before the legacy summary l
   assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth", resets: undefined })), ended + 5 * HOUR);
 });
 
+test("a key the reader does not know, top level or nested, is ignored and the record still read", () => {
+  const extra = { ...RECORD, laterField: { note: "a } in a string" }, resets: { ...RECORD.resets, laterNested: 1 } };
+  assert.equal(limitResetsAt(withText(extra, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
+});
+
 test("with no record, or an unreadable one, the legacy summary line is read", () => {
   assert.equal(limitResetsAt(posted(LIMIT_LINE)), Date.parse("2026-10-17T13:00:00Z"));
   for (const [label, record] of [
     ["another v", { ...RECORD, v: 2 }],
-    ["an unknown key", { ...RECORD, host: "runner-1" }],
+    ["a malformed known key", { ...RECORD, turns: "4" }],
+    ["a malformed nested key", { ...RECORD, resets: { at: "tomorrow" } }],
     ["a value-shaped secret", { ...RECORD, credential: { secret: "sk-ant-abc", kind: "api-key" } }],
     ["a kind that disagrees with the secret", { ...RECORD, credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "api-key" } }],
     ["a class outside the enum", { ...RECORD, class: "rate limited" }],

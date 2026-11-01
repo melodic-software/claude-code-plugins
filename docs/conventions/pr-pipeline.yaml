@@ -1379,6 +1379,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/pr-unblock/limit-stop.mjs"
         class: enforcement
+      - glob: ".github/scripts/lib/lane-outcome.mjs"
+        class: enforcement
       - glob: ".github/scripts/pr-unblock/dispatch-record.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/verify-cap.mjs"

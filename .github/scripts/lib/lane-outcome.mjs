@@ -1,7 +1,8 @@
 // The lane-outcome record v1 (ci-workflows docs/lane-outcome.md), read back
-// closed: every key must be known and every value a closed enum, a fixed
-// pattern or a count, so no value, hostname, path or email can pass. A record
-// that breaks any rule, or names another `v`, is no record and the reader
+// with every known field a closed enum, a fixed pattern or a count, so no
+// value, hostname, path or email can pass. Unknown keys are dropped, as the
+// contract's Compatibility rules let v1 add fields. A record whose known field
+// breaks its rule, or that names another `v`, is no record and the reader
 // falls back to the legacy summary line. `activity` is the hub's own addition,
 // written by report-check-run from its runner input.
 
@@ -29,21 +30,38 @@ const count = (max = Number.MAX_SAFE_INTEGER, min = 0) => (value) => Number.isSa
 const matches = (pattern) => (value) => typeof value === "string" && pattern.test(value);
 const oneOf = (set) => (value) => set.has(value);
 const nullable = (check) => (value) => value === null || check(value);
-// An object whose every key is in `fields` and passes its check, with the
-// `required` keys present.
-const shape = (fields, required = []) => (value) =>
-  isObject(value) &&
-  required.every((key) => key in value) &&
-  Object.entries(value).every(([key, field]) => Object.hasOwn(fields, key) && fields[key](field));
+// An object with the `required` keys present and every key in `fields`
+// passing its check, as a copy holding only those keys, or false. A key it
+// does not know is dropped, since v1 adds fields within the version.
+const shape = (fields, required = []) => (value) => {
+  if (!isObject(value) || !required.every((key) => Object.hasOwn(value, key))) {
+    return false;
+  }
+  const kept = {};
+  for (const [key, check] of Object.entries(fields)) {
+    if (!Object.hasOwn(value, key)) {
+      continue;
+    }
+    const result = check(value[key]);
+    if (result === false) {
+      return false;
+    }
+    kept[key] = result === true ? value[key] : result;
+  }
+  return kept;
+};
 
 const calls = shape({ requests: count(), graphql: count(), notModified: count() }, ["requests", "graphql", "notModified"]);
 const window = shape({ utilization: (v) => typeof v === "number" && v >= 0 && v <= 1, resetsAt: matches(ISO), status: oneOf(STATUSES) }, ["status"]);
+const credentialShape = shape({ secret: matches(SECRET), kind: oneOf(new Set(["oauth-token", "api-key"])), role: matches(/^[A-Z][A-Z0-9_]{0,99}$/) }, ["secret", "kind"]);
+// The kind and role must agree with the secret name.
 const credential = (value) => {
-  if (!shape({ secret: matches(SECRET), kind: oneOf(new Set(["oauth-token", "api-key"])), role: matches(/^[A-Z][A-Z0-9_]{0,99}$/) }, ["secret", "kind"])(value)) {
+  const kept = credentialShape(value);
+  if (!kept) {
     return false;
   }
-  const [, tokenRole, keyRole] = SECRET.exec(value.secret);
-  return value.kind === (keyRole ? "api-key" : "oauth-token") && (value.role === undefined || value.role === (keyRole ?? tokenRole));
+  const [, tokenRole, keyRole] = SECRET.exec(kept.secret);
+  return kept.kind === (keyRole ? "api-key" : "oauth-token") && (kept.role === undefined || kept.role === (keyRole ?? tokenRole)) && kept;
 };
 
 const RECORD = shape(
@@ -79,19 +97,23 @@ const RECORD = shape(
   ["v", "lane", "outcome", "credential"],
 );
 
-// `value` when it is a closed v1 record within 1,024 characters (the
-// `activity` key aside), else null. A failure must name its class.
+// The v1 record in `value` with only its known, validated fields, or null
+// when a known field is out of shape, `v` is not 1, a failure names no
+// class, or the kept record (the `activity` key aside) passes 1,024
+// characters.
 export function validRecord(value) {
-  if (!RECORD(value) || (value.outcome !== "success" && !("class" in value))) {
+  const kept = RECORD(value);
+  if (!kept || (kept.outcome !== "success" && !Object.hasOwn(kept, "class"))) {
     return null;
   }
-  const { activity, ...record } = value;
-  return JSON.stringify(record).length <= MAX_LENGTH ? value : null;
+  const { activity, ...record } = kept;
+  return JSON.stringify(record).length <= MAX_LENGTH ? kept : null;
 }
 
-// The first record after the marker in `text`, or null. Every value the
-// record admits excludes "}", so the shortest prefix ending at a "}" that
-// parses is the JSON, whatever free text follows it.
+// The first record after the marker in `text`, or null. A prefix that ends
+// at a "}" inside a string or a nested object does not parse, so the
+// shortest prefix ending at a "}" that parses is the JSON, whatever free
+// text follows it.
 export function readRecord(text) {
   const at = String(text ?? "").indexOf(MARKER);
   if (at < 0) {
