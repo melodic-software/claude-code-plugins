@@ -13,6 +13,14 @@
     {
       "answer": "I skipped the register check since you have no style reference yet.",
       "why": "skip before register"
+    },
+    {
+      "answer": "Register: skipping, no voiceprint on file yet.",
+      "why": "skipping form"
+    },
+    {
+      "answer": "Skipping register: there's no voiceprint for you.",
+      "why": "skipping before register"
     }
   ],
   "fail": [
@@ -42,6 +50,10 @@
     {
       "answer": "Register: I won't skip this one, \"delight\" is too formal.",
       "why": "refuses to skip the gate"
+    },
+    {
+      "answer": "Register: I'm not skipping this, \"delight\" is too formal.",
+      "why": "negated skipping"
     }
   ]
 }
