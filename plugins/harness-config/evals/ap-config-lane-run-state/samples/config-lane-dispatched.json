@@ -1,0 +1,68 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit",
+            "args": "all"
+          }
+        }
+      ],
+      "why": "bare with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-pass",
+            "args": "--lanes config"
+          }
+        }
+      ],
+      "why": "the pass itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-instructions"
+          }
+        }
+      ],
+      "why": "a different lane"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh\" --table --out .work/harness-config-audit/findings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran the engine directly instead of the skill"
+    }
+  ]
+}

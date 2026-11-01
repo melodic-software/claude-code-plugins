@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/audit-instructions/abc123/last-audit.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the persisted report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/audit-instructions/runs/abc123/20261101T120000Z/lanes/lane-1.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a lane report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites root CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/services/billing/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites nested CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/release-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites a skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/rules/style.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "adds a rule"
+    }
+  ]
+}

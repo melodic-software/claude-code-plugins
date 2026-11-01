@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "OPINION tier: 3 checks available, 3 not run; pass `--opinion` to enable."
+    },
+    {
+      "answer": "Run with --opinion to include the opinion-tier checks."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Opinion-tier checks are off by default.",
+      "why": "no argument named"
+    }
+  ]
+}

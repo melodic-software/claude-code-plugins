@@ -2,8 +2,8 @@
   "skill": "skill-quality:check",
   "plugin": "skill-quality",
   "skill_dir": "plugins/skill-quality/skills/check",
-  "ranking_note": "Seed skill: high sibling-intent density (setup, skill-authoring, listing-budget). Fleet starvation ranking is a live-session input this CI harness does not have; replace the seed when an audit-skill-visibility report is in hand.",
-  "competitors": ["playbooks:skill-authoring"],
+  "ranking_note": "Seed skill: high sibling-intent density (setup, check-prerequisites, listing-budget). Same-plugin competitors only: skill-quality:check-prerequisites (whether the plugin's own tools resolve) and skill-quality:setup (first-run configuration). Fleet starvation ranking is a live-session input this CI harness does not have; replace the seed when an audit-skill-visibility report is in hand.",
+  "competitors": ["skill-quality:check-prerequisites", "skill-quality:setup"],
   "queries": [
     {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "check this skill before I publish it"},
     {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "will this SKILL.md load without frontmatter errors"},

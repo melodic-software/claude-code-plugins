@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | B, Permissions | error | Deny rule placed in `settings.local.json`, where it is ignored | `permissions.deny: [\"Bash(rm -rf:*)\"]` | Move it to settings.json |"
+    },
+    {
+      "answer": "The deny rule `Bash(rm -rf:*)` lives in .claude/settings.local.json, which bug #8961 leaves inert."
+    },
+    {
+      "answer": "settings.local.json carries 1 deny rule; deny rules there are ignored, so move it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "settings.local.json is valid JSON with 2 keys.",
+      "why": "names the file, not the deny rule"
+    },
+    {
+      "answer": "Add deny rules for Read(./.env) to settings.json.",
+      "why": "a different deny finding"
+    }
+  ]
+}
