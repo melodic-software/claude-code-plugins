@@ -2474,9 +2474,7 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             .github/actions/open-lane-output
-            .github/actions/scan-upload
             .github/lane-keys
-            lib
 
       - name: Read the scan-carrier key id
         id: key
@@ -2659,6 +2657,44 @@ jobs:
             } catch (error) {
               core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
             }
+
+      # The upload scanner and its gate, from the default branch tip through
+      # the API (as leak-scan loads the gate), into a fresh directory under
+      # RUNNER_TEMP: the gated head's checkout next replaces the workspace,
+      # .base included, so no scan here loads code from it. It runs on every
+      # run, a gate stop included, since the verdict upload follows its scan;
+      # a failure here leaves no scanner, and that scan then withholds the
+      # verdict.
+      - name: Stage the upload scanner
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          retries: 2
+          retry-exempt-status-codes: 400,401,403,404,422,429
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const branch = context.payload.repository?.default_branch;
+            if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+            const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
+            if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+            const dest = path.join(process.env.RUNNER_TEMP, 'scan-gate');
+            fs.mkdirSync(dest);
+            // The scanner may import node: builtins and the gate; the gate only builtins.
+            const files = [
+              ['lib/publish-gate.mjs', []],
+              ['.github/actions/scan-upload/scan-upload.mjs', ['../../../lib/publish-gate.mjs']],
+            ];
+            for (const [file, allowed] of files) {
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: tip });
+              const source = Buffer.from(data.content, 'base64').toString('utf8');
+              const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
+              if (specifiers.some((name) => !name.startsWith('node:') && !allowed.includes(name))) throw new Error(`${file} imports more than it may`);
+              fs.mkdirSync(path.join(dest, path.dirname(file)), { recursive: true });
+              fs.writeFileSync(path.join(dest, file), source, { flag: 'wx', mode: 0o444 });
+            }
+            core.info(`upload scanner from ${tip}`);
 
       # The gated head's objects, fresh: the patch applies onto them; in
       # issue mode the start commit the issue step checked. A merge-base
@@ -3043,9 +3079,9 @@ jobs:
       # verdict, which the report job reads as a failure.
       - name: Scan the upload for credentials
         id: scan-upload
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/verdict/verdict.json
+        env:
+          SCAN_PATHS: ${{ runner.temp }}/verdict/verdict.json
+        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
 
       - name: Upload the verdict
         if: steps.scan-upload.outputs.clean == 'true'

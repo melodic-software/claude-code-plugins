@@ -262,6 +262,19 @@ run_case "an if: with text around \${{ }} is always true, so it gates nothing" 1
   "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (\${{ always() }}) && steps.scan-patch.outputs.clean == '" \
   "has no scan before it"
 
+run_case "a top-level || beside the clean output gates nothing" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: always() || steps.scan-patch.outputs.clean == '" \
+  "has no scan before it"
+
+run_case "an upload that runs when its scan step does not fails" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (always()) && steps.scan-patch.outputs.clean == '" \
+  "has no scan before it"
+
+run_case "the upload's condition repeats its scan step's if:, parenthesized" 0 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (always() && inputs.go) && steps.scan-patch.outputs.clean == ' && subst $WORKFLOW '      - id: scan-patch' '      - id: scan-patch
+        if: always() && inputs.go'" \
+  "check-artifact-retention: 4 upload step(s) match"
+
 run_case "a plaintext family with no scan step before the seal fails" 1 \
   "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs'" \
   "$ACTION:9: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"

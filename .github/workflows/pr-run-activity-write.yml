@@ -709,6 +709,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # The upload scanner and its gate, copied out of the default branch tip
+      # before the head checkout replaces .base: the scans below run it from
+      # RUNNER_TEMP, never from files head code or the model can write. A
+      # failure here leaves no scanner, and each scan then withholds its upload.
+      - name: Stage the upload scanner
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          dest="$RUNNER_TEMP/scan-gate"
+          mkdir "$dest"
+          mkdir -p "$dest/lib" "$dest/.github/actions/scan-upload"
+          cp .base/lib/publish-gate.mjs "$dest/lib/"
+          cp .base/.github/actions/scan-upload/scan-upload.mjs "$dest/.github/actions/scan-upload/"
+          chmod -R a-w "$dest"
+
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1833,11 +1848,11 @@ jobs:
         id: scan-upload
         if: >-
           always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: |
+        env:
+          SCAN_PATHS: |
             ${{ runner.temp }}/skill-reply/reply.txt
             ${{ runner.temp }}/skill-reply/act-turns.json
+        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
 
       - name: Upload the skill's final reply
         if: >-
@@ -2180,11 +2195,11 @@ jobs:
         id: scan-upload-2
         if: >-
           inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch' && steps.act-script.outcome == 'success' && steps.act-script.outputs.branch != ''
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: |
+        env:
+          SCAN_PATHS: |
             ${{ runner.temp }}/work-outcome/lane.json
             ${{ runner.temp }}/work-outcome/work-outcome.json
+        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
 
       - name: Upload the named issue outcome
         if: >-
@@ -2255,9 +2270,9 @@ jobs:
         id: scan-upload-3
         if: >-
           always()
-        uses: ./.base/.github/actions/scan-upload
-        with:
-          path: ${{ runner.temp }}/verdict/verdict.json
+        env:
+          SCAN_PATHS: ${{ runner.temp }}/verdict/verdict.json
+        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
 
       - name: Upload the verdict
         if: >-

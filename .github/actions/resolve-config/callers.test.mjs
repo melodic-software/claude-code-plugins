@@ -2802,13 +2802,6 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   for (const action of ["seal-lane-output/seal.mjs", "open-lane-output/open.mjs"]) assert.match(read(`../${action}`), /env\.GITHUB_RUN_ID/, action);
   for (const step of scan.steps) {
     assert.doesNotMatch(String(step.uses ?? ""), /^actions\/(cache|download-artifact)@/, step.name);
-    // One more exception: the verdict's pre-upload scan, from the
-    // default-branch .base checkout, which receives no secret.
-    if (step.id === "scan-upload") {
-      assert.equal(step.uses, "./.base/.github/actions/scan-upload");
-      assert.equal(stepSecrets(step).length, 0, `${step.name}: no secret`);
-      continue;
-    }
     if (step.id !== "open") assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no other action from a checkout`);
   }
   // Payloads reach a script only through env, never inlined.
@@ -7422,4 +7415,42 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
     }
   }
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
+});
+
+// A checkout with no path: replaces the workspace, .base included, so an
+// action loaded from ./.base/ after it is head code.
+test("no job loads an action from ./.base/ after a checkout that replaced it", () => {
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      let replaced = null;
+      for (const step of job.steps ?? []) {
+        const uses = String(step.uses ?? "");
+        if (uses.startsWith("actions/checkout@")) {
+          if (step.with?.path === ".base") replaced = null;
+          else if (!step.with?.path) replaced = step.name;
+        }
+        if (replaced !== null && uses.startsWith("./.base/")) assert.fail(`${file} ${id}: ${step.name} loads ${uses} after ${replaced}`);
+      }
+    }
+  }
+});
+
+test("the read runner's scan job and the write runner's run job scan uploads with a scanner staged in RUNNER_TEMP before the head checkout", () => {
+  const run = 'node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"';
+  const jobs = [
+    [workflow("pr-run-activity-read.yml").jobs.scan, "Check out the gated head"],
+    [workflow("pr-run-activity-write.yml").jobs.run, "Check out the PR head"],
+  ];
+  for (const [job, head] of jobs) {
+    const index = (find) => job.steps.findIndex(find);
+    const stage = index((s) => s.name === "Stage the upload scanner");
+    assert.ok(stage >= 0 && stage < index((s) => s.name === head), "staged before the head checkout");
+    assert.equal(job.steps[stage].if, undefined, "staged on every run");
+    const scans = job.steps.filter((s) => /^scan-upload/.test(s.id ?? ""));
+    assert.ok(scans.length > 0);
+    for (const scan of scans) {
+      assert.equal(scan.uses, undefined, scan.id);
+      assert.equal(scan.run, run, scan.id);
+    }
+  }
 });
