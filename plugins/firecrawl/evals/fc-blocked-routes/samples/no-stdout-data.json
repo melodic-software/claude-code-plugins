@@ -149,6 +149,18 @@
         }
       ],
       "why": "-o belongs to the next command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if command -v firecrawl; then firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
     }
   ]
 }

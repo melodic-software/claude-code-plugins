@@ -9,7 +9,7 @@ graders:
   - name: no-stdout-data
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?:scrape|search|crawl|map|interact|agent|parse)\b(?!(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\s(?:-h|--help)\b)(?!(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\s(?:-o(?![a-zA-Z])|--output\b))'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?:scrape|search|crawl|map|interact|agent|parse)\b(?!(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\s(?:-h|--help)\b)(?!(?:\\\\\\n|(?![;|]|&&|(?<!\\\\)\\n)(?:[^"\\]|\\.))*?\s(?:-o(?![a-zA-Z])|--output\b))'
     min: 0
     max: 0
     arm: 'both'

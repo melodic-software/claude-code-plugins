@@ -101,6 +101,18 @@
         }
       ],
       "why": "package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl || exit 1\nif true; then firecrawl config; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
     }
   ]
 }

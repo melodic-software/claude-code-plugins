@@ -125,6 +125,18 @@
         }
       ],
       "why": "after a version check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for i in 1; do firecrawl login; done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
     }
   ]
 }
