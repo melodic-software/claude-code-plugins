@@ -1772,6 +1772,31 @@ assert_contains "lanes: headroom under 80% raises no CHECK" "$LANES" "    turns:
 assert_contains "lanes: three limit stops on one issue are named, keyed by its number" "$LANES" "3 limit stops on one item: Issue X #7"
 assert_contains "lanes: three limit stops on one head are named with the head" "$LANES" "3 limit stops on one head: PR Z @ abcdef1"
 assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml  runs=3  failed=3 [rate-limit 3, max-turns 0, auth 0, other 0]  limit-stops=3  restarts=2"
+
+# A leg that hands off leaves its own lane record, a notice with handoff true:
+# the run's class is the class of the leg that ended it, not the handoff's.
+cat >"$TMP/lane-runs-handoff.json" <<'EOF'
+{
+  "pr-review-main.yml": [
+    {"id": 90, "html_url": "http://x/runs/90", "event": "workflow_run", "display_title": "PR H", "head_sha": "feed1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T00:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations-handoff.json" <<'EOF'
+{
+  "90": "pr-review-main concluded: failure class=rate-limit turns=3 credential=REVIEWS_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":3}\npr-review-main concluded: failure class=other turns=5 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"other\",\"credential\":{\"secret\":\"FALLBACK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"FALLBACK\"},\"fallback\":{\"reason\":\"limit-stop\"},\"turns\":5}\npr-review-main concluded: failure class=credit-stop turns=1 credential=REVIEWS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":1}"
+}
+EOF
+LANES_HANDOFF="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-handoff.json" --lane-annotations-json "$TMP/lane-annotations-handoff.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "lanes: a handoff record neither classes the run nor counts a limit stop" "$LANES_HANDOFF" \
+  "pr-review-main.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
+assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HANDOFF" "turns: max=5"
+# KEY and SPEND read every leg: a key leg that credit-stopped and handed off
+# still names its key.
+assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
+assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \

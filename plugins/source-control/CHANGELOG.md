@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.3] - 2026-11-01
+
+### Fixed
+
+- The babysit loop's skill, references and config-resolution reference name untrusted provenance (C5) as the one work-class hold no rung, config key or invocation argument lifts, pointing at the unattended merge gate's trust hold (`trust_refusal`), instead of an unconditional C4/C5 floor. C4 is described as outside the rungs, which admit classes up to C3. The babysit-prs safety reference no longer says a C4 pull request carries the body hold line: the work lane writes it for untrusted provenance, not for C4 (#9668).
+
 ## [4.11.2] - 2026-11-01
 
 ### Fixed
