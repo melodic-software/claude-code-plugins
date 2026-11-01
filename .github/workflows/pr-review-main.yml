@@ -625,8 +625,8 @@ jobs:
       # token can only read.
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict and the outcome report: the next leg
-      # reviews the lane and records it.
+      # handoff skips the verdict; the outcome report records the leg as
+      # handed off, and the next leg reviews the lane.
       # One run per chunk, in order, each on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 reviewed and handed
       # nothing on, so a handoff hands the whole lane on and the next leg
@@ -673,6 +673,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -741,6 +742,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -809,6 +811,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -877,6 +880,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -1444,8 +1448,8 @@ jobs:
       # token can only read.
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict and the outcome report: the next leg
-      # reviews the lane and records it.
+      # handoff skips the verdict; the outcome report records the leg as
+      # handed off, and the next leg reviews the lane.
       # One run per chunk, in order, each on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 reviewed and handed
       # nothing on, so a handoff hands the whole lane on and the next leg
@@ -1493,6 +1497,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -1506,7 +1511,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           handoff: ${{ steps.review-1.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 1's sealed transcript
@@ -1564,6 +1569,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -1577,7 +1583,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           handoff: ${{ steps.review-2.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 2's sealed transcript
@@ -1635,6 +1641,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -1648,7 +1655,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           handoff: ${{ steps.review-3.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 3's sealed transcript
@@ -1706,6 +1713,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -1719,7 +1727,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           handoff: ${{ steps.review-4.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 4's sealed transcript
@@ -2267,8 +2275,8 @@ jobs:
       # token can only read.
       # continue-on-error keeps a launcher failure from ending the job before
       # the outcome report; "Fail without a verdict" carries the red. A
-      # handoff skips the verdict and the outcome report: the next leg
-      # reviews the lane and records it.
+      # handoff skips the verdict; the outcome report records the leg as
+      # handed off, and the next leg reviews the lane.
       # One run per chunk, in order, each on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 reviewed and handed
       # nothing on, so a handoff hands the whole lane on and the next leg
@@ -2315,6 +2323,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -2327,8 +2336,7 @@ jobs:
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
-          handoff: ${{ steps.review-1.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 1's sealed transcript
@@ -2385,6 +2393,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -2397,8 +2406,7 @@ jobs:
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
-          handoff: ${{ steps.review-2.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 2's sealed transcript
@@ -2455,6 +2463,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -2467,8 +2476,7 @@ jobs:
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
-          handoff: ${{ steps.review-3.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 3's sealed transcript
@@ -2525,6 +2533,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
+        continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -2537,8 +2546,7 @@ jobs:
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
-          handoff: ${{ steps.review-4.outputs.handoff }}
-          # Why this leg ran, for the lane's one record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       - name: Upload chunk 4's sealed transcript

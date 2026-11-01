@@ -1134,9 +1134,13 @@ test("the handoff step names its lane and a closed reason, and a handed-off leg 
       const report = step(`Report chunk ${k}'s outcome`, job);
       assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.review-${k}.outcome == 'success' || steps.review-${k}.outcome == 'failure'`);
       assert.equal(input(report, "handoff"), `\${{ steps.review-${k}.outputs.handoff }}`);
+      // A report that throws must not block "Hand the lane on".
+      assert.match(report, /^ {8}continue-on-error: true$/m);
     }
     assert.match(step("Fail without a verdict", job), /&& steps\.handoff\.outcome != 'success'$/m);
   }
+  // The fallback leg hands nothing on, so its records carry no handoff.
+  for (let k = 1; k <= SLOTS; k++) assert.equal(input(step(`Report chunk ${k}'s outcome`, FB), "handoff"), undefined);
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(step("Hand the lane on"))[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-handoff-"));
   try {
@@ -1168,7 +1172,9 @@ test("every later leg repeats the key leg's steps but for its credential and why
       .replace(/^ {10}# The trigger job's result, only from this run attempt\.\n/m, "")
       .replace(/^ {10}CARRIED(?:_[A-Z]+)?: .*\n/gm, "")
       .replace(/^ {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/m, "")
-      .replace(/\n {10}# Why this leg ran, for the lane's one record\.\n {10}fallback-reason: [^\n]*/, "")
+      .replace(/\n {10}# Why this leg ran, for its lane record\.\n {10}fallback-reason: [^\n]*/, "")
+      // The handoff input, pinned per leg in the handoff test.
+      .replace(/^ {10}handoff: \$\{\{ steps\.review-\d\.outputs\.handoff \}\}\n/m, "")
       .replace(/ && steps\.handoff\.outcome != 'success'|and handed nothing on\n {6}# fails here,|fails here,/g, "");
   const keyNames = STEPS[KEY].map((s) => s.name);
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);

@@ -368,8 +368,8 @@ jobs:
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without a verdict" carries the red. A handoff skips the
-      # verdict steps, and a clean one the outcome step too: the subscription
-      # job judges and records the run instead.
+      # verdict steps; the outcome step records the leg as handed off, and the
+      # subscription job judges the run.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and the job's timeout
       # holds one of those for every judge step. The model may share its job
@@ -2198,8 +2198,8 @@ jobs:
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without a verdict" carries the red. With the fallback
       # token set, a limit stop, a credit stop or a 401 or 402 hands off,
-      # which skips the verdict steps, and a clean one the outcome step too:
-      # the fallback job judges and records the run instead. One leg of
+      # which skips the verdict steps; the outcome step records the leg as
+      # handed off, and the fallback job judges the run. One leg of
       # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
       # the outcome step repeats, and the job's timeout holds one of those for
       # every judge step. The model may share its job with the upload: it has
@@ -2262,9 +2262,8 @@ jobs:
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
-      # One lane record per run: a clean handoff is recorded by the fallback
-      # job; a handoff the check above refused, on a denial or a log it
-      # cannot read, here.
+      # One lane record per leg: this one, marked handoff when the leg handed
+      # off cleanly; the fallback job records its own leg.
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
@@ -2281,7 +2280,7 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
           handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
-          # Why this job ran, for the run's one lane record.
+          # Why this job ran, for its lane record.
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
@@ -4054,7 +4053,7 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this job ran, for the run's one lane record.
+          # Why this job ran, for its lane record.
           fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript

@@ -1784,7 +1784,7 @@ cat >"$TMP/lane-runs-handoff.json" <<'EOF'
 EOF
 cat >"$TMP/lane-annotations-handoff.json" <<'EOF'
 {
-  "90": "pr-review-main concluded: failure class=rate-limit turns=3 credential=REVIEWS_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":3}\npr-review-main concluded: failure class=other turns=5 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"other\",\"credential\":{\"secret\":\"FALLBACK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"FALLBACK\"},\"fallback\":{\"reason\":\"limit-stop\"},\"turns\":5}"
+  "90": "pr-review-main concluded: failure class=rate-limit turns=3 credential=REVIEWS_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":3}\npr-review-main concluded: failure class=other turns=5 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"other\",\"credential\":{\"secret\":\"FALLBACK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"FALLBACK\"},\"fallback\":{\"reason\":\"limit-stop\"},\"turns\":5}\npr-review-main concluded: failure class=credit-stop turns=1 credential=REVIEWS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":1}"
 }
 EOF
 LANES_HANDOFF="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
@@ -1793,6 +1793,10 @@ LANES_HANDOFF="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/count
 assert_contains "lanes: a handoff record neither classes the run nor counts a limit stop" "$LANES_HANDOFF" \
   "pr-review-main.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
 assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HANDOFF" "turns: max=5"
+# KEY and SPEND read every leg: a key leg that credit-stopped and handed off
+# still names its key.
+assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
+assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \

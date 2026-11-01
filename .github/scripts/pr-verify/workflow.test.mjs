@@ -671,6 +671,9 @@ test("every job has one judge step per chunk, each repeating the first but for i
       const report = step(`Report chunk ${k}'s outcome`, job);
       assert.equal(input(report, "outcome"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
       assert.equal(input(report, "step-started-at"), `\${{ steps.time-${k}.outputs.started-at }}`, job);
+      if (legId[job]) {
+        assert.equal(input(report, "handoff"), `\${{ steps.${judgeId(k)}.outputs.handoff == 'true' && steps.${legId[job]}${suffix(k)}.outcome != 'failure' }}`, `${job} chunk ${k}`);
+      }
       assert.equal(input(step(`Upload chunk ${k}'s sealed transcript`, job), "job-id"), `\${{ github.job }}-${k}`, job);
     }
     // 22 minutes a judge step and 15 for the rest of the job.

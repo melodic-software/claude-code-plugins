@@ -217,7 +217,10 @@ test("each unit leaves one lane record per leg, the leg that handed off marked h
   assert.equal(value(report(KEY), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
   assert.equal(value(report(SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
   assert.equal(value(report(FB), "handoff"), undefined);
-  assert.equal(value(report(FB), "if", 8), "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'");
+  // A report that throws on a handed-off leg must not turn the leg red.
+  assert.equal(value(report(KEY), "continue-on-error", 8), "true");
+  assert.equal(value(report(SUB), "continue-on-error", 8), "true");
+  assert.equal(value(report(FB), "if", 8),"steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'");
   assert.equal(value(report(KEY), "fallback-reason"), undefined);
   assert.equal(value(report(SUB), "fallback-reason"), SUB_REASON);
   assert.equal(value(report(FB), "fallback-reason"), FB_REASON);
