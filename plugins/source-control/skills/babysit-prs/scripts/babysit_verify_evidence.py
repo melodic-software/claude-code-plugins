@@ -15,8 +15,10 @@ from a completed, successful one. Any other artifact is ignored.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- the pull request was created more than `TOO_OLD_DAYS` ago:
-  `verify:too-old`, since a verdict may already have expired;
+- the pull request was created more than `TOO_OLD_DAYS` ago and no counted
+  PASS at the head comes from a pr-verify run created since then
+  (`_judged_since`): `verify:too-old`, since a verdict may already have
+  expired. A fresh PASS at the head clears it, and the items below decide;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
@@ -98,9 +100,11 @@ for the lanes (when a person is needed:
 https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
-waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear (`VERIFY_FINAL`), so the gate never merges such
-a pull request unattended: the pr-merge lane closes a lanes App one for a
+waits for the lanes to judge the head again. `verify:repeated-fail` never
+clears, and `verify:too-old` clears only on a PASS of the head that pr-verify
+made after the pull request turned too old (`VERIFY_FINAL`), so the gate
+never merges such a pull request unattended: the pr-merge lane closes a
+lanes App one at either for a
 fresh attempt (`capped_close`), and address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
@@ -451,10 +455,10 @@ CAPPED_CLOSE_RE = re.compile(
 )
 # The refusals no upload after the listing clears (`Reader.evidence`): a
 # counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them, and a pull request's age only
-# grows. A pass uploaded later can clear any other refusal, and a read may
-# answer otherwise.
-STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
+# uploaded later, as no pass clears them. A pass uploaded later can clear any
+# other refusal, an old pull request's included (`_judged_since`), and a read
+# may answer otherwise.
+STANDING = (FAIL, REPEATED_FAIL)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -2205,8 +2209,7 @@ class Reader:
         pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
-        if now - created > timedelta(days=TOO_OLD_DAYS):
-            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
+        too_old_at = created + timedelta(days=TOO_OLD_DAYS)
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
@@ -2303,6 +2306,12 @@ class Reader:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
             fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
+        # An old pull request is judged only on a PASS at the head that a
+        # pr-verify run created after it turned too old: its earlier FAILs may
+        # have expired. Returned before its FAILs are kept, so `fail_findings`
+        # reads them from the listing (`_own_fails`).
+        if now > too_old_at and not self._judged_since(passes, too_old_at):
+            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         fails = [v for v in verdicts if v.verdict == "fail"]
         failed = {v.sha for v in fails}
         self.fail_artifacts[number] = fail_artifacts
@@ -2549,6 +2558,21 @@ class Reader:
             return postmerge._time(self._created[run_id])
         except postmerge.PostMergeReadError:
             return None
+
+    def _judged_since(
+        self, passes: list[tuple[int, str, Any]], at: datetime
+    ) -> bool:
+        """Every pass of the run that started last (`_newest`) comes from a
+        pr-verify run created after `at` (`_fresh_created`, which a
+        re-attempt keeps): a judgment of the head made since. None without a
+        pass, and a missing time is not one."""
+        if not passes:
+            return False
+        for run_id, _, _ in self._newest(passes):
+            made = self._fresh_created(run_id)
+            if made is None or made <= at:
+                return False
+        return True
 
     def _newest(self, passes: list[tuple[int, str, Any]]) -> list[tuple[int, str, Any]]:
         """The passes whose runs started last (`run_started_at`, which a
@@ -3477,10 +3501,12 @@ def _kept_report(
     object comparing it with the kept one."""
     fresh = None
     if look.key is not None and answer_cacheable(report):
-        # A pull request already too old stays so; any other answer is read
-        # again once it turns too old.
+        # Any other answer is read again once the pull request turns too old;
+        # past that, a too-old refusal or an allow on a fresh PASS changes
+        # only with the verdicts, which the key holds.
         limits = [now + ANSWER_TTL, look.pass_expiry]
-        limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
+        if report.get("refusal") != TOO_OLD and look.too_old and look.too_old > now:
+            limits.append(look.too_old)
         fresh = {
             "key": look.key,
             "readAt": now.isoformat(),

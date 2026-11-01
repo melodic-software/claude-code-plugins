@@ -6010,7 +6010,9 @@ jobs:
       # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
-      # verify:unreadable and verify:too-old. The same approval of the head
+      # verify:unreadable and verify:too-old, which a PASS pr-verify made at
+      # the head after the pull request turned too old clears (the reader's
+      # `_judged_since`). The same approval of the head
       # lifts it. The reader reads with this job's token, which holds no
       # issues scope: on this public repository its issue reads answer as
       # public reads, and one that does not read refuses verify:unreadable,
@@ -6022,7 +6024,7 @@ jobs:
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
-      # before listing (verify:too-old, an unread config) reaches
+      # before listing (an unread config) reaches
       # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
@@ -6362,8 +6364,8 @@ jobs:
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            # A refusal returned before any listing (verify:too-old, an unread
-            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # A refusal returned before any listing (an unread config or
+            # commit list) goes on with no pass names: merge-holds.mjs
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true

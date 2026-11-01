@@ -959,7 +959,9 @@ post no check: a fork PR, whose read-only token cannot write checks; a `pull_req
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
 Each review finding goes to an independent validator. Valid: fix it and reply with a citation.
-Invalid: reply with a cited disagreement. Unsure: escalate. A script resolves bot threads after
+Invalid: reply with a cited disagreement. Unsure: the adjudicator lane judges it, and only a
+`CRITICAL` or unrated security-review finding, or a thread a person opened, holds for a person
+(`feedback-uncertain`, `feedback-disputed`). A script resolves bot threads after
 the reply; human threads stay open for the human.
 
 ## Merge authority
