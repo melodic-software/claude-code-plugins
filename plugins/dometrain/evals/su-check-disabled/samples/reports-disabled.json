@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "## State: disabled\n\nNo Dometrain tool resolves in this session. Next: register a user-scope server per the README's Getting the MCP server.",
+      "why": "heading form"
+    },
+    {
+      "answer": "**State:** `disabled`\n\n**Next action:** see Getting the MCP server in the plugin README.",
+      "why": "bold label with code span"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| State | disabled |",
+      "why": "table row"
+    },
+    {
+      "answer": "- Dometrain MCP: **disabled** (no server present)",
+      "why": "list item, bold value"
+    },
+    {
+      "answer": "Result: disabled. No Dometrain tool is in the inventory and there was no connection error.",
+      "why": "plain sentence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "State: `connected`",
+      "why": "wrong state"
+    },
+    {
+      "answer": "State: failed or unverified. Run /mcp yourself.",
+      "why": "other wrong state"
+    },
+    {
+      "answer": "The server is not disabled; it is connected.",
+      "why": "negated"
+    },
+    {
+      "answer": "This check reports one of `disabled`, `connected`, or `failed or unverified`.",
+      "why": "lists the states without choosing"
+    },
+    {
+      "answer": "The plugin installs disabled by default; enable it first.",
+      "why": "plugin enablement, not the state"
+    },
+    {
+      "answer": "No Dometrain tools found.",
+      "why": "status without the state name"
+    }
+  ]
+}

@@ -4,6 +4,16 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.31.1] - 2026-11-01
+
+### Fixed
+
+- `docpage-digest` no longer says its own verifiers always share the session's concurrent subagent
+  limit, and `map-corpus` no longer says no spend ceiling exists: print mode has a budget flag.
+  Both point at the upstream section. The digest-agent model match is labeled as this repository's
+  heuristic, and the vision triage template's `model` field is now a placeholder instead of a fixed
+  model id ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
 ## [0.31.0] - 2026-10-31
 
 ### Added

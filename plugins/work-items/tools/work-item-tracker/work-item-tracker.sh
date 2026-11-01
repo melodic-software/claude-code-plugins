@@ -64,6 +64,7 @@ Verbs:
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
+  add-recurrence <id> --source-link <url> --note <text>
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -135,7 +136,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | add-recurrence | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
