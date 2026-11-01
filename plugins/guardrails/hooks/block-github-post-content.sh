@@ -28,9 +28,17 @@
 # STAYS QUIET on a command that posts nothing to GitHub (a `gh api` GET, a
 # GraphQL query, curl to another host), whatever it names.
 #
-# KNOWN GAPS: block-fix-request-post's (a body built through a variable for
-# the path check, `printf` with a computed argument, a script or cmdlet that
-# posts, a wrapper other than a shell script with `--`); a body file past
+# A GitHub-hosted runner's home (the `runner` user on the Linux and macOS
+# images, `runneradmin` on Windows) in a quoted CI log is not a machine path.
+#
+# KNOWN GAPS: block-fix-request-post's (`printf` with a computed argument, a
+# script or cmdlet that posts, `xargs` and other launchers it does not step
+# over, a wrapper other than a shell script with `--`, a GraphQL mutation held
+# in a variable). Other publishing forms (`gh pr merge --body`, `gh release
+# --notes`, `gh gist`, `--description` edits) are not read. The path check
+# skips text that reaches the post only through the whole command: a body in
+# a variable or piped from another command, a here-doc inside a `bash -c`
+# operand, and any command past the 16384-character ceiling. A body file past
 # 1 MiB is read to that point only.
 #
 # Escape: the `block_github_post_content_enabled` userConfig option; the
@@ -160,6 +168,12 @@ if ((_bgpc_paths)); then
     _bgpc_texts+=("$_bgpc_t")
   done
   for _bgpc_t in ${_bgpc_texts[@]+"${_bgpc_texts[@]}"} ${GHPOST_HEREDOCS[@]+"${GHPOST_HEREDOCS[@]}"}; do
+    # A GitHub-hosted runner's home in a quoted CI log names no machine of
+    # ours (the runner user on Linux, macOS and Windows images).
+    _bgpc_t="${_bgpc_t//\/home\/runner\//<runner>/}"
+    _bgpc_t="${_bgpc_t//\/Users\/runner\//<runner>/}"
+    _bgpc_t="${_bgpc_t//Users\\runneradmin\\/<runner>\\}"
+    _bgpc_t="${_bgpc_t//Users\/runneradmin\//<runner>/}"
     hpp::prefilter "$_bgpc_t" "$SCAN_ROOT"
     [[ "$HPP_GATE" == clean ]] && continue
     _bgpc_out=$(

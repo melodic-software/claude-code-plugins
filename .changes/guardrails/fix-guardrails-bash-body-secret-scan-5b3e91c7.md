@@ -8,4 +8,4 @@ bump: minor
 
 ### Fixed
 
-- `block-fix-request-post` now reads the command a script wrapper runs after `--` (`bash gate.sh run KEY -- gh ...`, split on bare `+++`), which it passed unread before. Its body parse moved to `lib/github-post/github-post-body.sh`, shared with the new guard.
+- `block-fix-request-post` now reads the command a script wrapper runs after `--` (`bash gate.sh run KEY -- gh ...`, split on bare `+++`), which it passed unread before, and curl short flags written together (`-sSd`) and `--expand-data`. Its body parse moved to `lib/github-post/github-post-body.sh`, shared with the new guard.

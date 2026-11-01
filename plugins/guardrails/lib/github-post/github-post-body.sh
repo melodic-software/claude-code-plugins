@@ -188,9 +188,24 @@ ghpost::curl() {
     a="$1"
     shift
     v=""
+    # Short flags written together (`-sSd X`, `-sGd X`): a `G` among them is
+    # -G, and the first of `d`, `F` or `T` takes the rest as that flag.
+    if [[ "$a" =~ ^-[A-Za-z]{2,}$ ]]; then
+      local k
+      for ((k = 1; k < ${#a}; k++)); do
+        case "${a:k:1}" in
+        G) get=1 ;;
+        d | F | T)
+          a="-${a:k}"
+          break
+          ;;
+        *) ;;
+        esac
+      done
+    fi
     case "$a" in
-    -d | --data | --data-ascii | --data-binary | --json | --data-urlencode) v="${1-}" && shift ;;
-    --data=* | --data-ascii=* | --data-binary=* | --json=* | --data-urlencode=*) v="${a#*=}" ;;
+    -d | --data | --data-ascii | --data-binary | --json | --data-urlencode | --expand-data) v="${1-}" && shift ;;
+    --data=* | --data-ascii=* | --data-binary=* | --json=* | --data-urlencode=* | --expand-data=*) v="${a#*=}" ;;
     -d?*) v="${a#-d}" ;;
     --data-raw | --form-string) vals+=("${1-}") && shift && data=1 && continue ;;
     --data-raw=* | --form-string=*) vals+=("${a#*=}") && data=1 && continue ;;
@@ -429,7 +444,9 @@ ghpost::bodies() {
     fi
   done
   local -a files=()
+  GHPOST_WHOLE=0
   if ((GHPOST_STDIN || GHPOST_SUBST || GHPOST_WRITES)) || [[ "$GHPOST_TOOL" == PowerShell ]]; then
+    GHPOST_WHOLE=1
     ghpost::_add command "" "$GHPOST_COMMAND"
     for c in ${GHPOST_TEXTS[@]+"${GHPOST_TEXTS[@]}"}; do ghpost::_add word "" "$c"; done
     for c in ${GHPOST_AUX_TEXTS[@]+"${GHPOST_AUX_TEXTS[@]}"}; do ghpost::_add aux "" "$c"; done
@@ -447,9 +464,12 @@ ghpost::bodies() {
 # ghpost::heredocs: GHPOST_HEREDOCS, each here-doc body of the collected
 # command, sliced from the byte offsets the parse left in HOOK_HEREDOC_BODIES.
 # For a caller that judges the bodies a whole-command read would cover
-# without the rest of the command.
+# without the rest of the command: empty unless ghpost::bodies found that the
+# whole command counts (GHPOST_WHOLE), so a here-doc that feeds no post stays
+# out.
 ghpost::heredocs() {
   GHPOST_HEREDOCS=()
+  ((${GHPOST_WHOLE:-0})) || return 0
   hook::_c_locale ghpost::_heredocs_c
 }
 # shellcheck disable=SC2329  # invoked through hook::_c_locale
