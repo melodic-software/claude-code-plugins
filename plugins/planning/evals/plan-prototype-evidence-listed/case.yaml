@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: plan-prototype-evidence-listed
+description: A locked Brief that consumes a prototype spike gets a plan whose Prototype evidence section lists the spike's branch, its commit SHA and the point it left unproven
+tags: [plan, prototype, evidence, scaffold]
+expected_outcome: The plan skill fires and writes the plan into .work/invoice-approval/PLAN.md with a Prototype evidence section filled from .work/invoice-approval/prototype-note.md. That section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 (in full or as a prefix of at least seven characters), and, as left unproven, two approvers acting on the same invoice at the same moment.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:plan The Brief in .work/invoice-approval/PLAN.md is locked, the design gate has its early-exit record, and the plan consumes the prototype spike recorded in .work/invoice-approval/prototype-note.md. Write the plan into that PLAN.md through the Step 4.7 draft, then show me the plan's Prototype evidence section and stop before asking for approval."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: lists-prototype-evidence
+    type: regex
+    pattern: 'Prototype evidence[\s\S]{0,2000}spike/invoice-approval-states[\s\S]{0,400}\b9c41e7a\w*[\s\S]{0,1000}\b(?:concurren\w*|simultaneous\w*|same (?:time|moment)|at once|race)'
+    flags: i
+    arm: both
+  - name: prototype-evidence-judge
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer shows the plan's Prototype evidence section (or quotes it from PLAN.md) and that section names the branch spike/invoice-approval-states, the commit SHA 9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24 in full or as a prefix of at least seven characters, and, as left unproven, two approvers acting on the same invoice at the same moment. FAIL if the section is missing, if any of the three is missing or appears only outside that section, or if the answer writes no plan."
