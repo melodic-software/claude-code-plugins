@@ -225,6 +225,12 @@ out of scope until such a signal exists.
     `--force-with-lease` can be blocked because the width probe cannot
     resolve a repository at the guard's computed base. That is fail-closed
     scope, not a bypass.
+- **Forced `git clean` has one owner: `block-dangerous-git`.** It blocks a
+  forced clean outside the exceptions its row lists (a dry-run flag, a clean
+  wholly under the temp directory, the `clean-force` allow-list entry).
+  `block-root-delete-target` has no `git clean` arm and never judges a clean's
+  target, so one guard decides the command and a clean is never allowed just
+  because its target sits inside the session's tree.
 - **A NUL byte in the payload blocks, whatever the command says.**
   `block-no-verify` and `block-dangerous-git` refuse any payload whose read
   fields carry a NUL, before they look at the command at all, including one
