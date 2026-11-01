@@ -1451,7 +1451,8 @@ jobs:
       - name: Settle verified lane merges
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
-          && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+          && (steps.post-merge.outputs.code == '0' || steps.post-merge.outputs.code == '1'
+              || steps.post-merge.outputs.code == '5')
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
