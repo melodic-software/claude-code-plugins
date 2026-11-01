@@ -569,9 +569,9 @@ variable that sets it).
 > one that undercuts the binding. Pass an explicit per-invocation `model`
 > only for the exceptions the agent frontmatter does not carry:
 > `opus` for conflict resolution and any security-surface work class,
-> unconditionally (the frontier rung is off by the owner's recorded hold, the
-> ladder paragraph under "Models" in `docs/conventions/pr-pipeline/README.md`;
-> recheck when the per-week Fable allowance is set); the strong tier (`opus`) for a judgment-call dispatch that does not
+> unconditionally (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
+> CI lane profiles' ladder paragraph under "Models" in
+> `docs/conventions/pr-pipeline/README.md` records; recheck when both are set); the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding", whose note on
 > Agent dispatches is why the frontier work above names `opus`), and the
@@ -719,9 +719,9 @@ wakeup ceiling for days rather than finishing.
 > subagents inherit it by default, so every dispatch names its tier
 > explicitly. Pass an explicit per-invocation `model`: `opus` for
 > conflict resolution and every security-surface work class, unconditionally
-> (the frontier rung is off by the owner's recorded hold, the ladder paragraph
-> under "Models" in `docs/conventions/pr-pipeline/README.md`; recheck when the
-> per-week Fable allowance is set);
+> (the frontier rung waits on an owner decision and a per-week Fable allowance, as the
+> CI lane profiles' ladder paragraph under "Models" in
+> `docs/conventions/pr-pipeline/README.md` records; recheck when both are set);
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
 > loop-lane convention ("Capability tiers" and "Alias binding", whose note on
