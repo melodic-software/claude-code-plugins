@@ -6,6 +6,7 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 ## Contents
 
 - [Read order](#read-order)
+- [Denials](#denials)
 - [Document fields](#document-fields)
 - [Per-case fields](#per-case-fields)
 - [Per-run fields](#per-run-fields)
@@ -38,6 +39,27 @@ statement of record: with `--json <file>` the terminal summary table is suppress
 5. Only then, the delta itself.
 6. Run the [noise report](#noise-report) over the same file and read its lines before calling any
    delta a gain.
+
+## Denials
+
+How the validity gate classifies a denied tool call, after the FAIL rule in
+[SKILL.md, Reading the delta](../SKILL.md#reading-the-delta) (a with-arm denial aimed at, under or
+above the plugin's directory, or with no absolute path or no known plugin directory).
+
+- A Bash denial's paths are its command's absolute arguments, plus no path when it has an
+  expansion or a relative word other than a flag, or does not parse.
+- One exception overrides that FAIL: a denial of the same named call other than Skill (tool and
+  target) in every run of its case, in both arms, is a warning, with or without an absolute path,
+  unless an absolute path it names is at, under or above the plugin's directory. The environment
+  denied it with or without the plugin, such as a user-scope read of `~/.claude/standards`. In an
+  A/B pass, gate each version's result file.
+- Any other denial, in either arm, is a warning only when its case has denial-free runs in that arm
+  and its run scored the same as each; otherwise it is a FAIL.
+- A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
+  in a forked session, and the gate lists it under `session started` without failing it.
+- An invocation probe's denial of a named call other than Skill is a warning when it follows the
+  graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
+  gate prints each probe case's fire counts with and without denials.
 
 ## Document fields
 

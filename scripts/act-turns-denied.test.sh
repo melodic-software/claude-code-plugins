@@ -13,7 +13,7 @@
 # and in both modes, renders the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
 # summary records its code blocks.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/workflows/pr-run-activity-read.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-write.yml .github/workflows/pr-run-activity-read.yml .github/scripts/lib/act-turns.mjs .github/standards/runner-policy/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -24,12 +24,17 @@ results=$(
   cd "$ROOT" && node --input-type=module - <<'EOF'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const require = createRequire(`${process.cwd()}/.github/standards/runner-policy/package.json`);
 const YAML = require("yaml");
 
+// The step loads the base's act-turns.mjs only when its bytes match the hash
+// its copy step took; this checkout's copy stands in for both.
+const MODULE = join(process.cwd(), ".github/scripts/lib/act-turns.mjs");
+const MODULE_SHA256 = createHash("sha256").update(readFileSync(MODULE)).digest("hex");
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
 const AsyncFunction = (async () => {}).constructor;
 
@@ -81,7 +86,7 @@ const runActTurns = async (lane, wf, messages) => {
   const blocks = [];
   const step = wf.jobs.run.steps.find((s) => s.id === "act-turns");
   const error = await runScript(step.with.script,
-    { EXECUTION_FILE: execution, REPLY_DIR: join(dir, "reply"), LANE_TOKEN: "" }, blocks);
+    { EXECUTION_FILE: execution, REPLY_DIR: join(dir, "reply"), LANE_TOKEN: "", ACT_TURNS_MODULE: MODULE, ACT_TURNS_SHA256: MODULE_SHA256 }, blocks);
   let turns = null;
   try {
     turns = readFileSync(join(dir, "reply", "act-turns.json"), "utf8");
@@ -208,6 +213,28 @@ for (const lane of ["write", "read"]) {
     say(recorded?.subtype?.length === 100 && recorded.models.length === 10 && recorded.models.every((m) => m.length <= 100),
       `${lane}: worst case cuts subtype to 100 characters and keeps 10 model names within 100 characters`);
     rmSync(dir, { recursive: true, force: true });
+  }
+  {
+    // A staged script whose bytes do not match the base copy's hash never loads.
+    const dir = mkdtempSync(join(tmpdir(), "act-turns-"));
+    dirs.push(dir);
+    const execution = join(dir, "execution.json");
+    writeFileSync(execution, JSON.stringify([result()]));
+    const step = wf.jobs.run.steps.find((s) => s.id === "act-turns");
+    const error = await runScript(step.with.script,
+      { EXECUTION_FILE: execution, REPLY_DIR: join(dir, "reply"), LANE_TOKEN: "", ACT_TURNS_MODULE: MODULE, ACT_TURNS_SHA256: "0".repeat(64) }, []);
+    let wrote = true;
+    try {
+      readFileSync(join(dir, "reply", "act-turns.json"));
+    } catch {
+      wrote = false;
+    }
+    say(/does not match/.test(error) && !wrote, `${lane}: a staged script that fails the base hash fails the step and writes nothing (${error})`);
+    const at = (test) => wf.jobs.run.steps.findIndex(test);
+    const copied = at((s) => s.id === "act-turns-bin");
+    say(copied >= 0 && copied < at((s) => s.name === "Check out the PR head")
+      && /cp \.base\/\.github\/scripts\/lib\/act-turns\.mjs /.test(wf.jobs.run.steps[copied]?.run ?? ""),
+      `${lane}: the act-turns script is copied from .base before the head checkout replaces it`);
   }
 }
 EOF
