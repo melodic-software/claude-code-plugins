@@ -31,6 +31,10 @@
       "why": "the ranked row appears only inside a tool result, not in the reply"
     },
     {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"Candidates:\\n1. Add tests for src/cart.js (rung 3, medium-low)\\n2. Remove the dead helper (judgment, rung 4, low)\",\"signature\":\"sig_01\"},{\"type\":\"text\",\"text\":\"I'll hand the top pick to /improvement:improve.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"improvement:improve\",\"args\":\"Add tests for src/cart.js\"}}]},\"parent_tool_use_id\":null}",
+      "why": "the ranked list appears only in a thinking block; the reply is a one-line hand-off"
+    },
+    {
       "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"| 1 | Tidy src/cart.js | judgment (rung 4) | low |\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"code-tidying:tidy\",\"args\":\"src/cart.js\"}}]},\"parent_tool_use_id\":null}",
       "why": "labeled list, but the hand-off is not to a pipeline skill"
     }
