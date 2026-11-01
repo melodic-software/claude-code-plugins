@@ -1,4 +1,5 @@
 # shellcheck shell=bash
+# shellcheck disable=SC2034,SC2154  # GHPOST_* results are read by the sourcing guard; HOOK_* globals come from hook-utils.sh
 # What a Bash or PowerShell command posts to GitHub: the body text a
 # `gh pr|issue comment|review|create|edit`, a writing `gh api`, or a `curl` with
 # data to a GitHub API route carries. Shared by block-fix-request-post and
@@ -226,6 +227,32 @@ ghpost::curl() {
   return 1
 }
 
+# ghpost::_wrapper <argv>: 0 when <argv> runs a shell script (`bash x.sh ...`,
+# `./x.sh ...`) with a `--` word, which GHPOST_WRAP_AT then counts past.
+ghpost::_wrapper() {
+  local -a w=("$@")
+  local i=0 b="${1##*/}"
+  b="${b##*\\}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  bash | sh | zsh | dash | ksh | mksh)
+    i=1
+    while [[ "${w[i]-}" == -* ]]; do ((i++)); done
+    [[ "${w[i]-}" == *.sh ]] || return 1
+    ;;
+  *.sh) ;;
+  *) return 1 ;;
+  esac
+  for ((i++; i < ${#w[@]}; i++)); do
+    if [[ "${w[i]}" == -- ]]; then
+      GHPOST_WRAP_AT=$((i + 1))
+      return 0
+    fi
+  done
+  return 1
+}
+
 # hook::bash_parse_segments callback: one segment's argv words.
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 ghpost::segment() {
@@ -266,6 +293,23 @@ ghpost::segment() {
     esac
   done
   (($#)) || return 0
+  # A script wrapper runs the argv after its `--`, each bare `+++` starting
+  # another command: read each one as a segment of its own, with no
+  # redirections (those belong to the wrapper).
+  if ghpost::_wrapper "$@"; then
+    shift "$GHPOST_WRAP_AT"
+    local -a inner=() HOOK_SEG_REDIR_OP=() HOOK_SEG_REDIR_FD=() HOOK_SEG_REDIR_TARGET=()
+    local -a HOOK_SEG_REDIR_QUOTED=() HOOK_SEG_REDIR_OPAQUE=()
+    for j in "$@" +++; do
+      if [[ "$j" != +++ ]]; then
+        inner+=("$j")
+        continue
+      fi
+      ((${#inner[@]})) && ghpost::segment "${inner[@]}"
+      inner=()
+    done
+    return 0
+  fi
   cmd="${1##*/}"
   cmd="${cmd##*\\}"
   cmd="${cmd,,}"
@@ -398,4 +442,23 @@ ghpost::bodies() {
     ghpost::read_to c "$f" && ghpost::_add aux "$f" "$c"
   done
   return 0
+}
+
+# ghpost::heredocs: GHPOST_HEREDOCS, each here-doc body of the collected
+# command, sliced from the byte offsets the parse left in HOOK_HEREDOC_BODIES.
+# For a caller that judges the bodies a whole-command read would cover
+# without the rest of the command.
+ghpost::heredocs() {
+  GHPOST_HEREDOCS=()
+  hook::_c_locale ghpost::_heredocs_c
+}
+# shellcheck disable=SC2329  # invoked through hook::_c_locale
+ghpost::_heredocs_c() {
+  local e s t
+  for e in ${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}; do
+    s="${e%% *}"
+    e="${e#* }"
+    t="${e%% *}"
+    GHPOST_HEREDOCS+=("${GHPOST_COMMAND:s:t-s}")
+  done
 }

@@ -120,6 +120,8 @@ deny "curl to a GHES /api/v3 route" "curl -s https://ghe.example.com/api/v3/repo
 deny "curl form-encoded body" "curl -s https://api.github.com/repos/o/r/issues/1/comments --data-urlencode 'body=PR-fix lane%3A please fix this finding'"
 deny "bash -c wrapper" "bash -c \"gh pr comment 12 --body '$P'\""
 deny "eval" "eval \"gh pr comment 12 --body '$P'\""
+deny "script wrapper, after --" "bash ./gate.sh run k -- gh pr comment 12 --body '$P'"
+deny "script wrapper batch, after +++" "bash ./gate.sh batch k -- gh pr edit 1 --add-label x +++ gh pr comment 12 --body '$P'"
 deny "env and an assignment before gh" "GH_REPO=o/r env gh pr comment 12 --body \"$P\""
 deny "after another command" "cd /tmp && gh pr comment 12 --body \"$P\""
 deny "hidden in an HTML comment (the lane still reads it)" "gh pr comment 12 --body \$'<!--\\n$P\\n-->'"
