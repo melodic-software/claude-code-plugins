@@ -1420,12 +1420,10 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
   // is never queued; a status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
-  // Review rounds the lane stopped as not converging at this head close for
-  // a fresh attempt at the issue, as the verify cap does (pythonClose).
-  if (stopped !== null && notConverging(detail, bot, pull.headRefOid)) {
-    return { action: "close", reason: `${stopped}; its review rounds are not converging (${NOT_CONVERGING})` };
-  }
-  if (stopped !== null) {
+  // Review rounds the lane stopped as not converging at this head close below,
+  // after the path, cost and discussion holds, as the verify cap does.
+  const unconverged = stopped !== null && notConverging(detail, bot, pull.headRefOid);
+  if (stopped !== null && !unconverged) {
     return { action: armed ? "disarm" : "none", reason: stopped, clears: "lane" };
   }
   // A hold path a person clears, lifted by a trusted person's approval of the
@@ -1461,6 +1459,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   }
   if (!armed && detail.timelineItems?.nodes?.at(-1)?.actor?.__typename === "User") {
     return { action: "none", reason: "a person turned its auto-merge off", withdraw: true };
+  }
+  // Closed for a fresh attempt at its issue (pythonClose), the holds above
+  // having let it through; it needs no verdict.
+  if (unconverged) {
+    return { action: "close", reason: `${stopped}; its review rounds are not converging (${NOT_CONVERGING})` };
   }
   if (!("verify" in detail)) {
     return { action: "verify", reason: "its verifier verdict is not read yet" };

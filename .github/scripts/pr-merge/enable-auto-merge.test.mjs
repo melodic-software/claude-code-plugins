@@ -3566,9 +3566,12 @@ test("review rounds stopped as not converging at the head close the pull request
     "another account's comment": { statuses: stopped, comments: [someone] },
     "no failing address-feedback status": { statuses: [unblock("pr-unblock/fix-ci", "failure")], comments: [lanesSaid(stoppedNote())] },
     "a status alone": { statuses: [unblock("pr-unblock/address-feedback", "failure", BOT, "Lane stopped: feedback-not-converging")], comments: [] },
+    // The stop closes only past the holds the verify cap's close waits behind.
+    "a member's veto comment": { statuses: stopped, comments: [lanesSaid(stoppedNote()), said("kyle-sexton", "do not merge", "2026-10-23T10:30:00Z")] },
+    "a hold path": { statuses: stopped, comments: [lanesSaid(stoppedNote())], files: [{ filename: "docs/held.md" }] },
   };
-  for (const [why, { statuses, comments }] of Object.entries(held)) {
-    const result = await run([pull(1, { verdict: PASSED, statuses, discussion: { comments } })]);
+  for (const [why, { statuses, comments, files }] of Object.entries(held)) {
+    const result = await run([pull(1, { verdict: PASSED, statuses, discussion: { comments }, ...(files && { files }) })]);
     assert.deepEqual(result.closed, [], why);
     assert.ok(!result.writes.some(({ mutation }) => mutation === "arm"), why);
   }
