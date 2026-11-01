@@ -114,8 +114,14 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
   splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
-  the body), while every extra model-invoked skill adds a description to the always-loaded listing (a user-invoked one stays out of it). Split only when the parts
-  change independently or answer different requests.
+  the body), while every extra model-invoked skill adds a description to the always-loaded
+  listing (a user-invoked one stays out of it). A split is the exception: split only when the
+  parts change independently or answer different requests.
+- **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
+  routes each action to its own spoke under `actions/`, one file per action, so a run loads the
+  router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4
+  characters per token and WARNs above it (check 30). Every skill carries evals
+  ([Measurement](#measurement)).
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
@@ -142,9 +148,8 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   ([Sources](#sources)); `/skill-quality:check` holds the current value and enforces it. Our own
   measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06; recheck
   when a re-measure at a newer commit moves it). Length is the symptom; the deletion test is the
-  remedy. Aim for a short hub, not a short skill: SKILL.md carries the standing rules and routes
-  each task to the file it needs, so a large skill is sound when the agent loads only what the
-  work in front of it calls for. Never cut to reach a line count.
+  remedy. Aim for a short router, not a short skill: a large skill is sound when the agent loads
+  only what the work in front of it calls for. Never cut to reach a line count.
 
 ## Stack-specific tools
 
@@ -261,7 +266,9 @@ cut the re-audit proposes takes the cutting-text route above, tested with and wi
 text.
 
 Re-run on any change: a description change re-measures triggering, a body change re-measures
-output (`/evals:plugin-eval` for a plugin suite). A skill's cases are `case.yaml` cases in its
+output (`/evals:plugin-eval` for a plugin suite). Every skill has evals, since a change to a
+skill without them cannot show it lost nothing; the only exception is a recorded skip in
+`scripts/evals-warrant-exemptions.txt`, which check 14 honours. A skill's cases are `case.yaml` cases in its
 plugin's `evals/` directory (`/evals:design skill <name>` writes them); `/evals:validate` checks
 them before a run.
 
@@ -269,12 +276,13 @@ them before a run.
 judgment (a reviewer reads) or attestation (the author states it).
 
 - Frontmatter and body: description caps (mechanical, checks 2 and 2b); "Use when" phrasing
-  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); skill-internal paths resolve
-  with forward slashes (mechanical, check 5); spoke directories referenced from the hub
-  (mechanical, check 15); `## Contents` on a long spoke (mechanical, check 26); explicit
-  `disable-model-invocation` (mechanical, check 24); gotchas surface (mechanical, check 11);
-  arguments follow the skill argument shape (judgment); every other rule on this page
-  (judgment).
+  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); SKILL.md router cap of
+  5,000 tokens (mechanical WARN, check 30); one `actions/` file per action (judgment);
+  skill-internal paths resolve with forward slashes (mechanical, check 5); spoke directories
+  referenced from the hub (mechanical, check 15); `## Contents` on a long spoke (mechanical,
+  check 26); explicit `disable-model-invocation` (mechanical, check 24); gotchas surface
+  (mechanical, check 11); arguments follow the skill argument shape (judgment); every other rule
+  on this page (judgment).
 - Scripts: `scripts/*.test.sh` pass (mechanical, check 7); no committed cache or build artifacts
   (mechanical, check 13); injected `!` commands portable with a fallback (mechanical, checks 19
   and 20); output names what the script did, including on failure (judgment).
