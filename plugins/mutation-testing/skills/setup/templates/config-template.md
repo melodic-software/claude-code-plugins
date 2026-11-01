@@ -3,8 +3,9 @@
 Written by `/mutation-testing:setup apply`. Read by `/mutation-testing:audit`, which falls back to
 `tool: manual` and asks for the test command when none of the layers below exists.
 
-Layers resolve user-global (`~/.claude/mutation-testing.md`) → team (this file) →
-local overlay (`.claude/mutation-testing.local.md`). Scalars override; lists union.
+Layers resolve the user layer (the plugin's `userConfig`, which carries only `operators` and
+`max_mutants`) → team (this file) → local overlay (`.claude/mutation-testing.local.md`).
+Scalars override; lists union.
 This file is team-shared and must be committed.
 
 Arid-node suppressions live in a separate file, `.claude/mutation-testing-arid.md`,

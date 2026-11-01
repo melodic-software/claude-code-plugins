@@ -65,6 +65,13 @@
       "prompt": "Check mutation testing here. Nothing has been configured yet.",
       "expected_output": "Runs check read-only. Reports the config-presence probe as INFO, not FAIL, and names the audit's fallback: `tool: manual`, the diff target from origin/HEAD, the changed source files, the effort cap, and a test command the user supplies or confirms at run time. Names `apply` as the way to make the run repeatable. Writes nothing.",
       "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "/mutation-testing:setup apply user. This is a shared repository and I can't commit config to it; I want the narrow operator set and a cap of 20 mutants for myself.",
+      "expected_output": "Treats the user layer as the plugin's userConfig, not a ~/.claude/mutation-testing.md file. Settles only operators (narrow) and max_mutants (20) and names `/plugin configure mutation-testing@<marketplace>` as the way to save them, with the headless `claude plugin configure ... --values-stdin` form as the alternative. Writes no pluginConfigs value and no settings file itself, and writes no file in the repository: no .claude/mutation-testing.md, no arid record, no .local.md overlay. Runs no test command. Says it skipped the write, tracking and commit steps, so `git status` in the repository is unchanged. States that the tool, diff target, mutate paths and test command are per repository and do not come from userConfig.",
+      "files": [],
+      "narration": true
     }
   ]
 }
