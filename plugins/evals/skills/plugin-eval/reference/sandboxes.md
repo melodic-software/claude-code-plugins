@@ -114,8 +114,11 @@ python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plu
 ```
 
 `<dir>` is the run step's directory: at most 24 characters, outside the system temp directories,
-created first (for example `/run/user/<uid>/ev`). A longer one is untested, and at 63 characters
-no run started a shell sandbox ([Sandbox start](#sandbox-start)).
+created first, on disk (for example `$HOME/.ev` when that path stays within 24 characters). A
+longer one is untested, and at 63 characters no run started a shell sandbox
+([Sandbox start](#sandbox-start)). Not `/run/user/<uid>`: it is a small tmpfs that kept
+`--keep-temp` sandboxes can fill, which fails every eval on the host with ENOSPC and breaks the
+session sockets stored there.
 
 It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
