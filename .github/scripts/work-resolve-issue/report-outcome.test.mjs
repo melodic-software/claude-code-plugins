@@ -4856,8 +4856,8 @@ test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fi
   // The App's own re-adds after each record.
   const events = [
     { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" },
-    { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9 }, created_at: "2026-11-01T11:00:01Z" },
-    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9 }, created_at: "2026-11-01T11:00:02Z" },
+    { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: "2026-11-01T11:00:01Z" },
+    { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: "2026-11-01T11:00:02Z" },
   ];
   const spent = staleFetch({ comments: two, events });
   assert.match(await refire(spent.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^skipped: 2 re-fires/);
@@ -4872,6 +4872,22 @@ test("refireStale backs off to the sweep past limits.limit-stops-per-issue re-fi
   // A breaker trip's record is the kill switch's, not a stale re-fire.
   const breaker = staleFetch({ comments: [record("2026-11-01T10:30:00Z", `<!-- work-unblock refired ${MAIN_BLOBS.join("-")} breaker -->\ntrip`), two[1]], events });
   assert.match(await refire(breaker.fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 2 }), /^re-fired/);
+});
+
+// The record, the removal and the App's re-add land in the same second: the
+// re-add still finishes that record, so it counts toward the bound.
+test("refireStale counts a record whose App re-add shares its second", async () => {
+  const at = "2026-11-01T11:00:00Z";
+  const { fetch, calls } = staleFetch({
+    comments: [record(at)],
+    events: [
+      { event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" },
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: at },
+      { event: "labeled", label: { name: "agent-ready" }, actor: { id: 9, login: STALE_BOT }, created_at: at },
+    ],
+  });
+  assert.match(await refire(fetch, { ...LIMIT_DEFAULTS, "limit-stops-per-issue": 1 }), /^skipped: 1 re-fires/);
+  assert.deepEqual(writes(calls), []);
 });
 
 test("refireStale finishes a record whose label move did not land, without a second record", async () => {

@@ -768,10 +768,10 @@ export const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".
 // work-unblock's re-fire record, which its sweep reads back: the key is
 // main's blob SHAs of LANE_WORKFLOWS, and `breaker` marks a kill-switch trip.
 export const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
-export const refireComment = (key, cause) =>
-  `<!-- work-unblock refired ${key} -->\n${cause} work-unblock removed and added \`agent-ready\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
+export const refireComment = (key, cause, actor = "work-unblock") =>
+  `<!-- work-unblock refired ${key} -->\n${cause} ${actor} removed and added \`agent-ready\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
 const STALE_CAUSE =
-  "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn; its report job re-fired it at once.";
+  "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn.";
 // The labels the lane never starts on, as work-unblock's HOLDS lists them.
 const STALE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", UNTRUSTED_PROVENANCE, ATTENDED_LABEL, "security: outside-actor"]);
 const BLOB = /^[0-9a-f]{40}$/;
@@ -832,15 +832,16 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
     const record = REFIRED.exec(String(comment.body ?? ""));
     return record !== null && record[2] === undefined && at(comment) > from;
   });
-  const added = Date.parse(events.at(-1).created_at);
-  // A record newer than the newest agent-ready add is one whose label move
-  // did not finish: finish it without posting another.
-  const pending = records.some((comment) => at(comment) >= added);
+  // A record no App agent-ready add follows is one whose label move did not
+  // finish: finish it without posting another (work-unblock's `relabeled`).
+  const pending = records.some(
+    (comment) => !events.some((event) => event.event === "labeled" && event.actor?.login === bot && Date.parse(event.created_at) >= at(comment)),
+  );
   if (!pending && records.length >= limits["limit-stops-per-issue"]) {
     return `skipped: ${records.length} re-fires since a person last added agent-ready or a run last reported (limits.limit-stops-per-issue); work-unblock's sweep takes it`;
   }
   if (!pending) {
-    await github("POST", `${base}/comments`, { body: refireComment(key, STALE_CAUSE) });
+    await github("POST", `${base}/comments`, { body: refireComment(key, STALE_CAUSE, "The run's report-outcome") });
   }
   await github("DELETE", `${base}/labels/agent-ready`);
   // The label is off now; one failed re-add would leave the issue out of the
