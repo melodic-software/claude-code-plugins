@@ -19,6 +19,14 @@
     {
       "answer": "All 5 claims were verified as correct.",
       "why": "counted claims"
+    },
+    {
+      "answer": "I checked every claim in the README against the code. None of them have drifted.",
+      "why": "observed baseline reply in the smoke pass"
+    },
+    {
+      "answer": "Nothing has drifted: every README claim matches the repo.",
+      "why": "nothing-drifted paraphrase"
     }
   ],
   "fail": [
@@ -37,6 +45,10 @@
     {
       "answer": "Not all claims verified as correct.",
       "why": "negated all-claims"
+    },
+    {
+      "answer": "Some of them have drifted.",
+      "why": "near miss: drift reported"
     }
   ]
 }

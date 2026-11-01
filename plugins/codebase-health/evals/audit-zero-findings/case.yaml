@@ -5,7 +5,7 @@ context:
 graders:
   - name: no-findings-statement
     type: regex
-    pattern: '(?<!\bnot )(?<!\bnot all )(?<!\bnot a )(?:\bno findings\b|\bno (?:discrepancies|drift)\b|\b(?:zero|0) findings\b|\bclean bill of health\b|\ball (?:\d+ )?(?:of the )?(?:\d+ )?claims? (?:were |are )?(?:verified|confirmed)(?: as)? (?:correct|accurate|true)\b|\bfound no (?:discrepancies|drift|findings|issues)\b)'
+    pattern: '(?<!\bnot )(?<!\bnot all )(?<!\bnot a )(?:\bno findings\b|\bno (?:discrepancies|drift)\b|\b(?:zero|0) findings\b|\bclean bill of health\b|\ball (?:\d+ )?(?:of the )?(?:\d+ )?claims? (?:were |are )?(?:verified|confirmed)(?: as)? (?:correct|accurate|true)\b|\bfound no (?:discrepancies|drift|findings|issues)\b|\bnone (?:of (?:them|the (?:README )?claims) )?(?:have|has) drifted\b|\bnothing (?:has )?drifted\b)'
     flags: 'i'
     target: last_message
   - name: no-invented-finding
