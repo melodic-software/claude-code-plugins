@@ -8,7 +8,7 @@ directory per case under `<plugin-dir>/evals/`:
 
     <case>/prompt.md                  frontmatter, then the case's prompt as the body
     <case>/case.yaml                  schema_version, name and the graders
-    <case>/samples/skill-fired.json   sample answers for the one deterministic grader
+    <case>/samples/<grader>.json      sample answers for a grader that has any
 
 The case directory is `<skill>-<name>`, or `<name>` when the name already starts
 with the skill's own name; a case with no `name` uses its `id`. Each item of
@@ -22,13 +22,24 @@ pass and reject. A slash command loads the skill without a Skill call, so a
 slash-invoked case gets none, and neither does a case whose expectations say
 the skill must not trigger or be invoked: the converter cannot tell which way
 such a case points, and run-validity.py marks a run INVALID when a required
-Skill call is missing. The `llm` graders get no samples: the source holds
-criteria, not labeled answers.
+Skill call is missing.
+
+A case with expectations and an `expected_output` gets a sample file per
+expectation grader, holding `expected_output` as the one answer it must pass.
+The source describes the intended reply rather than recording one, so the
+sample's `why` asks for the label to be confirmed before calibrate-judge.py
+measures the judge on it, and validate-cases.py warns that these samples need
+judge calibration. A case with expectations and no `expected_output` gets a
+note instead. The `expected-output` grader gets no sample: its criteria is
+that same text.
 
 `difficulty: hard`, `why_hard` and `source` go to `description` and the `hard`
-tag. A case that lists `files` keeps them in place under the skill; the
-converter names them in `description` and in a note, since a run starts in an
-empty workspace and they need `context.add_dirs` or a `scaffold_script`.
+tag. `narration: true`, which marks a case that names fictional or
+consumer-repo paths no fixture provides, goes to `description` and the
+`narration` tag. A case that lists `files` keeps them in place under the
+skill; the converter names them in `description` and in a note, since a run
+starts in an empty workspace and they need `context.add_dirs` or a
+`scaffold_script`.
 
 After every case is written, each converted evals.json is removed, and its
 `evals/` directory too when nothing else is left in it.
@@ -233,6 +244,22 @@ def skill_samples(plugin, skill):
     }
 
 
+def expected_samples(expected):
+    return {
+        "pass": [
+            {
+                "answer": expected,
+                "why": "the source's expected_output, which describes the reply "
+                "rather than recording one; confirm the label before calibrating",
+            }
+        ]
+    }
+
+
+def sample_text(data):
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
 def plan_case(plugin, skill, case, where):
     """Return (directory name, {relative path: text}, notes) for one case."""
     notes = []
@@ -261,6 +288,15 @@ def plan_case(plugin, skill, case, where):
         )
     if isinstance(case.get("source"), str) and case["source"].strip():
         described.append("Source: %s." % case["source"].strip().rstrip("."))
+    narration = case.get("narration")
+    if narration is True:
+        tags.append("narration")
+        described.append(
+            "Narration case: it names fictional or consumer-repo paths that no "
+            "fixture provides."
+        )
+    elif narration is not None and narration is not False:
+        notes.append("narration is not true or false, so it was not carried over")
     files = case.get("files") or []
     files = [files] if isinstance(files, str) else files
     if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
@@ -296,6 +332,16 @@ def plan_case(plugin, skill, case, where):
             "    criteria: " + yaml_str(text, where),
             "    focus: 'trace'",
         ]
+    if criteria and expected:
+        for grader, _ in graders:
+            files_out["samples/%s.json" % grader] = sample_text(
+                expected_samples(expected)
+            )
+    elif criteria:
+        notes.append(
+            "has expectations but no expected_output, so its llm graders have no "
+            "sample answers; add samples/<grader>.json by hand"
+        )
     slash_invoked = SLASH_COMMAND.match(prompt) is not None
     if not slash_invoked and any(NO_TRIGGER.search(t) for t in [expected] + criteria):
         notes.append(
@@ -313,9 +359,8 @@ def plan_case(plugin, skill, case, where):
             "    tool: 'Skill'",
             "    input_match: " + yaml_str(pattern, where),
         ]
-        files_out["samples/skill-fired.json"] = (
-            json.dumps(skill_samples(plugin, skill), indent=2, ensure_ascii=False)
-            + "\n"
+        files_out["samples/skill-fired.json"] = sample_text(
+            skill_samples(plugin, skill)
         )
     files_out["case.yaml"] = "\n".join(yaml_lines) + "\n"
     for text in files_out.values():

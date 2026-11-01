@@ -188,6 +188,59 @@ class ConvertTest(ConverterTestCase):
         self.assertIn("source keys not carried over: extra_key", done.stdout)
         self.assertIn("note alpha-natural-trigger: lists fixtures", done.stdout)
 
+    def test_expectation_graders_get_samples_from_expected_output(self):
+        self.sample_plugin()
+        self.assertEqual(run(self.plugin).returncode, 0)
+        for case, source in (
+            ("alpha-slash-start", ALPHA_CASES[0]),
+            ("alpha-natural-trigger", ALPHA_CASES[1]),
+            ("beta-stays-quiet", BETA_CASES[0]),
+        ):
+            samples = self.plugin / "evals" / case / "samples"
+            for number in range(1, len(source["expectations"]) + 1):
+                path = samples / ("expectation-%d.json" % number)
+                data = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(list(data), ["pass"], case)
+                answers = [item["answer"] for item in data["pass"]]
+                self.assertEqual(answers, [source["expected_output"]], case)
+        minimal = self.plugin / "evals" / "alpha-minimal-form" / "samples"
+        self.assertFalse(minimal.exists(), "expected-output is its own criteria")
+
+    def test_expectations_without_expected_output_get_a_note(self):
+        case = {
+            "id": 1,
+            "name": "no-output",
+            "prompt": "Hi",
+            "expectations": ["Greets"],
+        }
+        self.source("alpha", [case])
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn(
+            "note alpha-no-output: has expectations but no expected_output", done.stdout
+        )
+        samples = self.plugin / "evals" / "alpha-no-output" / "samples"
+        self.assertEqual([p.name for p in samples.iterdir()], ["skill-fired.json"])
+
+    def test_narration_is_carried_into_the_case(self):
+        self.source("alpha", [dict(ALPHA_CASES[2], narration=True)])
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        front, _ = self.prompt_md("alpha-minimal-form")
+        self.assertEqual(front["tags"], ["alpha", "narration"])
+        self.assertIn("names fictional or consumer-repo paths", front["description"])
+        self.assertNotIn("not carried over", done.stdout)
+
+    def test_narration_that_is_not_a_boolean_gets_a_note(self):
+        self.source("alpha", [dict(ALPHA_CASES[2], narration="yes")])
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn(
+            "note alpha-minimal-form: narration is not true or false", done.stdout
+        )
+        front, _ = self.prompt_md("alpha-minimal-form")
+        self.assertEqual(front["tags"], ["alpha"])
+
     def test_path_prompt_and_separate_items_keep_the_skill_grader(self):
         case = {
             "id": 1,
