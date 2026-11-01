@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "## Result\n\nNo findings. All claims verified as correct.",
+      "why": "contract sentence under hash heading"
+    },
+    {
+      "answer": "**Clean bill of health.** Every README claim matched the repo.",
+      "why": "bold"
+    },
+    {
+      "answer": "| Outcome | Detail |\n|---|---|\n| Findings | Found no discrepancies in README.md |",
+      "why": "table"
+    },
+    {
+      "answer": "- 0 findings across 5 claims",
+      "why": "list with numeral"
+    },
+    {
+      "answer": "All 5 claims were verified as correct.",
+      "why": "counted claims"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Findings: 1 error (README.md:9).",
+      "why": "reports a finding"
+    },
+    {
+      "answer": "This is not a clean bill of health.",
+      "why": "negated"
+    },
+    {
+      "answer": "Not all claims verified as correct.",
+      "why": "negated all-claims"
+    }
+  ]
+}
