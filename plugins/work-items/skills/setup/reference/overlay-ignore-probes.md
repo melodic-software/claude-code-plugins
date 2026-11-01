@@ -1,8 +1,10 @@
 # Verifying the personal-overlay ignore state
 
-How `apply` step 5 and `check` probe 2 establish that `.work-item-tracker.local.json` is
-ignored **and** untracked. Both surfaces assert the same condition, so both run the same
-probes; this file is the single description of them.
+How `apply` step 5 and `check` probe 2 establish that the personal overlay
+`<home>/work-items.local.yaml` is ignored **and** untracked, `<home>` being the convention home
+SKILL.md "Resolving the paths" resolves. Both surfaces assert the same condition, so both run the
+same probes; this file is the single description of them. While a legacy
+`.work-item-tracker.local.json` exists at the repository root, run the same probes on it too.
 
 ## Why one probe is not enough
 
@@ -23,13 +25,13 @@ Run both as one Bash tool call:
 
 ```bash
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-OVERLAY=".work-item-tracker.local.json"
+OVERLAY="<home>/work-items.local.yaml"  # repo-relative; the legacy pass uses .work-item-tracker.local.json
 # Is the path IGNORED? Two flags, and both are required:
 #   --no-index answers on gitignore's terms alone, so an already-tracked file cannot mask
 #              the answer the way it does for a bare check-ignore.
 #   NO -v here. With -v, git reports NEGATION patterns too and still exits 0, so the exit
 #              code would mean "some pattern matched", not "the path is ignored". Under a
-#              `*.json` + `!.work-item-tracker.local.json` pair the overlay is NOT ignored
+#              `*.yaml` + `!<home>/work-items.local.yaml` pair the overlay is NOT ignored
 #              yet `-v` exits 0. Only the bare exit code is a truth value.
 # The overlay path does not need to exist; the rule must be in place first.
 git -C "$REPO_ROOT" check-ignore --no-index -q -- "$OVERLAY" && IGNORED=1 || IGNORED=0
@@ -58,12 +60,12 @@ fi
 
 - **Tracked** is the serious one and outranks the ignore state: the overlay is in team history
   and may carry per-user auth identity. Remediation is
-  `git rm --cached .work-item-tracker.local.json`, plus rotating any credential that was
+  `git rm --cached -- "$OVERLAY"`, plus rotating any credential that was
   committed. Never append the ignore line here. It does not untrack an already-committed
   file, and reporting it as the fix would paper over exactly the failure this check exists to
   catch. When both conditions hold, name the tracked one as the finding.
-- **Untracked and not covered** is the ordinary case `apply` fixes: append
-  `.work-item-tracker.local.json` to the consumer's `.gitignore` and **announce the edit**
+- **Untracked and not covered** is the ordinary case `apply` fixes: append the `$OVERLAY` path
+  as a line to the consumer's root `.gitignore` and **announce the edit**
   (the one declared exception to leaving the consumer's `.gitignore` alone; touch nothing else in
   that file). This is also the correct
   remediation when a negation rule is what left the path exposed, since the last matching rule
