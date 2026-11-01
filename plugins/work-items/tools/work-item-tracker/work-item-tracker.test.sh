@@ -72,8 +72,9 @@ assert_eq "unknown verb → exit 2" "2" "$?"
 
 # --- binding errors → exit 3 ---
 
-(cd "$TEST_TMPDIR" && WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/nope.json" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
+ERR="$(cd "$TEST_TMPDIR" && WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/nope.json" bash "$DISPATCHER" capabilities 2>&1 >/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
+assert_contains "missing binding points at /work-items:setup" "$ERR" "/work-items:setup"
 
 BAD="$TEST_TMPDIR/bad.json"
 printf 'nope\n' >"$BAD"
