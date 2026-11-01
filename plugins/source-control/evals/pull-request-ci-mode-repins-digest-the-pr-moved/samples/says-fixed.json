@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "test-bash: fixed"
+    },
+    {
+      "answer": "- `test-bash: fixed`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "test-bash: escalated weaken-required updating the pinned digest changes the test's expected value.",
+      "why": "the stall this case guards against"
+    },
+    {
+      "answer": "I re-pinned the digest.",
+      "why": "no report line"
+    }
+  ]
+}

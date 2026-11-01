@@ -29,7 +29,9 @@
 //           the label on and no review lane holds the PR (gate-source.mjs),
 //           and on an adopted owner PR only as prHold lets fix-ci work it.
 //           On an adopted owner PR a body line starting `Hold:` skips
-//           awaiting-human.
+//           awaiting-human. An untaken thread whose stop on this head is
+//           already in the session-builder queue (sessionQueued) skips
+//           awaiting-session instead of escalating again.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -45,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
-import { retryRung, stopSkip } from "./escalation-routes.mjs";
+import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -945,6 +947,24 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
   return kept;
 }
 
+// Whether this head's address-feedback stop sits in the session-builder
+// queue: the lanes App's lane-stopped comment for the activity (one, edited in
+// place, report-escalation.sh) names `headSha` and a reason whose
+// escalation-routes.json entry names a `label` the PR carries (needs-session).
+const LANE_STOPPED = `<!-- pr-unblock:lane-stopped activity=${ACTIVITY} -->`;
+export function sessionQueued({ labels = [], issueComments, headSha, isLanesApp }) {
+  const names = new Set(labels.map((label) => label.name));
+  return issueComments.some((comment) => {
+    const body = String(comment.body ?? "").replaceAll("\r\n", "\n");
+    if (!isLanesApp(comment.user) || firstLine(body) !== LANE_STOPPED) {
+      return false;
+    }
+    const reason = /^- Reason: `([^`]*)`$/m.exec(body)?.[1] ?? "";
+    const label = Object.hasOwn(ROUTES, reason) ? ROUTES[reason].label : undefined;
+    return /^- Head: `([0-9a-f]{40})`$/m.exec(body)?.[1] === headSha && typeof label === "string" && names.has(label);
+  });
+}
+
 export async function select({
   api,
   pr,
@@ -1038,6 +1058,11 @@ export async function select({
     // is resolved. Any other person's PR still escalates.
     if (untaken && owner) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    // A stop already queued for a session builder on this head stands down:
+    // escalating again would only re-post it. A new head escalates afresh.
+    if (untaken && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
+      return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
     return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }

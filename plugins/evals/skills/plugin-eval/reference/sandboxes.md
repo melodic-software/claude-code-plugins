@@ -73,19 +73,37 @@ prescribe a rerun for that reason alone.
 ## Sandbox start
 
 A run under the default `<tmp>`, or under a long `$TMPDIR`, can end with no session or no shell:
-the validity gate's `session started` check fails it. Rerun with `TMPDIR` set to a short directory
-outside the system temp directory.
+the validity gate's `session started` check fails it as a harness failure. Rerun with `TMPDIR` set
+to a directory of at most 24 characters outside the system temp directory; preflight's
+`eval_tmpdir` field refuses a longer one before any spend.
+
+Why 24: on Linux the shell sandbox starts two socat bridges whose Unix sockets are named
+`claude-http-<16 hex>.sock` and `claude-socks-<16 hex>.sock` in the process's temp directory, and a
+socket path holds at most 107 bytes plus its terminating null. Under `plugin eval` the session's
+temp directories sit inside the run's `<dir>/claude-eval-*` sandbox (a probe saw
+`<dir>/claude-eval-*/tmp/claude-<uid>/`), so the socket path is `<dir>` plus that nesting plus the
+socket name. Neither the nesting nor the `claude-eval-*` name length is documented, so the bound is
+the measured one, not the failure point: on a WSL2 host on 2026-10-31, a 63-character `<dir>`
+failed every Bash call with `Sandbox is required but failed to initialize: Failed to create bridge
+sockets after 5 attempts`, and a 24-character `<dir>` with the same case and tree ran Bash and
+scored.
 
 - **Pointer:** [anthropics/claude-code#104631](https://github.com/anthropics/claude-code/issues/104631)
   and [anthropics/claude-code#104797](https://github.com/anthropics/claude-code/issues/104797) for
   the default temp directory (the cause is each reporter's attribution); for a long `$TMPDIR`,
   correlate with the socket path limit in [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html),
-  which no upstream source names as the cause. Probes on Claude Code 2.1.310 are in
+  which no upstream source names as the cause. The socket names and the `Failed to create bridge
+  sockets after <n> attempts` error are in `initializeLinuxNetworkBridge` in
+  [sandbox-runtime's `linux-sandbox-utils.ts`](https://github.com/anthropic-experimental/sandbox-runtime/blob/main/src/sandbox/linux-sandbox-utils.ts).
+  Probes on Claude Code 2.1.310 are in
   [#9514](https://github.com/melodic-software/claude-code-plugins/issues/9514#issuecomment-6400874417)
-  and [#9611](https://github.com/melodic-software/claude-code-plugins/issues/9611).
-- **As of:** 2026-10-25.
-- **Recheck when:** either upstream issue closes, or a release note touches `plugin eval` sandbox
-  paths or `TMPDIR`.
+  (the session temp directory inside the sandbox) and
+  [#9611](https://github.com/melodic-software/claude-code-plugins/issues/9611); the 63- and
+  24-character pair is in [#11740](https://github.com/melodic-software/claude-code-plugins/issues/11740).
+- **As of:** 2026-10-31.
+- **Recheck when:** either upstream issue closes, a release note touches `plugin eval` sandbox
+  paths or `TMPDIR`, sandbox-runtime renames its bridge sockets, or a `<dir>` of 24 characters or
+  fewer fails with the bridge-socket error.
 
 ## Docker link swap
 
@@ -94,6 +112,10 @@ When the user says yes to the swap, wrap the run step's CLI command, unchanged:
 ```bash
 python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
 ```
+
+`<dir>` is the run step's directory: at most 24 characters, outside the system temp directories,
+created first (for example `/run/user/<uid>/ev`). A longer one is untested, and at 63 characters
+no run started a shell sandbox ([Sandbox start](#sandbox-start)).
 
 It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of
