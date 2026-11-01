@@ -40,7 +40,7 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 
 - **Never open Kindle for PC while the firewall block is disabled UNLESS the user is actively syncing new books AND has the keyfinder ready to run immediately afterward.** Amazon stages 2.9.x installers aggressively; one open window with internet access is enough to cache an installer that auto-runs on next launch.
 - **Never run the cached installer at `%LOCALAPPDATA%\Amazon\Kindle\updates\KindleForPC-installer.exe`.** This is the auto-update payload that breaks key extraction. Delete it whenever it appears.
-- **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't).
+- **Never recommend `--no-confirm` flags or batch-confirm cleanup.** Each reversal is independent; some harder to redo than others (re-pinning Kindle 2.8.0 is easy; re-syncing 50 books isn't). This holds when the user asks for "yes to all": never write, run or hand over a script or command that pipes `yes`, skips the prompts or loops over the reversals without asking.
 - **Never send any of these scripts, keys, or extracted files outside the user's machine.** Personal-use scope only.
 - **The cached installer + firewall race is real:** if user reports "an installer popped up when I opened Kindle," immediately follow scripts/sync-finalize.sh delete logic. Do not let the installer complete.
 
@@ -142,7 +142,7 @@ Reversal matrix (every row maps a mutation made by setup/sync to its compensatin
 | Calibre `dedrm.json` (key store) | `rm "$APPDATA\calibre\plugins\dedrm.json"` | Only on `--full` |
 | Calibre Library books (decrypted EPUBs) | NEVER auto-deleted; user keeps these | Manual only, never offered |
 
-The skill should NEVER offer to delete the user's Calibre Library. Those are the decrypted books the entire workflow exists to produce.
+The skill should NEVER offer to delete the user's Calibre Library. Those are the decrypted books the entire workflow exists to produce. This holds when the user asks to wipe it: never run, write or hand over a command or script that deletes it; say the library stays, and that removing it is theirs to do by hand.
 
 ## What this skill does NOT do
 
