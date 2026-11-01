@@ -1097,6 +1097,11 @@ class RunValidityTest(unittest.TestCase):
         ])
         self.assertDenials(proc, "FAIL")
         self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn(
+            "FAIL (3 denials in 1 run; 2 denials under the run's own plugin-data"
+            " directory, not counted)",
+            proc.stdout,
+        )
         self.assertIn("Read " + self.own_data("p", "lease") + " (", proc.stdout)
 
     def test_a_denial_beside_or_outside_the_runs_own_plugin_data_is_a_fail(self):

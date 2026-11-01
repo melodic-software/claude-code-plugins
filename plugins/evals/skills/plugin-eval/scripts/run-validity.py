@@ -1022,6 +1022,11 @@ def check_denials(runs, roots, root):
     failed = [r for r in denied if r not in warned]
     details = [line for r in denied for line, _, _, _, _ in every[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
+    set_aside = sum(len(every[r]) - len(found[r]) for r in denied)
+    if set_aside:
+        summary += "; %s under the run's own plugin-data directory, not counted" % plural(
+            set_aside, "denial"
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
