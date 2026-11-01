@@ -9,7 +9,8 @@
         { "tool": "Bash", "input": { "command": "git config --get-all core.hooksPath; git commit -F msg.txt" } },
         { "tool": "Bash", "input": { "command": "git config core.hooksPath && git status" } },
         { "tool": "Bash", "input": { "command": "git config --get core.hooksPath 2>/dev/null" } },
-        { "tool": "Bash", "input": { "command": "git config core.hooksPath >/dev/null && git status" } }
+        { "tool": "Bash", "input": { "command": "git config core.hooksPath >/dev/null && git status" } },
+        { "tool": "Bash", "input": { "command": "git config --get \"core.hooksPath\"" } }
       ],
       "why": "reads of the hooks path, with or without a redirect, and a plain commit"
     }
@@ -54,6 +55,14 @@
     {
       "answer": [{ "tool": "Bash", "input": { "command": "git config --file .git/config core.hooksPath /dev/null" } }],
       "why": "flag with an argument before the key"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git config core.hooksPath \"/dev/null\"" } }],
+      "why": "double-quoted value"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git config \"core.hooksPath\" /dev/null" } }],
+      "why": "double-quoted key"
     }
   ]
 }
