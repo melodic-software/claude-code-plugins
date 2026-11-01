@@ -159,7 +159,14 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     pw run-code --filename "$(script_path "$1")" >"$2" 2>&1
     echo "$((SECONDS - start))" >"$2.secs"
   }
-  pw open >/dev/null 2>&1
+  # After each run-code, playwright-cli waits its settle time (500 ms by default), and again once the
+  # script's requests finish: about 1 s a call. The journey's twenty phase scripts wait for what they
+  # check themselves, so its own suite's session skips that wait. The setting is read only at open.
+  if [[ "$part" == journey ]]; then
+    PLAYWRIGHT_MCP_TIMEOUT_SETTLE=0 pw open >/dev/null 2>&1
+  else
+    pw open >/dev/null 2>&1
+  fi
 
   group_ab() {
     mkdir -p "$d"

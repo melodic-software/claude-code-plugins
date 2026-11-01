@@ -3,12 +3,12 @@ name: mt-loneliness-one-labeled
 graders:
   - name: family-distance-label
     type: regex
-    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|'
+    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)[- ]distance\b'
     flags: 'i'
     target: last_message
   - name: one-labeled-candidate
     type: regex
-    pattern: '(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|)[\s\S]*(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|)'
+    pattern: '(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)(?:-distance\b|[ ]distance\b(?=[ \t]*(?:[.,;:)\n]|$|pairing))))[\s\S]*(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)(?:-distance\b|[ ]distance\b(?=[ \t]*(?:[.,;:)\n]|$|pairing))))'
     flags: 'i'
     match: not_contains
     target: last_message

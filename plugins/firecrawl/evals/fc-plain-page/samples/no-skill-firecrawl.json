@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl:setup"
+          }
+        }
+      ],
+      "why": "a different firecrawl skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discovery:read-docs",
+            "args": "https://example.com/"
+          }
+        }
+      ],
+      "why": "a different skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl-extra"
+          }
+        }
+      ],
+      "why": "a different skill whose name starts with firecrawl"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl:firecrawl"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "firecrawl",
+            "args": "scrape https://example.com/"
+          }
+        }
+      ],
+      "why": "bare name with args"
+    }
+  ]
+}

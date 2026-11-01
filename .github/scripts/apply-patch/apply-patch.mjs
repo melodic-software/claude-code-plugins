@@ -1095,6 +1095,30 @@ export async function push({
   return { outcome: "pushed", commit, branch: headRef };
 }
 
+// What GitHub answered a failed call, for its error: the JSON body's message
+// and errors, else the text, with the token and any credential shape
+// redacted, control characters dropped (it lands in one ::error:: line), and
+// capped. An unreadable body is empty.
+const MAX_ANSWER = 500;
+export async function failedAnswer(response, token) {
+  let text = await response.text().catch(() => "");
+  try {
+    const body = JSON.parse(text);
+    if (body !== null && typeof body === "object") {
+      text = JSON.stringify({ message: body.message, errors: body.errors });
+    }
+  } catch {
+    // Not JSON: the text as it came.
+  }
+  if (token) {
+    text = text.split(token).join("[redacted]");
+  }
+  for (const [, pattern] of CREDENTIAL_SHAPES) {
+    text = text.replace(new RegExp(pattern.source, "g"), "[redacted]");
+  }
+  return text.replace(/[\x00-\x1f\x7f]+/g, " ").trim().slice(0, MAX_ANSWER);
+}
+
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
 // or committer as the App. A read, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). A blob, a tree and
@@ -1113,7 +1137,8 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${path} returned ${response.status}`);
+      const answer = await failedAnswer(response, token);
+      throw new Error(`${method} ${path} returned ${response.status}${answer ? `: ${answer}` : ""}`);
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }
