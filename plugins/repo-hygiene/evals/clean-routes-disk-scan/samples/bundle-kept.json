@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "// BUNDLE-MARKER-2207\nfixture line 00000 of generated content\n",
+      "why": "intact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "removed"
+    }
+  ]
+}

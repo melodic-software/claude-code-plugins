@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "source-control:worktree"
+          }
+        }
+      ],
+      "why": "worktree skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-hygiene:clean",
+            "args": "git"
+          }
+        }
+      ],
+      "why": "routed to clean"
+    }
+  ]
+}
