@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## [8.29.0] - 2026-11-01
+
+### Changed
+
+- `verify:too-old` now means a pull request created more than 80 days ago with no counted verdict at its head, and a fresh pass there clears it. The lost-run reconciler re-runs that head's passed `pr-require-checks` run once, recorded, inside GitHub's 30-day re-run window, so pr-verify judges the head. The pr-merge lane no longer closes such a pull request for a fresh attempt; `verify:repeated-fail` still does ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+- The convention's "Unsure" rule now says what the lane does: an adjudicator judges an unsure finding, and only a finding at the security tier a person decides, or a thread a person opened or directed, goes to that person.
+
+### Fixed
+
+- A review thread the address-feedback lane answered `UNCERTAIN`, `VALID-defer` or `INCORRECT`
+  and left open no longer stalls the pull request with no queue. `feedback-untaken-threads` and
+  `feedback-unadjudicated` now add `needs-session` beside their failing status, so a session
+  builder takes the thread. While that stop stands on the head, the select job skips the new
+  `awaiting-session` reason instead of escalating again; it still clears the stop
+  (`stop-resolved`) once no thread is unresolved, and a new head escalates afresh.
+
 ## [8.28.0] - 2026-11-01
 
 ### Added
