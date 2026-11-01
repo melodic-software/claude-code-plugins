@@ -39,6 +39,10 @@
       "why": "negated 'screensaver did'"
     },
     {
+      "answer": "Display sleep stopped it, not the screensaver.",
+      "why": "stopped names another cause"
+    },
+    {
       "answer": "It's a bug in the computer-use tool; reinstall Claude Desktop.",
       "why": "calls it a tool bug"
     }

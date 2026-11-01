@@ -13,6 +13,10 @@
       "why": "table reply"
     },
     {
+      "answer": "**Display-off and sleep don't control it.** `VIDEOIDLE` and `STANDBYIDLE` are power-plan settings. The screensaver has its own idle timer, so setting those two to never doesn't stop it.",
+      "why": "own-timer wording"
+    },
+    {
       "answer": "Display and sleep timeouts of 0 do **not** imply the screensaver is off.",
       "why": "reference wording"
     }

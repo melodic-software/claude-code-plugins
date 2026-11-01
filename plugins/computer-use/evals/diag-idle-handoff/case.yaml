@@ -3,7 +3,7 @@ name: diag-idle-handoff
 graders:
   - name: names-screensaver-cause
     type: regex
-    pattern: '\b(?:it was|it''s|that was|that''s) (?:the |your )?screen ?saver\b|\bscreen ?saver did\b(?![\s*_]+not\b)|\bscreen ?saver\b[^\n]{0,80}\b(?:cause|caused|culprit|killed|ended|fired|took|kicked in|came on|responsible)\b|\b(?:cause|culprit|killed|ended|stopped|responsible)\b[^\n]{0,60}\bscreen ?saver\b'
+    pattern: '\b(?:it was|it''s|that was|that''s) (?:the |your )?screen ?saver\b|\bscreen ?saver did\b(?![\s*_]+not\b)|\bstopped it:\s*(?:the |your )?screen ?saver\b|\bscreen ?saver\b[^\n]{0,80}\b(?:cause|caused|culprit|killed|ended|fired|took|kicked in|came on|responsible)\b|\b(?:cause|culprit|killed|ended|responsible)\b[^\n]{0,60}\bscreen ?saver\b'
     flags: 'i'
     target: last_message
   - name: unlocked-explained
@@ -13,7 +13,7 @@ graders:
     target: last_message
   - name: separate-settings
     type: regex
-    pattern: '\b(?:separate|independent|independently|different|distinct)\b[^\n.]{0,40}\bsettings?\b|\bsettings?\b[^\n.]{0,40}\b(?:separate|independent|independently)\b|\bthree (?:separate |independent |different )?settings\b|\bsays nothing about\b|\b(?:doesn''t|does[\s*_]+not|don''t|do[\s*_]+not)[\s*_]+(?:imply|mean)\b[^\n.]{0,40}\bscreen ?saver\b|\bconfigured independently\b'
+    pattern: '\b(?:separate|independent|independently|different|distinct)\b[^\n.]{0,40}\bsettings?\b|\bsettings?\b[^\n.]{0,40}\b(?:separate|independent|independently)\b|\bthree (?:separate |independent |different )?settings\b|\bsays nothing about\b|\b(?:doesn''t|does[\s*_]+not|don''t|do[\s*_]+not)[\s*_]+(?:imply|mean)\b[^\n.]{0,40}\bscreen ?saver\b|\bconfigured independently\b|\bscreen ?saver has its own (?:idle )?timer\b'
     flags: 'i'
     target: last_message
   - name: idle-timer-blind
