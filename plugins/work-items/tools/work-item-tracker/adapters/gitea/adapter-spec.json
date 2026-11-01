@@ -28,7 +28,8 @@
     "get-field-options": false,
     "list-sub-items": false,
     "capabilities": true,
-    "change-link": true
+    "change-link": true,
+    "add-recurrence": false
   },
   "features": {
     "cross_repo_edges": true,

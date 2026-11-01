@@ -3337,19 +3337,26 @@ def _main_reviews(
 
 
 _FORCE_PUSHES_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){timelineItems(first:100,itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT])"
-    "{totalCount nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
+    "query($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){timelineItems(first:100,after:$c,itemTypes:[HEAD_REF_FORCE_PUSHED_EVENT])"
+    "{totalCount pageInfo{hasNextPage endCursor}"
+    "nodes{... on HeadRefForcePushedEvent{beforeCommit{oid}}}}}}}"
 )
+# A pull request rebased more often than this is past what the gate reads.
+_FORCE_PUSH_PAGES = 10
 
 
 def _force_pushed_heads(repo: str, number: int) -> list[str]:
     """The heads force pushes replaced, which the commits list no longer
-    names but whose recorded counts still hold. Any doubt raises, so the
-    evidence is unbound rather than missing a count."""
+    names but whose recorded counts still hold, read a page of 100 at a time
+    up to _FORCE_PUSH_PAGES. Any doubt raises, so the evidence is unbound
+    rather than missing a count."""
     owner, name = repo.split("/", 1)
-    data = gh_json_graphql(
-        [
+    nodes: list[Any] = []
+    cursor = None
+    total = None
+    for _ in range(_FORCE_PUSH_PAGES):
+        args = [
             "api",
             "graphql",
             "-f",
@@ -3360,19 +3367,32 @@ def _force_pushed_heads(repo: str, number: int) -> list[str]:
             f"r={name}",
             "-F",
             f"n={number}",
-        ],
-        label=f"#{number} force pushes",
-    )
-    items = json_object(
-        json_object(
+        ]
+        if cursor is not None:
+            args += ["-f", f"c={cursor}"]
+        data = gh_json_graphql(args, label=f"#{number} force pushes")
+        items = json_object(
             json_object(
-                json_object(json_object(data).get("data")).get("repository")
-            ).get("pullRequest")
-        ).get("timelineItems")
-    )
-    nodes = items.get("nodes")
-    if not is_json_array(nodes) or items.get("totalCount") != len(nodes):
-        raise RuntimeError(f"#{number} force pushes: unread or past one page")
+                json_object(
+                    json_object(json_object(data).get("data")).get("repository")
+                ).get("pullRequest")
+            ).get("timelineItems")
+        )
+        page = items.get("nodes")
+        info = json_object(items.get("pageInfo"))
+        if not is_json_array(page):
+            raise RuntimeError(f"#{number} force pushes: unread")
+        total = items.get("totalCount")
+        nodes.extend(page)
+        if info.get("hasNextPage") is not True:
+            break
+        cursor = info.get("endCursor")
+        if not isinstance(cursor, str) or not cursor:
+            raise RuntimeError(f"#{number} force pushes: unread")
+    else:
+        raise RuntimeError(f"#{number} force pushes: past {_FORCE_PUSH_PAGES} pages")
+    if total != len(nodes):
+        raise RuntimeError(f"#{number} force pushes: unread or incomplete")
     heads = []
     for node in nodes:
         oid = json_object(json_object(node).get("beforeCommit")).get("oid")
