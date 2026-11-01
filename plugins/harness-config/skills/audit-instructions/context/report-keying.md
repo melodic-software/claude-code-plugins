@@ -9,9 +9,14 @@ This file records only what an `audit-instructions` run does with it.
 
 ## Deriving the key
 
-Run the `state-key.sh` command in `SKILL.md`'s Phase D, whose path is already resolved there. It
-prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh`
-that `audit-prompting-postures` also uses. Use the result.
+Phase D's `persist-report.sh` command in `SKILL.md`, whose paths are already resolved there,
+derives the key and writes the report. `--plugin-data` carries the data directory because
+`${CLAUDE_PLUGIN_DATA}` is absent from the Bash tool's environment. Run that script rather than a
+`mkdir` of your own against the plugin data directory: the permission layer denies an inline
+command that names a path there, and the script's write is not denied. The key is
+`<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh` that
+the script runs and `audit-prompting-postures` also uses. To read the prior report, run the
+`state-key.sh` command Phase D names and use its result.
 
 Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": in `SKILL.md` the placeholder is substituted before the body reaches you, and in this
 file, read with the Read tool, it arrives as literal text, so in neither place is the condition
