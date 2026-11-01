@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "responsibility-literal lens", "prompt": "Brief: modality class; responsibility compares bank lines with ledger entries." } },
+        { "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Brief: modality class; responsibility compares bank lines with ledger entries." } },
+        { "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Brief: modality class; responsibility compares bank lines with ledger entries." } }
+      ],
+      "why": "three generators, one per lens"
+    }
+  ],
+  "fail": [
+    { "answer": [], "why": "candidates written inline, no generators" },
+    {
+      "answer": [
+        { "tool": "Agent", "input": { "description": "generate names", "prompt": "Suggest ten class names." } },
+        { "tool": "Agent", "input": { "description": "score names", "prompt": "Score these names." } }
+      ],
+      "why": "two subagents is short of the three lenses"
+    }
+  ]
+}

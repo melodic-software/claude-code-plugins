@@ -2,7 +2,7 @@
 
 A Claude Code plugin bundling sixteen **safety guards** that catch risky agent
 actions the moment they happen, before a write lands or a bash command runs, and
-three git-hook checks that cover every commit and push. Each guard is independently
+four git-hook checks that cover every commit and push. Each guard is independently
 toggleable, so you run exactly the subset you want.
 
 ## Contents
@@ -110,7 +110,7 @@ notice).
 
 ### Git hooks
 
-Three checks run as git hooks, so they cover every commit and push in the
+Four checks run as git hooks, so they cover every commit and push in the
 repository, from Claude, a person, an IDE or another agent, and report at commit or
 push time rather than after each edit. `/guardrails:setup apply install-git-hooks [scope=local|shared]`
 registers them with the repository's hook manager (lefthook, husky or plain git
@@ -135,6 +135,7 @@ bash beside git's sh.
 |-------|-------|----------------|
 | `commit-msg-convention` | commit-msg | The subject against the team-tracked `subject_pattern` in `docs/conventions/source-control.yaml` (for one release, else `.claude/source-control.md`), the pattern `block-convention-violation` reads; where the team tracks none, the operator's own in a git-ignored `docs/conventions/source-control.local.yaml`. No tracked or personal pattern, no enforcement. |
 | `pre-commit-content` | pre-commit | Secrets and machine-specific paths on the lines the commit adds, with the same pattern libraries and path exemptions as `secret-pattern-detection` and `hardcoded-path-check`, so a file a shell command or script wrote meets the same checks as a Write. |
+| `pre-push-content` | pre-push | The same scan as `pre-commit-content` (it shares that entry's `git-hooks/content-scan.sh`), on every pushed ref, for commits that check never judged: made before the hooks were installed, by a tool or clone without them, or rebased or cherry-picked in. Each pushed commit is judged on the lines it adds to its parent, so a secret one commit adds and a later commit removes still fails the push, which would publish it in history; a merge is judged on what it adds against every parent. A new branch starts from its merge-base with the default branch, and commits a remote-tracking ref already holds are not judged again. Each finding names its commit, and the fix is to rewrite that commit. |
 | `reference-verify` | pre-push | `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify` on the lines the pushed commits add, through `hooks/run-guards.sh`. A new branch is judged from its merge-base with the default branch. Any pushed range then starts instead at the nearest of the remote's tracking refs between its base and its tip, so a stacked branch's push does not re-verify the pushed branches below it. Those tracking refs are trusted as verified without a check, including another author's branch, fetched into this clone, that was pushed with `--no-verify`. It skips files in a `samples/` folder below an `evals/` folder, which hold recorded model output; the rest of an eval suite stays checked. It runs at push rather than commit because it costs about 10 s on a 44-file change, over the commit budget (the check-placement convention's measured rows). Needs `jq`; the scanned binaries follow `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS` and `CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS` when set in the pushing environment. A cli-flag finding is unverified, not proven wrong, so its failure names the way out: decline the entry. The entry reads that decline itself, so it also stops on the lefthook remote, where no registration is removed. Each finding names the line holding the flag, path or reference. `git -c checks.skipmissing=jq` skips it only while `jq` is missing. Over ssh, the connection to the remote stays idle while the hook runs. A remote that drops an idle connection leaves a push that reports success but creates no ref. To keep the connection open, set `ServerAliveInterval` (for example `15`) for that host in the ssh config, or set it for one push: `git -c core.sshCommand="ssh -o ServerAliveInterval=15" push`. |
 
 ### Enforceability tiers

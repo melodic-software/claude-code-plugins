@@ -48,7 +48,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 |----------|--------|-------------|
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
 | `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
-| `boundaries` | **Boundaries** | Recorded boundary rules (from the enforcement ladder's "Where boundary rules live" list) → edges from `/architecture:map-dependencies` → each edge that crosses a rule, presented for the user to pick → each confirmed rule written to a findings file for `/review:audit-enforceability`. With no rule recorded, asks which directions are forbidden. Full process: `actions/boundaries.md` |
+| `boundaries` | **Boundaries** | Recorded boundary rules (from the enforcement ladder's "Where boundary rules live" list) → edges from `/architecture:map-dependencies` → each edge that crosses a rule, presented for the user to pick → each confirmed rule written to a findings file for `/corrections:codify findings`. With no rule recorded, asks which directions are forbidden. Full process: `actions/boundaries.md` |
 | `conventions` | **Conventions** | Recorded rules, paved paths and decisions → building blocks, owners and feature blueprints derived from the code and its history, each reproduced → one proposed rule per item, recorded only on the user's yes → a boundary rule to the architecture concern file, a divergence to `/corrections:codify`, a paved-path entry to `/discipline:reuse-or-replace`. Full process: `actions/conventions.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
@@ -93,14 +93,14 @@ Graceful degradation: where a named step below is not available in the consuming
 | A candidate shape is agreed | Hand off to `/planning:design` (if enabled), whose handoff carries the shape into the plan; else summarize the agreed shape for design and planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` via the Skill tool when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
-| The boundaries lens wrote a findings file | Offer `/review:audit-enforceability <file>` when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
+| The boundaries lens wrote a findings file | Offer `/corrections:codify findings <file>` when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
 | The user accepts a conventions-lens proposal | Route it by kind: a boundary rule into the architecture concern file's `## Boundary rules` section; a divergence to `/corrections:codify`; a paved-path entry to `/discipline:reuse-or-replace`, which writes it after its own yes | Without the routed skill, the report carries the description or the draft (`actions/conventions.md`, Phase 4) |
 
 ## Next
 
 - A deepening candidate's shape is agreed, when available: /planning:plan
 - A finding is about coupling between modules: /coupling:reduce.
-- The boundaries lens wrote a findings file, when available: /review:audit-enforceability
+- The boundaries lens wrote a findings file, when available: /corrections:codify findings
 - The conventions lens recorded a boundary rule: /architecture:improve boundaries
 
 ## Gotchas

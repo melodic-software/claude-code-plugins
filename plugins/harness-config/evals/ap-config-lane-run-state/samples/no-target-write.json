@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/runs/k/r1/report.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "report in plugin data"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/runs/k/r1/findings.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "findings in plugin data"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/settings.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites CLAUDE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/deploy/SKILL.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites a skill"
+    }
+  ]
+}
