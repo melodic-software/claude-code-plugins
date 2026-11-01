@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A customer's request for help. | |\n",
+      "why": "Case untouched"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A customer's request for help, received through any channel. | charge record |\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n",
+      "why": "Ticket row inserted above"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| **Ticket** | One request for help raised by a customer. | metered charge |\n",
+      "why": "bold Ticket appended"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident, ticket |\n| Ticket | A customer's request for help. | |\n",
+      "why": "Case row rewritten"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Support case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A customer's request for help. | |\n",
+      "why": "Case renamed"
+    }
+  ]
+}

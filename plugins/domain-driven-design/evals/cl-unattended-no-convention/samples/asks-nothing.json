@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "Create src/fulfillment/GLOSSARY.md?",
+                "header": "File",
+                "options": [
+                  {
+                    "label": "Yes"
+                  },
+                  {
+                    "label": "No"
+                  }
+                ],
+                "multiSelect": false
+              }
+            ]
+          }
+        }
+      ],
+      "why": "asks a question no one can answer"
+    }
+  ]
+}

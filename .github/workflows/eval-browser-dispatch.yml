@@ -122,6 +122,7 @@ jobs:
       && !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
