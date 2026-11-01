@@ -10,8 +10,8 @@ disable-model-invocation: true
 A registration is one stdio server bound to one environment of one config file (design:
 [ADR 0086](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md)).
 The plugin ships no server in its own `.mcp.json`; this skill installs a copy of the server into
-`${CLAUDE_PLUGIN_DATA}/server`, a path that stays the same across plugin updates, and registers it
-under a name you choose.
+`${CLAUDE_PLUGIN_DATA}/server` so registrations survive plugin updates, and registers it under a
+name you choose.
 
 The read-only database principal you create is the guarantee. A registration on a login that can
 write is not read-only, whatever the reject list does. This skill creates no principal and no
@@ -80,8 +80,8 @@ Modify nothing in `check`.
    `claude mcp get <name>` and report what it shows. Done when every confirmed registration has a
    `claude mcp get` readback.
 4. **Readback.** Report the version `install-server.mjs` printed, each registration's readback and
-   the check table from step 3. A new registration loads in a fresh session; say so, and leave the
-   grants check of `check` step 4 to that session.
+   the check table from step 3. Leave the grants check of `check` step 4 to a fresh session, and
+   tell the user to start one before relying on the registration.
 
 ## Output
 
@@ -102,3 +102,11 @@ was skipped or refused, and each FAIL with its remediation.
   <https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json>, as of
   2026-11-01. Recheck when Claude Code changes how `claude mcp add --env` stores a value or which
   scopes expand `${VAR}`, or when a readback shows a literal `${NAME}` reaching the server.
+- When an added MCP server becomes available to a session:
+  <https://code.claude.com/docs/en/mcp#managing-your-servers>, as of 2026-11-01. Recheck when
+  Claude Code changes how `claude mcp add` takes effect, or when a registration's tools appear in
+  the session that added it.
+- Persistence of `${CLAUDE_PLUGIN_DATA}` across plugin updates:
+  <https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data>, as of
+  2026-11-01. Recheck when that section changes, or when `check` reports no server copy after an
+  update that `apply` had installed.
