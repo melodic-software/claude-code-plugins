@@ -12,6 +12,7 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
   "readmit-per-run": 20,
+  "parent-rescan-per-run": 5,
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
