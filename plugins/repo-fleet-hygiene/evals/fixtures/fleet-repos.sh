@@ -41,8 +41,8 @@ write_config() {
   mkdir -p .claude
   cat >.claude/repo-fleet-hygiene.conf <<'CONF'
 [fleet]
-	root = ../fleet
-	maxDepth = 3
+  root = ../fleet
+  maxDepth = 3
 CONF
 }
 

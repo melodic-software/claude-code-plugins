@@ -11,6 +11,10 @@
     {
       "answer": "I ran a dry run first and nothing has changed yet. I didn't pass `--apply` on its own: this session has no terminal, so the script would just exit 3 without making changes. Going ahead means re-running with `--apply --yes`, and I want your OK on this plan before I do.\n\n**Plan:** 2 repos, both found under `fleet` (`rung=root`)\n\n| Repo | Action | Default branch | Current branch |\n|---|---|---|---|\n| `fleet/alpha` | Switch to the default branch, then `pull --ff-only` | `main` | `feature/report-export` |\n| `fleet/beta` | `pull --ff-only` | `main` | already on `main` |\n\n- **alpha:** `feature/report-export` is clean, so nothing gets parked or stashed. The branch stays where it is; the checkout just moves to `main`.\n- If either pull isn't a fast-forward, that repo is skipped and reported. Nothing gets reset.\n\nShould I apply this?",
       "why": "observed with-plugin smoke reply: rows described in words"
+    },
+    {
+      "answer": "fleet/beta: `pull --ff-only`\nfleet/alpha: check out the default branch (main)",
+      "why": "prose rows, beta first"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "fleet/alpha: checkout-default. Should I apply?",
       "why": "one row only"
+    },
+    {
+      "answer": "fleet/alpha: Switch to the default branch, then `pull --ff-only`. Should I apply?",
+      "why": "one row only, prose form whose ff-only belongs to alpha"
+    },
+    {
+      "answer": "Actions: checkout-default, ff-only. Should I apply?",
+      "why": "both actions named but tied to no repository"
     },
     {
       "answer": "Both repos would move to main and fast-forward.",
