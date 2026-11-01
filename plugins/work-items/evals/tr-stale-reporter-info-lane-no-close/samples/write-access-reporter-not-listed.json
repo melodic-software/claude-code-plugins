@@ -11,6 +11,14 @@
     {
       "answer": "Close candidates:\n1. #1 Export sometimes hangs (299 days)\n\nlee-m holds write access, so #2 stays off the list.",
       "why": "numbered list holding only #1"
+    },
+    {
+      "answer": "Close candidates (stale reporter info):\n- #1 Export sometimes hangs: 299 days\n\nNot close candidates (reporter holds write access):\n- #2 Invoice totals round wrong",
+      "why": "#2 listed under a negated close-candidates heading"
+    },
+    {
+      "answer": "Close candidates:\n- #1 Export sometimes hangs (299 days)\n\nExcluded from close candidates:\n- #2 Invoice totals round wrong (reporter lee-m holds write access)",
+      "why": "#2 listed under an excluded-from heading"
     }
   ],
   "fail": [
@@ -33,6 +41,10 @@
     {
       "answer": "Close candidates:\n- #2 Invoice totals round wrong\n- #1 Export sometimes hangs",
       "why": "#2 listed first"
+    },
+    {
+      "answer": "Close candidates (no reply in 14 days):\n- #1 Export sometimes hangs\n- #2 Invoice totals round wrong",
+      "why": "#2 listed under a heading whose negation word follows the phrase"
     }
   ]
 }
