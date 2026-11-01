@@ -5740,11 +5740,13 @@ jobs:
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
       # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable label list fails closed. For a pull
+      # tracker config or an unreadable or cut label list fails closed. The
+      # labels come live from one GraphQL read, which also answers the link.
+      # For a pull
       # request an automation opened it then applies the trust hold to its
       # linked issue (comment in the body). report-outcome's Hold: line covers
       # the label at PR open and enable-auto-merge at arm time, so this holds a
-      # label added after either: one GraphQL read, a labels read for a Refs
+      # label added after either: that GraphQL read, a labels read for a Refs
       # issue, and one timeline read per linked issue; an unreadable one, or
       # the base's trusted-actor list unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
@@ -5797,14 +5799,29 @@ jobs:
             echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
             exit 1
           }
-          for attempt in 1 2 3; do
-            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
-          jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$labels" >"$RUNNER_TEMP/queued-labels.json"
+          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "$@" && return 0
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          # One GraphQL read answers the pull request's live labels and, for
+          # the trust hold below, its author, body and closing issues. A label
+          # list GitHub cut (totalCount above the nodes) fails closed.
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){labels(first:100){totalCount nodes{name}} author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
+            echo "::error::could not read the labels and issue link of #$pr; re-run this run."
+            exit 1
+          }
+          jq -ec '.data.repository.pullRequest.labels | objects | select(.totalCount == (.nodes | length)) | [.nodes[].name]
+            | if all(.[]; type == "string") then . else error("a label name is not a string") end' <<<"$link" >"$RUNNER_TEMP/queued-labels.json" || {
+            echo "::error::the labels of #$pr could not all be read; a person merges it."
+            exit 1
+          }
           if ! reasons=$(label_holds holds "$module" "$RUNNER_TEMP/queued-labels.json" "$pr") || [ -z "$reasons" ] ||
             ! failing=$(jq -r 'if type == "array" then .[] else error("not a list") end' <<<"$reasons"); then
             echo "::error::merge-holds.mjs at $BASE_SHA could not judge the labels of #$pr; re-run this run."
@@ -5828,22 +5845,8 @@ jobs:
           # must link exactly one issue here, as _linked_issue refuses
           # otherwise, so a link dropped after arming fails; another
           # automation's (Dependabot, standards-sync, a plugin release) that
-          # links none passes. A jq error fails closed.
-          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
-          read3() {
-            local attempt
-            for attempt in 1 2 3; do
-              gh_read "$@" && return 0
-              [ "$attempt" -lt 3 ] || return 1
-              sleep $((attempt * 5))
-            done
-          }
-          # shellcheck disable=SC2016 # GraphQL variables, not shell
-          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
-            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
-            echo "::error::could not read the issue link of #$pr; re-run this run."
-            exit 1
-          }
+          # links none passes. A jq error fails closed. The link is the
+          # GraphQL answer the labels came from.
           author=$(jq -er '.data.repository.pullRequest.author.__typename | strings' <<<"$link") || {
             echo "::error::the author of #$pr could not be read; re-run this run."
             exit 1
@@ -5969,6 +5972,34 @@ jobs:
             echo "lanes=false" >>"$GITHUB_OUTPUT"
             echo "#$pr is not the lanes App's; the carry steps are skipped."
           fi
+      # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs,
+      # head-ref-map.mjs and listing-carry.mjs each run in their own process
+      # and take a run's carried reads only when its head commit is on main
+      # (head-ref-map.mjs onMain), which otherwise reads the tag named main (a
+      # 404 that no process shares) and main's tip over REST. One
+      # unauthenticated `git ls-remote` of this public repository, run outside
+      # any checkout, lists both refs; the tip is output only when the listing
+      # succeeded, names refs/heads/main once as 40 hex and holds no tag named
+      # main. Anything else outputs nothing, and onMain reads both refs as
+      # before. Each run is still compared with the tip.
+      - name: List main's tip for the carry readers
+        id: main_tip
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
+        continue-on-error: true
+        run: |
+          if ! refs=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" refs/heads/main refs/tags/main); then
+            echo "::notice::could not list main's refs; the carry readers read them over REST."
+            exit 0
+          fi
+          tip=$(awk '$2 == "refs/heads/main" { print $1 }' <<<"$refs")
+          if awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
+            echo "::notice::a tag is named main; the carry readers refuse every run."
+          elif [[ $tip =~ ^[0-9a-f]{40}$ ]]; then
+            echo "sha=$tip" >>"$GITHUB_OUTPUT"
+            echo "main's tip: $tip"
+          else
+            echo "::notice::main's tip was not listed as one commit SHA; the carry readers read it over REST."
+          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -5998,6 +6029,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
@@ -6197,6 +6229,7 @@ jobs:
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
