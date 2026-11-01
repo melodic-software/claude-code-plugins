@@ -1,0 +1,122 @@
+{
+  "skill": "harness-config:audit-automation-gaps",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-automation-gaps",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice C (#11563); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit, audit-pass, audit-instructions, audit-prompting-postures; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit",
+    "harness-config:audit-pass",
+    "harness-config:audit-instructions",
+    "harness-config:audit-prompting-postures"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "we keep forgetting to run the formatter before commits. look at our claude code setup and tell me which hooks we're missing, with evidence"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is it worth wiring up a Postgres MCP server for this repo, or is that overkill? Give me a verdict with reasons."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "go through our .claude folder and tell me what automation we ought to add (hooks, subagents, scheduled jobs) but reject anything that isn't clearly justified"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "would a dedicated subagent for reviewing db migrations actually pay off here or should it stay a skill?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "only look at hooks: where are we relying on CLAUDE.md text for things a hook should be enforcing?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I have a feeling we're under-automated. find the gaps in our claude code automation and rank them"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "should we schedule a nightly agent to triage stale issues in this repo? weigh it against what we already have running"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run through the MCP category only and tell me whether any server we might add would earn its place."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "redo the automation gap review and this time go ahead and implement the items that pass"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "our CLAUDE.md has 'always run lint after editing'. should that be a PostToolUse hook instead? check the whole repo for rules like that and give each a verdict"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "check settings.json and .mcp.json for misconfigured entries and security problems against the current docs"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "run every audit we have over this repo in one go and give me a single reconciled findings file"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "find stale or conflicting statements in our CLAUDE.md and .claude/rules files"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "add a hook that runs prettier after every file edit"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "show me the hooks that are currently registered, i want to toggle one off"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does our deploy skill tell claude to confirm before deleting anything? Check what guidance it's missing compared to the prompting guide."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "the hook audit script says jq isn't installed. sort out the prerequisites those audits need"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "strip our CLAUDE.md for a while and see whether the model gets by without it"
+    }
+  ]
+}

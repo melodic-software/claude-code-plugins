@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/audit.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/audit.sh\" --entry-diff --oracle",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "priced oracle"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude -p \"list permissions\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "spawns a session"
+    }
+  ]
+}

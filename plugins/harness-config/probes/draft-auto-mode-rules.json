@@ -1,0 +1,123 @@
+{
+  "skill": "harness-config:draft-auto-mode-rules",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/draft-auto-mode-rules",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice B (#11561); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-permission-state, audit-permission-grants, audit, audit-instructions, audit-automation-gaps; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit-permission-state",
+    "harness-config:audit-permission-grants",
+    "harness-config:audit",
+    "harness-config:audit-instructions",
+    "harness-config:audit-automation-gaps"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want auto mode to approve read-only gh api calls but never anything that hits the merge endpoint. can you write the autoMode config for that?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "my classifier entry just says 'safe commands' and it's useless. reword it so the classifier actually understands what I mean"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Interview me about what should be allowed to run unattended in this repo and give me an autoMode block I can paste into settings."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "draft auto mode allow and deny entries for terraform: plan is fine on its own, apply and destroy need me"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "a report flagged that about half of our autoMode entries get ignored. rework them so they hold up, and don't lose the $defaults line"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "need an auto mode entry that lets it run cargo build and ruff check without asking me each time"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "write classifier guidance so auto mode never pushes to main but can push feature branches without asking"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our autoMode section is a mess of vague one-liners. Rewrite it entry by entry; just print the result, don't touch my settings file."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "what deny entries should go in my autoMode block for a repo where scripts/deploy.sh ships straight to production?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "first time using auto mode here. help me decide what it should and shouldn't auto-approve and hand me the block to paste"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "which of my existing allow rules does auto mode silently drop? just report what's in effect"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "audit the allowed-tools frontmatter across our skills for interpreter wildcards that auto mode strips out"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "set the default permission mode to auto in my project settings.json"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "scan my transcripts and allowlist the read-only commands i approve all the time"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "check my settings.json for invalid keys, deprecated fields and anything insecure"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "open the permission rule editor so I can add a deny for curl"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "My CLAUDE.md tells claude that auto mode approves everything under scripts/. Is that statement still accurate, and are there other claims like it that have gone stale?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "should we add a PreToolUse hook to block rm -rf instead of leaning on auto mode to catch it?"
+    }
+  ]
+}

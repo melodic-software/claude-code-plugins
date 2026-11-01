@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Apply needs `--plan-file <path>` from a prior audit; none was given, so nothing ran.",
+      "why": "names the required flag"
+    },
+    {
+      "answer": "## Missing input\n\n- --plan-file (required)",
+      "why": "list under a heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Cleaned up the fleet: 4 merged branches deleted across 2 repositories.",
+      "why": "claims a cleanup"
+    },
+    {
+      "answer": "I need a plan file before I can apply anything.",
+      "why": "no flag named"
+    }
+  ]
+}

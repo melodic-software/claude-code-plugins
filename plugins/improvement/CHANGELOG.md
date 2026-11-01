@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-11-01
+
+### Changed
+
+- `find`'s clone-growth hand-off offers `/corrections:codify findings <file>`, in place of `/review:audit-enforceability`.
+
 ## [0.4.0] - 2026-11-01
 
 ### Added
