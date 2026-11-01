@@ -6026,63 +6026,91 @@ rdt_strip_tail_to() {
 
 # --- A variable the command itself sets to a literal --------------------------
 #
-# `S=/tmp/x; mkdir -p "$S/a"; rm -rf "$S"` deletes `/tmp/x`, so its operand is
+# `S=/tmp/x; mkdir -p "$S/a"; rm -rf $S` deletes `/tmp/x`, so its operand is
 # judged as `/tmp/x` through every arm below (`X=/ && rm -rf "$X"` is still a
-# root). The binding is read only when the command, blanks trimmed, OPENS with
+# root). The binding is read only from a statement, blanks trimmed, that is
 #   NAME=LITERAL SEP
-# with SEP one `&&`, `;` or newline, so the assignment runs first, in this
-# shell, every time; LITERAL is plain characters (RDT_LIT_CH), bare or wholly
-# quoted, not led by `-`. Nothing after it may change NAME: the rest of the
-# command holds no other `NAME=`, `NAME+=`, `NAME:=` or `NAME[`, and the command
-# holds no word or syntax that can set a variable out of sight
-# (RDT_LIT_FORBID_RE: a builtin that assigns by name, bash's or zsh's
-# (`foreach`, `vared`, `print -v`, `zparseopts`, `integer`, ...), a function
-# definition, arithmetic, a `{NAME}>` redirection). Every `$NAME` in the command is a whole
-# double-quoted word, `"$NAME"` or `"$NAME/..."` with a plain suffix inside the
-# quotes: an unquoted `$NAME` binds nothing, since an inherited IFS can split
-# it, and neither does `${NAME}`. Those words aside, the rest of the command
-# holds no quote, backslash, `$`, backtick, glob or brace character, so a
-# builtin can only be spelled the way RDT_LIT_FORBID_RE reads it. NAME is no
-# name the shell gives a meaning (RDT_LIT_SPECIAL_RE). Anything else binds
-# nothing, and the variable blocks as a bare variable (#9779).
+# with SEP one `&&`, `;` or newline, so it is an assignment of its own, not a
+# prefix to a command; LITERAL is plain characters (RDT_LIT_CH), bare or wholly
+# quoted, not led by `-`. The statement opens the command, or every statement
+# before it is joined by `;` or newline and holds no `&&`, `||`, `|`, `&`, `#`,
+# `<<`, `!`, `(`, `)`, `{`, `}`, quote, backslash, `$`, backtick or glob
+# character and no word that opens a compound command (RDT_LIT_RESERVED_RE), at
+# most RDT_LIT_MAX_STMTS of them: so the assignment runs, in this shell, before
+# anything after it, and no use of NAME comes before it. Nothing after it may
+# change NAME: the rest of the command holds no other `NAME=`, `NAME+=`,
+# `NAME:=` or `NAME[`, and the command holds no word or syntax that can set a
+# variable out of sight (RDT_LIT_FORBID_RE: a builtin that assigns by name,
+# bash's or zsh's (`foreach`, `vared`, `print -v`, `zparseopts`, `integer`,
+# ...), a function definition, arithmetic, a `{NAME}>` redirection). Every use
+# of NAME is a whole word, `$NAME`, `$NAME/...`, `${NAME}` or `${NAME}/...` with
+# a plain suffix, bare or wholly double-quoted. Those words aside, the rest of
+# the command holds no quote, backslash, `$`, backtick, glob or brace
+# character, so a builtin can only be spelled the way RDT_LIT_FORBID_RE reads
+# it. NAME is no name the shell gives a meaning (RDT_LIT_SPECIAL_RE). Anything
+# else binds nothing, and the variable blocks as a bare variable (#9779).
 # rdt_check_operand substitutes the literal only in the top-level parse, never
-# in a child shell's operand or a substitution body. Residual: a shell function
-# or alias the session defined before this command could still set NAME.
+# in a child shell's operand or a substitution body.
+# Residuals: a shell function or alias the session defined before this command
+# could still set NAME, or make it readonly so the assignment fails and the
+# next statement runs with the old value. And an unquoted use splits on IFS:
+# LITERAL holds no blank or glob character and the command cannot set IFS, but
+# an IFS set before the command runs (a BASH_ENV file holding `IFS=/`) splits
+# `$S` with S=/tmp/a into an empty word, `tmp` and `a`, so `rm -rf $S/x` would
+# delete relative to the working directory.
 RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
+RDT_LIT_RESERVED_RE='(^|[[:space:];])(if|then|elif|else|while|until|do|case|repeat)([[:space:];]|$)'
+RDT_LIT_MAX_STMTS=64
 RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|readonly|export|set|shopt|setopt|alias|trap|printf|read|mapfile|readarray|eval|source|function|IFS|unset|for|select|getopts|let|wait|coproc|enable|compgen|foreach|vared|zparseopts|zstat|stat|integer|float|private|print|sysread|sysopen|strftime|zstyle|zformat|zregexparse|zselect|getln|zmodload|autoload)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<|\(\(|\$\[|\{[A-Za-z_][A-Za-z0-9_]*\}[<>]'
 RDT_LIT_SPECIAL_RE='^(_.*|.*PATH|.*path|BASH.*|ZSH.*|zsh.*|LC_.*|COMP.*|READLINE.*|HIST.*|hist.*|PROMPT.*|prompt|R?PS[0-9]|dis_.*|IFS|HOME|PWD|OLDPWD|ENV|SHELL|SHELLOPTS|SHLVL|POSIXLY_CORRECT|GLOBIGNORE|EXECIGNORE|FIGNORE|fignore|TMPDIR|TMPPREFIX|DIRSTACK|dirstack|FUNCNAME|FUNCNEST|GROUPS|UID|EUID|GID|EGID|PPID|RANDOM|SRANDOM|SECONDS|LINENO|EPOCHSECONDS|EPOCHREALTIME|epochtime|OPTARG|OPTIND|REPLY|reply|MAPFILE|mapfile|PIPESTATUS|pipestatus|status|argv|ARGC|ARGV0|ERRNO|errnos|signals|options|parameters|commands|functions|aliases|builtins|modules|history|historywords|jobstates|jobtexts|jobdirs|nameddirs|userdirs|funcstack|funcfiletrace|funcsourcetrace|functrace|match|mbegin|mend|MATCH|MBEGIN|MEND|psvar|watch|sysparams|langinfo|terminfo|termcap|widgets|keymaps|patchars|reswords|USERNAME|LOGNAME|TTY|HOST|HOSTNAME|NULLCMD|READNULLCMD|TRY_BLOCK_ERROR|TRY_BLOCK_INTERRUPT|WORDCHARS|ZDOTDIR|LANG|TERM|TMOUT)$'
 RDT_LIT_NAME=""
 RDT_LIT_VAL=""
-rdt_lit_shape() {
-  local c="$COMMAND" ch="$RDT_LIT_CH" lit n t re
+# rdt_lit_bind <text>: binds RDT_LIT_NAME and RDT_LIT_VAL when <text> opens
+# with the assignment statement and the rest of it keeps NAME as assigned.
+rdt_lit_bind() {
+  local c="$1" ch="$RDT_LIT_CH" lit n t u re
   lit="(${ch}+|'${ch}+'|\"${ch}+\")"
   re="^([A-Za-z_][A-Za-z0-9_]*)=${lit}[[:blank:]]*(&&|;|"$'\n'")"
-  c="${c#"${c%%[![:space:]]*}"}"
-  c="${c%"${c##*[![:space:]]}"}"
-  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE && "$c" =~ $re ]] || return 0
+  [[ "$c" =~ $re ]] || return 1
   n="${BASH_REMATCH[1]}"
   lit="${BASH_REMATCH[2]}"
   t="${c#"${BASH_REMATCH[0]}"}"
-  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 0
-  # The opening assignment is the only one.
+  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 1
+  # This assignment is the last one.
   re="(^|[^A-Za-z0-9_])${n}(\\[|\\+?=|:=)"
-  [[ "$t" =~ $re ]] && return 0
-  # Every `$NAME` is a whole double-quoted word. Each one found is replaced by
-  # a blank, keeping the characters around it, so a neighbor still matches.
-  re="(^|[[:space:];&|(])\"\\\$${n}(/${ch}*)?\"([[:space:];&|)]|\$)"
+  [[ "$t" =~ $re ]] && return 1
+  # Every use of NAME is a whole word. Each one found is replaced by a blank,
+  # keeping the characters around it, so a neighbor still matches.
+  u="\\\$(${n}|\\{${n}\\})(/${ch}*)?"
+  re="(^|[[:space:];&|(])(\"${u}\"|${u})([[:space:];&|)]|\$)"
   while [[ "$t" =~ $re ]]; do
-    t="${t/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]} ${BASH_REMATCH[3]}"}"
+    t="${t/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]} ${BASH_REMATCH[7]}"}"
   done
   # What is left reads as bash reads it: no quote, escape, expansion, glob or
   # brace that could spell a builtin RDT_LIT_FORBID_RE names some other way
   # (`pri''ntf`, `rea\d`, `${P}ntf`, `builtin pri?tf`) or write NAME inside an
   # array subscript or `[[ ]]`. A `$NAME` this loop did not take is caught too.
-  [[ "$t" == *[\\\'\"\$\`*?[{}]* ]] && return 0
+  [[ "$t" == *[\\\'\"\$\`*?[{}]* ]] && return 1
   [[ "$lit" == [\'\"]* ]] && lit="${lit:1:${#lit}-2}"
   # A value rm would read as an option is not a path.
-  [[ "$lit" == -* ]] && return 0
+  [[ "$lit" == -* ]] && return 1
   RDT_LIT_NAME="$n"
   RDT_LIT_VAL="$lit"
+}
+rdt_lit_shape() {
+  local c="$COMMAND" stmt re i
+  re="^[^;"$'\n'"]*[;"$'\n'"][[:space:]]*"
+  c="${c#"${c%%[![:space:]]*}"}"
+  c="${c%"${c##*[![:space:]]}"}"
+  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE ]] || return 0
+  for ((i = 0; i <= RDT_LIT_MAX_STMTS; i++)); do
+    rdt_lit_bind "$c" && return 0
+    # Step over one statement that can neither skip nor hide what follows.
+    [[ "$c" =~ $re ]] || return 0
+    stmt="${BASH_REMATCH[0]}"
+    [[ "$stmt" == *[\&\|#\(\)\\\'\"\$\`*?[{}!]* || "$stmt" == *'<<'* || "$stmt" =~ $RDT_LIT_RESERVED_RE ]] && return 0
+    c="${c#"$stmt"}"
+  done
 }
 rdt_lit_shape
 
@@ -6095,6 +6123,7 @@ rdt_check_operand() {
   if [[ -n "$RDT_LIT_NAME" ]] && ((rdt_depth == 1 && rdt_in_subst == 0)); then
     case "$w" in
     "\$$RDT_LIT_NAME" | "\$$RDT_LIT_NAME"/*) w="$RDT_LIT_VAL${w#"\$$RDT_LIT_NAME"}" ;;
+    "\${$RDT_LIT_NAME}" | "\${$RDT_LIT_NAME}"/*) w="$RDT_LIT_VAL${w#"\${$RDT_LIT_NAME}"}" ;;
     *) ;;
     esac
   fi
