@@ -55,7 +55,12 @@ one line per check, detail lines indented under it:
     skill fired       every with-arm run of a should-trigger case fired the skill;
                       in an invocation-probe case a miss is the trigger rate it
                       measures, reported per case and overall as a warning
-    models            the model and judge model, where the result or traces
+    probe tools       no invocation-probe run's session could call Read, Glob,
+                      Grep or Agent, which the emitted README removes with
+                      --disallow-tools; one that could is a warning naming that
+                      run line. A probe run whose init tools list cannot be read
+                      is a warning; none readable is UNCHECKED
+    models           the model and judge model, where the result or traces
                       carry them; runs that disagree are a FAIL
     judge votes       a split llm judge vote is a warning
     ceiling           a case whose without-arm is already 1.00 is a warning and
@@ -180,6 +185,10 @@ MAX_TURNS_ERROR = re.compile(
     r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
 )
 TRACE_ERRORS = "errors"  # on the result line
+TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
+# Tools emit-plugin-eval's README removes from a probe run with --disallow-tools.
+# The init line names the Agent tool Task.
+PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
 # case.yaml's context.scaffold_script, in block or flow form, read without a
 # YAML parser. Any uncommented mention of scaffold_script outside these shapes,
@@ -1092,6 +1101,85 @@ def check_fired(cases, runs, root):
     )
 
 
+def check_probe_tools(runs, root):
+    """An invocation-probe run whose session could call a tool the emitted README
+    removes ran without that run line: in its empty workspace those calls are
+    denied, and a subagent it dispatches outlives the run's timeout. Warns, and
+    names the fix, since the denial and error checks already judge the runs. A
+    probe run with no trace, no init line or no tools list on it is unread: none
+    read is UNCHECKED, some unread a warning."""
+    found = {}  # the removable tools a run could call -> the runs that could
+    probes, unread = 0, []
+    for r in runs:
+        if not is_probe(r.case, root):
+            continue
+        probes += 1
+        tools = next(
+            (
+                line.get(TRACE_TOOLS)
+                for line in r.trace or []
+                if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
+            ),
+            None,
+        )
+        if not isinstance(tools, list):
+            unread.append(r)
+            continue
+        extra = ", ".join(t for t in tools if t in PROBE_REMOVED_TOOLS)
+        if extra:
+            found.setdefault(extra, []).append(r)
+    if not probes:
+        return PASS, "no invocation-probe case", [], None
+    unread_details = [
+        "%s: no init tools list (%s)" % (r.where, r.trace_path or "no trace")
+        for r in unread
+    ]
+    if len(unread) == probes:
+        return (
+            UNCHECKED,
+            "no invocation-probe run's init tools list could be read",
+            unread_details,
+            "probe tools unchecked in %s with no readable init tools list"
+            % plural(len(unread), "run"),
+        )
+    summary, reasons = [], []
+    if found:
+        summary.append(
+            "%s of invocation-probe cases could call %s; run the emitted README's"
+            " line, --disallow-tools Read Glob Grep Agent, so a probe run cannot be"
+            " denied a search or outlive its timeout in a subagent"
+            % (
+                plural(sum(len(rs) for rs in found.values()), "run"),
+                "/".join(PROBE_REMOVED_TOOLS),
+            )
+        )
+        reasons.append(
+            "invocation probes ran without --disallow-tools Read Glob Grep Agent"
+        )
+    if unread:
+        summary.append(
+            "%s with no readable init tools list" % plural(len(unread), "probe run")
+        )
+        reasons.append("probe tools unread in %s" % plural(len(unread), "run"))
+    if summary:
+        return (
+            WARN,
+            "; ".join(summary),
+            [
+                "%s: %s, first %s" % (tools, plural(len(rs), "run"), rs[0].where)
+                for tools, rs in found.items()
+            ]
+            + unread_details,
+            "; ".join(reasons),
+        )
+    return (
+        PASS,
+        "no invocation-probe run could call Read, Glob, Grep or Agent",
+        [],
+        None,
+    )
+
+
 def recorded(result, keys):
     for scope in (result, as_dict(result.get(SUITE))):
         for key in keys:
@@ -1284,8 +1372,8 @@ def main(argv=None):
     if unresolved:
         lines.append(
             "traces: %d of %d tracePaths do not resolve (the run needs --keep-temp, and its"
-            " directories must still exist); permission denials and the trace model are"
-            " unchecked for those runs" % (len(unresolved), len(runs))
+            " directories must still exist); permission denials, probe tools and the"
+            " trace model are unchecked for those runs" % (len(unresolved), len(runs))
         )
         lines += [
             "  %s: %s" % (r.where, r.trace_path or "no tracePath") for r in unresolved
@@ -1296,6 +1384,7 @@ def main(argv=None):
         ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots, root)),
         ("skill fired", check_fired(cases, runs, root)),
+        ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),
         ("ceiling", check_ceiling(cases, arms)),

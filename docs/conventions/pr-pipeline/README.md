@@ -1481,10 +1481,20 @@ the rules that only tighten in
   With the registry listed, a canonical the pull request carries (its canonical or a copy touched,
   or a copy newly registered) that the base changed is refused as `shared-copy-sources-changed:`
   instead of updated: an update leaves the copies the pull request generated from its own
-  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. No lane
-  acts on that refusal, so the wrapper escalates it: one `<!-- babysit-merge-shared-copy-escalation -->`
-  comment naming the canonicals, the head and the fix, then the human-gated role label, both
-  unchanged by a rerun at the same head; the `head-moved` clear removes the label once the head moves. Any
+  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. The wrapper
+  escalates it: one `<!-- babysit-merge-shared-copy-escalation -->` comment naming the canonicals,
+  the head and the fix, then the human-gated role label, both unchanged by a rerun at the same head;
+  the `head-moved` clear removes the label once the head moves. On a lanes App pull request,
+  pr-unblock's `sync-shared-copies` activity answers it with no model and no person: the dispatcher
+  sends one run per refused head, a base-code job merges the default branch tip and runs the base's
+  sync script, refusing a head that changes the script, its registry or `scripts/lib`
+  (`shared-copy-tooling-changed`) and any write the base-tip registry lists as no copy
+  (`shared-copy-path-unregistered`) and a merge that is not clean, which resolve-conflicts cannot
+  take while the label holds it (`shared-copy-merge-conflicted`, queued for a session), and
+  `apply-shared-copies` pushes one merge commit under
+  patch-rules.json's `shared-copies` row, which admits only registered copies; when the merge
+  already holds current copies, the commit is the merge alone. The new head moves
+  past the refusal, so the next pr-merge sweep clears the label. Any
   doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
   or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
   error) may have landed, so it holds the old head instead. Empty or absent updates nothing.
@@ -2269,7 +2279,10 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
 judgment was started by, each with its name and conclusion, read with the job's own token: the
 verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+eval itself. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
+sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
+(`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
+label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk

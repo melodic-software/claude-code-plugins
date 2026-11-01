@@ -648,12 +648,14 @@ jobs:
           fi
           # The merge inputs go with patch-prepare merge-base, in PR mode: a
           # pinned base commit, a clean or conflicted state, and its conflict
-          # tree.
-          if [ "$PATCH_PREPARE" = merge-base ] || [ -n "$PATCH_MERGE_BASE_SHA$PATCH_MERGE_STATE$PATCH_CONFLICT_TREE" ]; then
-            if [ "$PATCH_PREPARE" != merge-base ] || [ -n "$ISSUE_NUMBER" ] ||
+          # tree; with shared-copies, a clean merge alone.
+          if [ "$PATCH_PREPARE" = merge-base ] || [ "$PATCH_PREPARE" = shared-copies ] || [ -n "$PATCH_MERGE_BASE_SHA$PATCH_MERGE_STATE$PATCH_CONFLICT_TREE" ]; then
+            states='^(clean|conflicted)$'
+            [ "$PATCH_PREPARE" != shared-copies ] || states='^clean$'
+            if ! [[ $PATCH_PREPARE =~ ^(merge-base|shared-copies)$ ]] || [ -n "$ISSUE_NUMBER" ] ||
               ! [[ $PATCH_MERGE_BASE_SHA =~ ^[0-9a-f]{40}$ && $PATCH_CONFLICT_TREE =~ ^[0-9a-f]{40}$ ]] ||
-              ! [[ $PATCH_MERGE_STATE =~ ^(clean|conflicted)$ ]]; then
-              echo "::error::patch-prepare merge-base needs patch-merge-base-sha, patch-merge-state and patch-conflict-tree, in PR mode, and they go with nothing else"
+              ! [[ $PATCH_MERGE_STATE =~ $states ]]; then
+              echo "::error::patch-prepare merge-base or shared-copies needs patch-merge-base-sha, patch-merge-state (clean alone for shared-copies) and patch-conflict-tree, in PR mode, and they go with nothing else"
               exit 1
             fi
           fi
@@ -686,6 +688,9 @@ jobs:
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+            shared-copy-tooling-changed | shared-copy-path-unregistered | shared-copy-workflow-staged) ;;
+            shared-copy-unexpected-path-staged | shared-copy-patch-invalid | shared-copy-patch-not-applied) ;;
+            shared-copy-patch-protected-path | shared-copy-merge-conflicted) ;;
             patch-empty | patch-invalid | patch-credential | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
@@ -844,12 +849,12 @@ jobs:
           fi
           echo "sha=${PATCH_RESUME_TIP:-$PATCH_BASE_SHA}" >>"$GITHUB_OUTPUT"
 
-      # apply-patch under the merge-base row, before the mint: the base the
-      # select job pinned must be on the default branch.
+      # apply-patch under a merge row (merge-base, shared-copies), before the
+      # mint: the base the select job pinned must be on the default branch.
       - name: Check the merge patch's pinned base
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
-          && inputs.patch-prepare == 'merge-base'
+          && (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')
         env:
           MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -1264,7 +1269,7 @@ jobs:
         id: merge-bin
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
-          && inputs.patch-prepare == 'merge-base'
+          && (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
@@ -1371,6 +1376,8 @@ jobs:
         env:
           RULES: .github/actions/resolve-config/patch-rules.json
           DEST: ${{ runner.temp }}/apply-patch-base
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
+          MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
         run: |
           mkdir -p "$RUNNER_TEMP/pr-unblock" "$RUNNER_TEMP/pr-merge" "$DEST/$(dirname "$RULES")"
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
@@ -1383,6 +1390,13 @@ jobs:
           # needs them fails before any write.
           if [ -f .base/.github/dependabot.yml ]; then
             cp .base/.github/dependabot.yml "$DEST/.github/dependabot.yml"
+          fi
+          # The shared-copies row admits only the copies the registry lists
+          # (apply-patch.mjs sharedCopiesFrom), read at the pinned base the
+          # patch was built from, not the base tip, which may have moved since.
+          if [ "$PATCH_PREPARE" = shared-copies ]; then
+            mkdir -p "$DEST/scripts"
+            git -C .base show "$MERGE_BASE_SHA:scripts/shared-copies.txt" >"$DEST/scripts/shared-copies.txt"
           fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
@@ -1447,7 +1461,7 @@ jobs:
           # not read as false.
           fetch-depth: >-
             ${{ !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
-            && !(steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base') && 1 || 0 }}
+            && !(steps.config.outputs.prepare == 'apply-patch' && (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')) && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
@@ -1475,7 +1489,7 @@ jobs:
         id: prepare
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
-          && inputs.patch-prepare == 'merge-base'
+          && (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies')
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
           GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
@@ -2004,16 +2018,16 @@ jobs:
           # Under the dependency-review row: the verdict field of the scanned
           # verdict the check step matched to the scan job's SHA-256.
           DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}
-          # Under the merge-base row: the pinned base, the state and conflict
-          # tree the prepare step reached (the select job's, or it failed),
-          # the default branch's name for the message, and the base copy of
-          # tree-entries.sh with its SHA-256.
-          MERGE_BASE_SHA: ${{ inputs.patch-prepare == 'merge-base' && inputs.patch-merge-base-sha || '' }}
-          MERGE_STATE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.merge-state || '' }}
-          CONFLICT_TREE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.conflict-tree || '' }}
-          BASE_REF: ${{ inputs.patch-prepare == 'merge-base' && github.event.repository.default_branch || '' }}
-          TREE_ENTRIES_SCRIPT: ${{ inputs.patch-prepare == 'merge-base' && format('{0}/merge-base-bin/tree-entries.sh', runner.temp) || '' }}
-          TREE_ENTRIES_SHA256: ${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}
+          # Under a merge row (merge-base, shared-copies): the pinned base,
+          # the state and conflict tree the prepare step reached (the select
+          # job's, or it failed), the default branch's name for the message,
+          # and the base copy of tree-entries.sh with its SHA-256.
+          MERGE_BASE_SHA: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && inputs.patch-merge-base-sha || '' }}
+          MERGE_STATE: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.prepare.outputs.merge-state || '' }}
+          CONFLICT_TREE: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.prepare.outputs.conflict-tree || '' }}
+          BASE_REF: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && github.event.repository.default_branch || '' }}
+          TREE_ENTRIES_SCRIPT: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && format('{0}/merge-base-bin/tree-entries.sh', runner.temp) || '' }}
+          TREE_ENTRIES_SHA256: ${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.merge-bin.outputs.tree-entries-sha256 || '' }}
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
@@ -2055,11 +2069,20 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
-            # apply-patch under the merge-base row gives the merge's reasons alone.
+            # apply-patch under a merge row gives that row's merge reasons alone.
             if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:merge-base ]; then
               case $escalation in
                 unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
                 conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              esac
+              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:shared-copies ]; then
+              case $escalation in
+                shared-copy-workflow-staged | shared-copy-unexpected-path-staged) ;;
+                shared-copy-patch-invalid | shared-copy-patch-not-applied | shared-copy-patch-protected-path) ;;
                 *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
               esac
               echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"

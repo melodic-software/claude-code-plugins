@@ -185,6 +185,14 @@ triage posts an "Objection window until <UTC>" comment beside the brief of each
 item it makes autonomous-eligible; the work-loop lane skips the item until the
 window ends and escalates it if a person replies inside the window.
 
+`triage_stale_reporter_info_days` exists only in the repository file and has no
+default, so it is off until a repository sets it. When it is set, the
+`/work-items:triage` attention view lists each open `needs-reporter-info` item as
+a close candidate if its reporter lacks write access and has not replied for
+that many days since the last triage note. Listing closes nothing. In an attended
+session triage asks once and closes only the candidates the operator says yes
+to. A lane or CI run reports the list and never closes.
+
 `ai_disclaimer` (default `false`) takes the same layers, in the same order:
 when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are

@@ -621,7 +621,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -1823,6 +1823,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (log.length ? '<details id="actLog"' + (open ? " open" : "") + '><summary>Log (' + log.length + ")</summary>" + rows(log) + "</details>" : "");
     if (un.size) { markSeen(); renderHeader(); renderRail(); }
   }
+  const noteToastText = () => S.noteToast + (S.noteQueued.some(s => !isHandled(s)) ? queued() : ""); // the busy note lasts only while the wake it reported is in flight: S.noteQueued holds the seqs that wake was handling when the note was sent
   function renderNotes(body){
     const nt = noteThread(), draft = lsGet("noteDraft", "");
     S.noteSeen = Date.now(); lsSet("noteSeen", S.noteSeen);
@@ -1841,7 +1842,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
       '<div class="nthread">' + (nt.length ? nt.map(noteHtml).join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
-      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast"></div>';
+      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast">' + esc(noteToastText()) + "</div>"; // held in state, so a re-render on a state push keeps it
     const ta = $("noteText"), nk = noteBox(ta, "send"); ta.nextElementSibling.append(nk.count); Kit.grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
@@ -1880,7 +1881,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("keysBody").innerHTML = KEYS.map(([k, t]) => "<kbd>" + esc(k) + "</kbd><span>" + esc(t) + "</span>").join("");
     $("keysDlg").showModal();
   }
-  function showFly(p){ S.fly = p; lsSet("fly", p); renderFly(); renderHeader(); }
+  function showFly(p){ if (p !== "notes") { S.noteToast = ""; S.noteQueued = []; } S.fly = p; lsSet("fly", p); renderFly(); renderHeader(); }
   const openPanel = p => showFly(S.fly === p ? null : p);
   function focusHead(){ const h = $("qhead"); if (h) { h.tabIndex = -1; h.focus(); } }
 
@@ -2298,8 +2299,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   async function sendNote(){
     const ta = $("noteText"); if (!ta) return;
     const text = ta.value.trim();
-    if (!text) { $("noteToast").textContent = "Write a note first."; return; }
-    if (await sendFree("note", text)) { lsSet("noteDraft", null); if (S.fly === "notes") renderFly(); const t = $("noteToast"); if (t) t.textContent = "Sent. Claude's reply lands here." + queued(); }
+    const say = (msg, q) => { if (S.fly !== "notes") { msg = ""; q = []; } S.noteToast = msg; S.noteQueued = q || []; const t = $("noteToast"); if (t) t.textContent = noteToastText(); }; // a send that finishes after the panel closed holds nothing
+    if (!text) { say("Write a note first."); return; }
+    const inFlight = pending().filter(delivered).map(e => e.seq); // the wake in flight before this note, never the note itself
+    if (await sendFree("note", text)) { lsSet("noteDraft", null); if (S.fly === "notes") renderFly(); say("Sent. Claude's reply lands here.", queued() ? inFlight : []); }
+    else say(""); // a failed send must not leave the last send's toast standing
   }
   const carried = q => String(lsGet("draft:" + q.id, null) || "").trim(); // what a single Accept would send: the note typed on it
   function openedRev(q){ // the revision the user last opened q at, with the decisions made since

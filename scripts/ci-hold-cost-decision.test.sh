@@ -52,10 +52,12 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' }}"* ]]; then
-  ok "step runs on every pull_request run that is not cancelled"
+# A draft's ci-status passes by design (`Note a draft`), so the step makes no
+# read there; the ready_for_review run judges the hold.
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}"* ]]; then
+  ok "step runs on every pull_request run that is not cancelled or a draft"
 else
-  fail "step lost its pull_request condition"
+  fail "step lost its pull_request condition or its draft skip"
 fi
 if [[ "$step" == *$'\n        id: cost_hold\n'* ]]; then
   ok "step carries the id the hold-lift step reads its outputs by"
