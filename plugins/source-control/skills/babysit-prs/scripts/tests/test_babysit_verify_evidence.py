@@ -466,6 +466,13 @@ class FakeGitHub:
             # One artifact by id, as GitHub's "Get an artifact" answers.
             held = [a for a in self.artifacts if a.get("id") == int(found[1])]
             return ok(held[0]) if held else missing()
+        by_name = re.fullmatch(
+            rf"repos/{REPO}/actions/artifacts\?name=([^&]+)&per_page=100", path
+        )
+        if by_name:
+            # Every artifact with exactly that name, as GitHub's filter answers.
+            held = [a for a in self.artifacts if a.get("name") == by_name[1]]
+            return ok({"total_count": len(held), "artifacts": held})
         prefix = f"repos/{REPO}/actions/artifacts?per_page="
         if path.startswith(prefix) and "&page=" in path:
             if self.page_fail:
@@ -2977,6 +2984,11 @@ def listings(fake: FakeGitHub) -> int:
     return sum(any(a.endswith("&page=1") for a in c) for c in fake.calls)
 
 
+def name_reads(fake: FakeGitHub) -> int:
+    """Reads of artifacts by exact name (`Reader._late_pass`)."""
+    return sum(any("actions/artifacts?name=" in a for a in c) for c in fake.calls)
+
+
 class TheListingIsReadOncePerRun(unittest.TestCase):
     """pr-merge.yml runs one gate, so one `Reader`, per candidate and names a
     file in `BABYSIT_VERIFY_LISTING`: the run pages the artifact listing once,
@@ -3121,6 +3133,68 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
         self.assertFalse(reader.saved)
         self.assertEqual(listings(fake), 1)
+
+    def late_notes(self, **overrides: Any) -> FakeGitHub:
+        """GitHub after the run saved a listing with no verdict: a pass-notes
+        at the head uploaded since, its run `run(1, **overrides)`."""
+        name = named(HEAD, "pass-notes")
+        return FakeGitHub(
+            [artifact(name, 1)],
+            {1: run(1, **overrides)},
+            {name: record(verdict="pass-notes")},
+        )
+
+    def test_a_pass_uploaded_after_the_saved_listing_is_read_by_name(self) -> None:
+        # #11854: the pass-notes landed after the run's listing was read.
+        self.gate(FakeGitHub([], {}))
+        fake = self.late_notes()
+        reader, evidence = self.provisional(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertTrue(reader.saved)
+        self.assertEqual((listings(fake), name_reads(fake)), (0, 2))
+        # babysit_merge.py allows only on a listing of the gate's own.
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader.refresh()
+            self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
+        self.assertEqual((listings(fake), name_reads(fake)), (1, 2))
+
+    def test_a_late_pass_that_does_not_count_leaves_missing(self) -> None:
+        for label, fake in (
+            ("run failed", self.late_notes(conclusion="failure")),
+            ("run going", self.late_notes(status="in_progress", conclusion=None)),
+            ("expired", self.late_notes()),
+        ):
+            with self.subTest(label):
+                if label == "expired":
+                    fake.artifacts[0]["expired"] = True
+                self.gate(FakeGitHub([], {}))
+                reader, evidence = self.provisional(fake)
+                self.assertEqual(evidence.refusal, "verify:missing")
+                self.assertTrue(reader.saved)
+                self.assertEqual(listings(fake), 0)
+
+    def test_a_failed_name_read_leaves_missing_and_notes_nothing(self) -> None:
+        self.gate(FakeGitHub([], {}))
+        fake = self.late_notes()
+        fake.fail = {"?name="}
+        _, evidence = self.provisional(fake)
+        self.assertEqual(evidence.refusal, "verify:missing")
+        # The first name, read again after each wait, and no other read.
+        self.assertEqual(name_reads(fake), len(ve.LISTING_WAITS) + 1)
+        self.assertEqual(listings(fake), 0)
+        for suffix in (ve.FAILED_LISTING_SUFFIX, ve.OVERCOUNT_FALLBACK_SUFFIX):
+            self.assertFalse(pathlib.Path(f"{self.path}{suffix}").exists())
+
+    def test_only_a_provisional_missing_on_the_saved_listing_reads_names(self) -> None:
+        # The first candidate read its listing just now; a judgment that is
+        # not the gate's own (`evidence`, queued entries) reads no name.
+        fake = self.late_notes()
+        fake.artifacts.clear()
+        _, evidence = self.provisional(fake)
+        self.assertEqual(evidence.refusal, "verify:missing")
+        _, evidence = self.gate(fake)
+        self.assertEqual(evidence.refusal, "verify:missing")
+        self.assertEqual(name_reads(fake), 0)
 
     def test_a_listing_in_memory_past_the_bound_is_read_again(self) -> None:
         clock = [datetime(2026, 10, 16, 12, 0, tzinfo=UTC)]
@@ -5478,7 +5552,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
-        # The tracker's human-gated role label (`.work-item-tracker.json`).
+        # The tracker binding's human-gated role label (`babysit_tracker_binding`).
         self.role_label = mock.Mock(return_value="needs-human")
         patcher = mock.patch.object(postmerge, "_role_label", self.role_label)
         patcher.start()

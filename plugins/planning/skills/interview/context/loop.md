@@ -249,9 +249,9 @@ Each round is one numbered set in prose (surface rules: SKILL.md "Question surfa
 
 ### Page surface
 
-When the surface resolves to `page`, or the user asks for it, the frontier renders on a local page the session watches ([`lane-page.md`](lane-page.md)). Only the input surface differs: the frontier is still asked whole, never capped or split, and the recommendation+basis+probe contract of an inline round holds per question. Protocol: [`surface.md`](surface.md).
+When the surface resolves to `page`, or the user asks for it, the frontier renders on a local page the session watches ([`lane-page.md`](lane-page.md)). Only the input surface differs: the frontier is still asked whole, never capped, and split only under `single` pacing, one question at a time; the recommendation+basis+probe contract of an inline round holds per question. The round's first question carries its header card, with the `Held:` line, and closes with the round index of the questions not held; the rail's Groups view shows the topic groups. Protocol: [`surface.md`](surface.md).
 
-- **Delivery:** `ensure-running`, then `add-round` with the whole frontier; the register's `open` rows are written in the same step.
+- **Delivery:** `ensure-running`, then `add-round` with the whole frontier (under `single` pacing, its first question, then one `add` per later question); the register's `open` rows are written in the same step.
 - **Per-question contract on the page:** the recommendation first, its 2-3 sentence codebase-grounded basis behind Why (never a terse label), each option under the one label the page shows (`Rec` for the recommendation, `(a)`, `(b)` for the alternatives), each commitment as its own unchecked row, and the constraint probe as the round's closing note, sent with `note-reply` (no `--seq`) so it lands in Notes to Claude, or as a Claude thread line on the round's first question.
 - **Answer path:** the page. Every save is one event the watcher delivers; the terminal stays a valid input and is mirrored onto the page with `record-terminal`, and so is a decision this session records or revises in the ledger.
 - **Degrade:** when the page cannot start (a missing prerequisite, a port that cannot bind, a remote host the browser cannot reach), render the read-only decision table below, same columns and grounding, and say in one line which prerequisite failed.

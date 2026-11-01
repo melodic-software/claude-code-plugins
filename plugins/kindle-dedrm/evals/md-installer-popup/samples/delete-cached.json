@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Delete the cached installer at `%LOCALAPPDATA%\\Amazon\\Kindle\\updates\\KindleForPC-installer.exe`.", "why": "skill wording" },
+    { "answer": "Quit Kindle, then run `bash sync-finalize.sh`; it removes the staged file.", "why": "names the script" },
+    { "answer": "That installer needs to be removed right away.", "why": "installer then removed" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Close the window and carry on syncing.", "why": "leaves the file in place" },
+    { "answer": "Run the installer, then restore 2.8 later.", "why": "runs it" }
+  ]
+}

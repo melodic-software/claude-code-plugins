@@ -41,6 +41,14 @@ sha=<S> -->` comment, which `babysit_merge.py --unattended` posts immediately
 before it enqueues. Without `--since` the floor is the merge gate's: the later
 of the enabling config commit and the newest human close of a demotion record.
 
+A merge of the identity's that a readable check judged verified with nothing
+left that could still change it (`MergeState.settleable`) is listed in the
+report's `settle`, and `--settle-from` posts the identity's `<!--
+babysit-merge-settled sha=<merge commit> -->` comment on its pull request. A
+later check counts a merge carrying that marker, unedited and by the
+identity, verified without reading its runs or the pr-merge-dispatched
+artifact, so a settled merge no longer depends on that artifact's retention.
+
 Exit codes: 0 no failure and every auto-merge verified, 1 a failure, 2 usage
 or a refused identity (not a dedicated App login, or `--remediate` under
 another acting login), 3 unreadable, 4 a write failed, 5 no failure but an
@@ -64,6 +72,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_merge_policy as policy
+import babysit_tracker_binding as tracker_binding
 from babysit_gh import (
     RUN_SEARCH_CAP,
     flatten_paginated_items,
@@ -84,7 +93,9 @@ FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
 # The pr-merge lane dispatches the full run with its own GITHUB_TOKEN (the
 # lanes App holds no actions: write) and records the dispatched run's id in an
-# artifact named with this prefix; `_Context.lane_dispatched` reads it.
+# artifact named with this prefix; `_Context.lane_dispatched` reads it. The
+# artifact expires (pr-merge.yml's retention-days), but a settled merge is not
+# judged on its runs again, so only a merge not yet settled reads it.
 LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
 LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
 LANE_DISPATCH_ACTOR = "github-actions[bot]"
@@ -138,7 +149,6 @@ DEFAULT_ROLE_LABEL = "needs-human"
 # The role marking a pull request whose only writer is the standards sync App.
 STANDARDS_SYNC_ROLE = "standards-sync"
 DEFAULT_STANDARDS_SYNC_LABEL = "standards-sync"
-TRACKER_CONFIG = ".work-item-tracker.json"
 # The follow-up note on an existing record; the demotion-alert workflow writes
 # the same prefix, so either filer's note is a sighting to the other.
 FAILURE_NOTE = "The post-merge check found this failure again: "
@@ -315,6 +325,12 @@ class MergeState:
     pending: tuple[str, ...]
     # An identity dispatch run, in any state, exists on a SHA containing it.
     dispatch_covered: bool
+    # The identity's settled marker for its merge commit stands, so it was
+    # counted verified without judging its runs.
+    settled: bool = False
+    # Judged verified with no red full run or running canary in its window
+    # and no empty record listing behind it: a marker may settle it.
+    settleable: bool = False
 
 
 @dataclass(frozen=True)
@@ -381,8 +397,15 @@ class PostMergeVerdict:
                     "mergedAt": s.merge.merged_at,
                     "verified": s.verified,
                     "pending": list(s.pending),
+                    "settled": s.settled,
                 }
                 for s in self.merges
+            ],
+            # The merges `--settle-from` marks settled.
+            "settle": [
+                {"number": s.merge.number, "mergeCommit": s.merge.merge_commit}
+                for s in self.merges
+                if self.readable and s.settleable
             ],
             "failures": [
                 {
@@ -2323,6 +2346,11 @@ class _Tally:
     outstanding: list[datetime] = field(default_factory=list)
 
 
+def _settled_state(merge: AutoMerge) -> MergeState:
+    """A merge the identity's settled marker verifies: no run is read."""
+    return MergeState(merge, True, (), dispatch_covered=True, settled=True)
+
+
 def _judge(
     merge: AutoMerge,
     ctx: _Context,
@@ -2406,10 +2434,17 @@ def _judge(
         else (lambda run: True)
     )
 
+    # A red run excused now can demote once its quarantine expires, and a
+    # running canary can still turn red, so either leaves the merge unsettled.
+    final = True
     for signal, run in fulls:
         if not in_window(run):
             continue
         state, detail = ctx.outcome(run, attributable=True)
+        if state in (RED, SETTLED, FLAKE):
+            # A superseded red run reads settled or flake only within the
+            # compare budget (`_Context.superseded`), so neither is final.
+            final = False
         if state == RED:
             new = ctx.regressions(signal, run, merged_at)
             if new:
@@ -2442,6 +2477,7 @@ def _judge(
         if state == RED:
             failures.append(Failure(SIGNAL_CANARY, merge, ctx.sighting(run), detail))
         elif state == PENDING:
+            final = False
             tally.outstanding.append(run.created_at)
 
     deadline = merged_at + DISPATCH_DEADLINE
@@ -2519,18 +2555,46 @@ def _judge(
 
     tally.failures.extend(failures)
     verified = verified_at is not None and not failures and not pending
-    return MergeState(merge, verified, tuple(pending), dispatch_covered=bool(own))
+    unlisted_behind = any(
+        f"{LANE_DISPATCH_ARTIFACT}{run.id}" in ctx.lane_empty
+        for signal, run in fulls
+        if signal == SIGNAL_DISPATCH
+    )
+    return MergeState(
+        merge,
+        verified,
+        tuple(pending),
+        dispatch_covered=bool(own),
+        settleable=verified and final and merge.by_identity and not unlisted_behind,
+    )
 
 
-def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
+def _lane_reruns(
+    ctx: _Context, now: datetime, tally: _Tally, *, list_schedule: bool = False
+) -> list[str]:
     """Mark each red attempt 1 of a lane-dispatched full run created within
     `_Context.lane_rerun_lookback`, with a newly failing check that demotes, for the
     lane's one re-run, newest first after any a judged merge marked. A run
     at attempt 2 is never marked again. The probe files no quarantine (the
     alert's `--judge-run` does), and a failed read is a warning, not an
-    unreadable verdict."""
+    unreadable verdict. With `list_schedule` (no judged merge listed the
+    full runs), schedule runs in the lookback are listed first, so a later
+    green one still settles a red run (`_Context.superseded`)."""
     excused = dict(ctx.quarantines)
     try:
+        if list_schedule:
+            ctx.held_full_runs.update(
+                (r.id, (SIGNAL_SCHEDULE, r))
+                for r in _runs(
+                    ctx.owner,
+                    ctx.name,
+                    FULL_RUN_WORKFLOW,
+                    "schedule",
+                    ctx.branch,
+                    now - ctx.lane_rerun_lookback(),
+                )
+                if ctx.on_branch(r) and not ctx.replaced(r)
+            )
         runs = _runs(
             ctx.owner,
             ctx.name,
@@ -2573,6 +2637,7 @@ def check(
     branch: str | None = None,
     lane_merges_only: bool = False,
     quarantine_days: int | None = None,
+    settled: Callable[[AutoMerge], bool] | None = None,
 ) -> PostMergeVerdict:
     """Judge every auto-merge into `branch` since `merged_since`; with no
     `branch`, the repository's default branch, read once from the repos API.
@@ -2583,8 +2648,10 @@ def check(
     `pinned_sha` returns the head SHA the wrapper pinned for a merge, or None when
     no record exists, which leaves the merge unverified without failing it;
     its `prefetch(numbers)`, when it has one, is first given every merge
-    whose pin is read (`PinReader`). Any
-    read failure makes the verdict unreadable, which is never ok."""
+    whose pin or settled marker is read (`PinReader`). `settled` says whether
+    the identity's settled marker stands for one of the identity's merges
+    (`PinReader.settled`); such a merge is verified with none of its runs
+    read. Any read failure makes the verdict unreadable, which is never ok."""
     if not agent_identity:
         return PostMergeVerdict(False, "agent-identity-unconfigured")
     if merged_since is None:
@@ -2631,6 +2698,21 @@ def check(
                     elif not json_object(pr.get("autoMerge")).get("nodes"):
                         optional_pins.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
+        read = pinned_merges | optional_pins
+        if settled is not None:
+            read |= {m.number for m in merges if m.by_identity}
+        if (prefetch := getattr(pinned_sha, "prefetch", None)) is not None:
+            prefetch([m.number for m in merges if m.number in read])
+        pins = {
+            m.number: pinned_sha(m)
+            for m in merges
+            if pinned_sha and m.number in pinned_merges | optional_pins
+        }
+        done = {
+            m.number
+            for m in merges
+            if settled is not None and m.by_identity and settled(m)
+        }
         ctx = _Context(
             owner,
             name,
@@ -2640,18 +2722,23 @@ def check(
             quarantine_days=quarantine_days,
         )
         tally = _Tally()
-        if not merges:
+        judged = [m for m in merges if m.number not in done]
+        if not judged:
             if lane_merges_only:
-                warnings += _lane_reruns(ctx, now, tally)
+                warnings += _lane_reruns(ctx, now, tally, list_schedule=bool(done))
             return PostMergeVerdict(
                 True,
+                merges=tuple(_settled_state(m) for m in merges),
                 reruns=tuple(tally.reruns.values()),
                 warnings=tuple(warnings),
                 branch=branch,
+                pins=pins,
             )
+        # A settled merge reads no runs, so the listings start at the
+        # earliest merge still judged.
         floor = (
-            min(_time(m.merged_at) for m in merges if m.merged_at)
-            if any(m.merged_at for m in merges)
+            min(_time(m.merged_at) for m in judged if m.merged_at)
+            if any(m.merged_at for m in judged)
             else merged_since
         )
         full_runs = [
@@ -2688,17 +2775,10 @@ def check(
             ),
             key=lambda r: r.created_at,
         )
-        if (prefetch := getattr(pinned_sha, "prefetch", None)) is not None:
-            prefetch(
-                [m.number for m in merges if m.number in pinned_merges | optional_pins]
-            )
-        pins = {
-            m.number: pinned_sha(m)
-            for m in merges
-            if pinned_sha and m.number in pinned_merges | optional_pins
-        }
         states = tuple(
-            _judge(
+            _settled_state(merge)
+            if merge.number in done
+            else _judge(
                 merge,
                 ctx,
                 full_runs=full_runs,
@@ -2799,34 +2879,53 @@ def _role_label(
     role: str = HUMAN_GATED_ROLE,
     default: str = DEFAULT_ROLE_LABEL,
 ) -> str:
-    """The tracker's label for `role` (human-gated unless named), or `default`
-    when the tracker config is absent (404) or maps none. Any other failed
-    read is the default too, unless `strict`: then it raises
-    `PostMergeReadError`, so a gate never acts on a label the tracker may
-    have remapped."""
+    """The tracker binding's label for `role` (human-gated unless named) on
+    the default branch, or `default` when no binding file is present (404)
+    or none maps it (`babysit_tracker_binding`). Any other failed read is the
+    default too, unless `strict`: then it raises `PostMergeReadError`, so a
+    gate never acts on a label the tracker may have remapped."""
     try:
-        config = _read(
+        return tracker_binding.role_label(
+            lambda path: _default_branch_text(owner, name, path),
+            policy.yaml_records,
+            role,
+            default,
+        )
+    except PostMergeReadError:
+        if strict:
+            raise
+        return default
+    except (policy.PolicyReadError, tracker_binding.BindingError) as exc:
+        if strict:
+            raise PostMergeReadError(f"tracker binding: {exc}") from exc
+        return default
+
+
+def _default_branch_text(owner: str, name: str, path: str) -> str | None:
+    """`path`'s text on the default branch, or None when it is absent (404).
+    Any other failed read raises `PostMergeReadError`."""
+    try:
+        proc = gh_capture(
             [
                 "api",
                 "-H",
                 "Accept: application/vnd.github.raw+json",
-                f"repos/{owner}/{name}/contents/{TRACKER_CONFIG}",
-            ],
-            TRACKER_CONFIG,
+                f"repos/{owner}/{name}/contents/{path}",
+            ]
         )
-    except PostMergeReadError as exc:
-        if strict and gh_http_status(str(exc)) != 404:
-            raise
-        return default
-    label = json_object(
-        json_object(json_object(config).get("config")).get("role_labels")
-    ).get(role)
-    return label.strip() if isinstance(label, str) and label.strip() else default
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PostMergeReadError(f"{path}: {exc}") from exc
+    if proc.returncode != 0:
+        detail = (proc.stderr or "").strip() or str(proc.returncode)
+        if gh_http_status(detail) == 404:
+            return None
+        raise PostMergeReadError(f"{path}: {detail}")
+    return proc.stdout
 
 
 def standards_sync_label(owner: str, name: str) -> str:
-    """The tracker's standards-sync role label (`standards-sync` unless
-    `.work-item-tracker.json` maps it). No branch refresh updates a pull
+    """The tracker's standards-sync role label (`standards-sync` unless the
+    tracker binding maps it). No branch refresh updates a pull
     request carrying it: the sync App is its only writer. A failed read other
     than a 404 raises `PostMergeReadError`."""
     return _role_label(
@@ -3008,6 +3107,49 @@ def pin_comment(sha: str) -> str:
     )
 
 
+# The settled record: an identity-authored comment `--settle-from` posts on a
+# merged pull request once a check judged its merge commit verified, so later
+# checks count it verified without its runs or their expiring artifacts. The
+# same author and edit rules as the pin's decide whether it stands.
+SETTLED_RE = re.compile(r"^<!-- babysit-merge-settled sha=([0-9a-f]{40}) -->$")
+
+
+def settled_comment(sha: str) -> str:
+    return (
+        f"<!-- babysit-merge-settled sha={sha} -->\n"
+        f"The post-merge check verified merge commit `{sha}`; later checks count "
+        "it verified from this comment."
+    )
+
+
+def _identity_marks(
+    comments: list[dict[str, Any]], identity: str, pattern: re.Pattern[str]
+) -> list[int]:
+    """The indexes of the identity's comments whose first line is `pattern`,
+    oldest first. A comment anyone else wrote is no record."""
+    return [
+        i
+        for i, c in enumerate(comments)
+        if _actor_key(c.get("author")) == _login_key(identity)
+        and pattern.match(_first_line(c.get("body")))
+    ]
+
+
+def _edited(comment: dict[str, Any]) -> bool:
+    """Anyone with write access can edit a comment, so an edited record is
+    no record."""
+    return bool(comment.get("lastEditedAt"))
+
+
+def _settled_shas(identity: str, comments: list[dict[str, Any]]) -> frozenset[str]:
+    """The merge commits the identity's unedited settled markers name."""
+    return frozenset(
+        SETTLED_RE.match(_first_line(comments[i].get("body")))[1]
+        for i in _identity_marks(comments, identity, SETTLED_RE)
+        if not _edited(comments[i])
+    )
+
+
 def read_pin(
     repo: str, number: int, identity: str, *, alone: bool = False
 ) -> str | None:
@@ -3029,9 +3171,20 @@ def read_pins(
     `PIN_BATCH` pull requests per query, and a pull request's later pages
     one at a time, as `read_pin` reads them. Any failed read raises, and so
     does a pull request the response leaves out."""
+    return {
+        n: None if thread is None else _pin_sha(n, identity, *thread)
+        for n, thread in _pin_threads(repo, numbers).items()
+    }
+
+
+def _pin_threads(
+    repo: str, numbers: Iterable[int]
+) -> dict[int, tuple[list[dict[str, Any]], Any] | None]:
+    """`_pin_thread` for each of `numbers`, by number, batched as `read_pins`
+    reads them."""
     owner, name = _split_repo(repo)
     wanted = list(dict.fromkeys(numbers))
-    pins: dict[int, str | None] = {}
+    threads: dict[int, tuple[list[dict[str, Any]], Any] | None] = {}
     for start in range(0, len(wanted), PIN_BATCH):
         chunk = wanted[start : start + PIN_BATCH]
         aliases = " ".join(f"p{n}:pullRequest(number:{n}){{...c}}" for n in chunk)
@@ -3046,9 +3199,8 @@ def read_pins(
             pull = repository.get(f"p{n}")
             if not is_json_object(pull) or pull.get("number") != n:
                 raise PostMergeReadError(f"#{n} pin: no pull request in the response")
-            thread = _pin_thread(owner, name, n, first=pull)
-            pins[n] = None if thread is None else _pin_sha(n, identity, *thread)
-    return pins
+            threads[n] = _pin_thread(owner, name, n, first=pull)
+    return threads
 
 
 def _pin_thread(
@@ -3100,12 +3252,8 @@ def _pin_sha(
 ) -> str | None:
     """`read_pin`'s answer from the comments and reviews it read."""
     mine = [_actor_key(c.get("author")) == _login_key(identity) for c in comments]
-    pins = [
-        i
-        for i, c in enumerate(comments)
-        if mine[i] and PIN_RE.match(_first_line(c.get("body")))
-    ]
-    if not pins or comments[pins[-1]].get("lastEditedAt"):
+    pins = _identity_marks(comments, identity, PIN_RE)
+    if not pins or _edited(comments[pins[-1]]):
         return None
     newest = comments[pins[-1]]
     if alone:
@@ -3131,20 +3279,100 @@ def _pin_sha(
 
 class PinReader:
     """`check()`'s `pinned_sha` callable: the identity's pin on each merge,
-    from the batch `prefetch` read for this check, else read on its own."""
+    from the batch `prefetch` read for this check, else read on its own.
+    `settled` is `check()`'s `settled` callable, read from the same threads."""
 
     def __init__(self, repo: str, identity: str) -> None:
         self.repo, self.identity = repo, identity
         self.pins: dict[int, str | None] = {}
+        self.marks: dict[int, frozenset[str]] = {}
 
     def prefetch(self, numbers: Iterable[int]) -> None:
-        """Read every pin of `numbers` afresh, replacing any earlier read."""
-        self.pins = read_pins(self.repo, numbers, self.identity)
+        """Read every pin and settled marker of `numbers` afresh, replacing
+        any earlier read."""
+        threads = _pin_threads(self.repo, numbers)
+        self.pins = {
+            n: None if t is None else _pin_sha(n, self.identity, *t)
+            for n, t in threads.items()
+        }
+        self.marks = {
+            n: frozenset() if t is None else _settled_shas(self.identity, t[0])
+            for n, t in threads.items()
+        }
 
     def __call__(self, merge: AutoMerge) -> str | None:
         if merge.number in self.pins:
             return self.pins[merge.number]
         return read_pin(self.repo, merge.number, self.identity)
+
+    def settled(self, merge: AutoMerge) -> bool:
+        """Whether the identity's unedited settled marker names the merge
+        commit. A thread past `PIN_PAGE_LIMIT` pages holds none."""
+        if merge.number not in self.marks:
+            thread = _pin_thread(*_split_repo(self.repo), merge.number)
+            self.marks[merge.number] = (
+                frozenset()
+                if thread is None
+                else _settled_shas(self.identity, thread[0])
+            )
+        return (
+            bool(merge.merge_commit) and merge.merge_commit in self.marks[merge.number]
+        )
+
+
+def settle(repo: str, merges: Any, identity: str) -> tuple[list[int], list[str]]:
+    """Post the identity's settled marker, under the acting login, on each
+    merge a report's `settle` lists whose thread holds no such marker yet:
+    a reused report, or two runs at once, posts no second one. A failed read
+    or post, or an entry of another shape, is a warning and posts nothing
+    for it: the next check lists the merge again. Returns the numbers
+    marked and the warnings."""
+    owner, name = _split_repo(repo)
+    posted: list[int] = []
+    warnings: list[str] = []
+    if not is_json_array(merges):
+        return posted, ["settle-unposted: the report lists no merges to settle"]
+    wanted: dict[int, str] = {}
+    for entry in merges:
+        number = json_object(entry).get("number")
+        sha = json_object(entry).get("mergeCommit")
+        if (
+            not isinstance(number, int)
+            or isinstance(number, bool)
+            or number < 1
+            or not isinstance(sha, str)
+            or _FULL_SHA.fullmatch(sha) is None
+        ):
+            warnings.append(f"settle-unposted: not a merge: {entry!r}"[:300])
+        else:
+            wanted[number] = sha
+    try:
+        threads = _pin_threads(repo, wanted)
+    except PostMergeReadError as exc:
+        return posted, warnings + [f"settle-unposted: {exc}"]
+    for number, sha in wanted.items():
+        thread = threads.get(number)
+        if thread is None:
+            warnings.append(f"settle-unposted: #{number}: the thread was not read")
+            continue
+        if sha in _settled_shas(identity, thread[0]):
+            continue
+        try:
+            _write(
+                [
+                    "api",
+                    "-X",
+                    "POST",
+                    f"repos/{owner}/{name}/issues/{number}/comments",
+                    "-f",
+                    f"body={settled_comment(sha)}",
+                ],
+                f"settle #{number}",
+            )
+            posted.append(number)
+        except PostMergeWriteError as exc:
+            warnings.append(f"settle-unposted: {exc}")
+    return posted, warnings
 
 
 pin_reader = PinReader
@@ -3739,8 +3967,9 @@ def gate_reader(
             agent_identity=identity,
             is_human=_default_is_human(repo, identity, self_logins),
             merged_since=floor,
-            pinned_sha=pin_reader(repo, identity),
+            pinned_sha=(reader := pin_reader(repo, identity)),
             lane_merges_only=lane_merges_only,
+            settled=reader.settled,
         )
         return gate_from_report(verdict.report())
 
@@ -3957,9 +4186,8 @@ def idle_refusal(
         if _quarantine_touched(repo, since):
             return "quarantine-changed"
         recorded = report["pins"]
-        reader = pin_reader(repo, shared.identity)
-        reader.prefetch(int(n) for n in recorded)
-        if {str(n): sha for n, sha in reader.pins.items()} != recorded:
+        pins = read_pins(repo, (int(n) for n in recorded), shared.identity)
+        if {str(n): sha for n, sha in pins.items()} != recorded:
             return "pins-changed"
     except (PostMergeReadError, ValueError) as exc:
         return f"unreadable: {exc}"
@@ -4303,6 +4531,24 @@ def _judge_run(args: argparse.Namespace) -> int:
     return code
 
 
+def _settle_from(repo: str, path: str, identity: str) -> int:
+    """`--settle-from`: mark settled each merge a readable check report lists
+    in `settle`. Nothing here changes that check's verdict, so every outcome
+    exits 0 and a post that failed, or a report that cannot be read, is a
+    warning; the next check lists the merge again."""
+    try:
+        report = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    except (OSError, ValueError) as exc:
+        report = {"error": f"{type(exc).__name__}: {exc}"}
+    if report.get("readable") is True:
+        posted, warnings = settle(repo, report.get("settle"), identity)
+    else:
+        posted, warnings = [], [f"settle-unposted: no readable report at {path}"]
+    json.dump({"settled": posted, "warnings": warnings}, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="babysit_postmerge.py",
@@ -4389,6 +4635,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     mode.add_argument(
+        "--settle-from",
+        metavar="REPORT",
+        help=(
+            "post the identity's settled marker on each merge the check report "
+            "REPORT lists in `settle` (the only write); a failed post is a "
+            "warning, exit 0, or 2 on a refused identity"
+        ),
+    )
+    mode.add_argument(
         "--preflight",
         action="store_true",
         help=(
@@ -4419,7 +4674,7 @@ def main(argv: list[str] | None = None) -> int:
     # remediate: its dispatches, re-runs and filed issues are what the check
     # and the demotion record count.
     acting = args.agent_identity
-    if args.remediate:
+    if args.remediate or args.settle_from:
         try:
             acting = policy.read_acting_login()
         except policy.PolicyReadError:
@@ -4431,6 +4686,8 @@ def main(argv: list[str] | None = None) -> int:
         json.dump({"ok": False, "error": refusal}, sys.stdout, indent=2)
         sys.stdout.write("\n")
         return 2
+    if args.settle_from:
+        return _settle_from(args.repo, args.settle_from, args.agent_identity)
 
     is_human = _default_is_human(args.repo, args.agent_identity, args.self_login)
     since = args.since
@@ -4461,8 +4718,9 @@ def main(argv: list[str] | None = None) -> int:
         is_human=is_human,
         merged_since=since,
         branch=args.branch,
-        pinned_sha=pin_reader(args.repo, args.agent_identity),
+        pinned_sha=(reader := pin_reader(args.repo, args.agent_identity)),
         lane_merges_only=args.lane_merges_only,
+        settled=reader.settled,
     )
     report = verdict.report()
     report["since"] = since.isoformat()

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "6. Re-run the keyfinder: double-click `~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`.", "why": "skill step" },
+    { "answer": "Then run Key Finder again; its saved config processes only the new books.", "why": "spaced name" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Drag the new AZW files into Calibre and the DeDRM plugin will strip them on import.", "why": "baseline: no keyfinder" }
+  ]
+}

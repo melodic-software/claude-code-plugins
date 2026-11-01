@@ -8,12 +8,12 @@
 // rule: a *.test.js, .mjs or .cjs with a sibling <stem>.test.sh runs only
 // through that wrapper, where <stem> drops the last `.test.` and what follows.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { main, upstreamJobs, wrappedNodeSuites } from "./upstream-jobs.mjs";
+import { KEPT_JOBS, main, shapeJobs, upstreamJobs, wrappedNodeSuites } from "./upstream-jobs.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const RUN = 4242;
@@ -109,4 +109,52 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
   const noTree = { ...env, JOBS_FILE: path.join(dir, "no-tree.json"), HEAD_PATHS_FILE: "" };
   await assert.rejects(main(noTree, { github: paged([job(1)]).github }), /HEAD_PATHS_FILE is not set/);
   assert.equal(existsSync(noTree.JOBS_FILE), false);
+});
+
+// resolve-pr.mjs keeps the jobs it read whole for draftRun in RUNNER_TEMP
+// (KEPT_JOBS); main takes them instead of reading the same list again.
+test("main takes the resolver's kept jobs with no read, and reads when they are missing, for another run or malformed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-upstream-jobs-");
+  const temp = tempDir("pr-verify-upstream-temp-");
+  const headPaths = path.join(dir, "head-paths");
+  writeFileSync(headPaths, "README.md\0");
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    UPSTREAM_RUN_ID: String(RUN),
+    JOBS_FILE: path.join(dir, "upstream-jobs.json"),
+    HEAD_PATHS_FILE: headPaths,
+    RUNNER_TEMP: temp,
+  };
+  const live = [job(1), job(2, "failure")];
+  const kept = [job(3, "skipped")];
+  const run = async (content) => {
+    if (content === undefined) {
+      rmSync(path.join(temp, KEPT_JOBS), { force: true });
+    } else {
+      writeFileSync(path.join(temp, KEPT_JOBS), content);
+    }
+    const { github, paths } = paged(live);
+    await main(env, { github });
+    return { paths, jobs: JSON.parse(readFileSync(env.JOBS_FILE, "utf8")).jobs };
+  };
+  // The file as resolve-pr.mjs writes it: no read, and its jobs.
+  assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped" }] });
+  const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
+  for (const [label, content] of [
+    ["no file", undefined],
+    ["another run's jobs", JSON.stringify(shapeJobs(RUN + 1, kept))],
+    ["not JSON", "{"],
+    ["no job list", JSON.stringify({ run_id: RUN })],
+    ["a job with no name", JSON.stringify({ run_id: RUN, jobs: [{ conclusion: "success" }] })],
+    ["a conclusion that is not text", JSON.stringify({ run_id: RUN, jobs: [{ name: "x", conclusion: 1 }] })],
+    ["the run id as text", JSON.stringify({ run_id: String(RUN), jobs: [] })],
+  ]) {
+    assert.deepEqual(await run(content), read, label);
+  }
+  // With no RUNNER_TEMP there is nowhere to look, so it reads.
+  const { github, paths } = paged(live);
+  await main({ ...env, RUNNER_TEMP: "" }, { github });
+  assert.equal(paths.length, 1);
 });
