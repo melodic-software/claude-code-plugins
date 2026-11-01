@@ -159,7 +159,7 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
   a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
   runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
-  (the `Workflow` tool, an `Agent` fan-out): the base skill's main-context half chooses the tier
+  (the `Workflow` tool): the base skill's main-context half chooses the tier
   before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
   `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
   why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why

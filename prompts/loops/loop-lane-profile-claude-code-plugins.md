@@ -197,11 +197,16 @@ machines; neither on the attended box.
 > one that undercuts the binding. A phase the plan routes `sonnet` as
 > well-scoped goes to `scoped-implementer` with an explicit `model: sonnet`
 > instead; unrouted or complex phases stay on `implementer`. Pass an explicit per-invocation `model`
-> only for the exceptions the agent frontmatter does not carry: the frontier
-> tier (`best`) for conflict resolution and any security-surface work class,
-> unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
+> only for the exceptions the agent frontmatter does not carry:
+> `opus` for conflict resolution and any security-surface work class,
+> unconditionally (the frontier rung is off by the owner's recorded hold, the
+> ladder paragraph under "Models" in `docs/conventions/pr-pipeline/README.md`;
+> recheck when the per-week Fable allowance is set); the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
-> convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
+> convention ("Capability tiers" and "Alias binding"), and the
+> `model` values an Agent call takes are listed at
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
+> recheck when that list changes); it admits no `haiku`
 > dispatch, on the four grounds "Alias binding" lists. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
 > leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
 > bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
@@ -343,13 +348,18 @@ the partition and the evidence predicate is met.
 > that touch no file apply normally.
 >
 > **Dispatch model, every dispatch.** Your root runs on the strong tier and
-> subagents inherit it by default, so the frontier-tier conflict worker this
-> skill requires would silently run at orchestrator strength unless you say
-> otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for
-> conflict resolution and every security-surface work class, unconditionally;
+> subagents inherit it by default, so every dispatch names its tier
+> explicitly. Pass an explicit per-invocation `model`: `opus` for
+> conflict resolution and every security-surface work class, unconditionally
+> (the frontier rung is off by the owner's recorded hold, the ladder paragraph
+> under "Models" in `docs/conventions/pr-pipeline/README.md`; recheck when the
+> per-week Fable allowance is set);
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
-> loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
+> loop-lane convention ("Capability tiers" and "Alias binding"), and the
+> `model` values an Agent call takes are listed at
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
+> recheck when that list changes); it admits no
 > `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current

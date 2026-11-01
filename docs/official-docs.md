@@ -75,7 +75,7 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | Sandbox environments | <https://code.claude.com/docs/en/sandbox-environments> | 2026-08-06 |
 | Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-08-06 |
 | Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
-| Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows | <https://code.claude.com/docs/en/agents> | 2026-08-10 |
+| Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows, projects | <https://code.claude.com/docs/en/agents> | 2026-11-01 |
 | Orchestrate agent teams: status and the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` switch | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
 | Cross-session messaging: `ListAgents`/`SendMessage`, `crossSessionInbound`, and the version floors | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
 | Manage sessions: resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |

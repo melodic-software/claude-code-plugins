@@ -454,11 +454,14 @@ effort cap or the `maxEffortLevel` setting clamps it, a level the model does
 not support falls back to the highest supported level below it, and
 `CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and every agent or skill pin.
 The launcher warns when that variable is set. The `effort` field in the
-work-loop and babysit-loop state blocks records the level that ran.
+work-loop and babysit-loop state blocks records the level that ran. For the
+caps, the fallback and the resolution order, see
+[model config, "Adjust effort level"](https://code.claude.com/docs/en/model-config#adjust-effort-level).
 
-**As of:** 2026-10-02. **Recheck trigger:** the "Choose an effort level"
-section is renamed, its rows change, or the default effort of a model a lane
-launches on changes.
+**As of:** 2026-11-01. **Recheck trigger:** the "Choose an effort level"
+section is renamed or its rows change, the "Adjust effort level" section
+changes the resolution order, the fallback or the caps, or the default effort
+of a model a lane launches on changes.
 
 ## Concurrent workers on one repository
 
@@ -564,11 +567,16 @@ variable that sets it).
 > plugin's `implementer` / `phase-verifier` agent definitions carry the
 > binding in `model` frontmatter, so pass no `model` for those and never
 > one that undercuts the binding. Pass an explicit per-invocation `model`
-> only for the exceptions the agent frontmatter does not carry: the frontier
-> tier (`best`) for conflict resolution and any security-surface work class,
-> unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
+> only for the exceptions the agent frontmatter does not carry:
+> `opus` for conflict resolution and any security-surface work class,
+> unconditionally (the frontier rung is off by the owner's recorded hold, the
+> ladder paragraph under "Models" in `docs/conventions/pr-pipeline/README.md`;
+> recheck when the per-week Fable allowance is set); the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
-> convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
+> convention ("Capability tiers" and "Alias binding"), and the
+> `model` values an Agent call takes are listed at
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
+> recheck when that list changes); it admits no `haiku`
 > dispatch, on the four grounds "Alias binding" lists. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
 > leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
 > bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
@@ -707,13 +715,18 @@ wakeup ceiling for days rather than finishing.
 > that touch no file apply normally.
 >
 > **Dispatch model, every dispatch.** Your root runs on the strong tier and
-> subagents inherit it by default, so the frontier-tier conflict worker this
-> skill requires would silently run at orchestrator strength unless you say
-> otherwise. Pass an explicit per-invocation `model`: the frontier tier (`best`) for
-> conflict resolution and every security-surface work class, unconditionally;
+> subagents inherit it by default, so every dispatch names its tier
+> explicitly. Pass an explicit per-invocation `model`: `opus` for
+> conflict resolution and every security-surface work class, unconditionally
+> (the frontier rung is off by the owner's recorded hold, the ladder paragraph
+> under "Models" in `docs/conventions/pr-pipeline/README.md`; recheck when the
+> per-week Fable allowance is set);
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
-> loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
+> loop-lane convention ("Capability tiers" and "Alias binding"), and the
+> `model` values an Agent call takes are listed at
+> <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-11-01;
+> recheck when that list changes); it admits no
 > `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current

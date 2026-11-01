@@ -1102,8 +1102,11 @@ posture; and the `lane-stop-gate` hook mechanizes exactly one of them, so the cl
 redundant with a lane that has the gate armed.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
-posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
+preamble, because a dispatched non-fork subagent runs in a fresh, non-inherited context: it inherits no
+posture from the cycle root's own sweep and has to set its own. A fork inherits the root's
+context instead
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+as of 2026-11-01; recheck when that section changes what a fork inherits). When the `discipline` plugin is
 installed, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
 preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
 a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation

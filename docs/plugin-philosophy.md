@@ -1291,12 +1291,14 @@ per-spawn `model`.
 - **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
   subagents page stops describing it.
 
-There is no per-plugin model surface. We read plugin `userConfig` as typed options with no model
-semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
-configuration (Pointer:
-[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
-As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
-runs on).
+Plugin `userConfig` is no per-plugin model surface. We read its options as typed options with no
+model semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
+configuration. A mod's `agent.spawn` hook can replace a subagent's model at spawn time; no plugin
+in this repository ships one for routing (Pointer:
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+and [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+As of: 2026-11-01. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+runs on, or that section adds or drops a spawn-time model override).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
 needs no edit here. Which model each alias resolves to is read live from the model page, and it
@@ -1542,8 +1544,8 @@ at `high`; `implementation` `scoped-implementer`, because a plan routes only wel
 it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
 `ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
 work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
-scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
-that it is stuck. A frontmatter pin is what holds a named agent's lane for any dispatch that
+scope, and checking named areas of the development process. No pin goes below `medium`, because in this repository's judgment a low-effort executor stops
+detecting that it is stuck (the upstream pointers are under the [effort floor](#effort-floor)). A frontmatter pin is what holds a named agent's lane for any dispatch that
 passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
 writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
@@ -1667,7 +1669,11 @@ as applying to the main turns while that skill is active and to the subagents it
   `908560cb-3f30-4157-a672-5e00112bba0a` ran without the pin and stayed at `low` throughout. The
   throwaway plugin no longer exists, so the session ids are the artifact. For the skill field, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference);
-  no docs page covers the pin's reach into dispatched subagents.
+  no docs page covers the pin's reach into dispatched subagents. The field's row now scopes the
+  pin to the rest of the current turn and, with `context: fork`, to the forked subagent.
+- **Status:** UNVERIFIED on the current CLI. The trigger below fired (seen at 2.1.316 on
+  2026-11-01) and the probe has not been re-run; until it is, treat the reach into dispatched
+  subagents as unproven.
 - **As of:** 2026-09-29.
 - **Recheck trigger:** the Claude Code CLI version moves past 2.1.285, or a docs page starts
   covering pin propagation to subagents.
