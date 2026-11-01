@@ -5,11 +5,13 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
+import { ownedBranchesFromBase } from "./resolve-config.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -750,4 +752,10 @@ test("live config: no live slot resolves an actions permission", () => {
 test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
   const { merge } = resolve(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
   assert.ok(merge["refire-skip-branches"].includes("release/plugins"), JSON.stringify(merge["refire-skip-branches"]));
+});
+
+// The fix-ci dispatcher and context job read the same list from the base.
+test("live config: fix-ci reads the owned branches, the release branch among them, from the base", () => {
+  const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+  assert.ok(branches.includes("release/plugins"), JSON.stringify(branches));
 });

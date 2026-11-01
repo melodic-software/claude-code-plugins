@@ -6,7 +6,9 @@
 // run failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
-// broker check it as they check a resolve-conflicts dispatch.
+// broker check it as they check a resolve-conflicts dispatch. A pull request
+// from a head branch a workflow owns and rebuilds (merge.refire-skip-branches,
+// the release branch) is never dispatched: the rebuild is its fix.
 //
 // The listing is one GraphQL query per page of 50 pull requests: each one's
 // author, labels, body, last update, and its last commit's date and check
@@ -111,7 +113,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository baseRefName baseRefOid headRefOid updatedAt body
+        number isDraft isCrossRepository baseRefName baseRefOid headRefName headRefOid updatedAt body
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         commits(last: 1) {
@@ -370,11 +372,17 @@ export function skipReason(
     maxRunsPerHead = DEFAULTS.maxRunsPerHead,
     baseAt = NaN,
     adoption = DEFAULTS.adoption,
+    ownedBranches = [],
     now = Date.now(),
   },
 ) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
+  }
+  // A branch a workflow owns and rebuilds (merge.refire-skip-branches): its
+  // rebuild is its fix, and moves the branch under any fix-ci push.
+  if (ownedBranches.includes(node.headRefName)) {
+    return `head branch ${node.headRefName} is rebuilt by its own workflow`;
   }
   const owner = node.author?.databaseId !== appSenderId;
   if (owner && !adoption.ownerIds.includes(node.author?.databaseId)) {
@@ -481,6 +489,8 @@ export async function dispatchCiFixes({
   holdLabels = DEFAULTS.holdLabels,
   gateLabel = null,
   adoption = DEFAULTS.adoption,
+  // merge.refire-skip-branches: head branches a workflow owns and rebuilds.
+  ownedBranches = [],
   record = emptyRecord(),
   now = Date.now(),
   // verify-cap.mjs verifyCapReader: the cap refusal, or null.
@@ -507,7 +517,7 @@ export async function dispatchCiFixes({
         }
         continue;
       }
-      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, ownedBranches, now });
       if (reason === "") {
         candidates.push(node);
       } else if (staleStop(node, { base, appSenderId, holdLabels, gateLabel })) {
@@ -666,7 +676,7 @@ export async function dispatchCiFixes({
     }
     const reason = skipReason(
       { ...node, requiredRun, laneGate, fixCiRuns, headFailing, timeLimited },
-      { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now },
+      { base, appSenderId, actionsAppId, checkName, stopCheckName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, ownedBranches, now },
     );
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
