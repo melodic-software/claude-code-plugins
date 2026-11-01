@@ -81,8 +81,8 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 ## Body
 
 - **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
-  conversation. A read-only action proceeds and names what it inferred; that is the setting
-  `proceed`. A state change proposes the action and waits for a yes, a fixed floor no setting
+  conversation. A read-only action proceeds and names what it inferred; that is the bare-run
+  default, `proceed`. A state change proposes the action and waits for a yes, a fixed floor no setting
   lowers. With nothing to infer, ask one multiple-choice question. Unattended, a state change
   stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
   guessed write needs the person's yes, and an unattended run has no one to give it.
