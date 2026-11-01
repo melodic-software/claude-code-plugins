@@ -269,6 +269,24 @@
       ],
       "difficulty": "routine",
       "source": "issue 11883"
+    },
+    {
+      "id": 18,
+      "name": "delivery-metrics-with-work-items-recorded",
+      "prompt": "/performance:go-faster --unattended\n\nInclude our change lead time.",
+      "expected_output": "Setup: the work-items plugin is enabled, origin/HEAD names the default branch, and that branch has commits and at least one failed deployment and its recovery in the last 84 days. The sweeper invokes /work-items:measure-delivery with no arguments and records, under pr-review, measured delivery findings for change lead time and failed deployment recovery time from the script's totals, with the keys, unit, value conversion, workload and command areas.md names.",
+      "files": [],
+      "expectations": [
+        "The sweeper invokes /work-items:measure-delivery through the Skill tool with no arguments, and runs no `git fetch`",
+        "pr-review has a measured finding with key `pr-review/change-lead-time`, unit `wait-ms`, tier E2, `command` exactly `/work-items:measure-delivery` and workload exactly `default-branch deployments, last 84 days`",
+        "That finding's `value` equals the script's `change_lead_time_hours_median` times 3600000, not the raw hours",
+        "pr-review has a measured finding with key `pr-review/recovery-time` whose `value` is not null and equals `failed_deployment_recovery_time_hours_median` times 3600000, with the same unit, command and workload",
+        "Each delivery finding's `guard_metric` names change_fail_rate and deployment_rework_rate, and the pr-review pull request findings are still recorded beside them",
+        "findings.json for the run passes `findings.py validate` with exit 0"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Only the disabled-owner case had an eval, so a sweeper that skips the call, records raw hours or uses other keys passed every case; the keys are what compare and adoptions match across runs.",
+      "source": "issue 11883"
     }
   ]
 }
