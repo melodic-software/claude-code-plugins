@@ -268,7 +268,7 @@ text.
 Re-run on any change: a description change re-measures triggering, a body change re-measures
 output (`/evals:plugin-eval` for a plugin suite). Every skill has evals, since a change to a
 skill without them cannot show it lost nothing; the only exception is a recorded skip in
-`scripts/evals-warrant-exemptions.txt`, which check 14 honours. A skill's cases are `case.yaml` cases in its
+`scripts/evals-warrant-exemptions.txt`, which check 14 honors. A skill's cases are `case.yaml` cases in its
 plugin's `evals/` directory (`/evals:design skill <name>` writes them); `/evals:validate` checks
 them before a run.
 
