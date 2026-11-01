@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_stale_reporter_info_days=14 (repository)\n\nClose candidates (stale reporter info):\n- #1 Export sometimes hangs: 299 days since the triage note of 2026-01-06.\n\nNot listed: #2 Invoice totals round wrong, since its reporter lee-m holds write access.\n\nThis is a lane run, so nothing was closed.",
+      "why": "#2 named only as left off the list"
+    },
+    {
+      "answer": "#1 is a close candidate. #2 is not a close candidate: lee-m holds write access.",
+      "why": "#2 negated inline"
+    },
+    {
+      "answer": "Close candidates:\n1. #1 Export sometimes hangs (299 days)\n\nlee-m holds write access, so #2 stays off the list.",
+      "why": "numbered list holding only #1"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Close candidates (stale reporter info):\n- #1 Export sometimes hangs: 299 days\n- #2 Invoice totals round wrong: 297 days",
+      "why": "#2 listed despite write access"
+    },
+    {
+      "answer": "Close candidates:\n\n1. #1 Export sometimes hangs (299 days)\n2. #2 Invoice totals round wrong (297 days)",
+      "why": "#2 in a numbered list"
+    },
+    {
+      "answer": "Close candidates:\n\n| # | Title | Days |\n|---|---|---|\n| #1 | Export sometimes hangs | 299 |\n| #2 | Invoice totals round wrong | 297 |",
+      "why": "#2 in a table"
+    },
+    {
+      "answer": "#2 Invoice totals round wrong is also a close candidate.",
+      "why": "#2 called a candidate inline"
+    },
+    {
+      "answer": "Close candidates:\n- #2 Invoice totals round wrong\n- #1 Export sometimes hangs",
+      "why": "#2 listed first"
+    }
+  ]
+}
