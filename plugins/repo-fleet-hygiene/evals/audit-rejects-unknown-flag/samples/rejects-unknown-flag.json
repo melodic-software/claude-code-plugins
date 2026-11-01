@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "`--prune-merged` is not a supported flag for this audit, which is read-only. `fleet` is a valid root.",
+      "why": "code span, not supported"
+    },
+    {
+      "answer": "**Rejected:** unrecognized flag --prune-merged. Rerun without it.",
+      "why": "bold, flag-first form"
+    },
+    {
+      "answer": "- --prune-merged isn't a recognized option\n- To delete merged branches, run the audit, then /repo-fleet-hygiene:apply --plan-file <path>",
+      "why": "list, isn't recognized"
+    },
+    {
+      "answer": "--prune-merged is outside the argument grammar, so I did not run the collector.",
+      "why": "outside the grammar"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Ran the audit with --prune-merged; it pruned 2 merged branches.",
+      "why": "accepted the flag"
+    },
+    {
+      "answer": "Unknown skill: repo-fleet-hygiene:audit fleet --prune-merged",
+      "why": "the skill is unknown, not the flag"
+    },
+    {
+      "answer": "Audited fleet. Fleet verdict: BLOCKED (2 repositories with evidence gaps).",
+      "why": "silently dropped the flag"
+    }
+  ]
+}

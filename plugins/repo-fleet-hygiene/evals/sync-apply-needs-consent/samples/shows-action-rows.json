@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Action | Repo |\n|---|---|\n| checkout-default | fleet/alpha (feature/report-export to main) |\n| ff-only | fleet/beta |",
+      "why": "table of both rows"
+    },
+    {
+      "answer": "- fleet/beta: `ff-only` on main\n- fleet/alpha: `checkout-default` from feature/report-export",
+      "why": "list, reverse order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "fleet/alpha: checkout-default. Should I apply?",
+      "why": "one row only"
+    },
+    {
+      "answer": "Both repos would move to main and fast-forward.",
+      "why": "paraphrase without the action rows"
+    }
+  ]
+}

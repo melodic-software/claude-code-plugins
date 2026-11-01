@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: audit-rejects-unknown-flag
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: rejects-unknown-flag
+    type: regex
+    pattern: '--prune-merged\b[`''"*)]*\s*(?:(?:is|was)\s+)?(?:not\s+(?:a\s+|an\s+)?(?:recogni[sz]ed|supported|valid|accepted|known|listed|in the (?:argument )?grammar|part of the (?:argument )?grammar)|isn''t\s+(?:a\s+|an\s+)?(?:recogni[sz]ed|supported|valid|known)|(?:an?\s+)?(?:unrecogni[sz]ed|unsupported|unknown|invalid)|outside (?:the |this )?(?:argument )?grammar|rejected)|\b(?:unrecogni[sz]ed|unsupported|unknown|invalid|not a (?:supported|recogni[sz]ed|valid))\s+(?:flag|option|argument)s?\b[^\n]{0,40}?--prune-merged'
+    flags: 'i'
+    target: last_message

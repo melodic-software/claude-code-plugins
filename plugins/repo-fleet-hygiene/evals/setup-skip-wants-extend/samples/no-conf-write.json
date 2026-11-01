@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/notes/skip-plan.md",
+            "content": "Use --extend-skip third_party for repo-fleet-hygiene.conf"
+          }
+        }
+      ],
+      "why": "another file; the content words do not count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/repo-fleet-hygiene.conf",
+            "content": "[fleet]\n\tskipAppend = third_party\n"
+          }
+        }
+      ],
+      "why": "hand-writes the config"
+    }
+  ]
+}
