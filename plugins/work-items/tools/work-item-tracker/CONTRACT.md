@@ -111,24 +111,56 @@ as unclaimed coordination (acceptable for a publish, wrong for contended work).
 
 ## Setup (binding file)
 
-The repo binds exactly ONE active provider via `.work-item-tracker.json` at the repo root
-(tracked, since which tracker a repo uses is repo-scoped). Layering and location are locked by
-[ADR 0015](../../../../docs/adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md):
-one team layer at the root, one gitignored personal overlay beside it, deliberately no
-user-global layer.
+The repo binds exactly ONE active provider under the `tracker` key of `<home>/work-items.yaml`
+(tracked, since which tracker a repo uses is repo-scoped), checked against
+[`work-items.schema.json`](../../schemas/work-items.schema.json). `<home>` is the convention home
+the repository binds in the pointer region of `AGENTS.md` or `CLAUDE.md`, read with the plugin's
+copy of `resolve-convention-home.sh`; `docs/conventions` when the repository binds none. Layering
+and location follow
+[ADR 0075](../../../../docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)
+fix 11, which supersedes ADR 0015: one team layer in the home, one gitignored personal overlay
+beside it, deliberately no user-global layer. The `tracker` mapping has the same keys as the
+legacy JSON file, so every adapter reads the same effective JSON.
 
-```json
-{
-  "schema_version": "1.0",
-  "provider": "github",
-  "docs": "Work-item tracker binding — see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)",
-  "config": {
-    "lease_ttl_hours": 24
-  }
-}
+```yaml
+tracker:
+  schema_version: "1.0"
+  provider: github
+  docs: Work-item tracker binding, see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)
+  config:
+    lease_ttl_hours: 24
 ```
 
-- Discovery: `.work-item-tracker.json` at the **repo root**, meaning `${CLAUDE_PROJECT_DIR}` when
+The seam reads the file with the plugin's copy of `yaml-subset.awk`, the repository's YAML
+subset parser. Every scalar reads as a string (the parser drops quotes, so a quoted id stays
+the id), and every reader takes a number or boolean as text. An empty flow sequence (`[]`)
+reads as an empty array, as the legacy JSON file writes it, so `done_category_keys: []` is
+present and judged like the JSON value (jira rejects an empty set) instead of taking the
+default, and `wont_do: []` keeps its key. One difference remains: a key with no value reads
+as absent, as though left out, never as a JSON `null`. A key under `tracker` that the
+schema does not declare, a document the parser rejects (named by file and line), or a rejected
+value (named by file, key and value; the overlay when it set the value) is exit `3`.
+
+- **Legacy fallback (migration).** While the migration runs, when `<home>/work-items.yaml` has
+  no `tracker` key (or the repository declined a home), the seam still reads
+  `.work-item-tracker.json` at the repo root and prints a one-line `notice:` on stderr naming
+  it. A repo root where no home applies (it is `$HOME`, an ancestor of `$HOME`, or not inside
+  a git work tree: ADR 0075 fix 5) reads no `work-items.yaml` at all, not even under
+  `docs/conventions`; only the legacy JSON file binds it. The JSON file has the same keys as
+  the `tracker` mapping:
+
+  ```json
+  {
+    "schema_version": "1.0",
+    "provider": "github",
+    "config": { "lease_ttl_hours": 24 }
+  }
+  ```
+
+  A `work-items.yaml` that does not parse is still read as the binding and fails, never a
+  silent fall back to the JSON file. A broken pointer region is reported on stderr and the
+  seam falls back as if no home applied.
+- Discovery: the binding resolves from the **repo root**, meaning `${CLAUDE_PROJECT_DIR}` when
   set, else `git rev-parse --show-toplevel`. Whichever of the two resolves, that one value
   governs ALL of the seam's repo-relative resolution (binding read, consumer-local adapter
   dirs, the github adapter's bot-wrapper lookup), so a bare shell that finds the binding also
@@ -143,8 +175,10 @@ user-global layer.
   ancestor/home binding would silently capture every repo beneath it (#2941). Nested
   per-subdirectory bindings are unsupported until requested. Env override
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
-- **Personal overlay**: an optional gitignored `.work-item-tracker.local.json` beside the
-  team binding merges **per-key over an allowlist, deny-by-default**. Overlayable keys:
+- **Personal overlay**: an optional gitignored overlay beside the team binding,
+  `<home>/work-items.local.yaml` (its `tracker` mapping) beside a YAML binding or
+  `.work-item-tracker.local.json` beside the legacy file, merges **per-key over an allowlist,
+  deny-by-default**. An overlay with no `tracker` key changes nothing. Overlayable keys:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
   record, so a per-user value is coherent), the auth-identity keys of every credentialed
   adapter, namely `config.jira.auth_email`, `config.jira.auth_env`, `config.linear.auth_env`, and
@@ -883,7 +917,8 @@ until those commits are merged. `wit_next_number` is the max existing file
 number + 1 with no file lock, so two diverged branches (or two writers against
 one store) can both mint the same next number.
 
-A relative `config.storage_dir` roots against the **binding file's directory**,
+A relative `config.storage_dir` roots against the **binding file's directory**
+(for a `<home>/work-items.yaml` binding under the repo root, the repo root itself),
 not the caller's CWD (`lib/binding.sh`). Distinct worktrees that resolve the
 same binding (e.g. via a shared `CLAUDE_PROJECT_DIR`, since anchored discovery gives
 each worktree its own git-toplevel binding otherwise) therefore share one store
