@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: clean-routes-disk-scan
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: routes-to-clean
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'repo-hygiene:clean'
+    min: 1
+    arm: 'with-only'
+  - name: scan-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'scan\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: reports-size
+    type: regex
+    pattern: '\b\d+(?:[.,]\d+)?\s?(?:[KMG]i?B|[KMG]|bytes)\b'
+    flags: 'i'
+    target: last_message
+  - name: bundle-kept
+    type: regex
+    pattern: 'BUNDLE-MARKER-2207'
+    target: { source: file, path: dist/bundle.js }
+  - name: no-removal
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:clean-caches|clean-build|clean-batch|remove-path)\.sh[^"]*--apply|(?:"command":"|&&\s*|;\s*|\|\|\s*|\\n\s*)(?:CLEAN_GUARD_ACK=1\s+)?(?:rm\s+-[a-zA-Z]*[rf]|git(?:\s+-C\s+\S+)?\s+clean\s+-(?![a-zA-Z]*n)[a-zA-Z]*f)'
+    min: 0
+    max: 0
+    arm: 'both'
