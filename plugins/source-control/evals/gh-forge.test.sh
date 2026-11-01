@@ -160,10 +160,11 @@ assert_eq "--no-pr: pr list is empty before create" "0" "$(run_gh "$CREATE" pr l
 printf 'Refs: #5\n\n## Summary\n\nx\n' >"$TEST_TMPDIR/body.md"
 out=$(run_gh "$CREATE" pr create --draft --head feat/x --title "feat: y" --body-file "$TEST_TMPDIR/body.md" 2>&1)
 assert_eq "pr create: prints the new PR's URL" "https://github.com/eval-fixture/app/pull/7" "$out"
+# Before the pr view below: that read is recorded too, as the last line.
+assert_eq "pr create: the call is recorded" '"pr create"' "$(tail -n 1 "$CREATE_FORGE/calls.jsonl" | jq -c .command)"
 assert_eq "pr create: the body file is kept for a grader" "$(cat "$TEST_TMPDIR/body.md")" "$(cat "$CREATE_FORGE/pr-body.md")"
 assert_eq "pr create: the PR then reads as an open draft with the given title" "true feat: y" \
   "$(run_gh "$CREATE" pr view 7 --json isDraft,title --jq '"\(.isDraft) \(.title)"')"
-assert_eq "pr create: the call is recorded" '"pr create"' "$(tail -n 1 "$CREATE_FORGE/calls.jsonl" | jq -c .command)"
 run_gh "$CREATE" pr create --head feat/x --title again >/dev/null 2>&1
 assert_exit "pr create: a second create for the branch is refused" 1 "$?"
 out=$(run_gh "$CREATE" pr ready 7)
