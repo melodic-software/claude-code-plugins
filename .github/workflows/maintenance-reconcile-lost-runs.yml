@@ -31,7 +31,9 @@ name: maintenance-reconcile-lost-runs
 # A pr-require-checks run that passed on its first attempt is re-run once,
 # recorded, when the head's pr-verify pass predates a change to its spec (an
 # issue edit or a new spec comment), so pr-verify judges the head again
-# instead of leaving it at verify:spec-changed.
+# instead of leaving it at verify:spec-changed. So is one inside GitHub's
+# re-run window on a pull request past the gate's TOO_OLD_DAYS whose head has
+# no counted verdict, so a fresh pass clears verify:too-old.
 #
 # A lanes App pull request whose newest pr-require-checks run failed, on its
 # first attempt, only in ci-status, which noted that the lanes kill switch was
