@@ -26,8 +26,11 @@ A permission gate can refuse a spawn *before* depth is consulted (record: `conte
 "Imperative 5: NESTED SUBAGENTS"). We therefore read a refusal as saying nothing about the depth
 ceiling; reading it as "we are out of depth" sends you into a redesign the platform never asked
 for. A depth probe can come back unresolved because this
-different gate answered first. Read the error text: a depth rejection names depth, a permission
-rejection names permission.
+different gate answered first. Read what came back rather than inferring depth from a refusal: what
+a subagent at the depth limit sees is
+[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)'s
+to state. As of 2026-11-01; recheck when that section changes
+what the depth limit does.
 
 ## A clean return is not a correct return
 

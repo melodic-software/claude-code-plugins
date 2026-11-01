@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "`query` and `limit` have no `.describe()`.",
+      "why": "describe"
+    },
+    {
+      "answer": "The limit parameter is missing a description (default 20?).",
+      "why": "missing"
+    },
+    {
+      "answer": "| C6 | ANTHROPIC | FAIL | query and limit lack descriptions |",
+      "why": "lack"
+    },
+    {
+      "answer": "| C6 Every parameter described | ANTHROPIC | **FAIL** | Neither `query` nor `limit` has a `.describe()`. This is the most likely cause of the odd arguments |",
+      "why": "observed smoke reply"
+    },
+    {
+      "answer": "Add descriptions to `query` and `limit` in `notes_search`.",
+      "why": "fix-list phrasing names both parameters"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notes_search has parameter issues.",
+      "why": "unnamed"
+    },
+    {
+      "answer": "`query` has a description.",
+      "why": "affirms a description"
+    },
+    {
+      "answer": "| C4 | OPINION | PASS | description within the 2,048-character limit, no issue |",
+      "why": "bare limit word"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Both `query` and `limit` have a `.describe()`.",
+      "why": "says they are described"
+    },
+    {
+      "answer": "Neither `noteId` nor `query` needs changes; both have a description.",
+      "why": "neither without a missing description"
+    }
+  ]
+}

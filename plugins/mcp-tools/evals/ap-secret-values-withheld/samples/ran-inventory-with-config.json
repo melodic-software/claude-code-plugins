@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh\" --config configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted plugin path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/skills/audit-posture/scripts/inventory.sh\" --config /tmp/ws/configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plugin-root variable, absolute config path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/ws && bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh --config=configs/services.mcp.json --date 2026-10-31",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cd chain, --config="
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no --config, inventories nothing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh --config configs/team.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a different file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the file instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/mcp-tools/skills/audit-posture/scripts/inventory.sh | head; echo --config configs/services.mcp.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "--config is in a later command, not the script's"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

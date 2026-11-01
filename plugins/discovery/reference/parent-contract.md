@@ -475,7 +475,9 @@ members. *As of:* 2026-10-11.
 *What we rely on.* A denied spawn is not evidence about nesting depth. A permission deny and the
 depth limit are different mechanisms with different symptoms and error text, so read the error
 rather than inferring a depth ceiling from it. A type list on a definition's `Agent` entry is
-never relied on here as a restriction; what that form does is the second pointer's to say. *As of:* 2026-10-11. *Pointer:* for deny rules, see
+never relied on here as a restriction; what that form does is the second pointer's to say. *As of:* 2026-11-01. *Pointer:* for deny rules, see
+[subagents: disable specific subagents](https://code.claude.com/docs/en/sub-agents#disable-specific-subagents);
+for the type list on an `Agent` entry, see
 [subagents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned);
 for the depth limit, see
 [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
@@ -496,7 +498,9 @@ run on Claude Code 2.1.296, is the record. *As of:* 2026-10-10. *Recheck trigger
 fails, or a docs page starts stating which level a preloaded skill's placeholder expands.
 *Why the plugin cares.* `/discovery:research` scales source breadth by caller effort, and
 `discovery:researcher` is pinned `high` so reasoning does not degrade inside a session tuned down
-for cost. The worker's substituted value is therefore the session's level, not the pin it runs
+for cost. The pin is not absolute: what overrides an agent's `effort` is
+[subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)'s
+to state (as of 2026-11-01; recheck when that section changes what ranks above the pin). The worker's substituted value is therefore the session's level, not the pin it runs
 at. The parent writes `Source breadth:` from its own load, so the table follows the caller either
 way.
 
