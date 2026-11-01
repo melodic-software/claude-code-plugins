@@ -881,8 +881,9 @@ async function admissionDecision({ github, repo, number, issue, events, humans, 
     ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
     : { verdict: "skip", reasons: [`${READY} was added by neither a listed human nor the lanes App`] };
   // A born-triaged issue's filer sets its fields after filing, so a refusal
-  // for unset fields alone is a wait that writes nothing (`fields`); the
-  // triage sweep sends it to intake if they never land.
+  // for unset fields alone is a wait (`fields`): readmitReady writes nothing,
+  // and a person's deferral says why and comes off, so the triage sweep still
+  // sends it to intake if they never land.
   const trusted = (id) => humans.has(id) || (appId !== undefined && id === appId);
   if (decision.unsetOnly && notBornTriaged(issue, trusted) === null) {
     return { decision: { verdict: "wait", reasons: [`born triaged, ${decision.unsetOnly.join(" and ")} not set yet`], pulls: [], fields: true }, facts };
@@ -938,8 +939,6 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
     const status = decision.hold || !(decision.attended || doneOnly) ? NEEDS_DECISION : CONFIRMED;
     await refuseDeferred({ github, repo, number, comments: facts.comments, reasons, labels: decision.attended ? [status, ATTENDED] : [status], had: labelNames(issue) });
     console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
-  } else if (decision.fields) {
-    console.log(`label-unblocked: #${number}, marked by a person, stays deferred: ${reasons}`);
   } else if (decision.retriage) {
     await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);

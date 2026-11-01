@@ -4713,13 +4713,17 @@ test("a born-triaged issue waiting on its fields does not use up readmit-per-run
   assert.deepEqual(writes(calls), [labeled(26)]);
 });
 
-test("a person's mark on a born-triaged issue whose fields are not set yet stays deferred with no write", async (t) => {
-  const log = t.mock.method(console, "log", () => {});
+// A person's deferral of a born-triaged issue whose fields are not set yet says
+// why and comes off, so the readmit path admits it once they land and the
+// triage sweep still sees it if they never do; it never waits silently.
+test("a person's mark on a born-triaged issue whose fields are not set yet says why and drops the deferral", async (t) => {
+  t.mock.method(console, "log", () => {});
   const { github, calls } = markedWorld({ fields: [], body: BORN });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(calls), []);
-  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
-  assert.ok(lines.includes("label-unblocked: #25, marked by a person, stays deferred: born triaged, size and uncertainty not set yet"), lines.join("\n"));
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: born triaged, size and uncertainty not set yet.` })}`,
+    `DELETE /repos/${REPO}/issues/25/labels/admission-deferred`,
+  ]);
 });
 
 test("a status: ready issue in no queue refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
