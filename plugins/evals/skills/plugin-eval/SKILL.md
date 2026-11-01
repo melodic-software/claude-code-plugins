@@ -288,10 +288,12 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
-   for a plugin file it could not read, so the fact belongs in the hub. The exceptions (a denial the
-   environment makes in both arms, such as a user-scope read of `~/.claude/standards`), a Bash
-   denial's paths, gating an A/B pass, and a slash-invoked `context: fork` run at 0 turns, which is
-   not failed: [reading-results.md, Denials](reference/reading-results.md#denials).
+   for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
+   denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
+   `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
+   probe's denial), how a Bash denial's paths are read, gating an A/B pass, and the 0-turn
+   `context: fork` run the gate does not fail are in
+   [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
