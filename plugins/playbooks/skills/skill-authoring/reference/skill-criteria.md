@@ -33,6 +33,17 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   key) and decide it against the
   [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
   Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
+- **Invocation convention.** Before setting `disable-model-invocation: true`, list every starter
+  that is not a person typing `/name`: another skill, a subagent preload, `/loop`, a routine, a
+  Desktop task, a workflow prompt, an event trigger. An automation starter, present or planned, is
+  a reason against `true`. The rubric's
+  [exception classes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#exception-classes-the-only-reasons-to-write-true)
+  decide: write `true` only under one of them, and a `setup` skill stays `true` under class (ii)
+  whatever starts it. Listing starvation alone is not a class: listing cost was rejected as one in
+  [#4659](https://github.com/melodic-software/claude-code-plugins/issues/4659). Why: the rule keys
+  on the starter, not on reach. Which starters can reach a user-invoked skill is the rubric's
+  [first default bullet](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#the-default-and-why),
+  which carries the probe record and its recheck trigger.
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
   and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/argument-hint/README.md);
@@ -72,6 +83,12 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 
 ## Body
 
+- **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
+  conversation. A read-only action proceeds and names what it inferred; the planned
+  bare-run setting calls this default `proceed`, and no settings key carries it yet. A state
+  change proposes the action and waits for a yes, a fixed floor. With nothing to infer, ask one multiple-choice question. Unattended, a state change
+  stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
+  guessed write needs the person's yes, and an unattended run has no one to give it.
 - Apply the deletion test, then the prompt audit's flags: trigger-case enumeration, step
   choreography for a judgment task, history narratives (see
   [History and provenance](#history-and-provenance)), and restated volatile specifics, which
