@@ -44,7 +44,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
   A superseded FAIL still counts toward `max_fails`, and the passes then
-  decide as below. Any record, time or read that fails keeps `verify:fail`;
+  decide as below; the report's `supersededAtHead` names it, for pr-unblock
+  to resolve that FAIL's fail-note threads. Any record, time or read that
+  fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json):
@@ -947,6 +949,9 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
+    # A counted FAIL at the head that `_superseded` gave way; False when the
+    # cap or a failed read decided first.
+    superseded_at_head: bool = False
 
     @property
     def needs_human(self) -> bool:
@@ -967,6 +972,7 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
+            "supersededAtHead": self.superseded_at_head,
         }
 
 
@@ -2348,10 +2354,11 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
+        head_superseded = False
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-        elif head in failed and not superseded(head):
+        elif head in failed and not (head_superseded := superseded(head)):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             _, elsewhere = self._elsewhere(
@@ -2417,7 +2424,9 @@ class Reader:
             detail = f"created {created.isoformat()}"
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+        return Evidence(
+            refusal, head, tuple(verdicts), ignored, detail, head_superseded
+        )
 
     def _off_grammar(
         self, item: dict[str, Any], name: str, tied: bool
