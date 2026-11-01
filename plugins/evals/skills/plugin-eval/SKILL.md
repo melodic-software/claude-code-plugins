@@ -251,12 +251,19 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated
    for decisions; only an exploratory run drops it. Run it in the foreground with a tool timeout
    that covers the estimate (a three-case pass took about six minutes here) and wait. **Stay
-   attached until every run exits:** a headless (`-p`) session never backgrounds the CLI (the run
-   ends with the session: it says "the run started", exits, and leaves an empty `out/` and no
-   JSON), runs suites one after another (`-j` adds concurrency inside one), and
-   answers only after all exit; an interactive session backgrounds a run only as a harness-tracked
-   task it waits for. A run is finished when the process exits and `results.json` exists; read the
-   exit code and the JSON together, never one alone. Write the file where git ignores it (the
+   attached until every run exits:** the results come back in the same tool call, so a headless
+   (`-p`) session runs suites one after another (`-j` adds concurrency inside one) and answers only
+   after all exit. A CLI backgrounded with a shell `&` gets no wait: the session answers before the
+   results exist and reads none of them. A command the main conversation starts with the Bash
+   tool's `run_in_background` holds a `-p` run open until it exits or reaches its time limit (both
+   in [records](reference/records.md#ceiling-trust-and-report-behavior)). A larger suite can
+   outrun the foreground timeout, after which the command moves to the background (it stops
+   instead under `--bare`) and that limit counts from the move, or outrun the limit itself. For what holds a `-p` run open and which
+   limits apply, see <https://code.claude.com/docs/en/headless#background-tasks-at-exit> and
+   <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands>. An
+   interactive session backgrounds a run only as a harness-tracked task it waits for. A run is
+   finished when the process exits and `results.json` exists; read the exit code and the JSON
+   together, never one alone. Write the file where git ignores it (the
    CLI's own copy lands under `<eval dir>/results/<timestamp>/`, which can take `--json` too when
    ignored); a run result is evidence to distill, not a file to commit.
 
@@ -496,4 +503,5 @@ record a drift outcome in this plugin's CHANGELOG.
 | Repeat count | <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> | 2026-10-01 | The page changes its default run count |
 | Judge calibration: what a judge reads, the 90% bar, trace judges not seeing the prompt | <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; "When the grader is an LLM judge" in [eval-audit.md](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md); a kept 2.1.287 trace | 2026-10-02 | The focus table changes, a kept trace starts carrying the prompt or system prompt, or eval-audit.md moves its bar |
 | CI pins | <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci>; <https://code.claude.com/docs/en/model-config#model-aliases> | 2026-10-02 | Either section changes how it pins or resolves a model |
+| Headless stay-attached: what holds a `-p` run open, the background command time limit | <https://code.claude.com/docs/en/headless#background-tasks-at-exit>; <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands>; a probe on Claude Code 2.1.316 ([records.md](reference/records.md#ceiling-trust-and-report-behavior)) | 2026-11-01 | Either section changes what holds a run open or its limits, or a release note touches background tasks or `-p` exit |
 | Ceiling shapes, trust persistence, the unmarked limit, `kept local`, `init` needing a terminal | <https://code.claude.com/docs/en/plugin-evals> (`--max-cost-usd` and exit-code rows, rate-limit troubleshooting, HTML report, "Write a case manually", CI); [records.md](reference/records.md#ceiling-trust-and-report-behavior) | 2026-09-13 | A release note touches `plugin eval`, publishing, `init` or limit handling, or a pass shows a ceiling shape not named here |
