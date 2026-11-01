@@ -18,7 +18,7 @@ graders:
     target: last_message
   - name: no-single-winner
     type: regex
-    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)|(?<!\bhow )\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:|\bthe answer is\b|\bgo with\s+[\"“*_]'
+    pattern: '\b(?:the|my)\s+(?:single\s+)?(?:best|top|strongest)\s+(?:one|rhyme|metaphor|option|choice|pick|fit|candidate)\s+(?:here\s+)?(?:is|would be)\b(?!\s+(?:whichever|the one that|the one you|up to you|yours|your call|a matter))|\bmy\s+(?:top\s+|one\s+|single\s+|own\s+)?(?:pick|choice|recommendation|vote|favorite)\s*(?:is|would be|:)|(?<!\bhow )\bI(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b|\bhow I(?:[''’]d| would)\s+(?:go with|pick|choose|use)\b(?:\*\*)?[ \t]*:?(?:\*\*)?[ \t]*(?:#\d|\d[.)]|option\s*#?\d|[\"“]|[*_]+[A-Za-z\"“])|^[ \t>*#-]*(?:\*\*)?winner(?:\*\*)?\s*:|\bthe answer is\b|\bgo with\s+[\"“*_]'
     flags: 'im'
     match: not_contains
     target: last_message

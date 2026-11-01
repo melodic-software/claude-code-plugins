@@ -29,6 +29,10 @@
     {
       "answer": "Rhymes for 'alone': phone, stone, known.",
       "why": "a different question"
+    },
+    {
+      "answer": "**The comparison:** evenings compared to the verb \"idle.\" This is a **verbal metaphor**. It's a medium-distance pairing: a stretch of time put next to an engine.",
+      "why": "one candidate with a label before the word distance"
     }
   ],
   "fail": [
@@ -43,6 +47,10 @@
     {
       "answer": "One pick: *the porch light waits up for nobody* (verbal, distance: medium). Backup: *Sunday drags its feet* (verbal, distance: close).",
       "why": "a backup makes it a menu"
+    },
+    {
+      "answer": "*The evenings idle in the drive.* Verbal metaphor, medium-distance.\n\n*Loneliness is an off-season motel.* Expressed identity, far-distance.",
+      "why": "two candidates labeled with the label-before-distance form (review finding)"
     }
   ]
 }
