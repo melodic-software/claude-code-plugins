@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [13.1.2] - 2026-11-01
+
+Patch. A default changed; no topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **Lane-instance default.** An unset `lane_instance` falls back to a random id made once and kept
+  in the plugin data dir, not the machine hostname, which the public telemetry marker published.
+  The id stays stable across restarts and distinct per machine.
+
 ## [13.1.1] - 2026-11-01
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

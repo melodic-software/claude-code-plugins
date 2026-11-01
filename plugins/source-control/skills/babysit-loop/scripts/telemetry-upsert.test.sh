@@ -84,11 +84,11 @@ setup() {
 }
 run() { # extra arguments pass through to the script
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance "${INST-lap-1}" \
-    --body-file "$STUB_DIR/body.txt" "$@" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
+    --body-file "$STUB_DIR/body.txt" --body-dir "$STUB_DIR" "$@" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }
 read_state() {
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 --read \
-    >"$STUB_DIR/out" 2>"$STUB_DIR/err"
+    --body-dir "$STUB_DIR" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }
 # c <id> <body> [author]: one comment object, written by lane-op unless named
 c() { jq -n --argjson id "$1" --arg b "$2" --arg a "${3:-lane-op}" '{id: $id, body: $b, user: {login: $a}}'; }
@@ -167,25 +167,32 @@ run
 check "pre-prefixed body: exit 0" 0 "$?"
 check "pre-prefixed body: one sentinel" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
-# 13. An unsubstituted ${user_config.…} placeholder falls back to the hostname.
-cat >"$TMP/bin/hostname" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$STUB_HOST"
-STUB
-chmod +x "$TMP/bin/hostname"
+# 13. An unsubstituted ${user_config.…} placeholder falls back to a random id kept
+# in the body dir, stable across runs, and never the hostname: the marker is public.
 setup '[]'
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
-INST='${user_config.lane_instance}' STUB_HOST='Melo_Lap.001' run
+INST='${user_config.lane_instance}' run
 check "placeholder instance: exit 0" 0 "$?"
-check "placeholder instance: hostname-derived marker" \
-  '<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@melo-lap-001 -->'$'\n'"$PAYLOAD" "$(body_of 101)"
+STORED="$(cat "$STUB_DIR/lane-instance" 2>/dev/null)"
+check "placeholder instance: stored lane-<hex> id" 1 "$([[ "$STORED" =~ ^lane-[0-9a-f]{8}$ ]] && echo 1)"
+check "placeholder instance: marker uses the stored id" \
+  "<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@$STORED -->"$'\n'"$PAYLOAD" "$(body_of 101)"
+HOST="$(hostname 2>/dev/null || uname -n)"
+HOST_SANITIZED="$(printf '%s' "$HOST" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+check "placeholder instance: the id is not the hostname" 1 \
+  "$([[ "$STORED" != "$HOST" && "$STORED" != "$HOST_SANITIZED" ]] && echo 1)"
+INST='' run
+check "unset instance, second run: exit 0" 0 "$?"
+check "unset instance, second run: same stored id" "$STORED" "$(cat "$STUB_DIR/lane-instance")"
+check "unset instance: the hostname reaches no API call" 0 \
+  "$(grep -cF -- "$HOST_SANITIZED" "$STUB_DIR/calls.log" "$STUB_DIR/comments.json" | awk -F: '{n+=$NF} END {print n+0}')"
 
-# 14. A hostname too long for an instance id: exit 3 before any gh call.
+# 14. A stored id that fails the instance check: exit 3 before any gh call.
 setup '[]'
-# shellcheck disable=SC2016
-INST='${user_config.lane_instance}' STUB_HOST="$(printf 'h%.0s' {1..40})" run
-check "over-length hostname: exit 3" 3 "$?"
-check "over-length hostname: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+printf '%s\n' "$(printf 'h%.0s' {1..40})" >"$STUB_DIR/lane-instance"
+INST='' run
+check "over-length stored id: exit 3" 3 "$?"
+check "over-length stored id: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
 # 15. Under 16 payload bytes below the sentinel: exit 3 before any gh call.
 setup '[]' "$SENT"$'\n''short'
@@ -298,6 +305,51 @@ setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
 STUB_USER='{"login":"jane_acme","type":"User"}' run
 check "EMU login: exit 0" 0 "$?"
 check "EMU login: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
+
+# 17. Body-file containment: an outside path (mode 000, so a read would fail
+# differently), a `..` escape, and a symlink leaf are each refused before any read
+# or gh call; no safe dir, or another plugin's CLAUDE_PLUGIN_DATA, is refused too.
+setup '[]'
+OUTSIDE="$TMP/outside"
+mkdir -p "$OUTSIDE"
+printf 'PRIVATE-KEY-MATERIAL\n' >"$OUTSIDE/secret.txt"
+chmod 000 "$OUTSIDE/secret.txt"
+run_body() { # body path, then extra arguments
+  PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 \
+    --body-file "$1" "${@:2}" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
+}
+run_body "$OUTSIDE/secret.txt" --body-dir "$STUB_DIR"
+check "outside body file: exit 3" 3 "$?"
+check "outside body file: names the rule" 1 "$(grep -q 'must resolve under the safe dir' "$STUB_DIR/err" && echo 1)"
+chmod 600 "$OUTSIDE/secret.txt"
+run_body "$STUB_DIR/../outside/secret.txt" --body-dir "$STUB_DIR"
+check "dot-dot escape: exit 3" 3 "$?"
+ln -s "$OUTSIDE/secret.txt" "$STUB_DIR/link.txt"
+run_body "$STUB_DIR/link.txt" --body-dir "$STUB_DIR"
+check "symlink leaf: exit 3" 3 "$?"
+check "symlink leaf: names the rule" 1 "$(grep -q 'must not be a symlink' "$STUB_DIR/err" && echo 1)"
+env -u CLAUDE_PLUGIN_DATA PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 \
+  --instance lap-1 --body-file "$STUB_DIR/body.txt" >/dev/null 2>"$STUB_DIR/err"
+check "no safe body dir: exit 3" 3 "$?"
+mkdir -p "$TMP/codex-data"
+cp "$STUB_DIR/body.txt" "$TMP/codex-data/body.txt"
+CLAUDE_PLUGIN_DATA="$TMP/codex-data" run_body "$TMP/codex-data/body.txt"
+check "foreign CLAUDE_PLUGIN_DATA: exit 3" 3 "$?"
+check "containment refusals: no secret content echoed" 0 "$(grep -c PRIVATE-KEY-MATERIAL "$STUB_DIR/err" "$STUB_DIR/out" | awk -F: '{n+=$NF} END {print n+0}')"
+check "containment refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 18. A credential-shaped body is withheld whole before any gh call and never
+# echoed. The fake token is assembled at run time so no token-shaped literal is tracked.
+FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
+setup '[]' "cycle: 7 note=$FAKE_TOKEN"
+run
+check "credential-shaped body: exit 3" 3 "$?"
+check "credential-shaped body: names the rule" 1 "$(grep -q "leak-scan rule 'GitHub token'" "$STUB_DIR/err" && echo 1)"
+check "credential-shaped body: token never printed" 0 "$(grep -cF -- "$FAKE_TOKEN" "$STUB_DIR/err" "$STUB_DIR/out" | awk -F: '{n+=$NF} END {print n+0}')"
+check "credential-shaped body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+setup '[]' 'cycle: 7 password="hunter2hunter2"'
+run
+check "plain secret assignment: exit 3" 3 "$?"
 
 # 16. gh not on PATH: exit 4.
 setup '[]'

@@ -17,8 +17,15 @@ mode, `usage_sample`) to a file, then run:
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
   --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' \
-  --body-file <telemetry file>
+  --body-file <telemetry file> --body-dir "${CLAUDE_PLUGIN_DATA}"
 ```
+
+Write the telemetry file under `${CLAUDE_PLUGIN_DATA}`, and pass that substituted value as
+`--body-dir`: Bash-tool shells do not inherit `CLAUDE_PLUGIN_DATA`. The script refuses a symlink or
+a path that resolves outside `--body-dir` before reading it (exit 3), so a prompt-injected path
+cannot post a credential file as a public comment. It then scans the body with the shared leak scan
+and withholds all of it on a hit (exit 3), naming the rule and never the match; rotate a real
+credential.
 
 Keep the single quotes: an unsubstituted placeholder inside double quotes is a bash
 `bad substitution` error, while single quotes pass it through for the fallback below. The same
@@ -29,10 +36,11 @@ The script writes the sentinel line
 `<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@<instance> -->` above the body,
 so the file holds the telemetry alone (a file that already opens with that exact line is sent
 as-is). An unset `lane_instance` (empty, or a surviving literal `${user_config.…}` placeholder)
-falls back to the sanitized lowercased hostname, and the script logs the assumption. The id is
+falls back to a random `lane-<hex>` id the script makes once and keeps in
+`<body-dir>/lane-instance`, and logs the assumption. Never the hostname: the marker is public. The id is
 operator-supplied text that ends up in a `jq` program and an API path, so it is validated against
 `^[a-z0-9][a-z0-9-]{0,31}$` and **rejected**, never trimmed into something that looks valid; the
-hostname fallback passes the same check.
+stored fallback passes the same check.
 
 **Only this lane's own comments count.** The sentinel is public and the instance id predictable, so
 anyone who can comment on the tracking issue can post a lookalike. The lookup matches a
@@ -75,8 +83,8 @@ accepted because it still looks like telemetry.
 | Exit | Meaning | This cycle's telemetry |
 |---|---|---|
 | 0 | written, and the read-back matches the body sent | confirmed |
-| 3 | invalid `--repo`/`--issue`/instance, or the body failed the pre-write gate; nothing written | fix the body composition, do not re-run blind |
-| 4 | `gh` not found; nothing written | unreported |
+| 3 | invalid `--repo`/`--issue`/instance, a body file outside `--body-dir` or a symlink, or the body failed the pre-write gate or the leak scan; nothing written | fix the body composition, do not re-run blind |
+| 4 | `gh` or `node` not found; nothing written | unreported |
 | 5 | the write identity, the lookup, the POST, or the PATCH failed, or the POST landed under a login other than the resolved identity (a wrong `--app-slug`: the script deletes that comment and names the login it landed under); the comment holds an earlier body or none | unreported |
 | 6 | the write was sent but is unconfirmed: the created comment was not re-found, the read-back failed, or the stored body differs | unreported |
 
@@ -108,7 +116,8 @@ comments directly:
 ```bash
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
-  --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' --read
+  --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' --read \
+  --body-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
 It passes `--app-slug` as the write does. It prints the canonical comment's
