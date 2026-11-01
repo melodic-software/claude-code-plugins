@@ -1125,7 +1125,6 @@ jobs:
             skill_checker:
               plugins/skill-quality/scripts/**
               scripts/check-all-skills-verb-contract*.sh
-              scripts/verb-contract-baseline.txt
               scripts/lib/**
               .github/workflows/pr-require-checks.yml
             manifests:
@@ -1158,7 +1157,6 @@ jobs:
               scripts/check-pipefail-grep-q*
               scripts/pipefail-grep-q-baseline.txt
               scripts/check-test-tmp-cleanup*
-              scripts/test-tmp-cleanup-baseline.txt
               **/*.sh
               **/*.bash
               **/*.bats
@@ -2110,9 +2108,7 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh pipefail-grep-q {0}
         run: scripts/check-pipefail-grep-q.sh
 
-      # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
-      # offenders are listed in scripts/test-tmp-cleanup-baseline.txt, which
-      # only shrinks.
+      # A *.test.sh that runs mktemp must trap EXIT to remove it.
       - name: Gate test suites on cleaning up their temp paths
         id: test_tmp_cleanup
         continue-on-error: true
@@ -3071,9 +3067,7 @@ jobs:
       # every schedule or dispatch run. Elsewhere an unchanged skill's check-25
       # verdict cannot have moved, because nothing it reads changed, and a
       # changed skill is checked by the next step, which fails it on check 25
-      # like any other FAIL. The one verdict a diff can no longer see is a stale
-      # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
-      # the list has no active rows, and the scheduled run still reports one.
+      # like any other FAIL.
       #
       # detect-changes reads only a pull request's files, so on a merge group
       # every group reports true and the diff is checked here instead, against
@@ -3085,7 +3079,7 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ] && [ -n "$DIFF_BASE" ]; then
             touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
-              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt \
+              'scripts/check-all-skills-verb-contract*.sh' \
               scripts/lib .github/workflows/pr-require-checks.yml) ||
               touched="(git diff failed)"
             if [ -z "$touched" ]; then

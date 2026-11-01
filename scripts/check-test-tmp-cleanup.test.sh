@@ -2,7 +2,7 @@
 # Black-box contract test for check-test-tmp-cleanup.sh.
 #
 # Self-contained and cwd-independent: builds a throwaway git repository with
-# fixture *.test.sh files and a baseline, runs the checker against it, and
+# fixture *.test.sh files, runs the checker against it, and
 # asserts on exit code and output. The SUT resolves the repository root
 # relative to its own location, so the fixture carries a copy of it under
 # scripts/ and every case commits its files so `git ls-files` sees them.
@@ -35,8 +35,7 @@ write_js_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\ncons
 write_js_bare_beside_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_under_root() { printf 'after(() => {});\nconst d = join(mkdtempSync(join(root, "x-")), "f");\n' >"$1"; }
 
-# mk_repo <out-var>: a repo with one clean suite, one comment-only suite, and an
-# empty baseline. The builder assigns through a nameref, which shellcheck
+# mk_repo <out-var>: a repo with one clean suite, one comment-only suite. The builder assigns through a nameref, which shellcheck
 # cannot follow.
 mk_repo() {
   local dir
@@ -45,7 +44,6 @@ mk_repo() {
   mkdir -p "$dir/plugins/p"
   write_clean "$dir/plugins/p/clean.test.sh"
   write_comment_only "$dir/plugins/p/comment.test.sh"
-  : >"$dir/scripts/test-tmp-cleanup-baseline.txt"
 }
 
 # run_case <label> <expected-rc> <setup> [<must-name>...]
@@ -82,26 +80,12 @@ run_case() {
 
 run_case "clean suites pass" 0 ":"
 
-run_case "an offender not in the baseline fails and is named" 1 \
+run_case "an offender fails and is named" 1 \
   "$(declare -f write_offender); MK=$MK; write_offender plugins/p/bad.test.sh" \
   "plugins/p/bad.test.sh"
 
 run_case "a suite cleaned by fixture_tree::build passes" 0 \
   "$(declare -f write_fixture_user); MK=$MK; write_fixture_user plugins/p/ft.test.sh"
-
-run_case "a baselined offender passes" 0 \
-  "$(declare -f write_offender); MK=$MK; write_offender plugins/p/bad.test.sh; printf 'plugins/p/bad.test.sh  # known\n' >scripts/test-tmp-cleanup-baseline.txt"
-
-run_case "a baselined file that now traps fails as stale" 1 \
-  "printf 'plugins/p/clean.test.sh\n' >scripts/test-tmp-cleanup-baseline.txt" \
-  "plugins/p/clean.test.sh: scripts/test-tmp-cleanup-baseline.txt lists it, but it no longer offends"
-
-run_case "a baselined file that is gone fails as stale" 1 \
-  "printf 'plugins/p/gone.test.sh\n' >scripts/test-tmp-cleanup-baseline.txt" \
-  "plugins/p/gone.test.sh: scripts/test-tmp-cleanup-baseline.txt lists it, but the file does not exist"
-
-run_case "a missing baseline is an environment error" 2 \
-  "rm scripts/test-tmp-cleanup-baseline.txt"
 
 run_case "a JS suite with a tmpdir folder and no removal hook fails and is named" 1 \
   "$(declare -f write_js_offender); write_js_offender plugins/p/bad.test.mjs" \
