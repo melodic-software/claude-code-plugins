@@ -6596,6 +6596,29 @@ def ci_status_jobs(draft_step: str) -> dict[str, Any]:
 
 DRAFT_JOBS = ci_status_jobs("success")
 READY_JOBS = ci_status_jobs("skipped")
+
+
+def ci_status_with(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    job = {"id": 9001, "name": "ci-status", "conclusion": "success", "steps": steps}
+    return {"total_count": 1, "jobs": [job]}
+
+
+# The jobs API can list a finished job's steps empty or cut short
+# (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
+# conclusion of the draft step decides; each of these is unreadable.
+UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
+    "an empty step list": ci_status_with([]),
+    "the draft step listed with no conclusion": ci_status_with(
+        [{"name": "Note a draft", "conclusion": None}]
+    ),
+    "the draft step not listed": ci_status_with(
+        [{"name": "Aggregate lane results", "conclusion": "success"}]
+    ),
+    "no ci-status job": {
+        "total_count": 1,
+        "jobs": [{"id": 9002, "name": "lint-repo", "conclusion": "success"}],
+    },
+}
 DRAFT_CHECKS, READY_CHECKS = 41273054889, 41273113342
 # #11832's times: the draft checks run was created at 04:25:39, the verifier
 # run that judged it and uploaded the FAIL at 04:26:22, and the ready checks
@@ -6660,6 +6683,25 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
         for sha in SIBLING_HEADS:
             draft_race(fake, sha)
         self.assertIsNone(read(fake).refusal)
+
+    def test_only_a_listed_draft_step_conclusion_reads_the_state(self) -> None:
+        def draft_run(jobs: dict[str, Any]) -> bool:
+            fake = FakeGitHub([], {})
+            fake.jobs[DRAFT_CHECKS] = jobs
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                return ve.Reader(REPO, "main")._draft_run(DRAFT_CHECKS)
+
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label), self.assertRaises(ve._Unreadable):
+                draft_run(jobs)
+        self.assertTrue(draft_run(DRAFT_JOBS))
+        self.assertFalse(draft_run(READY_JOBS))
+
+    def test_an_unreadable_draft_state_keeps_the_fail(self) -> None:
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label):
+                fake = draft_race(self.fail_at(HEAD), HEAD, jobs)
+                self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_failed_or_short_read_keeps_the_fail(self) -> None:
         def cut(fake: FakeGitHub) -> None:

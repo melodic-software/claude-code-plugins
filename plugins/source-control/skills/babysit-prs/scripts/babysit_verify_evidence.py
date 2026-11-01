@@ -2631,9 +2631,13 @@ class Reader:
         return bool(before) and all(self._draft_run(i) for i in before)
 
     def _draft_run(self, run_id: Any) -> bool:
-        """Whether checks run `run_id`'s latest ci-status job ran DRAFT_STEP,
-        whose condition reads the run's own event, which a re-run keeps.
-        Raises `_Unreadable` when the jobs cannot be read whole."""
+        """Whether checks run `run_id`'s latest ci-status job lists DRAFT_STEP
+        as `success` (a draft's run) or `skipped` (not), a condition that
+        reads the run's own event, which a re-run keeps. The jobs API can list
+        a finished job's steps empty or cut short (pr-require-checks.yml's
+        ci-status notes), so anything else raises `_Unreadable`: jobs not read
+        whole, no one ci-status job, the step not listed once, or no such
+        conclusion (resolve-pr.mjs `draftRun`)."""
         if type(run_id) is not int:
             return False
         if run_id not in self._draft_runs:
@@ -2650,15 +2654,20 @@ class Reader:
             jobs = listed.get("jobs")
             if not is_json_array(jobs) or listed.get("total_count") != len(jobs):
                 raise _Unreadable(f"the jobs of run {run_id} could not be read whole")
-            self._draft_runs[run_id] = any(
-                job.get("name") == "ci-status"
-                and any(
-                    step.get("name") == DRAFT_STEP
-                    and step.get("conclusion") == "success"
-                    for step in map(json_object, json_array(job.get("steps")))
+            ci = [j for j in map(json_object, jobs) if j.get("name") == "ci-status"]
+            listed_steps = json_array(ci[0].get("steps")) if len(ci) == 1 else []
+            steps = [
+                step
+                for step in map(json_object, listed_steps)
+                if step.get("name") == DRAFT_STEP
+            ]
+            conclusion = steps[0].get("conclusion") if len(steps) == 1 else None
+            if conclusion not in ("success", "skipped"):
+                raise _Unreadable(
+                    f"run {run_id}'s draft state: ci-status lists no conclusion "
+                    f"for {DRAFT_STEP}"
                 )
-                for job in map(json_object, jobs)
-            )
+            self._draft_runs[run_id] = conclusion == "success"
         return self._draft_runs[run_id]
 
     def _newest(self, passes: list[tuple[int, str, Any]]) -> list[tuple[int, str, Any]]:

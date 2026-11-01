@@ -214,6 +214,53 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
 
+    def test_a_checks_runs_draft_state_is_read_the_same(self) -> None:
+        # Only a listed conclusion of the draft step decides; the jobs API can
+        # list a finished job's steps empty or cut short.
+        cases = {
+            "the draft step ran": gate.DRAFT_JOBS,
+            "the draft step skipped": gate.READY_JOBS,
+            **gate.UNREADABLE_DRAFT_STATE,
+        }
+        script = (
+            f"import {{ draftRun }} from {json.dumps(RESOLVER.as_uri())};"
+            " const cases = JSON.parse(process.argv[1]);"
+            " const out = [];"
+            " for (const jobs of cases) {"
+            "   try { out.push((await draftRun(async () => jobs, 'o/r', 1)) ? 'draft' : 'ready'); }"
+            "   catch { out.push('unreadable'); }"
+            " }"
+            " console.log(JSON.stringify(out));"
+        )
+        proc = subprocess.run(
+            [
+                "node",
+                "--input-type=module",
+                "-e",
+                script,
+                json.dumps(list(cases.values())),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        expected = ["draft", "ready"] + ["unreadable"] * len(
+            gate.UNREADABLE_DRAFT_STATE
+        )
+        self.assertEqual(js, expected)
+        for (label, jobs), want in zip(cases.items(), expected, strict=True):
+            fake = gate.FakeGitHub([], {})
+            fake.jobs[gate.DRAFT_CHECKS] = jobs
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                reader = ve.Reader(gate.REPO, "main")
+                try:
+                    got = "draft" if reader._draft_run(gate.DRAFT_CHECKS) else "ready"
+                except ve._Unreadable:
+                    got = "unreadable"
+            with self.subTest(label):
+                self.assertEqual(got, want)
+
     def test_a_fail_judged_from_a_draft_run_is_dropped_the_same(self) -> None:
         # #11832's checks runs at the head (gate.draft_race), then each change
         # the gate suite's keeps-the-FAIL test makes; `jobs` None is a read

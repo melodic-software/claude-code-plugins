@@ -297,16 +297,26 @@ export async function heldOnly(github, readLog, repository, runId, number) {
 export const DRAFT_STEP = "Note a draft";
 
 // Whether checks run `runId` started while its pull request was a draft: its
-// latest ci-status job ran DRAFT_STEP. The step reads the run's own event,
-// which a re-run keeps, so marking the pull request ready since changes
-// nothing. A read that fails, or a job list cut short, throws.
+// latest ci-status job lists DRAFT_STEP as `success`; `skipped` is a ready
+// pull request's run. The step reads the run's own event, which a re-run
+// keeps, so marking the pull request ready since changes nothing. The jobs API
+// can list a finished job's steps empty or cut short (pr-require-checks.yml's
+// ci-status notes), so anything else (a read that fails, a job list cut short,
+// no one ci-status job, the step not listed once, or no such conclusion)
+// throws: no state is read from a missing step.
 export async function draftRun(github, repository, runId) {
   const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
   const jobs = listed?.jobs;
   if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
     throw new Error(`the jobs of run ${runId} could not be read whole`);
   }
-  return jobs.some((job) => job?.name === "ci-status" && Array.isArray(job.steps) && job.steps.some((step) => step?.name === DRAFT_STEP && step.conclusion === "success"));
+  const ci = jobs.filter((job) => job?.name === "ci-status");
+  const steps = ci.length === 1 && Array.isArray(ci[0].steps) ? ci[0].steps.filter((step) => step?.name === DRAFT_STEP) : [];
+  const conclusion = steps.length === 1 ? steps[0].conclusion : undefined;
+  if (conclusion !== "success" && conclusion !== "skipped") {
+    throw new Error(`run ${runId}'s draft state could not be read: ci-status lists no conclusion for ${DRAFT_STEP}`);
+  }
+  return conclusion === "success";
 }
 
 // For a counted FAIL's pr-verify run, whether it judged a checks run that
@@ -673,6 +683,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (run.conclusion === "failure" && !(typeof readLog === "function" && (await heldOnly(github, readLog, repository, upstreamRunId, pull.number)))) {
     return skip("not-a-passing-run");
   }
+  // An unreadable draft state throws, as any other failed read here does: the
+  // run fails before its judgment, so it writes no verdict, and the lost-run
+  // reconciler re-runs it once (reconcile.mjs, the Lane kind).
   if (await draftRun(github, repository, upstreamRunId)) {
     return skip("draft-run");
   }

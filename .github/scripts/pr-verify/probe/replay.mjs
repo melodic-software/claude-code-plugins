@@ -293,7 +293,8 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       repository: { full_name: REPOSITORY },
       head_repository: { full_name: REPOSITORY },
     },
-    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })),
+    // A ready pull request's run: ci-status skipped its draft step (resolve-pr draftRun).
+    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success", ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }) })),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,

@@ -763,6 +763,25 @@ test("a run that started while its pull request was a draft is not judged, thoug
   assert.equal(await reason({ jobs: READY_JOBS }), "ok");
 });
 
+// The jobs API can list a finished job's steps empty or cut short
+// (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
+// conclusion of the draft step decides: `success` a draft's run, `skipped`
+// not. Anything else is unreadable: no judgment, and a FAIL stays counted.
+const ciStatusWith = (steps) => ({ total_count: 1, jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps }] });
+const UNREADABLE_DRAFT_STATE = {
+  "an empty step list": ciStatusWith([]),
+  "the draft step listed with no conclusion": ciStatusWith([{ name: "Note a draft", conclusion: null }]),
+  "the draft step not listed": ciStatusWith([{ name: "Aggregate lane results", conclusion: "success" }]),
+  "no ci-status job": { total_count: 1, jobs: [{ id: 9002, name: "lint-repo", conclusion: "success", steps: [] }] },
+};
+
+test("a run whose draft step is not listed with a conclusion is not judged, and a skipped one is", async () => {
+  for (const [label, jobs] of Object.entries(UNREADABLE_DRAFT_STATE)) {
+    await assert.rejects(resolve({ jobs }), /draft state/, label);
+  }
+  assert.equal(await reason({ jobs: READY_JOBS }), "ok");
+});
+
 // #11832 at head 8d7ef05b: opened as a draft, marked ready seconds later.
 // Checks run 41273054889 (created 04:25:39) started on the draft and skipped
 // every suite; pr-verify run 41273103059 (created 04:26:22, once the pull
@@ -793,6 +812,7 @@ test("a FAIL counts when a run it could have judged started on a ready pull requ
     }),
     "the draft run's jobs cannot be read": draftRace(null),
     "the jobs list is cut short": draftRace({ ...DRAFT_JOBS, total_count: 2 }),
+    ...Object.fromEntries(Object.entries(UNREADABLE_DRAFT_STATE).map(([label, jobs]) => [`the earlier run with ${label}`, draftRace(jobs)])),
     "the head's runs cannot be read": draftRace(DRAFT_JOBS, { upstreamRuns: undefined }),
     "the head's runs are cut short": draftRace(DRAFT_JOBS, { upstreamTotal: 3 }),
     "a checks run with no creation time": draftRace(DRAFT_JOBS, {
