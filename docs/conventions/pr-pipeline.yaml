@@ -313,10 +313,10 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. Each script starts with GH_TOKEN
-    # and GITHUB_TOKEN unset, but code it runs can still read the job's
-    # read-only token from any same-user process's /proc/<pid>/environ,
-    # so no script here runs checkout code: run-test-file.sh and
-    # check-skill.sh are left out, and the PR's own CI runs the tests.
+    # and GITHUB_TOKEN unset, and no Bash process above it holds either:
+    # the read runner's run-claude-cli steps set neither token. No script here
+    # runs checkout code: run-test-file.sh and check-skill.sh are left out,
+    # and the PR's own CI runs the tests.
     # git-mv-rm.sh renames and removes paths inside the checkout.
     # sync-shared-copies.sh regenerates registered shared-library copies
     # inside the checkout: it reads the registry and canonicals there and

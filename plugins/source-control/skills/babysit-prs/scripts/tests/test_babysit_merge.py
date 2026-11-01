@@ -2502,7 +2502,14 @@ class MainReviewInputTests(unittest.TestCase):
             ),
         ):
             reviews, context = merge._main_reviews(
-                "owner/repo", 5, HEAD, changed, None, None, None, [HEAD],
+                "owner/repo",
+                5,
+                HEAD,
+                changed,
+                None,
+                None,
+                None,
+                [HEAD],
                 floor=merge.babysit_risk.floor_for(),
             )
         calls.extend(read.call_args_list)
@@ -2620,32 +2627,62 @@ class LaneRunsReadTests(unittest.TestCase):
 
 class ForcePushedHeadsTests(unittest.TestCase):
     """The heads force pushes replaced, whose recorded review counts still
-    hold; a listing that is not whole raises."""
+    hold, read across pages; a listing that is not whole raises."""
 
-    def heads(self, total: int, oids: list[Any]) -> list[str]:
+    @staticmethod
+    def page(total: int, oids: list[Any], cursor: str | None = None) -> dict:
         nodes = [
             {"beforeCommit": None if oid is None else {"oid": oid}} for oid in oids
         ]
-        data = {
+        info = {"hasNextPage": cursor is not None, "endCursor": cursor}
+        return {
             "data": {
                 "repository": {
                     "pullRequest": {
-                        "timelineItems": {"totalCount": total, "nodes": nodes}
+                        "timelineItems": {
+                            "totalCount": total,
+                            "pageInfo": info,
+                            "nodes": nodes,
+                        }
                     }
                 }
             }
         }
-        with mock.patch.object(merge, "gh_json_graphql", return_value=data):
-            return merge._force_pushed_heads("owner/repo", 5)
+
+    def heads(self, *pages: dict) -> tuple[list[str], mock.MagicMock]:
+        with mock.patch.object(
+            merge, "gh_json_graphql", side_effect=list(pages)
+        ) as read:
+            return merge._force_pushed_heads("owner/repo", 5), read
 
     def test_names_each_replaced_head(self) -> None:
-        self.assertEqual(
-            self.heads(3, ["a" * 40, None, "b" * 40]), ["a" * 40, "b" * 40]
-        )
+        heads, _ = self.heads(self.page(3, ["a" * 40, None, "b" * 40]))
+        self.assertEqual(heads, ["a" * 40, "b" * 40])
 
-    def test_a_listing_past_one_page_raises(self) -> None:
+    def test_reads_every_page_by_its_cursor(self) -> None:
+        heads, read = self.heads(
+            self.page(101, ["a" * 40] * 100, cursor="next"),
+            self.page(101, ["b" * 40]),
+        )
+        self.assertEqual(heads, ["a" * 40] * 100 + ["b" * 40])
+        self.assertNotIn("c=next", read.call_args_list[0].args[0])
+        self.assertIn("c=next", read.call_args_list[1].args[0])
+
+    def test_a_count_the_pages_do_not_reach_raises(self) -> None:
         with self.assertRaises(RuntimeError):
-            self.heads(101, ["a" * 40])
+            self.heads(self.page(101, ["a" * 40]))
+
+    def test_a_next_page_with_no_cursor_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.heads(self.page(200, ["a" * 40], cursor=""))
+
+    def test_a_listing_past_the_page_cap_raises(self) -> None:
+        pages = [
+            self.page(9999, ["a" * 40], cursor=f"c{i}")
+            for i in range(merge._FORCE_PUSH_PAGES)
+        ]
+        with self.assertRaises(RuntimeError):
+            self.heads(*pages)
 
 
 if __name__ == "__main__":
