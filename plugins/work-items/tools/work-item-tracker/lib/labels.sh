@@ -18,6 +18,11 @@ readonly WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL="recurring"
 # shellcheck disable=SC2034
 readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
 
+# `/planning:wayfind` owns every item carrying a label with this prefix (its map
+# items), so the frontier never surfaces one. Fixed prefix, no binding key.
+# shellcheck disable=SC2034
+readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
+
 # Human-floor work classes: human-gated even beside the autonomous-eligible label
 # (reference/work-class-labels.md). Fixed strings; the work-class axis has no binding key.
 #
