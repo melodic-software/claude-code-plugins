@@ -131,9 +131,8 @@ that line before editing, since it may be an illustrative example path rather th
 
 This action reads only the skill-creator JSON file a skill may still carry. A skill's new evals
 are `case.yaml` cases in its plugin's `evals/` directory: `/evals:design skill <name>` writes them
-and `/evals:validate` checks them. Point an author adding evals there. Check 14 still looks only
-for the JSON file, so where a gate runs `check --require-evals` (this marketplace's changed-skill
-CI does), a skill with suite cases alone fails there until check 14 reads suite cases; say so.
+and `/evals:validate` checks them. Point an author adding evals there. Under `check
+--require-evals`, check 14 passes a skill with no JSON file when a suite case's `tags:` names it.
 
 1. Locate `<skills-root>/<skill-name>/evals/evals.json`. If absent, report that the skill ships no
    skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate`'s.
