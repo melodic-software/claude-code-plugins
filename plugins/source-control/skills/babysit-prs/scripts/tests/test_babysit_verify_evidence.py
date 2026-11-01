@@ -3026,6 +3026,19 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         _, evidence = self.gate(fake)
         self.assertIsNone(evidence.refusal)
 
+    def test_a_failure_before_a_whole_listing_is_not_noted_for_the_job(self) -> None:
+        # Even by a Reader whose earlier listing paged a whole one.
+        fake = passing()
+        fake.count_fail = "gh: boom (HTTP 502)"
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            reader._whole_paged = True
+            with self.assertRaises(RuntimeError):
+                reader.listing()
+        self.assertFalse(
+            pathlib.Path(f"{self.path}{ve.FAILED_LISTING_SUFFIX}").exists()
+        )
+
     def hold(self, fake: FakeGitHub) -> str | None:
         """A later candidate's gate run judging PR 41 as a queued entry."""
         with (

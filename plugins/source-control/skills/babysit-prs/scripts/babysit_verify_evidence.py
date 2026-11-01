@@ -1364,6 +1364,7 @@ class Reader:
         list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
         bounds the count read too, and every refusal for want of its time
         starts with `DEADLINE_UNREADABLE`."""
+        self._whole_paged = False
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
         if callers and cap <= 0:
