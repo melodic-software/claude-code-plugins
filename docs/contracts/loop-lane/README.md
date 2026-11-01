@@ -1172,8 +1172,8 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
   lane launched that way cannot honor its own stop condition (Pointer:
   [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27.
   Recheck trigger: that section changes how a fixed-interval or self-paced loop ends).
-  Self-paced is
-  the lane shape by construction, not by preference. Two of the lane's other per-cycle signals,
+  The lane shape
+  is therefore self-paced because those two invariants require it. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
   on*, not when the next one fires, and are unaffected by either shape. The drain-exit snapshot is
   not one of them: it is the pacing signal named above, the input deciding whether the cycle calls
