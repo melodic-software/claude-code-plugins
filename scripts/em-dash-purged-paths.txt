@@ -508,7 +508,9 @@ plugins/work-items/skills/work-loop/reference/*.md
 plugins/work-items/templates/*.md
 plugins/work-items/tools/work-item-tracker/*.md
 plugins/work-items/tools/work-item-tracker/adapters/*/*.md
-plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check/*.md
+plugins/work-items/tools/work-item-tracker/seeds/*.md
+plugins/work-items/tools/work-item-tracker/seeds/*/*.md
+plugins/work-items/tools/work-item-tracker/seeds/linear/schema-check/*.md
 # The writing plugin was authored purged rather than purged later, so its
 # doctrine and source records are declared here alongside the README and the
 # skill body. The reference glob stops short of evals/, whose fixtures carry

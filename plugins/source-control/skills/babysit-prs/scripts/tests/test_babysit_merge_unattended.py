@@ -2765,7 +2765,8 @@ class CheckInputsChangedOnTheBase(Unattended):
     ) -> None:
         # Updating merges the base's canonical but leaves the copies the PR
         # generated from its own, so only a merge plus a regeneration clears
-        # it, and no lane acts on the refusal: a person is asked, once.
+        # it: the refusal is escalated once, for pr-unblock's
+        # sync-shared-copies on a lanes App PR and a person on any other.
         code, out = self.refuse_shared_copy()
         self.assert_no_merge(code)
         (comment,) = [e for e in self.log if "/issues/" in e and "/comments" in e]

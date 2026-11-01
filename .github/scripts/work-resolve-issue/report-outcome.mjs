@@ -120,8 +120,8 @@
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner: the
 //                       lane branch, the run's failure `class`, its limit
-//                       `resets`, its `max-turns` and the `resume` branch
-//                       a resumed run continued). Code the model started can
+//                       `resets`, its `max-turns`, the `turns` it took and
+//                       the `resume` branch a resumed run continued). Code the model started can
 //                       rewrite this artifact, so check results are never
 //                       read from it.
 //   RUNNER_CHECKS       work-resolve-issue.yml's run-checks job output, where
@@ -1036,6 +1036,7 @@ export function decide({
   limit = null,
   turnCap = null,
   turnCapRestarts = 0,
+  overCap = null,
   funding = null,
   issueStop = null,
   limits = LIMIT_DEFAULTS,
@@ -1124,6 +1125,7 @@ export function decide({
       humanMerge,
       humanLabel,
       runUrl,
+      overCap,
       limits,
       now,
       runId,
@@ -1228,6 +1230,8 @@ export function decide({
     "Opened by the work-resolve-issue lane. The run's own summary:",
     "",
     quoted(outcome.summary),
+    // lane.json is rewritable, so this line only informs; it never changes the plan.
+    ...(overCap ? ["", `The run went past its turn budget (turns=${overCap.turns} max-turns=${overCap.cap}): the work may be too big for one run.`] : []),
     ...(refs ? ["", "## Remaining work", "", bullets(outcome.remaining)] : []),
     ...(gaps.length ? ["", "## Not verified", "", bullets(gaps)] : []),
     "",
@@ -1540,6 +1544,20 @@ export function readTurnCap(dir) {
       return null;
     }
     return { cap: /^[1-9][0-9]{0,5}$/.test(lane["max-turns"] ?? "") ? Number(lane["max-turns"]) : null };
+  } catch {
+    return null;
+  }
+}
+
+// The runner's over-cap record in lane.json: {turns, cap} when the run took
+// more turns than its --max-turns and still ended, else null. run-claude-cli
+// counts such a run a success, so its class is empty.
+export function readOverCap(dir) {
+  try {
+    const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    const count = (value) => (/^[1-9][0-9]{0,5}$/.test(value ?? "") ? Number(value) : null);
+    const [turns, cap] = [count(lane?.turns), count(lane?.["max-turns"])];
+    return turns !== null && cap !== null && turns > cap ? { turns, cap } : null;
   } catch {
     return null;
   }
@@ -1955,6 +1973,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch: checkedBranch });
     const limit = readLimit(dir);
     const turnCap = readTurnCap(dir);
+    const overCap = readOverCap(dir);
     const funding = readFunding(dir);
     // A scan refusal means a model ran, so it outranks a not-started record.
     const issueStop = refusal ? null : readIssueStop(dir);
@@ -2075,6 +2094,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           limit,
           turnCap,
           turnCapRestarts,
+          overCap,
           funding,
           issueStop,
           limits,

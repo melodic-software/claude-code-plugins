@@ -867,11 +867,8 @@
 "Remove-Item -Recurse -Force './build$old'"
 "Remove-Item -Recurse -Force './build::$INDEX_ALLOCATION'"
 "Remove-Item -Recurse \"D:\\rdt-x\\$name\""
-# Delete lane, refused before the literal reading of a `$` and still refused:
-# a literal `$env:`, `$HOME\` or `$(` target is also judged the old way (#6626).
-"Remove-Item -Recurse '$env:TEMP'"
-"Remove-Item -Recurse '$env:SystemDrive\\'"
-"Remove-Item -Recurse `$env:TEMP"
-"Remove-Item -Recurse '$HOME\\x'"
-"Remove-Item -Recurse '$(x)'"
-"cmd /c rd /s /q '$env:TEMP'"
+# Delete lane: a literal `$` inside an expanding outer string was expanded
+# before the inner single quotes were read, so it is still judged as an expansion.
+"pwsh -c \"Remove-Item -Recurse '$env:TEMP'\""
+"iex \"Remove-Item -Recurse '$HOME\\.ssh'\""
+"Start-Process pwsh -ArgumentList \"-c Remove-Item -Recurse '$env:SystemDrive\\'\""

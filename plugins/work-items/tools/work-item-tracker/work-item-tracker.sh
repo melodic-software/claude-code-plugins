@@ -49,8 +49,10 @@ Verbs:
               [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
   get-item <id>
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
+        [--phase triage|discovery|implementation]
         --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
         --ttl-hours 0 --ttl-minutes <n>
+        --phase is github and local-markdown only; absent means implementation
   renew-lease <id> --lease-comment-id <n>
   release <id> --lease-comment-id <n> [--holder <h>]
   reclaim <id>
@@ -64,6 +66,7 @@ Verbs:
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
+  add-recurrence <id> --source-link <url> --note <text>
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -114,12 +117,16 @@ main() {
 
   local binding_path
   binding_path="$(wit_find_binding)" ||
-    fail_config "no binding found (.work-item-tracker.json) — see CONTRACT.md Setup"
+    fail_config "no binding found (tracker: in <home>/work-items.yaml, or the legacy .work-item-tracker.json) — run /work-items:setup; see CONTRACT.md Setup"
   wit_read_binding "$binding_path" ||
     fail_config "invalid binding at $binding_path — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup"
 
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
+  if [[ ! -d "$adapter_dir" && -d "$SCRIPT_DIR/seeds/$WIT_PROVIDER" ]]; then
+    # A seed is never dispatched from the plugin (CONTRACT.md "Adapter resolution").
+    fail_config "provider '$WIT_PROVIDER' ships as a seed the consuming repo owns; run /work-items:setup apply to copy it into tools/work-item-tracker/adapters/$WIT_PROVIDER/"
+  fi
   [[ -d "$adapter_dir" ]] ||
     fail_config "no adapter for provider '$WIT_PROVIDER' (searched consumer-local then plugin-bundled) — last tried $adapter_dir"
   manifest="$adapter_dir/capabilities.json"
@@ -135,7 +142,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | change-link | add-recurrence | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items

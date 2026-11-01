@@ -10,7 +10,9 @@
 // It posts only for an open pull request whose current head is the one the
 // FAIL judged, and only the comments not on it yet: a verifier note at that
 // head on the same file is that comment, so a re-run after a partial post
-// posts the rest and nothing twice. Each note that starts with a path the pull
+// posts the rest and nothing twice. A note whose thread is resolved does not
+// count: a pass that superseded an earlier FAIL at the head resolved it, so a
+// later FAIL there posts again and its round has an open thread to work. Each note that starts with a path the pull
 // request changes (`path` or `path:line`, backticks allowed) goes on that
 // file; the summary and every other note go on the first such file, or on the
 // pull request's first changed file when no note names one. Model text is
@@ -34,11 +36,12 @@
 //
 // On a lanes App pull request a PASS or PASS-NOTES posts nothing and resolves
 // nothing. For an open pull request still at the head it judged, it names
-// that head in the pass-head-sha output when a fail-note thread from an
-// earlier head is still open (address-feedback.mjs staleVerifyNotes); the
-// dispatch job then sends pr-unblock.yml, whose publish-feedback job resolves
-// those threads as the lanes App. Resolving a thread takes more than this
-// job's token holds.
+// that head in the pass-head-sha output when a fail-note thread is still open
+// (address-feedback.mjs staleVerifyNotes, the passing head's own included);
+// the dispatch job then sends pr-unblock.yml, whose publish-feedback job
+// resolves those from an earlier head as the lanes App, and those at the
+// passing head only when the dispatch job's verifier read found the FAIL there
+// superseded. Resolving a thread takes more than this job's token holds.
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, APP_SENDER_ID
 // (the lanes App's bot user id), ARTIFACT_NAME
@@ -243,8 +246,9 @@ export function readVerdict(name, text) {
 }
 
 // For a pass: whether a lanes App pull request is open at the head it judged
-// and holds an open fail-note thread from another head, which only reads; a
-// person's pull request there loses the label instead.
+// and holds an open fail-note thread, which only reads; whether one at that
+// head may be resolved is the dispatch job's verifier read. A person's pull
+// request there loses the label instead.
 export async function findStaleNotes({ api, verdict, appId, log }) {
   const { pr, head } = verdict;
   laneAppId(appId);
@@ -260,9 +264,9 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
     }
     return false;
   }
-  const stale = staleVerifyNotes(await api.listThreads(pr), head);
-  log(`#${pr}: ${stale.length} open fail-note thread(s) from an earlier head than the ${verdict.verdict} at ${head}`);
-  return stale.length > 0;
+  const open = staleVerifyNotes(await api.listThreads(pr), head, { supersededHead: head });
+  log(`#${pr}: ${open.length} open fail-note thread(s) the ${verdict.verdict} at ${head} may supersede`);
+  return open.length > 0;
 }
 
 // For a fail: whether its notes are on a lanes App pull request, so a round
@@ -292,9 +296,12 @@ async function postAtHead({ api, pull, verdict, appId, log }) {
     await holdPersonPull({ api, verdict, log });
     return false;
   }
+  // A note in a resolved thread is not posted: a pass that superseded an
+  // earlier FAIL at this head resolved it, and this FAIL needs an open thread.
+  const resolved = new Set((await api.listThreads(pr)).filter((thread) => thread.isResolved === true).flatMap((thread) => (thread.comments?.nodes ?? []).map((comment) => comment.databaseId)));
   const posted = new Set(
     (await api.listReviewComments(pr))
-      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER)
+      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER && !resolved.has(comment.id))
       .map((comment) => comment.path),
   );
   const files = (await api.listPullFiles(pr)).map((file) => file.filename);

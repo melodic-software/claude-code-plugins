@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: sy-check-report-only
+graders:
+  - name: 'ran-update'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?!(?:[^"\\]|\\.)*?--refresh-baseline)(?:(?:[^"\\]|\\.)*?(?:[;&|(`]|\\n))?\s*(?:\w+=\S*\s+)*(?:(?:\S*/)?(?:bash|sh)\s+(?:-\S+\s+)*)?\\?["\x27]?(?:[^\s=]*/)?update\.sh(?![\w.])'
+    min: 1
+    arm: 'with-only'
+  - name: 'no-refresh-baseline'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?update\.sh(?![\w.])(?:\\"|\x27)?(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--refresh-baseline'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-vendor-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:skills/sync/vendor/|grounding/SKILL\.md")'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-vendor-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:skills/sync/vendor/|grounding/SKILL\.md")'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-vendor-write'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?[^\s;|&"\\]*(?:vendor/SKILL|grounding/SKILL)\.md|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:vendor/SKILL|grounding/SKILL)\.md|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:vendor/SKILL|grounding/SKILL)\.md|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:vendor/SKILL|grounding/SKILL)\.md|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?[^\s;|&"\\]*(?:vendor/SKILL|grounding/SKILL)\.md(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'reports-exit-code'
+    type: 'regex'
+    pattern: '\bexit(?:ed)?(?:\s+(?:with\s+)?(?:code|status))?\b[\s:|=*`]*(?:(?:of|was|is|with)\s+)?[`*]*[012]\b(?![`*]*\s+(?:no drift|drift|unverifiable)\s*,\s*[`*]*[012]\b)'
+    flags: 'i'
+    target: 'last_message'

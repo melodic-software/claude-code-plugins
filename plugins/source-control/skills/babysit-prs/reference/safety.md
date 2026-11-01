@@ -1081,8 +1081,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
    environment), and eligibility. The cells are the effective rung's, never the pull request's
-   work class: rung C2 needs `C2-auto-merge`, rung C3 every C3 cell
-   (`promotion-unqualified:<rung>` otherwise); an unreadable or untrusted resolver refuses as
+   work class: rung `merge` (`C2`) needs `C2-auto-merge`, rung `merge-reviewed` (`C3`) every C3
+   cell (`promotion-unqualified:<rung>` otherwise, naming the rung by its code); an unreadable or untrusted resolver refuses as
    `promotion-unqualified:<reason>`. A settings file, or a binding, probe root, evidence source or
    checker it names, that the lane user can write, or replace through any directory above it,
    refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a

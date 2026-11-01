@@ -2,7 +2,7 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # RUNS the full abstract suite against the consume-only jira adapter, once normally and
 # once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/jira/*
+# test-scope: plugins/work-items/tools/work-item-tracker/seeds/jira/*
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh
 set -uo pipefail
 
@@ -10,6 +10,8 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# jira is a seed, which the dispatcher never resolves from the plugin; point it there.
+export WIT_ADAPTERS_DIR="$SCRIPT_DIR/../../seeds"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 

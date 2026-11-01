@@ -48,7 +48,7 @@ The resolver passes `--credential-roots` to the checker when the operator sets
 `promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
 credential probe fails closed even with a compliant bootstrap. Remaining work is tracked in [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588). The unattended
 merge gate (`/source-control:babysit-prs`, `--unattended`) needs the effective rung's cells from
-the table above, read by rung and never by work class, and additionally refuses any option value or
+the table above, read by rung and never by work class, and also refuses any option value or
 settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
 other than the lane identity can.
@@ -60,8 +60,8 @@ option name. The implementation checklist and phased plan are in
 Whether the
 repository's evidence predicates
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md)
-merge-lane copy-blocks) are met is not settled here; the fail-closed table below is how this
-paragraph is applied.
+merge-lane copy-blocks) are met is not settled here; the fail-closed table below applies this
+paragraph.
 
 ## Deletion
 
@@ -124,13 +124,13 @@ rung is known and before any PR enters the merge-eligible set.
 | Cell bound promoted, no contrary in-epoch evidence | promoted | class may proceed to work-class + other withholdings |
 
 Report the resolution source, each cell's bound→effective pair, and any fail-closed reason in the
-cycle-start config report. Never treat a demotion as a standing rung lower. It is telemetry-driven
+cycle-start config report. Never treat a demotion as a standing rung lower; it is telemetry-driven
 exclusion for the affected class only.
 
 ## Partition interaction
 
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
-A PR still requires close-linked work item, label-enforced class, C4/C5 floor, do-not-merge veto,
+A PR still requires a close-linked work item, label-enforced class, C4/C5 floor, do-not-merge veto,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
-`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low. The PR is
-routed to the `safe` per-PR pass, never a merge-capable invocation.
+`C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low; it routes
+to the `safe` per-PR pass, never a merge-capable invocation.

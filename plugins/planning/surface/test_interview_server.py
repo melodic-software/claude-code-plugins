@@ -543,9 +543,12 @@ class TestEnsureRunning(ServerCase):
         p = ensure_running(self.dir, "--open", "--user-settings", str(settings))
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
         deadline = time.monotonic() + 5
-        while not out.exists() and time.monotonic() < deadline:
+        # write_text creates the file before it writes the URL, so wait for the text.
+        opened = ""
+        while not opened and time.monotonic() < deadline:
+            opened = out.read_text(encoding="utf-8") if out.exists() else ""
             time.sleep(0.05)
-        self.assertEqual(out.read_text(encoding="utf-8"), self.url)
+        self.assertEqual(opened, self.url)
         self.assertTrue(same_dir(session(self.dir)["userSettings"], settings))
 
     def test_missing_curl_is_named(self):
