@@ -20,6 +20,20 @@
       "tools": [],
       "rewrites": false,
       "assets": [
+        "git-hooks/content-scan.sh",
+        "lib/secret-detection/secret-patterns.sh",
+        "lib/path-detection/hardcoded-path-patterns.sh",
+        "lib/path-detection/machine-path-patterns.sh"
+      ]
+    },
+    {
+      "name": "pre-push-content",
+      "event": "pre-push",
+      "script": "pre-push-content.sh",
+      "tools": [],
+      "rewrites": false,
+      "assets": [
+        "git-hooks/content-scan.sh",
         "lib/secret-detection/secret-patterns.sh",
         "lib/path-detection/hardcoded-path-patterns.sh",
         "lib/path-detection/machine-path-patterns.sh"

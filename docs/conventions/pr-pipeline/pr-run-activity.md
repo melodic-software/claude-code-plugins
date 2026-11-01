@@ -501,7 +501,11 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 --show-toplevel` from its working directory (exit 2 outside one), writes only new
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
-`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry. The
+issue lane's checkout is detached, so in an issue lane its wrapper exports
+`CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-<n>-<run id>-<attempt>` from the run's own
+ids, and the script names a detached HEAD's fragment after it; a person's run on a branch ignores
+the variable.
 Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
