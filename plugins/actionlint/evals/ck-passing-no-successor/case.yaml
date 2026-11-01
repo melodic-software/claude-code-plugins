@@ -37,7 +37,7 @@ graders:
     target: 'last_message'
   - name: 'no-successor'
     type: 'regex'
-    pattern: '^(?![\s\S]*(?:\|[ \t]*\**[ \t]*(?:❌[ \t]*)?FAIL\b|❌))[\s\S]*?(?:^|\n|[.;!?:,—–(]\s*|\b(?:so|but|then)\s+)(?:(?![.;!?:,—–(]\s)(?!\b(?:not|never|no need|avoid|instead of|rather than|skip|cannot|unable|refus\w*|prohibit\w*|forbid\w*|disallow\w*|disabled)\b)(?!n[''’]t\b)[^\n])*?/actionlint:setup\s+apply\b(?![^.;!?\n]*?\b(?:(?:is|are|was|were)\s+(?:not|never|disabled|prohibited|forbidden|blocked|unavailable|off-limits)|isn[''’]t|aren[''’]t|(?:do|does|must|should)\s*(?:not|n[''’]t)\s+(?:use|run|invoke))\b)'
+    pattern: '^(?![\s\S]*(?:\|[ \t]*\**[ \t]*(?:❌[ \t]*)?FAIL\b|❌))[\s\S]*?(?:^|\n|[.;!?:,—–(]\s*|\b(?:so|but|then)\s+)(?:(?![.;!?:,—–(]\s)(?!\b(?:not|never|no need|avoid|instead of|rather than|skip|cannot|unable|refus\w*|prohibit\w*|forbid\w*|disallow\w*|disabled)\b)(?!n[''’]t\b)[^\n])*?/actionlint:setup\s+apply\b(?![^.;!?\n]*?\b(?:(?:is|are|was|were)\s+(?:not|never|disabled|prohibited|forbidden|blocked|unavailable|off-limits)|isn[''’]t|aren[''’]t|(?:do|does|must|should)\s*(?:not|n[''’]t)\s+(?:use|run|invoke))\b)(?![^.;!?\n]*?\bonly\s+(?:(?:runs?|applies|happens)\s+)?(?:when|if)\b)'
     flags: 'i'
     match: 'not_contains'
     target: 'last_message'
