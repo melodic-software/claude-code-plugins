@@ -719,9 +719,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#title"); await page.keyboard.press("l"); if (await page.$eval("#fly", el => el.classList.contains("open"))) await page.click("#flyClose");
     await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
     // The next state frame re-renders the Notes panel, emptying the toast, so record every text it shows.
-    await page.evaluate(() => { const seen = window.__noteToasts = []; new MutationObserver(() => { const t = (document.getElementById("noteToast") || {}).textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }).observe(document.body, {subtree: true, childList: true, characterData: true}); });
+    await page.evaluate(() => { const seen = window.__noteToasts = []; const mo = window.__noteToastObserver = new MutationObserver(() => { const t = (document.getElementById("noteToast") || {}).textContent; if (t && seen[seen.length - 1] !== t) seen.push(t); }); mo.observe(document.body, {subtree: true, childList: true, characterData: true}); });
     await page.fill("#noteText", "second note"); await page.click("[data-sendnote]");
     ok("a save while a wake is in flight says queued, Claude is busy", await until(() => window.__noteToasts.some(t => /Queued, Claude is busy/.test(t)), 4000), JSON.stringify(await page.evaluate(() => window.__noteToasts)));
+    await page.evaluate(() => window.__noteToastObserver.disconnect()); // the page lives on through phase 20
     await page.click("#flyClose", {timeout: 2000}).catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16
