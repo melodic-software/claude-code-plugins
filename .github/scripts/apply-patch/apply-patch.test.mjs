@@ -2732,18 +2732,88 @@ test("shared-copies: a path the base registry does not list, the registry itself
 test("shared-copies: sharedCopiesFrom reads the base registry's copy column, and the predicate needs it", (t) => {
   const baseDir = scratch(t);
   mkdirSync(join(baseDir, "scripts"));
-  writeFileSync(join(baseDir, "scripts/shared-copies.txt"), `# header\nlib/shared.sh ${COPY}\n\nbad line here\n`);
-  assert.deepEqual([...sharedCopiesFrom(baseDir)], [COPY]);
+  writeFileSync(join(baseDir, "scripts/shared-copies.txt"), `# header\nlib/shared.sh ${COPY}\n\nbad line here\nlib/b.sh plugins/p/lib/b.sh # an inline note\n`);
+  assert.deepEqual([...sharedCopiesFrom(baseDir)], [COPY, "plugins/p/lib/b.sh"]);
   assert.throws(() => PREDICATES["shared-copies"]({}), /needs the base registry's copies/);
   assert.equal(PREDICATES["shared-copies"]({ sharedCopies: new Set([COPY]) })("scripts/shared-copies.txt"), false);
 });
 
-test("shared-copies: select takes only a written patch on a clean merge, and checkRow keeps clean-patch to that row", () => {
+test("shared-copies: select takes a written patch or an empty run on a clean merge alone, and checkRow keeps clean-patch to that row", () => {
   const sel = (mergeState, patchState) =>
     select({ row: row("shared-copies"), patchState, patchSha256: "a".repeat(64), patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: "/nonexistent", reportDir: "/nonexistent", mergeState });
   assert.equal(sel("conflicted", "written").escalationReason, "shared-copy-patch-invalid");
+  assert.equal(sel("conflicted", "empty").escalationReason, "shared-copy-patch-invalid");
   assert.equal(sel("clean", "").escalationReason, "shared-copy-patch-invalid");
-  assert.equal(sel("clean", "empty").escalationReason, "shared-copy-patch-invalid");
+  assert.equal(sel("clean", "Empty").escalationReason, "shared-copy-patch-invalid");
+  // The copies already current on the merge: the merge alone goes on.
+  assert.deepEqual(sel("clean", "empty"), { proceed: true, skipReason: "", escalationReason: "" });
   assert.throws(() => checkRow({ ...row("shared-copies"), allow: ["merge-result"] }), /shared-copies alone/);
   assert.throws(() => checkRow({ ...row("default"), "clean-patch": true }), /does not commit a merge/);
+});
+
+// The PR and main each edit their own end of one canonical and regenerate its
+// copy: git merges both cleanly, so regeneration is empty, yet pr-merge still
+// refuses the head (the carried canonical changed on main). The merge alone
+// must push, or the head stays held.
+const disjointFixture = (t) =>
+  mergeFixture(t, {
+    base: { "lib/shared.sh": "1\n2\n3\n4\n5\n", [COPY]: "1\n2\n3\n4\n5\n" },
+    pr: { "lib/shared.sh": "1 pr\n2\n3\n4\n5\n", [COPY]: "1 pr\n2\n3\n4\n5\n" },
+    main: { "lib/shared.sh": "1\n2\n3\n4\n5 main\n", [COPY]: "1\n2\n3\n4\n5 main\n" },
+  });
+
+test("shared-copies: an empty regeneration on a refused head pushes the clean merge alone, a stray patch still checked", async (t) => {
+  const fix = disjointFixture(t);
+  assert.deepEqual([fix.state, fix.patchState], ["clean", "empty"]);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await copyPush(fix, api, new Set([COPY]), NO_PATCH), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
+  assert.equal(createCommit.tree, fix.tree);
+  assert.equal(git(fix.repo, ["cat-file", "-p", `${fix.tree}:${COPY}`]), "1 pr\n2\n3\n4\n5 main");
+  // A SHA-256 with no patch file is a patch that must apply, not an empty run.
+  const missing = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await copyPush(fix, missing, new Set([COPY]), { patchFile: "", patchSha256: "a".repeat(64) }), { outcome: "escalate", escalationReason: "shared-copy-patch-invalid" });
+  assert.equal(missing.calls.some((call) => call.createCommit), false);
+});
+
+// main() as the write runner calls it: PATCH_FILE is always a path, and the
+// select job's SHA-256 (empty for an empty run) says whether a patch rides.
+test("shared-copies: main pushes the written patch on a clean merge, and the merge alone for an empty run", async (t) => {
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  mkdirSync(join(base, "scripts"));
+  writeFileSync(join(base, "scripts/shared-copies.txt"), `lib/shared.sh ${COPY}\n`);
+  const out = scratch(t);
+  const envFor = (fix, name, patch) => ({
+    BASE_DIR: base,
+    PATCH_PREPARE: "shared-copies",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    BASE_REF: "main",
+    LANE: "pr-unblock",
+    PATCH_ACTIVITY: "sync-shared-copies",
+    HOLD_LABELS: "[]",
+    SKIP_REASON_FILE: join(out, `${name}-skip`),
+    ESCALATION_REASON_FILE: join(out, `${name}-escalation`),
+    GITHUB_OUTPUT: join(out, `${name}-output`),
+    ...patch,
+    ...mergeEnv(fix),
+  });
+  const written = copyFixture(t, (repo) => writeFileSync(join(repo, COPY), "two\n"));
+  const writtenEnv = envFor(written, "written", { PATCH_FILE: written.patchFile, PATCH_SHA256: written.sum });
+  const writtenApi = fakeApi(written.repo, written.head);
+  await main([], writtenEnv, { api: writtenApi, cwd: written.repo, gitBin: "git", log: () => {} });
+  assert.match(readFileSync(writtenEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+  const { createCommit } = writtenApi.calls.find((call) => call.createCommit);
+  assert.equal(git(written.repo, ["cat-file", "-p", `${createCommit.tree}:${COPY}`]), "two");
+  const empty = disjointFixture(t);
+  const emptyEnv = envFor(empty, "empty", { PATCH_FILE: join(out, "absent.diff"), PATCH_SHA256: "" });
+  await main([], emptyEnv, { api: fakeApi(empty.repo, empty.head), cwd: empty.repo, gitBin: "git", log: () => {} });
+  assert.match(readFileSync(emptyEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
 });

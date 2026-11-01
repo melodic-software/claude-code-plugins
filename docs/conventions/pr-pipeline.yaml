@@ -303,7 +303,8 @@ activities:
       draft: [false]
   apply-shared-copies:
     # Merges the base tip sync-shared-copies-select pinned into the head it
-    # gated, applies the regenerated copies to the clean merge, and pushes
+    # gated, applies the regenerated copies to the clean merge (none when the
+    # merge already holds current copies), and pushes
     # one merge commit with the head and that base as parents, without
     # force. A script, no model, and it runs no head code; patch-rules.json's
     # shared-copies row admits only copies the base-tip

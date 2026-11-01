@@ -18,6 +18,8 @@
 #   shared-copy-path-unregistered and writes no patch.
 # Writes <out-patch> (a binary diff against the merge) and prints
 # state=written|empty, sha256=<hex> and paths=<n>, or refused=<reason>.
+# Empty means the merge already holds current copies, which
+# apply-shared-copies then pushes as the merge alone.
 # Exit 0, 3 on a refusal, 2 on a usage error.
 set -euo pipefail
 
@@ -44,10 +46,14 @@ if ! git -C "$head_dir" diff --quiet "$base_sha" -- "${tooling[@]}" ||
   refuse shared-copy-tooling-changed "the head changes the sync script, its registry or scripts/lib; a person regenerates the copies"
 fi
 
-# The registry's copy column, from the base checkout: `<canonical> <copy>`.
+# The registry's copy column, from the base checkout: `<canonical> <copy>`,
+# everything from a `#` on stripped as scripts/sync-shared-copies.sh strips it.
 declare -A registered=()
-while read -r src copy extra; do
-  [[ -n ${src:-} && $src != \#* && -n ${copy:-} && -z ${extra:-} ]] || continue
+while IFS= read -r line || [[ -n $line ]]; do
+  line=${line%%#*}
+  src="" copy="" extra=""
+  read -r src copy extra <<<"$line" || true
+  [[ -n $src && -n $copy && -z $extra ]] || continue
   registered[$copy]=1
 done <"$base_dir/scripts/shared-copies.txt"
 

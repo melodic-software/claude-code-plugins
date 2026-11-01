@@ -1469,7 +1469,8 @@ the rules that only tighten in
   sync script, refusing a head that changes the script, its registry or `scripts/lib`
   (`shared-copy-tooling-changed`) and any write the base-tip registry lists as no copy
   (`shared-copy-path-unregistered`), and `apply-shared-copies` pushes one merge commit under
-  patch-rules.json's `shared-copies` row, which admits only registered copies. The new head moves
+  patch-rules.json's `shared-copies` row, which admits only registered copies; when the merge
+  already holds current copies, the commit is the merge alone. The new head moves
   past the refusal, so the next pr-merge sweep clears the label. Any
   doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
   or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server

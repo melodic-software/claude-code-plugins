@@ -720,7 +720,10 @@ jobs:
   # its registry or scripts/lib, or a write the base-tip
   # scripts/shared-copies.txt lists as no copy. A conflicted merge is
   # resolve-conflicts's to settle, so this one stops there. The regenerated
-  # copies leave as a patch, which apply-shared-copies pushes.
+  # copies leave as a patch, which apply-shared-copies pushes; when the merge
+  # already holds current copies (both sides regenerated disjoint canonical
+  # edits), it pushes the merge alone, which still moves the head past the
+  # refusal.
   sync-shared-copies-select:
     needs: dispatcher-current
     if: >-
@@ -733,11 +736,14 @@ jobs:
       contents: read # check out main and the PR head
       pull-requests: read # the PR's head, author and labels
     outputs:
-      # true only when the run wrote a patch; false on a skip, an empty run or
-      # a refusal; empty when the job stopped before deciding.
+      # true when the sync ran on the clean merge: it wrote a patch, or found
+      # the merge's copies current (empty), when the refused head still needs
+      # the merge alone pushed; false on a skip or a refusal; empty when the
+      # job stopped before deciding.
       proceed: >-
-        ${{ steps.sync.outputs.state == 'written' && 'true'
-        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.hold.outputs.lane-escalated == 'false' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' || steps.sync.outputs.state != '' || steps.sync.outputs.refused != '') && 'false' || '' }}
+        ${{ (steps.sync.outputs.state == 'written' || steps.sync.outputs.state == 'empty') && 'true'
+        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.hold.outputs.lane-escalated == 'false' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' || steps.sync.outputs.refused != '') && 'false' || '' }}
+      patch-state: ${{ steps.sync.outputs.state }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
@@ -752,7 +758,7 @@ jobs:
         || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
         || steps.hold.outputs.held == 'true' && 'awaiting-human'
         || steps.hold.outputs.lane-escalated == 'false' && 'not-applicable'
-        || (steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' || steps.sync.outputs.state == 'empty') && 'not-applicable' || '' }}
+        || (steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean') && 'not-applicable' || '' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -989,7 +995,7 @@ jobs:
 
   # Every select outcome posts the sync-shared-copies check on the head the
   # select job read, so dispatch.mjs sends a head once: no-model-turn when it
-  # wrote a patch (apply-shared-copies pushes it), else the skip reason, else
+  # proceeded (apply-shared-copies pushes the merge), else the skip reason, else
   # the refusal's own skip (escalation-routes.mjs stopSkip). A select job that
   # failed after reading the head posts failure, which dispatch.mjs retries
   # until limit-stops-per-head failures stand on the head, as it does
@@ -1056,7 +1062,8 @@ jobs:
   # The push job: apply-patch.mjs under patch-rules.json's shared-copies row,
   # a script with no model that runs no head code. It merges the select job's
   # pinned base into the head again, refuses any state but the select job's
-  # clean merge and tree, applies the select job's patch to that tree, admits
+  # clean merge and tree, applies the select job's patch to that tree (none
+  # when the sync was empty), admits
   # only copies the base-tip scripts/shared-copies.txt lists, skips a head
   # that moved since the select job read it, and pushes one merge commit with
   # the head and the base as parents, without force.
@@ -1081,7 +1088,8 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       # The select job's own outputs: it ran no model and only base code.
-      patch-state: written
+      # written or empty; an empty state carries no patch, SHA-256 or attempt.
+      patch-state: ${{ needs.sync-shared-copies-select.outputs.patch-state }}
       patch-sha256: ${{ needs.sync-shared-copies-select.outputs.patch-sha256 }}
       patch-attempt: ${{ needs.sync-shared-copies-select.outputs.patch-attempt }}
       patch-activity: sync-shared-copies

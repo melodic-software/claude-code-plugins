@@ -549,6 +549,8 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   });
   // A merge row: a clean merge commits with no patch; a conflicted one needs
   // the model's patch, and an empty one leaves the conflicts as git left them.
+  // A clean-patch row takes a clean merge alone: with its producer's patch,
+  // or with none when the producer found nothing to change (empty).
   if (isMerge(row)) {
     if (mergeState !== "clean" && mergeState !== "conflicted") {
       return decide(false, "awaiting-human", reasonFor(row, "invalid"));
@@ -556,8 +558,11 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || patchHeadSha !== headSha) {
       return decide(false, "superseded-sha", "");
     }
-    if (row["clean-patch"] === true && (mergeState !== "clean" || patchState !== "written")) {
+    if (row["clean-patch"] === true && (mergeState !== "clean" || (patchState !== "written" && patchState !== "empty"))) {
       return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+    }
+    if (row["clean-patch"] === true && patchState === "empty") {
+      return decide(true, "", "");
     }
     if (mergeState === "clean" && row["clean-patch"] !== true) {
       return patchState === "" ? decide(true, "", "") : decide(false, "awaiting-human", reasonFor(row, "invalid"));
@@ -768,10 +773,12 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (!hasCommit(git, headSha) || !hasCommit(git, merge.baseSha) || git(["cat-file", "-t", merge.conflictTree]).toString("utf8").trim() !== "tree") {
       throw new Error("the head, the base or the conflict tree is not in the checkout");
     }
-    // P: the patch on T0, or T0 itself for a clean merge.
+    // P: the patch on T0, or T0 itself for a clean merge. A clean-patch row's
+    // patch is the one the select step checked: given a file or a SHA-256, it
+    // must apply; given neither, the producer's run was empty.
     let tree = merge.conflictTree;
     let entries = [];
-    if (merge.state === "conflicted" || row["clean-patch"] === true) {
+    if (merge.state === "conflicted" || (row["clean-patch"] === true && (patchFile || patchSha256))) {
       const problem = patchProblem(patchFile, patchSha256);
       if (problem) {
         return escalate(problem.kind, problem.why);
@@ -1204,24 +1211,25 @@ export function fixedThreadsFrom(file, kept) {
   return (kept?.ids ?? []).filter((id) => valid.has(id));
 }
 
-// The base dependabot.yml's [ecosystem, directory] pairs, or null when the
-// file does not read; the dependency-manifests predicate then throws.
 // The copies the base checkout's scripts/shared-copies.txt registers: the
-// second field of each `<canonical> <copy>` line, comments and blanks skipped.
+// second field of each `<canonical> <copy>` line, with everything from a `#`
+// on stripped as scripts/sync-shared-copies.sh strips it, blanks skipped.
 export function sharedCopiesFrom(baseDir) {
   if (!baseDir) {
     throw new Error("BASE_DIR is not set; the shared-copies allow reads the base registry");
   }
   const copies = new Set();
   for (const line of readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8").split("\n")) {
-    const fields = line.trim().split(/\s+/);
-    if (fields.length === 2 && !fields[0].startsWith("#")) {
+    const fields = line.split("#")[0].trim().split(/\s+/);
+    if (fields.length === 2) {
       copies.add(fields[1]);
     }
   }
   return copies;
 }
 
+// The base dependabot.yml's [ecosystem, directory] pairs, or null when the
+// file does not read; the dependency-manifests predicate then throws.
 export function dependabotPairs(baseDir) {
   try {
     return parseConfig(readFileSync(join(baseDir, DEPENDABOT_PATH), "utf8"));
@@ -1344,8 +1352,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     baseRef: env.BASE_REF ?? "",
     lane: env.LANE,
     activity: env.PATCH_ACTIVITY,
-    // A clean merge has no patch.
-    patchFile: merge?.state === "clean" ? "" : env.PATCH_FILE,
+    // A clean merge has no patch, but for a clean-patch row's checked one.
+    patchFile: merge?.state === "clean" && !(row["clean-patch"] === true && env.PATCH_SHA256) ? "" : env.PATCH_FILE,
     patchSha256: env.PATCH_SHA256 ?? "",
     holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
     requiredLabels: env.REQUIRED_LABELS ? labelList(env, "REQUIRED_LABELS") : [],

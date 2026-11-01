@@ -31,13 +31,14 @@ g() { git -C "$1" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=f
 # A repository whose main holds a canonical, its generated copy and the real
 # tooling, and a PR branch carrying one change of its own. Then main changes
 # the canonical. Prints the repo path; base/ is a checkout of main's tip.
+# An optional second argument is the registry line.
 fixture() {
-  local name=$1 repo="$TMP/$1"
+  local name=$1 repo="$TMP/$1" entry=${2:-lib/shared.sh plugins/p/lib/shared.sh}
   mkdir -p "$repo/scripts" "$repo/lib" "$repo/plugins/p/lib"
   git init -q -b main "$repo"
   cp "$ROOT/scripts/sync-shared-copies.sh" "$repo/scripts/"
   cp -R "$ROOT/scripts/lib" "$repo/scripts/lib"
-  printf 'lib/shared.sh plugins/p/lib/shared.sh\n' >"$repo/scripts/shared-copies.txt"
+  printf '%s\n' "$entry" >"$repo/scripts/shared-copies.txt"
   printf 'echo one\n' >"$repo/lib/shared.sh"
   (cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
   g "$repo" add -A
@@ -131,5 +132,43 @@ g "$repo" revert --no-edit HEAD >/dev/null
 rc=0
 out=$(run "$repo" "$TMP/current-base") || rc=$?
 check "copies current: empty" state=empty "$(grep '^state=' <<<"$out")"
+
+# A registry line with an inline comment registers its copy, as the
+# canonical sync script reads it.
+repo=$(fixture inline 'lib/shared.sh plugins/p/lib/shared.sh # generated copy')
+rc=0
+out=$(run "$repo" "$TMP/inline-base") || rc=$?
+check "inline comment: exit 0" 0 "$rc"
+check "inline comment: state written" state=written "$(grep '^state=' <<<"$out")"
+
+# The PR and main each edit their own end of the canonical and regenerate the
+# copy: the merge holds current copies, so the run is empty and the push job
+# commits the merge alone.
+repo=$(fixture disjoint)
+printf 'echo one\necho 2\necho 3\necho 4\necho 5\n' >"$TMP/disjoint-lines"
+for side in main pr; do
+  g "$repo" checkout -q "$side"
+  cp "$TMP/disjoint-lines" "$repo/lib/shared.sh"
+  (cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
+  g "$repo" commit -qam "$side: canonical body"
+done
+g "$repo" checkout -q main
+g "$repo" merge -q --no-edit pr >/dev/null
+g "$repo" checkout -q pr
+g "$repo" merge -q --ff-only main
+sed -i 's/^echo one$/echo pr/' "$repo/lib/shared.sh"
+(cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
+g "$repo" commit -qam "pr: first line"
+g "$repo" checkout -q main
+sed -i 's/^echo 5$/echo main/' "$repo/lib/shared.sh"
+(cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
+g "$repo" commit -qam "main: last line"
+rm -rf "$TMP/disjoint-base"
+git clone -q "$repo" "$TMP/disjoint-base"
+rc=0
+out=$(run "$repo" "$TMP/disjoint-base") || rc=$?
+check "disjoint canonical edits: exit 0" 0 "$rc"
+check "disjoint canonical edits: empty" state=empty "$(grep '^state=' <<<"$out")"
+check "disjoint canonical edits: the merged copy holds both edits" 2 "$(grep -cE '^echo (pr|main)$' "$repo/plugins/p/lib/shared.sh")"
 
 exit "$FAILED"

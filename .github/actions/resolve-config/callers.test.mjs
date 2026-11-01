@@ -7441,10 +7441,12 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
 });
 
-// sync-shared-copies-select decides from base code alone: it proceeds only on
-// a written patch, names each stop's skip reason, and leaves both empty when
-// it stopped before deciding (a kill switch, or a failed step).
-test("pr-unblock.yml: sync-shared-copies-select proceeds only on a written patch and names each skip", () => {
+// sync-shared-copies-select decides from base code alone: it proceeds once
+// the sync ran on the clean merge (a written patch, or an empty run whose
+// merge alone the push job commits), names each stop's skip reason, and
+// leaves both empty when it stopped before deciding (a kill switch, or a
+// failed step).
+test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty sync and names each skip", () => {
   const { jobs } = workflow("pr-unblock.yml");
   const { outputs } = jobs["sync-shared-copies-select"];
   const STEPS = [
@@ -7462,7 +7464,14 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds only on a written patch
   const gated = { "steps.head.outputs.applicable": "true", "steps.slot.outputs.applies": "true", "steps.hold.outputs.held": "false", "steps.hold.outputs.lane-escalated": "true", "steps.behind.outputs.behind": "true" };
   const decide = (values) => [evaluate(outputs.proceed, ctx(values)), evaluate(outputs["skip-reason"], ctx(values))];
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "written" }), ["true", ""]);
-  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "empty" }), ["false", "not-applicable"]);
+  // Both sides regenerated disjoint canonical edits: the refused head still
+  // needs the merge, which the push job commits alone.
+  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "empty" }), ["true", ""]);
+  assert.equal(outputs["patch-state"], "${{ steps.sync.outputs.state }}");
+  const push = jobs["apply-shared-copies"].with;
+  assert.equal(push["patch-state"], "${{ needs.sync-shared-copies-select.outputs.patch-state }}", "the push job takes the select job's state, written or empty");
+  assert.equal(push["patch-attempt"], "${{ needs.sync-shared-copies-select.outputs.patch-attempt }}");
+  assert.equal(outputs["patch-attempt"], "${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}", "an empty run downloads no patch");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.refused": "shared-copy-tooling-changed" }), ["false", ""], "a refusal posts its stop's skip");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "conflicted" }), ["false", "not-applicable"], "resolve-conflicts's to settle");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "escalate" }), ["false", "not-applicable"]);
