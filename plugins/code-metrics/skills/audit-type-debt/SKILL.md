@@ -16,10 +16,9 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-"Get `any` and `unknown` to zero" is a goal without a yardstick: no standard and no CWE anchors a
-typed-code percentage. This skill reports what the two tools that produce a real percentage
-measure, per file and per lane, and says plainly where the number comes from and what it does not
-mean. There is no pass or fail here, and no bar to argue with.
+No standard and no CWE anchors a typed-code percentage. This skill reports what the two tools that
+produce a real percentage measure, per file and per lane, and says where the number comes from and
+what it does not mean. There is no pass or fail here, and no bar.
 
 | Lane | Collector | Values | The number it reports |
 |---|---|---|---|
