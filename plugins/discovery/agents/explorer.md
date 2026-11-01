@@ -400,7 +400,9 @@ place; read them from it rather than from a second copy here, which would drift 
 file is edited alone. Tell each scout the area it owns, the area it must not wander into,
 and any convention that bounds its search, because it arrives without the project's CLAUDE.md. Pass
 a thoroughness level: `quick` for a known name, `medium` by default, `very thorough` when the naming
-convention is unknown.
+convention is unknown. A scout does not run on this agent's `model`: which model built-in `Explore`
+runs on is [subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents)'s
+to state (as of 2026-11-01; recheck when that section changes Explore's model).
 
 What comes back is **locate-tier**: a scout's report does not say how much of a file it read, and a
 built-in agent runs a prompt you cannot inspect, so treat every hit as a pointer rather than as
