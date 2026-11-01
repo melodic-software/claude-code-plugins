@@ -190,6 +190,13 @@ when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
 
+`triage_outside_prs` (default `false`) lives only in the repository file. Set it
+to `true` when the repository takes requests as pull requests from outside
+contributors: the `/work-items:triage` attention view then lists those pull
+requests beside the issues. When it is `false`, the view lists only issues. A
+pull request named explicitly, as `/work-items:triage <number>`, is triaged
+either way.
+
 `work_priority_order` lives only in the repository file: a list of `priority:`
 label names, highest first, defaulting to `priority: critical`,
 `priority: high`, `priority: medium`, `priority: low`. `/work-items:work` ranks
