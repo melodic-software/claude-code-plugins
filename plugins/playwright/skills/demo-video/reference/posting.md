@@ -5,6 +5,27 @@ created for it. Post only after the quality control and the independent review p
 secrets, personal data and internal hosts in the frames. Record against fixture or test accounts so
 the video carries none to begin with.
 
+## Verification evidence: call the evidence step
+
+When the video is evidence for a verification run and `/source-control:pull-request evidence` is
+among the available skills, post through it. The video is evidence when an `e2e-summary.json` or
+`report.json` lists it in `publishable`: pass that listed path, which must resolve to the same
+absolute path the run listed. The step attaches a video only when its frame-text sidecar
+(`demo.mp4.txt`, the text every frame shows after masking) sits beside it and is not empty.
+
+```text
+/source-control:pull-request evidence <pr> --evidence <evidence file> --attach <listed video path>
+```
+
+In CI, upload the non-zipped artifact first (below) and add
+`--artifact-url <artifact url> [--retention-days <n>]`, so the comment links it with its expiry.
+
+That step owns the verdict gate, the leak scan, the one-comment rule and the `gh` attach checks,
+and its report says whether the video was attached or left out. That call is the video's only
+post: when it refuses or leaves the video out, report its reason and post the video no other way.
+When the step does not resolve, or the demo is one a person asked for outside verification, use
+the sections below.
+
 ## Local session: attach inline with `gh`
 
 `gh` uploads the file and the PR body or comment renders an inline player:
