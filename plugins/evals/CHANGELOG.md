@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.13.7] - 2026-11-01
+
+### Fixed
+
+- `plugin-eval`'s short-`TMPDIR` advice now points at a directory on disk (`$HOME/.ev` when that
+  stays within 24 characters) instead of `/run/user/<uid>/ev`, and says why: that tmpfs is small,
+  and kept `--keep-temp` sandboxes can fill it, failing every eval on the host and breaking the
+  session sockets stored there
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+
+- `plugin-eval`: the read-only `.git` and session tmp record now names its cause, the run sandbox's write deny on `/tmp` covering a run root there, measured on Claude Code 2.1.316, in place of the unbisected guess. The sandbox-start reference adds it as a second reason to run with `TMPDIR` outside the system temp directory.
+
 ## [0.13.6] - 2026-11-01
 
 ### Changed
