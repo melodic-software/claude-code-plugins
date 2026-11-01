@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [3.3.2] - 2026-11-01
+
+### Changed
+
+- The resume eval guide names the noise report through `/evals:plugin-eval` rather than by a path into that plugin's skill directory.
+
 ## [3.3.1] - 2026-11-01
 
 ### Changed

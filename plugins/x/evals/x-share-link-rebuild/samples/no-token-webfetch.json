@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/1234567890123456789.html", "prompt": "Return the posts"}}],
+      "why": "id only"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/fakehandle/status/1234567890123456789", "prompt": "What does the post say?"}}],
+      "why": "canonical URL with the query dropped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp", "prompt": "What does the post say?"}}],
+      "why": "the likely no-plugin retry"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/fakehandle/status/1234567890123456789?t=AbCdEfGhIjKlMnOp", "prompt": "Post text"}}],
+      "why": "host swapped, token kept"
+    }
+  ]
+}

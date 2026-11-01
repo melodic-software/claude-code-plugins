@@ -71,7 +71,7 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 
 | Finding | Hand to |
 | --- | --- |
-| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/review:audit-enforceability`, which picks the cheapest deterministic check and its owner. It reads one review-findings file, not a retro table, so the row names the finding and the user records it in such a file before running the skill |
+| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/corrections:codify "<the mistake>"`, which counts it, picks the strongest rung that can catch it and proves the check. The row names the mistake as the description to pass; a review-findings file the user already keeps goes to `/corrections:codify findings <file>` |
 | Missing automation: a hook, MCP server, skill, subagent, or scheduled task | `/harness-config:audit-automation-gaps`, which rejects new automation unless evidence earns it |
 | An instruction the model followed unaided, or one that is stale or conflicting | `/harness-config:audit-instructions` |
 | Whether standing instructions are still needed at all | `/harness-config:unhobble`, the bare-model experiment |

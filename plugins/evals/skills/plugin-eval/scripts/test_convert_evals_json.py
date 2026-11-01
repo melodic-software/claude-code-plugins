@@ -184,20 +184,23 @@ class ConvertTest(ConverterTestCase):
         for case in ("alpha-slash-start", "beta-stays-quiet"):
             names = [g["name"] for g in self.case_yaml(case)["graders"]]
             self.assertNotIn("skill-fired", names, case)
-        self.assertIn("note beta-stays-quiet: its expectations may say", done.stdout)
+        # Its must-not-fire expectation became a max-0 Skill grader, so the
+        # direction is known and no "add one by hand" note is owed.
+        self.assertNotIn("note beta-stays-quiet: its expectations may say", done.stdout)
         self.assertIn("source keys not carried over: extra_key", done.stdout)
         self.assertIn("note alpha-natural-trigger: lists fixtures", done.stdout)
 
     def test_expectation_graders_get_samples_from_expected_output(self):
         self.sample_plugin()
         self.assertEqual(run(self.plugin).returncode, 0)
-        for case, source in (
-            ("alpha-slash-start", ALPHA_CASES[0]),
-            ("alpha-natural-trigger", ALPHA_CASES[1]),
-            ("beta-stays-quiet", BETA_CASES[0]),
+        for case, source, first in (
+            ("alpha-slash-start", ALPHA_CASES[0], 1),
+            ("alpha-natural-trigger", ALPHA_CASES[1], 1),
+            # Its first expectation is a must-not-fire Skill check.
+            ("beta-stays-quiet", BETA_CASES[0], 2),
         ):
             samples = self.plugin / "evals" / case / "samples"
-            for number in range(1, len(source["expectations"]) + 1):
+            for number in range(first, len(source["expectations"]) + 1):
                 path = samples / ("expectation-%d.json" % number)
                 data = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(list(data), ["pass"], case)
@@ -365,6 +368,280 @@ class ConvertTest(ConverterTestCase):
         done = run(self.plugin)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertIn("sample: 0 cases from 0 evals.json files", done.stdout)
+
+
+class DeterministicTest(ConverterTestCase):
+    """An expectation whose whole wording is a mechanical check gets a
+    deterministic grader with samples the validator grades offline."""
+
+    def convert(self, skill, expectations, prompt="Check my README, please.", **case):
+        self.source(
+            skill,
+            [dict({"id": 1, "name": "case", "prompt": prompt,
+                   "expectations": expectations}, **case)],
+        )
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        checked = subprocess.run(
+            [sys.executable, str(VALIDATOR), str(self.plugin / "evals")],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)
+        self.assertNotIn("FAIL", checked.stdout)
+        self.assertNotIn("no sample answers", checked.stdout)
+        case_dir = self.plugin / "evals" / (skill + "-case")
+        graders = {g["name"]: g for g in self.case_yaml(skill + "-case")["graders"]}
+        return graders, case_dir / "samples"
+
+    def assert_sampled(self, samples, grader):
+        data = json.loads((samples / (grader + ".json")).read_text(encoding="utf-8"))
+        self.assertTrue(data.get("pass") and data.get("fail"), data)
+
+    def skill_with_tools(self, skill, tools):
+        path = self.plugin / "skills" / skill / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            "---\ndescription: Do it.\nallowed-tools: %s\n---\n\nDo it.\n" % tools,
+            encoding="utf-8",
+        )
+
+    def test_invoking_the_own_skill_is_a_skill_tool_used(self):
+        graders, samples = self.convert("alpha", ["Invokes the alpha skill"])
+        grader = graders["expectation-1"]
+        self.assertEqual(grader["type"], "tool_used")
+        self.assertEqual(grader["tool"], "Skill")
+        self.assertIn("alpha", grader["input_match"])
+        self.assert_sampled(samples, "expectation-1")
+
+    def test_a_skill_that_must_not_fire_is_a_max_zero_skill_tool_used(self):
+        (self.plugin / "skills" / "beta").mkdir(parents=True)
+        for number, wording in enumerate(
+            (
+                "Does not invoke /sample:beta",
+                "No Skill call reaches sample:beta",
+                "The beta skill is NOT invoked",
+            )
+        ):
+            with self.subTest(wording=wording):
+                shutil.rmtree(self.plugin / "evals", ignore_errors=True)
+                graders, samples = self.convert("alpha", [wording])
+                grader = graders["expectation-1"]
+                self.assertEqual(grader["type"], "tool_used")
+                self.assertEqual((grader["min"], grader["max"]), (0, 0))
+                self.assertEqual(grader["arm"], "both")
+                self.assertIn("beta", grader["input_match"])
+                self.assert_sampled(samples, "expectation-1")
+
+    def test_a_command_that_must_run_is_a_bash_tool_used(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, samples = self.convert(
+            "alpha",
+            [
+                "Runs `scripts/check.py --data-dir`",
+                "Runs `command -v node` through Bash",
+                "Does not run `npm install -g ctx7@latest` itself",
+            ],
+        )
+        for name in ("expectation-1", "expectation-2", "expectation-3"):
+            self.assertEqual(graders[name]["type"], "tool_used", name)
+            self.assertEqual(graders[name]["tool"], "Bash", name)
+            self.assert_sampled(samples, name)
+        self.assertNotIn("max", graders["expectation-1"])
+        self.assertEqual(graders["expectation-3"]["max"], 0)
+        self.assertEqual(graders["expectation-3"]["arm"], "both")
+
+    def test_a_named_literal_is_a_regex_over_the_reply(self):
+        graders, samples = self.convert(
+            "alpha",
+            [
+                "Reports the line `fanout_diversity: lens (default)`",
+                "Names /sample:alpha",
+                "The response mentions `--runs 1`",
+            ],
+        )
+        for name in ("expectation-1", "expectation-2", "expectation-3"):
+            self.assertEqual(graders[name]["type"], "regex", name)
+            self.assertEqual(graders[name]["target"], "last_message", name)
+            self.assert_sampled(samples, name)
+
+    def test_a_written_file_is_a_file_exists(self):
+        self.skill_with_tools("alpha", "Write")
+        graders, samples = self.convert(
+            "alpha",
+            [
+                "Writes the record at docs/upstream/acme-agent-skills.md",
+                "Writes the control skill under .claude/skills/control-shop/",
+            ],
+        )
+        self.assertEqual(graders["expectation-1"]["type"], "file_exists")
+        self.assertEqual(
+            graders["expectation-1"]["path"], "**/docs/upstream/acme-agent-skills.md"
+        )
+        self.assertEqual(
+            graders["expectation-2"]["path"], "**/.claude/skills/control-shop/**"
+        )
+        for name in ("expectation-1", "expectation-2"):
+            self.assert_sampled(samples, name)
+
+    def test_ambiguous_or_judgment_wording_stays_llm(self):
+        wordings = [
+            "Routes to /sample:alpha",
+            "Names /sample:alpha as the correct sibling",
+            "Invokes /discovery:trace-intent for the why part",
+            "Invokes /other:alpha",
+            "Invokes the music skill, not sfx",
+            "Runs `/sample:setup apply`",
+            "Names the browser session `<run id>-login-flow`",
+            "Writes the record at docs/upstream/acme.md",
+            "Gives a clear, well-reasoned answer",
+        ]
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expected_output": "A short report.", "expectations": wordings}],
+        )
+        self.assertEqual(run(self.plugin).returncode, 0)
+        graders = self.case_yaml("alpha-case")["graders"]
+        judged = [g for g in graders if g["name"].startswith("expectation-")]
+        self.assertEqual([g["type"] for g in judged], ["llm"] * len(wordings))
+
+    def test_a_qualified_command_stays_llm_even_with_bash_granted(self):
+        self.skill_with_tools("alpha", "Bash")
+        wordings = [
+            "Runs `scripts/check.py --data-dir` and reports its rows",
+            "Does not run `npm install -g ctx7@latest` and explains why",
+        ]
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expected_output": "A short report.", "expectations": wordings}],
+        )
+        self.assertEqual(run(self.plugin).returncode, 0)
+        graders = self.case_yaml("alpha-case")["graders"]
+        judged = [g for g in graders if g["name"].startswith("expectation-")]
+        self.assertEqual([g["type"] for g in judged], ["llm"] * len(wordings))
+
+    def test_a_command_without_a_bash_grant_stays_llm(self):
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expected_output": "A short report.",
+              "expectations": ["Runs `scripts/check.py`"]}],
+        )
+        self.assertEqual(run(self.plugin).returncode, 0)
+        graders = self.case_yaml("alpha-case")["graders"]
+        self.assertEqual(graders[0]["type"], "llm")
+
+    def test_a_command_merely_mentioned_is_not_a_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert(
+            "alpha",
+            [
+                "Runs `scripts/check.py --data-dir`",
+                "Does not run `npm install -g ctx7@latest` itself",
+            ],
+        )
+
+        def grade(name, command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders[name], calls)[0]
+
+        self.assertFalse(grade("expectation-1", "cat scripts/check.py && echo --data-dir"))
+        self.assertFalse(grade("expectation-1", "grep -n x scripts/check.py --data-dir"))
+        self.assertTrue(grade("expectation-1", 'cd /w && python3 "/w/scripts/check.py" --data-dir /d'))
+        self.assertTrue(grade("expectation-2", "echo 'npm install -g ctx7@latest'"))
+        self.assertFalse(grade("expectation-2", "npm install -g ctx7@latest"))
+        self.assertFalse(grade("expectation-2", "cd /w && npm install -g ctx7@latest"))
+
+    def test_a_must_not_run_guard_catches_a_wrapped_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert(
+            "alpha", ["Does not run `npm install -g ctx7@latest` itself"]
+        )
+
+        def held(command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders["expectation-1"], calls)[0]
+
+        for command in (
+            "sudo npm install -g ctx7@latest",
+            "env CI=1 npm install -g ctx7@latest",
+            "bash -c 'npm install -g ctx7@latest'",
+            'bash -c "npm install -g ctx7@latest"',
+            "time npm install -g ctx7@latest",
+            "(npm install -g ctx7@latest)",
+            "echo y | xargs npm install -g ctx7@latest",
+            "/usr/bin/npm install -g ctx7@latest",
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(held(command))
+        for command in (
+            "echo 'npm install -g ctx7@latest'",
+            "cat notes.txt; grep 'npm install -g ctx7@latest' README.md",
+            "pnpm install -g ctx7@latest",
+            'rg -n "npm install -g ctx7@latest" docs/',
+            "git grep 'npm install -g ctx7@latest'",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(held(command))
+
+    def test_a_guard_on_a_text_only_command_still_catches_its_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert("alpha", ["Does not run `cat .env`"])
+
+        def held(command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders["expectation-1"], calls)[0]
+
+        self.assertFalse(held("cat .env"))
+        self.assertFalse(held("cd /w && cat .env"))
+        self.assertTrue(held("echo 'cat .env'"))
+        self.assertTrue(held("grep -n 'cat .env' notes.md"))
+
+    def test_a_path_keeps_out_the_closing_period(self):
+        self.skill_with_tools("alpha", "Write")
+        graders, _ = self.convert("alpha", ["Writes the record at docs/result.md."])
+        self.assertEqual(graders["expectation-1"]["path"], "**/docs/result.md")
+
+    def test_a_literal_inside_the_stock_reply_still_validates(self):
+        for word in ("answer", "names", "nothing", "skill"):
+            with self.subTest(word=word):
+                shutil.rmtree(self.plugin / "evals", ignore_errors=True)
+                graders, _ = self.convert("alpha", ["Names `%s`" % word])
+                self.assertEqual(graders["expectation-1"]["type"], "regex")
+
+    def test_a_sibling_guard_keeps_the_own_skill_grader_and_no_note(self):
+        (self.plugin / "skills" / "beta").mkdir(parents=True)
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expectations": ["Does not invoke /sample:beta"]}],
+        )
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        names = [g["name"] for g in self.case_yaml("alpha-case")["graders"]]
+        self.assertEqual(names, ["expectation-1", "skill-fired"])
+        self.assertNotIn("may say the skill must not fire", done.stdout)
+
+    def test_a_refused_mapped_literal_names_its_case(self):
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Hi",
+              "expectations": ["Names `a\x01b`"]}],
+        )
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn(
+            "skills/alpha/evals/evals.json case 1 holds a control", done.stderr
+        )
+
+    def test_a_slash_prompt_keeps_an_own_skill_invocation_llm(self):
+        graders, _ = self.convert(
+            "alpha", ["Invokes the alpha skill"], prompt="/sample:alpha check it",
+            expected_output="A report.",
+        )
+        self.assertEqual(graders["expectation-1"]["type"], "llm")
 
 
 class RefuseTest(ConverterTestCase):

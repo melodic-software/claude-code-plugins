@@ -1,15 +1,14 @@
 ---
 description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'show trends', or at end of session. Mid-session: /session-flow:running-retro."
-argument-hint: "[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]"
+argument-hint: "[session [--pattern '<regex>']|trends|quick] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-comments.sh:*)"]
 metadata:
   workflow-stage: retro
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro codify, /retro codify reviews, /retro trends, /retro quick, /retro quick --unattended
+**Arguments.** `[session [--pattern '<regex>']|trends|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro trends, /retro quick, /retro quick --unattended
 
 ## Context. Gather first
 
@@ -65,10 +64,14 @@ Resolve at runtime, never hardcode machine-specific paths:
 | Signal | Mode | Context file |
 |--------|------|-------------|
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
-| "codify", "save learnings", mid-session learning | **codify** | `context/codify.md`, targeted codification only |
-| "codify reviews", "what do reviewers keep telling us", "mine review comments" | **codify**, `reviews` input | `context/codify.md`, lessons from recent merged PRs' review comments |
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history, plus delivery metrics from `/work-items:measure-delivery` when it is available |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
+
+A `codify` argument, "codify reviews" or "mine review comments" names no retro mode: one recurring
+mistake, or the lessons in recent merged pull requests' review comments, go to
+`/corrections:codify` (its `reviews` action reads the review comments) when the `corrections`
+plugin is installed. Name that skill and stop; when it is not installed, say that no installed
+skill codifies one mistake or mines review comments, and stop.
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
 out first. It only gates the `/export` step (record the suggestion in output, do not ask). The bare
@@ -90,13 +93,6 @@ checkpoints.
 |---|---|
 | [reference/ecosystem-improvement-catalog.md](reference/ecosystem-improvement-catalog.md) | Before filling session mode's Phase 3 recommendation table, and any other time a finding has to be mapped to an ecosystem target. It owns the project-vs-personal placement decision tree and the per-target recommendation format for memory, rules, hooks, skills, agents, MCP servers, and settings. |
 
-### Codify settings
-
-The user options codify reads, as rendered for this run (a literal, unexpanded placeholder means
-unset): `encode_policy` = `${user_config.encode_policy}`, `review_mining_prs` =
-`${user_config.review_mining_prs}`. `context/codify.md` "Settings" resolves them against the
-repository's `docs/conventions/session-flow.yaml`, which wins.
-
 ### Session settings
 
 The user option session mode reads, as rendered for this run (a literal, unexpanded placeholder
@@ -110,7 +106,6 @@ After the retrospective:
 | Condition | Suggestion |
 |-----------|-----------|
 | End-of-session, retro complete | Suggest any wrap-up steps the consuming repo defines |
-| Codify mode, learnings saved | Return to the task at hand |
 | Trends mode, analysis presented | Suggest focus areas for next session |
 | Session mode, follow-ups queued | Suggest filing them in the consumer's work-item tracker |
 
@@ -212,7 +207,7 @@ writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsub
   user asks
 - **Always include skill-candidate and follow-up-candidate analysis**, even when the conclusion is
   "no candidates this session"
-- **Codify follows the workflow too**. Adding a bullet to a rules file requires verification, not
-  just pasting
+- **Codifying follows the workflow too**. Adding a bullet to a rules file requires verification,
+  not just pasting
 - **Phase 4 is an interactive checkpoint**, never persist codifications without explicit user
   approval

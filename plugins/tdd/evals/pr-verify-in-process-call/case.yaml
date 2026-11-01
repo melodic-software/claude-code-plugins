@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pr-verify-in-process-call
+graders:
+  - name: 'routes-principles'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
+    arm: 'with-only'
+  - name: 'asserts-output'
+    type: 'regex'
+    pattern: '\boutput[- ]based\b|\b(?:assert|expect)\w*\b[^\n]{0,40}?\bTotal\s*\([^)\n]*\)\s*returns?\b|\b(?:assert|expect)\w*\.\w+\([^)\n]*\bTotal\s*\(|\b(?:assert|check|verif|compar|expect)\w*\b[^\n]{0,80}?\b(?:returned|return value|result|(?:the|cart|order|computed|expected)\s+total\b(?!\s*\()|output)\b|\b(?:returned|return value|result|(?:the|cart|order|computed|expected)\s+total\b(?!\s*\()|output)\b[^\n]{0,80}?\b(?:assert|check|verif|compar|expect)\w*\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'communication-scope'
+    type: 'regex'
+    pattern: '\binter-?system\b|\bout-of-process\b|\bunmanaged\b|\bexternal\s+(?:system|service|dependenc|process)|\b(?:cross(?:es|ing)?|leaves?|leaving)\s+(?:the\s+|a\s+)?(?:system|process|application)\s*(?:boundar\w*)?|\bsystem boundar|\bother systems?\b|\bthird[- ]party systems?\b'
+    flags: 'i'
+    target: 'last_message'
