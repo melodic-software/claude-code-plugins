@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -a docs README.md"
+          }
+        }
+      ],
+      "why": "searches the workspace"
+    },
+    {
+      "answer": [],
+      "why": "uses the given item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue edit 31 --add-label \"type: bug\""
+          }
+        }
+      ],
+      "why": "labels the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue comment 31 --body \"Triage: reproduce first\""
+          }
+        }
+      ],
+      "why": "comments on the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X POST repos/o/r/issues/31/labels -f labels[]=bug"
+          }
+        }
+      ],
+      "why": "labels through the API"
+    }
+  ]
+}
