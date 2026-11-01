@@ -19,6 +19,8 @@ graders:
   - name: ranked-list-before-handoff
     type: regex
     target: trace
-    pattern: '^(?=[^\n]*"type":"assistant")[^\n]*?(?:"text":"|\\n)[ \t]*(?:\|[ \t]*\**#?1\**[ \t]*\||[-*]?[ \t]*\**#?1[.)]\**[ \t]|#{1,4}[ \t]*\**(?:#|rank[ \t]*|candidate[ \t]*)?1\b)(?:[^"\\\n]|\\[^n]|\\n(?=[ \t]+[^ \t\\]))*?\b(?:rung[ \t]*[1-4]|medium-high|medium-low|confidence|judge?ment|high|low)\b[\s\S]*?"name":"Skill","input":\{(?=[^}]*"skill"\s*:\s*"(?:improvement:improve|planning:(?:interview|plan)|implementation:implement|discovery:(?:explore|research))")'
+    # `judge?m(?:ent)` takes the label with or without the e after judg. The
+    # group keeps the spell-check from reading the letters after the `?` as a word.
+    pattern: '^(?=[^\n]*"type":"assistant")[^\n]*?(?:"text":"|\\n)[ \t]*(?:\|[ \t]*\**#?1\**[ \t]*\||[-*]?[ \t]*\**#?1[.)]\**[ \t]|#{1,4}[ \t]*\**(?:#|rank[ \t]*|candidate[ \t]*)?1\b)(?:[^"\\\n]|\\[^n]|\\n(?=[ \t]+[^ \t\\]))*?\b(?:rung[ \t]*[1-4]|medium-high|medium-low|confidence|judge?m(?:ent)|high|low)\b[\s\S]*?"name":"Skill","input":\{(?=[^}]*"skill"\s*:\s*"(?:improvement:improve|planning:(?:interview|plan)|implementation:implement|discovery:(?:explore|research))")'
     flags: 'mi'
     arm: both
