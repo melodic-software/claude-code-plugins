@@ -44,7 +44,12 @@ one line per check, detail lines indented under it:
                       other than Skill (tool and target) with no absolute path
                       at, under or above the plugin's directory, since the
                       environment then denied it with or without the plugin,
-                      such as a user-scope read of ~/.claude. Otherwise a
+                      such as a user-scope read of ~/.claude, or when every
+                      denial in the run is a named call other than Skill
+                      aimed only under the run's own plugin-data directory
+                      (<sandbox>/config/plugins/data, CLAUDE_PLUGIN_DATA),
+                      which the sandbox denies to any skill that persists
+                      state. Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -147,6 +152,8 @@ TRACE_RESULT = "result"  # type of the closing line
 TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
+# A run's plugin-data directory (CLAUDE_PLUGIN_DATA), under its sandbox, beside out/.
+SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
 MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
@@ -910,6 +917,44 @@ def in_every_run(run, found, runs, roots):
     return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
 
 
+def own_data_dir(run):
+    """The run's own plugin-data directory, <sandbox>/config/plugins/data, for a
+    trace at <sandbox>/out/trace.jsonl; None for a trace anywhere else."""
+    if not run.trace_path:
+        return None
+    out = os.path.dirname(os.path.realpath(run.trace_path))
+    if os.path.basename(out) != "out":
+        return None
+    return os.path.join(os.path.dirname(out), *SANDBOX_PLUGIN_DATA)
+
+
+def under(path, directory):
+    """True when path is rooted and at or under directory, symlinks resolved."""
+    if not rooted(path) or "\0" in path:
+        return False
+    path, directory = os.path.realpath(path), os.path.realpath(directory)
+    try:
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:
+        return False
+
+
+def own_data_only(run, found):
+    """True when every denial in run names a call other than Skill whose every
+    target path is under the run's own plugin-data directory. The eval sandbox
+    keeps that directory, where CLAUDE_PLUGIN_DATA points, out of reach, so a
+    skill that persists state is denied there in every run whatever it does; no
+    case or skill change can avoid it. A denial elsewhere in the run's config
+    directory, or with no rooted path, never qualifies."""
+    data = own_data_dir(run)
+    return bool(data) and all(
+        name not in (None, SKILL_TOOL)
+        and bool(paths)
+        and all(under(p, data) for p in paths)
+        for _, paths, name, _, _ in found[run]
+    )
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -965,6 +1010,7 @@ def check_denials(runs, roots, root):
         if probe_denial(r, found, runs, root)
         or same_as_clean(r, found, runs, roots)
         or in_every_run(r, found, runs, roots)
+        or own_data_only(r, found)
     ]
     failed = [r for r in denied if r not in warned]
     details = [line for r in denied for line, _, _, _, _ in found[r]]
@@ -982,7 +1028,9 @@ def check_denials(runs, roots, root):
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
             " plugin; or a run denied only named calls other than Skill that every"
-            " run of its case was denied in both arms, none inside the plugin): %s"
+            " run of its case was denied in both arms, none inside the plugin; or a"
+            " run denied only named calls other than Skill aimed under its own"
+            " plugin-data directory): %s"
             % ", ".join(warned_cases)
         )
     if failed:
