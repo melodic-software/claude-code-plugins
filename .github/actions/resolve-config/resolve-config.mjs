@@ -398,6 +398,15 @@ export function adoptionFromBase(env) {
   return loadConfig(filesUnderBase(basePath, configPath), { configPath }).adoption ?? {};
 }
 
+// The base config's `merge.refire-skip-branches`, the head branches a workflow
+// owns and rebuilds, after the same file checks as resolve(), for the fix-ci
+// dispatcher and context job, which never run fix-ci on one.
+export function ownedBranchesFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  return loadConfig(filesUnderBase(basePath, configPath), { configPath }).merge?.["refire-skip-branches"] ?? [];
+}
+
 // The base config's `models.issue-dimensions` leaf as set, or null, after the
 // same file checks as resolve(), for intake triage's verdict writer.
 export function issueDimensionsFromBase(env) {

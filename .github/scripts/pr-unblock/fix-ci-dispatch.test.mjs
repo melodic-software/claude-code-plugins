@@ -869,6 +869,21 @@ test("a listed bot's PR is adopted with no idle wait, a listed person's waits", 
   assert.equal(skipReason(ownerPr(3, { updated: 0, committed: 0, author: { ...bot, databaseId: 4242 } }), options), "not opened by the lanes App or an adoptable owner");
 });
 
+// release-publish-plugins.yml rebuilds release/plugins, so a fix-ci push there
+// answers 422 (#11840's runs 41308756974, 41312571464): the release PR is
+// never dispatched, and a lanes App PR on that branch neither.
+test("a PR from a head branch a workflow owns and rebuilds is skipped before any read", async () => {
+  const RELEASE = 337859524;
+  const bot = { __typename: "Bot", login: "melodic-plugin-release", databaseId: RELEASE };
+  const release = ownerPr(1, { updated: 0, committed: 0, author: bot, headRefName: "release/plugins" });
+  const options = { adoption: { ownerIds: [RELEASE], idleHours: 24 }, ownedBranches: ["release/plugins"], now: NOW };
+  const { api, lines, result } = await run({ pages: [[release, pr(2, { headRefName: "release/plugins" }), pr(3, { headRefName: "feat/x" })]] }, options);
+  assert.deepEqual(result, { dispatched: [{ number: 3, workflowRunId: "7003" }], failed: 0 });
+  assert.deepEqual(api.calls.jobs, [pr(3).headRefOid]);
+  assert.ok(lines.includes("skip fix-ci #1: head branch release/plugins is rebuilt by its own workflow"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #2: head branch release/plugins is rebuilt by its own workflow"), lines.join("\n"));
+});
+
 test("an adoptable owner's PR idle 25 hours whose ci-status failed is dispatched", async () => {
   const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW });
   assert.deepEqual(result, { dispatched: [{ number: 9, workflowRunId: "7009" }], failed: 0 });
