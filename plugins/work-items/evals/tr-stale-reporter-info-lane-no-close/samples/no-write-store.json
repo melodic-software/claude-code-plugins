@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1'"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        }
+      ],
+      "why": "reads the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/triage/report.md",
+            "content": "Close candidates: #1"
+          }
+        }
+      ],
+      "why": "report outside the store"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "content": "state: \"closed\""
+          }
+        }
+      ],
+      "why": "rewrites the item"
+    }
+  ]
+}

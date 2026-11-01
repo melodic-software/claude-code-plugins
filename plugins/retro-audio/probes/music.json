@@ -1,0 +1,137 @@
+{
+  "skill": "retro-audio:music",
+  "plugin": "retro-audio",
+  "skill_dir": "plugins/retro-audio/skills/music",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are retro-audio:sfx (one short retro sound effect, not a song or loop), songwriting:suno (prompts and tagged lyrics for the Suno AI music service), songwriting:co-write (lyric lines, titles and co-writing sessions), songwriting:rhyme (finding and testing rhymes), speech:narrate (text-to-speech narration with word timings), pixel-art:scene (a self-contained HTML pixel-art scene that can play a WAV it is given) and explainer-video:produce (a narrated Manim explainer video muxed with ffmpeg). music owns writing a short MML score and rendering it as a looping chip-voiced WAV with Game Boy, NES or PICO-8 presets.",
+  "competitors": [
+    "retro-audio:sfx",
+    "songwriting:suno",
+    "songwriting:co-write",
+    "songwriting:rhyme",
+    "speech:narrate",
+    "pixel-art:scene",
+    "explainer-video:produce"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compose a short looping overworld theme in a Game Boy style and give me a wav I can drop into my game."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here is an MML score, t140 o5 l8 cdeg r4 | o3 l4 c g c g. Render it to a wav file with the NES preset."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want spooky dungeon background music that sounds like an old NES cartridge, about twenty seconds and seamless."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a bouncy square-wave melody with a triangle bass line and a noise drum part for my title screen."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you make a PICO-8 flavored tune for the shop menu and export it as audio?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Score a calm campfire loop in a retro handheld sound and render it so I can hear it."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My boss fight needs a tense, fast chip track that repeats cleanly. Output a wav please."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn this little melody into 8-bit style background music: E G A, then C B A G, repeated twice."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Generate a victory jingle loop with pulse leads at 25 percent duty and a bass channel underneath."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need ambient music for my pixel-art cutscene, something that sounds like a 1990 console, as a wav I can pass to the scene."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a coin pickup sound for my platformer, just one short blip."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a Suno style prompt for a synthwave track with female vocals at 110 BPM."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me write the lyrics for a chorus about leaving my hometown."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read this intro script aloud and give me a voiceover file with word timings."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the time complexity of quicksort in the worst case?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find me some rhymes for 'midnight' that don't sound cliched."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build a pixel-art title screen with a starfield and scrolling logo as one HTML file."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make an explainer video about binary search with narration and captions."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a laser zap sound effect for when the player ship fires."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rename the columns in this CSV so they are all snake_case."
+    }
+  ]
+}

@@ -25,7 +25,7 @@ graders:
     target: last_message
   - name: evidence-label
     type: regex
-    pattern: '\bEvidence\b(?:\*\*)?[ \t]*(?:[:|—–]|-[ \t]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
+    pattern: '\bEvidence\b(?:\*\*)?[ \t]*(?:[:|—–]|-[ \t]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?verified[- ]by[- ]reading\b'
     flags: 'i'
     target: last_message
   - name: path-line-locator

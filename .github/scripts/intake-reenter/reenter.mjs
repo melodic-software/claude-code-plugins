@@ -5,8 +5,10 @@
 // - `status: needs-decision` and a decision comment (select-trusted-text's
 //   isDecisionComment, the rule write-issue.mjs marks `decision: true` by):
 //   remove `status: needs-decision`;
-// - `status: confirmed`, where admission parks a refusal no person must
-//   answer, and a decision comment: remove `status: confirmed`;
+// - `status: confirmed` as the only status, with no `agent-ready` (where
+//   admission parks a refusal no person must answer, or a person confirmed
+//   the issue before any admission), and a decision comment: remove
+//   `status: confirmed`;
 // - `status: needs-info` and a comment by the issue's author or a listed
 //   human, not posted through an App: remove `status: needs-info`;
 // - EVENT_NAME `issues` (no comment): a listed human removed `needs-human` and
@@ -53,13 +55,14 @@
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { admissionParked, authorAdmitted } from "../intake-triage/admit.mjs";
+import { createGitHub, GitHubError, loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
 export const NEEDS_INFO = "status: needs-info";
-// Where admission parks a refusal no person must answer (admit.mjs CONFIRMED).
+// Where admission parks a refusal no person must answer (admit.mjs CONFIRMED),
+// or a person confirmed the issue before any admission.
 export const CONFIRMED = "status: confirmed";
 export const NEEDS_HUMAN = "needs-human";
 export const NEEDS_TRIAGE = "needs-triage";
@@ -71,8 +74,8 @@ const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 
 const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Which answer the comment is, or null: `decision`, `parked` (a decision on an
-// issue admission parked at status: confirmed) or `info`.
+// Which answer the comment is, or null: `decision`, `parked` (a decision on a
+// status: confirmed issue no admission took) or `info`.
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId }) {
   if (issue.pull_request || issue.state !== "open") {
     return null;
@@ -92,10 +95,9 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "decision";
     }
   }
-  // status: confirmed is also triage's verified status, so only an issue
-  // admission parked there counts (refine.mjs applies the same guard).
-  const parked = async () => admissionParked(labels, await paginate(github, `/repos/${repository}/issues/${issue.number}/comments`), lanesAppId);
-  if (humans.has(user.id) && labels.includes(CONFIRMED) && (await parked())) {
+  // A listed human's decision re-enters a status: confirmed issue whether
+  // admission parked it there or a person confirmed it before any admission.
+  if (humans.has(user.id) && confirmedOnly(labels)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
       return "parked";

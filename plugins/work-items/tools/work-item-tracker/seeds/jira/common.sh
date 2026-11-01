@@ -1,0 +1,448 @@
+# shellcheck shell=bash
+# Shared helpers for the Jira Cloud adapter — sourced by every verb script.
+# CONTRACT.md "jira adapter". Read/resolve-only surface: get-item, list-items,
+# capabilities are supported; every write verb (create/claim/lease/link/sub-item)
+# and list-sub-items are declared false in the manifest and exit 6 at the core gate,
+# so no code path here mutates a Jira ticket (the consume-only hard constraint).
+#
+# Provider: Jira Cloud REST API v3. Auth: Basic (Atlassian account email + API
+# token) — the token is read from the env var named by config.jira.auth_env, never
+# stored in the tracked binding, and passed to curl via a stdin config (-K -) so it
+# never appears in argv. HTTP goes through ${WIT_JIRA_CURL:-curl}; tests inject a
+# mock binary there to exercise the read path offline (no live Jira calls).
+
+[[ -n "${_WIT_JIRA_COMMON_LOADED:-}" ]] && return 0
+readonly _WIT_JIRA_COMMON_LOADED=1
+
+WIT_JIRA_ADAPTER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly WIT_JIRA_ADAPTER_DIR
+
+# This seed runs as a copy in the consuming repo (seeds/README.md), where its own
+# ../../lib does not exist; the dispatcher exports WIT_SEAM_LIB_DIR (CONTRACT.md
+# "Adapter resolution") for that case, and ../../lib serves a direct run from the
+# plugin. A missing required lib must hard-fail with a clear diagnostic (exit 3 —
+# setup/config error), never let sourcing fail silently and leave a verb emitting a
+# malformed record. Runs before the EX_* constants below exist, so it uses the literal.
+WIT_JIRA_SEAM_LIB="${WIT_SEAM_LIB_DIR:-$WIT_JIRA_ADAPTER_DIR/../../lib}"
+wit_jira_require_seam_lib() {
+  [[ -f "$1" ]] && return 0
+  printf 'work-item-tracker jira adapter: required seam library not found: %s\n' "$1" >&2
+  printf '  set WIT_SEAM_LIB_DIR to the work-item-tracker lib/ directory, or run the adapter through the dispatcher\n' >&2
+  exit 3
+}
+
+wit_jira_require_seam_lib "$WIT_JIRA_SEAM_LIB/id.sh"
+# shellcheck source=../../lib/id.sh disable=SC1091
+source "$WIT_JIRA_SEAM_LIB/id.sh"
+wit_jira_require_seam_lib "$WIT_JIRA_SEAM_LIB/json.sh"
+# shellcheck source=../../lib/json.sh disable=SC1091
+source "$WIT_JIRA_SEAM_LIB/json.sh"
+# binding.sh is sourced (not inherited): the dispatcher runs each verb as a fresh
+# `bash <verb>.sh` subprocess, so only exported env vars cross — not wit_find_binding.
+# The adapter re-locates the binding itself to read its jira-specific config subtree,
+# rather than growing the shared binding.sh with jira keys.
+wit_jira_require_seam_lib "$WIT_JIRA_SEAM_LIB/binding.sh"
+# shellcheck source=../../lib/binding.sh disable=SC1091
+source "$WIT_JIRA_SEAM_LIB/binding.sh"
+
+readonly EX_INTERNAL=1
+readonly EX_USAGE=2
+readonly EX_CONFIG=3
+readonly EX_AUTH=4
+readonly EX_NOT_FOUND=5
+readonly EX_UNAVAILABLE=8
+
+# HTTP command indirection: the sole testability seam. Tests point WIT_JIRA_CURL at a
+# mock that returns canned responses, keeping the read path offline. Absent → real curl.
+readonly WIT_JIRA_CURL_BIN="${WIT_JIRA_CURL:-curl}"
+
+# Blocker link type + done-category keys default to the documented Jira standards but
+# are configurable: they are the override seams for the two facts deferred to a
+# live-instance pass — the authoritative blocker link type, and the exact statusCategory
+# "done" key (the official spec's own example disagrees with real instances, so both
+# known keys are defaulted here). The adapter is therefore independent of those facts.
+readonly WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE="Blocks"
+# Built via jq at load rather than a quote-carrying shell literal so the JSON array
+# does not flow into an exported variable as shell-quoted text (would trip SC2089/2090).
+WIT_JIRA_DEFAULT_DONE_KEYS="$(jq -cn '["done","completed"]')"
+readonly WIT_JIRA_DEFAULT_DONE_KEYS
+
+# Values interpolated into a JQL query (project keys, statusCategory keys) are
+# constrained to a strict allowlist BEFORE interpolation — the seam builds JQL by
+# string assembly, so an unescaped `"` in a key would break out of the literal and
+# inject arbitrary JQL. Allowlisting (reject the unexpected) is safer than escaping,
+# and matches what Jira itself permits: project keys are letter-led alphanumerics
+# (the same charset the normalizer's key parser accepts); statusCategory keys are
+# letter-led alphanumerics plus hyphen (e.g. `in-flight`). Anything else is refused.
+readonly WIT_JIRA_PROJECT_KEY_RE='^[A-Za-z][A-Za-z0-9_]*$'
+readonly WIT_JIRA_CATEGORY_KEY_RE='^[A-Za-z][A-Za-z0-9-]*$'
+# Blocker issue keys go into the resolution lookup's `key in (...)` clause, so they get
+# the same allowlist treatment.
+readonly WIT_JIRA_ISSUE_KEY_RE='^[A-Za-z][A-Za-z0-9_]*-[0-9]+\z'
+
+# config.jira.site becomes the request host that receives the Basic-auth token, so it
+# must be a BARE hostname — no scheme, path, userinfo (`@`), port, or control chars —
+# lest a binding smuggle URL structure that redirects the credential off the tenant.
+# And it must be an Atlassian Cloud host (*.atlassian.net) unless the binding
+# explicitly opts into a custom domain: deny-by-default on credential egress, since a
+# tracked binding is PR-modifiable and the token may be present in CI.
+readonly WIT_JIRA_HOSTNAME_RE='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
+readonly WIT_JIRA_CLOUD_SUFFIX='.atlassian.net'
+# auth_env is dereferenced via ${!name}; an invalid identifier aborts bash, so it must
+# be a valid shell variable name.
+readonly WIT_JIRA_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
+
+# wit_jira_nonempty_array <json-text> — 0 when the text is a non-empty JSON array.
+# Type is checked before length so a scalar such as "project_keys":"ABC" cannot pass on
+# its string length; jq's `and` short-circuits, so `length` never runs on a non-array.
+wit_jira_nonempty_array() {
+  [[ "$(jq -r 'if (type == "array" and length > 0) then "yes" else "no" end' <<<"$1")" == "yes" ]]
+}
+
+# wit_jira_bad_keys <anchored-regex> <json-array> — the array's elements that are not
+# strings matching the allowlist, as a JSON array (`[]` when all are valid). The type
+# guard sits left of the `or` so test() never runs on a non-string.
+wit_jira_bad_keys() {
+  jq -rc --arg re "$1" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$2"
+}
+
+# Set by wit_jira_http; declared here so a read before the first call does not trip
+# `set -u`.
+WIT_JIRA_BODY=""
+WIT_JIRA_STATUS=""
+
+wit_usage_error() {
+  printf '%s: %s\n' "$(basename "${BASH_SOURCE[1]}")" "$1" >&2
+  exit "$EX_USAGE"
+}
+
+# wit_help_if_requested <usage-text> <args…> — print usage + exit 0 on --help.
+wit_help_if_requested() {
+  local usage="$1"
+  shift
+  if [[ "${1:-}" == "--help" ]]; then
+    printf '%s\n' "$usage"
+    exit 0
+  fi
+}
+
+# wit_require_jira_id <id> — parse an ID and require its provider be `jira`. The
+# shared grammar accepts any provider; this adapter rejects foreign-provider IDs so
+# a `github:…#N` never operates on a Jira issue. Sets the WIT_ID_* globals: OWNER is
+# the Cloud site host, REPO is the project key, NUMBER is the issue number.
+wit_require_jira_id() {
+  wit_parse_id "$1" || return 1
+  [[ "$WIT_ID_PROVIDER" == "jira" ]] || return 1
+}
+
+# wit_need_jira_config — load and validate the jira config subtree from the binding.
+# Called by verbs AFTER arg parsing, so --help / usage errors stay offline and
+# config-free (mirrors local-markdown's wit_need_storage). Exits 3 when the binding
+# or a required key (site, non-empty project_keys, auth_email, auth_env) is missing.
+# Exports WIT_JIRA_SITE, WIT_JIRA_PROJECT_KEYS (JSON array), WIT_JIRA_AUTH_EMAIL,
+# WIT_JIRA_AUTH_ENV, WIT_JIRA_BLOCKED_BY_LINK_TYPE, WIT_JIRA_DONE_KEYS (JSON array),
+# WIT_JIRA_RESOLUTIONS (the config.jira.resolutions object, or `null` when absent).
+wit_need_jira_config() {
+  local name binding ejson
+  name="$(basename "${BASH_SOURCE[1]}")"
+  binding="$(wit_find_binding)" ||
+    {
+      printf '%s: no binding found (.work-item-tracker.json) — see CONTRACT.md Setup\n' "$name" >&2
+      exit "$EX_CONFIG"
+    }
+  # The effective (team + allowlisted overlay) view: auth_email/auth_env are the
+  # jira keys a per-user overlay may carry — auth identity is per-account —
+  # while site/project_keys and the JQL-shaping keys stay team-only.
+  ejson="$(wit_effective_binding_json "$binding")" ||
+    {
+      printf '%s: invalid binding at %s — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup\n' "$name" "$binding" >&2
+      exit "$EX_CONFIG"
+    }
+  WIT_JIRA_SITE="$(jq -r '.config.jira.site // empty' <<<"$ejson")"
+  WIT_JIRA_AUTH_EMAIL="$(jq -r '.config.jira.auth_email // empty' <<<"$ejson")"
+  WIT_JIRA_AUTH_ENV="$(jq -r '.config.jira.auth_env // empty' <<<"$ejson")"
+  WIT_JIRA_PROJECT_KEYS="$(jq -c '.config.jira.project_keys // []' <<<"$ejson")"
+  WIT_JIRA_BLOCKED_BY_LINK_TYPE="$(jq -r --arg d "$WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE" '.config.jira.blocked_by_link_type // $d' <<<"$ejson")"
+  # Read done_category_keys by PRESENCE, not `// default`: jq's `//` collapses an
+  # explicit `false`/`null` into the default, which would silently apply the default
+  # classification for a typo'd override instead of the required config error. Absent →
+  # default; present → taken verbatim so the type/non-empty/element checks below judge it.
+  if [[ "$(jq -r '.config.jira | has("done_category_keys")' <<<"$ejson")" == "true" ]]; then
+    WIT_JIRA_DONE_KEYS="$(jq -c '.config.jira.done_category_keys' <<<"$ejson")"
+  else
+    WIT_JIRA_DONE_KEYS="$WIT_JIRA_DEFAULT_DONE_KEYS"
+  fi
+  # resolutions has no default: absent turns won't-do detection off (`null`); a present
+  # value, even `null`, is judged below.
+  WIT_JIRA_RESOLUTIONS="$(jq -c '.config.jira | if has("resolutions") then .resolutions // "null-value" else null end' <<<"$ejson")"
+  local allow_custom_domain
+  allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' <<<"$ejson")"
+  local missing=""
+  [[ -n "$WIT_JIRA_SITE" ]] || missing+=" config.jira.site"
+  [[ -n "$WIT_JIRA_AUTH_EMAIL" ]] || missing+=" config.jira.auth_email"
+  [[ -n "$WIT_JIRA_AUTH_ENV" ]] || missing+=" config.jira.auth_env"
+  # project_keys must be a non-empty ARRAY, not merely truthy: a scalar such as
+  # "project_keys":"ABC" would satisfy a bare `length > 0` (string length 3), then
+  # `.[]`/`map(...)` would jq-error into an empty clause (`project in ()`) that this
+  # non-`set -e` script would otherwise ignore.
+  wit_jira_nonempty_array "$WIT_JIRA_PROJECT_KEYS" ||
+    missing+=" config.jira.project_keys[](non-empty array)"
+  # done_category_keys defaults when absent, but a present non-array OR EMPTY value is a
+  # misconfiguration: an empty set builds `statusCategory not in ()` — invalid JQL Jira
+  # rejects with 400 — not a silent fall-through to the default.
+  wit_jira_nonempty_array "$WIT_JIRA_DONE_KEYS" ||
+    missing+=" config.jira.done_category_keys(non-empty array)"
+  if [[ -n "$missing" ]]; then
+    printf '%s: jira binding missing/invalid required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
+    exit "$EX_CONFIG"
+  fi
+  # Value-level validation (all exit 3): the JQL-interpolated keys against their
+  # allowlist charset (the query builders assemble by string concat, so an unvalidated
+  # token could inject), plus the credential-bearing site host and the token env-var
+  # name.
+  local bad=""
+  # site is the host the Basic-auth token is sent to: require a bare hostname (block
+  # scheme/path/userinfo/port smuggling) and an Atlassian Cloud host unless the binding
+  # explicitly opts into a custom domain (deny-by-default credential egress).
+  if ! [[ "$WIT_JIRA_SITE" =~ $WIT_JIRA_HOSTNAME_RE ]]; then
+    bad+=" site:'$WIT_JIRA_SITE'(not a bare hostname)"
+  elif [[ "$allow_custom_domain" != "true" && "$WIT_JIRA_SITE" != *"$WIT_JIRA_CLOUD_SUFFIX" ]]; then
+    bad+=" site:'$WIT_JIRA_SITE'(non-atlassian.net; set config.jira.allow_custom_domain=true to allow)"
+  fi
+  # auth_env is dereferenced via ${!name}; an invalid identifier aborts bash on first
+  # read — reject it here (exit 3) with a clear message instead.
+  [[ "$WIT_JIRA_AUTH_ENV" =~ $WIT_JIRA_ENV_NAME_RE ]] ||
+    bad+=" auth_env:'$WIT_JIRA_AUTH_ENV'(not a valid env var name)"
+  # blocked_by_link_type, when present, must be a non-empty string: an empty or
+  # non-string override matches no issuelink, so blocked_by_count is silently 0 for
+  # every issue and list-frontier would surface actually-blocked tickets. Absent →
+  # the documented default (validated as a jq raw type, since the // $d read above
+  # already collapsed null into the default string).
+  [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' <<<"$ejson")" != "bad" ]] ||
+    bad+=" blocked_by_link_type(must be a non-empty string)"
+  # resolutions classifies resolution ids, matched in jq and never interpolated into JQL:
+  # exactly the keys completed and wont_do, each an array of non-empty strings, with no
+  # id in both.
+  [[ "$(jq -r 'if . == null then "ok"
+    elif type == "object" and (keys == ["completed", "wont_do"])
+      and all(.[]; type == "array" and all(.[]; type == "string" and length > 0))
+      and ((.completed - (.completed - .wont_do)) == [])
+    then "ok" else "bad" end' <<<"$WIT_JIRA_RESOLUTIONS")" == "ok" ]] ||
+    bad+=" resolutions(must be {\"completed\":[ids],\"wont_do\":[ids]}, non-empty string ids, none in both)"
+  # Every element (each project key, each done key) is checked IN jq so an empty or
+  # non-string element cannot slip through — a bash line-loop loses trailing empty
+  # elements to command-substitution newline stripping, so `[""]` would evade it.
+  # jq's test() uses the same anchored allowlist; a non-string element fails the
+  # type guard. Bad elements are echoed back for the diagnostic.
+  local bad_pk bad_dk
+  bad_pk="$(wit_jira_bad_keys "$WIT_JIRA_PROJECT_KEY_RE" "$WIT_JIRA_PROJECT_KEYS")"
+  [[ "$bad_pk" == "[]" ]] || bad+=" project_keys:$bad_pk"
+  bad_dk="$(wit_jira_bad_keys "$WIT_JIRA_CATEGORY_KEY_RE" "$WIT_JIRA_DONE_KEYS")"
+  [[ "$bad_dk" == "[]" ]] || bad+=" done_category_keys:$bad_dk"
+  if [[ -n "$bad" ]]; then
+    printf '%s: invalid jira config value(s):%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
+    exit "$EX_CONFIG"
+  fi
+  # curl is the read path's only prerequisite binary; gate here (exit 3, actionable)
+  # rather than let the first request fail obscurely. WIT_JIRA_CURL_BIN is the real
+  # curl by default or a test-injected mock — either way it must resolve.
+  command -v "$WIT_JIRA_CURL_BIN" >/dev/null 2>&1 ||
+    {
+      printf '%s: prerequisite missing: curl (Jira Cloud REST over HTTPS) — see CONTRACT.md Prerequisites\n' "$name" >&2
+      exit "$EX_CONFIG"
+    }
+  export WIT_JIRA_SITE WIT_JIRA_AUTH_EMAIL WIT_JIRA_AUTH_ENV WIT_JIRA_PROJECT_KEYS \
+    WIT_JIRA_BLOCKED_BY_LINK_TYPE WIT_JIRA_DONE_KEYS WIT_JIRA_RESOLUTIONS
+}
+
+# wit_jira_project_in_scope <project-key> — 0 when the key is in the binding's
+# config.jira.project_keys. That list is the declared read scope AND the authorization
+# boundary: a bound workflow must not read tickets from a project it did not declare,
+# even when the token can see them. get-item enforces this on the id's project,
+# list-items on --repo — each maps a miss to its own usage error (exit 2) before any
+# request, so the diagnostic names the calling verb.
+wit_jira_project_in_scope() {
+  [[ "$(jq -r --arg k "$1" 'if (index($k) != null) then "in" else "out" end' <<<"$WIT_JIRA_PROJECT_KEYS")" == "in" ]]
+}
+
+# wit_jira_token — echo the API token from the env var named by config.jira.auth_env.
+# Exits 4 (auth) when that env var is unset or empty: the token is never stored in
+# the tracked binding, only referenced by name. Call after wit_need_jira_config.
+wit_jira_token() {
+  local token="${!WIT_JIRA_AUTH_ENV:-}"
+  if [[ -z "$token" ]]; then
+    printf '%s: jira API token env var %s is unset or empty (config.jira.auth_env)\n' \
+      "$(basename "${BASH_SOURCE[1]}")" "$WIT_JIRA_AUTH_ENV" >&2
+    exit "$EX_AUTH"
+  fi
+  printf '%s' "$token"
+}
+
+# wit_jira_b64 <text> — base64 of stdin text, single line, portable across coreutils
+# (-w0) and BSD/mac base64 (no -w flag).
+wit_jira_b64() {
+  if printf '%s' "$1" | base64 -w0 2>/dev/null; then return 0; fi
+  printf '%s' "$1" | base64 | tr -d '\n'
+}
+
+# wit_jira_http <method> <path> [<json-body>] — call the Jira Cloud REST v3 API at
+# https://<site>/rest/api/3<path>. The Basic auth header is fed through curl's stdin
+# config (-K -) so the base64(email:token) credential never appears in argv. Captures
+# the response body to WIT_JIRA_BODY and the HTTP status to WIT_JIRA_STATUS; on a
+# curl transport failure (no status) exits 8. HTTP-status→exit-code mapping is left
+# to the caller via wit_jira_require_ok so it can attach verb-specific context.
+wit_jira_http() {
+  local method="$1" path="$2" body="${3:-}"
+  local url="https://$WIT_JIRA_SITE/rest/api/3$path"
+  local token auth raw rc
+  token="$(wit_jira_token)" || exit "$?"
+  auth="$(wit_jira_b64 "$WIT_JIRA_AUTH_EMAIL:$token")"
+  local curl_args=(-sS -X "$method" -H "Accept: application/json" -w $'\n%{http_code}' -K -)
+  if [[ -n "$body" ]]; then
+    curl_args+=(-H "Content-Type: application/json" --data "$body")
+  fi
+  raw="$(printf 'header = "Authorization: Basic %s"\nurl = "%s"\n' "$auth" "$url" |
+    "$WIT_JIRA_CURL_BIN" "${curl_args[@]}" 2>/dev/null)"
+  rc=$?
+  if ((rc != 0)); then
+    printf 'jira: request to %s failed (curl exit %s) — network or endpoint unavailable\n' "$path" "$rc" >&2
+    exit "$EX_UNAVAILABLE"
+  fi
+  WIT_JIRA_STATUS="${raw##*$'\n'}"
+  WIT_JIRA_BODY="$(printf '%s' "${raw%$'\n'*}" | wit_strip_cr)"
+}
+
+# wit_jira_require_ok <context> — map WIT_JIRA_STATUS to a contract exit code,
+# printing WIT_JIRA_BODY's error text to stderr on failure. 2xx returns 0.
+wit_jira_require_ok() {
+  local ctx="$1" code="$WIT_JIRA_STATUS"
+  case "$code" in
+  2*) return 0 ;;
+  401 | 403)
+    printf 'jira: %s — authentication/authorization failed (HTTP %s)\n' "$ctx" "$code" >&2
+    exit "$EX_AUTH"
+    ;;
+  404)
+    printf 'jira: %s — not found (HTTP 404)\n' "$ctx" >&2
+    exit "$EX_NOT_FOUND"
+    ;;
+  429)
+    printf 'jira: %s — rate limited (HTTP 429); retry later\n' "$ctx" >&2
+    exit "$EX_UNAVAILABLE"
+    ;;
+  5*)
+    printf 'jira: %s — server error (HTTP %s)\n' "$ctx" "$code" >&2
+    exit "$EX_UNAVAILABLE"
+    ;;
+  *)
+    printf 'jira: %s — unexpected response (HTTP %s): %s\n' "$ctx" "$code" "$WIT_JIRA_BODY" >&2
+    exit "$EX_INTERNAL"
+    ;;
+  esac
+}
+
+# The fields the normalized item object is derived from (CONTRACT.md "JSON output
+# contract"). issuelinks carries each blocker's nested status inline (verified
+# against the official OpenAPI spec: LinkedIssue.fields uses the Fields schema, which
+# includes status.statusCategory), so blocked_by_count needs no second round-trip.
+readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,summary,created"
+# WIT_JIRA_FIELDS and WIT_JIRA_NORMALIZE_PROGRAM (below) are consumed by the sourcing
+# verb scripts, not within this file; export so a standalone lint of this sourced-only
+# file sees them as intentionally external.
+export WIT_JIRA_FIELDS
+
+# wit_jira_blocker_resolutions — stdin: one raw Jira IssueBean or an array of them;
+# stdout: a JSON object keyed by done inward-blocker key, each {class: "resolved" |
+# "wont_do" | "blocking"}. An issue link carries the blocker's status but not its
+# resolution, so the resolutions come from POST /search/jql with fields=resolution,
+# one query per 100 keys. No query is made when config.jira.resolutions is absent
+# (won't-do detection off, stdout `{}`) or there is no done blocker. Only blockers in
+# config.jira.project_keys are looked up (the declared read scope); others are left out
+# and stay resolved. The class comes from the resolution id: in wont_do → wont_do; in
+# completed, or no resolution → resolved; any other id → blocking (fail closed), named
+# on stderr. A failed query keeps every key in it blocking (a 400 on one bad key fails
+# the whole chunk), and a key the search did not return keeps blocking; both warn on
+# stderr.
+wit_jira_blocker_resolutions() {
+  local json keys n i chunk jql body out page res missing
+  json="$(cat)"
+  if [[ "$WIT_JIRA_RESOLUTIONS" == "null" ]]; then
+    printf '{}'
+    return 0
+  fi
+  keys="$(jq -c --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" --argjson dk "$WIT_JIRA_DONE_KEYS" \
+    --argjson pk "$WIT_JIRA_PROJECT_KEYS" --arg re "$WIT_JIRA_ISSUE_KEY_RE" '
+    [(if type == "array" then .[] else . end) | (.fields.issuelinks // [])[]
+      | select(.type.name == $blk and .inwardIssue != null) | .inwardIssue
+      | select(.fields.status.statusCategory.key as $bk | ($dk | index($bk)) != null) | .key
+      | select(type == "string" and test($re)) | select(split("-")[0] as $p | ($pk | index($p)) != null)]
+    | unique' <<<"$json")"
+  res="$(jq -c 'map({key: ., value: {class: "blocking"}}) | from_entries' <<<"$keys")"
+  n="$(jq 'length' <<<"$keys")"
+  for ((i = 0; i < n; i += 100)); do
+    chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$keys")"
+    jql="key in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$chunk"))"
+    body="$(jq -cn --arg jql "$jql" --argjson mr "$(jq 'length' <<<"$chunk")" \
+      '{jql: $jql, fields: ["resolution"], maxResults: $mr}')"
+    if out="$(wit_jira_http POST "/search/jql" "$body" 2>/dev/null && [[ "$WIT_JIRA_STATUS" == 2* ]] &&
+      printf '%s' "$WIT_JIRA_BODY")" &&
+      page="$(jq -ce --argjson rs "$WIT_JIRA_RESOLUTIONS" --argjson chunk "$chunk" '
+        if (.issues | type) == "array" then
+          [.issues[] | .key as $k | select(any($chunk[]; . == $k))
+            | (.fields.resolution // null) as $r
+            | {key: $k, value: (
+                if $r == null then {class: "resolved"}
+                elif any($rs.wont_do[]; . == ($r.id | tostring)) then {class: "wont_do"}
+                elif any($rs.completed[]; . == ($r.id | tostring)) then {class: "resolved"}
+                else {class: "blocking", unclassified: {id: ($r.id // null), name: ($r.name // null)}} end)}]
+          | from_entries
+        else error("no issues array") end' <<<"$out" 2>/dev/null)"; then
+      res="$(jq -cn --argjson acc "$res" --argjson page "$page" '$acc + $page')"
+      missing="$(jq -r --argjson page "$page" 'map(select(. as $k | $page | has($k) | not)) | join(", ")' <<<"$chunk")"
+      [[ -z "$missing" ]] ||
+        echo "wit_jira_blocker_resolutions: the resolution query did not return $missing; they keep blocking" >&2
+    else
+      echo "wit_jira_blocker_resolutions: resolution query failed; its $(jq 'length' <<<"$chunk") done blocker(s) keep blocking" >&2
+    fi
+  done
+  jq -r 'to_entries[] | select(.value.unclassified) | .value.unclassified as $u
+    | "wit_jira_blocker_resolutions: blocker \(.key) has resolution \($u.name) (id \($u.id)), which config.jira.resolutions does not classify; it keeps blocking. Classify it with /work-items:setup apply."' \
+    <<<"$res" >&2
+  printf '%s' "$res"
+}
+
+# wit_jira_normalize_program — a jq program that maps one raw Jira IssueBean into the
+# seam's normalized item object (CONTRACT.md "JSON output contract"). Expects jq args
+# $sv (schema version), $site (Cloud host), $dk (JSON array of done statusCategory
+# keys), $blk (blocker link-type name), $res (wit_jira_blocker_resolutions output).
+# blocked_by_count counts OPEN inward blockers plus done ones whose class is not
+# resolved; blocked_by_wont_do_count counts the done ones classed wont_do. A done
+# blocker missing from $res (detection off, or out of the declared scope) is resolved.
+# WIT_JIRA_NORMALIZE_PROGRAM is consumed by the sourcing verb scripts (get-item,
+# list-items), not within this file — SC2034 is a false positive on a sourced-only
+# lib. It is a jq program string, so it is not exported (an exported quoted program
+# trips SC2089/2090); the disable marks it intentionally external instead.
+# shellcheck disable=SC2016,SC2034  # jq program — $sv/$site/$dk/$blk/$res are jq args, not bash; used by verb scripts
+readonly WIT_JIRA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
+  def keyparts: (capture("^(?<p>[A-Za-z][A-Za-z0-9_]*)-(?<n>[0-9]+)$")
+    // error("jira: unparsable issue key: " + (. | tostring)));
+  def qualify: (keyparts | "jira:" + $site + "/" + .p + "#" + .n);
+  def blockers: [(.fields.issuelinks // [])[]
+    | select(.type.name == $blk and (.inwardIssue != null)) | .inwardIssue];
+  def done: (.fields.status.statusCategory.key) as $bk | ($dk | index($bk)) != null;
+  def class: .key as $k | ((if ($k | type) == "string" then $res[$k].class else null end) // "resolved");
+  {
+    schema_version: $sv,
+    id: (.key | qualify),
+    title: (.fields.summary // ""),
+    state: ((.fields.status.statusCategory.key) as $k
+      | if ($dk | index($k)) then "closed" else "open" end),
+    assignees: [ .fields.assignee.accountId // empty ],
+    labels: (.fields.labels // []),
+    type: (.fields.issuetype.name // null),
+    blocked_by_count: ([blockers[] | select((done | not) or class != "resolved")] | length),
+    blocked_by_wont_do_count: ([blockers[] | select(done and class == "wont_do")] | length),
+    parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
+    url: ("https://" + $site + "/browse/" + .key),
+    created_at: (.fields.created | wit_utc_ts)
+  }'

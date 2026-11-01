@@ -125,8 +125,18 @@ For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant
 - A usage or rate limit not marked partial, `kept local` versus publishing, and `init` needing a
   terminal: the plugin-evals page's troubleshooting entry for a usage or rate limit, its HTML-report
   section, and its "Write a case manually" and CI sections, verified 2026-09-13.
-- A headless `-p` session that backgrounded the CLI call exited and killed the run (empty `out/`,
-  no JSON), observed 2026-09-13 and 2026-10-04.
+- A headless `-p` session that backgrounded the CLI call exited, and the run ended unfinished
+  (2026-09-13: empty `out/`, no JSON; 2026-10-04: three runs partial, interrupted, INVALID),
+  seen on the versions current then. Which way those runs backgrounded the call is not
+  recorded, so they do not show why the runs died.
+- 2.1.316, a host probe on a throwaway one-case plugin, 2026-10-31: a `claude -p` session told to
+  start the command through the Bash tool with `run_in_background`, answer at once and not wait,
+  stayed open until the command ended. A `claude plugin eval` run (one case, two runs, 12 s)
+  exited 0 with `partial: false` and wrote its results JSON; a `sleep 120` stand-in wrote its
+  marker. A shell-level `(sleep 60; ...) &` inside a foreground Bash call got no wait: the
+  session answered and exited about a minute before the child wrote its marker. That arm was a
+  stand-in, not `claude plugin eval`. No arm tested a time limit. Recheck: re-run the three arms
+  on a release that touches background tasks or `-p` exit.
 
 ## Cost anchors
 

@@ -3,6 +3,15 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.1.1] - 2026-11-01
+
+### Fixed
+
+- The observer-agents row in `audit-performance`'s known issues now carries an as-of date, the
+  binary version it was read from, and a recheck trigger. `known-issues` describes the flagged-message
+  setting as the choice it is, not an on/off toggle, and the `lanes` config table points at the
+  model-alias table ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
 ## [5.1.0] - 2026-11-01
 
 ### Added

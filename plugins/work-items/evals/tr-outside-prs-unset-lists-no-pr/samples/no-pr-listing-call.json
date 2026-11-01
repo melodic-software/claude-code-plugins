@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/triage/scripts/parse-concern-value.sh\" docs/conventions/work-items.yaml triage_outside_prs"
+          }
+        }
+      ],
+      "why": "settings read"
+    },
+    {
+      "answer": [],
+      "why": "uses the given listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --state open --json number,title,author"
+          }
+        }
+      ],
+      "why": "lists PRs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/o/r/pulls?state=open"
+          }
+        }
+      ],
+      "why": "lists PRs through the API"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api \"repos/o/r/pulls?state=open\""
+          }
+        }
+      ],
+      "why": "quoted API path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh search prs --repo o/r --state open"
+          }
+        }
+      ],
+      "why": "PR search"
+    }
+  ]
+}

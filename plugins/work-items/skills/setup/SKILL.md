@@ -51,8 +51,10 @@ directory or any machine-local state.
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
 repo, declared in the tracked `.work-item-tracker.json` at the project root (resolved as `BINDING`
 above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
-(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, `jira`, `gitea`, and `linear`
-adapters. Installing the plugin is enough; a repo only declares which one it uses. Binding shape, discovery, and
+(exit 3). The seam **ships with this plugin** and bundles two adapters, `github` and `local-markdown`;
+for those, installing the plugin is enough and a repo only declares which one it uses. `jira`, `gitea`,
+and `linear` ship as **seeds**, which step 4 copies into the consuming repo, where the repo owns them.
+Binding shape, discovery, and
 adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
 "Setup (binding file)" and "Adapter resolution".
@@ -64,7 +66,8 @@ when this pass must stop instead of guessing.
 
 1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
    bound `provider` and `config`. RECOMMENDED: keep it. Re-bind only to switch providers or fix
-   config. If it is absent, say so and continue to the interview.
+   config. Keeping a binding to a seeded provider still runs step 4's seed copy, attended or not.
+   If it is absent, say so and continue to the interview.
 2. **Choose the provider**, recommendation first. One line each below; the selection detail,
    how to verify a `github` bind, what each provider can and cannot do, and every config key,
    is `reference/providers.md`. Read it before recommending, and cite it when explaining a
@@ -82,7 +85,7 @@ when this pass must stop instead of guessing.
      leases and no sub-items**, so `/work-items:work` cannot claim on it.
    - **another provider**. Put its adapter consumer-local under
      `<repo root>/tools/work-item-tracker/adapters/<provider>/`; the seam resolves those ahead of
-     the bundled set, so no fork is needed. `/work-items:onboard-adapter` (if installed) generates
+     the bundled pair, so no fork is needed. `/work-items:onboard-adapter` (if installed) generates
      one rather than starting from a blank file.
 3. **Settle the config, all non-secret.** `lease_ttl_hours` (REQUIRED for every provider;
    RECOMMENDED `24`) plus that provider's own subtree, the per-provider key table is in
@@ -97,6 +100,16 @@ when this pass must stop instead of guessing.
    other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and, unless one
    already exists, the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)"). Confirm
    tracked-not-ignored via the pair: `git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
+   **For a seeded provider** (`jira`, `gitea`, `linear`), whether this step wrote the binding or
+   step 1 kept it, copy its seed by running
+   `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/seed-copy.sh" <provider>` from the project
+   root; the seam exits 3 for that provider until the copy exists. Its first stdout line is the outcome
+   (the table is in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/seeds/README.md`):
+   - `copied`, `up-to-date`, or `fast-forwarded` (exit 0): report it, and say the copy under
+     `tools/work-item-tracker/adapters/<provider>/` is the consumer's to commit and own.
+   - `edited` (exit 1): someone changed the copy, so nothing was written. Show the diff that follows
+     and stop this step; never delete or overwrite the copy to force an update. With no interactive
+     user, report it as a finding and continue with the existing copy.
 5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
    (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
    at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
@@ -419,9 +432,9 @@ token resolving in a supporting file or in the Bash tool.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 - Duplicate the per-item `add --recurring` path, that path stays for filing a single recurring item;
   setup is the bulk path that seeds or reshapes the whole schedule, opt-in on a first-time bind.
-- Author or vendor a provider adapter, the seam ships the bundled adapters named under "Provider
-  binding" (`github`, `local-markdown`, `jira`, `gitea`, `linear`); a consumer-supplied adapter lives
-  in the consuming repo at
+- Author a provider adapter. The seam bundles `github` and `local-markdown`, and setup only copies
+  the `jira`, `gitea`, or `linear` seed (step 4 of "Provider binding"); any other adapter lives in the
+  consuming repo at
   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
 - Store secrets, the binding is tracked in git and carries non-secret config only (a provider token is
   referenced by name from inside its adapter, never written here).

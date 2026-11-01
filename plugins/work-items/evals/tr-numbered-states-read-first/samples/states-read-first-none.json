@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Read first: glossary none, ADRs none, scope none",
+      "why": "template line"
+    },
+    {
+      "answer": "**Read first:** glossary `none`, ADRs `none`, scope `none`\n\nRecommendation: Bug, priority: medium, needs reproduction.",
+      "why": "bold label and code spans"
+    },
+    {
+      "answer": "- Read first: glossary: none, ADR: none, scope: none (searched README*, docs/)",
+      "why": "colon form with a search note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Read first: glossary docs/glossary.md, ADRs none, scope none",
+      "why": "names a glossary the empty workspace does not hold"
+    },
+    {
+      "answer": "Recommendation: Bug, priority: medium. No glossary, ADRs or scope statement found.",
+      "why": "no Read first line"
+    },
+    {
+      "answer": "Read first: glossary none, ADRs none",
+      "why": "scope left out"
+    }
+  ]
+}

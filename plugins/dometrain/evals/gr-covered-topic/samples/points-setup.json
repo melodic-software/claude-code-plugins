@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/dometrain:setup` to check the server.",
+      "why": "slash form"
+    },
+    {
+      "answer": "## Next step\n\n**dometrain:setup** reports whether the tools are reachable.",
+      "why": "unslashed skill key in a heading section"
+    },
+    {
+      "answer": "| Next | Run the Dometrain setup skill |",
+      "why": "prose form in a table"
+    },
+    {
+      "answer": "- The setup command for the dometrain plugin will tell you what is missing.",
+      "why": "setup command ... dometrain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /mcp to see the server state.",
+      "why": "points elsewhere"
+    },
+    {
+      "answer": "Register the server with claude mcp add-json dometrain and restart.",
+      "why": "registration command, not the setup skill"
+    },
+    {
+      "answer": "You may want to set up the Dometrain MCP server first.",
+      "why": "verb set up, no setup skill named"
+    },
+    {
+      "answer": "The Dometrain tools are not available.",
+      "why": "status only"
+    }
+  ]
+}

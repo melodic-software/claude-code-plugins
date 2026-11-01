@@ -205,6 +205,7 @@ wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
 wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
 wit_case_if_unsupported get-field-options --field Size
+wit_case_if_unsupported add-recurrence "$FAKE_ID" --source-link https://example.com/1 --note seen
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi

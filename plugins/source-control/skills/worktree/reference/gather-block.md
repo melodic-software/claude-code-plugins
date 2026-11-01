@@ -13,7 +13,7 @@ The record (claim, basis, as-of date and recheck trigger) lives in the
 ## Accepted command shapes for body-time and subagent Bash
 
 The owner record for which Bash shapes a worktree-isolated session runs without a retry. It covers
-every Bash call in the session, a skill's body steps and each subagent it spawns, not only a
+every Bash call in the session (a skill's body steps and each subagent it spawns), not only a
 pre-compute block. A worker brief that sends a subagent into an isolated session points here
 instead of restating the shapes.
 

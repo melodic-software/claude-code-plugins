@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "report run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "diff -u /opt/p/skills/sync/vendor/SKILL.md /tmp/run/upstream.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "diff read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/p/skills/sync/vendor/SKILL.md > /tmp/run/baseline.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies out to temp via redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/p/skills/sync/vendor/SKILL.md /tmp/run/baseline.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -fsSL https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md > /opt/p/skills/sync/vendor/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect onto vendor"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/run/upstream.md /opt/p/skills/sync/vendor/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp onto vendor"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/^  synced: .*/  synced: \"2026-10-31\"/' /opt/p/skills/grounding/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i on grounding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/run/upstream.md | tee /opt/p/skills/sync/vendor/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    }
+  ]
+}

@@ -145,15 +145,15 @@ esac
 bot=${LANES_BOT_LOGIN:-melodic-automation-lanes[bot]}
 issue="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER"
 dispatch="gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity"
+tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
+label=needs-human
+if [[ -f $tracker ]]; then
+  label=$(jq -er '.config.role_labels // {}
+    | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
+    die "cannot read the human-gated role label from $tracker"
+fi
 
 if [[ $route == hold ]]; then
-  tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
-  label=needs-human
-  if [[ -f $tracker ]]; then
-    label=$(jq -er '.config.role_labels // {}
-      | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
-      die "cannot read the human-gated role label from $tracker"
-  fi
   marker='<!-- work-items:escalation lane=pr-unblock kind=escalated -->'
   key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
   labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
@@ -192,9 +192,9 @@ if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
   # pages and the comment says so.
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
-    reviewThreads(first: 100, after: $endCursor) { nodes { isResolved path line comments(first: 1) { nodes { url } } } pageInfo { hasNextPage endCursor } } } } }'
+    author { login } reviewThreads(first: 100, after: $endCursor) { nodes { isResolved path line comments(first: 1) { nodes { url } } } pageInfo { hasNextPage endCursor } } } } }'
   MAX_THREAD_PAGES=10
-  nodes='[]' cursor='' unread=false read_ok=true
+  nodes='[]' cursor='' unread=false read_ok=true lane_pr=false
   for ((page_n = 1; ; page_n++)); do
     args=(-f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER")
     [[ -n $cursor ]] && args+=(-f endCursor="$cursor")
@@ -203,6 +203,11 @@ if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
       ! next=$(jq -er '.data.repository.pullRequest.reviewThreads.pageInfo | if .hasNextPage then .endCursor else "" end' <<<"$page"); then
       read_ok=false
       break
+    fi
+    # The first page names the author: GraphQL gives an App's login without
+    # the [bot] suffix. One that does not read is not the lanes App's.
+    if ((page_n == 1)) && [[ $(jq -r '.data.repository.pullRequest.author.login // ""' <<<"$page") == "${bot%\[bot\]}" ]]; then
+      lane_pr=true
     fi
     [[ -n $next ]] || break
     if ((page_n >= MAX_THREAD_PAGES)); then
@@ -263,7 +268,12 @@ if [[ $route == fail ]]; then
     labels_line="The lane labels it \`$session_label\` for a session builder, who makes the change this lane cannot, and the run"
   fi
   more=''
-  if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
+  next_text='When a retry on this head can change the outcome, the lane runs one on its own, up to its per-head cap, and edits this comment if it stops again; a run that does not stop clears the status. When no retry can (a review thread the lane does not take or settle, or a failing check after the retries are spent), a person resolves the threads or gets the checks green, then dispatches the workflow below: that run finds the cause gone and clears the status. On a pull request the lanes App opened, the dispatchers start that run once per stop; on any other, a person does. A new commit to the branch starts clean.'
+  if [[ $ESCALATION_REASON == feedback-not-converging && ${lane_pr:-false} == true ]]; then
+    # The pr-merge lane closes a lanes App pull request stopped here and
+    # re-admits its issue (enable-auto-merge.mjs notConverging).
+    next_text="The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt. To keep it open for one more round, first add \`$label\`, which holds the close but not a requested round, then reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\`. \`do-not-merge\` holds the close too, but it also stops the lane's rounds, so with it a person resolves the threads and dispatches the workflow below before removing it."
+  elif [[ $ESCALATION_REASON == feedback-not-converging ]]; then
     more=" A reply on a thread, from an account with write access, starting \`PR-fix lane: please fix this finding\` grants one more round on that thread."
   fi
   cat >"$body" <<EOF
@@ -273,7 +283,7 @@ The pr-unblock lane stopped \`$activity\` on this pull request: $why. $labels_li
 - Reason: \`$ESCALATION_REASON\`
 - Head: \`$HEAD_SHA\`
 $run_line$details
-When a retry on this head can change the outcome, the lane runs one on its own, up to its per-head cap, and edits this comment if it stops again; a run that does not stop clears the status. When no retry can (a review thread the lane does not take or settle, or a failing check after the retries are spent), a person resolves the threads or gets the checks green, then dispatches the workflow below: that run finds the cause gone and clears the status. On a pull request the lanes App opened, the dispatchers start that run once per stop; on any other, a person does. A new commit to the branch starts clean.$more
+$next_text$more
 
 To run it again on this head now, dispatch the \`pr-unblock\` workflow:
 

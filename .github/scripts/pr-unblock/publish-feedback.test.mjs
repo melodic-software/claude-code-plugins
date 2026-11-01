@@ -1621,6 +1621,26 @@ test("a pass-only round resolves each listed fail-note thread still open from an
   assert.equal(result.escalationReason, "");
 });
 
+// The select job names the head in superseded_head only when the gate's
+// reader found the FAIL there superseded; without it a note on the passing
+// head stays open.
+test("a pass-only round resolves a fail-note thread at the passing head only when run.json names that head superseded", async () => {
+  const threads = () => [noteThread("PRRT_old"), noteThread("PRRT_now", { commit: NOW })];
+  const superseded = staleApi(threads());
+  await run(superseded, null, JSON.stringify({ version: 1, head_sha: NOW, pr_paths: [], threads: [], stale_notes: ["PRRT_old", "PRRT_now"], superseded_head: NOW }));
+  assert.deepEqual(superseded.resolved(), ["PRRT_old", "PRRT_now"]);
+  const not = staleApi(threads());
+  await run(not, null, staleRun(["PRRT_old", "PRRT_now"]));
+  assert.deepEqual(not.resolved(), ["PRRT_old"]);
+  const elsewhere = staleApi(threads());
+  await run(elsewhere, null, JSON.stringify({ version: 1, head_sha: NOW, pr_paths: [], threads: [], stale_notes: ["PRRT_old", "PRRT_now"], superseded_head: GATED }));
+  assert.deepEqual(elsewhere.resolved(), ["PRRT_old"]);
+  const malformed = fakeApi();
+  const result = await run(malformed, null, JSON.stringify({ version: 1, head_sha: NOW, pr_paths: [], threads: [], stale_notes: ["PRRT_now"], superseded_head: "yes" }));
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.deepEqual(malformed.resolved(), []);
+});
+
 test("a pass-only round re-run with nothing left open resolves none and succeeds", async () => {
   const api = staleApi([noteThread("PRRT_old", { resolved: true })]);
   const result = await run(api, null, staleRun(["PRRT_old"]));

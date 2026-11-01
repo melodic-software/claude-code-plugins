@@ -11,6 +11,7 @@
     "review-threads": { "$ref": "#/$defs/row" },
     "dependency-review": { "$ref": "#/$defs/row" },
     "merge-base": { "$ref": "#/$defs/row" },
+    "shared-copies": { "$ref": "#/$defs/row" },
     "docs": { "$ref": "#/$defs/row" },
     "default": { "$ref": "#/$defs/row" },
     "issue": { "$ref": "#/$defs/row" }
@@ -46,8 +47,8 @@
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["any", "markdown", "kept-threads", "dependency-manifests", "merge-result"] },
-          "description": "What a path the refusals pass must also meet. any: nothing more; markdown: a path ending in .md, in that case; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules."
+          "items": { "enum": ["any", "markdown", "kept-threads", "dependency-manifests", "merge-result", "shared-copies"] },
+          "description": "What a path the refusals pass must also meet. any: nothing more; markdown: a path ending in .md, in that case; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules; shared-copies: a copy the base-tip scripts/shared-copies.txt registers."
         },
         "max-files": {
           "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
@@ -104,6 +105,10 @@
         "content-rule": {
           "enum": ["dependency-version-change", "pr-mode-revert"],
           "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal). pr-mode-revert: a file whose mode changes between 100644 and 100755 takes the mode the path has at the merge base of the PR head and its base, read through the GitHub API; content-only changes read nothing."
+        },
+        "clean-patch": {
+          "const": true,
+          "description": "A merge row whose clean merge takes the producer's patch (the base's sync-shared-copies.sh output), allowed only as shared-copies."
         },
         "skip-moved-head": {
           "type": "boolean",

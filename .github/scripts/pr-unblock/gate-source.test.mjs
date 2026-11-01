@@ -75,7 +75,7 @@ test("escalation-routes.json routes every reason the write runner accepts, each 
   assert.ok(accepted.length > 30, `read ${accepted.length} reasons from the enum`);
   assert.deepEqual([...new Set(accepted)].sort(), Object.keys(ROUTES).sort());
   for (const [reason, entry] of Object.entries(ROUTES)) {
-    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci"].includes(entry.activity), reason);
+    assert.ok(["resolve-conflicts", "address-feedback", "review-dependency", "fix-ci", "sync-shared-copies"].includes(entry.activity), reason);
     assert.ok(["hold", "fail"].includes(entry.route), reason);
     // Only a fail route names a label, the session-builder queue's.
     assert.ok(!Object.hasOwn(entry, "label") || (entry.route === "fail" && entry.label === "needs-session"), reason);
@@ -420,4 +420,51 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
     { owner: "o", name: "r", number: 7, after: null },
     { owner: "o", name: "r", number: 7, after: "c1" },
   ]);
+});
+
+// pr-merge's shared-copy escalation as babysit_merge.py writes it: the comment,
+// then the label.
+const sharedCopy = (head = HEAD, reason = "shared-copy-sources-changed:lib/x.sh changed on main since merge base c", at = "2026-10-18T09:59:58Z") =>
+  commented(
+    APP,
+    `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the shared-library canonical source \`lib/x.sh\` changed on \`main\` since merge base \`c\`, so the generated copies this pull request carries are stale at head \`${head}\`.\n\nRefusal: \`${reason}\`\n\nUpdating the branch from the base cannot regenerate them.`,
+    at,
+  );
+const refused = (comment = sharedCopy()) => [comment, label("labeled", APP, "2026-10-18T10:00:00Z")];
+
+test("pr-merge's shared-copy refusal lets sync-shared-copies past the label, and no other activity", () => {
+  assert.equal(allows(refused(), "sync-shared-copies"), true);
+  for (const activity of ["resolve-conflicts", "fix-ci", "fix-docs", "address-feedback"]) {
+    assert.equal(allows(refused(), activity), false, activity);
+  }
+});
+
+test("sync-shared-copies stays held unless the refusal names this head, this reason, and the lanes App paired it with the label", () => {
+  assert.equal(allows(refused(sharedCopy(OLD)), "sync-shared-copies"), false);
+  assert.equal(allows(refused(sharedCopy(HEAD, "check-inputs-changed:x changed on main")), "sync-shared-copies"), false);
+  assert.equal(allows(refused(sharedCopy(HEAD, undefined, "2026-10-18T09:50:00Z")), "sync-shared-copies"), false);
+  assert.equal(allows([sharedCopy(), label("labeled", OWNER, "2026-10-18T10:00:00Z")], "sync-shared-copies"), false);
+  assert.equal(allows(refused({ ...sharedCopy(), user: OWNER }), "sync-shared-copies"), false);
+  // A pr-unblock escalation alone is not pr-merge's refusal.
+  assert.equal(allows([label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("unresolved-conflict")], "sync-shared-copies"), false);
+});
+
+test("sync-shared-copies stays held once a person spoke or another lane marked the PR since the label", () => {
+  assert.equal(allows([...refused(), commented(OWNER, "wait", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
+  assert.equal(allows(refused(), "sync-shared-copies", { reviews: [{ user: OWNER, submitted_at: "2026-10-18T11:00:00Z" }] }), false);
+  assert.equal(allows([...refused(), escalated("unresolved-conflict", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
+});
+
+// A review lane, check-signed-commits or pr-verify posts its hold while the
+// label is already on, so the hold adds no `labeled` event.
+test("sync-shared-copies stays held by a review-lane, signed-commits or credential hold posted after the refusal", () => {
+  const at = "2026-10-18T10:05:00Z";
+  for (const [why, comment] of [
+    ["claude[bot] review hold", commented({ login: "claude[bot]", id: 2, type: "Bot" }, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->\nHeld.`, at)],
+    ["github-actions[bot] review hold on an older head", hold(OLD, at)],
+    ["signed-commits hold", signedHold(ACTIONS, at)],
+    ["credential hold", commented(ACTIONS, `${CREDENTIAL_HOLD}\nReason: \`security\``, at)],
+  ]) {
+    assert.equal(allows([...refused(), comment], "sync-shared-copies"), false, why);
+  }
 });

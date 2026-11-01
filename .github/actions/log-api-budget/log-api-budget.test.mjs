@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
@@ -385,8 +385,14 @@ test("the action emits each named token, the call count as an api-calls notice t
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
-    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
-    assert.ok(block, "ci-status emits its notices in one block");
+    // ci-status is the workflow's last job, and its notices come from its last
+    // step, which runs on failure too, so every earlier step's reads are in them.
+    const job = CI.slice(CI.indexOf("\n  ci-status:\n"));
+    assert.equal(job.match(/api_budget_emit github-token;/g)?.length, 1, "ci-status emits its notices once");
+    const last = job.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
+    assert.match(last, /^Log the API budget at the end\n {8}if: always\(\)\n/, "ci-status ends with the log step");
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n?)$/.exec(last);
+    assert.ok(block, "the log step emits its notices in one block");
     const out = execFileSync("bash", ["-c", block[1]], {
       encoding: "utf8",
       env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
@@ -1111,12 +1117,38 @@ test("ci-status sets the shell limit cap to github-token's limit-cap default", (
   assert.equal(Number(cap[1]), apiLimits({ resolvedPath: "" })["github-token"]["limit-cap"]);
 });
 
-// ci-status has no checkout of rate-limits.json, so its wrapper's floor is set in
-// the job env, pinned here to the rate-limits.json default the Node guard reads.
+// ci-status's shell wrapper reads no rate-limits.json, so its floor is set in the
+// job env, pinned here to the rate-limits.json default the Node guard reads.
 test("ci-status sets the shell read floor to the read-floor default", () => {
   const floor = /\n {6}API_BUDGET_READ_FLOOR: "?([0-9.]+)"?\n/.exec(CI);
   assert.ok(floor, "ci-status sets API_BUDGET_READ_FLOOR");
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);
+});
+
+// rate-guard.mjs reads its defaults from rate-limits.json beside it; a path list
+// (a sparse checkout) that ships the guard without them leaves the read floor
+// unchecked. A list is the run of lines at the guard line's indent.
+test("every path list naming rate-guard.mjs also names rate-limits.json", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  let lists = 0;
+  for (const file of readdirSync(dir).filter((name) => name.endsWith(".yml"))) {
+    const lines = readFileSync(new URL(file, dir), "utf8").split("\n");
+    lines.forEach((line, at) => {
+      const [, pad] = /^( +)\/?\.github\/actions\/log-api-budget\/rate-guard\.mjs$/.exec(line) ?? [];
+      if (pad === undefined) return;
+      const inList = (other) => other.startsWith(pad) && other[pad.length] !== " " && other.trim() !== "";
+      let start = at;
+      let end = at;
+      while (start > 0 && inList(lines[start - 1])) start -= 1;
+      while (end + 1 < lines.length && inList(lines[end + 1])) end += 1;
+      lists += 1;
+      assert.ok(
+        lines.slice(start, end + 1).some((other) => /log-api-budget\/rate-limits\.json$/.test(other)),
+        `${file}:${at + 1} lists rate-guard.mjs without rate-limits.json`,
+      );
+    });
+  }
+  assert.ok(lists >= 4, `found ${lists} lists naming rate-guard.mjs`);
 });
 
 test("ci-status and mark-lanes carry api-budget.bash verbatim in their API_BUDGET_SH env", () => {
