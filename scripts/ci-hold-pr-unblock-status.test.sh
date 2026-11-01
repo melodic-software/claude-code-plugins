@@ -40,10 +40,12 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}"* ]]; then
-  ok "step runs on every pull_request and merge_group run that is not cancelled"
+# A draft's ci-status passes by design (`Note a draft`), so the step makes no
+# read there; a merge group has no pull_request.draft, so the queue runs it.
+if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}"* ]]; then
+  ok "step runs on every pull_request and merge_group run that is not cancelled or a draft"
 else
-  fail "step lost its pull_request and merge_group condition"
+  fail "step lost its pull_request and merge_group condition or its draft skip"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"
