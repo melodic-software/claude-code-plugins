@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
-    run-validity <aggregate-result.json> --runs N [--scaffolded]
+    run-validity <aggregate-result.json> --runs N [--scaffolded] [--measured-fire CASE]...
 
 --runs is the run count the eval was invoked with (its --runs, else the case
 default). --scaffolded records that the eval was invoked with --scaffold, which
-the result file does not record. Reads the result file, each case's case.yaml,
+the result file does not record. --measured-fire names a should-trigger case
+whose firing is the quantity a comparison measures, such as the base side of a
+change that makes a skill fire; the skill-fired check reports its misses as a
+measured rate, as for an invocation probe, and every other check is unchanged. Reads the result file, each case's case.yaml,
 and, where each run's tracePath resolves, the kept trace (`--keep-temp`). A
 relative tracePath or suite root is read relative to the result file. Prints
 one line per check, detail lines indented under it:
@@ -53,8 +56,9 @@ one line per check, detail lines indented under it:
                       held; a should-fire miss with a denial takes the rules
                       above
     skill fired       every with-arm run of a should-trigger case fired the skill;
-                      in an invocation-probe case a miss is the trigger rate it
-                      measures, reported per case and overall as a warning
+                      in an invocation-probe case, or one named by
+                      --measured-fire, a miss is the trigger rate it measures,
+                      reported per case and overall as a warning
     probe tools       no invocation-probe run's session could call Read, Glob,
                       Grep or Agent, which the emitted README removes with
                       --disallow-tools; one that could is a warning naming that
@@ -1011,9 +1015,9 @@ def check_denials(runs, roots, root):
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 
 
-def check_fired(cases, runs, root):
+def check_fired(cases, runs, root, measured_fire=()):
     unfired, unread, controls, unknown, checked = [], [], [], [], 0
-    measured = {}  # invocation-probe case name -> [fired, with-arm runs]
+    measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
     for case in cases:
         requiring, _ = skill_graders(case, root)
         if is_control(case, root):
@@ -1022,7 +1026,7 @@ def check_fired(cases, runs, root):
         if not requiring:
             unknown.append(case.get(CASE_NAME))
             continue
-        probe = is_probe(case, root)
+        probe = is_probe(case, root) or case.get(CASE_NAME) in measured_fire
         for r in runs:
             if r.case is not case or r.arm != "with":
                 continue
@@ -1322,6 +1326,13 @@ def main(argv=None):
         action="store_true",
         help="the eval was invoked with --scaffold",
     )
+    parser.add_argument(
+        "--measured-fire",
+        action="append",
+        default=[],
+        metavar="CASE",
+        help="a should-trigger case whose firing is the quantity compared (repeatable)",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -1383,7 +1394,7 @@ def main(argv=None):
     later = [
         ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots, root)),
-        ("skill fired", check_fired(cases, runs, root)),
+        ("skill fired", check_fired(cases, runs, root, set(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),

@@ -1119,6 +1119,34 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertNotIn("unfired:", proc.stdout)
 
+    def test_an_unfired_case_named_measured_fire_is_its_measured_rate(self):
+        result = self.clean()
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        path = self.write(result)
+        proc = self.run_script(path, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        proc = self.run_script(
+            path, "--runs", "1", "--measured-fire", "noise-before-gain"
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check skill fired: WARN", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertNotIn("unfired:", proc.stdout)
+
+    def test_measured_fire_leaves_other_unfired_cases_invalid(self):
+        result = self.clean()
+        result["cases"][1]["arms"]["with"][0]["graders"][1]["passed"] = False
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        proc = self.run_script(
+            self.write(result), "--runs", "1", "--measured-fire", "noise-before-gain"
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("  unfired: case measurable-criterion, with-arm run 1", proc.stdout)
+        self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
+
     def test_an_unfired_case_beside_an_unfired_probe_is_still_invalid(self):
         result = self.clean()
         result["cases"][1]["arms"]["with"][0]["graders"][1]["passed"] = False
