@@ -1,7 +1,8 @@
 # Posting the video
 
-The video goes to the pull request through the user's own GitHub access; no new credential is
-created for it. Post only after the quality control and the independent review pass, including its check for
+In the local session and CI sections below, the video goes to the pull request through access
+that already exists (the user's own `gh` login, or the workflow's token); no new credential is
+created for it. The evidence step needs an identity of its own, described in its section. Post only after the quality control and the independent review pass, including its check for
 secrets, personal data and internal hosts in the frames. Record against fixture or test accounts so
 the video carries none to begin with.
 
@@ -23,6 +24,15 @@ In CI, upload the non-zipped artifact first (below) and add
 That step owns the verdict gate, the leak scan, the one-comment rule and the `gh` attach checks,
 and its report says whether the video was attached or left out. That call is the video's only
 post: when it refuses or leaves the video out, report its reason and post the video no other way.
+
+This route needs an identity that posts only evidence. The step edits the last comment of the
+account `gh` runs as, so its one-comment check refuses when that account has any other comment on
+the PR, and it expects a separate account with its own `GH_TOKEN`. The user's own login usually
+fails that check once it has commented on the PR (review replies, an earlier demo). On that
+refusal, report it and name the identity the step needs: an account that posts nothing on the PR
+but the evidence comment, run through its own `GH_TOKEN`. Do not create that account or token
+yourself.
+
 When the step does not resolve, or the demo is one a person asked for outside verification, use
 the sections below.
 
