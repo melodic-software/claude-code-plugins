@@ -2,15 +2,10 @@
   "skill": "mutation-testing:principles",
   "plugin": "mutation-testing",
   "skill_dir": "plugins/mutation-testing/skills/principles",
-  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are mutation-testing:audit (running mutation analysis on a diff or the code changed tests exercise, and triaging the surviving mutants), mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config), testing:test-value (what makes a test worth keeping: where expected values come from, when mock-call checks are legitimate), testing:audit (a static scan for tests that cannot fail), testing:plan (a test plan and coverage gaps for a change), testing:write (authoring new tests and placing them) and verification:measure (before-and-after baselines of performance, complexity or coverage). principles owns explaining mutation-testing theory from the primary literature: what the score says beyond coverage, what mutant states and dispositions mean, operator choice, gating on the score, and the underlying hypotheses.",
+  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitors only: mutation-testing:audit (running mutation analysis on a diff or the code changed tests exercise, and triaging the surviving mutants) and mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config). principles owns explaining mutation-testing theory from the primary literature: what the score says beyond coverage, what mutant states and dispositions mean, operator choice, gating on the score, and the underlying hypotheses.",
   "competitors": [
     "mutation-testing:audit",
-    "mutation-testing:setup",
-    "testing:test-value",
-    "testing:audit",
-    "testing:plan",
-    "testing:write",
-    "verification:measure"
+    "mutation-testing:setup"
   ],
   "queries": [
     {

@@ -2,15 +2,10 @@
   "skill": "mutation-testing:audit",
   "plugin": "mutation-testing",
   "skill_dir": "plugins/mutation-testing/skills/audit",
-  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are mutation-testing:principles (mutation-testing theory from the primary literature: what a score, a surviving or equivalent mutant, or an arid node means, and whether to gate on the score), mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config), testing:audit (a static scan for tests that cannot fail: assertion-free bodies, self-identical expectations, retry-masking runner configs), testing:cleanup (acting on low-value tests by rewriting, merging or deleting them behind a mutation gate), testing:write (authoring new tests and placing them), testing:plan (a test plan and coverage gaps for a change) and verification:measure (before-and-after baselines of performance, complexity or coverage). audit owns running mutation analysis on a diff or on the code changed tests exercise, and reporting and triaging the surviving mutants.",
+  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitors only: mutation-testing:principles (mutation-testing theory from the primary literature: what a score, a surviving or equivalent mutant, or an arid node means, and whether to gate on the score) and mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config). audit owns running mutation analysis on a diff or on the code changed tests exercise, and reporting and triaging the surviving mutants.",
   "competitors": [
     "mutation-testing:principles",
-    "mutation-testing:setup",
-    "testing:audit",
-    "testing:cleanup",
-    "testing:write",
-    "testing:plan",
-    "verification:measure"
+    "mutation-testing:setup"
   ],
   "queries": [
     {

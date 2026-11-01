@@ -1,5 +1,5 @@
 ---
-bump: none
+bump: patch
 ---
 
-Adds frozen trigger probes for the audit and principles skills; no skill text change, so no release.
+Shortens the audit and principles skill descriptions (audit 1007 to 530 characters, principles 795 to 511) after held-out trigger probes on Opus showed no lost trigger and no new false trigger, and adds frozen trigger probes for both skills.
