@@ -57,10 +57,10 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
      it. It is not a correctness prerequisite here, because the one control that needs a context
      which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
      **sibling** rather than the agent as a child. Note that a shell env var is read at session start,
-     so a value exported now takes effect next session; a settings-file `env` value can reach a
-     running session, with exceptions. Pointer:
-     [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files).
-     As of 2026-11-01; recheck when that section changes what a running session picks up.
+     so a value exported now takes effect next session. Whether a settings-file `env` value reaches
+     a running session is
+     [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files)'s
+     to state. As of 2026-11-01; recheck when that section changes what a running session picks up.
    - **Fork availability.** Report it as a control, not a gate: `CLAUDE_CODE_FORK_SUBAGENT=1` turns fork
      mode on in non-interactive mode and the SDK as well, and `=0` turns it off in every kind of
      session. When the variable is unset, the documented default is on in interactive sessions and
@@ -176,8 +176,7 @@ written path, and whether the file is tracked.
 
 - **Shell env vars are read at session start.** A capability the check reports as missing stays
   missing for the rest of this session even after it is exported in the shell; the recommendation
-  takes effect next session. A settings-file `env` value can reach a running session, with
-  exceptions, so whether a variable set that way applies now is
+  takes effect next session. Whether a variable set in a settings file's `env` applies now is
   [env vars: set variables in settings files](https://code.claude.com/docs/en/env-vars#set-variables-in-settings-files)'s
   to state (as of 2026-11-01; recheck when that section changes).
 - **The gate allow rules stop matching after a plugin update.** They name this version's cache
