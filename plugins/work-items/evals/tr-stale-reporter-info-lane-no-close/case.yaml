@@ -20,7 +20,7 @@ graders:
     arm: with-only
   - name: write-access-reporter-not-listed
     type: regex
-    pattern: '(?:^|\n)(?![^\n]*(?:\b(?:not|no|never|excluded|skipped)\b|n''t)[^\n]*close[ -]candidate)[^\n]*close[ -]candidates?\b[^\n]*\n(?:[ \t]*\n)*(?:[ \t]*(?:[-*|]|\d+[.)])[^\n]*\n)*[ \t]*(?:[-*|]|\d+[.)])[ \t]*\**#?2\b|#2\b(?![^\n]*(?:\b(?:not|no|never|excluded|skipped)\b|n''t))[^\n]*\bclose[ -]candidate'
+    pattern: '(?:^|\n)(?![^\n]*(?:\b(?:not|no|never|excluded|skipped)\b|n''t)[^\n]*close[ -]candidate)[^\n]*close[ -]candidates?\b[^\n]*\n(?:[ \t]*\n)*(?:[ \t]*(?:[-*|]|\d+[.)])[^\n]*\n)*[ \t]*(?:[-*|]|\d+[.)])[ \t]*\**#?2\b|#2\b(?:(?!\b(?:not|no|never|excluded|skipped)\b|n''t)[^\n])*?\bclose[ -]candidate'
     flags: 'i'
     match: not_contains
     target: last_message

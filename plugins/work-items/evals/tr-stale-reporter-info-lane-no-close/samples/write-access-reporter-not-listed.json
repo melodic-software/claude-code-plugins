@@ -39,6 +39,10 @@
       "why": "#2 called a candidate inline"
     },
     {
+      "answer": "#2 Invoice totals round wrong is also a close candidate (no reply in 297 days).",
+      "why": "#2 called a candidate inline with a negation word after the phrase"
+    },
+    {
       "answer": "Close candidates:\n- #2 Invoice totals round wrong\n- #1 Export sometimes hangs",
       "why": "#2 listed first"
     },
