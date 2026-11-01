@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: pt-observe-recommends
+description: "Head contract for the observe option, MB:plugins/prototype/skills/pressure-test/SKILL.md 'Observe: the agent runs the fork': the agent runs both variants of a fork a run settles (a quoted name with a comma inside), records behavior, output and timing per variant with the timing labeled unqualified, and recommends the variant the run supports."
+tags: [pressure-test, hard]
+runs: 3
+expected_outcome: "The agent runs both variants on the same rows and reports, for each variant, its behavior, its output and its timing, with the timing labeled unqualified. It ends with a recommendation naming the csv module variant and citing the observed evidence: str.split(',') splits the quoted name \"Smith, Jane\" into two fields while the csv module keeps it as one."
+execution:
+  prompt: "/prototype:pressure-test observe CSV import: should our importer split each line with str.split(',') or parse it with Python's csv module? Rows look like id,name,qty and some names are quoted with a comma inside, such as 7,\"Smith, Jane\",3. The project is plain Python 3."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 900

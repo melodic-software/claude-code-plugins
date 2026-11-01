@@ -4,8 +4,33 @@ Read-only access to SQL Server-family databases (a local SQL Server container, A
 for agents. The design is [ADR 0086](../../docs/adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md).
 
 This release ships the versioned config schema, its loader, the single-statement reject list, the
-stdio MCP server with its three tools, and the executor that runs each call on SQL Server through
-`tedious`. The setup skill comes in a later release, so the plugin is off by default.
+stdio MCP server with its three tools, the executor that runs each call on SQL Server through
+`tedious`, and the `setup` skill that checks a config and registers its environments. The plugin
+is off by default.
+
+## Setup
+
+1. Create a read-only principal on the server (for Azure SQL Database, see
+   [reference/azure-sql-database.md](reference/azure-sql-database.md), which also covers a free
+   database for a trial).
+2. Write a config file outside your project directory (see [Config](#config)).
+3. Run `/sql-server:setup check --config <path>`, then `/sql-server:setup apply --config <path>`.
+   `apply` installs the server into the plugin's data directory, which keeps its path across
+   plugin updates, and prints one `claude mcp add` command per environment, which it runs once you
+   confirm. The command names each credential by reference, `--env 'NAME=${NAME}'`, never by
+   value, and `apply` reads each registration back to confirm it. Project scope is refused, because
+   the agent can edit the repository.
+
+The check is a script you can run on its own. From a checkout of this repository:
+
+```bash
+node plugins/sql-server/skills/setup/scripts/check-setup.mjs --config <path> [--environment <name>] [--data-dir <dir>]
+```
+
+It prints one PASS, FAIL or INFO row for Node.js, the config, each environment, each credential
+variable (set or not, never its value) and, with `--data-dir`, the installed server copy, then each
+environment's `claude mcp add` command. It exits 1 when a row fails, as it does for a config with a
+literal password, and writes nothing.
 
 ## The server
 
@@ -82,8 +107,9 @@ its managed identity client id, when given) to `tedious`'s `token-credential` au
 
 The executor loads `tedious` and `@azure/identity`, the dependencies in `package.json`, on the
 first call, so the server starts without them and a call made before they are installed fails
-with a tool error saying so. `package-lock.json` pins their whole tree, and Claude Code installs
-that tree when it copies the plugin into its cache.
+with a tool error saying so. `package-lock.json` pins their whole tree. Claude Code installs that
+tree when it copies the plugin into its cache, and `/sql-server:setup apply` installs it with
+`npm ci` into the server copy in the plugin's data directory, the copy a registration runs.
 
 ### The reject list
 
@@ -106,6 +132,27 @@ What the list lets through, because it is a heuristic:
   read) or `ENABLE TRIGGER`, passes when it follows a complete `SELECT` with no semicolon, as in
   `SELECT 1 AS a RECEIVE TOP(1) * FROM q`. The read-only principal, which holds no `RECEIVE` or
   `ALTER` permission, is what refuses it.
+
+### Limits of the guarantees
+
+- **Other databases on the server.** The allow-list refuses a `database` argument outside it, but
+  a three-part name such as `other.dbo.t` is stopped only by what `other` lets the principal do.
+  Check the principal's access in every database on the server, system databases included.
+- **Lock hold before the row cap fires.** The measurement shows a capped read returning promptly
+  with no transaction left open, for a fast consumer and no writer. How long a slow or paused
+  consumer holds locks before the cap fires was not measured.
+- **Load per registration.** Each registration runs one process per client session, and each
+  process holds at most two connections, so a session with three registrations can hold six. The
+  measurement blocked no request with up to 2 processes and a few briefly at 8.
+- **Locking reads on SQL Server.** `READ_COMMITTED_SNAPSHOT` is off by default on SQL Server, so a
+  `READ COMMITTED` read takes shared locks until its statement ends and the lock timeout, the
+  request timeout and the row cap bound how long it blocks a writer. Azure SQL Database turns it on
+  by default and reads row versions instead.
+- **Entra tokens.** Whether a connection that stays busy past its token's expiry keeps working is
+  not verified.
+- **Not covered.** Windows integrated and Kerberos authentication. Azure SQL Managed Instance and
+  other SQL Server hosts reachable over TCP are expected to work with the same two auth types, but
+  are not tested.
 
 ## Config
 

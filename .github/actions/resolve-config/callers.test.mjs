@@ -5792,7 +5792,7 @@ test("work-resolve-issue.yml: a kill-switch stop skips report-outcome and never 
     started[`needs.${id}.outputs.scan-reuse-branch`] = "";
     started[`needs.${id}.outputs.scan-issue-run-started`] ??= "";
   }
-  const report = (skip) => evaluate(jobs["report-outcome"].if, { ...started, "needs.apply-issue-patch.outputs.skip-reason": skip });
+  const report = (skip) => evaluate(jobs["report-outcome"].if, { ...started, "needs.apply-issue-patch.outputs.skip-reason": skip, "needs.resolve-issue-stale.outputs.stale": "" });
   assert.equal(report(""), true);
   assert.equal(report("rung-up"), true, "another skip still reports");
   assert.equal(report("kill-switch"), false);
@@ -7079,6 +7079,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       if (rest === "result") context[ref] = skipped(call) ? "skipped" : `${call}-result`;
       else context[ref] = call === from ? `${call}:${rest.slice("outputs.".length)}` : "";
     }
+    // Another job's value (resolve-issue-stale's stale) is empty: no stale stop.
+    for (const [ref] of String(expression).matchAll(/needs\.[\w-]+\.(?:result|outputs\.[\w-]+)/g)) context[ref] ??= "";
     return evaluate(expression, context);
   };
   let values = 0;
@@ -7086,7 +7088,7 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
     const job = jobs[id];
     const entries = [...Object.entries(job.with ?? {}), ...(job.steps ?? []).flatMap((step) => Object.entries(step.env ?? {}))];
     for (const [name, expression] of entries) {
-      if (!/needs\.resolve-issue/.test(String(expression))) continue;
+      if (!/needs\.resolve-issue(?:-subscription|-fallback)?\./.test(String(expression))) continue;
       values += 1;
       for (const from of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
         const value = leg(from)(expression);
@@ -7117,7 +7119,7 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       ...(job.steps ?? []).flatMap((step) => [...Object.entries(step.env ?? {}), ["if", step.if], ["continue-on-error", step["continue-on-error"]]]),
     ];
     for (const [name, expression] of expressions) {
-      if (!/needs\.resolve-issue/.test(String(expression ?? ""))) continue;
+      if (!/needs\.resolve-issue(?:-subscription|-fallback)?\./.test(String(expression ?? ""))) continue;
       reads += 1;
       for (const stale of ["true", "stale"]) {
         assert.equal(subscriptionRan(stale)(expression), subscriptionRan("")(expression), `${id} ${name} takes the first call's ${stale} after the subscription call ran`);
@@ -7138,6 +7140,7 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue.outputs.scan-reuse-branch": "",
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
       "needs.apply-issue-patch.outputs.skip-reason": "",
+      "needs.resolve-issue-stale.outputs.stale": "",
     }));
   const handedOff = { started: "true" };
   const ran = { started: "true", uploaded: "true", patch: "written" };
@@ -7616,4 +7619,111 @@ test("no caller of a lane runner caps its cache below read", () => {
       }
     }
   }
+});
+
+// A resolve-issue call that waited in its slot past a lane workflow change
+// stops at `Stop on stale workflow files` before any model turn.
+// resolve-issue-stale reads that step from this run's jobs listing, never a
+// call output, and report-outcome then re-fires the issue at once
+// (report-outcome.mjs refireStale) instead of leaving it to work-unblock's
+// hourly sweep.
+const STALE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
+const staleContext = ({ started = "false", reuse = "", stale = "" } = {}) => {
+  const context = {
+    "needs.admit.outputs.proceed": "true",
+    "needs.resolve-issue.result": "success",
+    "needs.resolve-issue-subscription.result": "skipped",
+    "needs.resolve-issue-fallback.result": "skipped",
+    "needs.apply-issue-patch.outputs.skip-reason": "",
+    "needs.resolve-issue-stale.outputs.stale": stale,
+  };
+  for (const id of STALE_CALLS) {
+    context[`needs.${id}.outputs.scan-issue-run-started`] = id === "resolve-issue" ? started : "";
+    context[`needs.${id}.outputs.scan-reuse-branch`] = id === "resolve-issue" ? reuse : "";
+    context[`needs.${id}.outputs.lease-comment-id`] = id === "resolve-issue" ? "555" : "";
+  }
+  return context;
+};
+
+test("work-resolve-issue.yml: resolve-issue-stale reads the stale stop from the jobs listing, only for a run that started nothing", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["resolve-issue-stale"];
+  assert.deepEqual(job.needs, ["admit", ...STALE_CALLS]);
+  assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
+  const [checkout, read] = job.steps;
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["persist-credentials"], false);
+  assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh stale");
+  assert.equal(read.env.CALLS, STALE_CALLS.join(" "));
+  assert.equal(job.outputs.stale, "${{ steps.stale.outputs.stale }}");
+  const runs = (overrides) => evaluate(job.if, staleContext(overrides));
+  assert.equal(runs({}), true, "a run that started no skill and reused no branch is read");
+  assert.equal(runs({ started: "true" }), false, "a run that ran the skill reports its outcome");
+  assert.equal(runs({ reuse: "work-resolve-issue/issue-77-1-1" }), false, "a reuse opens its PR");
+});
+
+test("work-resolve-issue.yml: a stale stop runs report-outcome as workflow-stale, with no lease to end; any other run is unchanged", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
+  assert.ok(job.needs.includes("resolve-issue-stale"));
+  const at = (overrides) => {
+    const context = staleContext(overrides);
+    return { runs: evaluate(job.if, context), skip: evaluate(job.with["dimension-skip"], context), lease: evaluate(job.with["lease-comment-id"], context) };
+  };
+  assert.deepEqual(at({ stale: "true" }), { runs: true, skip: "workflow-stale", lease: "" });
+  assert.deepEqual(at({ stale: "false" }), { runs: false, skip: "", lease: "555" }, "a stop that is not stale reports nothing, as before");
+  assert.deepEqual(at({ started: "true", stale: "" }), { runs: true, skip: "", lease: "555" }, "a started run reports its outcome, as before");
+});
+
+test("handoff-evidence.sh: stale is a leg's run job stop step, and no other job's step of that name", (t) => {
+  const read = workflow("work-resolve-issue.yml").jobs["resolve-issue-stale"].steps.find((s) => s.id === "stale");
+  const listing = (leg, stop, name = `${leg} / run`) => ({
+    total_count: 3,
+    jobs: [
+      { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Stop on stale workflow files", conclusion: leg === "resolve-issue" ? stop : "skipped" }] },
+      ...(leg === "resolve-issue" ? [] : [{ name, conclusion: "success", steps: [{ name: "Stop on stale workflow files", conclusion: stop }] }]),
+      { name: "resolve-issue-fallback / run", conclusion: "skipped", steps: [] },
+    ],
+  });
+  assert.deepEqual(readPosted(t, read, listing("resolve-issue", "success")).outputs, { stale: "true" });
+  assert.deepEqual(readPosted(t, read, listing("resolve-issue-subscription", "success")).outputs, { stale: "true" }, "a later leg's stop counts");
+  assert.deepEqual(readPosted(t, read, listing("resolve-issue", "skipped")).outputs, { stale: "false" });
+  assert.deepEqual(readPosted(t, read, listing("resolve-issue-subscription", "success", "report-outcome / run")).outputs, { stale: "false" }, "only a call's run job");
+  const failed = readPosted(t, read, listing("resolve-issue", "success"), { fail: true });
+  assert.notEqual(failed.status, 0);
+  assert.deepEqual(failed.outputs, {}, "a failed read re-fires nothing");
+});
+
+test("pr-run-activity-write.yml: the input check takes workflow-stale as a dimension-skip in issue mode only", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
+  const status = (skip, issueMode) =>
+    spawnSync("bash", ["-c", step.run], {
+      env: {
+        PATH: process.env.PATH,
+        APP_SENDER_ID: "1",
+        DEFAULT_BRANCH: "main",
+        DIMENSION_SKIP: skip,
+        ...(issueMode
+          ? { ISSUE_NUMBER: "7", EVENT_NAME: "issues", EVENT_ISSUE: "7", TRUSTED_BASE: "default-tip" }
+          : { EVENT_NAME: "workflow_dispatch", PR_NUMBER: "42", TRUSTED_BASE: "pr-base" }),
+      },
+    }).status;
+  assert.equal(status("workflow-stale", true), 0);
+  assert.equal(status("outside-author", true), 0, "the control: a reason the check already took");
+  assert.equal(status("workflow-stale", false), 1);
+  assert.equal(status("stale", true), 1);
+});
+
+// The log step's action is in .base, which issue-fields checks out only for
+// a branch claim or a prune list; a run with neither (a stale stop, or any
+// fresh run) made no API call to log, so the step skips instead of failing to
+// find the action.
+test("pr-run-activity-read.yml: issue-fields logs the API budget only when it checked out .base", () => {
+  const steps = workflow("pr-run-activity-read.yml").jobs["issue-fields"].steps;
+  const log = steps.at(-1);
+  assert.equal(log.uses.split(" ")[0], "./.base/.github/actions/log-api-budget");
+  const base = steps.find((s) => s.id === "base");
+  assert.equal(base.with.path, ".base");
+  const runs = (outcome) => evaluate(log.if, { "steps.base.outcome": outcome });
+  assert.equal(runs("success"), true);
+  assert.equal(runs(""), false, "the checkout skipped: no claim and no prune list");
+  assert.equal(runs("failure"), false);
 });

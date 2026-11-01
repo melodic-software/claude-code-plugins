@@ -33,7 +33,7 @@ is needed.
 
 ### fable-5. Self-authored, no upstream
 
-`fable-5` is introspected operating doctrine authored by Claude Fable 5, not distilled
+`fable-5` is introspected operating doctrine authored by Claude Fable 5.1, not distilled
 from any remote source. There is no vendored baseline and no drift-check path. The only
 trigger for updating it is a **model-version change**. Regenerate the pack from the
 newer model. Report it as "self-authored, no upstream; no drift-check applicable" and

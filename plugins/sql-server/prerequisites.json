@@ -1,6 +1,49 @@
 {
   "requires": [
     {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the MCP server cannot start and /sql-server:setup cannot run its check or install scripts.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/sql-server:setup"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, /sql-server:setup apply cannot install the server copy's dependencies; check still runs.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/sql-server:setup"
+    },
+    {
       "id": "docker",
       "kind": "cli",
       "need": "optional",

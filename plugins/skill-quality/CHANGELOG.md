@@ -3,6 +3,26 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-11-01
+
+### Added
+
+- `check-skill.sh` check 30 WARNs when a SKILL.md is above the 5,000-token router cap, estimated
+  from the whole file at 4 characters per token, and prints the estimate as INFO otherwise. The
+  WARN never fails the run
+  ([#11955](https://github.com/melodic-software/claude-code-plugins/issues/11955)).
+
+## [0.31.19] - 2026-11-01
+
+### Added
+
+- Frozen description-trigger probes for `check-prerequisites` under `probes/` ([#6591](https://github.com/melodic-software/claude-code-plugins/issues/6591)).
+
+### Changed
+
+- The `check` description drops its quoted trigger list and action reference for one trigger per capability, 1013 to 382 characters, keeping the `/evals:validate` pointer for new eval cases. In held-out trigger probes on Opus, positive queries fired in 24 of 24 runs (20 of 24 before), and negative queries stayed quiet in 21 of 24 runs, the same as before.
+- The `check-prerequisites` description is shorter, 328 to 258 characters. In held-out trigger probes on Opus, positive queries fired in 24 of 24 runs, as before, and negative queries stayed quiet in 18 of 24 runs (19 of 24 before), within the 5-point margin and with no new false-firing query.
+
 ## [0.31.18] - 2026-11-01
 
 ### Changed

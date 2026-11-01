@@ -1,5 +1,5 @@
 ---
-description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg (or --cloud) session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
+description: "Hand the task to a fresh detached background agent (claude --bg or --cloud) that continues it now from a save-point. Use when the user is going AFK and explicitly asks to 'continue in the background'. Launches only on that request, never self-elected."
 argument-hint: "[--unattended] [--cloud] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
