@@ -17,11 +17,12 @@ mode, `usage_sample`) to a file, then run:
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
   --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' \
-  --body-file <telemetry file> --body-dir "${CLAUDE_PLUGIN_DATA}"
+  --body-file <telemetry file> --body-dir "<plugin-data>"
 ```
 
-Write the telemetry file under `${CLAUDE_PLUGIN_DATA}`, and pass that substituted value as
-`--body-dir`: Bash-tool shells do not inherit `CLAUDE_PLUGIN_DATA`. The script refuses a symlink or
+Write the telemetry file under `<plugin-data>`, the plugin data dir that `../SKILL.md` gives as an
+absolute path, and pass the same path as `--body-dir`. The script refuses a dir whose last segment
+does not name `source-control`, or that is `/`, the home dir or an ancestor of it. The script refuses a symlink or
 a path that resolves outside `--body-dir` before reading it (exit 3), so a prompt-injected path
 cannot post a credential file as a public comment. It then scans the body with the shared leak scan
 and withholds all of it on a hit (exit 3), naming the rule and never the match; rotate a real
@@ -117,7 +118,7 @@ comments directly:
 bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
   --repo <owner/repo> --issue <telemetry issue number> \
   --instance '${user_config.lane_instance}' --app-slug '${user_config.lane_app_slug}' --read \
-  --body-dir "${CLAUDE_PLUGIN_DATA}"
+  --body-dir "<plugin-data>"
 ```
 
 It passes `--app-slug` as the write does. It prints the canonical comment's

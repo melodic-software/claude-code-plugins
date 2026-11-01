@@ -80,8 +80,9 @@ lane-telemetry contract; one writer identity owns a marker). The upsert itself, 
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
 POST/PATCH, and the creation-race reconcile, runs as `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`. Its
 arguments, its exit codes and what each one tells the lane to do, and the `$BODY_FILE` contract are
-owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md). Compose the body and
-invoke the script; do not write the comment by hand.
+owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md), which writes this
+plugin's data dir as `<plugin-data>`: it is `${CLAUDE_PLUGIN_DATA}`, substituted here and not there.
+Compose the body in it, pass it as `--body-dir`, and invoke the script; do not write the comment by hand.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content, state block included, in the lane's cycle report/log, noting the comment surface is absent.

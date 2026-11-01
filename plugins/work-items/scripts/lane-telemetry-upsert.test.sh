@@ -5,8 +5,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UPSERT="$SCRIPT_DIR/lane-telemetry-upsert.sh"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The safe body dir must be the plugin's data dir, so the work dir's last segment
+# names work-items.
+ROOT="$(mktemp -d)"
+WORK="$ROOT/work-items"
+mkdir -p "$WORK"
+trap 'chmod -R u+rwx "$ROOT" 2>/dev/null; rm -rf "$ROOT"' EXIT
 
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -462,7 +466,7 @@ check_rc 5 "$?" "a 33-character lane instance exits 5"
 # stored random-id fallback rather than being validated as a literal id. The
 # marker is public, so the fallback is never the hostname.
 fresh_state
-IDDIR="$WORK/iddir"
+IDDIR="$WORK/iddir/work-items"
 mkdir -p "$IDDIR"
 write_body "$IDDIR/body.md" "$SENT"
 bash "$UPSERT" --lane "$LANE" --instance '${user_config.lane_instance}' --repo "$REPO" \
@@ -665,18 +669,19 @@ check_rc 14 "$RC" "a read-back that cannot be performed exits 14"
 # A path outside the safe dir is refused before any read: the file is mode 000,
 # so a read would fail differently, and the refusal makes zero API calls.
 fresh_state
-OUTSIDE="$(mktemp -d)"
+OUTSIDE="$ROOT/outside"
+mkdir -p "$OUTSIDE"
 printf 'PRIVATE-KEY-MATERIAL\n' >"$OUTSIDE/secret.txt"
 chmod 000 "$OUTSIDE/secret.txt"
 run "$OUTSIDE/secret.txt"
 check_rc 16 "$RC" "a body file outside the safe dir is refused (exit 16)"
-if grep -q 'must resolve under the safe dir' "$STDERR" && ! grep -q 'PRIVATE-KEY-MATERIAL' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+if grep -q 'must resolve under the safe body dir' "$STDERR" && ! grep -q 'PRIVATE-KEY-MATERIAL' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
   pass "the outside-path refusal names the rule, echoes no content and makes no API call"
 else
   fail "outside-path refusal: $(cat "$STDERR")"
 fi
 chmod 600 "$OUTSIDE/secret.txt"
-run "$WORK/../${OUTSIDE##*/}/secret.txt"
+run "$WORK/../outside/secret.txt"
 check_rc 16 "$RC" "a .. traversal out of the safe dir is refused (exit 16)"
 ln -s "$OUTSIDE/secret.txt" "$WORK/link.md"
 run "$WORK/link.md"
@@ -686,7 +691,7 @@ if ! grep -q 'PRIVATE-KEY-MATERIAL' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; the
 else
   fail "symlink refusal reached content or the API"
 fi
-rm -rf "$OUTSIDE" "$WORK/link.md"
+rm -f "$WORK/link.md"
 STDERR="$WORK/stderr.txt"
 env -u CLAUDE_PLUGIN_DATA bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
   --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$STDERR"
@@ -713,6 +718,68 @@ fi
 printf '%s\ncycle=7 password="hunter2hunter2"\n' "$SENT" >"$WORK/assign.md"
 run "$WORK/assign.md"
 check_rc 17 "$RC" "a body carrying a plain secret assignment is withheld too (exit 17)"
+
+# A caller-chosen --body-dir must be the plugin's data dir: one whose last
+# segment does not name work-items, or that is the home dir or an ancestor of it,
+# contains nothing, so it is refused before the body is read.
+fresh_state
+mkdir -p "$ROOT/elsewhere"
+cp "$GOOD" "$ROOT/elsewhere/body.md"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$ROOT/elsewhere/body.md" --body-dir "$ROOT/elsewhere" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir that is not the work-items data dir is refused (exit 16)"
+HOME="$WORK/user" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir that is an ancestor of the home dir is refused (exit 16)"
+if grep -q 'home dir' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the home-ancestor refusal names the rule and makes no API call"
+else
+  fail "home-ancestor refusal: $(cat "$STDERR")"
+fi
+
+# CDPATH cannot redirect a relative body path: with the cwd outside and a CDPATH
+# that holds a same-named dir inside the safe dir, the outside file is refused.
+fresh_state
+mkdir -p "$ROOT/cwd/sub" "$WORK/sub"
+cp "$GOOD" "$ROOT/cwd/sub/body.md"
+cp "$GOOD" "$WORK/sub/body.md"
+(cd "$ROOT/cwd" && CDPATH="$WORK" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file sub/body.md --body-dir "$WORK" >/dev/null 2>"$STDERR")
+check_rc 16 "$?" "CDPATH cannot make an outside relative body path pass (exit 16)"
+
+# A symlinked or malformed stored lane-instance is refused and never echoed.
+fresh_state
+LIDIR="$ROOT/lid/work-items"
+mkdir -p "$LIDIR"
+write_body "$LIDIR/body.md" "$SENT"
+printf 'lane-0000beef\n' >"$ROOT/lid/elsewhere-id"
+ln -s "$ROOT/lid/elsewhere-id" "$LIDIR/lane-instance"
+bash "$UPSERT" --lane "$LANE" --instance "" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$LIDIR/body.md" --body-dir "$LIDIR" >/dev/null 2>"$STDERR"
+check_rc 4 "$?" "a symlinked stored lane-instance is refused (exit 4)"
+rm -f "$LIDIR/lane-instance"
+printf 'Not_A-Valid.ID-sentinel-text\n' >"$LIDIR/lane-instance"
+bash "$UPSERT" --lane "$LANE" --instance "" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$LIDIR/body.md" --body-dir "$LIDIR" >/dev/null 2>"$STDERR"
+check_rc 4 "$?" "a malformed stored lane-instance is refused (exit 4)"
+if grep -q 'stored lane-instance is malformed' "$STDERR" && ! grep -q 'Not_A-Valid' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the malformed-id refusal never echoes the stored value and makes no API call"
+else
+  fail "malformed-id refusal: $(cat "$STDERR")"
+fi
+
+# A home path in the body is withheld like a credential: the comment is public.
+fresh_state
+# A fake home path, assembled at run time so no user path is tracked.
+FAKE_HOME="/ho""me/alice"
+printf '%s\ncycle=7 worktree=%s/worktrees/app\n' "$SENT" "$FAKE_HOME" >"$WORK/homepath.md"
+run "$WORK/homepath.md"
+check_rc 17 "$RC" "a body naming a home path is withheld (exit 17)"
+if grep -q "leak-scan rule 'home path'" "$STDERR" && ! grep -qF -- "$FAKE_HOME" "$STDERR"; then
+  pass "the home-path refusal names the rule, never the path"
+else
+  fail "home-path refusal: $(cat "$STDERR")"
+fi
 
 if ((FAILED == 0)); then
   printf 'all lane-telemetry-upsert tests passed\n'

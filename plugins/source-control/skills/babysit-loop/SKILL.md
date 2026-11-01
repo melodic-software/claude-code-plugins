@@ -456,7 +456,9 @@ is a manual-restart state, per the convention. A forge rate-limit error ends the
 ## Spoke paths
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Substitute that path for the placeholder before running a command or
+`${CLAUDE_PLUGIN_ROOT}`, and the plugin's data dir as `<plugin-data>`, which is
+`${CLAUDE_PLUGIN_DATA}` (the telemetry upsert's `--body-dir`, where the telemetry file is
+composed). Substitute those paths for the placeholders before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,

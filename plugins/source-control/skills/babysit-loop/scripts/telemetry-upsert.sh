@@ -27,8 +27,9 @@
 #                   writes the sentinel line above it; a file that already opens with
 #                   this instance's sentinel is sent as-is.
 #   --body-dir DIR  directory the body file must resolve under (default: an
-#                   inherited CLAUDE_PLUGIN_DATA, only when its last path segment
-#                   names source-control). SECURITY: lane prompts drive this script,
+#                   inherited CLAUDE_PLUGIN_DATA). Either counts only when its last
+#                   path segment names source-control, and never when it is /, the
+#                   home dir, or an ancestor of it. SECURITY: lane prompts drive this script,
 #                   and an unconstrained path would let a prompt-injected
 #                   `--body-file ~/.ssh/id_rsa` be posted as a public comment. A
 #                   symlink leaf or a path resolving outside DIR is refused before any
@@ -59,6 +60,7 @@
 # the next cycle retries it.
 
 set -uo pipefail
+unset CDPATH
 
 die() {
   local code="$1"
@@ -97,33 +99,22 @@ type -P gh >/dev/null 2>&1 || die 4 "gh not found; nothing written"
 [[ -z "$APP_SLUG" || "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
   die 3 "--app-slug must be a GitHub App slug (got '$APP_SLUG'); nothing written"
 
-# The safe body dir: --body-dir, else an inherited CLAUDE_PLUGIN_DATA only when its
-# last segment names this plugin (another plugin's hook can export its own).
-SAFE_DIR="$BODY_DIR"
-if [[ -z "$SAFE_DIR" ]]; then
-  seg="${CLAUDE_PLUGIN_DATA:-}"
-  seg="${seg%[/\\]}"
-  seg="${seg##*[/\\]}"
-  [[ "$seg" == source-control || "$seg" == source-control-* ]] && SAFE_DIR="$CLAUDE_PLUGIN_DATA"
-fi
-SAFE_CANON=""
-if [[ -n "$SAFE_DIR" ]]; then
-  SAFE_CANON="$(cd "$SAFE_DIR" 2>/dev/null && pwd -P)" ||
-    die 3 "safe body dir not found: '$SAFE_DIR'; nothing read or written"
-fi
+# telemetry-body-gate.sh (a generated copy of lib/telemetry-body-gate.sh) holds
+# the rule every lane telemetry upsert shares. The safe body dir must be this
+# plugin's data dir (its last segment names source-control; never /, the home
+# dir or an ancestor of it); --read needs it only for the instance fallback.
+# shellcheck source=telemetry-body-gate.sh
+. "${BASH_SOURCE[0]%/*}/telemetry-body-gate.sh"
+SAFE_OK=""
+SAFE_WHY=""
+if tbg_safe_dir source-control "$BODY_DIR"; then SAFE_OK=1; else SAFE_WHY="$TBG_ERR"; fi
 
 # A random id, made once and kept in the safe body dir: stable across restarts,
 # distinct per machine, and never the hostname, which the public marker would publish.
 if [[ -z "$INSTANCE" || "$INSTANCE" == "\${"* ]]; then
-  [[ -n "$SAFE_CANON" ]] ||
-    die 3 "lane_instance unset and no safe body dir to keep a generated id in; pass --body-dir DIR"
-  ID_FILE="$SAFE_CANON/lane-instance"
-  INSTANCE="$(head -c 64 "$ID_FILE" 2>/dev/null | tr -d '\r\n')"
-  if [[ -z "$INSTANCE" ]]; then
-    INSTANCE="lane-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
-    printf '%s\n' "$INSTANCE" >"$ID_FILE" 2>/dev/null ||
-      printf "telemetry: could not store the lane instance; '%s' holds for this run only\n" "$INSTANCE" >&2
-  fi
+  [[ -n "$SAFE_OK" ]] || die 3 "lane_instance unset and $SAFE_WHY; nothing read or written"
+  tbg_instance || die 3 "$TBG_ERR; nothing read or written"
+  INSTANCE="$TBG_INSTANCE"
   printf "telemetry: lane_instance unset; using the stored random id '%s'\n" "$INSTANCE" >&2
 fi
 # Rejected, never trimmed into something that looks valid.
@@ -175,26 +166,15 @@ if [[ -n "$READ" ]]; then
 fi
 
 # --- Body-file containment ---------------------------------------------------
-# Same rule as the harness-ops lanes wrapper: reject a symlink leaf, canonicalize
-# the parent with `cd && pwd -P`, and compare with a trailing slash so `/safe`
-# never matches `/safe-evil`. All of it runs before anything reads the file.
-[[ -L "$BODY_FILE" ]] && die 3 "body file must not be a symlink: '$BODY_FILE'; nothing read or written"
-[[ -f "$BODY_FILE" ]] || die 3 "body file not found: '$BODY_FILE'; nothing written"
-[[ -n "$SAFE_CANON" ]] ||
-  die 3 "no safe body dir: pass --body-dir DIR (an inherited CLAUDE_PLUGIN_DATA counts only when it names source-control); nothing read or written"
-body_parent="."
-[[ "$BODY_FILE" == */* ]] && body_parent="${BODY_FILE%/*}"
-BODY_CANON="$(cd "${body_parent:-/}" 2>/dev/null && pwd -P)/${BODY_FILE##*/}" &&
-  [[ "$BODY_CANON" == "$SAFE_CANON"/* ]] ||
-  die 3 "body file must resolve under the safe dir ($SAFE_CANON); refusing to read '$BODY_FILE'; nothing written"
+# The file must resolve under the safe body dir, and is read once into a private
+# copy every later step uses; see telemetry-body-gate.sh.
+[[ -n "$SAFE_OK" ]] || die 3 "$SAFE_WHY; nothing read or written"
 type -P node >/dev/null 2>&1 || die 4 "node not found (the leak scan needs it); nothing written"
-
-# Read the file once, into a private copy every later step uses, so it cannot be
-# swapped between the check and the read.
-BODY_COPY="$(mktemp)" || die 3 "cannot create a temporary file; nothing written"
 SEND_FILE=""
+BODY_COPY=""
 trap 'rm -f "$BODY_COPY" "$SEND_FILE"' EXIT
-cat "$BODY_FILE" >"$BODY_COPY" 2>/dev/null || die 3 "cannot read the body file; nothing written"
+tbg_read_body "$BODY_FILE" || die 3 "$TBG_ERR; nothing read or written"
+BODY_COPY="$TBG_COPY"
 body="$(tr -d '\r' <"$BODY_COPY")"
 [[ -n "$body" && "$body" != @* ]] ||
   die 3 "body is empty or a literal @path - nothing written; fix the body composition, do not re-run blind"
@@ -205,17 +185,11 @@ body="$(tr -d '\r' <"$BODY_COPY")"
 SENT_BODY="$SENT"$'\n'"$body"
 
 # --- Leak scan ---------------------------------------------------------------
-# The comment is public. scanLeak (this plugin's generated copy of
-# lib/publish-gate.mjs) judges what would be posted; a hit withholds all of it,
+# The comment is public. scanLeak and findMachine (this plugin's generated copy of
+# lib/publish-gate.mjs) judge what would be posted; a hit withholds all of it,
 # never a masked copy, and the message names only the rule. A plain assignment,
-# which scanLeak only warns on, is withheld too, and so is a scan that cannot run.
-LEAK_SCAN='const { pathToFileURL } = await import("node:url");
-const { readFileSync } = await import("node:fs");
-const { scanLeak, WARN_ONLY } = await import(pathToFileURL(process.argv[2]).href);
-const { block, warn } = scanLeak(readFileSync(0));
-process.stdout.write(block ?? (warn ? WARN_ONLY : ""));'
-leak="$(printf '%s\n' "$SENT_BODY" | node --input-type=module -e "$LEAK_SCAN" leak-scan \
-  "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" 2>/dev/null)" ||
+# a home path or a private hostname is withheld too, and so is a scan that cannot run.
+leak="$(printf '%s\n' "$SENT_BODY" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs")" ||
   die 3 "the leak scan could not run; nothing written"
 [[ -z "$leak" ]] ||
   die 3 "body withheld: it matches the leak-scan rule '$leak'; nothing written, and a real credential must be rotated"

@@ -76,7 +76,7 @@ check() { # name expected actual
 }
 # setup <comments-json> [body]: fresh comment store and body file
 setup() {
-  export STUB_DIR="$TMP/case$N"
+  export STUB_DIR="$TMP/case$N/source-control"
   rm -rf "$STUB_DIR" && mkdir -p "$STUB_DIR"
   printf '%s\n' "$1" >"$STUB_DIR/comments.json"
   : >"$STUB_DIR/calls.log"
@@ -320,9 +320,9 @@ run_body() { # body path, then extra arguments
 }
 run_body "$OUTSIDE/secret.txt" --body-dir "$STUB_DIR"
 check "outside body file: exit 3" 3 "$?"
-check "outside body file: names the rule" 1 "$(grep -q 'must resolve under the safe dir' "$STUB_DIR/err" && echo 1)"
+check "outside body file: names the rule" 1 "$(grep -q 'must resolve under the safe body dir' "$STUB_DIR/err" && echo 1)"
 chmod 600 "$OUTSIDE/secret.txt"
-run_body "$STUB_DIR/../outside/secret.txt" --body-dir "$STUB_DIR"
+run_body "$STUB_DIR/../../outside/secret.txt" --body-dir "$STUB_DIR"
 check "dot-dot escape: exit 3" 3 "$?"
 ln -s "$OUTSIDE/secret.txt" "$STUB_DIR/link.txt"
 run_body "$STUB_DIR/link.txt" --body-dir "$STUB_DIR"
@@ -350,6 +350,48 @@ check "credential-shaped body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | t
 setup '[]' 'cycle: 7 password="hunter2hunter2"'
 run
 check "plain secret assignment: exit 3" 3 "$?"
+
+# 19. A caller-chosen --body-dir must be the plugin's data dir: one not naming
+# source-control, or the home dir or an ancestor of it, is refused before any read.
+setup '[]'
+mkdir -p "$TMP/elsewhere"
+cp "$STUB_DIR/body.txt" "$TMP/elsewhere/body.txt"
+run_body "$TMP/elsewhere/body.txt" --body-dir "$TMP/elsewhere"
+check "body-dir not naming source-control: exit 3" 3 "$?"
+HOME="$STUB_DIR/user" run_body "$STUB_DIR/body.txt" --body-dir "$STUB_DIR"
+check "body-dir that is a home-dir ancestor: exit 3" 3 "$?"
+check "body-dir that is a home-dir ancestor: names the rule" 1 "$(grep -q 'home dir' "$STUB_DIR/err" && echo 1)"
+check "body-dir refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 20. CDPATH cannot redirect a relative body path to a same-named dir in the safe dir.
+setup '[]'
+mkdir -p "$TMP/cwd/sub" "$STUB_DIR/sub"
+cp "$STUB_DIR/body.txt" "$TMP/cwd/sub/body.txt"
+cp "$STUB_DIR/body.txt" "$STUB_DIR/sub/body.txt"
+(cd "$TMP/cwd" && CDPATH="$STUB_DIR" run_body sub/body.txt --body-dir "$STUB_DIR")
+check "CDPATH relative escape: exit 3" 3 "$?"
+
+# 21. A symlinked or malformed stored lane-instance is refused and never echoed.
+setup '[]'
+printf 'lane-0000beef\n' >"$TMP/elsewhere-id"
+ln -s "$TMP/elsewhere-id" "$STUB_DIR/lane-instance"
+INST='' run
+check "symlinked stored id: exit 3" 3 "$?"
+rm -f "$STUB_DIR/lane-instance"
+printf 'Not_A-Valid.ID-sentinel-text\n' >"$STUB_DIR/lane-instance"
+INST='' run
+check "malformed stored id: exit 3" 3 "$?"
+check "malformed stored id: names the rule" 1 "$(grep -q 'stored lane-instance is malformed' "$STUB_DIR/err" && echo 1)"
+check "malformed stored id: value never echoed" 0 "$(grep -c 'Not_A-Valid' "$STUB_DIR/err")"
+
+# 22. A home path in the body is withheld, naming the rule and never the path.
+# A fake home path, assembled at run time so no user path is tracked.
+FAKE_HOME="/ho""me/alice"
+setup '[]' "cycle: 7 worktree=$FAKE_HOME/worktrees/app"
+run
+check "home path in body: exit 3" 3 "$?"
+check "home path in body: names the rule" 1 "$(grep -q "leak-scan rule 'home path'" "$STUB_DIR/err" && echo 1)"
+check "home path in body: path never printed" 0 "$(grep -cF -- "$FAKE_HOME" "$STUB_DIR/err")"
 
 # 16. gh not on PATH: exit 4.
 setup '[]'

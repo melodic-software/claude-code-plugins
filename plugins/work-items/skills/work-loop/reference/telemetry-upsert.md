@@ -20,7 +20,7 @@ Run the script at the absolute path `SKILL.md`'s "Telemetry and durable loop sta
 
 ```bash
 bash "<upsert-script>" \
-  --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE" --body-dir "${CLAUDE_PLUGIN_DATA}" \
+  --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE" --body-dir "<plugin-data>" \
   --app-slug '${user_config.lane_app_slug}'
 ```
 
@@ -30,7 +30,8 @@ bash "<upsert-script>" \
 | `--instance` | The resolved lane instance. An empty value, or a surviving literal `${user_config.…}` placeholder, means the key is unset and takes a random id the script makes once and keeps in `<body-dir>/lane-instance` (headless-config floor: the script logs the assumption). Never the hostname: the marker is public. |
 | `--repo` | The target repository as `owner/name`. |
 | `--issue` | The lane's tracking issue number. |
-| `--body-file` | The file holding this cycle's composed body. |
+| `--body-file` | The file holding this cycle's composed body. It must resolve under `--body-dir`; a symlink or a path outside it exits 16 before any read. |
+| `--body-dir` | `<plugin-data>`: this plugin's data dir, which `../SKILL.md` gives as an absolute path; compose the body file in it. This file reaches you unsubstituted, so a `${…}` token here would reach Bash empty. The script refuses a dir whose last segment does not name `work-items`, or that is `/`, the home dir or an ancestor of it (exit 16). |
 | `--app-slug` | Always passed as `${user_config.lane_app_slug}`; a launch prompt that names a slug overrides it. An empty value, or a surviving literal `${user_config.…}` placeholder, means the key is unset and the script treats it as absent, so the argument is a no-op outside an App token. It matters under an App installation token, where the upsert otherwise exits 15 every cycle. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
 
 ## What the upsert writes
@@ -88,8 +89,8 @@ to end the loop: the lane records the outcome and continues.
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
 | 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or the counters the comment shows. |
 | 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
-| 16 | No safe body dir, or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
-| 17 | The body matches the leak scan (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
+| 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
+| 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
