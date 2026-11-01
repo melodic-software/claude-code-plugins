@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "    _meta: { \"anthropic/requiresUserInteraction\": \"true\" },\n",
+      "why": "original"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "    _meta: { \"anthropic/requiresUserInteraction\": true },\n",
+      "why": "fixed in place"
+    },
+    {
+      "answer": "",
+      "why": "deleted"
+    }
+  ]
+}

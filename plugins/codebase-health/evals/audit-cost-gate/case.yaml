@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: audit-cost-gate
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: asks-scope-confirm
+    type: regex
+    pattern: '(?<!\bno need to )(?<!n''t need to )(?<!\bwithout )(?<!ask you to )(?<!asked you to )(?<!asking you to )(?:\b(?:confirm|narrow|pick|choose|name|specify|tell me|give me)\b[^\n]{0,60}?\b(?:scope|subset|director(?:y|ies)|folders?|files|docs|pages)\b|\bwhich (?:scope|files|docs|pages|director(?:y|ies)|subset|folders?)\b|\b(?:shall|should) I (?:proceed|go ahead|continue|run|fan out|dispatch|audit)\b|\b(?:do you want(?: me)? to|want me to) (?:proceed|go ahead|continue|run|fan out|dispatch|audit)\b|\bgive me (?:your )?(?:go-ahead|approval|ok)\b|\breply with (?:your )?(?:approval|scope|choice|go-ahead)\b|\b(?:ok|okay) to (?:proceed|dispatch|fan out|audit)\b[^\n]{0,80}\?)'
+    flags: 'i'
+    target: last_message
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: 'Agent'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-report
+    type: regex
+    pattern: 'verified non-?issues?|\|[ \t]*#[ \t]*\|[ \t]*severity[ \t]*\||\bno findings\b|\bclean bill of health\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message

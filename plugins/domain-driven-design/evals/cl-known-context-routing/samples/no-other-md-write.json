@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/language/support-terms.md",
+            "content": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A customer's request for help. | |\n"
+          }
+        }
+      ],
+      "why": "whole-file rewrite of support-terms.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/plugin-data/curate-language-user-config-abc.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "plugin-data settings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/language/billing-terms.md",
+            "content": "# Billing language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A metered charge record received from a usage source. | support request |\n"
+          }
+        }
+      ],
+      "why": "rewrites billing-terms.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/language/context-map.md",
+            "content": "# Domain language map\n\n| Context | Glossary | Relationship |\n|---|---|---|\n| Support | `support-terms.md` | Support requests billing evidence through the published case reference. |\n| Billing | `billing-terms.md` | Billing publishes charge references to Support. |\n"
+          }
+        }
+      ],
+      "why": "rewrites the map"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/GLOSSARY.md",
+            "content": "# Glossary"
+          }
+        }
+      ],
+      "why": "new glossary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/language/helpdesk-terms.md",
+            "content": "# Helpdesk"
+          }
+        }
+      ],
+      "why": "new context glossary"
+    }
+  ]
+}

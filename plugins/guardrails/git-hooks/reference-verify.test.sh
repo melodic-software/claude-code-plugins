@@ -227,6 +227,19 @@ expect "with two pushed refs changing one file, each is read from its own tip" "
     "$clean_tip" "$ZERO" "$bogus_tip" "$ZERO" | push_lines)"
 expect "with the clean ref alone, nothing blocks" "0|" \
   "$(printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" | push_lines)"
+# This entry sets its own EXIT trap; a lib awk that fails while listing the
+# changed lines must still fail the push, though the push adds no finding.
+mkdir -p "$WORK/shims"
+# shellcheck disable=SC2016 # $* expands when the shim runs
+printf '#!/bin/sh\ncase " $* " in\n*"/^\\+\\+\\+ /"*) echo "awk: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+  "$(command -v awk)" >"$WORK/shims/awk"
+chmod +x "$WORK/shims/awk"
+err="$(cd "$REPO" && printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" |
+  PATH="$WORK/shims:$PATH" bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+expect "a lib awk that fails while listing the changed lines fails the push" \
+  "1|reference-verify.sh: awk exited 2 while listing the changed lines, so this change was not fully checked; fix that failure, then push again" \
+  "$?|$(grep -F 'reference-verify.sh: awk exited' <<<"$err")"
+expect "the failing push still leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text

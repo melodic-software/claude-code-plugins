@@ -44,6 +44,12 @@
 //   the head's earliest checks run, keeps the pass reads off heads whose spec
 //   nobody touched since then. Once per passed checks run, as attempt 2 is never
 //   touched again; an edit or label later starts a new attempt-1 run.
+// - Too old: the same passed run, inside GitHub's re-run window, on a pull
+//   request created more than TOO_OLD_DAYS ago whose head has no counted
+//   verdict (its pass expired: resolve-pr's `ok`). The gate refuses it
+//   `verify:too-old` until a fresh pass at the head; the recorded re-run
+//   starts pr-verify, which judges the head. A head a spec re-run takes is
+//   left to it.
 // - Switch: a lanes App PR whose newest pr-require-checks run failed, at
 //   attempt 1, only in ci-status, with ci-status's note that the lanes kill
 //   switch was on (KILL_SWITCH_NOTE). ci-status fails every lanes App PR while
@@ -218,6 +224,10 @@ export const REVIEW_SWITCHES = new Map([
 // GitHub re-runs a run up to 30 days after its initial run
 // (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
 export const RERUN_WINDOW_DAYS = 30;
+// babysit_verify_evidence.py TOO_OLD_DAYS: past it, the gate refuses a pull
+// request with no counted verdict at its head `verify:too-old`
+// (reconcile.test.mjs keeps the two equal).
+export const TOO_OLD_DAYS = 80;
 // The CI workflows a recorded lane runs after on workflow_run. A re-run that
 // makes attempt 2 of one is recorded too: the lane trusts that attempt's
 // github-actions[bot] only through its record. A later attempt gets none, and
@@ -456,7 +466,7 @@ const lostNow = (item, r, since) => {
   if (item.kind === "verdict") {
     return isStoppedVerdict(r, since);
   }
-  if (item.kind === "spec") {
+  if (item.kind === "spec" || item.kind === "too-old") {
     return isPassedChecks(r);
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
@@ -699,6 +709,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const passed = [];
   // Heads with a pass whose spec may have changed since (`prefilterSpec`).
   const specCandidates = [];
+  // Passed heads of pull requests past TOO_OLD_DAYS, inside the re-run window.
+  const tooOld = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
   let upstream;
   // Read once, on the first upstream-stopped review: why its re-run waits, or
@@ -881,6 +893,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         const earliest = Math.min(...own.filter((r) => RECORDED_UPSTREAMS.has(r.path)).map((r) => Date.parse(r.created_at)));
         passed.push({ pull, checks, starts: [Number.isNaN(earliest) ? null : new Date(earliest).toISOString()] });
+        if (now - Date.parse(pull.created_at) > TOO_OLD_DAYS * 86_400_000 && now - Date.parse(checks.created_at) < RERUN_WINDOW_DAYS * 86_400_000) {
+          tooOld.push({ pull, checks });
+        }
       }
       if (set.length > 0) {
         ready.push(set.map(withRecord));
@@ -916,6 +931,24 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         throw error;
       }
       say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
+    }
+  }
+  // A pull request past TOO_OLD_DAYS whose head has no counted verdict (an
+  // expired pass): the gate refuses it `verify:too-old` until a fresh pass at
+  // the head, so its passed checks run is re-run once, recorded, and
+  // pr-verify judges the head (resolve-pr's `ok`). A head a spec re-run
+  // already takes is skipped.
+  const specPrs = new Set(ready.flat().filter((item) => item.kind === "spec").map((item) => item.pr));
+  for (const { pull, checks } of tooOld.filter(({ pull }) => !specPrs.has(pull.number))) {
+    try {
+      if ((await judgeSpec(checks.id)).reason === "ok") {
+        ready.push([withRecord({ kind: "too-old", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
+      }
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      say(`#${pull.number}: its verdict could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
   // Spec re-runs join the CI sets in the PRs' merge-critical order. A PR
@@ -1163,7 +1196,9 @@ async function act({ repo, call, say, since, sleep, items }) {
       say(
         item.kind === "spec"
           ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: its spec changed after the pass`
-          : item.kind === "review"
+          : item.kind === "too-old"
+            ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: the pull request is past ${TOO_OLD_DAYS} days and its head has no verdict`
+            : item.kind === "review"
             ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
             : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
