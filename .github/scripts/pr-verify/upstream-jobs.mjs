@@ -14,23 +14,18 @@
 // pull request's, so they are data too.
 
 import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { KEPT_JOBS, keptJobsPath, shapeJobs } from "./resolve-pr.mjs";
+
+export { KEPT_JOBS, keptJobsPath, shapeJobs };
 
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
 
-// The jobs as JOBS_FILE lists them.
-export const shapeJobs = (runId, jobs) => ({ run_id: Number(runId), jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null })) });
-
-// The file resolve-pr.mjs writes the jobs it read whole into, in RUNNER_TEMP
-// (outside the workspace the model reads); null when RUNNER_TEMP is unset.
-export const KEPT_JOBS = "pr-verify-upstream-jobs.json";
-export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEMP, KEPT_JOBS) : null);
 
 // The resolver's jobs for run `runId`, or null when the file is missing, is
 // for another run, or is not a job list as shapeJobs writes it.

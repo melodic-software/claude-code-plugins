@@ -53,6 +53,7 @@
 
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
+import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
@@ -65,7 +66,6 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { keptJobsPath, shapeJobs } from "./upstream-jobs.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
 import { carriesSplit, loadRules, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, webHostsFrom } from "../intake-triage/admit.mjs";
@@ -81,6 +81,14 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 // Bot accounts' pull requests before reading a verdict.
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
 const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
+
+// The jobs as JOBS_FILE lists them.
+export const shapeJobs = (runId, jobs) => ({ run_id: Number(runId), jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null })) });
+
+// The file this script writes the jobs it read whole into, in RUNNER_TEMP
+// (outside the workspace the model reads); null when RUNNER_TEMP is unset.
+export const KEPT_JOBS = "pr-verify-upstream-jobs.json";
+export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEMP, KEPT_JOBS) : null);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
