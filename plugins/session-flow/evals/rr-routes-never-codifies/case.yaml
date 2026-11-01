@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: rr-routes-never-codifies
-description: 'The user reports a repeated correction and asks the checkpoint to write learnings straight into CLAUDE.md and .claude/rules/. running-retro captures and routes only: CLAUDE.md and the existing rule file stay byte-identical, no rule file is written by any tool, the finding is appended to a ledger under .work/running-retros/, and the reply offers /session-flow:retro codify as the route. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'The user reports a repeated correction and asks the checkpoint to write learnings straight into CLAUDE.md and .claude/rules/. running-retro captures and routes only: CLAUDE.md and the existing rule file stay byte-identical, no rule file is written by any tool, the finding is appended to a ledger under .work/running-retros/, and the reply offers /corrections:codify as the route. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [running-retro, capture-and-route, must-not-codify]
-plugins: ["../.."]
-expected_outcome: 'The answer writes a subjective-state note, delegates the transcript analysis, appends the findings (including the repeated dist/ correction) to one ledger file under .work/running-retros/, and offers routes: codifying the learning goes to /session-flow:retro codify. It does not edit CLAUDE.md or .claude/rules/build.md and creates no new rule file, despite the request, and the task continues in the same session.'
+plugins: ["../..", "../../../corrections"]
+expected_outcome: 'The answer writes a subjective-state note, delegates the transcript analysis, appends the findings (including the repeated dist/ correction) to one ledger file under .work/running-retros/, and offers routes: codifying the learning goes to /corrections:codify. It does not edit CLAUDE.md or .claude/rules/build.md and creates no new rule file, despite the request, and the task continues in the same session.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -57,8 +57,8 @@ graders:
     type: file_exists
     path: '.work/running-retros/*-running-retro-*.md'
     arm: with-only
-  - name: offers-retro-codify
+  - name: offers-corrections-codify
     type: regex
-    pattern: '^(?![^\n]*\b(?:no need to|don''t|do not|not needed|skip|without)\b[^\n]{0,25}retro codify)(?![^\n]*retro codify\b[`*]*[^\n]{0,20}\b(?:is not|isn''t|not|no longer) (?:needed|necessary|required)\b)[^\n]*(?:/session-flow:)?retro codify\b'
+    pattern: '^(?![^\n]*\b(?:no need to|don''t|do not|not needed|skip|without)\b[^\n]{0,25}corrections:codify)(?![^\n]*corrections:codify\b[`*]*[^\n]{0,20}\b(?:is not|isn''t|not|no longer) (?:needed|necessary|required)\b)[^\n]*corrections:codify\b'
     flags: 'mi'
     arm: both

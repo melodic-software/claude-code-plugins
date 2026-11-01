@@ -96,16 +96,17 @@ skills is `/session-flow:recommend-skills`, not a detector here.
 
 | Route | When | Applied by |
 |---|---|---|
-| CLAUDE.md fix | A durable instruction the whole repo should carry | `/session-flow:retro codify` (offered) |
-| Rule fix (`.claude/rules/`) | An ecosystem- or scope-specific rule | `/session-flow:retro codify` (offered) |
+| CLAUDE.md fix | A durable instruction the whole repo should carry | proposed by `/corrections:codify`, else `/session-flow:retro` (offered) |
+| Rule fix (`.claude/rules/`) | An ecosystem- or scope-specific rule | proposed by `/corrections:codify`, else `/session-flow:retro` (offered) |
 | Skill change | An existing skill should change behavior | flagged for the skill's own change flow |
 | New-skill candidate | A genuinely repeatable multi-step workflow (3+ steps, reused monthly+, needs judgment) | flagged as a candidate, not built |
 | Tracker issue | Deferred work, a discovered gap, research worth preserving | consumer's work-item tracker (offered) |
-| Encode a repeated correction | A correction the session needed more than once | `/session-flow:retro codify`, through its Strength step (offered) |
+| Encode a repeated correction | A correction the session needed more than once | proposed by `/corrections:codify`, which counts it and picks its rung, else `/session-flow:retro` (offered) |
 
 running-retro **captures and routes only**. The subagent proposes the route; nothing edits
 `CLAUDE.md`, rules, or memory, and nothing files a tracker issue. The SKILL.md step 5 offer gate
-owns that.
+owns that, and offers `/corrections:codify` only when the `corrections` plugin is installed, else
+`/session-flow:retro`.
 
 ## Mandatory redaction pass
 
