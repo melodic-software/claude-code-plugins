@@ -6198,6 +6198,9 @@ jobs:
           # names none.
           PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          # The head the broker step read the file list at: its pages stand in
+          # for the live list only while the live pull still has this head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -6322,10 +6325,12 @@ jobs:
           }
           export PATH_HOLDS
           # On a pull request event the broker step above read every page of
-          # this list live in this job and left it; read it again only when
-          # that step could not or its pages do not parse. The count check
-          # below holds either way.
+          # this list live in this job and left it; read it again when that
+          # step could not, its pages do not parse, or the live pull's head is
+          # no longer the event's (a push since). The count check below holds
+          # either way.
           if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
+            [[ ! ${PR_HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] || [ "$(jq -r '.head.sha // ""' <<<"$pull")" != "$PR_HEAD_SHA" ] ||
             ! jq -c '.[] | [.filename, .previous_filename, .status]' "$RUNNER_TEMP/pr-files.json" >"$RUNNER_TEMP/files.jsonl" 2>/dev/null; then
             read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
               --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1

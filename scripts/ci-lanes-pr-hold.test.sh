@@ -286,8 +286,10 @@ expect() {
   [[ -z "${STUB_PR_FILES:-}" ]] || printf '%s\n' "$STUB_PR_FILES" >"$TMP_ROOT/pr-files.json"
   # The payload's author, on a pull request event STUB_PULL's own unless
   # STUB_AUTHOR_ID or STUB_AUTHOR_TYPE replace it; a merge group names none.
-  local author_id='' author_type=''
+  # The payload's head is the pull's unless STUB_HEAD replaces it.
+  local author_id='' author_type='' head_sha=''
   if [[ "${EVENT:-pull_request}" == pull_request ]]; then
+    head_sha="${STUB_HEAD-$SHA}"
     author_id="${STUB_AUTHOR_ID-$(jq -r '.user.id // ""' <<<"$STUB_PULL")}"
     author_type="${STUB_AUTHOR_TYPE-$(jq -r '.user.type // ""' <<<"$STUB_PULL")}"
   fi
@@ -299,7 +301,7 @@ expect() {
     printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
   fi
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" \
+    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
     BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
@@ -625,6 +627,11 @@ expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
   expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
 expect_file_reads "unparsable broker pages are read again live" 1
+for head in fedcba9876543210fedcba9876543210fedcba98 ''; do
+  STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" STUB_HEAD="$head" \
+    expect "broker pages for another head (payload head '${head:-none}') leave the live read" 1 3 "it changes docs/held/a.md, a hold path"
+  expect_file_reads "broker pages for another head (payload head '${head:-none}') are read again live" 1
+done
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
   expect "in the merge queue the files are read live, whatever the file holds" 1 3 "it changes docs/held/a.md, a hold path"
 expect_file_reads "in the merge queue the files are read" 1
