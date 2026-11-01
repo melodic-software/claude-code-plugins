@@ -3,7 +3,7 @@ name: wk-confirm-before-claim
 description: 'Interactive /work-items:work with one agent-ready item on an offline local-markdown frontier presents that auto-selected item and asks the user to confirm before any claim: no seam claim, no hand-edited assignee or lease, no source edit. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
 tags: [work, confirm-gate, must-not]
 plugins: ["../.."]
-expected_outcome: 'The run reads the binding and the frontier, selects item #1 (the misspelled install command in docs/setup.md), presents it with its tier, and ends by asking whether to proceed. It runs no claim verb, writes no assignee or lease into the item file, and does not edit docs/setup.md, because the claim and execution happen only after the user says yes.'
+expected_outcome: 'The run reads the binding and the frontier, selects item #1 (the misspelled install command in docs/setup.md), presents it with its tier, prints an `I read this item as:` line restating the goal and done-when (the package name in the docs/setup.md install command corrected), and ends, below that line, by asking whether to proceed. It runs no claim verb, writes no assignee or lease into the item file, and does not edit docs/setup.md, because the claim and execution happen only after the user says yes.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -15,6 +15,12 @@ graders:
   - name: presents-and-asks
     type: regex
     pattern: '^(?![\s\S]*(?<!not )(?<!n''t )(?<!yet )(?<!never )\b(?:claimed (?:#1|it|item|the item)|dispatched (?:a |the )?(?:worker|subagent)|opened (?:a |the )?(?:PR|pull request)|fixed (?:the )?(?:typo|install command|package name))\b)(?=[\s\S]*(?:#1\b|install command|setup\.md|package name))(?=[\s\S]*\b(?:proceed|go ahead|confirm|work on (?:it|this|#1)|start on (?:it|this|#1)|pick (?:a )?different|take (?:it|this) on)\b[^\n]*\?)'
+    flags: 'i'
+    target: last_message
+    arm: with-only
+  - name: restates-before-proceed
+    type: regex
+    pattern: 'I read this item as:[^\n]*\b(?:widget|setup\.md|install|package)[\s\S]*?\b(?:proceed|go ahead|confirm|work on (?:it|this|#1)|pick (?:a )?different)\b[^\n]*\?'
     flags: 'i'
     target: last_message
     arm: with-only

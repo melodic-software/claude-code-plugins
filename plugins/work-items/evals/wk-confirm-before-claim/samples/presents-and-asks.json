@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "**Auto-selected (highest impact):** #1 Fix the misspelled package name in the docs/setup.md install command\nType: Bug \u00b7 Labels: agent-ready, work-class: mechanical, area: docs\n\nProceed with this item? (yes / pick different / skip)",
+      "answer": "**Auto-selected (highest impact):** #1 Fix the misspelled package name in the docs/setup.md install command\nType: Bug \u00b7 Labels: agent-ready, work-class: mechanical, area: docs\n\nI read this item as: correct the package name in the docs/setup.md install command; done when it shows `pip install widget`.\n\nProceed with this item? (yes / pick different / skip)",
       "why": "the skill's own format"
     },
     {
