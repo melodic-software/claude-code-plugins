@@ -279,7 +279,18 @@ WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
-  rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-reads"
+  rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-files.json"
+  # STUB_KEEP_READS keeps the pr_read answers an earlier step left.
+  [[ -n "${STUB_KEEP_READS:-}" ]] || rm -rf "$TMP_ROOT/pr-reads"
+  # The broker step's file pages (STUB_PR_FILES, as that step saved them).
+  [[ -z "${STUB_PR_FILES:-}" ]] || printf '%s\n' "$STUB_PR_FILES" >"$TMP_ROOT/pr-files.json"
+  # The payload's author, on a pull request event STUB_PULL's own unless
+  # STUB_AUTHOR_ID or STUB_AUTHOR_TYPE replace it; a merge group names none.
+  local author_id='' author_type=''
+  if [[ "${EVENT:-pull_request}" == pull_request ]]; then
+    author_id="${STUB_AUTHOR_ID-$(jq -r '.user.id // ""' <<<"$STUB_PULL")}"
+    author_type="${STUB_AUTHOR_TYPE-$(jq -r '.user.type // ""' <<<"$STUB_PULL")}"
+  fi
   # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
   # STUB_CARRIED replaces the carried file (all-empty sections are cold too).
   if [[ -n "${STUB_COLD:-}" ]]; then
@@ -288,7 +299,7 @@ expect() {
     printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
   fi
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
+    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
     BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
@@ -317,6 +328,40 @@ STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"Use
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
 expect "a user account with the lanes App's login is not the lanes App" 0 0 "not the lanes App's"
+
+# ON A PULL REQUEST EVENT THE PAYLOAD'S AUTHOR DECIDES A NON-APP PULL REQUEST
+# WITH NO READ: the pull is read only for the lanes App's (whose changed-file
+# count, base and head the step uses), and when the payload names no
+# well-formed author, which falls through to the live read and its test.
+pull_reads() { grep -cE 'repos/o/r/pulls/7$' "$TMP_ROOT/log"; }
+expect_pull_reads() {
+  if [[ "$(pull_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 pull read(s): '$(sort -u "$TMP_ROOT/log")'"; fi
+}
+for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}' \
+  '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}'; do
+  STUB_PULL="$(pull 'Closes #1' "$user")"
+  expect "a non-App payload author ($(jq -r .login <<<"$user")) exits on the payload" 0 0 "not the lanes App's"
+  expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
+done
+STUB_PULL="$(pull 'Closes #1')"
+expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no body hold, no member veto and no hold path"
+expect_pull_reads "the lanes App's pull request is read once" 1
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
+  export "${payload?}"
+  expect "with $payload the step reads the pull and tests its author" 0 0 "not the lanes App's"
+  expect_pull_reads "with $payload the pull is read" 1
+  unset STUB_AUTHOR_ID STUB_AUTHOR_TYPE
+done
+# A payload claiming another author never skips the lanes App's holds: the
+# read author is tested, and the lanes App's pull request is still held.
+STUB_PULL="$(pull $'Closes #1\n\nHold: x')"
+STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "its body holds it"
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
+EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
+  expect "in the merge queue a non-App pull request is read, as no payload names its author" 0 0 "not the lanes App's"
+expect_pull_reads "in the merge queue the pull is read" 1
 
 # The lanes kill switch stops every lanes App pull request, and only those.
 for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
@@ -411,7 +456,7 @@ fi
 restore="$(step_of "Read the verdict reads pr-merge's last scheduled run kept")"
 carry="$(step_of "Start the run cache from them")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' }}'
+queue_only='if: ${{ !cancelled() && github.event_name == '"'merge_group'"' && steps.queued_author.outputs.lanes != '"'false'"' }}'
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$restore" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read"* && "$restore" != *"uses:"* &&
   "$restore" == *'CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json'* && "$restore" == *'ACTIONS_TOKEN: ${{ github.token }}'* &&
@@ -439,13 +484,75 @@ if [[ "$carry" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 else
   fail "no merge_group-only, continue-on-error carry into the reader's run cache"
 fi
-order="$(grep -nxF -e "      - name: Check out main's Node pin and verdict reader" -e "      - name: Read the verdict reads pr-merge's last scheduled run kept" \
+AUTHOR_STEP="Read whether the queued pull request is the lanes App's"
+order="$(grep -nxF -e "      - name: Check out main's Node pin and verdict reader" -e "      - name: $AUTHOR_STEP" -e "      - name: Read the verdict reads pr-merge's last scheduled run kept" \
   -e "      - name: Start the run cache from them" -e "      - name: $NAME" "$WORKFLOW" | cut -d: -f2- | sed 's/^      - name: //' | paste -sd'|')"
-if [[ "$order" == "Check out main's Node pin and verdict reader|Read the verdict reads pr-merge's last scheduled run kept|Start the run cache from them|$NAME" ]]; then
-  ok "the checkout, the read and the carry come before the step, in that order"
+if [[ "$order" == "Check out main's Node pin and verdict reader|$AUTHOR_STEP|Read the verdict reads pr-merge's last scheduled run kept|Start the run cache from them|$NAME" ]]; then
+  ok "the checkout, the author read, the read and the carry come before the step, in that order"
 else
   fail "the reader's steps are out of order: $order"
 fi
+
+# A QUEUED PULL REQUEST THAT IS NOT THE LANES APP'S SKIPS THE CARRY STEPS, AT NO
+# REST COST: the author step reads the pull through pr_read with the args the
+# pr-unblock step and this step read it with, so their reads answer from that
+# cache; an unread author leaves `lanes` unset and the carry steps run.
+author_step="$(step_of "$AUTHOR_STEP")"
+awk '/^        run: \|$/ { on = 1; next }
+  on && /^          / { print substr($0, 11); next }
+  on && /^[[:blank:]]*$/ { print ""; next }
+  on { exit }' <<<"$author_step" >"$TMP_ROOT/author.sh"
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+if [[ "$author_step" == *"id: queued_author"* && "$author_step" == *"continue-on-error: true"* &&
+  "$author_step" == *'if: ${{ !cancelled() && github.event_name == '"'merge_group'"' }}'* &&
+  "$author_step" == *'pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr"'* ]] &&
+  grep -qF 'pull=$(READER=pr_read read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr")' <<<"$(step_of "Fail a head a pr-unblock lane stopped")"; then
+  ok "the author step is merge_group-only, cannot fail the job, and reads the pull with the pr-unblock step's pr_read args"
+else
+  fail "no merge_group-only, continue-on-error author step reading the pull with the pr-unblock step's pr_read args"
+fi
+# author_run <label> <want lanes output, or empty for none>
+author_run() {
+  local label="$1" want="$2" out rc got
+  : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/author-output"
+  rm -rf "$TMP_ROOT/pr-reads"
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="${REF:-$QUEUE}" GITHUB_REPOSITORY=o/r \
+    GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/author-output" \
+    LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
+  got="$(sed -n 's/^lanes=//p' "$TMP_ROOT/author-output")"
+  if [[ "$rc" -ne 0 ]]; then
+    fail "$label: the author step failed (rc=$rc): '$out'"
+  elif [[ "$got" != "$want" ]]; then
+    fail "$label: expected lanes='$want' got '$got': '$out'"
+  else
+    ok "$label"
+  fi
+}
+STUB_PULL="$(pull 'Closes #1')"
+author_run "a queued lanes App pull request runs the carry steps" true
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+author_run "a queued person's pull request skips the carry steps" false
+STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
+author_run "a queued user account with the lanes App's login skips the carry steps" false
+STUB_PULL='{}' author_run "an unreadable author leaves the carry steps running" ''
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+REF=refs/heads/main author_run "an unparsable queue ref leaves the carry steps running" ''
+STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running" ''
+# The author step's pull answers the lanes-hold step's read in the queue.
+author_run "the author step reads the queued pull" false
+if [[ "$(pull_reads)" -eq 1 ]]; then ok "the author step reads the pull once"; else fail "the author step read the pull $(pull_reads) time(s)"; fi
+EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS=1 \
+  expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
+expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
+# shellcheck disable=SC2016 # literal workflow expressions, not shell
+for gated in "$restore" "$carry"; do
+  if [[ "$gated" == *'steps.queued_author.outputs.lanes != '"'false'"* ]]; then
+    ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request the author step proved is not the lanes App's"
+  else
+    fail "$(sed -n 's/^      - name: //p' <<<"$gated") does not skip on the author step's lanes=false"
+  fi
+done
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
 expect "a Hold: line in the body fails" 1 3 "::error::#7: its body holds it"
@@ -496,6 +603,32 @@ STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1'
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
+# ON A PULL REQUEST EVENT THE BROKER STEP'S FILE PAGES ARE THE LIST: every page,
+# read live earlier in this job, saved raw as gh prints them. A page set that
+# is missing, unparsable, or in the merge queue leaves the live read.
+file_reads() { grep -cE 'repos/o/r/pulls/7/files\?' "$TMP_ROOT/log"; }
+expect_file_reads() {
+  if [[ "$(file_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 files read(s): '$(sort -u "$TMP_ROOT/log")'"; fi
+}
+page() { jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] // (if .[1] then "renamed" else "modified" end)), additions: 1}]' <<<"$1"; }
+STUB_FILES='[["docs/guide.md"]]'
+STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')$(page '[["docs/moved.md","docs/held/x.md"]]')" \
+  expect "the broker step's pages hold a renamed-from denied path across pages" 1 3 "it changes docs/held/x.md, a hold path"
+expect_file_reads "the broker step's pages leave no files read" 0
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
+  expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
+expect_file_reads "the short broker pages are not read again" 0
+STUB_PULL="$(pull 'Closes #1')"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no body hold, no member veto and no hold path"
+expect_file_reads "clean broker pages leave no files read" 0
+STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
+  expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
+expect_file_reads "unparsable broker pages are read again live" 1
+STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
+  expect "in the merge queue the files are read live, whatever the file holds" 1 3 "it changes docs/held/a.md, a hold path"
+expect_file_reads "in the merge queue the files are read" 1
+STUB_FILES='[["docs/guide.md"]]'
 # Owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B: the floor's
 # trust and gate entries hold with no denied path configured, a dot-prefixed
 # file and a renamed-from path included.
