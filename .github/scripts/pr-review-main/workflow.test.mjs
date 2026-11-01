@@ -1129,7 +1129,12 @@ test("the handoff step names its lane and a closed reason, and a handed-off leg 
     assert.equal(/^ {8}if: (.*)$/m.exec(handoff)[1], `${slots.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} || steps.credential.outputs.present == 'false'`);
     assert.equal(input(handoff, "REASON"), `\${{ steps.credential.outputs.present == 'false' && 'no-key' || ${slots.map((k) => `steps.review-${k}.outputs.handoff-reason`).join(" || ")} }}`);
     assert.ok(index(`Upload chunk ${SLOTS}'s sealed transcript`, job) + 1 === index("Hand the lane on", job));
-    for (const k of slots) assert.match(step(`Report chunk ${k}'s outcome`, job), new RegExp(`&& steps\\.review-${k}\\.outputs\\.handoff != 'true'$`, "m"));
+    // A chunk that handed off still leaves its lane record, marked handoff.
+    for (const k of slots) {
+      const report = step(`Report chunk ${k}'s outcome`, job);
+      assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.review-${k}.outcome == 'success' || steps.review-${k}.outcome == 'failure'`);
+      assert.equal(input(report, "handoff"), `\${{ steps.review-${k}.outputs.handoff }}`);
+    }
     assert.match(step("Fail without a verdict", job), /&& steps\.handoff\.outcome != 'success'$/m);
   }
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(step("Hand the lane on"))[1].replace(/^ {10}/gm, "");

@@ -2147,10 +2147,10 @@ test("pr-run-activity-read.yml: each launcher leg is followed by a check of the 
 });
 
 // A call that handed off (its key empty, or a credit stop on its key leg)
-// uploads nothing, records no lane outcome and posts no check: the fallback
-// call's artifacts take the same names, and fix-ci-dispatch.mjs counts the
-// fix-ci checks on a head.
-test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, the patch and the report", () => {
+// uploads nothing and posts no check: the fallback call's artifacts take the
+// same names, and fix-ci-dispatch.mjs counts the fix-ci checks on a head. A
+// leg that ran and handed off leaves its own lane record, marked handoff.
+test("pr-run-activity-read.yml: a handoff skips every upload, the patch and the report, and marks its lane record handoff", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   const run = jobs.run;
   const base = {
@@ -2205,11 +2205,28 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     "steps.mode-fallback.outcome": "success",
   };
   const ran = { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "success", "steps.act-key.outputs.handoff": "false", "steps.mode-key.outcome": "success" };
-  const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
+  const guarded = run.steps.filter((s) => /^actions\/upload-artifact@/.test(String(s.uses ?? "")) || s.id === "patch");
   assert.deepEqual(
     guarded.map((s) => s.id ?? s.name),
-    ["lane-record", "patch"],
+    ["patch"],
   );
+  // The lane record: none for an empty key, whose leg never ran; a leg that
+  // ran and handed off records itself with handoff true; any other leg false.
+  const records = run.steps.filter((s) => /\/report-lane-outcome@/.test(String(s.uses ?? "")));
+  assert.deepEqual(
+    records.map((s) => s.id),
+    ["lane-record"],
+  );
+  const [record] = records;
+  const handoff = (context) => atStep(String(record.with.handoff).replace(/^\$\{\{\s*|\s*\}\}$/g, ""), context);
+  for (const issue of ["", "7"]) {
+    assert.equal(atStep(record.if, { ...handoffs["an empty key"], "inputs.issue-number": issue }), false, `lane-record after an empty key, issue ${issue}`);
+    for (const name of ["a credit stop", "a subscription leg's handoff"]) {
+      const context = { ...handoffs[name], "inputs.issue-number": issue };
+      assert.equal(atStep(record.if, context), true, `lane-record after ${name}, issue ${issue}`);
+      assert.equal(handoff(context), true, `lane-record's handoff after ${name}, issue ${issue}`);
+    }
+  }
   const outcome = run.steps.find((s) => s.name === "Collect the issue outcome");
   for (const step of guarded) {
     for (const [name, context] of Object.entries(handoffs)) {
@@ -2223,7 +2240,11 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   }
   assert.equal(atStep(outcome.if, { ...ran, "inputs.issue-number": "7" }), true, "an issue run that ran collects its outcome");
   // A call that ran collects its patch and records its outcome; its uploads are the scan job's.
-  for (const step of guarded) {
+  const secondRan = { ...second, "steps.act-token.outcome": "success", "steps.act-token.outputs.handoff": "false", "steps.mode-token.outcome": "success" };
+  for (const [name, context] of Object.entries({ ran, "the second call": secondRan, "the third call": third })) {
+    assert.equal(handoff(context), false, `lane-record's handoff on ${name}`);
+  }
+  for (const step of [...guarded, record]) {
     assert.equal(atStep(step.if, ran), true, step.id ?? step.name);
     assert.equal(atStep(step.if, { ...second, "steps.act-token.outcome": "success", "steps.act-token.outputs.handoff": "false", "steps.mode-token.outcome": "success" }), true, `${step.id ?? step.name} on the second call`);
     assert.equal(atStep(step.if, third), true, `${step.id ?? step.name} on the third call`);

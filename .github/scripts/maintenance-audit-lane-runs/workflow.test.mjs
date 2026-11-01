@@ -151,7 +151,7 @@ test("the later legs repeat the key leg's steps but for the credential, the leg 
   // Comments differ, and so do the lines that name the credential, the
   // handoff and the leg's place in the chain; every other line is equal.
   const differs = [
-    /^ {10}(api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|known-failure-class): /,
+    /^ {10}(api-key|subscription-token|fallback-token|fallback-ready|fallback-reason|known-failure-class|handoff): /,
     /^ {8}if: .*steps\.(handoff|key-leg|sub-leg)\.|^ {8}if: always\(\) /,
     /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/,
   ];
@@ -209,11 +209,14 @@ test("a unit reaches the next leg only through a clean handoff its route job rea
   }
 });
 
-test("each unit leaves one lane record, from the leg that saw its end", () => {
+test("each unit leaves one lane record per leg, the leg that handed off marked handoff", () => {
   const report = (job) => step("Report the judgment's outcome", job);
-  const ran = "(steps.judge.outcome == 'success' || steps.judge.outcome == 'failure')";
-  assert.equal(value(report(KEY), "if", 8), `${ran} && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')`);
-  assert.equal(value(report(SUB), "if", 8), `${ran} && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')`);
+  const ran = "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'";
+  assert.equal(value(report(KEY), "if", 8), ran);
+  assert.equal(value(report(SUB), "if", 8), ran);
+  assert.equal(value(report(KEY), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
+  assert.equal(value(report(SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
+  assert.equal(value(report(FB), "handoff"), undefined);
   assert.equal(value(report(FB), "if", 8), "steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'");
   assert.equal(value(report(KEY), "fallback-reason"), undefined);
   assert.equal(value(report(SUB), "fallback-reason"), SUB_REASON);

@@ -672,7 +672,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 1's outcome
-        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -685,6 +685,7 @@ jobs:
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
+          handoff: ${{ steps.review-1.outputs.handoff }}
 
       - name: Upload chunk 1's sealed transcript
         if: always() && steps.review-1.outputs.execution-file != ''
@@ -739,7 +740,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 2's outcome
-        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -752,6 +753,7 @@ jobs:
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
+          handoff: ${{ steps.review-2.outputs.handoff }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.review-2.outputs.execution-file != ''
@@ -806,7 +808,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 3's outcome
-        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -819,6 +821,7 @@ jobs:
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
+          handoff: ${{ steps.review-3.outputs.handoff }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.review-3.outputs.execution-file != ''
@@ -873,7 +876,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 4's outcome
-        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -886,6 +889,7 @@ jobs:
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
+          handoff: ${{ steps.review-4.outputs.handoff }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.review-4.outputs.execution-file != ''
@@ -1488,7 +1492,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 1's outcome
-        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -1501,6 +1505,7 @@ jobs:
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
+          handoff: ${{ steps.review-1.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1558,7 +1563,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 2's outcome
-        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -1571,6 +1576,7 @@ jobs:
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
+          handoff: ${{ steps.review-2.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1628,7 +1634,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 3's outcome
-        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -1641,6 +1647,7 @@ jobs:
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
+          handoff: ${{ steps.review-3.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1698,7 +1705,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 4's outcome
-        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -1711,6 +1718,7 @@ jobs:
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
+          handoff: ${{ steps.review-4.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2306,7 +2314,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 1's outcome
-        if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
+        if: steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
@@ -2319,6 +2327,7 @@ jobs:
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-1.outputs.lane-class }}
+          handoff: ${{ steps.review-1.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2375,7 +2384,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 2's outcome
-        if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
+        if: steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
@@ -2388,6 +2397,7 @@ jobs:
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-2.outputs.lane-class }}
+          handoff: ${{ steps.review-2.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2444,7 +2454,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 3's outcome
-        if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
+        if: steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
@@ -2457,6 +2467,7 @@ jobs:
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-3.outputs.lane-class }}
+          handoff: ${{ steps.review-3.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2513,7 +2524,7 @@ jobs:
           leg-timeout-minutes: "15"
 
       - name: Report chunk 4's outcome
-        if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
+        if: steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure'
         uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
@@ -2526,6 +2537,7 @@ jobs:
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.review-4.outputs.lane-class }}
+          handoff: ${{ steps.review-4.outputs.handoff }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
