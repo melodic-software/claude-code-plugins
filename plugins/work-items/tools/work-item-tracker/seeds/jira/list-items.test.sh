@@ -3,7 +3,7 @@
 # list-items: offline contract tests. The happy path drives the real normalizer +
 # nextPageToken pagination with a mocked curl (WIT_JIRA_CURL) returning canned
 # /search/jql pages — no live Jira call.
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/jira/* plugins/work-items/tools/work-item-tracker/lib/*
+# test-scope: plugins/work-items/tools/work-item-tracker/seeds/jira/* plugins/work-items/tools/work-item-tracker/lib/*
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"

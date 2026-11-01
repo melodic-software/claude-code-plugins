@@ -20,7 +20,7 @@ comment ordering.
 ## Running it
 
 ```bash
-cd "$(git rev-parse --show-toplevel)/plugins/work-items/tools/work-item-tracker/adapters/linear/schema-check"
+cd "$(git rev-parse --show-toplevel)/plugins/work-items/tools/work-item-tracker/seeds/linear/schema-check"
 ./fetch-schema.sh                 # ~1.2 MB SDL, fetched not vendored
 npm install graphql               # or have graphql >= 17 resolvable
 node validate.mjs                 # every operation must PASS

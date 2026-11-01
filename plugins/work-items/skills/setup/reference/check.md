@@ -16,8 +16,10 @@ check.
    bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
-   adapter (`github`, `local-markdown`, `jira`, `gitea`, `linear`) or a consumer-local one at
-   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
+   adapter (`github`, `local-markdown`) or a consumer-local one at
+   `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
+   A seeded provider (`jira`, `gitea`, `linear`) resolves only through that consumer-local copy: with
+   none there it is FAIL, remediation `/work-items:setup apply`, which copies the seed. `config.lease_ttl_hours` is
    present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.

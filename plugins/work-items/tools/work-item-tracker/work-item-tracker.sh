@@ -123,6 +123,10 @@ main() {
 
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
+  if [[ ! -d "$adapter_dir" && -d "$SCRIPT_DIR/seeds/$WIT_PROVIDER" ]]; then
+    # A seed is never dispatched from the plugin (CONTRACT.md "Adapter resolution").
+    fail_config "provider '$WIT_PROVIDER' ships as a seed the consuming repo owns; run /work-items:setup apply to copy it into tools/work-item-tracker/adapters/$WIT_PROVIDER/"
+  fi
   [[ -d "$adapter_dir" ]] ||
     fail_config "no adapter for provider '$WIT_PROVIDER' (searched consumer-local then plugin-bundled) — last tried $adapter_dir"
   manifest="$adapter_dir/capabilities.json"

@@ -15,6 +15,10 @@
     {
       "answer": "Jira is already supported out of the box.",
       "why": "already supported"
+    },
+    {
+      "answer": "Jira ships as a seed that /work-items:setup copies into this repo.",
+      "why": "ships as a seed"
     }
   ],
   "fail": [

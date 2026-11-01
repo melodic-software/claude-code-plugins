@@ -363,9 +363,9 @@ assert_eq "empty --body-file → exit 2" "2" "$?"
 run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
 assert_eq "--body-file without a value → exit 2" "2" "$?"
 
-# Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
-# names ENG-12, and its last capture group is the ref.
-for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do
+# Every bundled and seed branch grammar needs a delimiter after the ref, so `ENG-12oops`
+# never names ENG-12, and its last capture group is the ref.
+for m in "$SCRIPT_DIR"/adapters/*/capabilities.json "$SCRIPT_DIR"/seeds/*/capabilities.json; do
   p="$(jq -r '.change_link.branch_pattern' "$m")"
   a="$(basename "$(dirname "$m")")"
   case "$a" in jira | linear) ref="ENG-12" ;; *) ref="12" ;; esac
