@@ -187,6 +187,121 @@ ratchet propose-tighten --file "$F" --runs 0
 assert_eq "propose-tighten --runs 0 is refused" "2" "$RUN_RC"
 assert_contains "the propose-tighten refusal states the minimum" "at least 1" "$RUN_OUT"
 
+# --- 6. per-file ceilings: a fix in one file never pays for a new violation in another ---
+# per_file <file> <command> <ceilings-json> [break_glass]: one per-file counter reading `violations`.
+per_file() {
+  "$HARNESS_PYTHON" -c 'import json, sys
+data = {"counters": [{"name": "lint", "command": sys.argv[2], "field": "violations",
+  "ceilings": json.loads(sys.argv[3]), "goal": "no new lint violations"}]}
+if len(sys.argv) > 4: data["break_glass"] = sys.argv[4] == "true"
+json.dump(data, open(sys.argv[1], "w"))' "$@"
+}
+
+P="$WORK/per-file.json"
+A_SRC="$WORK/a.ts"
+B_SRC="$WORK/b.ts"
+: >"$A_SRC"
+: >"$B_SRC"
+
+# File a falls from 3 to 1 while file b gains one: the total falls from 3 to 2.
+per_file "$P" "printf '%s violations=1\n%s violations=1\n' '$A_SRC' '$B_SRC'" "{\"$A_SRC\": 3}"
+ratchet check --file "$P"
+assert_eq "a new violation in file b fails though the total fell" "1" "$RUN_RC"
+assert_contains "the failure names file b" "ABOVE  lint: $B_SRC violations=1 > ceiling 0" "$RUN_OUT"
+assert_not_contains "file a below its ceiling is not named as above" "ABOVE  lint: $A_SRC" "$RUN_OUT"
+
+per_file "$P" "printf '%s violations=2\n' '$A_SRC'" "{\"$A_SRC\": 3}"
+ratchet check --file "$P"
+assert_eq "every file at or below its ceiling exits 0" "0" "$RUN_RC"
+assert_contains "the pass offers to tighten" "propose-tighten can lower 1" "$RUN_OUT"
+
+per_file "$P" "echo 'garbage line'" "{}"
+ratchet check --file "$P"
+assert_eq "a line that is not '<path> <field>=<n>' is refused" "2" "$RUN_RC"
+
+per_file "$P" "printf '%s violations=1\n%s violations=1\n' '$A_SRC' '$A_SRC'" "{}"
+ratchet check --file "$P"
+assert_eq "a file printed twice is refused" "2" "$RUN_RC"
+
+per_file "$P" "true" "{\"$A_SRC\": -1}"
+ratchet check --file "$P"
+assert_eq "a negative file ceiling is refused" "2" "$RUN_RC"
+
+# propose-tighten lowers file ceilings and drops a file that reached 0.
+per_file "$P" "printf '%s violations=1\n' '$A_SRC'" "{\"$A_SRC\": 3, \"$B_SRC\": 2}"
+ratchet propose-tighten --file "$P" --write
+assert_eq "per-file propose-tighten exits 0" "0" "$RUN_RC"
+assert_contains "the lowered file ceiling is recorded" "\"$A_SRC\": 1" "$(<"$P")"
+assert_not_contains "a file at 0 leaves the ceilings" "$B_SRC" "$(<"$P")"
+
+per_file "$P" "printf '%s violations=1\n%s violations=1\n' '$A_SRC' '$B_SRC'" "{\"$A_SRC\": 3}"
+ratchet propose-tighten --file "$P" --write
+assert_eq "per-file propose-tighten over a new file's violation exits 1" "1" "$RUN_RC"
+assert_contains "the regression blocks the write" "\"$A_SRC\": 3" "$(<"$P")"
+
+PA="$WORK/per-file-added.json"
+ratchet add --file "$PA" --per-file --break-glass off --name lint --field violations --goal "g" \
+  --command "printf '%s violations=2\n%s violations=0\n' '$A_SRC' '$B_SRC'"
+assert_eq "add --per-file exits 0" "0" "$RUN_RC"
+assert_contains "add --per-file records a ceiling per file" "\"$A_SRC\": 2" "$(<"$PA")"
+assert_not_contains "a file at 0 gets no ceiling" "\"$B_SRC\": 0" "$(<"$PA")"
+assert_contains "add --break-glass records the setting" '"break_glass": false' "$(<"$PA")"
+
+# --- 7. break glass: an inline exception with a reason, an expiry and an approver ---
+OVER="printf '%s violations=1\n' '$B_SRC'"
+VALID="// ratchet-break-glass(lint): reason=vendor bug; expires=2999-01-01; approved-by=alice"
+
+printf '%s\n' "$VALID" >"$B_SRC"
+per_file "$P" "$OVER" "{}" true
+ratchet check --file "$P"
+assert_eq "a valid exception holds a file one above its ceiling" "0" "$RUN_RC"
+assert_contains "the held file is reported" "EXCEPT lint: $B_SRC" "$RUN_OUT"
+
+per_file "$P" "$OVER" "{}" false
+ratchet check --file "$P"
+assert_eq "with break glass off the exception is not read" "1" "$RUN_RC"
+
+per_file "$P" "$OVER" "{}"
+ratchet check --file "$P"
+assert_eq "with break glass absent the exception is not read" "1" "$RUN_RC"
+
+per_file "$P" "printf '%s violations=2\n' '$B_SRC'" "{}" true
+ratchet check --file "$P"
+assert_eq "one exception holds one violation, not two" "1" "$RUN_RC"
+
+for bad in "reason=x; expires=2999-01-01" "reason=x; approved-by=alice" \
+  "expires=2999-01-01; approved-by=alice" "reason=x; expires=soon; approved-by=alice"; do
+  printf '# ratchet-break-glass(lint): %s\n' "$bad" >"$B_SRC"
+  per_file "$P" "$OVER" "{}" true
+  ratchet check --file "$P"
+  assert_eq "an exception with '$bad' fails the check" "1" "$RUN_RC"
+  assert_contains "the failure names the exception" "BROKEN lint: break-glass exception at $B_SRC:1" "$RUN_OUT"
+done
+
+printf '%s\n' "// ratchet-break-glass(lint): reason=x; expires=2000-01-01; approved-by=alice" >"$B_SRC"
+per_file "$P" "$OVER" "{}" true
+ratchet check --file "$P"
+assert_eq "an expired exception fails the check" "1" "$RUN_RC"
+assert_contains "the failure says it expired" "expired 2000-01-01" "$RUN_OUT"
+
+# A malformed exception fails even in a file at its ceiling.
+printf '%s\n' "/* ratchet-break-glass(lint): reason=x */" >"$B_SRC"
+per_file "$P" "printf '%s violations=0\n' '$B_SRC'" "{}" true
+ratchet check --file "$P"
+assert_eq "a malformed exception in a file at its ceiling fails" "1" "$RUN_RC"
+
+printf '%s\n' "// ratchet-break-glass(other): reason=x; expires=2999-01-01; approved-by=alice" >"$B_SRC"
+per_file "$P" "$OVER" "{}" true
+ratchet check --file "$P"
+assert_eq "an exception for another counter holds nothing" "1" "$RUN_RC"
+
+per_file "$P" "true" "{}"
+"$HARNESS_PYTHON" -c 'import json, sys
+data = json.load(open(sys.argv[1])); data["break_glass"] = "yes"; json.dump(data, open(sys.argv[1], "w"))' "$P"
+ratchet check --file "$P"
+assert_eq "a non-boolean break_glass is refused" "2" "$RUN_RC"
+assert_contains "the refusal names the key" '"break_glass" must be true or false' "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ratchet ceilings"
 exit 0

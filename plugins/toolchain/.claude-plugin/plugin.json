@@ -24,6 +24,12 @@
       "title": "Turn-end result gate",
       "description": "What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only.",
       "default": "advisory"
+    },
+    "ratchet_break_glass": {
+      "type": "boolean",
+      "title": "Ratchet break glass",
+      "description": "When on (default), /toolchain:ratchet writes break_glass true into a ceilings file that has no break_glass key, so a per-file counter honors an inline exception carrying a reason, an expiry and an approver. Off writes false. The ceilings file's break_glass key wins over this option.",
+      "default": true
     }
   }
 }

@@ -3,13 +3,13 @@
   "evals": [
     {
       "id": 1,
-      "name": "lint-count-gets-a-ceiling-in-the-required-job",
+      "name": "lint-count-gets-per-file-ceilings-in-the-required-job",
       "narration": true,
-      "prompt": "/toolchain:ratchet the eslint rule no-floating-promises. `npm run lint:count -- no-floating-promises` prints violations=37. CI has no ratchet yet; the required check is the `verify` job in .github/workflows/ci.yml.",
-      "expected_output": "Measures the count with ratchet.py add and records a ceiling of 37, the measured value, in a new .ratchets.json at the repository root, passing --file .ratchets.json on every ratchet.py call. Vendors ratchet.py beside it without the two generated header lines. Adds one check step inside the `verify` job that runs the vendored script with --file .ratchets.json. Leaves the rule from failing the build by itself (warning severity or its own invocation). Writes the files uncommitted, does not merge, and routes to /source-control:pull-request.",
+      "prompt": "/toolchain:ratchet our in-house lint rule no-raw-sql. Our linter, `python3 tools/lint.py`, has no baseline file and no autofix. `python3 tools/lint.py --rule no-raw-sql --per-file` prints one `<path> violations=<n>` line per file, 37 in total, and exits 0. CI has no ratchet yet; the required check is the `verify` job in .github/workflows/ci.yml.",
+      "expected_output": "Takes the per-file baseline path, since the fix is not mechanical and the linter has no native baseline. Measures with ratchet.py add --per-file, recording each file's measured count as its own ceiling, not one repository-wide 37, in a new .ratchets.json at the repository root, passing --file .ratchets.json on every ratchet.py call and --break-glass for the new file. Vendors ratchet.py beside it without the two generated header lines. Adds one check step inside the `verify` job that runs the vendored script with --file .ratchets.json. Writes the files uncommitted, does not merge, and routes to /source-control:pull-request.",
       "files": [],
       "expectations": [
-        "Records a ceiling of 37 from ratchet.py add, not a rounded-up value",
+        "Runs ratchet.py add with --per-file, so each file keeps its own measured ceiling rather than one total of 37",
         "Proposes .ratchets.json at the repository root and passes --file .ratchets.json to add and check",
         "Puts the check step inside the `verify` job, the required check",
         "Commits, pushes and merges nothing; the Output block ends awaiting human approval"
@@ -87,6 +87,18 @@
         "Records a ceiling of 0 with ratchet.py add",
         "Does not claim a linter rule now blocks new noqa comments",
         "Adds or reuses a check step inside the required job"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "eslint-rule-uses-the-native-baseline",
+      "prompt": "/toolchain:ratchet the eslint rule no-floating-promises. `npx eslint --rule '{\"@typescript-eslint/no-floating-promises\": \"error\"}' .` reports 37 violations across 12 files today, and the rule has no autofix.",
+      "expected_output": "Takes the per-file baseline path at error severity and, since ESLint has a native per-file baseline, points to ESLint's own suppressions docs for it instead of writing a ceilings entry. Turns the rule on at error severity. Runs no ratchet.py add and does not restate ESLint's flags from memory as the source; it cites the docs page.",
+      "files": [],
+      "expectations": [
+        "Uses ESLint's native suppressions baseline and cites its docs page",
+        "Turns the rule on at error severity, not warn",
+        "Runs no ratchet.py add and writes no ceilings entry"
       ]
     }
   ]

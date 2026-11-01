@@ -69,6 +69,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `turn_end_result_gate` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_TURN_END_RESULT_GATE` | What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only. |
+| `ratchet_break_glass` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_BREAK_GLASS` | When on (default), /toolchain:ratchet writes break_glass true into a ceilings file that has no break_glass key, so a per-file counter honors an inline exception carrying a reason, an expiry and an approver. Off writes false. The ceilings file's break_glass key wins over this option. |
 
 ### How to set these
 
