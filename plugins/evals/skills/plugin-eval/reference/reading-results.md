@@ -60,6 +60,12 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.
+- An invocation probe is a case whose `prompt.md` tags include `invocation-probe`, as
+  `/skill-quality:check measure-invocation` emits it. Its should-fire misses are the trigger rate
+  it measures: `skill fired` reports them as a warning with per-case counts, never a FAIL. Run
+  errors and denials keep their full force, apart from the two probe exceptions above and a
+  max-turns error after the graded Skill call. `probe tools` warns when a probe run could call
+  Read, Glob, Grep or Agent, the tools the emitted README's run line removes.
 
 ## Document fields
 

@@ -1137,6 +1137,56 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
 
+    def probe_with_tools(self, tools, tags="tags: [invocation-probe, train]"):
+        """Case noise-before-gain, its prompt.md carrying tags, whose with-arm run's
+        init line lists tools: the session's callable tools as the trace records them."""
+        result = self.clean()
+        case = result["cases"][2]
+        (self.dir / "suite" / case["dir"] / "prompt.md").write_text(
+            "---\ndescription: d\n%s\n---\n\nQ\n" % tags, encoding="utf-8"
+        )
+        trace = self.dir / "tools.jsonl"
+        trace.write_text(
+            json.dumps({"type": "system", "subtype": "init",
+                        "model": "claude-opus-5-5", "tools": tools})
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        data["cases"][2]["arms"]["with"][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1")
+
+    def test_a_probe_run_that_could_search_or_dispatch_warns_with_the_run_line(self):
+        # The tool list a probe run's init line recorded on Claude Code 2.1.316
+        # when the run left out the emitted README's --disallow-tools.
+        proc = self.probe_with_tools(
+            ["Task", "Glob", "Grep", "Read", "Skill", "TaskStop", "ToolSearch"]
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check probe tools: WARN (1 run of invocation-probe cases", proc.stdout)
+        self.assertIn("--disallow-tools Read Glob Grep Agent", proc.stdout)
+        self.assertIn(
+            "  Task, Glob, Grep, Read: 1 run, first case noise-before-gain, with-arm run 1\n",
+            proc.stdout,
+        )
+
+    def test_a_probe_run_with_only_skill_passes_probe_tools(self):
+        # The init tools a `--disallowed-tools Agent Read Glob Grep` session
+        # recorded on Claude Code 2.1.316, plus Skill.
+        proc = self.probe_with_tools(["Bash", "Skill", "TaskStop", "ToolSearch"])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check probe tools: PASS", proc.stdout)
+
+    def test_a_case_outside_the_probes_may_search(self):
+        proc = self.probe_with_tools(
+            ["Task", "Glob", "Grep", "Read", "Skill"], tags="tags: [knowledge]"
+        )
+        self.assertIn("check probe tools: PASS", proc.stdout)
+
     def capped_probe(
         self,
         tool="Skill",
