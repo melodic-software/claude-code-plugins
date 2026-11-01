@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-11-01
+
+### Fixed
+
+- The README note about installed mods no longer says a mod can always approve a call these
+  hooks blocked. That now depends on the setup, so the note links to where hooks run in the mod
+  chain and to the precedence among rules, hooks and mods, with an as-of date and a recheck
+  trigger.
+
 ## [2.0.3] - 2026-11-01
 
 ### Fixed
