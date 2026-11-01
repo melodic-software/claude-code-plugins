@@ -33,9 +33,9 @@ every change is applied by the human (or explicitly delegated afterward), never 
 Diffs are proposed artifacts. A clean audit is a valid outcome.
 
 `disallowed-tools: Edit, NotebookEdit` narrows the surface; it does **not** make the contract
-mechanical. `Write` stays for the Phase D persist and for lane reports under
-`runs/<state-key>/<run-id>/lanes/`, and `Bash` for the pre-scans, `lane-runs.sh`, and the
-`run-state.sh` lease writes under `runs/`. Either can mutate a file this skill has already read, so
+mechanical. `Write` stays for lane reports and the Phase D report under `runs/<state-key>/<run-id>/`,
+and `Bash` for the pre-scans, `lane-runs.sh`, the `run-state.sh` lease writes under `runs/`, and
+Phase D's `persist-report.sh`. Either can mutate a file this skill has already read, so
 this is an instruction-held contract with a narrowed accident surface, not an enforced one. Never
 describe it to an operator as a guarantee. We treat the restriction as clearing on the operator's
 next message, so whoever accepts a diff can apply it (Pointer: the
@@ -384,11 +384,16 @@ blocked, unavailable, or the session cannot spawn subagents (including a nested 
 
 ## Phase D: Report
 
-Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`, deriving
-`<state-key>` by running `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` and using its output.
-[context/report-keying.md](context/report-keying.md) owns the rest: why the key is load-bearing
-here (an unkeyed path makes the cost line below compare against another project's surface set), and
-the two absent-prior cases.
+Read the prior report at the key first, since the cost line below compares against it; the key is
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"`'s output. Write this run's report with the Write tool
+to `report.md` in the run directory, as lane reports are written, then persist it with this script,
+which writes `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md` atomically:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/lib/persist-report.sh" --plugin-data "${CLAUDE_PLUGIN_DATA}" --component audit-instructions --report <run-dir>/report.md
+```
+
+**Never run a standalone `mkdir` against the plugin data directory.** [context/report-keying.md](context/report-keying.md) owns why the key matters here and the two absent-prior cases.
 
 Then summarize in chat. The report header carries a **cost line**: how many checks ran per surface
 (naming any added by a catalog version bump), the model-scoped rows skipped for the resolved target,
