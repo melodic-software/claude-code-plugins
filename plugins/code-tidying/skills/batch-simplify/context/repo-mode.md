@@ -138,7 +138,8 @@ then `pr-review-toolkit:code-simplifier`, then any other installed `code-simplif
 why one wave's output differs in character from another's. **Model and effort:** simplifiers follow
 Phase 6's rule. Refutation verifiers are the judgment stage: they take the `verifier` role's
 `fanout` variant from the same `/multi-agent:route` run, or, when it does not resolve, the
-simplifiers' fallback model at effort `high`.
+simplifiers' fallback model at effort `high`, this skill's stand-in for the `verifier` role
+map in `/multi-agent:route`, not an upstream default.
 
 The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 
