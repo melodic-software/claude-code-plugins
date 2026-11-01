@@ -136,8 +136,9 @@ read before it held more, which reading again cannot cure. The refresh before an
 the API that fails once it began a whole listing is noted beside `LISTING_ENV`'s file
 (`FAILED_LISTING_SUFFIX`), and every later Reader of the job refuses on it
 without paging. The whole listing an over-count takes is noted there too
-(`OVERCOUNT_FALLBACK_SUFFIX`), whatever its outcome, and a later Reader of the
-job whose pages over-count refuses without another.
+once it starts paging (`OVERCOUNT_FALLBACK_SUFFIX`), and a later Reader of the
+job whose pages over-count refuses without another, whatever that listing's
+outcome.
 
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
@@ -402,6 +403,12 @@ EARLY_DELETION_LEAD = timedelta(hours=2)
 # stays well inside verify-cap.mjs's 120 s limit and a fifth of that day's
 # 133-page whole listing.
 NEAR_EXPIRY_PAGE_CAP = 24
+# The most artifacts `Reader._near_expiry` reads by id for one listing, its
+# incremental read and top-up together: each id its pages did not show is
+# dropped only on a 404. It drops at most the listing's surplus over the live
+# count, which was 31 to 34 in the three over-counts behind #11903's refusal;
+# the largest (judgment on that data). Past it the over-count stands.
+NEAR_EXPIRY_ID_READ_CAP = 34
 # The waits between incremental reads on one base. A count that misses the
 # live total can stay off for longer than an immediate re-read takes, while a
 # page boundary settles; bounded waits let it settle before the reader pages
@@ -451,11 +458,26 @@ COUNT_OVER = _CountMissed()
 # candidate, each paging three whole listings, 825 to 1,015 calls a run on
 # 2026-11-01).
 FAILED_LISTING_SUFFIX = ".failed"
-# Beside `LISTING_ENV`'s file, written when an incremental over-count takes its
-# whole listing, whatever that listing's outcome: a later Reader of the job
-# whose pages over-count again refuses without another whole listing, so an
-# over-count costs one whole listing a job.
+# Beside `LISTING_ENV`'s file, created when an incremental over-count's whole
+# listing starts paging and then holding that listing's outcome: a later Reader
+# of the job whose pages over-count again refuses without another whole
+# listing, whatever that outcome (a transient or caller-limit failure
+# included, unlike `FAILED_LISTING_SUFFIX`), so an over-count costs one whole
+# listing a job. A refusal before paging leaves it uncreated.
 OVERCOUNT_FALLBACK_SUFFIX = ".overcount-fallback"
+
+
+def _overcount_refusal(outcome: str) -> str:
+    """A later Reader's refusal once the job's over-count whole listing was
+    taken, starting with `DEADLINE_UNREADABLE` when that listing ran out of a
+    caller's time, so verify-cap.mjs skips the round as it did for that one."""
+    refusal = (
+        "repository artifacts: the pages held more than GitHub's live "
+        "artifact count, and this job already took its whole listing for that"
+    )
+    if outcome.startswith(DEADLINE_UNREADABLE):
+        return f"{DEADLINE_UNREADABLE}: {refusal} ({outcome})"
+    return refusal
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -1227,6 +1249,11 @@ class Reader:
     _over_counted: bool = False
     # The pages `_near_expiry` read for this listing (`NEAR_EXPIRY_PAGE_CAP`).
     _near_expiry_reads: int = 0
+    # The ids `_near_expiry` read for this listing (`NEAR_EXPIRY_ID_READ_CAP`).
+    _artifact_reads: int = 0
+    # This Reader took the job's over-count whole listing
+    # (`OVERCOUNT_FALLBACK_SUFFIX`) and records its outcome there.
+    _overcount_mine: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -1304,7 +1331,8 @@ class Reader:
             self._listing_error = failed
             raise _Unreadable(failed)
         fetched_at = _wall_clock()
-        self._over_counted, self._near_expiry_reads = False, 0
+        self._over_counted, self._overcount_mine = False, False
+        self._near_expiry_reads = self._artifact_reads = 0
         base = self._incremental_base()
         listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
         # Only pages that read whole but missed the live count are read again,
@@ -1325,20 +1353,21 @@ class Reader:
         self.listing_mode = "incremental"
         if not isinstance(listing, list):
             self.listing_mode = "full"
-            if self._over_counted and not self._take_overcount_fallback():
-                self._listing_error = (
-                    "repository artifacts: the pages held more than GitHub's live "
-                    "artifact count, and this job already took its whole listing "
-                    "for that"
-                )
+            taken = self._overcount_taken() if self._over_counted else None
+            if taken is not None:
+                self._listing_error = _overcount_refusal(taken)
                 raise _Unreadable(self._listing_error)
             try:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
+                if self._overcount_mine:
+                    self._note_overcount(self._listing_error)
                 if self._whole_paged and not isinstance(exc, _Transient):
                     self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
+            if self._overcount_mine:
+                self._note_overcount("listed")
         self._artifacts, self._fetched_at = listing, fetched_at
         self._base = (fetched_at, listing)
         self._saved = self._own = False
@@ -1437,6 +1466,10 @@ class Reader:
                 f"a page, past {bound}, so none is started"
             )
         full = listing_timeout(total, LISTING_TIMEOUT_SECONDS)
+        # The job's over-count whole listing is taken only as paging starts:
+        # a refusal before it leaves the next Reader free to list.
+        if self._over_counted and not self._claim_overcount():
+            raise _Unreadable(_overcount_refusal(self._overcount_taken() or ""))
         try:
             return self._whole_listings(budget)
         except (_Unreadable, RuntimeError) as exc:
@@ -1636,11 +1669,16 @@ class Reader:
         Such entries are grouped where they lie within a page of each other.
         Each group is read from the page its top entry would be on with
         `surplus` fewer entries above it, a page up at a time (at most
-        `surplus` pages) until a page reaches its top id, then down until a
-        page reaches its bottom id or ends the listing; those pages decide
-        every id from the lowest to the highest they hold. A group it cannot
-        bracket within those pages, or a read past `NEAR_EXPIRY_PAGE_CAP` for
-        this listing, leaves `listing` as it was."""
+        `surplus // LISTING_PAGE_SIZE + 2` pages above that one) until a page
+        reaches its top id, then down until a page reaches its bottom id or
+        ends the listing; those pages add every id they hold. An id of
+        `listing` from the lowest to the highest they hold that they do not
+        show is dropped only when its own read answers 404
+        (`_artifact_gone`): pages read one at a time skip the entry at a
+        boundary when an artifact above it is deleted between reads (#10486).
+        A group it cannot bracket within those pages, a read past
+        `NEAR_EXPIRY_PAGE_CAP` or `NEAR_EXPIRY_ID_READ_CAP` for this listing,
+        or an id read with any other answer leaves `listing` as it was."""
         size = LISTING_PAGE_SIZE
         limit = server_now + EARLY_DELETION_LEAD
         near = [
@@ -1694,12 +1732,48 @@ class Reader:
                 return listing, reads
             spans.append((0 if ended else min(seen), max(seen)))
             decided.update(seen)
-        merged = {
-            a["id"]: a
-            for a in listing
-            if not any(low <= a["id"] <= high for low, high in spans)
-        } | decided
+        gone: set[int] = set()
+        for a in listing:
+            if a["id"] in decided or not any(
+                low <= a["id"] <= high for low, high in spans
+            ):
+                continue
+            if self._artifact_reads >= NEAR_EXPIRY_ID_READ_CAP:
+                return listing, reads
+            self._artifact_reads += 1
+            answer = self._artifact_gone(a["id"], deadline)
+            if answer is None:
+                return listing, reads
+            if answer:
+                gone.add(a["id"])
+        merged = {a["id"]: a for a in listing if a["id"] not in gone} | decided
         return sorted(merged.values(), key=lambda a: -a["id"]), reads
+
+    def _artifact_gone(self, artifact_id: int, deadline: float) -> bool | None:
+        """Whether GitHub no longer holds the artifact: True on a 404 or an
+        expired record, False on a live one, None for any other answer."""
+        left = deadline - _listing_clock()
+        if left <= 0:
+            return None
+        try:
+            proc, _ = gh_api_with_headers(
+                ["api", f"repos/{self.repo}/actions/artifacts/{artifact_id}"],
+                timeout_seconds=left,
+                env_overrides=self._env(),
+            )
+        except (RuntimeError, ValueError, OSError):
+            return None
+        if proc.returncode != 0:
+            return True if gh_http_status(proc.stderr or "") == 404 else None
+        try:
+            record = json_object(json.loads(proc.stdout))
+        except ValueError:
+            return None
+        if record.get("id") != artifact_id or not isinstance(
+            record.get("expired"), bool
+        ):
+            return None
+        return record["expired"]
 
     def _incremental_page(
         self, page: int, deadline: float
@@ -1762,22 +1836,49 @@ class Reader:
             return None
         return text or "repository artifacts: an earlier listing in this job failed"
 
-    def _take_overcount_fallback(self) -> bool:
-        """Whether this Reader may take the job's one whole listing for an
-        over-count (`OVERCOUNT_FALLBACK_SUFFIX`), noting it taken. With no
-        `listing_path` there is no job to note it for, so it may; a failed
-        write leaves the next Reader to take it too."""
+    def _overcount_path(self) -> Path | None:
+        """Where the job's over-count whole listing is noted beside
+        `listing_path` (`OVERCOUNT_FALLBACK_SUFFIX`)."""
         if not self.listing_path:
-            return True
-        path = Path(f"{self.listing_path}{OVERCOUNT_FALLBACK_SUFFIX}")
+            return None
+        return Path(f"{self.listing_path}{OVERCOUNT_FALLBACK_SUFFIX}")
+
+    def _overcount_taken(self) -> str | None:
+        """How the job's over-count whole listing ended ("" while it pages),
+        or None when no Reader of the job has taken it."""
+        path = self._overcount_path()
+        if path is None:
+            return None
         try:
-            with path.open("x", encoding="utf-8") as note:
-                note.write("taken")
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+
+    def _claim_overcount(self) -> bool:
+        """Whether this Reader may take the job's one whole listing for an
+        over-count, noting it taken. With no `listing_path` there is no job
+        to note it for, so it may; a failed write leaves the next Reader to
+        take it too."""
+        path = self._overcount_path()
+        if path is None:
+            return True
+        try:
+            with path.open("x", encoding="utf-8"):
+                pass
         except FileExistsError:
             return False
         except OSError:
-            pass
+            return True
+        self._overcount_mine = True
         return True
+
+    def _note_overcount(self, outcome: str) -> None:
+        """Best effort: how the job's over-count whole listing ended, so a
+        later Reader's refusal carries a caller-limit refusal's prefix."""
+        path = self._overcount_path()
+        if path is not None:
+            with contextlib.suppress(OSError):
+                path.write_text(outcome, encoding="utf-8")
 
     def _note_failed_listing(self, error: str) -> None:
         """Best effort: a failed write leaves the next Reader to list. A

@@ -462,6 +462,10 @@ class FakeGitHub:
                     args, 1, b"", "gh: Not Found (HTTP 404)"
                 )
             return subprocess.CompletedProcess(args, 0, zipped(self.records[name]), "")
+        if found := re.fullmatch(rf"repos/{REPO}/actions/artifacts/([0-9]+)", path):
+            # One artifact by id, as GitHub's "Get an artifact" answers.
+            held = [a for a in self.artifacts if a.get("id") == int(found[1])]
+            return ok(held[0]) if held else missing()
         prefix = f"repos/{REPO}/actions/artifacts?per_page="
         if path.startswith(prefix) and "&page=" in path:
             if self.page_fail:
@@ -4196,6 +4200,125 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
 
+    def page_numbers(self, fake: FakeGitHub) -> list[int]:
+        """The single pages read, in order."""
+        return [
+            int(a.rsplit("&page=", 1)[1])
+            for c in fake.calls
+            for a in c
+            if "&page=" in a
+        ]
+
+    def test_a_deletion_between_region_pages_keeps_the_fail_it_shifts(
+        self,
+    ) -> None:
+        # The carry holds 1000 to 300 and FAIL 450. By page 1 GitHub dropped
+        # 800 (90 days from expiry) and 500 (expiring in 30 minutes): live
+        # count 7, the listing 9. The re-read around 500 takes page 2 (700,
+        # 600); 600 is deleted; page 3 is then (400, 300), so 450 is in
+        # neither read. Dropping it would leave 7, the live count, with the
+        # FAIL gone: it is read by id (live) and kept, so the count stays
+        # over and the one whole listing judges the FAIL.
+        old = self.base_at - timedelta(hours=3)
+        near = LISTED_AT + timedelta(minutes=30)
+        fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
+        carry = [
+            *self.base,
+            dated("pr-merge-gate-cursor", 3, 600, old),
+            dated("pr-merge-gate-cursor", 3, 500, old, expires=near),
+            fail,
+            *(dated("pr-merge-gate-cursor", 3, i, old) for i in (400, 300)),
+        ]
+        self.write_carry(carry)
+        fake = self.fake(base=[a for a in carry if a["id"] not in (800, 500)])
+        shifted = [False]
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            answer = fake(args, **kwargs)
+            if not shifted[0] and any(a.endswith("&page=2") for a in args):
+                shifted[0] = True
+                fake.artifacts = [a for a in fake.artifacts if a["id"] != 600]
+            return answer, {"date": DATE}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            evidence = reader.evidence(PR, HEAD, pull())
+        self.assertEqual(self.page_numbers(fake)[:3], [1, 2, 3])
+        self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+
+    def test_an_id_the_region_pages_omit_is_dropped_only_on_a_404(self) -> None:
+        # GitHub deleted 500 early; the region's page shows it gone. A 404
+        # for 500 drops it (incremental); a 502, or no id reads left, keeps
+        # it, and the over-count takes the one whole listing.
+        for label, fail, cap, mode in (
+            ("404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental"),
+            ("502", {f"artifacts/{500}"}, ve.NEAR_EXPIRY_ID_READ_CAP, "full"),
+            ("cap", set(), 0, "full"),
+        ):
+            with self.subTest(label):
+                for path in (self.saved, self.failed):
+                    path.unlink(missing_ok=True)
+                pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}").unlink(
+                    missing_ok=True
+                )
+                base = self.tail((500, 30), (400, 40))
+                self.write_carry(base)
+                fake = self.fake(base=[a for a in base if a["id"] != 500])
+                fake.fail = fail
+                with mock.patch.object(ve, "NEAR_EXPIRY_ID_READ_CAP", cap):
+                    reader, evidence = self.judge(fake)
+                self.assertIsNone(evidence.refusal, evidence.detail)
+                self.assertEqual(reader.listing_mode, mode)
+                by_id = [c for c in fake.calls if c[-1].endswith("/artifacts/500")]
+                self.assertEqual(len(by_id), 0 if cap == 0 else 1)
+
+    def climbing(self, missing: int) -> tuple[ve.Reader, FakeGitHub]:
+        """A carry whose phantoms above the near-expiry 500 outnumber the
+        surplus, since `missing` live artifacts below it are not carried: the
+        re-read starts below 500's page and walks up."""
+        old = self.base_at - timedelta(hours=3)
+        near = LISTED_AT + timedelta(minutes=30)
+        phantoms = (850, 750, 650, 550, 450) if missing == 4 else (
+            875, 850, 825, 775, 750, 650, 550
+        )
+        held = [
+            *self.base,
+            dated("pr-merge-gate-cursor", 3, 600, old),
+            dated("pr-merge-gate-cursor", 3, 500, old, expires=near),
+            *(dated("pr-merge-gate-cursor", 3, i, old) for i in (400, 300)),
+        ]
+        self.write_carry(
+            [*held, *(dated("pr-merge-gate-cursor", 3, i, old) for i in phantoms)]
+        )
+        below = [250, 240, 230, 220, 210, 200][:missing]
+        fake = self.fake(
+            base=[*held, *(dated("pr-merge-gate-cursor", 3, i, old) for i in below)]
+        )
+        reader, _ = self.judge(fake)
+        return reader, fake
+
+    def test_the_region_walks_up_to_the_page_that_holds_its_top(self) -> None:
+        # Surplus 1, 500 at listing index 9: the start page is 5 (250, 240),
+        # page 4 (400, 300) is still below 500, page 3 (600, 500) holds it.
+        reader, fake = self.climbing(4)
+        self.assertEqual(self.page_numbers(fake), [1, 5, 4, 3])
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+
+    def test_the_region_walk_stops_at_its_upward_bound(self) -> None:
+        # Surplus 1, 500 at listing index 12: the start page is 6, and the
+        # walk may climb surplus // 2 + 2 = 2 pages, to 4, short of page 3:
+        # the group stays unbracketed and the over-count takes a whole listing.
+        reader, fake = self.climbing(6)
+        self.assertEqual(self.page_numbers(fake)[:4], [1, 6, 5, 4])
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+
     def test_the_pages_near_expiry_stop_at_their_cap(self) -> None:
         # Out of expiry order, the region takes two pages (3 and 4). Capped
         # at one, the count stays over: one whole listing, whose top-up
@@ -4233,6 +4356,41 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 1)
         # Not a failed listing: #11926's note stays unwritten.
         self.assertFalse(self.failed.exists())
+
+    def test_an_over_count_refused_before_paging_leaves_the_job_its_listing(
+        self,
+    ) -> None:
+        # pr-feedback-dispatch's order: PR A's Reader over-counts under
+        # verify-cap's limit, and its whole listing does not fit, so it
+        # refuses before paging. PR B's Reader, with the time, takes it.
+        base = self.tail()
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 300])
+        first = self.against_the_clock(fake, 0.0, limit="20")
+        self.assertEqual(first.refusal, "verify:unreadable")
+        self.assertTrue(first.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertEqual(fake.full_listings(), 0)
+        second = self.against_the_clock(fake, 0.0)
+        self.assertIsNone(second.refusal, second.detail)
+        self.assertEqual(fake.full_listings(), 1)
+
+    def test_an_over_count_listing_out_of_the_callers_time_refuses_so_later(
+        self,
+    ) -> None:
+        # A's whole listing pages, then its top-up runs out of the caller's
+        # time. B's Reader takes no second whole listing, and its refusal
+        # keeps the caller-limit prefix, so verify-cap skips B's round too.
+        base = self.tail()
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 300])
+        first = self.against_the_clock(fake, 50.0, limit="60")
+        self.assertTrue(first.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertEqual(fake.full_listings(), 1)
+        second = self.against_the_clock(fake, 0.0)
+        self.assertEqual(second.refusal, "verify:unreadable")
+        self.assertTrue(second.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertIn("already took its whole listing", second.detail)
+        self.assertEqual(fake.full_listings(), 1)
 
     def test_an_over_count_the_pages_near_expiry_leave_takes_one_whole_listing(
         self,
@@ -4998,7 +5156,8 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     out from the live listing: its `total_count` and the FAILs it lists. The
     workflow's figure must cover the reader's listing caps at any listing
     size, so raising `INCREMENTAL_READS`, `LISTING_READS`, `LISTING_WAITS`
-    `LISTING_TOP_UP_PAGES` or `NEAR_EXPIRY_PAGE_CAP` without it fails here. The other terms are the
+    `LISTING_TOP_UP_PAGES`, `NEAR_EXPIRY_PAGE_CAP` or
+    `NEAR_EXPIRY_ID_READ_CAP` without it fails here. The other terms are the
     workflow comment's: 3 reads a FAIL (its run, a compare and a download),
     at most 13 pages an incremental read, the count read before the whole
     listings, one page more than the live count fills, and the step's own
@@ -5036,14 +5195,15 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
                     + 1
                     + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
                     + ve.NEAR_EXPIRY_PAGE_CAP
+                    + ve.NEAR_EXPIRY_ID_READ_CAP
                 )
                 self.assertEqual(self.cold_cost(total, fails), worst)
 
     def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
         # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
-        # 264: 2,045 against 1,647, worked by hand in ci-lanes-pr-hold.test.sh.
-        self.assertEqual(self.cold_cost(10_450, 300), 2_045)
-        self.assertEqual(self.cold_cost(7_522, 264), 1_647)
+        # 264: 2,079 against 1,681, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 2_079)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_681)
 
 
 # --- The --authority pr-merge path ------------------------------------------------
