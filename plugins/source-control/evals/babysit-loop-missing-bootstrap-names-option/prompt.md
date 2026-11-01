@@ -1,6 +1,7 @@
 ---
 description: With no promotion-evidence bootstrap configured, the babysit-loop lane-start preflight names each unset option and nothing merges
 tags: [babysit-loop, source-control, promotion-evidence]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
