@@ -1,8 +1,7 @@
 # Worktree root convention: `worktreeroot.path`
 
 Owner doc for the fleet's worktree-placement convention. The machine truth is
-a **git config key**, so the convention is readable by anything that can run
-`git config --get`: humans, scripts, CI, and every agent, not just this
+a **git config key**, readable by anything that can run `git config --get`: humans, scripts, CI, and every agent, not just this
 plugin. Prose surfaces (a repository's `AGENTS.md` / `CLAUDE.md`, skill text)
 should **cite this key, never copy the path**: restating the path in several
 places is the drift a git-config-readable convention exists to prevent.
@@ -15,10 +14,10 @@ places is the drift a git-config-readable convention exists to prevent.
 ```
 
 - **Name:** `worktreeroot.path`. Deliberately NOT under `worktree.*`,
-  because git owns that namespace (`worktree.guessRemote`,
-  `worktree.useRelativePaths`; git-worktree(1) Configuration). git-config(1)
-  Variables invites third-party tools to invent their own variables, provided
-  they do not collide with Git or other popular tools and are documented.
+  which git owns (`worktree.guessRemote`, `worktree.useRelativePaths`;
+  git-worktree(1) Configuration). git-config(1) Variables invites third-party
+  tools to invent their own variables if they do not collide with Git or other
+  popular tools and are documented.
   Popular tools typically name the section after the tool (`ghq.root`,
   `git-town.*`, `lfs.*`, `wt.basedir`); a publisher-named key is an
   org-agnosticism defect, and a plugin-named key still couples consumers to
@@ -73,15 +72,15 @@ Two hazards, both verified on git 2.55 in #2610 and both silent:
    publishes owns that claim.
 
 Whatever rung supplies the root, the helper's containment guard then rejects
-a root that itself resolves inside a working tree or a git directory. A
+a root that itself resolves inside a working tree or a git directory: a
 misconfigured key is a refusal, not a licensed nesting.
 
 Enforcement hooks: `hooks/worktree-create-gate.sh` (harness-driven
 creations) and `hooks/worktree-add-containment-gate.sh` (a raw Bash
 `git worktree add` targeting a path inside a repository, #2611).
 `EnterWorktree(name:)` is not a Bash call and lands in the in-repo default;
-the skill is contractually forbidden from calling the name form, and
-harness-driven creation is covered by the `WorktreeCreate` hook. That pair
+the skill is contractually forbidden from calling the name form, and the
+`WorktreeCreate` hook covers harness-driven creation. That pair
 is this plugin's handling of the `EnterWorktree(name:)` gap. Pointers:
 [worktrees: ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree)
 for where the name form lands, and
@@ -124,8 +123,7 @@ so last-wins picks it up) alongside the identity keys. Verified properties
   `$GIT_DIR` is always under its main repository, so a tree-anchored
   `gitdir:` gives every worktree of a repository the same answer. Corollary:
   a pattern anchored at a worktree's own tree path matches nothing, ever.
-  That presents as "includeIf is broken", and it is the likely first
-  misdiagnosis.
+  That presents as "includeIf is broken", the likely first misdiagnosis.
 
 ### Hazards (all fail silently: rc=0, zero stderr)
 

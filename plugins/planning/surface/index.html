@@ -1700,10 +1700,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     setHtml($("sumRest"), h);
     restoreFocus(f);
   }
-  function focusKey(){ // the focused control, by id or by its data attributes within the nearest region with an id
+  function focusKey(){ // the focused control, by id or by its data attributes (a radio by name and value) within the nearest region with an id
     const a = document.activeElement; if (!a || a === document.body || !a.closest) return null;
     if (a.id) return {s: "#" + CSS.escape(a.id), start: a.selectionStart, end: a.selectionEnd};
-    const attrs = [...a.attributes].filter(x => x.name.startsWith("data-")).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
+    const attrs = [...a.attributes].filter(x => x.name.startsWith("data-") || (a.type === "radio" && (x.name === "name" || x.name === "value"))).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
     return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs, pin: !!a.closest(".sec.pin")} : null;
   }
   function restoreFocus(f){

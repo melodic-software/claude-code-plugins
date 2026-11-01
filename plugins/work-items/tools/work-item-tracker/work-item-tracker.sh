@@ -117,12 +117,16 @@ main() {
 
   local binding_path
   binding_path="$(wit_find_binding)" ||
-    fail_config "no binding found (.work-item-tracker.json) — see CONTRACT.md Setup"
+    fail_config "no binding found (tracker: in <home>/work-items.yaml, or the legacy .work-item-tracker.json) — run /work-items:setup; see CONTRACT.md Setup"
   wit_read_binding "$binding_path" ||
     fail_config "invalid binding at $binding_path — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup"
 
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
+  if [[ ! -d "$adapter_dir" && -d "$SCRIPT_DIR/seeds/$WIT_PROVIDER" ]]; then
+    # A seed is never dispatched from the plugin (CONTRACT.md "Adapter resolution").
+    fail_config "provider '$WIT_PROVIDER' ships as a seed the consuming repo owns; run /work-items:setup apply to copy it into tools/work-item-tracker/adapters/$WIT_PROVIDER/"
+  fi
   [[ -d "$adapter_dir" ]] ||
     fail_config "no adapter for provider '$WIT_PROVIDER' (searched consumer-local then plugin-bundled) — last tried $adapter_dir"
   manifest="$adapter_dir/capabilities.json"

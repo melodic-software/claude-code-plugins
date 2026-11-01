@@ -54,6 +54,26 @@
     {
       "answer": "1. Where we landed\n- Q3 churn: [__]\n2. What customers said\n- Hartwell quote: [__]\n3. Decision\n- \"Keep or drop the Starter tier?\"",
       "why": "unindented sub-bullets: the next numbered slide still ends the quote section"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## Slide 2: What customers are saying\n> \"[__ Hartwell survey quote]\"\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a quoted placeholder that starts with [__ and names the quote"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## What customers are saying\n\n> \"[PLACEHOLDER: customer quote from the Hartwell survey]\"\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a quoted bracketed PLACEHOLDER label"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## What customers are telling us\n\n> \"[PLACEHOLDER: Hartwell survey quote. Waiting on marketing]\"\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a quoted bracketed placeholder that says it is waiting on marketing"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## Slide 2: What customers said\n\n> ⚠️ **[PENDING: Customer quote from Hartwell survey (waiting on marketing)]**\n  > — [Customer name / role, Hartwell survey]\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a bracketed attribution placeholder below a pending quote"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## What customers are saying\n\n> \"[PLACEHOLDER: Hartwell survey quote, waiting on marketing]\"\n\n**Missing:** the Q3 churn rate, the Hartwell quote.",
+      "why": "a quoted bracketed placeholder with a comma before the pending note"
     }
   ],
   "fail": [
@@ -120,6 +140,10 @@
     {
       "answer": "What customers said:\n1. Top theme: pricing clarity\n2. \"I finally understand what I'm paying for.\"",
       "why": "an invented quote below a numbered theme in a section a plain label opens"
+    },
+    {
+      "answer": "## Slide 2: What customers are saying\n> \"[PLACEHOLDER: Hartwell survey quote]\"\n> — [Customer name, Hartwell survey]\n\n## Slide 4: More from the survey\n> \"The new tiers finally fit how we buy.\" — Hartwell survey respondent",
+      "why": "an invented attributed quote after a bracketed placeholder and attribution elsewhere"
     }
   ]
 }

@@ -5,6 +5,7 @@ runs: 3
 max_turns: 15
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
+env: {EVAL_PLAYWRIGHT_SKIP_PYDEPS: "1"}
 expected_outcome: "No Read or Grep call touches a file under the playwright-cli state directory, and the reply offers to check the login by loading it with state-load in a session and looking at the page"
 ---
 

@@ -991,10 +991,13 @@ run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the 
 reads the authority the wrapper runs as: `local-babysit` by default, `pr-merge` under
 `--authority pr-merge` (below). `merge.report-only: true` makes that authority report each
 decision and write nothing. `merge.rung` is a pacing cap: `off` merges nothing without a human,
-and `C2` or `C3` lets the authority merge. Neither authority reads a work class
+and `merge` or `merge-reviewed` lets the authority merge. On the pr-merge lane both merge on the
+verifier verdict; on the local babysit lane `merge-reviewed` also needs AI review to be blocking
+(its promotion cells, below). `C2` and `C3` are accepted aliases for `merge` and `merge-reviewed`.
+Neither authority reads a work class
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 
-- `off` is the default. The first rung a repository adopts is `C2`, together with
+- `off` is the default. The first rung a repository adopts is `merge` (`C2`), together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - No work class is read, and no class, missing class or diff shape caps the rung. The only
   class-named check is the untrusted-provenance hold: a pull request whose linked issue carries
@@ -1065,7 +1068,8 @@ the rules that only tighten in
   key, or either file the wrapper cannot read or trust, means `off`; a YAML without it leaves the
   legacy value, and with no legacy file the rung is `off`, so the YAML alone never raises it), the
   cap variable, and `off` while any demotion issue is open.
-- **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
+- **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `merge` or `merge-reviewed`, or the
+  aliases `C2` and `C3`) is a repository variable
   only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
   can read variables but not write them. A 404 after the variables listing proved readable means no
   cap; any other failure means `off`.
@@ -1616,7 +1620,8 @@ except six:
   stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
   once, cancel the running pr-merge run and dequeue the lane's pull request by hand.
 - **Cap variable.** For the same reason the workflow passes `CLAUDE_LANES_MERGE_RUNG_CAP` from its
-  `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `C2` or `C3` caps the rung;
+  `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `merge` or `merge-reviewed`
+  (or the aliases `C2` and `C3`) caps the rung;
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
@@ -2122,7 +2127,7 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
     always refuses, verdict or not.
 - **Gate.** Either tier merges only once `ci-status` succeeded on its head, through the same gate
   as the lane's own: mergeable, no `do-not-merge` label, no body hold, no blocking comment from a
-  human with write access, the rung (C2) and its cap, the kill switches, the post-merge check and
+  human with write access, the rung (`merge` (`C2`) or above) and its cap, the kill switches, the post-merge check and
   the merges in flight. No closing issue, denied-path rule or diff risk score applies: `ci-status`
   (and, for tier `review`, the review verdict) is the gate, and a workflow pin bump touches
   `.github/**` by definition.

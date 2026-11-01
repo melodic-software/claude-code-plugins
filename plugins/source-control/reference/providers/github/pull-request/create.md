@@ -120,13 +120,13 @@ PR_NUMBER=$(basename "$PR_URL")
 
 ## Open the PR over REST
 
-`gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches
-the pull-request API at all, so under the GraphQL restriction it returns `HTTP 403` having
-created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and
-`base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and
+`gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before touching
+the pull-request API, so under the GraphQL restriction it returns `HTTP 403` having created
+nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and `base`, and
+`title` unless an existing `issue` is being converted; `body`, `draft`, and
 `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:
 
-- **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well, since §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
+- **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST too, since §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s with the rest.
 - **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be namespaced `<fork-owner>:<branch>`, and when both repositories belong to the same organization, REST additionally requires `head_repo=<fork-repo-name>`.
 - **Send the body from its file with `-F body=@"$BODY_FILE"`.** `-F`/`--field` reads a value that starts with `@` from the named file. `-f`/`--raw-field` would send the path itself as the body.
 - **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
@@ -186,7 +186,7 @@ PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls"
   -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
 ```
 
-`GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a
-triangular flow resolve `$BASE` through `GH_REPO` too, as
+`GH_REPO` overrides the cwd-derived placeholders, so this form needs no `cd`. On a triangular flow
+resolve `$BASE` through `GH_REPO` too, as
 `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, not through the
 `cd "$WT"` form above, which would read the fork's default branch.
