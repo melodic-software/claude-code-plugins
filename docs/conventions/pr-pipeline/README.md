@@ -2339,7 +2339,15 @@ another `-i`, so one run follows each change of the issue set. The pull request'
 at the head (it linked no issue, or more than a name carries) stops a new judgment unless the
 pull request now links issues a `fail` name carries and, since that `fail`'s run was created, only
 trusted people edited its body or connected or disconnected an issue, at least once; the resolver
-then proceeds with the reason `relinked`. In every case the earlier `fail` stays tied to the pull
+then proceeds with the reason `relinked`. The pull request's own `fail` at the head, plain or named
+with its issues, also stops a new judgment unless, since the last such `fail`'s run was created, a
+trusted person edited its body and only trusted people edited it or connected or disconnected an
+issue; the resolver then proceeds with the reason `body-edited`, so a body fix after a `fail` is
+judged at the same head, with no new commit. The body edit starts that judgment itself:
+`pr-require-checks` runs on `pull_request` `edited`, which GitHub sends when a title or body is
+edited, and `pr-verify` runs on that run's completion. The lanes App's or any other Bot's edit, an
+issue link change alone, or an edit history that cannot be read whole keeps the `fail`. In every
+case the earlier `fail` stays tied to the pull
 request and refuses the head unless the gate finds it superseded (below). Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
@@ -2436,14 +2444,15 @@ head:
   is not counted against that bound. Closing a newly filed duplicate issue instead starts the count
   of other pull requests again; a pass then needs that issue written by a trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
-  relink superseded it: every counted `fail` there is this pull request's, every counted pass
-  there was created after them and records other `linked_issues` than each `fail` does, and from
-  the first `fail`'s run's creation to each pass run's completion (`updated_at`) the pull request
-  has at least one body edit (`userContentEdits`) or issue connect or disconnect event, every one
-  by a `User` on the trusted-actor list's humans. The lanes App, any other Bot, an actor GitHub
-  cannot name, a read that fails or is cut short, a time that cannot be read, or the same linked
-  issues keep the refusal. Both the resolver and the gate read these acts in one GraphQL query,
-  only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
+  relink or a body fix superseded it: every counted `fail` there is this pull request's, every
+  counted pass there was created after them, and up to each pass run's completion (`updated_at`)
+  every body edit (`userContentEdits`) and issue connect or disconnect event on the pull request
+  is by a `User` on the trusted-actor list's humans, with at least one such act from the first
+  `fail`'s run's creation when the pass records other `linked_issues` than each `fail` does (a
+  relink), else at least one body edit from the last `fail`'s run's creation (a body fix). The
+  lanes App, any other Bot, an actor GitHub cannot name, a read that fails or is cut short, a time
+  that cannot be read, or the same linked issues with no body edit keep the refusal. Both the
+  resolver and the gate read these acts in one GraphQL query, only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
   passes then decide as below. A judgment on an older listing (pr-merge's provisional one) can
   still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
