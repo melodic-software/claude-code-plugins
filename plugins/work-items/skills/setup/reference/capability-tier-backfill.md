@@ -12,7 +12,7 @@ BACKFILL="<plugin-root>/scripts/backfill-capability-tier-labels.sh"
 [[ -f "$BACKFILL" ]] || BACKFILL="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/plugins/work-items/scripts/backfill-capability-tier-labels.sh"
 ```
 
-1. **Skip when `.work-item-tracker.json` is absent.** Nothing is bound yet.
+1. **Skip when no binding is present** (no `tracker` key in `<home>/work-items.yaml`). Nothing is bound yet.
 2. **Skip when the bound provider has no label listing or bulk open-item listing** (`local-markdown`,
    read-only `jira`). Report INFO; backfill requires GitHub-style listing.
 3. **Skip when `capability-tier: frontier` is absent from the repo.** The axis pass must provision it

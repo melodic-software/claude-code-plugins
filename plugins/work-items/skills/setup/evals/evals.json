@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "idempotent-preserves-existing-item-dates",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries three items with last_checked/next_due dates — one of them already overdue.)",
+      "prompt": "/work-items:setup apply\n\n(docs/conventions/work-items.yaml already binds the tracker, and .github/recurring-schedule.json already carries three items with last_checked/next_due dates — one of them already overdue.)",
       "expected_output": "Re-running against an existing schedule preserves each existing item's last_checked and next_due as-is — setup seeds but performs no maintenance, so it never advances the cadence clock — recomputing next_due only when the user explicitly reschedules or changes cadence, and never resetting last_checked to today. New items seed last_checked to today and next_due to today plus the cadence's day count. Blindly resetting an overdue item's dates (which would drop it from the due/work tiers) is avoided.",
       "files": [],
       "expectations": [
@@ -31,7 +31,7 @@
     {
       "id": 3,
       "name": "writes-tracked-config-ensures-label-unique-keys",
-      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent.)",
+      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.\n\n(First-time bind: no tracker binding exists and .github/recurring-schedule.json is absent.)",
       "expected_output": "Writes the accepted items to the consumer's tracked .github/recurring-schedule.json (project-root anchored, {\"items\": [ ... ]} root), verifying every final id AND every final title is unique across the array and stopping to prompt on any collision rather than writing a duplicate. It ensures the load-bearing recurring label exists via the bound provider (recommending creation, not treating it as optional) and never writes into the plugin directory or plugin data directory.",
       "files": [],
       "expectations": [
@@ -44,7 +44,7 @@
     {
       "id": 4,
       "name": "reconciles-renamed-or-dropped-row-open-item",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries several items; over the interview the user renames one row's id and title and drops another.)",
+      "prompt": "/work-items:setup apply\n\n(docs/conventions/work-items.yaml already binds the tracker, and .github/recurring-schedule.json already carries several items; over the interview the user renames one row's id and title and drops another.)",
       "expected_output": "When an existing schedule row is renamed or dropped, it looks up that row's open [Maintenance] item under the OLD title, filtering provider search results to an exact [Maintenance] {old title} match (never a mere prefix/substring). A renamed row's item is retitled to the new title (or closed if retiring); a dropped row's item is closed with a note. A rename or drop with no exact-match open item needs no reconciliation.",
       "files": [],
       "expectations": [
@@ -57,7 +57,7 @@
     {
       "id": 5,
       "name": "first-bind-writes-skeleton-only-without-opt-in",
-      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. An interactive user is present and answers \"skip\" to the seeding offer.)",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no tracker binding exists and .github/recurring-schedule.json is absent. An interactive user is present and answers \"skip\" to the seeding offer.)",
       "expected_output": "On a first-time bind with no schedule rows, a bare apply writes only the minimum viable config: the provider binding, the canonical role-label pass, and the empty {\"items\": []} skeleton that stops due/recheck/work degrading to \"no recurring schedule configured\". It offers seeding exactly once as a single yes/no with skip marked RECOMMENDED; on skip it runs no candidate inference and no per-item interview, and says the schedule can be bulk-seeded later by re-running apply or apply --seed-schedule. The role-label pass still runs — it is a numbered step of apply's flow anchored right after the bind, not a tail-end offer after the schedule interview — and with zero schedule rows a missing recurring-maintenance label is reported as informational rather than gating the bind.",
       "files": [],
       "expectations": [
@@ -70,7 +70,7 @@
     {
       "id": 6,
       "name": "unattended-first-bind-applies-skip-default-silently",
-      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no tracker binding exists and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
       "expected_output": "With no interactive user, none of apply's questions are presented and it never blocks on one — not the provider/config interview, not the role-label remap offer, not the seeding offer. Each resolves to its RECOMMENDED answer silently: the binding is github with lease_ttl_hours 24 (safe here because gh is installed and authenticated), the role-label pass keeps the defaults and so writes no config.role_labels, and seeding is skipped, leaving the empty {\"items\": []} skeleton. It runs no candidate inference and no per-item interview, and it does not substitute invented answers for the interview it skipped. It names which defaults it took, and reports that the schedule can be seeded later by re-running apply --seed-schedule, or a bare apply and accepting the offer, with a user present.",
       "files": [],
       "expectations": [
@@ -83,12 +83,12 @@
     {
       "id": 7,
       "name": "unattended-bind-stops-when-no-safe-provider-default",
-      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists. gh is not installed. This runs unattended — there is no interactive user to answer any question.)",
-      "expected_output": "The unattended default resolves a decision only when its RECOMMENDED answer is safe. Here it is not: github is recommended but requires gh, and local-markdown and jira need storage_dir / config.jira values that have no defaults and cannot be inferred — so no provider can be chosen safely. It stops and reports that the tracker binding needs a provider decision, naming the command to run with a user present, rather than guessing a provider or inventing config. It writes no .work-item-tracker.json, because an invented binding would make every seam verb resolve a provider the repo never chose.",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no tracker binding exists. gh is not installed. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "The unattended default resolves a decision only when its RECOMMENDED answer is safe. Here it is not: github is recommended but requires gh, and local-markdown and jira need storage_dir / config.jira values that have no defaults and cannot be inferred — so no provider can be chosen safely. It stops and reports that the tracker binding needs a provider decision, naming the command to run with a user present, rather than guessing a provider or inventing config. It writes no tracker binding, because an invented binding would make every seam verb resolve a provider the repo never chose.",
       "files": [],
       "expectations": [
         "Does not guess a provider or invent config when no RECOMMENDED answer is safe",
-        "Writes no .work-item-tracker.json rather than binding a provider the repo did not choose",
+        "Writes no tracker binding rather than binding a provider the repo did not choose",
         "Reports the blocker by name and gives the command to resolve it with a user present",
         "Distinguishes this from the seeding offer, which does have a safe default and is skipped silently"
       ]
@@ -96,7 +96,7 @@
     {
       "id": 8,
       "name": "unattended-rerun-preserves-existing-provider-binding",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound to local-markdown with config.storage_dir set, and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
+      "prompt": "/work-items:setup apply\n\n(docs/conventions/work-items.yaml already binds the tracker to local-markdown with config.storage_dir set, and .github/recurring-schedule.json is absent. gh is installed and authenticated. This runs unattended — there is no interactive user to answer any question.)",
       "expected_output": "The unattended provider default applies only where there is no binding to preserve. Here one exists and is valid, so the read-first recommendation — keep it — is the RECOMMENDED answer the unattended rule resolves to silently: the repo stays on local-markdown with its existing config, and nothing is rewritten. A working gh does not make github the answer, because re-binding is a switch-providers decision no default can stand in for, and switching would point every later seam verb at an item store the repo never chose. The run continues past the bind: the role-label pass keeps its defaults, seeding is skipped, and the empty {\"items\": []} skeleton is written.",
       "files": [],
       "expectations": [
@@ -109,7 +109,7 @@
     {
       "id": 9,
       "name": "check-zero-row-schedule-reports-label-info-not-fail",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying zero rows ({\"items\": []}), and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, .github/recurring-schedule.json is present and valid carrying zero rows ({\"items\": []}), and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
       "expected_output": "The role-label probe branches on the schedule's row count, not on whether the schedule file exists. With zero rows no [Maintenance] item can be created from that schedule, so the absent label is reported as INFO — noting the label must exist before the schedule is ever seeded — rather than as a FAIL. This matches apply's own treatment of the identical state, where zero rows make a missing label informational and not a gate. The present-but-empty schedule is also reported as INFO from the validity probe, pointing at apply --seed-schedule. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
@@ -123,7 +123,7 @@
     {
       "id": 10,
       "name": "check-populated-schedule-still-fails-on-missing-label",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present and valid carrying three items, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, .github/recurring-schedule.json is present and valid carrying three items, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
       "expected_output": "With the schedule carrying rows, the absent recurring-maintenance label is still a hard FAIL: a seeded [Maintenance] item would land unlabeled and go invisible to the next due/work pass. The remediation named is the repository's declared label provisioning process, never an ad hoc gh label create. The row-count branch relaxes nothing here — the label requirement fires exactly where it is load-bearing. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
@@ -136,7 +136,7 @@
     {
       "id": 11,
       "name": "check-malformed-schedule-is-not-read-as-zero-rows",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, .github/recurring-schedule.json is present but its root has a null items key, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, .github/recurring-schedule.json is present but its root has a null items key, and the resolved recurring-maintenance label is NOT present in the repo's label set.)",
       "expected_output": "A schedule that does not parse as the {\"items\": [ ... ]} root is a validity FAIL, and that FAIL is the gate. It is not read as a zero-row schedule: the role-label probe has no readable row count to branch on, so it cannot evaluate the label requirement and reports INFO naming the validity FAIL as the reason — it neither downgrades the validity FAIL to an INFO of its own nor raises the >=1-row label FAIL on a guess about what the unreadable file holds. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
@@ -150,7 +150,7 @@
     {
       "id": 12,
       "name": "check-role-resolution-failure-outranks-the-row-count-branch",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github but its config.role_labels[\"recurring-maintenance\"] is an empty string, and .github/recurring-schedule.json is present with a null items key so it does not parse as the {\"items\": [ ... ]} root.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github but its config.role_labels[\"recurring-maintenance\"] is an empty string, and .github/recurring-schedule.json is present with a null items key so it does not parse as the {\"items\": [ ... ]} root.)",
       "expected_output": "Two independent defects hold at once, and the probe emits one verdict each. The role-label probe reports FAIL on the binding: an empty configured role_labels[\"recurring-maintenance\"] is an error, never a silent fallback to the default recurring, and that resolution failure settles probe 6 regardless of the schedule. The unreadable row count does not downgrade it to INFO — the row-count branches decide only whether a resolved label's absence is a gate, and no role resolved here. The schedule-validity probe separately reports its own FAIL. Nothing is written and no label is created.",
       "files": [],
       "expectations": [
@@ -164,7 +164,7 @@
     {
       "id": 13,
       "name": "check-missing-work-class-labels-fails",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, gh label list returns no work-class: labels, and the schedule is present with zero rows.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, gh label list returns no work-class: labels, and the schedule is present with zero rows.)",
       "expected_output": "Probe 7 reports FAIL for the missing work-class axis — triage cannot apply autonomous-eligible outcomes until all five canonical members exist. Remediation is /work-items:setup apply on repos without label-as-code, or the repo's declared label-as-code owner. Never gh label create ad hoc when label-as-code owns writes. Nothing is written.",
       "files": [],
       "expectations": [
@@ -177,7 +177,7 @@
     {
       "id": 14,
       "name": "check-missing-capability-tier-label-fails",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github, gh label list returns no capability-tier: labels, and the schedule is present with zero rows.)",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, gh label list returns no capability-tier: labels, and the schedule is present with zero rows.)",
       "expected_output": "Probe 8 reports FAIL for the missing capability-tier: frontier label — triage cannot stamp frontier-tier quota guard and the work-loop reader fails closed to general tier until the label exists. Remediation is /work-items:setup apply on repos without label-as-code, or the repo's declared label-as-code owner. Never gh label create ad hoc when label-as-code owns writes. Nothing is written.",
       "files": [],
       "expectations": [
@@ -190,7 +190,7 @@
     {
       "id": 15,
       "name": "apply-backfills-legacy-frontier-body-stamps",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github, capability-tier: frontier exists in the label set, and backfill-capability-tier-labels.sh check reports two open issues whose bodies carry legacy frontier-tier stamps but lack the label. An interactive user is present.)",
+      "prompt": "/work-items:setup apply\n\n(the tracker: key of docs/conventions/work-items.yaml binds github, capability-tier: frontier exists in the label set, and backfill-capability-tier-labels.sh check reports two open issues whose bodies carry legacy frontier-tier stamps but lack the label. An interactive user is present.)",
       "expected_output": "After the capability-tier axis pass confirms the label exists, setup runs the legacy backfill pass: it reports the two candidates from backfill-capability-tier-labels.sh check, offers to apply capability-tier: frontier to each, and on acceptance runs backfill-capability-tier-labels.sh apply so both items receive the label. It does not rely on triage to re-stamp already-triaged items.",
       "files": [],
       "expectations": [
@@ -203,8 +203,8 @@
     {
       "id": 16,
       "name": "apply-stops-on-tracked-personal-overlay-rather-than-appending-a-duplicate-ignore-line",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is committed to the repository, and .gitignore already carries a .work-item-tracker.local.json line, so the file is tracked despite a matching rule.)",
-      "expected_output": "At the personal-overlay gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -q for whether the path is ignored, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. The ignore verdict comes from the non-verbose exit code — `-v` is only for the human-readable report, because `-v` treats a negation pattern as a match and still exits 0. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the overlay is in team history and may carry per-user auth identity, and the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential. It does NOT append another .work-item-tracker.local.json line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
+      "prompt": "/work-items:setup apply\n\n(the tracker: key of docs/conventions/work-items.yaml binds github. docs/conventions/work-items.local.yaml exists in the convention home, is committed to the repository, and .gitignore already carries a docs/conventions/work-items.local.yaml line, so the file is tracked despite a matching rule.)",
+      "expected_output": "At the personal-overlay gitignore step, runs two independent probes rather than a bare git check-ignore: git check-ignore --no-index -q for whether the path is ignored, and git ls-files for whether the path is in the index. Because bare git check-ignore consults the index first and exits 1 with no output for an already-tracked path, its silence cannot distinguish 'no rule exists' from 'a rule exists but the file was committed anyway', and those need opposite remediations. The ignore verdict comes from the non-verbose exit code — `-v` is only for the human-readable report, because `-v` treats a negation pattern as a match and still exits 0. With ls-files reporting the path as tracked, setup STOPS and reports it as a finding: the overlay is in team history and may carry per-user auth identity, and the remediation is git rm --cached docs/conventions/work-items.local.yaml plus rotation of any committed credential. It does NOT append another docs/conventions/work-items.local.yaml line to .gitignore, and does not announce a duplicate ignore line as the fix, since an ignore rule does not untrack an already-committed file.",
       "files": [],
       "expectations": [
         "Uses git check-ignore --no-index -q (not a bare git check-ignore, and not -v) to take the ignore verdict, so the index cannot mask the answer and a negation pattern cannot be read as coverage",
@@ -216,11 +216,11 @@
     {
       "id": 17,
       "name": "apply-still-appends-the-ignore-line-for-an-untracked-uncovered-overlay",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root, is NOT tracked, and no .gitignore rule matches it.)",
-      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the .work-item-tracker.local.json line to the consumer's .gitignore and announces the edit as the one declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
+      "prompt": "/work-items:setup apply\n\n(the tracker: key of docs/conventions/work-items.yaml binds github. docs/conventions/work-items.local.yaml exists in the convention home, is NOT tracked, and no .gitignore rule matches it.)",
+      "expected_output": "The same two probes report no matching rule and no index entry, which is the ordinary uncovered case. Setup appends the docs/conventions/**/*.local.* line to the consumer's .gitignore and announces the edit as the one declared exception, touching nothing else in that file. It does not stage the overlay, and it does not raise the tracked-overlay stop condition, which applies only when git ls-files reports the path.",
       "files": [],
       "expectations": [
-        "Appends the .work-item-tracker.local.json line to .gitignore and announces the edit",
+        "Appends the docs/conventions/**/*.local.* line to .gitignore and announces the edit",
         "Modifies no other line of .gitignore",
         "Does not stage or commit the overlay",
         "Does not raise the tracked-overlay stop condition when the index probe comes back empty"
@@ -229,8 +229,8 @@
     {
       "id": 18,
       "name": "apply-treats-a-negated-overlay-as-uncovered-not-as-already-ignored",
-      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json exists at the repo root and is untracked. The consumer's .gitignore carries `*.json` on one line and `!.work-item-tracker.local.json` on the next, so a pattern matches the overlay but the net effect is that git does NOT ignore it.)",
-      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the overlay as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the .work-item-tracker.local.json line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
+      "prompt": "/work-items:setup apply\n\n(the tracker: key of docs/conventions/work-items.yaml binds github. docs/conventions/work-items.local.yaml exists in the convention home and is untracked. The consumer's .gitignore carries `*.local.*` on one line and `!docs/conventions/work-items.local.yaml` on the next, so a pattern matches the overlay but the net effect is that git does NOT ignore it.)",
+      "expected_output": "Takes the ignore verdict from the bare exit code of git check-ignore --no-index, not from git check-ignore --no-index -v. With -v, git reports negation patterns as matches and exits 0, so the -v exit code means 'some pattern matched' rather than 'the path is ignored', and reading it as the verdict here would report the overlay as already covered while git leaves it exposed to git add -A. The bare probe exits non-zero, so setup treats this as the uncovered case: it appends the docs/conventions/**/*.local.* line to .gitignore and announces the edit, which is the correct remediation because the last matching rule wins. It uses -v only to render a matching rule in its report, never to decide.",
       "files": [],
       "expectations": [
         "Derives the ignored/not-ignored verdict from git check-ignore --no-index WITHOUT -v",
@@ -242,8 +242,8 @@
     {
       "id": 19,
       "name": "check-fails-on-a-tracked-overlay-that-no-rule-covers",
-      "prompt": "/work-items:setup check\n\n(.work-item-tracker.json is bound to github. .work-item-tracker.local.json is committed to the repository and no .gitignore rule matches it.)",
-      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the overlay is in team history and may carry per-user auth identity, so the remediation is git rm --cached .work-item-tracker.local.json plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
+      "prompt": "/work-items:setup check\n\n(the tracker: key of docs/conventions/work-items.yaml binds github. docs/conventions/work-items.local.yaml is committed to the repository and no .gitignore rule matches it.)",
+      "expected_output": "Probe 2 runs both probes and reports FAIL. With the index probe reporting the path and no rule covering it, both conditions are wrong at once, and the report names the TRACKED condition as the finding because it is the more serious of the two: the overlay is in team history and may carry per-user auth identity, so the remediation is git rm --cached docs/conventions/work-items.local.yaml plus rotation of any committed credential, after which the missing ignore rule is what apply adds. check modifies nothing and does not append the .gitignore line itself.",
       "files": [],
       "expectations": [
         "Reports FAIL rather than PASS when the overlay is tracked",
@@ -255,14 +255,28 @@
     {
       "id": 20,
       "name": "check-reports-missing-overlay-ignore-without-overlay-file",
-      "prompt": "/work-items:setup check\n\n.work-item-tracker.json is bound. There is no .work-item-tracker.local.json. .gitignore does not mention that path.",
+      "prompt": "/work-items:setup check\n\nThe tracker: key of docs/conventions/work-items.yaml binds github. There is no docs/conventions/work-items.local.yaml. .gitignore does not mention that path.",
       "expected_output": "Reports FAIL on the personal-overlay ignore rule even though no overlay file exists: the rule must be in place before the first overlay is written. Does not wait for the overlay to appear before probing. Uses the same two-probe pair as apply step 5. Remediation is apply step 5, which appends the line. A match from info/exclude or core.excludesFile is not a team-wide rule.",
       "files": [],
       "expectations": [
-        "Probes git check-ignore --no-index on .work-item-tracker.local.json without requiring the file to exist",
+        "Probes git check-ignore --no-index on docs/conventions/work-items.local.yaml without requiring the file to exist",
         "Missing ignore rule is FAIL, not skipped as INFO",
         "Counts only a repository .gitignore match, not info/exclude or core.excludesFile",
         "Remediation is apply appending the gitignore line"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "apply-migrates-a-legacy-json-binding-into-the-convention-home",
+      "prompt": "/work-items:setup apply\n\n(The repo root holds a legacy .work-item-tracker.json bound to github and a gitignored .work-item-tracker.local.json setting lease_ttl_hours. AGENTS.md has no convention-home region. docs/conventions/work-items.yaml exists and sets only ai_disclaimer: false. An interactive user is present.)",
+      "expected_output": "Before reading the binding, runs the bundled migrate-binding.sh from the project root. It moves the binding's keys under tracker: in docs/conventions/work-items.yaml (keeping ai_disclaimer) and the overlay's under tracker: in docs/conventions/work-items.local.yaml, checks each reads back as the same binding, then removes both JSON files. Setup announces each migrated and removed line, says the YAML file and the JSON deletion are the user's to commit, keeps the migrated github binding as the RECOMMENDED answer, and ensures a .gitignore rule covers docs/conventions/work-items.local.yaml. It never tells the user to write .work-item-tracker.json.",
+      "files": [],
+      "expectations": [
+        "Runs migrate-binding.sh before the keep-or-re-bind decision",
+        "Announces the migrated and removed files and leaves the commit to the user",
+        "Keeps ai_disclaimer and every other key already in work-items.yaml",
+        "Ensures the overlay ignore rule covers docs/conventions/work-items.local.yaml",
+        "Never writes or recommends .work-item-tracker.json"
       ]
     }
   ]

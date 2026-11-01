@@ -5,7 +5,7 @@ legacy backfill. Triage's capability-tier stamp and the work-loop frontier quota
 `capability-tier: frontier` from
 [`reference/capability-tier-labels.md`](../../../reference/capability-tier-labels.md).
 
-1. **Skip when `.work-item-tracker.json` is absent.** Nothing is bound yet.
+1. **Skip when no binding is present** (no `tracker` key in `<home>/work-items.yaml`). Nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`). Report
    INFO and continue; triage verifies at item-edit time.
 3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter

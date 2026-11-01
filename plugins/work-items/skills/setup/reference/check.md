@@ -12,10 +12,21 @@ check.
    [`reference/tracker-seam.md`](../../../reference/tracker-seam.md)
    "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
-2. **Tracker provider binding**, resolve `BINDING` (above). Absent → INFO: the tracker seam is not
+2. **Tracker provider binding**, resolve `BINDING` and `OVERLAY` (SKILL.md "Resolving the paths").
+   No convention home applies → INFO naming the resolver's message: the seam reads only the legacy
+   `.work-item-tracker.json` there, so validate that file as the binding below and raise no legacy
+   FAIL; moving it needs a convention home bound in the `AGENTS.md` pointer region first. Otherwise,
+   the project root still holds `.work-item-tracker.json` or `.work-item-tracker.local.json` → FAIL:
+   the repository is still on the legacy JSON binding ADR 0075 fix 11 retired (the seam reads it
+   only as a fallback, with a `notice:`). The remediation is `/work-items:setup apply`, which
+   migrates it, unless the YAML target already sets `tracker`: then the JSON file is stale, and the
+   remediation is to reconcile the two by hand and delete the JSON file. No `tracker` key in
+   `BINDING` and no legacy file → INFO: the tracker seam is not
    bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
-   to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
-   parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
+   to configure; the remediation is `/work-items:setup apply`. Present → validate the `tracker`
+   mapping without mutating: the file parses with the seam's YAML subset parser
+   (`awk -f "<plugin-root>/skills/triage/scripts/yaml-subset.awk"`), `tracker` carries no key outside
+   `schema_version`, `provider`, `config` and `docs`, and it carries `schema_version` and a `provider`, and that provider resolves to a bundled
    adapter (`github`, `local-markdown`) or a consumer-local one at
    `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
    A seeded provider (`jira`, `gitea`, `linear`) resolves only through that consumer-local copy: with
@@ -24,7 +35,7 @@ check.
    `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
    The ignore rule is required whether or not the overlay file exists. A present overlay
-   (`.work-item-tracker.local.json`) must parse as JSON, carry only allowlisted keys
+   (`OVERLAY`, `<home>/work-items.local.yaml`) must parse, carry only allowlisted keys under `tracker`
    (CONTRACT.md "Setup (binding file)"), and be gitignored, never tracked. Otherwise FAIL.
    Ignored and untracked are **two independent probes**: run the same pair `apply` step 5 uses, per
    [`reference/overlay-ignore-probes.md`](overlay-ignore-probes.md). A bare

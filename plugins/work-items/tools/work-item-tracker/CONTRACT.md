@@ -196,10 +196,10 @@ value (named by file, key and value; the overlay when it set the value) is exit 
   it, never a silent fallback to the team value either way. A personal
   provider override is structurally foreclosed: leases, labels, and frontier state live
   provider-side, so a personal binding would fracture the team's coordination surface.
-  There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The
-  overlay's gitignore line (`.work-item-tracker.local.json`) is appended, announced, by
-  `/work-items:setup apply`, because the root-level overlay is outside the marketplace's
-  `.claude/**/*.local.*` convention line.
+  There is deliberately no user-global (`~/.claude/...`) layer for the same reason.
+  `/work-items:setup apply` appends the overlay's gitignore line (`<home>/**/*.local.*`, ADR
+  0075 fix 8), announced, when no repository rule covers `<home>/work-items.local.yaml`, and
+  moves a legacy `.work-item-tracker.json` and `.work-item-tracker.local.json` into the home.
 - Optional `docs` (either layer): a free-form self-describing pointer naming what the file
   is and where its contract lives, so the root dotfile explains itself to a teammate who
   finds it. `/work-items:setup` writes it by default; the seam never reads it.
@@ -446,7 +446,7 @@ Two independent resolutions, deliberately opposite:
   (`seeds/README.md`). Versioning is the manifest's `schema_version` and the handshake below,
   with no header in the copied files.
 
-The binding (`.work-item-tracker.json`) and any consumer-local adapters live in the consuming repo
+The binding (`tracker` in `<home>/work-items.yaml`) and any consumer-local adapters live in the consuming repo
 (the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update. No seam state is written there.
 

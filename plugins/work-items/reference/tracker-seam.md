@@ -40,8 +40,8 @@ routes rather than halting unconditionally.
   plugin install is incomplete: stop and surface that the plugin must be reinstalled or repaired,
   rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
   recurring schedule and label remaps but does NOT create the seam.
-- **The provider binding** (`.work-item-tracker.json` at the project root, seeded by
-  `/work-items:setup`). Unlike the two above, a missing binding has a legitimate recovery path, so it is
+- **The provider binding** (the `tracker` key of `<home>/work-items.yaml`, seeded by
+  `/work-items:setup`, which migrates a legacy root `.work-item-tracker.json`). Unlike the two above, a missing binding has a legitimate recovery path, so it is
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`,
@@ -270,5 +270,5 @@ bound adapter's operations reference. For GitHub, that is
 - Own the label taxonomy content. That is
   [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   (universal + repo-specific groups).
-- Bind the provider. The active provider lives in `.work-item-tracker.json` at the project root,
+- Bind the provider. The active provider lives under the `tracker` key of `<home>/work-items.yaml`,
   seeded once by `/work-items:setup`; these skills read the binding but never write it.

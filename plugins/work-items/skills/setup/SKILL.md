@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
+description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (convention-home work-items.yaml), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider (migrating legacy JSON), writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
 argument-hint: "[check|apply] [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -8,7 +8,7 @@ disable-model-invocation: true
 ## Purpose
 
 Verify and configure the work-items plugin for the consuming repo. Setup owns three concerns: **bind
-the tracker provider** (the tracked `.work-item-tracker.json` at the project root, the once-per-repo
+the tracker provider** (the `tracker` mapping of the tracked `<home>/work-items.yaml`, the once-per-repo
 declaration the seam needs before any verb runs; see "Provider binding" below), the tracked
 recurring-schedule config at `.github/recurring-schedule.json` so the `due`, `recheck`, and `work`
 actions resolve a real schedule instead of degrading to "no recurring schedule configured", and the
@@ -33,24 +33,37 @@ item lookups, edits) go through the bound provider.
 
 ## Resolving the paths
 
-Root both paths at the project root, never a bare relative path (which breaks when invoked from a
-subdirectory):
+Root every path at the project root, never a bare relative path (which breaks when invoked from a
+subdirectory). The binding lives in the convention home `<home>` that the pointer region of
+`AGENTS.md` or `CLAUDE.md` binds (ADR 0075 fix 11; CONTRACT.md "Setup (binding file)"):
 
 ```bash
-BINDING="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.work-item-tracker.json"
-SCHEDULE="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json"
+ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "$ROOT"
 ```
 
-Both files are version-controlled and shared by the whole team. They belong in the consumer's tree
-(`.work-item-tracker.json` at the project root, the schedule under `.github/`), never in the plugin
-directory or any machine-local state.
+Exit 0 prints `<home>`; exit 1 (no pointer region) means `docs/conventions`. Any other exit (the
+repository declined a home, the pointer region is broken, or the root is `$HOME` or outside a git
+work tree) means no home applies: report the resolver's message and stop the bind, because the seam
+reads no `work-items.yaml` there; binding a home in the pointer region is the way forward. Then:
+
+```bash
+BINDING="$ROOT/<home>/work-items.yaml"          # the tracker: mapping
+OVERLAY="$ROOT/<home>/work-items.local.yaml"    # gitignored personal overlay
+SCHEDULE="$ROOT/.github/recurring-schedule.json"
+```
+
+The binding and the schedule are version-controlled and shared by the whole team. They belong in the
+consumer's tree, never in the plugin directory or any machine-local state. `work-items.yaml` may also
+hold the plugin's other settings (`triage_repro_count`, `ai_disclaimer` and the rest): a write to the binding
+touches only the `tracker` key and keeps the rest of the file.
 
 ## Provider binding (the tracker seam)
 
 `apply` runs this first, the recurring-schedule and role-label passes below resolve the binding; the
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
-repo, declared in the tracked `.work-item-tracker.json` at the project root (resolved as `BINDING`
-above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
+repo, declared under the `tracker` key of the tracked `<home>/work-items.yaml` (resolved as
+`BINDING` above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
 (exit 3). The seam **ships with this plugin** and bundles two adapters, `github` and `local-markdown`;
 for those, installing the plugin is enough and a repo only declares which one it uses. `jira`, `gitea`,
 and `linear` ship as **seeds**, which step 4 copies into the consuming repo, where the repo owns them.
@@ -64,7 +77,19 @@ interactive user, resolve them by `apply`'s "Autonomous invocation" rule below r
 it fixes what the RECOMMENDED answers resolve to (including that an existing binding is kept), and
 when this pass must stop instead of guessing.
 
-1. **Read the current binding first.** If `.work-item-tracker.json` exists, load it and report the
+1. **Migrate a legacy binding, then read the current one.** When the project root still holds
+   `.work-item-tracker.json` or `.work-item-tracker.local.json` (the files ADR 0075 fix 11 retired),
+   first run step 5's ignore probes when the legacy overlay exists, so the moved overlay is never
+   left uncovered, then run `bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/migrate-binding.sh" --root "$ROOT"`, attended
+   or not. It moves the binding's keys under `tracker:` in `BINDING` and the overlay's under
+   `tracker:` in `OVERLAY`, keeps every other setting the YAML files already hold, checks that each copy reads back
+   as the same binding, and only then removes the JSON file. Announce each stdout line: `migrated
+   <json> <yaml>` and `removed <json>`, and say the YAML files and the deletion are the consumer's to
+   commit (the overlay stays uncommitted; step 5 covers its ignore rule). `refused: <why>` (exit 1)
+   changed nothing: report it and stop the bind, since a `tracker` key already in `BINDING` or
+   `OVERLAY` is a conflict only a person can reconcile. Exit 3 means no home applies; report it and
+   stop. Exit 4 (`kept <json>: ...`) means the YAML copy is the binding but a JSON file could not be
+   removed: report it and continue. Then, if `BINDING` sets `tracker`, load it and report the
    bound `provider` and `config`. RECOMMENDED: keep it. Re-bind only to switch providers or fix
    config. Keeping a binding to a seeded provider still runs step 4's seed copy, attended or not.
    If it is absent, say so and continue to the interview.
@@ -95,10 +120,12 @@ when this pass must stop instead of guessing.
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
      as a literal here. `github` needs none (ambient `gh`); `jira`, `gitea`, and `linear` reference theirs by
      `auth_env` name.
-4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
-   merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any
-   other keys. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and, unless one
-   already exists, the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)"). Confirm
+4. **Write the binding.** Re-read `BINDING` from disk immediately before writing and merge under its
+   `tracker` key: preserve any existing `tracker.config.role_labels` (owned by the role-label pass
+   below), any other `tracker` keys, and every key outside `tracker`. Create the home directory and
+   the file when absent. Write `schema_version: "1.0"`, the chosen `provider`, the `config`, and,
+   unless one already exists, the self-describing `docs` pointer (CONTRACT.md "Setup (binding file)")
+   in the YAML subset the seam parses (quote a string that holds a colon and a space; no flow mappings). Confirm
    tracked-not-ignored via the pair: `git check-ignore -v` no match AND `git ls-files --error-unmatch` exit 0 (non-zero after a fresh write = "written but untracked: commit it").
    **For a seeded provider** (`jira`, `gitea`, `linear`), whether this step wrote the binding or
    step 1 kept it, copy its seed by running
@@ -110,26 +137,28 @@ when this pass must stop instead of guessing.
    - `edited` (exit 1): someone changed the copy, so nothing was written. Show the diff that follows
      and stop this step; never delete or overwrite the copy to force an update. With no interactive
      user, report it as a finding and continue with the existing copy.
-5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay
-   (`.work-item-tracker.local.json`, allowlisted keys only. CONTRACT.md "Setup (binding file)") sits
-   at the repo root, outside the `.claude/**/*.local.*` convention line, so `apply` must confirm a
-   repository `.gitignore` rule covers it even when the overlay file does not exist yet, and append
-   that line when none does, **announcing the edit** (touch nothing else there).
+5. **Ensure the personal-overlay gitignore line.** The gitignored per-user overlay `OVERLAY`
+   (`<home>/work-items.local.yaml`, its `tracker` mapping holding allowlisted keys only. CONTRACT.md
+   "Setup (binding file)") sits in the convention home, so `apply` must confirm a repository
+   `.gitignore` rule covers it even when the overlay file does not exist yet, and append
+   `<home>/**/*.local.*` (ADR 0075 fix 8's one overlay rule) when none does, **announcing the edit**
+   (touch nothing else there).
    `$GIT_DIR/info/exclude` and `core.excludesFile` do not protect a teammate. A *tracked* overlay
    in the index is a finding to stop and report, never ignore. Ignored and untracked are **two
    independent probes**; a bare `git check-ignore` is silent for an already-tracked path. Run the
    probes as [`reference/overlay-ignore-probes.md`](reference/overlay-ignore-probes.md) specifies,
    including why the ignore verdict must NOT come from `check-ignore -v`'s exit code.
 
-Example (`github`; `local-markdown` adds `"storage_dir": ".work-items"`):
+Example `<home>/work-items.yaml` (`github`; `local-markdown` adds `storage_dir: .work-items` under
+`config`):
 
-```json
-{
-  "schema_version": "1.0",
-  "provider": "github",
-  "docs": "Work-item tracker binding — see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)",
-  "config": { "lease_ttl_hours": 24 }
-}
+```yaml
+tracker:
+  schema_version: "1.0"
+  provider: github
+  docs: Work-item tracker binding, see the work-items plugin's tools/work-item-tracker/CONTRACT.md (Setup)
+  config:
+    lease_ttl_hours: 24
 ```
 
 ## `check` (read-only)
@@ -188,8 +217,8 @@ list before writing. Proceed non-interactively where the invocation and the repo
 unambiguous; ask only where an item genuinely needs the user.
 
 1. **Bind the tracker provider first.** Run the "Provider binding" procedure above. Seed or update
-   `.work-item-tracker.json` before any pass below resolves it. Every step that follows reads the bound
-   provider and its `config.role_labels` from that file; the seam hard-errors (exit 3) without it.
+   the `tracker` mapping of `<home>/work-items.yaml` before any pass below resolves it. Every step that
+   follows reads the bound provider and its `config.role_labels` from that mapping; the seam hard-errors (exit 3) without it.
 2. **Offer the canonical role→label remap.** Run the "Canonical role labels (optional remap)" procedure
    below, which writes `config.role_labels` into the binding just seeded. It is anchored here, after
    the bind, before any schedule work, so it runs identically on the skipped first-time path (where no
@@ -254,7 +283,7 @@ unambiguous; ask only where an item genuinely needs the user.
    rows, the skipped first-time bind's empty skeleton, no `[Maintenance]` item can ever be created
    from that schedule, so a missing label is **informational, not a gate**: report it, note it must
    exist before the schedule is ever seeded, and continue without blocking the bind.
-   Resolve the role from `.work-item-tracker.json` `config.role_labels["recurring-maintenance"]`,
+   Resolve the role from the binding's `config.role_labels["recurring-maintenance"]`,
    defaulting to `recurring` only when the file or entry is absent (a malformed, empty, or non-string
    configured value is an error, not a fallback). `due` / `work` enumerate open maintenance items with
    that resolved label, and the create path filters out labels the repo lacks, so if you write a
@@ -315,7 +344,7 @@ schedule work. Triage's autonomous-eligible outcomes and the work-loop admission
 canonical members from
 [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md).
 
-1. **Skip when `.work-item-tracker.json` is absent**, nothing is bound yet.
+1. **Skip when no binding is present** (no `tracker` key in `<home>/work-items.yaml`), nothing is bound yet.
 2. **Skip when the bound provider has no label listing** (`local-markdown`, read-only `jira`), report
    INFO and continue; triage verifies at item-edit time.
 3. **Discover** via the adapter's label listing (GitHub: `gh label list --limit 200`, filter
@@ -337,14 +366,14 @@ canonical members from
 `apply` runs this pass at **step 2** of its numbered flow, immediately after the bind and before any
 schedule work. See that list above. The work-items actions speak three
 canonical roles. `autonomous-eligible`, `human-gated`, `recurring-maintenance`, and resolve each
-repo-actual label string from the tracker binding: `.work-item-tracker.json`, key
-`config.role_labels`. Absent entries fall back to the defaults `agent-ready` / `needs-human` /
+repo-actual label string from the tracker binding: `<home>/work-items.yaml`, key
+`tracker.config.role_labels`. Absent entries fall back to the defaults `agent-ready` / `needs-human` /
 `recurring`, so a repo that never remaps needs no binding change at all. Role semantics and the
 binding shape live in the plugin's
 [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
 "Canonical roles".
 
-1. **Skip silently when `.work-item-tracker.json` is absent**, the tracker seam isn't bound in
+1. **Skip silently when no binding is present**, the tracker seam isn't bound in
    this repo, so there is nothing to remap.
 2. **Read the current binding first** and present each role with its currently-resolved label
    (the default when unset). RECOMMENDED: keep the defaults. Remap only when the repo already
@@ -358,8 +387,8 @@ binding shape live in the plugin's
      keys on this label, and the shipped seam reads `needs-human`. Remap it only when the bound
      seam resolves the same `config.role_labels` key, or the frontier filter and the skill will
      disagree about what autonomous agents may pick up.
-4. **Write the binding**: re-read `.work-item-tracker.json` from disk immediately before writing
-   and merge only the `config.role_labels` key, the binding carries seam-required keys
+4. **Write the binding**: re-read `<home>/work-items.yaml` from disk immediately before writing
+   and merge only the `tracker.config.role_labels` key, the binding carries seam-required keys
    (`provider`, `config.lease_ttl_hours`, …) that must survive untouched. Omit entries that keep
    their default rather than snapshotting defaults into the file.
 
@@ -373,7 +402,7 @@ carrying zero rows re-offers seeding on every run, by design.
 keeps its dependent blocked and lands it in triage's "blocked by won't-do" bucket. How a tracker
 marks won't-do differs per consumer, so the plugin ships no list: this pass reads the tracker's
 own vocabulary and the user classifies it. Field semantics are CONTRACT.md "JSON output
-contract" and "jira adapter". Skip it when `.work-item-tracker.json` is absent or the provider is
+contract" and "jira adapter". Skip it when no binding is present or the provider is
 neither `github` nor `jira`. In both branches nothing is written without the user's choice;
 with no interactive user, leave the key out (detection stays at its key-absent behavior) and
 report INFO naming `/work-items:setup apply` with a user present.
@@ -395,8 +424,9 @@ report INFO naming `/work-items:setup apply` with a user present.
      from the name (`Done` → completed; `Won't Do`, `Duplicate` → wont_do),
      marked as a suggestion; the user confirms or changes every row. A resolution left unsorted
      is unclassified: a done blocker carrying it keeps blocking and warns.
-  4. **Write the binding**: re-read `.work-item-tracker.json` immediately before writing and merge
-     only `config.jira.resolutions` as `{"completed": [ids], "wont_do": [ids]}`, ids as strings.
+  4. **Write the binding**: re-read `<home>/work-items.yaml` immediately before writing and merge
+     only `tracker.config.jira.resolutions` as a `completed` and a `wont_do` list of ids, each id
+     quoted (`"10000"`) so it stays a string.
      It is team binding only; never write it to the personal overlay.
 
 On a re-run, a Jira binding that already classifies every listed resolution reports "already
@@ -404,12 +434,12 @@ configured"; otherwise offer only the resolutions it does not classify.
 
 ## Output
 
-A tracked `.work-item-tracker.json` binding (provider + non-secret config) and a tracked
-`.github/recurring-schedule.json`, both in the consuming repo, plus a one-paragraph summary: the bound
-provider and config, the recurring items written (id, cadence, next_due), or, on the skipped path,
+A tracked `<home>/work-items.yaml` whose `tracker` key is the binding (provider + non-secret config)
+and a tracked `.github/recurring-schedule.json`, both in the consuming repo, plus a one-paragraph
+summary: any legacy JSON file migrated and removed, the bound provider and config, the recurring items written (id, cadence, next_due), or, on the skipped path,
 that only the empty skeleton was written and that `apply --seed-schedule` bulk-seeds rows whenever the
 operator wants them, whether any labels were created, any role→label remap written to
-`.work-item-tracker.json`, and how to re-run this setup to reconfigure. On a `check`-only run, the
+the binding, and how to re-run this setup to reconfigure. On a `check`-only run, the
 PASS/FAIL/INFO table and its remediation lines, mutating nothing.
 
 ## Spoke paths
