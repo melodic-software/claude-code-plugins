@@ -1,0 +1,124 @@
+{
+  "skill": "harness-config:audit-pass",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-pass",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice A (#11560); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin audits the pass dispatches as lanes (config, instructions, permission state and grants, postures) and the automation-gap audit it routes out.",
+  "competitors": [
+    "harness-config:audit",
+    "harness-config:audit-instructions",
+    "harness-config:audit-permission-state",
+    "harness-config:audit-permission-grants",
+    "harness-config:audit-prompting-postures",
+    "harness-config:audit-automation-gaps"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a full sweep of this repo with all the audit skills, run in order, and one merged report at the end instead of eight separate ones"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Yesterday's big audit run got cut off halfway through. Pick it back up from where it stopped."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "before we cut the release, go over user, project and plugin level config and produce a single findings file we can compare against the next release"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you orchestrate every Claude Code check we have across this repository, skip the ones that don't apply, and let me approve fixes once at the end?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "do a top to bottom audit of everything harness-related in this repo, settings, instructions, permissions, automations, all of it in one go"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rather than me invoking each audit separately, run them all together on this repo and reconcile the results into one list."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "inventory what exists at every scope first, then hand each piece to the plugin that owns it and save findings per area so I can resume later"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We need one diffable audit artifact for this release covering the whole repo. Kick that off."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "continue the multi-lane audit from last session, I think it finished the permissions part already"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give this repo the complete end-to-end audit treatment, read only, with a single gate where I decide what to fix."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just check my settings.json and .mcp.json for mistakes, nothing else."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "which of my permission rules survive when I switch to auto mode?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is there anything in CLAUDE.md that describes Claude Code behavior that's no longer true?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "strip all the standing instructions out of this repo for a while and see which ones the model actually still needs"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Should we add a scheduled task or a hook for the lint step we keep forgetting? Give me a verdict."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "my skill's allowed-tools grant uses a path that only exists on my laptop, is that portable?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does our AGENTS.md say anything about confirming before destructive actions? Find the guardrails it's missing."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "review the diff on my current branch for bugs before I open the PR"
+    }
+  ]
+}

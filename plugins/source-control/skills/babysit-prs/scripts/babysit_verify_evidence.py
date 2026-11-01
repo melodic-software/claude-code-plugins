@@ -276,6 +276,9 @@ LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# A file holding the pull request's REST record as the caller read it
+# (`merge_policy.cached_pull_request`).
+PULL_ENV = "BABYSIT_VERIFY_PULL"
 # The head-ref map's version and its keys' shape, an artifact id
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
@@ -2206,10 +2209,12 @@ class Reader:
 
     def _tip(self, branch: str) -> str:
         """`branch`'s tip SHA (`merge_policy.base_tip`), so no tag of the same
-        name stands in for it; `_Unreadable` when it does not resolve."""
+        name stands in for it, or the one `evidence` already read
+        (`merge_policy.remembered_base_tip`); `_Unreadable` when it does not
+        resolve."""
         owner, _, name = self.repo.partition("/")
         try:
-            return merge_policy.base_tip(owner, name, branch)
+            return merge_policy.remembered_base_tip(owner, name, branch)
         except merge_policy.PolicyReadError as exc:
             raise _Unreadable(str(exc)) from exc
 
@@ -4895,11 +4900,16 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     if args.shared_listing:
         reader.listing_max_age = None
-    if args.answers_in is None and args.answers_out is None and not args.answers_only:
-        print(json.dumps(_evidence_report(args, reader)))
+    with merge_policy.base_tips_remembered():
+        if (
+            args.answers_in is None
+            and args.answers_out is None
+            and not args.answers_only
+        ):
+            print(json.dumps(_evidence_report(args, reader)))
+            return 0
+        print(json.dumps(_answered(args, reader, now or datetime.now(UTC))))
         return 0
-    print(json.dumps(_answered(args, reader, now or datetime.now(UTC))))
-    return 0
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
@@ -4929,6 +4939,12 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         except merge_policy.PolicyReadError as exc:
             refusal = Evidence(UNREADABLE, args.head, (), 0, str(exc))
             return refusal.report() | link
+    else:
+        # The record the caller read in this run, at this head; else the
+        # reader reads it live.
+        pr = merge_policy.cached_pull_request(
+            os.environ.get(PULL_ENV), args.repo, args.number, args.head
+        )
     evidence = reader.evidence(args.number, args.head, pr)
     if evidence.refusal is None and reader.saved and not args.shared_listing:
         reader.refresh()

@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Accepted lane ids: instructions:<class>, conflicts, permission-state, permission-grants, config, memory, retirements, postures."
+    },
+    {
+      "answer": "Valid: `config`, `permission-state`, `permission-grants`, `memory`, `retirements`, `postures`, `conflicts`, `instructions:skills`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Unknown lane id: linting.",
+      "why": "no accepted list"
+    },
+    {
+      "answer": "Accepted: config, memory, retirements.",
+      "why": "partial list"
+    }
+  ]
+}

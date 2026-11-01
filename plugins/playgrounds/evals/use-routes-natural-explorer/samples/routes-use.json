@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playgrounds:use",
+            "args": "retry policy explorer"
+          }
+        }
+      ],
+      "why": "namespaced"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "use"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playground:playground"
+          }
+        }
+      ],
+      "why": "upstream name, not this skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prototype:explore-directions"
+          }
+        }
+      ],
+      "why": "other skill"
+    }
+  ]
+}

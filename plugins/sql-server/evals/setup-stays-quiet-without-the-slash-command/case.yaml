@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: 'setup-stays-quiet-without-the-slash-command'
+graders:
+  - name: 'expectation-1'
+    type: 'llm'
+    criteria: 'The response makes no Skill call to sql-server setup'
+    focus: 'trace'
+  - name: 'expectation-2'
+    type: 'llm'
+    criteria: 'The response runs no claude mcp add command'
+    focus: 'trace'

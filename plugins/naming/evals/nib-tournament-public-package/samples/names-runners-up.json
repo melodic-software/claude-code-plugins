@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Finalist: `@acme/spec-diff`. Runners-up: `@acme/spec-breaks`, `@acme/spec-guard`. Which do you want?",
+      "why": "runners-up"
+    },
+    {
+      "answer": "Winner `@acme/spec-diff`; runner up `@acme/spec-breaks`.",
+      "why": "singular, spaced"
+    },
+    {
+      "answer": "| `@acme/spec-diff` | 7 | **Winner.** |\n| `@acme/spec-delta` | 6 | Lost the final. |\n| `@acme/spec-backcompat` | 5 | Out in round 2. |",
+      "why": "observed smoke reply: runners-up in a ranked table without the word"
+    },
+    {
+      "answer": "Here is the bracket result.\n\n| Name | Score | Note |\n|---|---|---|\n| `@acme/oas-diff` | 7 | Winner. |\n| `@acme/oas-breaks` | 6 | Lost the final. |\n| `@acme/oas-guard` | 5 | Out in round 2. |",
+      "why": "ranked table with no spec- prefix and no runners-up word"
+    },
+    {
+      "answer": "Ranking:\n1. `openapi-delta`: the finalist.\n2. `contract-diff`\n3. `breakwatch`",
+      "why": "numbered ranking, unscoped names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Final answer: `@acme/spec-diff`. I've locked it in.",
+      "why": "one name, no alternatives for the human"
+    },
+    {
+      "answer": "Final answer: `@acme/spec-diff`. Check it with `npm view @acme/spec-diff` first.",
+      "why": "one candidate; a command naming it twice is not a runner-up"
+    },
+    {
+      "answer": "| Name | Score |\n|---|---|\n| `@acme/oas-diff` | 7 |\n\nLocked in `@acme/oas-diff`; it beats `@acme/spec-lint` on clarity.",
+      "why": "a one-row table and inline mentions are not ranked alternatives"
+    },
+    {
+      "answer": "Finalist: `@acme/spec-diff`. It sits cleanly beside `@acme/spec-lint` and `@acme/spec-mock`.",
+      "why": "the prompt's two sibling packages are not runners-up"
+    }
+  ]
+}

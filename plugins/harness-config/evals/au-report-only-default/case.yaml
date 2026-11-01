@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: au-report-only-default
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: engine-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'audit-engine\.sh'
+    min: 1
+  - name: deny-in-local-named
+    type: regex
+    pattern: 'settings\.local\.json[\s\S]{0,300}?\bdeny\b|\bdeny\b[\s\S]{0,300}?settings\.local\.json'
+    flags: 'i'
+    target: 'last_message'
+  - name: missing-hook-named
+    type: regex
+    pattern: 'format-changed\.sh'
+    target: 'last_message'
+  - name: no-config-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'

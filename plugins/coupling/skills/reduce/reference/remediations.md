@@ -122,8 +122,8 @@ moves in lockstep with the first. The coupling remains, plus a layer.
     when absent; never edit the consumer's root `.gitignore`; write nothing when the memory root
     is the repository root, and report the rows instead.
   - The ledger entry's `outcome` and the run's report both name the file. When
-    `/review:audit-enforceability` is among the available skills, the report offers
-    `/review:audit-enforceability <file>`; it never invokes that skill unasked. Without it, the
+    `/corrections:codify` is among the available skills, the report offers
+    `/corrections:codify findings <file>`; it never invokes that skill unasked. Without it, the
     report names the file and the proposed rule only.
 
 ## Second lists

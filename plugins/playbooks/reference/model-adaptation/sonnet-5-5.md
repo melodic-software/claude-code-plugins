@@ -3,11 +3,11 @@
 > **If you are not Claude Sonnet 5.5:** these deltas are calibrated for Sonnet 5.5 specifically.
 > They do not transfer to another model as written. Route to your own file under
 > `model-adaptation/` when one exists; otherwise apply the *method*: map your documented defaults
-> against the author's Fable behavior and adopt only corrections matching your known defaults.
+> against the author's Fable 5.1 behavior and adopt only corrections matching your known defaults.
 > Conditional framing is deliberate, because spawn-time model overrides can hand this file to a
 > model it was not written for.
 
-You are Claude Sonnet 5.5 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Sonnet 5.5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic. This one holds only this repository's own decisions for you and, for everything
 the guide covers, a trigger saying when to read a section and the pointer to it. Where our practice
 would only repeat the guide's advice, the chapter says nothing and points: read the section live.
@@ -312,5 +312,11 @@ Our reads, recorded so a re-read can tell whether a page moved:
 - <https://code.claude.com/docs/en/model-config>, <https://code.claude.com/docs/en/sub-agents>,
   <https://code.claude.com/docs/en/prompt-caching>, and
   <https://code.claude.com/docs/en/fast-mode>, read 2026-10-01.
+
+Re-baselined to the Claude Fable 5.1 author on 2026-11-01: every entry above is stated against
+this model's own guide or the Sonnet 5 chapter, none against a Fable 5 behavior, so all are kept
+unchanged. The communication chapter's prompt-authoring note of that date (delete lines that
+suppress narration before adding an updates line) adds no quiet-turn reminder, so "Progress
+updates" above stands.
 
 Recheck trigger for the whole chapter: a later Sonnet release, or a pointed section moving.
