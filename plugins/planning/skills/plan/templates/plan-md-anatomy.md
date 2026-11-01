@@ -39,6 +39,9 @@ Citations checked at: <the full commit SHA check-plan-citations.sh printed as `c
 ### Load-bearing assumptions
 <Assumption | Source | Falsifying check | Response if false: one row per Brief Captured assumption written `<assumption>: revisit if <trigger>` (not the Quality bar, Variation intent or override lines) and per assumption the plan adds; the check names a phase Sanity Check; the response is Minor, Moderate or Major>
 
+### Prototype evidence
+<Prototype | Evidence | Left unproven: one row per consumed prototype, from its durable note; evidence is the branch and commit SHA, or the local path with `not pushed: <reason>`. Omit when the plan consumes no prototype>
+
 ### Alternatives Considered
 <Alternative | Why rejected | Switch condition>
 
@@ -76,7 +79,7 @@ Reader depth: <guardrails, standard or step-by-step, and the layer that supplied
 <commit boundaries and verification checkpoints. Standard implementation boilerplate — rarely needs user-specific override>
 ```
 
-The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any.
+The `## Plan` sections before the first phase take their bodies from [`../context/plan-template.md`](../context/plan-template.md) "Full Template". A smaller plan drops what its scale omits but keeps the assumptions table whenever the Brief captured any, and the prototype evidence section whenever it consumes a prototype.
 
 PLAN.md has no open-questions section of its own. A question the plan raises is an Open Decision settled before the plan body (plan Step 1); a deferred question stays in the Brief's `### Deferred questions`: the plan resolves an `arbiter: /planning:plan` one with a "Decisions made (gate-passed)" row, and Step 5 asks the user to resolve each open `USER-RESERVED` one.
 

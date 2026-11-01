@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| P4 | error | .claude/skills/release/SKILL.md | ${CLAUDE_PLUGIN_ROOT} stays literal outside a plugin skill |"
+    },
+    {
+      "answer": "`.claude/skills/release/SKILL.md` is a project skill, so the token is never substituted there."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The notes skill grant resolves.",
+      "why": "the other skill"
+    },
+    {
+      "answer": "skills/release looks fine.",
+      "why": "no finding"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Recovery after an interruption, rate limit, crash, or gap, or a check on off-thread work that looks stalled: inspects its real output, acts on evidence (resume, rerun, kill-and-restart), then continues the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'pick up where that agent left off'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
+description: "Resume after an interruption, rate limit or crash, or check stalled off-thread work by its real output, then continue the main task. Use when: 'keep going', 'is it stuck', 'what were you doing'. Gates kills. Retiring finished work: /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 metadata:

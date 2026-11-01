@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.1] - 2026-11-01
+
+### Changed
+
+- The tracker-seam reference points a recurring mid-session correction at `/corrections:codify`, in place of retro's codify mode.
+
 ## [4.0.0] - 2026-11-01
 
 ### Added

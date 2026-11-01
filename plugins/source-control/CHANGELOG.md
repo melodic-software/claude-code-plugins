@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.3] - 2026-11-01
+
+### Fixed
+
+- The babysit loop's skill, references and config-resolution reference name untrusted provenance (C5) as the one work-class hold no rung, config key or invocation argument lifts, pointing at the unattended merge gate's trust hold (`trust_refusal`), instead of an unconditional C4/C5 floor. C4 is described as outside the rungs, which admit classes up to C3. The babysit-prs safety reference no longer says a C4 pull request carries the body hold line: the work lane writes it for untrusted provenance, not for C4 (#9668).
+
+## [4.11.2] - 2026-11-01
+
+### Fixed
+
+- A pull request that changes the per-concern review rules under `docs/review/` now counts as a lane-source change, so its review runs from main, as one that changes `AGENTS.md` does.
+
+## [4.11.1] - 2026-11-01
+
+### Changed
+
+- `babysit_verify_evidence.py evidence` takes what its caller already holds before reading GitHub: the config files at the base commit from the checkout `BABYSIT_CONFIG_CHECKOUT` names when its HEAD is that commit, the default branch from `BABYSIT_DEFAULT_BRANCH` for the run's own repository, and the pull request record from the file `BABYSIT_VERIFY_PULL` names when it is the same repository, number and head. The default branch's tip is read once per run. Anything else reads the API as before. ci-status's merge-queue step passes all three, so a lanes App pull request's verdict read makes about six fewer `GITHUB_TOKEN` requests.
+
 ## [4.11.0] - 2026-11-01
 
 ### Added

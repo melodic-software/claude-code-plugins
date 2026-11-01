@@ -30,7 +30,7 @@ The counter arrives from one of four places:
 | Source | What it hands over |
 |---|---|
 | `/performance:protect` | a verified counter: name, command, field, and the goal with its Correlation value |
-| an enforcement stub's ratchet offer from `/review:audit-enforceability` | a lint rule and a command that counts its violations |
+| the ratchet offer on a counting rung's proposal from `/corrections:codify` | a lint rule, once it exists, whose violation count is above zero |
 | `/code-metrics:audit-suppressions`, when that skill is available | a command that prints the suppression count |
 | the user, from a telemetry store | a command that queries one run's count and prints it |
 
@@ -217,7 +217,7 @@ Awaiting:  human approval of the files above
 
 ## Boundary
 
-- **Does not choose the rule.** `/review:audit-enforceability` proposes rungs; this holds a count
+- **Does not choose the rule.** `/corrections:codify` proposes rungs; this holds a count
   once a rule or counter exists.
 - **Does not prove a performance win.** `/performance:verify` does; this takes the verified counter.
 - **Does not commit, push or merge,** under any autonomy setting. The scheduled job opens a draft

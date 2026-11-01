@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "`--prune-merged` is not a supported flag for this audit, which is read-only. `fleet` is a valid root.",
+      "why": "code span, not supported"
+    },
+    {
+      "answer": "**Rejected:** unrecognized flag --prune-merged. Rerun without it.",
+      "why": "bold, flag-first form"
+    },
+    {
+      "answer": "- --prune-merged isn't a recognized option\n- To delete merged branches, run the audit, then /repo-fleet-hygiene:apply --plan-file <path>",
+      "why": "list, isn't recognized"
+    },
+    {
+      "answer": "--prune-merged is outside the argument grammar, so I did not run the collector.",
+      "why": "outside the grammar"
+    },
+    {
+      "answer": "I didn't run the audit: `--prune-merged` isn't a flag this skill accepts.\n\n`fleet` on its own is a valid argument (a bare path is treated as `--root fleet`). Two things rule out `--prune-merged`:\n\n1. **It's not a recognized flag.** The skill rejects any flag starting with `-` that isn't in its list, and it does this before running anything.\n2. **It asks for a change, and the audit only reads.** Deleting merged branches is the job of `/repo-fleet-hygiene:apply`. The audit script has no execute, prune or cleanup option on purpose.\n\n**To get the same result, run these in order:**\n\n1. Run the audit. It reads your repos and changes nothing. It writes a plan file listing what it found, such as merged local branches and worktrees to clean up:\n   ```\n   /repo-fleet-hygiene:audit fleet --plan-file <path>\n   ```\n   Add `--detail` if you want the evidence for each branch.\n2. Preview what would be deleted (a dry run):\n   ```\n   /repo-fleet-hygiene:apply --plan-file <path>\n   ```\n3. Delete for real. It asks you to confirm once (or pass `--yes`) and checks each branch's tip again before deleting it:\n   ```\n   /repo-fleet-hygiene:apply --plan-file <path> --apply\n   ```\n\nBranches that were merged but still exist on the remote work differently. The audit only reports them, and `apply` won't delete them. The only remote branches `apply` can delete are ones that never had a PR or whose PR was closed without merging. That needs `--remote-branches`, which asks you about each branch separately, and `--yes` doesn't skip those prompts.\n\nDo you want me to run step 1 now, against `fleet`?",
+      "why": "observed with-plugin smoke reply: isn't a flag this skill accepts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Ran the audit with --prune-merged; it pruned 2 merged branches.",
+      "why": "accepted the flag"
+    },
+    {
+      "answer": "Unknown skill: repo-fleet-hygiene:audit fleet --prune-merged",
+      "why": "the skill is unknown, not the flag"
+    },
+    {
+      "answer": "Audited fleet. Fleet verdict: BLOCKED (2 repositories with evidence gaps).",
+      "why": "silently dropped the flag"
+    }
+  ]
+}

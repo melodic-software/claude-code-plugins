@@ -25,6 +25,7 @@
 //   RUNNER_TEMP                    where the artifact is downloaded
 //   PR_MERGE_READS_PATH            the job's shared GET answers
 //                                  (rotation.mjs sharedReads), if set
+//   PR_MERGE_MAIN_TIP              main's tip (head-ref-map.mjs onMain), if set
 //   BABYSIT_VERIFY_LISTING_CARRY   the file to write
 //   GITHUB_API_URL
 import { renameSync, rmSync, writeFileSync } from "node:fs";

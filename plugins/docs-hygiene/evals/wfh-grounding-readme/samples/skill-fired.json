@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-humans"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/STYLE.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "write-for-humans",
+            "args": "README for loglet"
+          }
+        }
+      ],
+      "why": "bare name with args after a glob"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-agents"
+          }
+        }
+      ],
+      "why": "a sibling skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ],
+      "why": "only a read"
+    }
+  ]
+}

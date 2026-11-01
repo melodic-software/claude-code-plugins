@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: apply-requires-plan-file
+graders:
+  - name: names-plan-file
+    type: regex
+    pattern: '--plan-file\b'
+    target: last_message
+  - name: names-audit-first
+    type: regex
+    pattern: 'repo-fleet-hygiene:audit\b'
+    target: last_message

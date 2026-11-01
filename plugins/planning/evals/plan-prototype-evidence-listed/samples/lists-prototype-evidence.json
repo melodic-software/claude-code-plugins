@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Prototype evidence\n\n| Prototype | Evidence | Left unproven |\n|---|---|---|\n| Invoice approval state machine | branch `spike/invoice-approval-states` at commit `9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24` | Two approvers acting on the same invoice at the same moment |\n| Invoice approval log | `~/spikes/invoice-approval-log`, not pushed: the spike reads a copy of production invoices | How the approvals log is migrated onto the live database |\n",
+      "why": "the pushed row carries the branch, the full SHA and the unproven point, beside the local-path row with its not-pushed reason"
+    },
+    {
+      "answer": "Prototype evidence: the approval spike lives on spike/invoice-approval-states at 9c41e7a; it left concurrent approvals of one invoice unproven.\n",
+      "why": "prose form with a short SHA"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Prototype evidence\n\n| Prototype | Evidence | Left unproven |\n|---|---|---|\n| Invoice approval state machine | branch `spike/invoice-approval-states` | none recorded |\n",
+      "why": "no SHA and the unproven point was dropped"
+    },
+    {
+      "answer": "The plan follows the transitions settled on spike/invoice-approval-states at 9c41e7a; concurrent approvals were not tested.\n",
+      "why": "no Prototype evidence section"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "trigger-arm-session-doctrine",
       "prompt": "load the playbook",
-      "expected_output": "Arms the current session with Fable 5's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
+      "expected_output": "Arms the current session with Fable 5.1's standing doctrine from this skill body and proceeds. Does not fetch an upstream pack or run /playbooks:update.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -42,19 +42,84 @@
     },
     {
       "id": 4,
-      "name": "trigger-fable-5-1-adaptation-chapter",
+      "name": "trigger-fable-5-1-adaptation-no-chapter",
       "prompt": "fable 5.1 adaptation",
-      "expected_output": "Loads the Fable 5.1 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
+      "expected_output": "States that Claude Fable 5.1 is the doctrine's author and reads no adaptation chapter under meta-rule 3, so there is nothing to load beyond the skill body; reads no file under reference/model-adaptation/.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Routes to the Fable 5.1 adaptation chapter, fable-5-1.md, not a generic 'read every adaptation file' dump",
-        "Does not apply an Opus 5.5, Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
+        "States that Fable 5.1 is the author of the doctrine and reads no adaptation chapter",
+        "Reads no file under reference/model-adaptation/, in particular no Opus, Sonnet, or Haiku chapter",
         "Does not treat the request as a /playbooks:update drift check"
       ]
     },
     {
       "id": 5,
+      "name": "trigger-fable-5-adaptation-no-chapter",
+      "prompt": "fable 5 adaptation",
+      "expected_output": "States that under meta-rule 3 Claude Fable 5 reads no adaptation chapter and the doctrine applies to it as written, with no fable-5.md to load; reads no sibling model's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that Fable 5 reads no adaptation chapter and applies the doctrine as written",
+        "Reads no Opus, Sonnet, or Haiku chapter in its place",
+        "Does not treat the request as a /playbooks:update drift check"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "route-fable-5-1-session-at-arm-time",
+      "prompt": "You are running as Claude Fable 5.1. Load the playbook before we start on this refactor.",
+      "expected_output": "Arms the session from the skill body and, per meta-rule 3, reads no chapter under reference/model-adaptation/, because Fable 5.1 is the doctrine's author.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Arms the session with the core doctrine and continues",
+        "Reads no file under reference/model-adaptation/",
+        "Does not load every adaptation chapter in the directory"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "route-later-fable-version-reads-no-chapter",
+      "prompt": "You are running as Claude Fable 5.2; no adaptation chapter exists for it. Load the playbook.",
+      "expected_output": "Arms the session and, per meta-rule 3's rule for a Fable version later than the author, reads no adaptation chapter and applies the doctrine as written; it does not fall back to an older Fable file or to another family's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads no file under reference/model-adaptation/",
+        "States that a Fable version later than 5.1 applies the doctrine as written",
+        "Does not read an Opus, Sonnet, or Haiku chapter as a substitute"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "reroute-after-fallback-fable-5-1-to-opus-5",
+      "prompt": "The playbook is armed and you started this session as Claude Fable 5.1. Claude Code just showed a notice that it re-ran my biology-flagged request on Claude Opus 5. Keep going with the task.",
+      "expected_output": "Treats the notice as in-context evidence of a model switch, re-resolves meta-rule 3 against Claude Opus 5, reads opus-5.md before continuing, and lets that chapter's deltas govern where they differ from the shared chapters.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads opus-5.md after the fallback notice and before continuing the task",
+        "Does not read opus-4-8.md or another chapter in its place",
+        "Continues the user's task after the re-read rather than stopping to ask whether to proceed"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "reroute-after-fallback-fable-5-1-to-opus-4-8",
+      "prompt": "The playbook is armed and you started this session as Claude Fable 5.1. Claude Code just showed a notice that it re-ran my cybersecurity-flagged request on Claude Opus 4.8. Keep going with the task.",
+      "expected_output": "Treats the notice as in-context evidence of a model switch, re-resolves meta-rule 3 against Claude Opus 4.8, reads opus-4-8.md before continuing, and lets that chapter's deltas govern where they differ from the shared chapters.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads opus-4-8.md after the fallback notice and before continuing the task",
+        "Does not read opus-5.md or another chapter in its place",
+        "Continues the user's task after the re-read rather than stopping to ask whether to proceed"
+      ]
+    },
+    {
+      "id": 10,
       "name": "route-sonnet-5-5-session-at-arm-time",
       "prompt": "You are running as Claude Sonnet 5.5. Load the playbook before we start on this refactor.",
       "expected_output": "Arms the session and, per meta-rule 3, reads the Sonnet 5.5 model-adaptation chapter, sonnet-5-5.md, at arm time. Does not read sonnet-5.md or any other version's chapter in its place or beside it.",
@@ -62,12 +127,12 @@
       "narration": true,
       "expectations": [
         "Reads sonnet-5-5.md from the model-adaptation directory before continuing work",
-        "Does not read sonnet-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to sonnet-5-5.md",
+        "Does not read sonnet-5.md or opus-5-5.md as a substitute for or in addition to sonnet-5-5.md",
         "Does not load every adaptation chapter in the directory"
       ]
     },
     {
-      "id": 6,
+      "id": 11,
       "name": "reroute-after-fallback-to-sonnet-5",
       "prompt": "The playbook is armed and you started this session as Claude Sonnet 5.5. Claude Code just showed a notice that it re-ran my last request on Claude Sonnet 5. Keep going with the task.",
       "expected_output": "Treats the notice as in-context evidence of a model switch, re-resolves meta-rule 3 against Claude Sonnet 5, and reads sonnet-5.md before continuing, instead of applying sonnet-5-5.md for the rest of the session.",
@@ -80,7 +145,7 @@
       ]
     },
     {
-      "id": 7,
+      "id": 12,
       "name": "trigger-sonnet-5-5-adaptation-chapter",
       "prompt": "sonnet 5.5 adaptation",
       "expected_output": "Loads the Sonnet 5.5 model-adaptation chapter for the current session rather than the whole playbook or a sibling model's chapter.",
@@ -93,7 +158,7 @@
       ]
     },
     {
-      "id": 8,
+      "id": 13,
       "name": "described-problem-user-config-only",
       "narration": true,
       "prompt": "/playbooks:fable-5. My playbooks user config sets described_problem to fix; this repository has no docs/conventions/playbooks.yaml. Next message: the invoice PDF renders the tax line twice.",
@@ -106,7 +171,7 @@
       ]
     },
     {
-      "id": 9,
+      "id": 14,
       "name": "described-problem-repo-file-only",
       "narration": true,
       "prompt": "/playbooks:fable-5. I never set the playbooks plugin's described_problem option. The repository's docs/conventions/playbooks.yaml contains the single line `described_problem: fix`. Next message: the invoice PDF renders the tax line twice.",
@@ -119,7 +184,7 @@
       ]
     },
     {
-      "id": 10,
+      "id": 15,
       "name": "described-problem-repo-file-wins-over-user-config",
       "narration": true,
       "prompt": "/playbooks:fable-5. My playbooks user config sets described_problem to fix, but the repository's docs/conventions/playbooks.yaml contains `described_problem: report`. Next message: the invoice PDF renders the tax line twice.",
@@ -132,7 +197,7 @@
       ]
     },
     {
-      "id": 11,
+      "id": 16,
       "name": "described-problem-default-when-neither-layer-sets-it",
       "narration": true,
       "prompt": "/playbooks:fable-5. I never set the playbooks plugin's described_problem option, and this repository has no docs/conventions/playbooks.yaml. Next message: the invoice PDF renders the tax line twice.",
@@ -145,7 +210,7 @@
       ]
     },
     {
-      "id": 12,
+      "id": 17,
       "name": "described-problem-fix-still-confirms-destructive-step",
       "narration": true,
       "prompt": "/playbooks:fable-5. The repository's docs/conventions/playbooks.yaml contains `described_problem: fix`. Next message: the nightly job leaves duplicate rows in the shared staging database's orders table.",
@@ -158,7 +223,7 @@
       ]
     },
     {
-      "id": 13,
+      "id": 18,
       "name": "described-problem-question-under-fix-stays-assessment",
       "narration": true,
       "prompt": "/playbooks:fable-5. The repository's docs/conventions/playbooks.yaml contains `described_problem: fix`. Next message: why does the invoice PDF render the tax line twice?",
@@ -171,7 +236,7 @@
       ]
     },
     {
-      "id": 14,
+      "id": 19,
       "name": "described-problem-invalid-value-resolves-report",
       "narration": true,
       "prompt": "/playbooks:fable-5. My playbooks user config sets described_problem to fix. The repository's docs/conventions/playbooks.yaml contains the single line `described_problem: fixit`. Next message: the invoice PDF renders the tax line twice.",
@@ -184,7 +249,7 @@
       ]
     },
     {
-      "id": 15,
+      "id": 20,
       "name": "staged-migration-internal-count",
       "narration": true,
       "prompt": "/playbooks:fable-5. Plan this change, do not edit yet: rename the field `Invoice.total_cents` to `Invoice.amount_minor` in our app. The census found 47 references, every one in this repository's own modules. Invoice is an in-memory dataclass: it is never serialized or stored, and no package we publish exposes it.",
@@ -198,7 +263,7 @@
       ]
     },
     {
-      "id": 16,
+      "id": 21,
       "name": "route-haiku-5-5-session-at-arm-time",
       "prompt": "You are running as Claude Haiku 5.5. Load the playbook before you start this file sweep.",
       "expected_output": "Arms the session and, per meta-rule 3, reads the Haiku 5.5 model-adaptation chapter, haiku-5-5.md, at arm time. Does not read a Sonnet, Opus, or Fable chapter in its place or beside it.",
@@ -206,12 +271,12 @@
       "narration": true,
       "expectations": [
         "Reads haiku-5-5.md from the model-adaptation directory before continuing work",
-        "Does not read sonnet-5-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to haiku-5-5.md",
+        "Does not read sonnet-5-5.md or opus-5-5.md as a substitute for or in addition to haiku-5-5.md",
         "Does not load every adaptation chapter in the directory"
       ]
     },
     {
-      "id": 17,
+      "id": 22,
       "name": "delegate-fan-out-independent-packages",
       "narration": true,
       "prompt": "/playbooks:fable-5. Plan this, do not start yet: audit each of the 12 packages under packages/ for a direct use of the deprecated `requests-oauthlib` library, and for every hit report the file and line and whether the package calls it beyond the import. The packages share no code, and each one takes several searches and file reads to check. Say how you will run the audit.",
@@ -225,7 +290,7 @@
       ]
     },
     {
-      "id": 18,
+      "id": 23,
       "name": "delegate-context-flooding-log-search",
       "narration": true,
       "prompt": "/playbooks:fable-5. We are partway through fixing the checkout retry bug. Plan this side task, do not start yet: the last 30 days of production logs, about 2 GB under logs/prod/, hold a few thousand `RetryBudgetExceeded` errors. For each one, pull the surrounding request trace and classify its cause, so you can tell me which cause is most common and its first timestamp. Each trace takes a few reads to pull, and you will not need the logs again after this answer. Say how you will run it and what you will do with the answer.",
@@ -239,7 +304,7 @@
       ]
     },
     {
-      "id": 19,
+      "id": 24,
       "name": "delegate-isolation-fresh-verifier-small-batch",
       "narration": true,
       "prompt": "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop.",
@@ -252,7 +317,7 @@
       ]
     },
     {
-      "id": 20,
+      "id": 25,
       "name": "stay-inline-sequential-chain",
       "narration": true,
       "prompt": "/playbooks:fable-5. Plan this, do not start yet: the repository is large. Find the commit that made `test_invoice_totals` start failing, then read that commit's diff, then fix the code based on what the diff changed. Say how you will run it.",
@@ -266,7 +331,7 @@
       ]
     },
     {
-      "id": 21,
+      "id": 26,
       "name": "stay-inline-file-being-edited",
       "narration": true,
       "prompt": "/playbooks:fable-5. You are halfway through editing src/billing/invoice.py to add a `discount` field to Invoice. Plan the next part, do not start yet: update all 40 call sites of `Invoice(...)` to pass the discount. They are spread over 10 files under src/billing/, and 6 of them are in src/billing/invoice.py. Say how you will run it.",
@@ -279,7 +344,7 @@
       ]
     },
     {
-      "id": 22,
+      "id": 27,
       "name": "stay-inline-small-job",
       "narration": true,
       "prompt": "/playbooks:fable-5. Plan this, do not start yet: check whether each of these three config keys is read anywhere under src/: `retry.max_attempts`, `retry.backoff_ms`, `retry.jitter`, and tell me the file for each hit. Say how you will run it.",
@@ -292,7 +357,7 @@
       ]
     },
     {
-      "id": 23,
+      "id": 28,
       "name": "stay-inline-detail-needed-later",
       "narration": true,
       "prompt": "/playbooks:fable-5. Plan this, do not start yet: read through the payments module, about 15 files, until you know it in detail. Next we will redesign its error handling together, and I will be asking about specific functions as we go. Say how you will do the read.",
