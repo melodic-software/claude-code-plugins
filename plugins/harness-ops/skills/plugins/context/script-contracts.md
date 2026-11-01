@@ -8,9 +8,9 @@ about to invoke one of the scripts.
 ## `fleet-state.sh`: the only reader of the internal files
 
 Every action starts by calling the bundled read-only script, never hand-parse the internal JSON
-files directly, and never write them. The one sanctioned exception is `converge`'s committed-enable
-check ([converge.md](converge.md) Step 2), which reads one `enabledPlugins` key in a tracked project
-settings file:
+files directly, and never write them. `converge`'s committed-enable check
+([converge.md](converge.md) Step 2) takes each path's `enabledPlugins` entry from the report's
+`projectEnabledEntry` and reads no settings file:
 
 ```bash
 "<skill-dir>/scripts/fleet-state.sh" [--marketplace <name> | --all]

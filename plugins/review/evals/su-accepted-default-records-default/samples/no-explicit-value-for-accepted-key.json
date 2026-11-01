@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default ratchet_offer downstream_probe=report",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "default flag only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --check",
+            "description": "Check the settings"
+          }
+        }
+      ],
+      "why": "check only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" ratchet_offer=true downstream_probe=report",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "accepted default pinned as a chosen value"
+    }
+  ]
+}

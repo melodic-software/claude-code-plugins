@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "editorconfig-severity, analyzer-pack-rule and automated-review"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "analyzer-pack-rule only"
+    }
+  ]
+}

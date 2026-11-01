@@ -127,7 +127,58 @@ DETAIL="exit $RC; out: $OUT; stderr: $ERR"
 check "five unknown keys: all five print" test "$(grep -c 'team (.*unknown key' <<<"$ERR")" -eq 5
 check "five unknown keys: no count line" test "$(grep -c 'more$' <<<"$ERR")" -eq 0
 
-# 8. A pointer line moves the convention home.
+# 8. ratchet_offer and review_mining_prs: default, user option, team over user, and an invalid team
+# value falling to the default, never to the user option.
+# run_user <repo> <reader flags...>: as run, with the flags.
+run_user() {
+  local dir="$1"
+  shift
+  (cd "$dir" && node "$READER" "$@") >"$TEST_TMPDIR/out" 2>"$TEST_TMPDIR/err"
+  RC=$?
+  OUT="$(cat "$TEST_TMPDIR/out")"
+  ERR="$(cat "$TEST_TMPDIR/err")"
+}
+triple() { got "\"\(.$1.value) \(.$1.layer) \(.$1.path)\""; }
+USER_OFF=(--user-ratchet-offer false --user-review-mining-prs 40)
+new_repo
+run_user "$R"
+DETAIL="out: $OUT; stderr: $ERR"
+check "neither layer: ratchet_offer true from defaults" test "$(triple ratchet_offer)" == "true defaults null"
+check "neither layer: review_mining_prs 20 from defaults" test "$(triple review_mining_prs)" == "20 defaults null"
+run_user "$R" "${USER_OFF[@]}"
+DETAIL="out: $OUT; stderr: $ERR"
+check "user only: ratchet_offer false from userConfig" test "$(triple ratchet_offer)" == "false userConfig null"
+check "user only: review_mining_prs 40 from userConfig" test "$(triple review_mining_prs)" == "40 userConfig null"
+# shellcheck disable=SC2016 # the literal, unrendered placeholder
+run_user "$R" --user-ratchet-offer '${user_config.ratchet_offer}' --user-review-mining-prs ''
+DETAIL="out: $OUT; stderr: $ERR"
+check "placeholder and empty: unset, no note" test "$(triple ratchet_offer) $(triple review_mining_prs) [$ERR]" == "true defaults null 20 defaults null []"
+run_user "$R" --user-ratchet-offer true --user-review-mining-prs 20
+DETAIL="out: $OUT; stderr: $ERR"
+check "a rendered default reads as unset" test "$(triple ratchet_offer) $(triple review_mining_prs)" == "true defaults null 20 defaults null"
+run_user "$R" --user-ratchet-offer sometimes --user-review-mining-prs 1
+DETAIL="out: $OUT; stderr: $ERR"
+check "invalid user values: the defaults" test "$(triple ratchet_offer) $(triple review_mining_prs)" == "true defaults null 20 defaults null"
+check "invalid user values: named on stderr" test "$(grep -c -E 'userConfig.*(ratchet_offer|review_mining_prs)' <<<"$ERR")" -eq 2
+TEAM=docs/conventions/corrections.yaml
+printf 'ratchet_offer: true\nreview_mining_prs: 60\n' >"$R/$TEAM"
+run_user "$R" "${USER_OFF[@]}"
+DETAIL="out: $OUT; stderr: $ERR"
+check "team over user: ratchet_offer true from the team file" test "$(triple ratchet_offer)" == "true team $TEAM"
+check "team over user: review_mining_prs 60 from the team file" test "$(triple review_mining_prs)" == "60 team $TEAM"
+for bad in sometimes '[]' '"false"'; do
+  printf 'ratchet_offer: %s\n' "$bad" >"$R/$TEAM"
+  run_user "$R" "${USER_OFF[@]}"
+  DETAIL="out: $OUT; stderr: $ERR"
+  check "invalid team ratchet_offer ($bad): the default, not the user false" test "$(triple ratchet_offer)" == "true defaults null"
+  check "invalid team ratchet_offer ($bad): named on stderr" grep -q 'team (.*corrections.yaml).*ratchet_offer' <<<"$ERR"
+done
+printf 'review_mining_prs: 201\n' >"$R/$TEAM"
+run_user "$R" "${USER_OFF[@]}"
+DETAIL="out: $OUT; stderr: $ERR"
+check "team review_mining_prs over the maximum: the default, not the user 40" test "$(triple review_mining_prs)" == "20 defaults null"
+
+# 9. A pointer line moves the convention home.
 new_repo
 mkdir -p "$R/conventions"
 cat >"$R/AGENTS.md" <<'EOF'
