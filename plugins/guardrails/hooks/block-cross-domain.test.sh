@@ -561,6 +561,67 @@ else
   bad "config deny telemetry: no telemetry envelope"
 fi
 
+# --- Auth switches --------------------------------------------------------------
+# alpha has a gh config directory, so from alpha's tree an account switch or a
+# GH_TOKEN removal is denied even when gh runs with that directory.
+conf "gh auth switch" deny "$A_CWD" 'gh auth switch' "GH_CONFIG_DIR=$GH_A"
+assert_contains "gh auth switch: the reason names the switch" "$CONF_REASON" "removes GH_TOKEN (gh auth switch)"
+assert_contains "gh auth switch: the auth prefilter hits" "$GUARD_ERR" "trace auth-hit"
+conf "gh auth switch with the domain's directory in the command" deny "$A_CWD" \
+  "GH_CONFIG_DIR=$GH_A gh auth switch --user other"
+conf "gh auth login" deny "$A_CWD" 'gh auth login --with-token' "GH_CONFIG_DIR=$GH_A"
+conf "gh auth logout" deny "$A_CWD" 'gh auth logout' "GH_CONFIG_DIR=$GH_A"
+conf "gh auth login without the domain's directory names the switch first" deny "$A_CWD" 'gh auth login'
+assert_contains "gh auth login without the directory: the reason names the switch" "$CONF_REASON" "(gh auth login)"
+conf "gh auth switch in a later segment" deny "$A_CWD" 'git status && command gh auth switch' "GH_CONFIG_DIR=$GH_A"
+conf "unset GH_TOKEN" deny "$A_CWD" 'unset GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+assert_contains "unset GH_TOKEN: the reason names it" "$CONF_REASON" "(unset GH_TOKEN)"
+conf "unset GH_TOKEN, then gh" deny "$A_CWD" "unset GH_TOKEN; GH_CONFIG_DIR=$GH_A gh pr list"
+conf "unset -v with GH_TOKEN among others" deny "$A_CWD" 'unset -v FOO GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "env -u GH_TOKEN" deny "$A_CWD" 'env -u GH_TOKEN gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf "env -uGH_TOKEN" deny "$A_CWD" 'env -uGH_TOKEN gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf "env --unset=GH_TOKEN" deny "$A_CWD" 'env --unset=GH_TOKEN make' "GH_CONFIG_DIR=$GH_A"
+conf "export -n GH_TOKEN" deny "$A_CWD" 'export -n GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "GH_TOKEN= before gh" deny "$A_CWD" 'GH_TOKEN= gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf 'GH_TOKEN="" alone' deny "$A_CWD" 'GH_TOKEN=""' "GH_CONFIG_DIR=$GH_A"
+conf "export GH_TOKEN=" deny "$A_CWD" 'export GH_TOKEN=' "GH_CONFIG_DIR=$GH_A"
+conf "plain gh with the domain's directory" allow "$A_CWD" 'gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf "gh auth status with the domain's directory" allow "$A_CWD" 'gh auth status' "GH_CONFIG_DIR=$GH_A"
+conf "gh auth token with the domain's directory" allow "$A_CWD" 'gh auth token' "GH_CONFIG_DIR=$GH_A"
+conf "GH_TOKEN set to a value" allow "$A_CWD" 'GH_TOKEN=placeholder gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf "an echo of the words" allow "$A_CWD" 'echo gh auth switch unset GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "unset of another name" allow "$A_CWD" 'unset MY_GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "unset -f removes a function" allow "$A_CWD" 'unset -f GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "GH_TOKEN set by a backtick substitution" allow "$A_CWD" \
+  'GH_TOKEN=`cat /placeholder/tok` gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf "from beta, which has no gh directory, gh auth switch" allow "$B_CWD" 'gh auth switch'
+conf "from beta, unset GH_TOKEN" allow "$B_CWD" 'unset GH_TOKEN'
+conf "from a neutral cwd, gh auth login" allow "$NEUTRAL" 'gh auth login'
+conf "from a neutral cwd, env -u GH_TOKEN" allow "$NEUTRAL" 'env -u GH_TOKEN gh pr list'
+CONF_TOOL=PowerShell
+conf "PowerShell: gh.exe auth switch" deny "$A_CWD" 'gh.exe auth switch' "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN = empty' deny "$A_CWD" "\$env:GH_TOKEN = ''" "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:gh_token = $null' deny "$A_CWD" '$env:gh_token = $null' "GH_CONFIG_DIR=$GH_A"
+conf "PowerShell: Remove-Item Env:GH_TOKEN" deny "$A_CWD" 'Remove-Item Env:\GH_TOKEN' "GH_CONFIG_DIR=$GH_A"
+conf "PowerShell: plain gh with the domain's directory" allow "$A_CWD" 'gh pr list' "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN set to a value' allow "$A_CWD" '$env:GH_TOKEN = "placeholder"' \
+  "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN set from a subexpression' allow "$A_CWD" '$env:GH_TOKEN = (gh auth token)' \
+  "GH_CONFIG_DIR=$GH_A"
+conf 'PowerShell: $env:GH_TOKEN= set from a subexpression' allow "$A_CWD" '$env:GH_TOKEN=(Get-Content tok)' \
+  "GH_CONFIG_DIR=$GH_A"
+CONF_TOOL=Bash
+rm -f "$TEL"
+guard_invoke --cwd "$A_CWD" --command 'unset GH_TOKEN' -- "CLAUDE_PLUGIN_DATA=$DATA" \
+  "HOOK_TELEMETRY_SINK=$SINK" "HOME=$HOME_DIR" "GH_CONFIG_DIR=$GH_A"
+if wait_for_sink "$TEL"; then
+  assert_eq "auth deny telemetry: status" blocked "$(jq -r '.status' "$TEL")"
+  assert_eq "auth deny telemetry: form" auth-deny "$(jq -r '.data.form' "$TEL")"
+  assert_absent "auth deny telemetry: no domain name in the data" "$(jq -c '.data' "$TEL")" alpha
+else
+  bad "auth deny telemetry: no telemetry envelope"
+fi
+
 # --- Git identity writes (rule 6) ---------------------------------------------
 # idw <label> <deny|allow> <cwd> <command> [data dir] [tool]: the call, denied
 # as an identity write or not denied at all.
