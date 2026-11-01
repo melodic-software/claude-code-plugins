@@ -1220,9 +1220,12 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 fake.records[name]["linked_issues"] = None
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
-    def test_the_same_linked_issues_keep_the_fail(self) -> None:
+    def test_the_same_linked_issues_with_no_body_edit_keep_the_fail(self) -> None:
+        # A person's connect alone, no body edit: a body-edit re-judgment
+        # needs one (ATrustedBodyEditSupersedesAFailAtItsHead).
         fake = self.relinked()
         fake.records[named(HEAD, "fail")]["linked_issues"] = [TRUSTED_ISSUE]
+        fake.relink = relink_answer([], [(RELINK_AT, HUMAN)])
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_pass_created_before_the_fail_keeps_it(self) -> None:
@@ -1278,6 +1281,69 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
         ]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
+    """A FAIL at a head stops refusing once a trusted person edited the pull
+    request's body there and it passed again under the same linked issues,
+    when from the last FAIL's creation to the pass run's completion there is
+    at least one body edit and every body edit and issue connect or
+    disconnect was a trusted person's. The rule is the owner's (a body fix
+    after a FAIL is judged at the same head); the lanes App, another actor,
+    a connect alone, an edit before the last FAIL or a failed read keep it."""
+
+    @staticmethod
+    def edited(answer: dict[str, Any] | None = None) -> FakeGitHub:
+        """A FAIL at HEAD (run 2, created OLDER_START) and a pass there (run
+        1, RUN_STARTED), both recording issue 7; a person edited the body
+        between them."""
+        fake = FakeGitHub(
+            [artifact(named(HEAD, "pass"), 1), artifact(named(HEAD, "fail"), 2)],
+            {1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
+            {
+                named(HEAD, "pass"): record(),
+                named(HEAD, "fail"): record(verdict="fail"),
+            },
+        )
+        fake.relink = answer or relink_answer([(RELINK_AT, HUMAN)])
+        return fake
+
+    def test_a_persons_body_edit_lets_the_pass_decide(self) -> None:
+        self.assertIsNone(read(self.edited()).refusal)
+
+    def test_any_other_actor_or_no_body_edit_keeps_the_fail(self) -> None:
+        # The paired case: the same window with only a person's edit clears.
+        self.assertIsNone(
+            read(self.edited(relink_answer([(RELINK_AT, HUMAN)]))).refusal
+        )
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("outsider edit", relink_answer([(RELINK_AT, outsider)])),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            (
+                "person edit, App connect",
+                relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, LANES_ACTOR)]),
+            ),
+            ("person connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            ("nothing in the window", relink_answer()),
+            ("edits cut short", relink_answer([(RELINK_AT, HUMAN)], edits_total=101)),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                self.assertEqual(read(self.edited(answer)).refusal, "verify:fail")
+
+    def test_an_edit_before_the_last_fail_keeps_it(self) -> None:
+        # The person's edit falls between the two FAILs: the second judged it.
+        fake = self.edited()
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 3))
+        fake.runs[3] = judged(3, "2026-10-14T18:00:00Z")
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        # An edit after the second FAIL lets the pass decide.
+        fake.relink = relink_answer(
+            [("2026-10-14T20:00:00Z", HUMAN), (RELINK_AT, HUMAN)]
+        )
+        self.assertIsNone(read(fake).refusal)
 
 
 def rename(old: str, new: str) -> str:
