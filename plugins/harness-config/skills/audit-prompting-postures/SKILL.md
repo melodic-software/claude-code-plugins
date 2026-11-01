@@ -27,9 +27,9 @@ afterward). A clean audit is a valid outcome, and with well-authored components 
 one. The default verdict per posture is NOT-APPLICABLE, not MISSING.
 
 **Instruction-held, not tool-enforced. Never tell an operator this skill *cannot* edit their files.**
-`disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays for Phase D's
-persist and Phase B has already read every audited component, so it can overwrite one; `Bash` stays
-for the state key, and a shell mutates files too. That closes the likeliest accidental path, not the
+`disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays in the tool
+set for Phase D's report file and Phase B has already read every audited component, so it can overwrite one; `Bash` stays for
+Phase D's persist script, and a shell mutates files too. That closes the likeliest accidental path, not the
 capability, and a skill auditing assurance must not overstate its own. We treat the restriction as
 clearing on the human's next message, so whoever accepts a proposal can apply it (Pointer: when
 deciding how long the restriction lasts, fetch
@@ -161,19 +161,36 @@ unavailable, or the session cannot spawn subagents:
 
 Persist the report to `${CLAUDE_PLUGIN_DATA}/audit-prompting-postures/<state-key>/last-audit.md`.
 
-**Derive `<state-key>` by running this:**
+**Write the report with the Write tool first**, to a scratch file outside the plugin data directory
+and outside every audited component (a file under the session's temporary directory), so the
+report passes the Write tool's content guards like every other file this skill writes. **Then
+persist it by running this script** on that file; the script derives `<state-key>`, creates the
+directory and writes `last-audit.md` atomically, then prints the path it wrote:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/lib/persist-report.sh" \
+  --plugin-data "${CLAUDE_PLUGIN_DATA}" --component audit-prompting-postures --report <report-file>
 ```
+
+`--report -` (the body on stdin) is the fallback for a session where the Write tool is unavailable,
+never the main route. Pass the data directory as the `--plugin-data` argument shown, never through
+the environment. **Persist only through this script: never run a standalone `mkdir`, or any command
+of your own, against the plugin data directory.** (Pointer: when deciding where `${CLAUDE_PLUGIN_DATA}`
+resolves, fetch
+[plugins manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+live; for why an inline command against the data directory is avoided, read the eval-trace
+evidence in #12039. As of: 2026-11-01. Recheck trigger: that section changes which environments
+receive `${CLAUDE_PLUGIN_DATA}`, or a later eval trace shows an inline command against the data
+directory running undenied.)
 
 `${CLAUDE_PLUGIN_DATA}` is machine-global, not per-project, so a fixed `last-audit.md` is silently
 overwritten by the next run from any other root, this skill's only durable deliverable, destroyed by
 ordinary use of it. The scheme is `<repo-identity>/<worktree-discriminator>`, defined by the
 marketplace's `plugin-data-report-keying` convention and reused rather than reinvented, and it
 lives in one executable rather than being restated per skill,
-[`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it. Pass `--explain`
-when the report should say which rung produced the key. **The key stops overwrites, not reaping.**
+[`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it, which the
+persist script runs. Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh" --explain` when the report
+should say which rung produced the key. **The key stops overwrites, not reaping.**
 An uninstall can delete the plugin's data directory, so when a report must outlive the plugin the
 closing line says to copy it out of the data directory (Pointer: when deciding whether a report
 survives an uninstall, fetch
@@ -181,7 +198,7 @@ survives an uninstall, fetch
 live. As of: 2026-10-11. Recheck trigger: that section or a release note changes what uninstalling
 does with `${CLAUDE_PLUGIN_DATA}`).
 
-Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
+Let the script derive the key. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
 "when set": that placeholder is substituted in this skill's markdown before it reaches you, so the
 literal token is never visible and the condition is not yours to evaluate. Derive the key from a
 command you run.

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/work/.naming/brief.md", "content": "Responsibility: read-through cache." } }], "why": "a scratch note, not source" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/work/src/cache/user-cache.ts", "content": "export class UserCache {}" } }], "why": "writes the renamed class" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/work/src/routes/me.ts", "content": "import { UserCache } from \"../cache/user-cache\";" } }], "why": "rewrites a caller" }
+  ]
+}

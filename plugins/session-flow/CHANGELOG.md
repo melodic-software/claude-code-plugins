@@ -1,5 +1,24 @@
 # Changelog: session-flow plugin
 
+## [3.3.1] - 2026-11-01
+
+### Changed
+
+- Sixteen skill descriptions are trimmed to the description standard (one what-sentence, `Use when`
+  with at most three quoted triggers, about 250 characters), from 7,877 to 4,153 characters in
+  total. `check`, `setup` and `tidy-work` are unchanged. Live invocation probes on the plugin's own
+  probe set showed no loss in triggering within a 5-point non-inferiority margin.
+
+## [3.3.0] - 2026-11-01
+
+### Added
+
+- `/session-flow:retro trends` shows the team's delivery metrics beside the session scores by invoking `/work-items:measure-delivery` when that skill is available. When the work-items plugin is not installed, it says the delivery metrics were not read and why.
+
+### Changed
+
+- `retro`'s bundled enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as the reader that picks a rung for a recurring mistake, a findings file or review comments, in place of `/review:audit-enforceability` and retro's codify mode.
+
 ## [3.2.0] - 2026-11-01
 
 ### Added

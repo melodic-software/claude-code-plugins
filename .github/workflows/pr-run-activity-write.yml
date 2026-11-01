@@ -78,7 +78,9 @@ on:
           park at status: confirmed, split-required goes back through
           intake's size split); or outside-author, the admit job's stop on
           an issue neither a listed human nor the lanes App wrote, where it
-          removes agent-ready and asks a listed human to re-file the work.
+          removes agent-ready and asks a listed human to re-file the work;
+          or workflow-stale, a resolve-issue call's stop on stale workflow
+          files, where it re-fires the issue at once on main's files.
           Empty otherwise.
         required: false
         type: string
@@ -662,8 +664,8 @@ jobs:
           # A dimension skip is one of the issue-dimension reasons, or the admit
           # job's outside-author stop, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
-            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author)$ ]]; }; then
-            echo "::error::dimension-skip must be an issue-dimension skip reason or outside-author, in issue mode"
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|outside-author|workflow-stale)$ ]]; }; then
+            echo "::error::dimension-skip must be an issue-dimension skip reason, outside-author or workflow-stale, in issue mode"
             exit 1
           fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
@@ -767,6 +769,8 @@ jobs:
           run-dispatcher-upstreams: >-
             .github/workflows/pr-review-hosted.yml
             .github/workflows/pr-review-security-hosted.yml
+          # Or a listed human's review comment, relayed (ADR 0088).
+          run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml
           # A job after the model job: the review was of the head that job
           # gated, and the PR is at it or at the commit the push job pushed.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}

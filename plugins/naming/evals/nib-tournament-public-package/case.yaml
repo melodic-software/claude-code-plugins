@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: nib-tournament-public-package
+graders:
+  - name: widens-to-five
+    type: tool_used
+    tool: 'Agent'
+    min: 5
+    arm: 'both'
+  - name: no-fork-generator
+    type: tool_used
+    tool: 'Agent'
+    input_match: '"subagent_type"\s*:\s*"fork"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: honest-framing
+    type: regex
+    pattern: '\badapt(?:s|ed|ing|ations?)?\b|\b(?:not|isn''t|isn’t) (?:a |an )?(?:documented|established|standard|recognized)\b'
+    flags: 'i'
+    target: last_message
+  - name: names-runners-up
+    type: regex
+    pattern: '\brunners?[- ]up\b|(?:(?:^|\n)[ \t]*(?:\||\d+[.)])[^\n]*`[^`\n]+`[\s\S]*?){3}'
+    flags: 'i'
+    target: last_message

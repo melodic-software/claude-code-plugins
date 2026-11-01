@@ -152,15 +152,21 @@ newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
 the lowest id those pages hold, less those expired or past `expires_at` by the
 first page's `Date`. GitHub can delete an artifact up to an hour before its
-`expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so when that holds
-more than the live count the pages around the kept entries near expiry are
-read again and decide every id they span, an id they omit by its own read
-(`Reader._near_expiry`), at a few pages a group whatever the repository's
-total and at most `NEAR_EXPIRY_PAGE_CAP` a listing; a count those pages do not
-settle goes to the one whole listing, and a page or id read still failing on a
-5xx after `LISTING_WAITS` fails the listing as transient. Such a listing could hide a FAIL by leaving it out, so
-it is kept only when it holds exactly the first page's `total_count`, GitHub's
-live count of the repository's artifacts. Across 17 first-page reads on
+`expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so when a listing
+holds the live count or more and a kept entry expires within it, the pages
+around the kept entries near expiry are read again and decide every id they
+span, an id they omit by its own read (`Reader._near_expiry`), at a few pages
+a group whatever the repository's total and at most `NEAR_EXPIRY_PAGE_CAP` a
+listing. They are read on an exact count too: an entry deleted early can stand
+in for a FAIL the pages skipped. An over-count those pages do not settle goes
+to the one whole listing, an exact count they do not settle fails the
+listing (as transient when only `NEAR_EXPIRY_PAGE_CAP` or
+`NEAR_EXPIRY_ID_READ_CAP` left it so, so a later Reader may list), a count they leave short goes to a whole listing with no wait, and a
+page or id read still failing on a 5xx after `LISTING_WAITS` fails it as
+transient. Such a listing
+could hide a FAIL by leaving it out, so it is kept only when it holds exactly
+the first page's `total_count`, GitHub's live count of the repository's
+artifacts. Across 17 first-page reads on
 2026-10-27 that count moved by exactly the uploads since the last read less
 the artifacts whose `expires_at` had passed by the response's `Date`. Three
 incremental listings that day each held exactly that count and every artifact
@@ -276,6 +282,9 @@ LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
 # `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# A file holding the pull request's REST record as the caller read it
+# (`merge_policy.cached_pull_request`).
+PULL_ENV = "BABYSIT_VERIFY_PULL"
 # The head-ref map's version and its keys' shape, an artifact id
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
@@ -403,20 +412,28 @@ LISTING_PAGE_SIZE = 100
 # (judgment on that data).
 EARLY_DELETION_LEAD = timedelta(hours=2)
 # The most pages `Reader._near_expiry` reads for one listing, its incremental
-# read and top-up together; past it the over-count stands and goes to the one
-# whole listing. On the 2026-11-01 carry behind #11903's refusal it read 12
-# pages; twice that (judgment on that data), at `LISTING_PAGE_SECONDS` a page,
-# stays well inside verify-cap.mjs's 120 s limit and a fifth of that day's
-# 133-page whole listing.
+# read and top-up together; past it an over-count stands and goes to the one
+# whole listing, and an exact count fails the listing. On the 2026-11-01
+# carry behind #11903's refusal it read 12 pages; twice that (judgment on
+# that data), at `LISTING_PAGE_SECONDS` a page, stays well inside
+# verify-cap.mjs's 120 s limit and a fifth of that day's 133-page whole
+# listing.
 NEAR_EXPIRY_PAGE_CAP = 24
 # The most artifacts `Reader._near_expiry` reads by id for one listing, its
 # incremental read and top-up together: each id its pages did not show is
 # dropped only on a 404 or an expired record. It drops at most the listing's
 # surplus over the live count, which was 31 to 34 in the three over-counts
-# behind #11903's refusal; the largest (judgment on that data). Past it the
-# over-count stands. Both caps reset with each listing the Reader reads, as
-# after `refresh()`; pr-require-checks.yml's cold_cost counts them once.
+# behind #11903's refusal; the largest (judgment on that data). Past it an
+# over-count stands and an exact count fails the listing. Both caps reset
+# with each listing the Reader reads, as after `refresh()`;
+# pr-require-checks.yml's cold_cost counts them once.
 NEAR_EXPIRY_ID_READ_CAP = 34
+# The `cause` a `LISTING_MISS_PREFIX` line names when the caps above alone
+# leave an exact count unsettled: refused, but not noted for the job.
+NEAR_EXPIRY_CAP_CAUSE = "near-expiry-cap"
+# The `cause` when the listing's deadline runs out after its near-expiry reads
+# began, which `listing_timeout` does not size for: refused, but not noted.
+NEAR_EXPIRY_DEADLINE_CAUSE = "near-expiry-deadline"
 # The waits between incremental reads on one base. A count that misses the
 # live total can stay off for longer than an immediate re-read takes, while a
 # page boundary settles; bounded waits let it settle before the reader pages
@@ -447,8 +464,9 @@ class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
     hold the live count: `COUNT_MISSED` (fewer), the one case read again on
     the same base, or `COUNT_OVER` (more, or any count once the pages near
-    expiry were read again), which goes to one whole listing, since no wait
-    removes an entry GitHub no longer counts."""
+    expiry were read again, except a top-up's exact count left short), which
+    goes to the whole listings, since no wait removes an entry GitHub no
+    longer counts."""
 
 
 # Fewer than the live count: the pages skipped an artifact, which another
@@ -1255,6 +1273,10 @@ class Reader:
     # The last `_incremental_page` that read nothing failed on a 5xx, a
     # network error or a body cut short, after its waits.
     _page_transient: bool = False
+    # Whether `_incremental`'s last None came from the near-expiry caps or the
+    # deadline running out after near-expiry reads began
+    # (`NEAR_EXPIRY_CAP_CAUSE`, `NEAR_EXPIRY_DEADLINE_CAUSE`).
+    _near_expiry_spent: bool = False
     # This listing's pages held more than the live count, so it takes one
     # whole listing at most.
     _over_counted: bool = False
@@ -1509,7 +1531,14 @@ class Reader:
             reads += 1
             read_at = _wall_clock()
             self._whole_paged = True
-            payload = self._read_listing(deadline, budget)
+            try:
+                payload = self._read_listing(deadline, budget)
+            except _Unreadable as exc:
+                if isinstance(exc, _Transient) or not self._near_expiry_out_of_time(
+                    deadline, "whole-listing", reads
+                ):
+                    raise
+                raise _Transient(str(exc)) from exc
             deadline = self._read_deadline
             for item in flatten_paginated_items(
                 payload, "repository artifacts", items_key="artifacts"
@@ -1533,9 +1562,16 @@ class Reader:
         else:
             cause = "never held"
         noun = "listing" if reads == 1 else "listings"
-        # A top-up page lost to a 5xx or network error is transient: not
-        # noted for the job (`_note_failed_listing`).
-        transient = listing is None and self._page_transient
+        # A top-up page lost to a 5xx or network error, or a count left
+        # unsettled only by the near-expiry caps or the time they took, or a
+        # top-up page out of time after near-expiry reads began, is transient:
+        # not noted for the job (`_note_failed_listing`), so a later Reader can
+        # list again.
+        transient = listing is None and (
+            self._page_transient
+            or self._near_expiry_spent
+            or self._near_expiry_out_of_time(deadline, "top-up", reads)
+        )
         raise (_Transient if transient else _Unreadable)(
             f"repository artifacts: {reads} whole {noun} {cause} "
             "GitHub's live artifact count"
@@ -1562,21 +1598,28 @@ class Reader:
         copy) included; below it the base's entries stand, less each one
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). A result that holds more than
-        the live count has the ids around its kept entries near expiry
-        decided by the pages that hold them now (`_near_expiry`). The
+        the live count, or exactly it while a kept entry is near expiry, has
+        the ids around its kept entries near expiry decided by the pages that
+        hold them now (`_near_expiry`); an exact count they leave unsettled
+        gives None, since an entry deleted early may stand in for a FAIL. The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count: fewer gives `COUNT_MISSED`, which
-        `_current_listing` reads again on the same base after a wait, and more,
-        or any count the pages near expiry left unsettled, gives `COUNT_OVER`,
-        which goes to one whole listing, since no wait removes an entry GitHub
-        no longer counts; either prints one
+        `_current_listing` reads again on the same base after a wait, and
+        more, or any count once the pages near expiry were read (a top-up's
+        exact count left short aside, which another whole listing can
+        restore), gives `COUNT_OVER`, which goes to the whole listings (one,
+        after an over-count), since no wait removes an entry GitHub no
+        longer counts; either prints one
         `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
         `Date`, or any failed read gives None (`_page_transient` says whether
         the failed read was a 5xx or network error).
         `base` replaces `_incremental_base` and `deadline` its own
-        `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
-        self._page_transient = False
+        `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up).
+        An exact count left unsettled prints the same line with its `cause`
+        and sets `_near_expiry_spent` when only the caps, or the deadline
+        running out during those reads, left it so."""
+        self._page_transient = self._near_expiry_spent = False
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1632,21 +1675,24 @@ class Reader:
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
         regions = 0
+        unsettled: str | None = None
         over = len(listing) > total
-        if over:
+        limit = server_now + EARLY_DELETION_LEAD
+        near = len(listing) == total and any(
+            a["expires_at"] is not None and _when(a["expires_at"]) <= limit
+            for a in kept
+        )
+        if over or near:
             # GitHub can delete an artifact before its expires_at: read again
-            # the pages around the kept entries near expiry.
-            self._over_counted = True
+            # the pages around the kept entries near expiry. An exact count
+            # can hide one there standing in for a FAIL the pages skipped.
+            self._over_counted |= over
             reread = self._near_expiry(
                 listing, len(fresh), len(listing) - total, server_now, deadline
             )
             if reread is None:
                 return None
-            listing, regions = reread
-        if len(listing) == total:
-            return listing
-        # Fewer than the live count: the pages skipped an artifact. More: the
-        # base holds one GitHub no longer lists below the pages read.
+            listing, regions, unsettled = reread
         miss = {
             "stage": stage,
             "listed": len(listing),
@@ -1657,13 +1703,36 @@ class Reader:
             "region_pages": regions,
             "base_age_seconds": round((server_now - base_at).total_seconds()),
         }
+        if unsettled == NEAR_EXPIRY_DEADLINE_CAUSE or (near and unsettled):
+            # Unsettled, an exact count may still lack a FAIL. Refused only
+            # for want of the caps or their time, it is not noted for the job.
+            self._near_expiry_spent = unsettled in (
+                NEAR_EXPIRY_CAP_CAUSE,
+                NEAR_EXPIRY_DEADLINE_CAUSE,
+            )
+            miss["cause"] = unsettled
+            print(
+                f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return None
+        if len(listing) == total:
+            return listing
+        # Fewer than the live count: the pages skipped an artifact. More: the
+        # base holds one GitHub no longer lists below the pages read.
         print(
             f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
             file=sys.stderr,
             flush=True,
         )
-        # Once the pages near expiry were read, no wait can settle the count.
-        return COUNT_OVER if over else COUNT_MISSED
+        # Once the pages near expiry were read, no wait on this base settles
+        # the count: the base still holds what they dropped. A top-up's exact
+        # count left short goes to another whole listing, which can restore a
+        # skip outside those pages.
+        if over or len(listing) > total or (near and stage != "top-up"):
+            return COUNT_OVER
+        return COUNT_MISSED
 
     def _near_expiry(
         self,
@@ -1672,11 +1741,13 @@ class Reader:
         surplus: int,
         server_now: datetime,
         deadline: float,
-    ) -> tuple[list[dict[str, Any]], int] | None:
+    ) -> tuple[list[dict[str, Any]], int, str | None] | None:
         """`listing` with the ids around its entries from `start` on that
         expire within `EARLY_DELETION_LEAD` of `server_now` decided by the
-        pages that hold them now, and the pages read; None for a failed page
-        read or an id read that stays transient past its waits.
+        pages that hold them now, the pages read, and None when every such
+        entry was decided, else why not (`NEAR_EXPIRY_CAP_CAUSE`, "unbracketed"
+        or "id-answer"); None for a failed page read or an id read that
+        stays transient past its waits.
 
         Such entries are grouped where they lie within a page of each other.
         Each group is read from the page its top entry would be on with
@@ -1691,7 +1762,7 @@ class Reader:
         A group it cannot bracket within those pages, a read past
         `NEAR_EXPIRY_PAGE_CAP` or `NEAR_EXPIRY_ID_READ_CAP` for this listing,
         or an id read with any other answer that is not transient leaves
-        `listing` as it was."""
+        `listing` as it was, unsettled."""
         size = LISTING_PAGE_SIZE
         limit = server_now + EARLY_DELETION_LEAD
         near = [
@@ -1718,12 +1789,12 @@ class Reader:
             ended = False
             while True:
                 if self._near_expiry_reads >= NEAR_EXPIRY_PAGE_CAP:
-                    return listing, reads
+                    return listing, reads, NEAR_EXPIRY_CAP_CAUSE
                 read = self._incremental_page(page, deadline)
                 reads += 1
                 self._near_expiry_reads += 1
                 if read is None:
-                    return None
+                    return self._out_of_time(listing, reads, deadline)
                 items = read[0].get("artifacts")
                 if not is_json_array(items) or not all(map(_listed_entry, items)):
                     return None
@@ -1742,7 +1813,7 @@ class Reader:
                 downs -= 1
                 page += 1
             if not seen or (not ended and min(seen) > bottom):
-                return listing, reads
+                return listing, reads, "unbracketed"
             spans.append((0 if ended else min(seen), max(seen)))
             decided.update(seen)
         gone: set[int] = set()
@@ -1752,16 +1823,58 @@ class Reader:
             ):
                 continue
             if self._artifact_reads >= NEAR_EXPIRY_ID_READ_CAP:
-                return listing, reads
+                return listing, reads, NEAR_EXPIRY_CAP_CAUSE
             self._artifact_reads += 1
             answer = self._artifact_gone(a["id"], deadline)
             if answer is None:
                 # A transient answer fails the read, as a lost page does.
-                return None if self._page_transient else (listing, reads)
+                if self._page_transient:
+                    return None
+                return self._out_of_time(listing, reads, deadline) or (
+                    listing,
+                    reads,
+                    "id-answer",
+                )
             if answer:
                 gone.add(a["id"])
         merged = {a["id"]: a for a in listing if a["id"] not in gone} | decided
-        return sorted(merged.values(), key=lambda a: -a["id"]), reads
+        return sorted(merged.values(), key=lambda a: -a["id"]), reads, None
+
+    def _out_of_time(
+        self, listing: list[dict[str, Any]], reads: int, deadline: float
+    ) -> tuple[list[dict[str, Any]], int, str] | None:
+        """`_near_expiry`'s answer when a read gave nothing: unsettled for
+        `NEAR_EXPIRY_DEADLINE_CAUSE` when the deadline ran out (a 5xx past its
+        waits stays transient), else None."""
+        if self._page_transient or deadline - _listing_clock() > 0:
+            return None
+        return listing, reads, NEAR_EXPIRY_DEADLINE_CAUSE
+
+    def _near_expiry_out_of_time(
+        self, deadline: float | None, stage: str, reads: int
+    ) -> bool:
+        """Whether a whole listing or top-up page that failed did so for want
+        of time after this listing's near-expiry reads began, which
+        `listing_timeout` does not size for: then it prints a
+        `LISTING_MISS_PREFIX` line with
+        `NEAR_EXPIRY_DEADLINE_CAUSE`, and is refused as transient."""
+        if (
+            deadline is None
+            or deadline - _listing_clock() > 0
+            or not (self._near_expiry_reads or self._artifact_reads)
+        ):
+            return False
+        miss = {
+            "stage": stage,
+            "whole_listings": reads,
+            "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
+        }
+        print(
+            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return True
 
     def _artifact_gone(self, artifact_id: int, deadline: float) -> bool | None:
         """Whether GitHub no longer holds the artifact: True on a 404 or an
@@ -2206,10 +2319,12 @@ class Reader:
 
     def _tip(self, branch: str) -> str:
         """`branch`'s tip SHA (`merge_policy.base_tip`), so no tag of the same
-        name stands in for it; `_Unreadable` when it does not resolve."""
+        name stands in for it, or the one `evidence` already read
+        (`merge_policy.remembered_base_tip`); `_Unreadable` when it does not
+        resolve."""
         owner, _, name = self.repo.partition("/")
         try:
-            return merge_policy.base_tip(owner, name, branch)
+            return merge_policy.remembered_base_tip(owner, name, branch)
         except merge_policy.PolicyReadError as exc:
             raise _Unreadable(str(exc)) from exc
 
@@ -4895,11 +5010,16 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     if args.shared_listing:
         reader.listing_max_age = None
-    if args.answers_in is None and args.answers_out is None and not args.answers_only:
-        print(json.dumps(_evidence_report(args, reader)))
+    with merge_policy.base_tips_remembered():
+        if (
+            args.answers_in is None
+            and args.answers_out is None
+            and not args.answers_only
+        ):
+            print(json.dumps(_evidence_report(args, reader)))
+            return 0
+        print(json.dumps(_answered(args, reader, now or datetime.now(UTC))))
         return 0
-    print(json.dumps(_answered(args, reader, now or datetime.now(UTC))))
-    return 0
 
 
 def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]:
@@ -4929,6 +5049,12 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
         except merge_policy.PolicyReadError as exc:
             refusal = Evidence(UNREADABLE, args.head, (), 0, str(exc))
             return refusal.report() | link
+    else:
+        # The record the caller read in this run, at this head; else the
+        # reader reads it live.
+        pr = merge_policy.cached_pull_request(
+            os.environ.get(PULL_ENV), args.repo, args.number, args.head
+        )
     evidence = reader.evidence(args.number, args.head, pr)
     if evidence.refusal is None and reader.saved and not args.shared_listing:
         reader.refresh()

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "6 of 13 commits mention secret (ceiling)."
+    },
+    {
+      "answer": "matches: 6/13"
+    },
+    {
+      "answer": "Searching commit messages for `secret`, `credential`, `token`, `key`, `leak` or `password` matches 6 of the repo's 13 commits.",
+      "why": "smoke reply line: words between 'of' and the total"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Six commits mention secrets.",
+      "why": "no denominator"
+    },
+    {
+      "answer": "The search matched commits, and all 6 of them were bumps of secrets-manager-client 2.1.",
+      "why": "a version number after 'of them' is not a total commit count"
+    }
+  ]
+}

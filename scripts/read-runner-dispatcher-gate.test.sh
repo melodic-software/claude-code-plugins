@@ -41,6 +41,8 @@ say(gate["run-dispatcher-workflow"] === "${{ inputs.feedback-context-sha256 != '
   "the gate trusts a pr-feedback-dispatch.yml dispatcher run only for a review-threads call");
 say(gate["run-dispatcher-upstreams"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
   "the review run must be one of the two review lanes, for a review-threads call only");
+say(gate["run-dispatcher-relay"] === "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}",
+  "the review-comment relay stands in for a review run, for a review-threads call only");
 say(!("expected-upstream-head" in gate), "the gate passes no expected-upstream-head");
 
 // Every model call runs on run-claude-cli, which keeps no actor allow list of

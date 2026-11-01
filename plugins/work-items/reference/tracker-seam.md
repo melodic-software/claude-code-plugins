@@ -204,8 +204,8 @@ step sequence.
 ### With `/session-flow:retro`
 
 The retrospective skill's Phase 3 surfaces "Issue candidates": deferred research, discovered gaps,
-recurring recheck updates. Approved items use `/work-items:track add`. Mid-session learnings can be
-captured with `/session-flow:retro codify`.
+recurring recheck updates. Approved items use `/work-items:track add`. A recurring mid-session
+correction goes to `/corrections:codify`, which picks the rung that encodes it.
 
 ### With `/source-control:pull-request`
 

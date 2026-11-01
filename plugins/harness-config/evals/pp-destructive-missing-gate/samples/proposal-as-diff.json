@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "```diff\n+ Before step 1, list what will be deleted and ask the user to confirm.\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Add a confirmation step.",
+      "why": "no fenced diff"
+    }
+  ]
+}

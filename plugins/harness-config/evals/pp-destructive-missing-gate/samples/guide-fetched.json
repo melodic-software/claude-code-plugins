@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices",
+            "prompt": "read"
+          }
+        }
+      ],
+      "why": "the guide root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness",
+            "prompt": "read"
+          }
+        }
+      ],
+      "why": "an anchor"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no fetch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://code.claude.com/docs/en/skills",
+            "prompt": "read"
+          }
+        }
+      ],
+      "why": "another page"
+    }
+  ]
+}

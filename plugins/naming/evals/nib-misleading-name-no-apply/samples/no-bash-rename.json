@@ -1,0 +1,16 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "grep -rn UserStore src" } }], "why": "counts references" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "sed -n 1,20p src/cache/user-store.ts" } }], "why": "read-only sed" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "git log --oneline -5 -- src/cache/user-store.ts" } }], "why": "history read" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "grep -rn 'remove' src" } }], "why": "mv inside a word is not a move" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "git mv src/cache/user-store.ts src/cache/user-cache.ts" } }], "why": "moves the file" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "mv src/cache/user-store.ts src/cache/user-cache.ts" } }], "why": "plain mv" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "sed -i 's/UserStore/UserCache/g' src/cache/user-store.ts src/routes/me.ts" } }], "why": "in-place rewrite" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "grep -rl UserStore src | xargs perl -pi -e 's/UserStore/UserCache/g'" } }], "why": "perl in-place after a pipe" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cd /work && sed -E -i 's/UserStore/UserCache/' src/routes/me.ts" } }], "why": "sed with a flag before -i" }
+  ]
+}

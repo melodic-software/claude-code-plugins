@@ -751,6 +751,8 @@ jobs:
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
           run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
+          # Or a listed human's review comment, relayed (ADR 0088).
+          run-dispatcher-relay: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
@@ -937,8 +939,10 @@ jobs:
       # sweep compares too), so this checks the same rule against the default branch
       # checkout first. On a difference it sets stale=true and ends green: no
       # model turn, no outcome marker, and go=false skips every later step and
-      # caller job. The stop step below marks the run for work-unblock's hourly
-      # sweep, which re-fires the issue on main's files. A commit the checkout
+      # every caller job that needs the model's work. The stop step below marks the run: the caller's
+      # resolve-issue-stale job reads it, and its report-outcome re-fires the
+      # issue at once on main's files, or work-unblock's hourly sweep does when
+      # that report cannot (report-outcome.mjs refireStale). A commit the checkout
       # cannot read is left to the broker. This file is called by a local path,
       # so it runs from the caller's commit.
       - name: Check the run's workflow files against main
@@ -959,14 +963,15 @@ jobs:
           fi
           for path in "$caller" .github/workflows/pr-run-activity-write.yml; do
             if [ "$(git -C .base rev-parse -q --verify "$WORKFLOW_SHA:$path")" != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]; then
-              echo "::warning::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and work-unblock's sweep re-fires the issue on main's files"
+              echo "::warning::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and the run's report-outcome re-fires the issue on main's files"
               echo "stale=true" >>"$GITHUB_OUTPUT"
               exit 0
             fi
           done
 
-      # work-unblock's sweep matches this step's name, run, in the job listing:
-      # a green run that stopped here did no work and is re-fired.
+      # The caller's resolve-issue-stale job and work-unblock's sweep match this
+      # step's name, run, in the job listing: a run that stopped here did no
+      # work and is re-fired.
       - name: Stop on stale workflow files
         if: steps.workflow-current.outputs.stale == 'true'
         run: echo "workflow-stale; the run stops before any model turn"
@@ -1800,15 +1805,15 @@ jobs:
               .join(' ');
             core.setOutput('text', text.replace(/\s+/g, ' ').slice(0, 500));
 
-      # One lane record per run, naming the credential the leg ran on. A
-      # handoff records nothing; the fallback call records the run under a
-      # name that says why it ran, and a credit-stop or no-key call records
-      # that reason as fallback-reason. An issue run keeps the lane's own name.
+      # One lane record per leg, naming the credential the leg ran on. A leg
+      # that hands off records itself with handoff true; the fallback call
+      # records the run under a name that says why it ran, and a credit-stop
+      # or no-key call records that reason as fallback-reason. An issue run
+      # keeps the lane's own name.
       - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
+          always() && steps.key-present.outputs.present != 'false'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
@@ -1839,6 +1844,7 @@ jobs:
           fallback-reason: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          handoff: ${{ steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
 
       - name: Run the script activity
         id: act-script
@@ -1984,6 +1990,12 @@ jobs:
           LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
           LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
           LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
+          # The secret NAME the leg ran on (run-claude-cli's credential, never
+          # the value) and the closed fallback reason, both as the lane record
+          # takes them; each is left out of lane.json when empty, and
+          # report-outcome re-checks both before its marker names them.
+          LANE_CREDENTIAL: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
+          LANE_FALLBACK: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
@@ -1993,8 +2005,10 @@ jobs:
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
             --arg max_turns "$LANE_MAX_TURNS" --arg turns "$LANE_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
+            --arg credential "${LANE_CREDENTIAL-}" --arg fallback "${LANE_FALLBACK-}" \
             '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, turns: $turns, resume: $resume, stale: $stale,
-              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
+              failed: $failed, "api-error-status": $status, "error-text": $error_text}
+              + ({credential: $credential, fallback: $fallback} | with_entries(select(.value != "")))' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's
       # replies or a dependency-review skill's verdict, and in issue mode the
@@ -2318,8 +2332,11 @@ jobs:
             echo "prune-branches=$prune"
           } >>"$GITHUB_OUTPUT"
 
+      # The action lives in the .base checkout, which a run that claims no
+      # branch and names none to prune never makes; with no checkout this job
+      # made no API call to log.
       - name: Log the API budget at the end
-        if: always()
+        if: always() && steps.base.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]

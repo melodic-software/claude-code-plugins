@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "RECOMMENDED: `computeOrderTotal`. Basis: verified, Grep for calcTotal found 8 references in 4 files.", "why": "verified label" },
+    { "answer": "**Basis:** judgment (an in-repo rename, not consequential).", "why": "bold judgment label" }
+  ],
+  "fail": [
+    { "answer": "RECOMMENDED: `computeOrderTotal`, because it says the coupon and tax are included.", "why": "no Basis label" },
+    { "answer": "The basis for this pick is that it reads well.", "why": "the word basis in prose, no label" }
+  ]
+}

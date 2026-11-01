@@ -15,6 +15,9 @@ Every optional reference to another plugin's skill carries, at the reference sit
    "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
    install-recipe sites and the third-party route-row fields the carve-outs below name).
+   For a user-only target (`disable-model-invocation: true`), the Skill tool cannot reach it,
+   so the sentence is "tell the user to run `/other-plugin:skill` (if that plugin is
+   installed)" ([evidence](#hand-off-phrasing-measured)).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
@@ -72,6 +75,24 @@ qualification IS the content, not a leak. Bounds:
   (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`).
 - Fleet seam audits treat a marketplace-qualified ID outside install-uplift content and the
   route-row carve-out as a violation, unchanged.
+
+## Hand-off phrasing measured
+
+The hand-off phrasing eval (#11959) compared three hand-off sentences:
+
+- A: the gated token in prose, "invoke `/plugin:skill` (if that plugin is installed)".
+- B: the same token "via the Skill tool".
+- C: `Call the Skill tool with "plugin:skill"`.
+
+It ran on Claude Code 2.1.316 with Opus 5.5, on one fixture plugin per arm that differed only in
+the hand-off sentence: 9 model-invocable cases, 3 runs each. Every arm handed off in 27 of 27 runs,
+and Sonnet 5.5 gave the same 27 of 27 for A and C. For a user-only target, A and "tell the user to
+run `/plugin:skill`" each named the command in 9 of 9 runs with no Skill call.
+
+No arm beat A, so the shape above stands. The fixture skills are short, so the result does not
+cover a hand-off deep in a long skill body. The user-only tie goes to "tell the user to run", the
+wording element 1 of the shape sets with its gate, since the Skill tool cannot reach a user-only
+skill.
 
 ## Conformance
 
