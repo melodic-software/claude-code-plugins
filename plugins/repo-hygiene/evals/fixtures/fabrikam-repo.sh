@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Writes Fabrikam's orders-portal repository into the current directory, which must be the
-# eval's empty workspace; the mode argument picks the extras.
+# Writes Fabrikam's orders-portal repository, nested in its own .git, into the current directory,
+# which must be the eval's empty workspace; the mode argument picks the extras.
 # scan: caches, build output and node_modules to reclaim. tree: a local edit to a tracked file,
 # an untracked scratch file, ignored build output and a .env. stash: three stashes.
 # worktree: two linked worktrees under .worktrees/. setup: a project .claude/settings.json.
@@ -10,15 +10,27 @@
 set -euo pipefail
 mode="${1:?mode: scan, tree, stash, worktree or setup}"
 
-# Refuse the root, the home directory and anywhere already inside a repository, then stop git
-# from walking up past this directory, so every git call below lands in a repository created here.
-case "${PWD}" in
-/ | "${HOME:-/}") echo "refusing to scaffold in ${PWD}" >&2 && exit 3 ;;
+# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
+# repository above the workspace is expected there. Allow one only when both it and the workspace
+# lie under the run's TMPDIR; refuse the root, the home directory, a workspace that is already a
+# repository, and any other enclosing repository. Then stop git from walking up past this
+# directory, so every git call below lands in the nested repository created here, never the one
+# above.
+here="$(pwd -P)"
+case "${here}" in
+/ | "${HOME:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
 *) ;;
 esac
-if git rev-parse --show-toplevel >/dev/null 2>&1; then
-  echo "refusing to scaffold inside an existing repository: ${PWD}" >&2
-  exit 3
+if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
+  if [[ "${top}" == "${here}" ]]; then
+    echo "refusing to scaffold: ${here} is already a repository" >&2
+    exit 3
+  fi
+  if [[ -z "${tmp}" || "${tmp}" == / || "${top}" == "${tmp}" || "${top}/" != "${tmp}/"* || "${here}/" != "${tmp}/"* ]]; then
+    echo "refusing to scaffold inside ${top}, a repository outside TMPDIR (${TMPDIR:-unset})" >&2
+    exit 3
+  fi
 fi
 GIT_CEILING_DIRECTORIES="$(dirname "${PWD}")"
 export GIT_CEILING_DIRECTORIES
