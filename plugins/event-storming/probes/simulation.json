@@ -1,0 +1,136 @@
+{
+  "skill": "event-storming:simulation",
+  "plugin": "event-storming",
+  "skill_dir": "plugins/event-storming/skills/simulation",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are event-storming:methodology (facilitation knowledge and reference, and choosing a format for a workshop humans run), planning:design (types, contracts and module boundaries resolved before a plan), architecture:map-events (async message topology read from committed C# code), domain-driven-design:curate-language (maintaining the ubiquitous-language glossary), prototype:pressure-test (a throwaway app stepping business rules through awkward event sequences) and user-experience:evaluate (usability evaluation of a design, flow or app, a rival for the --ux pass). simulation owns AI agents playing personas to run an EventStorming workshop, typically on a Miro board, plus deep-dives, evaluation, retrospective and bounded-context discovery against an existing board.",
+  "competitors": [
+    "event-storming:methodology",
+    "planning:design",
+    "architecture:map-events",
+    "domain-driven-design:curate-language",
+    "prototype:pressure-test",
+    "user-experience:evaluate"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Have AI personas play the domain experts and run an event storming session for a library lending domain, and put the stickies on Miro."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I can't get real people in a room. Run an agent-played workshop on our ride-sharing domain instead."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take the board we built last week and go deeper on the payment flow, down to commands, aggregates and policies."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Score the Miro board from our onboarding session and tell me what's missing from it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a retro on the warehouse event storming board: what worked, what the personas missed."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Read the sticky notes on this Miro board and propose candidate bounded contexts from them."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Spin up a team of virtual participants, a facilitator, a skeptic and a couple of experts, and have them storm our claims process."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Use the existing storming board to run a CRC card pass over the aggregates on it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We don't have Miro connected, but simulate the event storming workshop for the subscription business anyway and give me markdown."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Have the simulated experts walk the value stream on our board and mark where the business actually makes money."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What do the orange and lilac stickies stand for in event storming?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I'm running an in-person workshop with our real domain experts next week. Which format should I pick and how do I prepare?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Decide the type hierarchy and package split for the new ledger module before we plan the work."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find the consumers in our C# message handlers that subscribe to events nothing publishes."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add 'shipment' to the domain glossary and record 'consignment' as a rejected synonym."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build a throwaway terminal app to check whether a refund can still be issued after the order has been archived."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a heuristic evaluation of our checkout flow and list the usability problems."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How do I stop one loud participant from dominating while I facilitate a session with my team?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain how running event storming remotely differs from doing it in a room with a long paper roll."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me figure out the abstractions for our notification module before I start coding."
+    }
+  ]
+}

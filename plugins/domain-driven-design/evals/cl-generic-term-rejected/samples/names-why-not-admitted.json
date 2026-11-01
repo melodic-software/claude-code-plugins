@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "## Not added\n\nRetry is a generic programming term, and Polly, Redis and the backoff schedule are implementation details. Does Retry mean something specific in Northwind's domain?",
+      "why": "# heading"
+    },
+    {
+      "answer": "**Why it stays out:** the text describes an implementation mechanism, not what a domain concept is. That belongs in the architecture docs.",
+      "why": "bold label"
+    },
+    {
+      "answer": "| Proposed | Verdict |\n|---|---|\n| Retry | Not a domain term; no project-domain meaning given |",
+      "why": "table"
+    },
+    {
+      "answer": "- Retry: rejected. It is an implementation-level concern rather than a domain concept.",
+      "why": "list"
+    },
+    {
+      "answer": "Retry is general programming vocabulary, so it stays out of the glossary.",
+      "why": "general programming vocabulary"
+    },
+    {
+      "answer": "It's a technical term; Polly and Redis are tooling.",
+      "why": "technical term, tooling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Added **Retry** to docs/glossary.md.",
+      "why": "added it"
+    },
+    {
+      "answer": "Retry: a Polly policy stored in Redis that retries the HTTP request three times with exponential backoff.",
+      "why": "echoes the entry"
+    },
+    {
+      "answer": "I couldn't find the glossary, so nothing was added.",
+      "why": "refuses for an unrelated reason"
+    }
+  ]
+}

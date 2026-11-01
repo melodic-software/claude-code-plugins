@@ -59,7 +59,7 @@ fire fresh ones.
 | `loop` | session-scoped | repetition on an interval inside one session; dies with the session |
 | `goal` | session-scoped | completion condition: the session keeps going until a separate grader judges the condition met or the goal is cleared |
 | `batch` | session-scoped | parallel fan-out over decomposed units of one brief; not bulk-inference batch APIs |
-| `dynamic workflow` | session-scoped | orchestration whose decomposition and sub-steps the session composes at run time; ends with the session |
+| `dynamic workflow` | session-scoped | scripted orchestration of subagents; each run lives inside one session, while the script itself can be composed for the task or saved in the project or a plugin and reused |
 | `schedule` | standing | the standing time trigger |
 | `routine` | standing | schedule + saved task definition, firing a fresh agent session per run |
 
