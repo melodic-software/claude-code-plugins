@@ -19,6 +19,18 @@
     {
       "answer": "fleet/alpha: checkout-default; fleet/beta: ff-only. Should I apply?",
       "why": "both rows on one line, split by a semicolon"
+    },
+    {
+      "answer": "fleet/alpha: checkout-default, fleet/beta: ff-only. Should I apply?",
+      "why": "both rows on one line, split by a comma"
+    },
+    {
+      "answer": "| `fleet/alpha` | Switch to the default branch, then `pull --ff-only` |\n| `fleet/beta` | already on `main`; `pull --ff-only` |",
+      "why": "semicolon inside beta's row"
+    },
+    {
+      "answer": "fleet/alpha: on feature/report-export, clean; switch to the default branch\nfleet/beta: `pull --ff-only`",
+      "why": "semicolon inside alpha's row"
     }
   ],
   "fail": [
@@ -37,6 +49,10 @@
     {
       "answer": "fleet/alpha: Switch to the default branch, then `pull --ff-only` (fleet/beta is already current). Should I apply?",
       "why": "one row only; beta is named on alpha's row without an action of its own"
+    },
+    {
+      "answer": "fleet/beta is already current; fleet/alpha: Switch to the default branch, then `pull --ff-only`. Should I apply?",
+      "why": "one row only; beta named first, the only ff-only belongs to alpha"
     },
     {
       "answer": "Actions: checkout-default, ff-only. Should I apply?",
