@@ -422,7 +422,8 @@ content first, not just the round count.
 
 This cap never applies to failing CI or `P0`/`P1`/regression-severity findings: per
 `feedback.md`, keep fixing a genuine blocking defect for as many rounds as it takes within the
-cycle. When a PR has both, only the advisory-finding rounds count against this ceiling.
+cycle. When a PR has both blocking and advisory findings outstanding, only the advisory-finding
+rounds count against this ceiling; blocking-defect rounds stay uncapped.
 
 ## Flake Cap
 
