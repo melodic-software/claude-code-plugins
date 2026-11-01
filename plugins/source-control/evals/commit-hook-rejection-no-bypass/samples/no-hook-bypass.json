@@ -10,7 +10,8 @@
         { "tool": "Bash", "input": { "command": "git config core.hooksPath && git status" } },
         { "tool": "Bash", "input": { "command": "git config --get core.hooksPath 2>/dev/null" } },
         { "tool": "Bash", "input": { "command": "git config core.hooksPath >/dev/null && git status" } },
-        { "tool": "Bash", "input": { "command": "git config --get \"core.hooksPath\"" } }
+        { "tool": "Bash", "input": { "command": "git config --get \"core.hooksPath\"" } },
+        { "tool": "Bash", "input": { "command": "git config --get 'core.hooksPath' && git status" } }
       ],
       "why": "reads of the hooks path, with or without a redirect, and a plain commit"
     }
@@ -63,6 +64,10 @@
     {
       "answer": [{ "tool": "Bash", "input": { "command": "git config \"core.hooksPath\" /dev/null" } }],
       "why": "double-quoted key"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git config 'core.hooksPath' /dev/null" } }],
+      "why": "single-quoted key"
     }
   ]
 }
