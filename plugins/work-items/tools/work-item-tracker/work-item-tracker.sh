@@ -117,7 +117,7 @@ main() {
 
   local binding_path
   binding_path="$(wit_find_binding)" ||
-    fail_config "no binding found (tracker: in <home>/work-items.yaml) — run /work-items:setup; see CONTRACT.md Setup"
+    fail_config "no binding found (tracker: in <home>/work-items.yaml, or the legacy repo-root JSON binding) — run /work-items:setup; see CONTRACT.md Setup"
   wit_read_binding "$binding_path" ||
     fail_config "invalid binding at $binding_path — run /work-items:setup check for the itemized breakdown; see CONTRACT.md Setup"
 
