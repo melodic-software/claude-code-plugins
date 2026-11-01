@@ -243,13 +243,13 @@
     {
       "id": 21,
       "name": "report-constraint-comment-yields-test-or-lint-proposal",
-      "prompt": "/code-tidying:dissolve-comments report src/\n\n(The current branch is feat/Retry-Fix. src/client.ts has '// Never call fetch directly; go through httpClient so the retry policy applies', and src/queue.ts has '// open() must run before push(), or push() throws'. The memory root .work/ exists without a .gitignore. /review:audit-enforceability is among the available skills.)",
+      "prompt": "/code-tidying:dissolve-comments report src/\n\n(The current branch is feat/Retry-Fix. src/client.ts has '// Never call fetch directly; go through httpClient so the retry policy applies', and src/queue.ts has '// open() must run before push(), or push() throws'. The memory root .work/ exists without a .gitignore. /corrections:codify is among the available skills.)",
       "narration": true,
       "expectations": [
         "Proposes a lint rule for the forbidden direct fetch call and a regression test for the open-before-push order",
         "Announces the findings file path under .work/comment-pass/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
         "The findings file declares type: review-findings, and its row for the lint proposal carries Tier SUGGESTION, the comment's path:line as Location, and code-tidying:dissolve-comments as the surface",
-        "Names the file and offers /review:audit-enforceability with that path without running it",
+        "Names the file and offers /corrections:codify findings with that path without running it",
         "Edits no file in src/"
       ]
     },
