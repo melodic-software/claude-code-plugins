@@ -5429,26 +5429,41 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
     ) -> None:
         # 600, live and expiring in 30 minutes, is on page 3: read, it settles
         # the count. With no page left under the cap, neither the incremental
-        # read nor the whole listing's top-up can, and the gate refuses.
-        for cap, refusal, mode, full in (
-            (ve.NEAR_EXPIRY_PAGE_CAP, None, "incremental", 0),
-            (0, "verify:unreadable", "full", 1),
+        # read nor the whole listing's top-up can, and the gate refuses. The
+        # caps alone left it unsettled, so nothing is noted for the job and
+        # the next Reader, its caps fresh, settles the count and allows.
+        near = self.entry(600, timedelta(minutes=30))
+        self.write_carry([*self.base, near])
+        fake = self.fake(near)
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 0),
+            contextlib.redirect_stderr(stderr),
         ):
-            with self.subTest(cap=cap):
-                for path in (self.saved, self.failed):
-                    path.unlink(missing_ok=True)
-                near = self.entry(600, timedelta(minutes=30))
-                self.write_carry([*self.base, near])
-                fake = self.fake(near)
-                with mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", cap):
-                    reader, evidence = self.judge(fake)
-                self.assertEqual(evidence.refusal, refusal, evidence.detail)
-                self.assertEqual(reader.listing_mode, mode)
-                self.assertEqual(fake.full_listings(), full)
-                self.assertEqual(self.by_id(fake), [])
-                if refusal:
-                    self.assertIn("could not be checked against", evidence.detail)
-                    self.assertTrue(self.failed.exists())
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable", evidence.detail)
+        self.assertIn("could not be checked against", evidence.detail or "")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        self.assertEqual(self.by_id(fake), [])
+        self.assertFalse(self.failed.exists())
+        misses = [
+            json.loads(line.split(" ", 1)[1])
+            for line in stderr.getvalue().splitlines()
+            if line.startswith(ve.LISTING_MISS_PREFIX)
+        ]
+        self.assertEqual(
+            [(m["stage"], m.get("cause")) for m in misses],
+            [
+                ("incremental", ve.NEAR_EXPIRY_CAP_CAUSE),
+                ("top-up", ve.NEAR_EXPIRY_CAP_CAUSE),
+            ],
+        )
+        fake = self.fake(near)
+        reader, evidence = self.judge(fake)
+        self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
 
     def test_a_5xx_on_an_exact_count_id_read_refuses_as_transient(self) -> None:
         # The skipped listing, with 600's read by id answering 502 through its
