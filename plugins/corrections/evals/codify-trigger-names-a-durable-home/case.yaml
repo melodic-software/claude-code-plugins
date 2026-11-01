@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-trigger-names-a-durable-home
+description: 'A plain ask to codify a lesson reaches codify, which places the lesson by scope.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The skill runs and says which scope the lesson belongs in.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'That was a good lesson about the build cache: a stale cache after a branch switch broke the build. Codify it so we do not hit it again.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: skill-fired
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: 'corrections:codify|"skill":"codify"'
+    min: 1
+    arm: 'with-only'
+  - name: states-a-scope
+    type: 'regex'
+    pattern: 'team standard|project (?:rule|scope)|user scope'
+    flags: 'i'
+    arm: 'with-only'

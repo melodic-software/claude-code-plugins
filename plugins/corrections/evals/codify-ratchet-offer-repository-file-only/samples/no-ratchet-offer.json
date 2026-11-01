@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | style | editorconfig-severity | no offer |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A count above zero goes to /toolchain:ratchet."
+    }
+  ]
+}

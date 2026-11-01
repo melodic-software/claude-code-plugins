@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.2] - 2026-11-01
+
+### Fixed
+
+- `rewrite-a-plugin.md` step 5 runs the emitted trigger probes with `--disallow-tools Read Glob Grep`, so the runs can gate VALID.
+
 ## [0.25.1] - 2026-10-31
 
 ### Changed

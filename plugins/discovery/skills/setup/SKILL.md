@@ -116,6 +116,12 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
    "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" explore_output=explain
    ```
 
+   Pass a key the operator accepts at the plugin default as `--default <key>` instead of
+   `<key>=<value>`, so a later change to that default reaches it; `<key>=<value>` records the
+   team's choice, which the script never changes. The script also records `written_against` and
+   `provenance:`, so a file with no record, or one written against another plugin version, shows a
+   diff even when no value changes.
+
    The script checks each value against the schema and validates the whole resulting document
    before it writes; an invalid value or key, or an existing file with a key set twice, an empty
    string, a map or a list, exits 1 with one line and writes nothing. It writes only

@@ -4,7 +4,7 @@
 //
 // Usage:
 //   setup-apply.mjs [--root <dir>] --check
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //
 //   --check  validate the file as it stands and print one line per schema key:
 //            PASS with its value, or WARN when the file's value is invalid and
@@ -41,6 +41,7 @@ function report({ rel, keys, problems, value }) {
 
 run({
   plugin: "docs-hygiene",
+  provenance: true,
   schema: join(PLUGIN, "schemas", "docs-hygiene.schema.json"),
   reader: join(PLUGIN, "lib", "parse-concern-value.sh"),
   fixedTemp: true,

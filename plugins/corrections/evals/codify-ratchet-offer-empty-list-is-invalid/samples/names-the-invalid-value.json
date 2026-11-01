@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/corrections.yaml: ratchet_offer [] is invalid."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "ratchet_offer: true (default)"
+    }
+  ]
+}
