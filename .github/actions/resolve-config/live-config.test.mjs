@@ -161,6 +161,8 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-dependency-verdict",
       "fix-ci",
       "apply-patch",
+      "sync-shared-copies",
+      "apply-shared-copies",
       "report-escalation",
     ],
   );
@@ -351,7 +353,30 @@ test("live config: report-escalation follows every pr-unblock activity", () => {
     "apply-dependency-verdict",
     "fix-ci",
     "apply-patch",
+    "sync-shared-copies",
+    "apply-shared-copies",
   ]);
+});
+
+// pr-merge's shared-copy refusal: a script reads the head with no write
+// token, and its push job, under the shared-copies patch-rules row, may only
+// write the branch; needs-human is the select job's to decide (lane-hold.mjs).
+test("live config: sync-shared-copies holds no write token; apply-shared-copies may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.equal(grant("sync-shared-copies").effect, "read");
+  assert.equal(grant("sync-shared-copies").grant.contents, "read");
+  assert.deepEqual(grant("apply-shared-copies"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
+  const sync = selected("pr-unblock", "sync-shared-copies", { mergeable: "clean" });
+  assert.equal(sync.script, ".github/scripts/pr-unblock/sync-shared-copies.sh");
+  const push = selected("pr-unblock", "apply-shared-copies");
+  assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(push.prepare, "apply-patch");
+  assert.deepEqual(push.needs, ["sync-shared-copies"]);
+  for (const activity of ["sync-shared-copies", "apply-shared-copies"]) {
+    assert.equal(selected("pr-unblock", activity, { labels: ["needs-human"] }).applies, true, activity);
+    assert.equal(skipReason("pr-unblock", activity, { labels: ["do-not-merge"] }), "awaiting-human", activity);
+    assert.equal(skipReason("pr-unblock", activity, { draft: true }), "not-applicable", activity);
+  }
 });
 
 test("live config: fix-ci holds no write token and its push job may only write its branch", () => {

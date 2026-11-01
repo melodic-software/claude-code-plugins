@@ -52,6 +52,19 @@
       "conflict-patch-protected-path"
     ]
   },
+  "shared-copies": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "allow": ["shared-copies"],
+    "clean-patch": true,
+    "max-files": 300,
+    "max-blobs": 300,
+    "requires": [],
+    "commit": { "parents": ["head", "base"], "message": "Merge {base} into {ref} and regenerate shared copies", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": true,
+    "empty-at-push": "invalid",
+    "escalations": ["shared-copy-workflow-staged", "shared-copy-unexpected-path-staged", "shared-copy-patch-invalid", "shared-copy-patch-not-applied", "shared-copy-patch-protected-path"]
+  },
   "docs": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "skills", "skill-md"],
     "allow": ["markdown"],

@@ -1,0 +1,124 @@
+{
+  "skill": "github:advise",
+  "plugin": "github",
+  "skill_dir": "plugins/github/skills/advise",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are github:audit (read-only review of the current settings, drift and cost signals, where advise designs and guides future configuration), github:setup (user-invoked only: checks gh install and auth and writes the plugin's consumer config), source-control:pull-request (one PR's lifecycle: create, CI fixes, review comments, merge), source-control:babysit-prs (a fleet pass advancing the user's open PRs), harness-ops:morning-brief (daily read-only ops view of one repo's queues, merge-ready PRs, lane failures and charges) and review:ci-log-auditor (one CI run's logs for masked failures and skipped jobs). advise owns forward-looking design, setup guidance and step-by-step hand-holding for a GitHub settings or admin area, grounded in live state and current docs.",
+  "competitors": [
+    "github:audit",
+    "github:setup",
+    "source-control:pull-request",
+    "source-control:babysit-prs",
+    "harness-ops:morning-brief",
+    "review:ci-log-auditor"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We want to require signed commits and two approvals on main across the org. What's the right way to lay that out with rulesets?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to create a GitHub App for our CI bot. Guide me through the permissions it should get, step by step."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put budget alerts in place so our Actions spend can't run away. What should the setup be?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do we structure teams and repo roles for a 20-person org so contractors only see what they need?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're moving off classic PATs. Plan out how our automation should authenticate instead."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's the best way to restrict which third-party actions our workflows can use going forward?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Propose a webhook setup for sending push and PR events to our internal service securely."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hold my hand while I turn on code scanning and secret scanning push protection for the org."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draft the org-level security configuration we should adopt before we open-source our first repo."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me where our current rulesets disagree with each other across repos."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Open a PR for this branch and watch the checks until they pass."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Keep an eye on my open PRs in a loop and fix anything that's blocking them."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Daily standup view please: what's merge-ready and which lanes failed this week?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This CI run passed but something feels off. Audit run 98123 for masked failures."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which repos in our org have drifted from the security settings we declared?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make sure gh is authenticated and write the github plugin's config into .claude for me."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Mark my PR ready for review and merge it once CI is green."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Quick read-only status for this repo: open issues per queue label and how fresh the loop telemetry is."
+    }
+  ]
+}
