@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.2] - 2026-11-01
+
+### Changed
+
+- The `check` invocation probe `pos-train-04` and its listing-overlap baseline word the sample skill location without a cross-plugin skill path; it keeps the same words, so its score is unchanged.
+
 ## [0.32.1] - 2026-11-01
 
 ### Added
