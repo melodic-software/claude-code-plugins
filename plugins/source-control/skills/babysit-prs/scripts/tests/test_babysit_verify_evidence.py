@@ -5465,6 +5465,56 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual(fake.full_listings(), 0)
 
+    def test_near_expiry_reads_out_of_the_listings_time_are_not_noted(
+        self,
+    ) -> None:
+        # The skipped listing, each read taking `step` seconds of the whole
+        # listings' 60 s (`listing_timeout` for five artifacts), the caps out
+        # of reach. The first top-up reads 600's page and id and comes out
+        # short; at 15 s a read the second whole listing finds no time left,
+        # at 10 s the second top-up's page near expiry does. Either way the
+        # time ran out after near-expiry reads began: refused, not noted.
+        for step, stage in ((15.0, "whole-listing"), (10.0, "top-up")):
+            with self.subTest(step=step):
+                self.failed.unlink(missing_ok=True)
+                fake = self.skipped(850)
+                now = [0.0]
+
+                def listing(args: list[str], **kwargs: Any) -> Any:
+                    now[0] += step
+                    return fake(args, **kwargs)
+
+                def page(args: list[str], **kwargs: Any) -> Any:
+                    now[0] += step
+                    return fake(args, **kwargs), {"date": DATE}
+
+                stderr = io.StringIO()
+                with (
+                    mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 1000),
+                    mock.patch.object(ve, "NEAR_EXPIRY_ID_READ_CAP", 1000),
+                    mock.patch.object(ve, "_elapsed", return_value=0.0),
+                    mock.patch.object(
+                        ve, "_listing_clock", side_effect=lambda: now[0]
+                    ),
+                    mock.patch.object(postmerge, "gh_capture", side_effect=listing),
+                    mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+                    contextlib.redirect_stderr(stderr),
+                ):
+                    evidence = ve.Reader(REPO, "main", now=NOW).evidence(
+                        PR, HEAD, pull()
+                    )
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertFalse(self.failed.exists())
+                causes = [
+                    (m["stage"], m.get("cause"))
+                    for m in (
+                        json.loads(line.split(" ", 1)[1])
+                        for line in stderr.getvalue().splitlines()
+                        if line.startswith(ve.LISTING_MISS_PREFIX)
+                    )
+                ]
+                self.assertIn((stage, ve.NEAR_EXPIRY_DEADLINE_CAUSE), causes)
+
     def test_a_5xx_on_an_exact_count_id_read_refuses_as_transient(self) -> None:
         # The skipped listing, with 600's read by id answering 502 through its
         # waits: the Reader refuses, nothing is noted for the job, and the

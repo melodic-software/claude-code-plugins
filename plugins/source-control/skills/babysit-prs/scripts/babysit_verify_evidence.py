@@ -428,6 +428,9 @@ NEAR_EXPIRY_ID_READ_CAP = 34
 # The `cause` a `LISTING_MISS_PREFIX` line names when the caps above alone
 # leave an exact count unsettled: refused, but not noted for the job.
 NEAR_EXPIRY_CAP_CAUSE = "near-expiry-cap"
+# The `cause` when the listing's deadline runs out after its near-expiry reads
+# began, which `listing_timeout` does not size for: refused, but not noted.
+NEAR_EXPIRY_DEADLINE_CAUSE = "near-expiry-deadline"
 # The waits between incremental reads on one base. A count that misses the
 # live total can stay off for longer than an immediate re-read takes, while a
 # page boundary settles; bounded waits let it settle before the reader pages
@@ -1267,9 +1270,10 @@ class Reader:
     # The last `_incremental_page` that read nothing failed on a 5xx, a
     # network error or a body cut short, after its waits.
     _page_transient: bool = False
-    # Whether `_incremental`'s last None was an exact count the near-expiry
-    # caps alone left unsettled (`NEAR_EXPIRY_CAP_CAUSE`).
-    _caps_spent: bool = False
+    # Whether `_incremental`'s last None came from the near-expiry caps or the
+    # deadline running out after near-expiry reads began
+    # (`NEAR_EXPIRY_CAP_CAUSE`, `NEAR_EXPIRY_DEADLINE_CAUSE`).
+    _near_expiry_spent: bool = False
     # This listing's pages held more than the live count, so it takes one
     # whole listing at most.
     _over_counted: bool = False
@@ -1524,7 +1528,14 @@ class Reader:
             reads += 1
             read_at = _wall_clock()
             self._whole_paged = True
-            payload = self._read_listing(deadline, budget)
+            try:
+                payload = self._read_listing(deadline, budget)
+            except _Unreadable as exc:
+                if isinstance(exc, _Transient) or not self._near_expiry_out_of_time(
+                    deadline, "whole-listing", reads
+                ):
+                    raise
+                raise _Transient(str(exc)) from exc
             deadline = self._read_deadline
             for item in flatten_paginated_items(
                 payload, "repository artifacts", items_key="artifacts"
@@ -1548,10 +1559,13 @@ class Reader:
         else:
             cause = "never held"
         noun = "listing" if reads == 1 else "listings"
-        # A top-up page lost to a 5xx or network error, or an exact count left
-        # unsettled only by the near-expiry caps, is transient: not noted for
-        # the job (`_note_failed_listing`), so a later Reader can list again.
-        transient = listing is None and (self._page_transient or self._caps_spent)
+        # A top-up page lost to a 5xx or network error, or a count left
+        # unsettled only by the near-expiry caps or the time they took, is
+        # transient: not noted for the job (`_note_failed_listing`), so a later
+        # Reader can list again.
+        transient = listing is None and (
+            self._page_transient or self._near_expiry_spent
+        )
         raise (_Transient if transient else _Unreadable)(
             f"repository artifacts: {reads} whole {noun} {cause} "
             "GitHub's live artifact count"
@@ -1597,8 +1611,9 @@ class Reader:
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up).
         An exact count left unsettled prints the same line with its `cause`
-        and sets `_caps_spent` when only the caps left it so."""
-        self._page_transient = self._caps_spent = False
+        and sets `_near_expiry_spent` when only the caps, or the deadline
+        running out during those reads, left it so."""
+        self._page_transient = self._near_expiry_spent = False
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1654,6 +1669,7 @@ class Reader:
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
         regions = 0
+        unsettled: str | None = None
         over = len(listing) > total
         limit = server_now + EARLY_DELETION_LEAD
         near = len(listing) == total and any(
@@ -1681,10 +1697,13 @@ class Reader:
             "region_pages": regions,
             "base_age_seconds": round((server_now - base_at).total_seconds()),
         }
-        if near and unsettled:
+        if unsettled == NEAR_EXPIRY_DEADLINE_CAUSE or (near and unsettled):
             # Unsettled, an exact count may still lack a FAIL. Refused only
-            # for want of the caps, it is not noted for the job.
-            self._caps_spent = unsettled == NEAR_EXPIRY_CAP_CAUSE
+            # for want of the caps or their time, it is not noted for the job.
+            self._near_expiry_spent = unsettled in (
+                NEAR_EXPIRY_CAP_CAUSE,
+                NEAR_EXPIRY_DEADLINE_CAUSE,
+            )
             miss["cause"] = unsettled
             print(
                 f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
@@ -1769,7 +1788,7 @@ class Reader:
                 reads += 1
                 self._near_expiry_reads += 1
                 if read is None:
-                    return None
+                    return self._out_of_time(listing, reads, deadline)
                 items = read[0].get("artifacts")
                 if not is_json_array(items) or not all(map(_listed_entry, items)):
                     return None
@@ -1803,11 +1822,52 @@ class Reader:
             answer = self._artifact_gone(a["id"], deadline)
             if answer is None:
                 # A transient answer fails the read, as a lost page does.
-                return None if self._page_transient else (listing, reads, "id-answer")
+                if self._page_transient:
+                    return None
+                return self._out_of_time(listing, reads, deadline) or (
+                    listing,
+                    reads,
+                    "id-answer",
+                )
             if answer:
                 gone.add(a["id"])
         merged = {a["id"]: a for a in listing if a["id"] not in gone} | decided
         return sorted(merged.values(), key=lambda a: -a["id"]), reads, None
+
+    def _out_of_time(
+        self, listing: list[dict[str, Any]], reads: int, deadline: float
+    ) -> tuple[list[dict[str, Any]], int, str] | None:
+        """`_near_expiry`'s answer when a read gave nothing: unsettled for
+        `NEAR_EXPIRY_DEADLINE_CAUSE` when the deadline ran out (a 5xx past its
+        waits stays transient), else None."""
+        if self._page_transient or deadline - _listing_clock() > 0:
+            return None
+        return listing, reads, NEAR_EXPIRY_DEADLINE_CAUSE
+
+    def _near_expiry_out_of_time(
+        self, deadline: float | None, stage: str, reads: int
+    ) -> bool:
+        """Whether a whole listing that failed did so for want of time after
+        this listing's near-expiry reads began, which `listing_timeout` does
+        not size for: then it prints a `LISTING_MISS_PREFIX` line with
+        `NEAR_EXPIRY_DEADLINE_CAUSE`, and is refused as transient."""
+        if (
+            deadline is None
+            or deadline - _listing_clock() > 0
+            or not (self._near_expiry_reads or self._artifact_reads)
+        ):
+            return False
+        miss = {
+            "stage": stage,
+            "whole_listings": reads,
+            "cause": NEAR_EXPIRY_DEADLINE_CAUSE,
+        }
+        print(
+            f"{LISTING_MISS_PREFIX} {json.dumps(miss, sort_keys=True)}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return True
 
     def _artifact_gone(self, artifact_id: int, deadline: float) -> bool | None:
         """Whether GitHub no longer holds the artifact: True on a 404 or an
