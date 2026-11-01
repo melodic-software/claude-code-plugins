@@ -29,6 +29,6 @@ graders:
     arm: 'both'
   - name: hands-back-choice
     type: regex
-    pattern: '\bwhich (?:one|name|of these)\b|\b(?:which|what)\b[^\n.?]{0,20}\b(?:do|would) you\b|\byour (?:call|choice|pick)\b|\b(?:you|let me know)\b[^\n.]{0,30}\b(?:pick|choose|prefer|go with)\b'
+    pattern: '\bwhich (?:one|name|of these)\b|\bwhich\b[^\n.?]{0,20}\byou\b|\bwhat\b[^\n.?]{0,20}\b(?:do|would) you\b|(?:^|[\n.!?:]\s*)(?:pick|choose)\b|\byour (?:call|choice|pick)\b|\b(?:you|let me know)\b[^\n.]{0,30}\b(?:pick|choose|prefer|go with)\b'
     flags: 'i'
     target: last_message
