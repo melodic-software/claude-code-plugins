@@ -1574,3 +1574,20 @@ test("sync-shared-copies: a head with its check run is skipped, and recorded onc
   const flying = copyApi({ timelines, runs: [{ id: 9, status: "in_progress", display_title: pr_unblockTitle("sync-shared-copies", 43) }] });
   assert.deepEqual(await copyDispatch(flying, [node]), { dispatched: [], failed: 0 });
 });
+
+test("sync-shared-copies: a failed select job's failure is retried until limit-stops-per-head failures stand on the head, then recorded", async () => {
+  const node = copyPr(44);
+  const timelines = new Map([[44, copyRefusal(node.headRefOid)]]);
+  const cap = LIMIT_DEFAULTS["limit-stops-per-head"];
+  const failure = { name: "pr-unblock / sync-shared-copies", status: "completed", conclusion: "failure", completed_at: "2026-10-18T10:05:00Z", output: { title: "Failed", summary: "The activity step failed." } };
+  for (let failures = 1; failures < cap; failures += 1) {
+    const api = copyApi({ timelines, checks: new Map([[node.headRefOid, Array(failures).fill(failure)]]) });
+    assert.equal((await copyDispatch(api, [node])).dispatched.length, 1, `${failures} failure(s): sent again`);
+  }
+  const record = emptyRecord();
+  const capped = copyApi({ timelines, checks: new Map([[node.headRefOid, Array(cap).fill(failure)]]) });
+  assert.deepEqual(await copyDispatch(capped, [node], { record }), { dispatched: [], failed: 0 });
+  const next = copyApi({ timelines });
+  assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
+  assert.deepEqual(next.calls.checkReads, [], "recorded at the cap: nothing read again");
+});

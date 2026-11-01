@@ -295,10 +295,12 @@ export async function dispatchConflicting({
 // sync-shared-copies: a lanes App pull request into the base, not a draft,
 // carrying the human-gated label that pr-merge's shared-copy-sources-changed
 // refusal at its current head put on (gate-source.mjs sharedCopyGate, through
-// prHold), gets one pr-unblock.yml dispatch per head. A head with a
-// pr-unblock / sync-shared-copies check run from the GitHub Actions app, or a
-// run of the activity for the PR not done yet, is skipped; a completed check
-// is recorded, so the next run reads nothing for it.
+// prHold), gets one pr-unblock.yml dispatch per head. Its
+// pr-unblock / sync-shared-copies check runs from the GitHub Actions app
+// handle the head as resolve-conflicts's do (limit-stop.mjs, failuresRetry):
+// a failed select job's failure retries until limit-stops-per-head failures
+// stand on it; a head handled for good is recorded, so the next run reads
+// nothing for it. A run of the activity for the PR not done yet holds it.
 export const SHARED_COPY_DEFAULTS = Object.freeze({
   activity: "sync-shared-copies",
   checkName: "pr-unblock / sync-shared-copies",
@@ -318,6 +320,8 @@ export async function dispatchSharedCopies({
   workflow = DEFAULTS.workflow,
   appId = DEFAULTS.appId,
   maxDispatch = SHARED_COPY_DEFAULTS.maxDispatch,
+  limits,
+  now = Date.now(),
 }) {
   const { activity, checkName } = SHARED_COPY_DEFAULTS;
   const dispatched = [];
@@ -359,10 +363,15 @@ export async function dispatchSharedCopies({
         continue;
       }
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      if (existing.length > 0) {
-        if (existing.every((run) => run.status === "completed")) {
-          markHandled(record, checkName, node.headRefOid);
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      if (permanentlyHandles(existing, options)) {
+        const capped = cappedAt(existing, options);
+        if (capped > 0) {
+          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push`);
         }
+        markHandled(record, checkName, node.headRefOid);
+      }
+      if (anyHandles(existing, { now, ...options })) {
         log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
         continue;
       }
@@ -800,7 +809,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
     ...gate,
   });
-  const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, ...gate });
+  const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched, ...copies.dispatched];
   const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed + copies.failed;
   if (dispatched.length > 0) {

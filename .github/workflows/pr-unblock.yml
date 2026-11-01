@@ -990,13 +990,16 @@ jobs:
   # Every select outcome posts the sync-shared-copies check on the head the
   # select job read, so dispatch.mjs sends a head once: no-model-turn when it
   # wrote a patch (apply-shared-copies pushes it), else the skip reason, else
-  # the refusal's own skip (escalation-routes.mjs stopSkip). A kill-switch stop
-  # reads no head, and nothing is posted.
+  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job that
+  # failed after reading the head posts failure, which dispatch.mjs retries
+  # until limit-stops-per-head failures stand on the head, as it does
+  # resolve-conflicts's. A kill-switch stop reads no head, and nothing is
+  # posted.
   sync-shared-copies-not-run:
     needs: sync-shared-copies-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'sync-shared-copies'
-      && needs.sync-shared-copies-select.outputs.proceed != ''
+      && (needs.sync-shared-copies-select.outputs.proceed != '' || needs.sync-shared-copies-select.result == 'failure')
       && needs.sync-shared-copies-select.outputs.head-sha != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -1030,11 +1033,12 @@ jobs:
         with:
           lane: pr-unblock
           activity: sync-shared-copies
-          run-result: skipped
+          run-result: ${{ needs.sync-shared-copies-select.result == 'failure' && 'failure' || 'skipped' }}
           not-run-reason: >-
-            ${{ needs.sync-shared-copies-select.outputs.proceed == 'true' && 'no-model-turn'
+            ${{ needs.sync-shared-copies-select.result != 'failure'
+            && (needs.sync-shared-copies-select.outputs.proceed == 'true' && 'no-model-turn'
             || needs.sync-shared-copies-select.outputs.skip-reason
-            || steps.stop.outputs.skip }}
+            || steps.stop.outputs.skip) || '' }}
           head-sha: ${{ needs.sync-shared-copies-select.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
