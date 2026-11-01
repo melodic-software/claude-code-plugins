@@ -54,6 +54,16 @@ test("a prompt that slash-invokes a loaded plugin skill counts as fired with no 
   assert.match(text("other"), /- writes-a-test: skill loaded: no; fired in 0 of 1 runs with a kept trace \(1 runs\)$/m);
 });
 
+test("a run that dispatches one of the plugin's agents counts as fired", () => {
+  const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
+  doc.cases[0].arms.with = [{ ...doc.cases[0].arms.with[1], tracePath: "traces/with-agent.jsonl" }];
+  const out = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    import { summarize } from ${JSON.stringify(join(HERE, "summarize.mjs"))};
+    console.log(summarize(${JSON.stringify(doc)}, { plugin: "testing", base: ${JSON.stringify(join(HERE, "fixtures"))} }).text);
+  `], { encoding: "utf8" });
+  assert.match(out.stdout, /- writes-a-test: skill loaded: yes; fired in 1 of 1 runs with a kept trace \(1 runs\)$/m);
+});
+
 test("with no kept trace the health line says so rather than reporting zero", () => {
   const doc = JSON.parse(readFileSync(fixture("scored.json"), "utf8"));
   for (const r of doc.cases[0].arms.with) r.tracePath = "traces/deleted-by-the-runner.jsonl";

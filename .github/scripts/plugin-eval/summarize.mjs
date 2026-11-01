@@ -11,8 +11,9 @@
 // threshold, PASS or FAIL. A NOT COMPARABLE case shows no score. The health
 // line reads each with-arm run's kept trace (--keep-temp): whether the
 // plugin's skills were loaded (the init message's skill list) and how many
-// runs called one of them through the Skill tool, or had it slash-invoked by
-// the case prompt, which makes no Skill call. --plugin names the plugin;
+// runs called one of them through the Skill tool, called one of the plugin's
+// agents through the Agent tool, or had a skill slash-invoked by the case
+// prompt, which makes no Skill call. --plugin names the plugin;
 // without it, suite.root's last segment does.
 //
 // --redact, for a pull request run whose prompts the pull request supplies,
@@ -63,8 +64,9 @@ export const slashSkill = (prompt) => (typeof prompt === "string" ? (/^\s*\/([A-
 
 // {kept, loaded, fired} over a case's with-arm runs: kept counts the traces
 // read, loaded is true, false, or null when no kept trace lists skills. A run
-// fires when it calls one of the plugin's skills through the Skill tool, or
-// when the case prompt slash-invokes one (`invoked`) that its init lists.
+// fires when it calls one of the plugin's skills through the Skill tool or
+// one of its agents through the Agent tool, or when the case prompt
+// slash-invokes one of its skills (`invoked`) that its init lists.
 export function health(runs, { plugin, base, invoked = null }) {
   const own = ownSkill(plugin);
   let kept = 0;
@@ -84,9 +86,10 @@ export function health(runs, { plugin, base, invoked = null }) {
     const calls = trace
       .filter((line) => line.type === "assistant")
       .flatMap((line) => list(line.message?.content))
-      .filter((part) => part?.type === "tool_use" && part.name === "Skill");
+      .filter((part) => part?.type === "tool_use");
     const slashed = invoked !== null && own(invoked) && Array.isArray(init?.skills) && init.skills.includes(invoked);
-    if (slashed || calls.some((part) => own(part.input?.skill))) {
+    const called = calls.some((part) => (part.name === "Skill" ? own(part.input?.skill) : part.name === "Agent" && own(part.input?.subagent_type)));
+    if (slashed || called) {
       fired += 1;
     }
   }
