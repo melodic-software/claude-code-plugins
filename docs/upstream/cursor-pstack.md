@@ -32,7 +32,7 @@ rows. Row links point at whole skill directories where a verdict rests on more t
 the trigger reaches `references/`, playbooks and `scripts/`. `scripts/check-upstream-drift.sh`
 computes the changed paths.
 
-**Adaptation posture.** Every entry is a reauthor: not a fork and not a vendored copy. We keep the
+**Adaptation posture.** Every entry is a reauthor, not a fork and not a vendored copy. We keep the
 substance where it earns its place, fit it to this marketplace's conventions, and write the prose
 ourselves. The `playbooks` plugin's boris pack is the deliberate contrast: it keeps an upstream copy
 so drift can be detected against it.
