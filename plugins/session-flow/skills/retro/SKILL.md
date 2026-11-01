@@ -66,10 +66,9 @@ Resolve at runtime, never hardcode machine-specific paths:
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
-Score history across sessions names no retro mode. Before reading any mode, stop on a request for
-scores or "how am I doing" across sessions, or on a
-`trends` argument, and name `/session-flow:audit-sessions trends`; "how did I do this session"
-still runs a retro.
+Score history across sessions names no retro mode. Before reading any mode, stop on a bare "how am
+I doing", a request for scores, or a `trends` argument, and name `/session-flow:audit-sessions trends`;
+"how did I do this session", a question about this one session, still runs a retro.
 That action reads the history this skill writes and adds delivery metrics; this skill analyzes no
 session for it.
 
