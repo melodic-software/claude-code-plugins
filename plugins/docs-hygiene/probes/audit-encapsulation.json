@@ -1,0 +1,123 @@
+{
+  "skill": "docs-hygiene:audit-encapsulation",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/audit-encapsulation",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the SSOT extraction and rename-sweep siblings, the skill linter, the pointer-over-copy corrector and the skill-authoring playbook.",
+  "competitors": [
+    "docs-hygiene:extract-ssot",
+    "docs-hygiene:rename-references",
+    "skill-quality:check",
+    "discipline:point-dont-copy",
+    "playbooks:skill-authoring"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our rules files link straight to files under a skill's reference folder. Find every place outside the skill that does that."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I restructure the deploy skill, tell me which docs point at its internal files."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does anything in docs/ cite a heading anchor inside some SKILL.md body? Those break whenever we rename a heading."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "One of our plugins calls another plugin's skill script by its path. Scan the marketplace for that kind of cross-plugin reach-in."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List citations from outside .claude/skills that depend on a skill's private subfolders rather than its slash command."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want to move files around inside the onboarding skill. What outside the skill would break?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Scan the repo for docs that reach past a skill's slash command into its context folder."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which files depend on a skill's schema.json or its internal templates? I need to know before changing them."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make sure nothing outside our skills cites their internals; only their public entry points should be referenced."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A CI workflow and a few docs might point into skill subdirectories. Tell me which of those break the skill's public contract."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Three skill bodies repeat the same paragraph about commit trailers. Pull it into one shared rule."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I renamed the deploy skill to ship. Find every stale reference to the old name."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint the frontmatter of my new skill before I publish it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "You pasted the vendor's flag table into our guide; link to their docs instead."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The same timeout value is restated in four docs; give it one home and cite it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "After the git mv of skills/report to skills/summary, sweep for links still pointing at the old path."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the combined skill listing overflowing its budget across all our skills?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How should I structure a brand-new skill's SKILL.md and its reference files?"
+    }
+  ]
+}

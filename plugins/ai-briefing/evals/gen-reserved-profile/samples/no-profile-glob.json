@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".claude/ai-briefing/*"
+          }
+        }
+      ],
+      "why": "profile root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".claude/ai-briefing/con/*"
+          }
+        }
+      ],
+      "why": "listed the reserved profile path"
+    }
+  ]
+}

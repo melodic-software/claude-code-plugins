@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-asymmetric-exit-suggestion
+description: "contract-change: Written from plugins/user-interface/reference/animation/catalog.md \"Duration\" at head (an exit takes at most animation.duration_ms.exit_factor of its entrance, 0.8 at the defaults; Audit: Suggestion for an exit longer than that) against MB:plugins/user-interface/reference/animation/catalog.md:152 (exit mirrors entry in path and timing). The menu exits in 190ms against a 200ms entrance: head reports the exit as too long at Suggestion and shortens it to 160ms or less, while base asks the exit to mirror the entrance, so a base failure is the intended change, reported apart from the non-inferiority verdict."
+tags: [audit, motion, contract-change]
+runs: 3
+expected_outcome: "The report flags the menu's 190ms exit as too long for its 200ms entrance (over the 0.8 exit factor, 160ms) at Suggestion severity, not Blocking or Important, and never asks the exit to match the entrance"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Review the animations in src/menu.css and tell me what is wrong with them. Do not change any file."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600

@@ -37,3 +37,6 @@ A key is `kind[/cause][/hook][/reason][/reply]`:
 Every event carries `side` (`main` or `sub`), `agent` (the subagent type), `no_prompt_host` (a
 headless session), `shape` and `flags` (for a shell call: `cd-prefix`, `env-prefix`, `compound`,
 `redirect`, `heredoc`, `substitution`, `multiline`; for a file: `claude-config`, `outside-cwd`).
+A `denied` or `prompt-approved` event also carries `tool_use_id`. The collector keeps one such event
+per call and kind in a session and counts the repeated result records it skipped in
+`duplicates_dropped`; `mine` reports their total.

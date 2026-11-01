@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No: it changes no work class or guardrail class."
+    },
+    {
+      "answer": "Autonomy promotion is a different thing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Yes, this moves the item to C3."
+    }
+  ]
+}

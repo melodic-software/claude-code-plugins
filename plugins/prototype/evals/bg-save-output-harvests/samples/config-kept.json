@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{ \"seed\": 4127, \"depth\": 18, \"jaggedness\": 0.73, \"fiberDensity\": 42 }\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "deleted or emptied"
+    },
+    {
+      "answer": "{ \"seed\": 1, \"jaggedness\": 0.4 }",
+      "why": "overwritten with panel defaults"
+    }
+  ]
+}

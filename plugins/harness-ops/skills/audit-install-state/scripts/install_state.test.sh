@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the install-state engine test suite.
 # test-scope: plugins/harness-ops/.claude-plugin/plugin.json
+# test-scope: plugins/harness-ops/skills/audit-install-state/scripts/test_install_state.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

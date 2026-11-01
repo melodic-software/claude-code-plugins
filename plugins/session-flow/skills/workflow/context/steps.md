@@ -63,6 +63,9 @@ contract aims at an agreed outcome.
 - Before it, a rough problem may be diverged into candidate approaches. A too-big and still-foggy
   effort is charted into decisions only after an interview outgrows one session, and the chart
   can graduate here
+- When the users themselves are unsettled (who they are, what they need), UX research and
+  synthesis come before the PRD, through a user-experience capability (if installed, e.g.
+  /user-experience:shape); without one, interview the human about the users inline
 - **Effort:** settling product intent with the human, one open question at a time
 
 ## 4. Contract (optional: lock the brief before building)
@@ -87,13 +90,18 @@ design thread is left unresolved and untagged, then writes the decisions into th
 design section, which is how they reach the implementer.
 
 - Trigger conditions: new types or contracts, a new module or library, a package-topology,
-  cross-module, or data-model change. Two to five files with one new type is light design
+  cross-module, or data-model change, a new user-facing flow or screen. Two to five files with one
+  new type is light design
 - Skip conditions: a single-file bug fix, a config or doc change, a rename, a pure test addition.
   The skip is recorded as a one-line early exit with its reason, not left implicit, so the plan
   stage can see it. On the full path, size alone never skips it
 - Domain modeling, prototypes, and architecture surveys feed it; a decision that is costly to
   undo, not obvious from the code, and chosen over a live alternative is recorded as an
   architecture decision before planning
+- A user-facing flow or screen is designed before the technical design: the flow and navigation
+  through a user-experience capability (if installed, e.g. /user-experience:structure), then the
+  screens through an interface-design capability (if installed, e.g. /user-interface:design);
+  without them, sketch the flow and screens inline
 - **Effort:** settling contracts and boundaries with the human, where a wrong boundary is paid for
   in every later phase
 
@@ -158,9 +166,11 @@ and review criteria, or delegate to a fresh-context reviewer.
     [Review against your spec](https://code.claude.com/docs/en/best-practices#review-against-your-spec)
   - **As of**: 2026-10-30
   - **Recheck trigger**: a re-read of that section no longer supporting the preference above
-- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback,
+- For a high-stakes diff, prefer a cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the stated fallback (this preference is this repository's judgment, not an upstream rule),
   never a route to a command that may not resolve
   (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository)
+- A diff that changes a user interface also gets an interface review through an interface-review
+  capability (if installed, e.g. /user-interface:audit); without one, the code review covers it
 - **Effort:** judging a diff for defects, where a missed defect ships
 
 ## 11. Verify outcome

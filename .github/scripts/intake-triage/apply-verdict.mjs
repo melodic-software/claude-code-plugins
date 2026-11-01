@@ -19,7 +19,8 @@
 // `status: ready` when all three fields and no flag parsed, no hold label
 // (needs-human, status: needs-info, status: needs-decision) holds the issue,
 // and nothing it found conflicts; otherwise `status: needs-decision` (unless a
-// needs-info or needs-decision status is already there), never
+// needs-info or needs-decision status is already there), removing a parked
+// `status: confirmed` after the add so one status stands, never
 // `status: ready`, and one lanes App comment, edited in place, that lists why.
 // A status hold the lanes App set on an earlier run gives way to a ready
 // verdict and is taken off only when the App's earlier verdict comment lists
@@ -92,7 +93,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, authorAdmitted, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 
@@ -383,8 +384,9 @@ export function planWrites(
       add.push(NEEDS_DECISION);
     }
   }
-  // The verdict is the triage, so the floor label goes after it.
-  const after = labels.includes(NEEDS_TRIAGE) ? [NEEDS_TRIAGE] : [];
+  // The verdict is the triage, so the floor label goes after it, and a held
+  // verdict's hold replaces a parked status: confirmed: one status stands.
+  const after = [NEEDS_TRIAGE, ...(ready ? [] : [CONFIRMED])].filter((name) => labels.includes(name));
   return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions, refused };
 }
 
@@ -606,10 +608,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const labeled = reasonsError === null;
   const unready = remove.filter((name) => name === READY);
   if (labeled) {
-    const floor = remove.filter((name) => name === NEEDS_TRIAGE);
-    await removeLabels(github, base, remove.filter((name) => name !== NEEDS_TRIAGE));
+    const late = remove.filter((name) => name === NEEDS_TRIAGE || name === CONFIRMED);
+    await removeLabels(github, base, remove.filter((name) => !late.includes(name)));
     await addLabels(github, base, add);
-    await removeLabels(github, base, floor);
+    await removeLabels(github, base, late);
   } else {
     await removeLabels(github, base, unready);
   }

@@ -23,6 +23,7 @@ function run(patch, limits = {}) {
   const output = path.join(data, "output");
   const result = spawnSync("bash", [SCRIPT], {
     encoding: "utf8",
+    timeout: 20000,
     env: {
       PATH: process.env.PATH,
       DATA: data,
@@ -32,6 +33,7 @@ function run(patch, limits = {}) {
       MAX_CHUNKS: "4",
       PART_BYTES: "120",
       PART_LINES: "1000",
+      LONG_LINE_BYTES: "100",
       ...limits,
     },
   });
@@ -74,11 +76,58 @@ test("an empty diff is one chunk with one empty part, so the verifier still judg
   assert.deepEqual(partsOf(data, 1), [""]);
 });
 
-test("a line longer than a part stays whole in its own part, for the verifier to judge", () => {
-  const patch = file("a.min.js", 1, `+${"x".repeat(200)}`);
-  const { status, data } = run(patch);
+const MARK = "\\ continued: ";
+const unfold = (text) => text.replaceAll(`\n${MARK}`, "");
+
+test("a line over the cap continues on marked lines, so one Read returns every byte of it", () => {
+  const patch = file("a.min.js", 1, `+${"x".repeat(500)}`);
+  const { status, data } = run(patch, { MAX_DIFF_BYTES: "1000" });
   assert.equal(status, 0);
+  const parts = partsOf(data, 1);
+  assert.equal(unfold(parts.join("")), patch);
+  assert.ok(parts.every((part) => Buffer.byteLength(part) <= 120));
+  for (const line of parts.join("").split("\n")) assert.ok(line.length <= 100, line);
+});
+
+test("a line cap no fold can use stops the step, with no chunk written", () => {
+  for (const cap of ["", "5", "many"]) {
+    const { status, outputs, stdout, data } = run(file("a.js", 1), { LONG_LINE_BYTES: cap });
+    assert.equal(status, 1, cap);
+    assert.equal(outputs, "", cap);
+    assert.match(stdout, /^::error::LONG_LINE_BYTES/m, cap);
+    assert.equal(existsSync(path.join(data, "diff")), false, cap);
+  }
+});
+
+test("a line at the cap is left alone", () => {
+  const patch = file("a.js", 1, `+${"x".repeat(99)}`);
+  const { data } = run(patch);
   assert.equal(partsOf(data, 1).join(""), patch);
+});
+
+test("a fold never splits a UTF-8 character", () => {
+  const patch = file("a.md", 1, `+${"é".repeat(300)}`);
+  const { status, data } = run(patch, { MAX_DIFF_BYTES: "1000" });
+  assert.equal(status, 0);
+  const text = partsOf(data, 1).join("");
+  assert.ok(!text.includes("\ufffd"));
+  assert.equal(unfold(text), patch);
+});
+
+test("a run of stray UTF-8 continuation bytes folds at the cap, not a byte at a time", () => {
+  const patch = Buffer.concat([Buffer.from(file("a.bin", 1, "+x").replace("+x\n", "+")), Buffer.alloc(500, 0x80), Buffer.from("\n")]);
+  const { status, data } = run(patch, { MAX_DIFF_BYTES: "1000" });
+  assert.equal(status, 0);
+  assert.ok(partsOf(data, 1).join("").split("\n").length < 20);
+});
+
+test("a folded line that reads like a file header moves no file in the manifest", () => {
+  const spoof = `+${"x".repeat(99)}diff --git a/evil b/evil${"y".repeat(100)}`;
+  const { status, data } = run(file("a.js", 1, spoof) + file("b.js", 1), { MAX_DIFF_BYTES: "300", PART_BYTES: "400" });
+  assert.equal(status, 0);
+  const lines = manifestOf(data).trim().split("\n");
+  assert.deepEqual(lines.map((line) => line.split(" ").at(-1)), ["a.js", "b.js"]);
+  assert.ok(!partsOf(data, 1).join("").split("\n").some((line) => line.startsWith("diff --git a/evil")));
 });
 
 test("a single file over the budget is named, and leaves no chunk and no output", () => {

@@ -356,6 +356,53 @@ test("a failed dispatch after a lift at needs-decision restores it, and a re-run
   assert.equal(w.dispatches().length, 2);
 });
 
+// work-unblock's removal of status: confirmed, with the lanes App's token, when
+// a blocker closed: that token's event is what starts this run.
+const CONFIRMED = "status: confirmed";
+const strip = (actor = LANES_APP) => lift(actor, CONFIRMED);
+const runStrip = (w) => run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "", REMOVED_LABEL: CONFIRMED });
+
+test("the lanes App's removal of status: confirmed sends the issue to triage once", async () => {
+  const w = world({ labels: ["priority: medium"], events: [strip()] });
+  assert.equal(await runStrip(w), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+  assert.equal(await runStrip(w), 0, "the second run finds needs-triage");
+  expectDispatched(w);
+});
+
+test("a failed dispatch after the App's removal takes needs-triage back, puts no status on, and a re-run dispatches once", async () => {
+  const w = world({ labels: [], events: [strip()], fail: `POST ${DISPATCH}` });
+  assert.equal(await runStrip(w), 1);
+  assert.deepEqual(w.labels(), []);
+  assert.equal(await runStrip(w), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.equal(w.dispatches().length, 2, "the failed call and the re-run's");
+});
+
+// Each row is the state another App removal, or a person's, leaves. admit.mjs
+// and label-unblocked's admit add agent-ready first, refine's exact path adds
+// needs-triage first, and the single-status writes add the hold first.
+const stripQuiet = [
+  ["admission's lift beside agent-ready", { labels: ["agent-ready", "status: ready"], events: [strip()] }],
+  ["refine's lift, needs-triage first", { labels: ["needs-triage"], events: [strip()] }],
+  ["a hold that replaced it", { labels: ["status: needs-decision"], events: [strip()] }],
+  ["a verdict that landed", { labels: ["status: ready"], events: [strip()] }],
+  ["a person's removal", { labels: [], events: [strip(OWNER)] }],
+  ["an App removal followed by a person's", { labels: [], events: [strip(), strip(OWNER)] }],
+  ["needs-human on the issue", { labels: ["needs-human"], events: [strip()] }],
+  ["a deferral on the issue", { labels: ["admission-deferred"], events: [strip()] }],
+  ["an author intake does not admit", { labels: [], author: AUTHOR, events: [strip()] }],
+  ["a closed issue", { labels: [], state: "closed", events: [strip()] }],
+];
+for (const [name, options] of stripQuiet) {
+  test(`a status: confirmed removal changes nothing: ${name}`, async () => {
+    const w = world(options);
+    assert.equal(await runStrip(w), 0);
+    assert.deepEqual(w.writes, []);
+  });
+}
+
 const liftQuiet = [
   ["an outsider's removal", { labels: [], events: [lift(STRANGER)] }],
   ["an older listed removal followed by an outsider's", { labels: [], events: [lift(OWNER), lift(STRANGER)] }],
@@ -395,7 +442,7 @@ test("the workflow runs on a needs-human unlabel", () => {
 
 // The reenter job's folded `if:`, evaluated against one event. Covers only
 // what that gate uses: &&, ||, ==, !, and contains() over the issue's labels.
-function reenterGate({ event, labels, label = null, comment = null }) {
+function reenterGate({ event, labels, label = null, comment = null, sender = null }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
   assert.ok(block, "the reenter job has a folded if:");
@@ -411,6 +458,7 @@ function reenterGate({ event, labels, label = null, comment = null }) {
     "github.event.issue.pull_request": null,
     "github.event.issue.state": "open",
     "github.event.label.name": label,
+    "github.event.sender.type": sender,
     github_event_name: event,
   };
   body = body.replaceAll("github.event_name", "github_event_name");
@@ -430,4 +478,13 @@ test("a plain needs-human lift and a comment on a parked issue still start the j
   assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run"] }), true);
   assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User" }, labels: ["status: confirmed"] }), true);
   assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
+});
+
+test("only a bot's status: confirmed removal with nothing else to move the issue starts the job", () => {
+  const removal = (labels, sender = "Bot") => reenterGate({ event: "issues", label: CONFIRMED, labels, sender });
+  assert.equal(removal(["priority: medium"]), true);
+  assert.equal(removal([], "User"), false);
+  for (const label of ["status: ready", "status: needs-decision", "status: needs-info", "agent-ready", "needs-triage"]) {
+    assert.equal(removal([label]), false, label);
+  }
 });

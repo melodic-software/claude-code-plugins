@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -File ./retire-distro.ps1 -Test",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws && pwsh -NoProfile -File retire-distro.ps1 -Test; echo \"exit $?\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cd chain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -File ./retire-distro.ps1 -WhatIf",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "WhatIf, not Test"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat retire-distro.ps1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

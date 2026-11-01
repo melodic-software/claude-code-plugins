@@ -403,6 +403,7 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/gate-check.mjs",
   ".github/scripts/pr-merge/who.mjs",
   ".github/scripts/pr-merge/rate-stop.bash",
+  ".github/scripts/pr-merge/retry-call.bash",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",

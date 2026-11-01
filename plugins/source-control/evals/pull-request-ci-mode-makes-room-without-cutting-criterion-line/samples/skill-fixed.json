@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "the history paragraph went; every criterion line stayed"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\nSee references/history.md for where this skill came from.\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "the paragraph moved to a reference file the skill links"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\nThis skill began as a note in the eval runbook and moved here when the\nrunbook was split. It kept the runbook's order, which is why the checks\ncome after the reading step.\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n",
+      "why": "the address-feedback line that meets the criterion was cut"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\nThis skill began as a note in the eval runbook and moved here when the\nrunbook was split. It kept the runbook's order, which is why the checks\ncome after the reading step.\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "still over the cap"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran and whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "two criterion lines merged into one"
+    }
+  ]
+}

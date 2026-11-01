@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "4. Unregister: `wsl --unregister Debian-build` (irreversible; declared in -Irreversible, you type the name to confirm)",
+      "why": "name then irreversible"
+    },
+    {
+      "answer": "Irreversible steps: `wsl --unregister Debian-build`.",
+      "why": "irreversible then name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Step 3 unregisters the distro, which is irreversible.",
+      "why": "no exact name"
+    },
+    {
+      "answer": "3. `wsl --unregister Debian-build`\n4. import\n5. pull cache",
+      "why": "name without marking"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/commits.md already owns this rule under \"Commit subject format\", so no new file: each of the three files cites it.\n\n.claude/agents/committer.md:\n\n```markdown\nWrite the commit subject per `docs/conventions/commits.md` \"Commit subject format\": imperative, typed, 72 chars max.\n```\n\n.claude/skills/ship/SKILL.md step 2:\n\n```markdown\n2. Commit, with the subject per `docs/conventions/commits.md` \"Commit subject format\".\n```\n\nprompts/nightly-release.md:\n\n```markdown\nCommit the version bump with a subject per `docs/conventions/commits.md` \"Commit subject format\".\n```",
+      "why": "per-citation with backticked path and quoted heading"
+    },
+    {
+      "answer": "One home already exists: docs/conventions/commits.md. Replace each recap with a link.\n\n- committer.md: `Commit subjects follow [the subject rules](../../docs/conventions/commits.md#commit-subject-format) (feat, fix, docs, chore).`\n- ship SKILL.md: `2. Commit; subject per [commits.md](../../../docs/conventions/commits.md#commit-subject-format).`\n- nightly-release.md: `Commit with a subject per [commits.md](../docs/conventions/commits.md#commit-subject-format).`",
+      "why": "anchor links to the heading slug"
+    },
+    {
+      "answer": "committer.md: Subject per docs/conventions/commits.md \"Commit subject format\".",
+      "why": "unbackticked path"
+    },
+    {
+      "answer": "Use: per `docs/conventions/commits.md` “Commit subject format”: imperative, 72 chars.",
+      "why": "curly quotes and summary"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Create .claude/rules/commit-subjects.md:\n\n```markdown\n### Commit subjects\n\nImperative, 72 chars max, no trailing period, prefixed feat:/fix:/docs:/chore:.\n```\n\nThen each of the three files says: Commit subjects per `.claude/rules/commit-subjects.md` \"Commit subjects\".",
+      "why": "new rule file with its own heading"
+    },
+    {
+      "answer": "Point the three files at docs/conventions/commits.md:\n\n- committer.md: `See docs/conventions/commits.md for the subject rules.`\n- ship SKILL.md: `2. Commit (see docs/conventions/commits.md).`\n- nightly-release.md: `Follow docs/conventions/commits.md.`",
+      "why": "file cited without heading"
+    },
+    {
+      "answer": "Cite `docs/conventions/commits.md` \"Commit messages\" in each file.",
+      "why": "wrong heading text"
+    },
+    {
+      "answer": "The commit body should wrap at 100 columns and explain why.",
+      "why": "answers a different question"
+    }
+  ]
+}

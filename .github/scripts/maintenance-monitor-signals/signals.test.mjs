@@ -15,6 +15,8 @@ import {
   parseBudget,
   platformFindings,
   POST_MERGE_UNREADABLE_SWEEPS,
+  LISTING_HELD_SWEEPS,
+  listingHeldFindings,
   postMergeUnreadableFindings,
   stalledFindings,
   throttleFindings,
@@ -468,6 +470,51 @@ const report = (runId, code = "3", reason = CAP) => ({
   code,
   reason,
   createdAt: `2026-10-30T${String(11 + (runId % 10)).padStart(2, "0")}:00:00Z`,
+});
+
+const heldSweep = (runId, reason = "failed 3 times") => ({
+  runId,
+  url: `https://github.com/o/r/actions/runs/${runId}`,
+  reason,
+  createdAt: `2026-10-30T${String(11 + (runId % 10)).padStart(2, "0")}:00:00Z`,
+});
+
+test("signal 12: 3 held sweeps stay quiet, the 4th in a row fires one finding naming why", () => {
+  assert.equal(LISTING_HELD_SWEEPS, 4);
+  assert.deepEqual(listingHeldFindings({ heldSweeps: [heldSweep(3), heldSweep(2), heldSweep(1)] }), []);
+  assert.deepEqual(listingHeldFindings({}), []);
+  const found = detect({ ...base, heldSweeps: [heldSweep(5), heldSweep(4), heldSweep(3), heldSweep(2), heldSweep(1)] });
+  assert.equal(found.length, 1);
+  const [f] = found;
+  assert.equal(f.key, "listing-held");
+  assert.equal(f.signal, "12 listing held");
+  assert.match(f.summary, /failed 3 times/);
+  assert.match(f.summary, /actions\/runs\/5/);
+  assert.equal(f.facts.length, 4);
+  assert.equal(f.observedAt, heldSweep(5).createdAt);
+});
+
+test("signal 3: a listing a rate limit held in the window counts, though its run is green", () => {
+  const at = (runId, reason, createdAt) => ({ ...heldSweep(runId, reason), createdAt });
+  const limited = "rate limited (the core pool until 2026-10-19T17:00:00Z)";
+  const found = throttleFindings({
+    ...base,
+    heldSweeps: [at(2, limited, "2026-10-19T16:30:00Z"), at(1, "failed 3 times (count mismatch)", "2026-10-19T16:15:00Z")],
+  });
+  assert.deepEqual(found.map((f) => f.key), ["throttle:rate-limited"]);
+  assert.match(found[0].summary, /^1 occurrences across 1 runs/);
+  assert.match(found[0].facts[0], /actions\/runs\/2: rate limited \(the core pool/);
+  assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, "failed 3 times", "2026-10-19T16:30:00Z")] }), []);
+  // Before the window, as every other signal 3 source.
+  assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, limited, "2026-10-19T12:00:00Z")] }), []);
+});
+
+test("signal 12: the fingerprint holds while the cause holds, through new runs and reset times", () => {
+  const fp = (sweeps) => listingHeldFindings({ heldSweeps: sweeps })[0].fingerprint;
+  const limited = (id, at) => heldSweep(id, `rate limited (core until 2026-10-30T${at}:00:00Z)`);
+  const now = [limited(4, "10"), limited(3, "10"), limited(2, "09"), limited(1, "09")];
+  assert.equal(fp(now), fp([limited(5, "11"), ...now.slice(0, 3)]));
+  assert.notEqual(fp(now), fp([heldSweep(5), ...now.slice(0, 3)]));
 });
 
 test("signal 11: 3 unreadable sweeps stay quiet, the 4th in a row fires one finding naming the read error", () => {

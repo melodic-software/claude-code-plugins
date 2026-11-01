@@ -1,7 +1,7 @@
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
-// wait on the candidate listing or the gate loop (#8299; a GraphQL 502 on the
-// listing once held back every re-dispatch), the listing retries a failed
-// `gh pr list` and fails with one clear error, the run logs its API cost
+// wait on the gate loop (#8299), the listing retries a failed `gh pr list`, an
+// unknown listing holds the job green and every later acting step, the
+// post-merge check included, waits on that hold, the run logs its API cost
 // through the shared action, and the run cache carries the verdict reads that
 // never change to the next run.
 import assert from "node:assert/strict";
@@ -91,14 +91,16 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
 // fails its first `failures` calls and then answers `prs` (by default one pull
-// request of the lanes App's), with `.base` pointing at this checkout,
+// request of the lanes App's) and whose open-count read answers `total` (by
+// default as many as `prs`; null fails it), with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
+// `attempts` scripts each `gh pr list` in turn: `502` fails that one.
 const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
 const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR) => {
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length, attempts = []) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
@@ -106,12 +108,18 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
     writeFileSync(join(dir, "prs.json"), JSON.stringify(prs));
     writeFileSync(
       join(bin, "gh"),
-      `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
+      `#!/usr/bin/env bash\n` +
+        `if [ "$1" = api ]; then\n` +
+        `  [[ "$*" == *.totalCount* && "$*" == *'pullRequests(states: OPEN, baseRefName: "main")'* ]] || { echo "unexpected query: $*" >&2; exit 1; }\n` +
+        `  ${total === null ? 'echo "HTTP 502: Bad Gateway" >&2; exit 1' : `echo ${total}; exit 0`}\n` +
+        `fi\n` +
+        `echo "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
-        `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
+        `attempts=(${attempts.join(" ")})\n` +
+        `if [ "$n" -le ${failures} ] || [ "\${attempts[$((n - 1))]:-}" = 502 ]; then echo "${failure}" >&2; exit 1; fi\n` +
         `cat "${dir}/prs.json"\n`,
     );
-    writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/sleeps"\n`);
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
     if (edit === undefined) {
@@ -153,6 +161,7 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
       stdout: result.stdout,
       stderr: result.stderr,
       calls: Number(read("calls") || 0),
+      sleeps: read("sleeps").split("\n").filter(Boolean).map(Number),
       args: read("args"),
       candidates: read("candidates.json"),
       listed: numbers("candidates.json"),
@@ -172,6 +181,91 @@ test("the listing retries a failed gh pr list", () => {
   // Three tries of the one list.
   assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
+  assert.match(run.output, /^listed=true$/m);
+  assert.doesNotMatch(run.output, /held/);
+  // Two capped waits with full jitter.
+  assert.equal(run.sleeps.length, 2);
+  assert.ok(run.sleeps[0] <= 15 && run.sleeps[1] <= 30, String(run.sleeps));
+});
+
+// Unknown holds the job: green, a notice, and no count or candidate for any
+// later step (each hold below; the steps' gates are the next test's).
+const assertHeld = (run) => {
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^::notice title=Merge lane hold::/m);
+  assert.doesNotMatch(run.stdout, /^::error title=GitHub rate limit::gh pr list/m);
+  assert.match(run.output, /^held=true$/m);
+  assert.doesNotMatch(run.output, /^(count|listed)=/m);
+  assert.equal(run.prefiltered, false);
+  assert.equal(run.candidates, "");
+};
+
+test("a listing with pull requests missing from a 200 holds the job, and the next complete read clears it", () => {
+  const degraded = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2);
+  assertHeld(degraded);
+  // A count that moved between the two reads gets the retries before it holds.
+  assert.equal(degraded.calls, 3);
+  assert.match(degraded.stderr, /gh pr list holds 1 of 2 open pull requests/);
+  assert.match(degraded.output, /^held-reason=failed 3 times \(count mismatch\)$/m);
+  const next = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 1);
+  assert.equal(next.status, 0, next.stderr);
+  assert.doesNotMatch(next.stdout, /::notice title=Merge lane hold::/);
+  assert.doesNotMatch(next.output, /held/);
+  assert.match(next.output, /^count=1$/m);
+  assert.deepEqual(next.listed, [7]);
+});
+
+test("the hold names only the last try's fault", () => {
+  const cleared = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2, ["ok", "502", "502"]);
+  assertHeld(cleared);
+  assert.equal(cleared.calls, 3);
+  assert.match(cleared.output, /^held-reason=failed 3 times$/m);
+  const last = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2, ["502", "502", "ok"]);
+  assertHeld(last);
+  assert.match(last.output, /^held-reason=failed 3 times \(count mismatch\)$/m);
+});
+
+test("a repeated pull request does not stand in for a missing one", () => {
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, [listed(7, "app/melodic-automation-lanes"), listed(7, "app/melodic-automation-lanes")], 2));
+});
+
+test("a listing whose open count cannot be read holds the job", () => {
+  assertHeld(runListing(0, undefined, undefined, {}, undefined, LANES_PR, null));
+});
+
+// A step's `if:` as GitHub evaluates it on the schedule, with `steps` and
+// `needs` as given. No `if:` runs it.
+const runsOn = (name, context, needs = {}) => {
+  const found = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${step(name)}\n`);
+  if (!found) return true;
+  const script = `return (${found[1].replace(">-\n", "").replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`;
+  return new Function("steps", "needs", "github", "always", script)(context, needs, { event_name: "schedule" }, () => true);
+};
+// The merge job's steps at the listing's end: any step not named here has not
+// run, as on the schedule with a live lane.
+const atListing = (candidates) =>
+  new Proxy(
+    { "lane-token": { outputs: { token: "t" } }, mode: { outputs: { live: "true", "report-only": "false" } }, kill: { outputs: { proceed: "true" } }, candidates },
+    { get: (known, id) => known[id] ?? { outcome: "skipped", outputs: {} } },
+  );
+const dispatched = (code) => ({ "post-merge-dispatch": { result: "success", outputs: { "post-merge-code": code, "rate-limited": "" } } });
+
+// Everything after the listing that reads, writes or files waits on `listed`;
+// a hold runs only the cleanup and the summary, and files no failed lane merge.
+test("no step after the listing acts on a held listing", () => {
+  const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1).map((s) => s.name);
+  assert.ok(after.length > 20);
+  const running = (candidates, code) => after.filter((name) => runsOn(name, atListing(candidates), dispatched(code)));
+  const held = { outcome: "success", outputs: { held: "true" } };
+  const always = ["Count the sweep's refusals", "Upload the sweep's verdicts", "Log the API budget at job end", "Write the sweep cost", "Revoke the lane token"];
+  assert.deepEqual(running(held, "0"), always);
+  assert.deepEqual(running(held, "1"), always);
+  // The same steps that a hold stops do run once the listing is whole.
+  const whole = running({ outcome: "success", outputs: { listed: "true" } }, "0");
+  for (const name of ["Run the merge gate on each candidate", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
+    assert.ok(whole.includes(name), name);
+    assert.ok(!running(held, "1").includes(name), name);
+  }
 });
 
 // GitHub Support's audit item 7: one listing of every open pull request into
@@ -255,12 +349,80 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-test("a listing that may be cut short stops red", () => {
+test("a listing that reaches the limit ends red at once: a lasting fault, not a hold", () => {
   const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
-  const run = runListing(0, undefined, undefined, {}, undefined, many);
-  assert.equal(run.status, 1);
-  assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests/m);
-  assert.equal(run.prefiltered, false);
+  for (const total of [1000, 1500]) {
+    const run = runListing(0, undefined, undefined, {}, undefined, many, total);
+    assert.equal(run.status, 1, run.stderr);
+    assert.equal(run.calls, 1);
+    assert.deepEqual(run.sleeps, []);
+    assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests, so the listing may be cut short/m);
+    assert.doesNotMatch(run.stdout, /Merge lane hold/);
+    assert.doesNotMatch(run.output, /held|listed/);
+  }
+});
+
+test("a held listing files no failed lane merge; a run that listed goes by its own check", () => {
+  const record = (held, own, dispatch) =>
+    runsOn(
+      "Record a failed lane merge",
+      { "lane-token": { outputs: { token: "t" } }, mode: { outputs: { live: "true" } }, candidates: { outputs: { held } }, "post-merge": { outputs: { code: own } } },
+      { "post-merge-dispatch": { outputs: { "post-merge-code": dispatch } } },
+    );
+  for (const dispatch of ["1", "0", "3", ""]) assert.equal(record("true", undefined, dispatch), false, dispatch);
+  assert.equal(record(undefined, "1", "0"), true);
+  assert.equal(record(undefined, "0", "1"), false);
+});
+
+test("a held listing writes a sweep summary with no read, and a monitor can tell it held", () => {
+  const skipped = { gate: { outcome: "skipped" }, candidates: { outputs: {} } };
+  for (const name of ["Count the sweep's refusals", "Upload the sweep's verdicts", "Write the sweep cost"]) {
+    assert.equal(runsOn(name, { ...skipped, candidates: { outputs: { held: "true" } } }), true, name);
+    assert.equal(runsOn(name, skipped), false, name);
+  }
+  const dir = tempDir("pr-merge-held-summary-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh-calls"\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const to = join(dir, "sweep.json");
+    const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        // .base is a symlink here, and the script runs only as the main module.
+        NODE_OPTIONS: "--preserve-symlinks-main",
+        RUNNER_TEMP: dir,
+        REPO: "o/r",
+        GITHUB_RUN_ID: "41",
+        EVENT: "schedule",
+        LIVE: "true",
+        GATE_OUTCOME: "skipped",
+        LIMITED: "",
+        LISTING_HELD: "true",
+        LISTING_HELD_REASON: "failed 3 times",
+        SUMMARY_PATH: join(dir, "pr-merge-summary.json"),
+        HELD_PATH: join(dir, "held.json"),
+        CANDIDATES_PATH: join(dir, "candidates.json"),
+        CURSOR_PATH: join(dir, "cursor.json"),
+        SWEEP_SUMMARY_TO: to,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(dir, "gh-calls")), false);
+    const summary = JSON.parse(readFileSync(to, "utf8"));
+    assert.equal(summary.run_id, 41);
+    assert.equal(summary.listing_held, true);
+    assert.equal(summary.listing_held_reason, "failed 3 times");
+    assert.equal(summary.candidates, null);
+    assert.deepEqual(summary.results, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
@@ -283,23 +445,21 @@ test("the mode step outputs merge.lane-prs as resolve-config resolved it, and th
   assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
 });
 
-// A rate limit is never retried, gh's bare 429 message included.
-test("a rate-limited listing stops red after one call, a bare HTTP 429 included", () => {
+// A stop past the budget is not slept: one call, gh's bare 429 message included.
+test("a rate-limited listing holds the job after one call, a bare HTTP 429 included", () => {
   for (const failure of ["gh: Too Many Requests (HTTP 429)", "API rate limit exceeded for installation ID 1. (HTTP 403)"]) {
     const run = runListing(3, undefined, undefined, {}, failure);
-    assert.equal(run.status, 1, failure);
+    assertHeld(run);
     assert.equal(run.calls, 1, failure);
-    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list was rate limited \(every pool until /m, failure);
-    assert.equal(run.prefiltered, false);
+    assert.deepEqual(run.sleeps, [], failure);
+    assert.match(run.stdout, /^::notice title=Merge lane hold::.*every pool until /m, failure);
   }
 });
 
-test("the listing fails with one clear error after three failed tries", () => {
+test("the listing holds the job after three failed tries", () => {
   const run = runListing(3);
-  assert.equal(run.status, 1);
+  assertHeld(run);
   assert.equal(run.calls, 3);
-  assert.match(run.stdout, /^::error::gh pr list failed 3 times/m);
-  assert.equal(run.prefiltered, false);
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
@@ -352,10 +512,24 @@ test("the sweep cost names both tokens' own request counts, the candidates, thos
   assert.equal(runSweepCost("lanes-app-calls=7", 0).stdout, "sweep-calls=7 github-token-calls=unknown candidates=5 reached=0 skipped=0\n");
   assert.equal(runSweepCost("lanes-app-cost=312 github-token-cost=41", 0).stdout, "sweep-calls=unknown github-token-calls=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
-  assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(block, /CALLS: \$\{\{ steps\.budget-end\.outputs\.calls \}\}/);
   const names = steps.map((s) => s.name);
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
+});
+
+test("a held listing's cost line names the tokens' calls, marks the hold, and has no counts to give", () => {
+  const dir = tempDir("pr-merge-cost-held-");
+  try {
+    const result = spawnSync("bash", ["-eo", "pipefail", "-c", runScript("Write the sweep cost")], {
+      encoding: "utf8",
+      env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: join(dir, "step-summary"), CALLS: "github-token-calls=41", CANDIDATES: "", LISTING_HELD: "true" },
+    });
+    const line = "sweep-calls=unknown github-token-calls=41 candidates=unknown reached=unknown skipped=unknown listing-held=true\n";
+    assert.equal(result.stdout, line);
+    assert.equal(readFileSync(join(dir, "step-summary"), "utf8"), line);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // The run cache's carried reads (carry-run-cache.mjs) reach both token-holding
@@ -970,7 +1144,7 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
   assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
   const block = step("Record a failed lane merge");
-  assert.match(block, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {10}steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code == '1'\n {8}env:/);
   assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
@@ -998,7 +1172,10 @@ const runRecord = (code, report = { remediation: { errors: [] } }) => {
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`,
+    );
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     const result = spawnSync("bash", ["-c", runScript("Record a failed lane merge")], {
@@ -1006,7 +1183,11 @@ const runRecord = (code, report = { remediation: { errors: [] } }) => {
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
     });
-    return { status: result.status, stdout: result.stdout, args: readFileSync(join(dir, "args"), "utf8").split("\n") };
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      args: readFileSync(join(dir, "args"), "utf8").split("\n"),
+    };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1172,6 +1353,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       if (path === "steps.gate.outputs.rate-limited") return limited;
       if (path === "steps.lane-token.outputs.token") return "t";
       if (path === "steps.mode.outputs.report-only") return "false";
+      if (path === "steps.candidates.outputs.listed") return "true";
       return "";
     };
     for (const name of ["Hand the gate's rows to the check writer", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
@@ -1195,7 +1377,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, LISTING_HELD: "", REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
@@ -1311,7 +1493,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
-  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success'\n/);
+  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outputs\.listed == 'true'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.

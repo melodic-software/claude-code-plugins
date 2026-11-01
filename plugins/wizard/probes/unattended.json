@@ -1,0 +1,121 @@
+{
+  "skill": "wizard:unattended",
+  "plugin": "wizard",
+  "skill_dir": "plugins/wizard/skills/unattended",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling wizard:generate is in this plugin; the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "wizard:generate",
+    "discipline:hold-my-hand",
+    "session-flow:continue-in-background"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Enabling Hyper-V needs admin rights and you can't approve the UAC prompt. Write the PowerShell so I start it once elevated and it drops a result file you can check."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our repo rules say only I may apply provisioning changes to this host. Prepare the whole apply as a script I launch one time, no questions mid-run, then you read what happened."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Moving the Docker data root to D: has to happen from an admin PowerShell. Make it fully hands-off once I start it, and leave a JSON report for you."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You can't run elevated commands here. Write me something that installs the scheduled task as SYSTEM, which I start once and which doesn't ask me anything."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The WSL export, unregister and import must be done as admin on Windows. Script it end to end so I only launch it, and have it record what succeeded so you can verify."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Per our policy I'm the only one allowed to run the production config push. Package it so I fire it off once and you pick up the outcome from a file afterwards."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Changing the system PATH and the Defender exclusions needs an administrator shell I have to open myself. Make it run without prompts and record results for you to parse."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a PowerShell job I start as administrator that resizes the VHDX and reports success or failure in a machine-readable file."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Everything for this driver install can be automated, it just needs admin. Give me one script to kick off and nothing else to do."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build me a guided bash script for setting up the Twilio account: I have to sign in, enter a 2FA code, and copy the auth token from their console."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write an interactive terminal walkthrough for adding the DNS records in our registrar's web UI; I'll click through it myself."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Walk me through enabling BitLocker step by step here, and don't show me the next step until I confirm."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Keep going on the migration in a background session while I'm AFK."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a PowerShell script that counts lines in every .ps1 file in this repo and run it."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need a prompt-driven script that tells me where to click in the Azure portal to create an app registration and then asks me to paste the secret."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run git status and summarize what's changed."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a bash script that backs up ~/.ssh to a tarball."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "One phase at a time, talk me through setting up my new router."
+    }
+  ]
+}

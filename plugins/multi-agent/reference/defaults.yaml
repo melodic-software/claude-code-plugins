@@ -29,8 +29,8 @@ workloads:
 # Session model aliases treated as frontier by the fan-out guard.
 frontier: fable
 
-# The fan-out guard: a stage that runs more than one agent never runs them on a
-# frontier model. Under a frontier session, or when the caller does not name
+# The fan-out guard: the resolver names no frontier model for a stage that runs
+# more than one agent. Under a frontier session, or when the caller does not name
 # the session model, every role's fan-out variant names fanout.model where it
 # would otherwise inherit (or name) a frontier model. Single-agent stages keep
 # the role's own model. Turning frontier_guard off is an explicit opt-in to
@@ -65,9 +65,9 @@ roles:
     basis_effort: upstream
     pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     claim_effort: the effort table's row for day-to-day engineering work with a clear scope
-    basis_mechanical_model: upstream
+    basis_mechanical_model: judgment
+    reason_mechanical_model: mechanical work needs no Opus-level reasoning, and the costs page's general model split is the context for that choice; its subagent line names a smaller model and does not set this value
     pointer_mechanical_model: https://code.claude.com/docs/en/costs#choose-the-right-model
-    claim_mechanical_model: the statement that Sonnet handles most coding tasks well, with Opus reserved for complex architectural decisions or multi-step reasoning
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     as_of: 2026-10-13

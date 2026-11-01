@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture animation\", \"reason\": \"blocked: app already running, not started by this run\"}]}",
+      "why": "animation before the blocked reason"
+    },
+    {
+      "answer": "{\"blocked\": [\"blocked: capture only on a process this run launched\"], \"steps\": [{\"action\": \"capture --kind animation\", \"result\": \"not run\"}]}",
+      "why": "blocked before animation"
+    },
+    {
+      "answer": "{\"blocked\": [{\"step\": \"capture animation\", \"reason\": \"the shop app was started outside this run\"}]}",
+      "why": "animation inside the blocked list, no blocked: prefix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no report"
+    },
+    {
+      "answer": "{\"artifacts\": [{\"kind\": \"animation\", \"path\": \"evidence/animation-frames.json\"}], \"blocked\": []}",
+      "why": "the capture was recorded as made"
+    }
+  ]
+}

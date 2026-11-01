@@ -102,6 +102,9 @@ function Button({ asChild, ...props }) {
 }
 ```
 
+Each library's install and composition pages, with their pointer record, are in the primitives
+table in `../../../component-libraries.md`.
+
 ## Forwarding refs
 
 Always forward refs on components that wrap DOM elements. Where the project's React version takes

@@ -1,0 +1,126 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "syntax check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/plugins/wizard/skills/generate/template.sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c '^[[:space:]]*stage \"' scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stage count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/work/scripts/setup-sms.sh; grep -n STAGES \"$S\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "path in a variable, then a read-only grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bash run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws && bash -x scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd, -x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'y\\n' | sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "piped answers"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /work && S=1 ./scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "env prefix then run"
+    }
+  ]
+}

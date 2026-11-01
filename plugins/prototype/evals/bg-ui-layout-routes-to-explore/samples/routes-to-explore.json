@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prototype:explore-directions",
+            "args": "account settings page"
+          }
+        }
+      ],
+      "why": "routed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prototype:pressure-test"
+          }
+        }
+      ],
+      "why": "wrong facet"
+    }
+  ]
+}

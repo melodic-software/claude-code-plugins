@@ -158,6 +158,12 @@ const fromRest = (run) => ({
   completedAt: run.completed_at ?? null,
 });
 
+// A push job check that failed because the broker refused its lane token:
+// report-check-run's summary of the run job's failure-reason, which
+// request-lane-token starts with lane-token-denied.
+const tokenRefused = (run) =>
+  run?.status === "completed" && run.conclusion === "failure" && String(run.output?.summary ?? "").startsWith("The run job did not succeed: lane-token-denied:");
+
 // A rollup check run in the REST shape limit-stop.mjs reads.
 const asRest = (run) => ({
   status: String(run.status ?? "").toLowerCase(),
@@ -170,7 +176,8 @@ const asRest = (run) => ({
 // is one attempt, read from its last check, that spends one place under the
 // per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
 // check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
-// the head may be retried under the same caps a failed run is. One a
+// the head may be retried under the same caps a failed run is, and so does one
+// whose push job failed on a token refusal, which pushed nothing. One a
 // kill-switch push job check followed reads as that kill-switch skip, which
 // did no work: it is retried like a held skip, spending no restart. A check's
 // attempt is the workflow run attempt postingAttempt names; not its check
@@ -180,7 +187,7 @@ const asRest = (run) => ({
 // fix-ci check started.
 export function withStops(runs, stopRuns) {
   const startOf = (run) => Date.parse(run.started_at ?? "");
-  const stops = stopRuns.filter(laneStop);
+  const stops = stopRuns.filter((run) => laneStop(run) || tokenRefused(run));
   const kills = stopRuns.filter(killSwitchStop);
   const starts = runs.map(startOf).sort((a, b) => a - b);
   const stoppedAt = (run, stops) => {
@@ -431,8 +438,9 @@ export function skipReason(
   }
   // The rollup's newest push job check names no run attempt: when it is a
   // lane or kill-switch stop, which turns the fix-ci run before it into a
-  // failed or paused one (withStops), the REST read decides the head.
-  if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && releasesHead(asRest(run)))) {
+  // failed or paused one (withStops), the REST read decides the head. So
+  // does a failed one: the rollup has no summary to tell a token refusal by.
+  if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && (run.conclusion === "FAILURE" || releasesHead(asRest(run))))) {
     return "";
   }
   // A held skip (a held PR stopped above) or a kill-switch stop counts toward

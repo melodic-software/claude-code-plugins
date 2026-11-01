@@ -14,6 +14,14 @@
 //   `agent-ready`, `needs-human` or `needs-triage`. The newest `needs-human`
 //   removal in the issue's events must be that person's; remove
 //   `status: needs-decision` when the issue carries it;
+// - EVENT_NAME `issues` with REMOVED_LABEL `status: confirmed`: work-unblock
+//   took it off because a blocker closed (label-unblocked.mjs). The newest
+//   removal of that label must be the lanes App's, the issue must carry no
+//   `status:` label, `agent-ready`, `needs-human`, `needs-triage` or
+//   `admission-deferred`, and intake must admit its author. The App's other
+//   removals land after a status, `agent-ready` or `needs-triage`, so they
+//   stop here. `needs-triage` is the claim, since work-unblock already took
+//   the label: a second run finds it and dispatches nothing;
 //
 // A decision on an issue that carries `needs-human` changes nothing: only a
 // listed human removes that label (docs/contracts/loop-lane/README.md, the
@@ -27,13 +35,17 @@
 // the claim: when GitHub answers 404 another run already took it, so a second
 // answer, or a racing run, dispatches nothing. When a later call fails, the
 // run puts the labels back and fails, so a re-run can take the claim again. Every fact is read from the API;
-// the event supplies only the issue and comment numbers.
+// the event supplies only the issue and comment numbers and, on `issues`, the
+// removed label. A failed call on a removal puts no status back: with no
+// `status:` label a re-run sends it on, and the triage sweep dispatches it.
 //
 // Environment:
 //   GITHUB_TOKEN          the job's token: issues write, actions write
 //   GITHUB_REPOSITORY     owner/repo
 //   ISSUE_NUMBER, COMMENT_ID (not read when EVENT_NAME is `issues`)
-//   EVENT_NAME            `issues` for a `needs-human` removal, else a comment
+//   EVENT_NAME            `issues` for a label removal, else a comment
+//   REMOVED_LABEL         on `issues`, the label removed; `status: confirmed`
+//                         or, by default, `needs-human`
 //   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
 //   LANES_APP_ID          the lanes App bot's user id, or empty
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
@@ -42,7 +54,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { ADMIT_MARKER, authorAdmitted } from "../intake-triage/admit.mjs";
+import { admissionParked, authorAdmitted } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 
 export const NEEDS_DECISION = "status: needs-decision";
@@ -51,8 +63,8 @@ export const NEEDS_INFO = "status: needs-info";
 export const CONFIRMED = "status: confirmed";
 export const NEEDS_HUMAN = "needs-human";
 export const NEEDS_TRIAGE = "needs-triage";
-const READY = "status: ready";
 const AGENT_READY = "agent-ready";
+const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
@@ -81,11 +93,8 @@ export async function classify({ github, repository, issue, comment, humans, ids
     }
   }
   // status: confirmed is also triage's verified status, so only an issue
-  // admission parked there counts: no ready, no agent-ready, and the lanes
-  // App's admission comment (refine.mjs applies the same guard).
-  const parked = async () =>
-    !labels.includes(NEEDS_DECISION) && labels.includes(CONFIRMED) && !labels.includes(READY) && !labels.includes(AGENT_READY) && lanesAppId !== null &&
-    (await paginate(github, `/repos/${repository}/issues/${issue.number}/comments`)).some((item) => item?.user?.id === lanesAppId && String(item.body ?? "").startsWith(ADMIT_MARKER));
+  // admission parked there counts (refine.mjs applies the same guard).
+  const parked = async () => admissionParked(labels, await paginate(github, `/repos/${repository}/issues/${issue.number}/comments`), lanesAppId);
   if (humans.has(user.id) && labels.includes(CONFIRMED) && (await parked())) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
@@ -118,13 +127,13 @@ async function removeLabel(github, base, name) {
 const EVENT_PAGE = 100;
 const MAX_EVENT_PAGES = 10;
 
-// The actor behind the newest `unlabeled needs-human` event, or null.
-async function lastLifter(github, base) {
+// The actor behind the newest `unlabeled` event of `name`, or null.
+async function lastRemover(github, base, name) {
   let actor = null;
   for (let page = 1; page <= MAX_EVENT_PAGES; page += 1) {
     const events = await github("GET", `${base}/events?per_page=${EVENT_PAGE}&page=${page}`);
     for (const event of events) {
-      if (event.event === "unlabeled" && event.label?.name === NEEDS_HUMAN) {
+      if (event.event === "unlabeled" && event.label?.name === name) {
         actor = event.actor ?? null;
       }
     }
@@ -149,8 +158,21 @@ async function liftReenters({ github, base, issue, humans, lanesAppId }) {
   if (!authorAdmitted(issue, humans, lanesAppId)) {
     return false;
   }
-  const actor = await lastLifter(github, base);
+  const actor = await lastRemover(github, base, NEEDS_HUMAN);
   return actor?.type === "User" && humans.has(actor.id);
+}
+
+// The lanes App took `status: confirmed` off and left the issue with nothing
+// else to move it: true when intake should take it again.
+async function unparkReenters({ github, base, issue, humans, lanesAppId }) {
+  if (issue.pull_request || issue.state !== "open" || lanesAppId === null) {
+    return false;
+  }
+  const labels = labelNames(issue);
+  if (labels.some((name) => name?.startsWith("status:")) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => labels.includes(name))) {
+    return false;
+  }
+  return authorAdmitted(issue, humans, lanesAppId) && (await lastRemover(github, base, CONFIRMED))?.id === lanesAppId;
 }
 
 async function restore({ client, base, labels, addedTriage, log }) {
@@ -182,8 +204,9 @@ export async function main({ env = process.env, github, log = console.log } = {}
     const base = `/repos/${repository}/issues/${env.ISSUE_NUMBER}`;
     const issue = await client("GET", base);
     if (lift) {
-      if (!(await liftReenters({ github: client, base, issue, humans, lanesAppId }))) {
-        log("intake-reenter: not a listed human's lift of needs-human on an issue awaiting intake; nothing changed");
+      const removed = env.REMOVED_LABEL === CONFIRMED ? CONFIRMED : NEEDS_HUMAN;
+      if (!(await (removed === CONFIRMED ? unparkReenters : liftReenters)({ github: client, base, issue, humans, lanesAppId }))) {
+        log(`intake-reenter: not a removal of ${removed} that sends an issue to intake; nothing changed`);
         return 0;
       }
       // At status: needs-decision, removing it is the claim, as for a comment.
@@ -206,7 +229,7 @@ export async function main({ env = process.env, github, log = console.log } = {}
         }
         throw error;
       }
-      log(`intake-reenter: ${NEEDS_HUMAN} lifted, ${decided ? `removed ${NEEDS_DECISION}, ` : ""}added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
+      log(`intake-reenter: ${removed} lifted, ${decided ? `removed ${NEEDS_DECISION}, ` : ""}added ${NEEDS_TRIAGE}, dispatched ${WORKFLOW}`);
       return 0;
     }
     const comment = await client("GET", `/repos/${repository}/issues/comments/${env.COMMENT_ID}`);

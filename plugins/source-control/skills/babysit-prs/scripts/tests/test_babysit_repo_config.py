@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """Per-target-repository resolution of the babysit repository-policy keys.
 
 Covers each merge mode, the fail-closed fetch contract (only a gh-reported 404

@@ -9,6 +9,7 @@
 #
 #   scripts/run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N]
 #                               [--suites-from FILE] [--budget SECONDS]
+#                               [--timings FILE] [SUITE ...]
 #   scripts/run-plugin-tests.sh --list [--root DIR]
 #
 # Each test is self-contained and cwd-independent; an individual test SKIPs
@@ -98,7 +99,15 @@
 # allowlist's stale guard still reads the FULL discovery, exactly as it does
 # under --shard, so a serial entry that the selection did not draw is still
 # matched. An empty file is not an error -- "this selection had nothing to
-# run" is a real answer.
+# run" is a real answer. A SUITE argument is a repo-relative suite path that
+# joins that selection, so `run-plugin-tests.sh <suite>` runs that suite alone.
+#
+# TIMINGS. --timings FILE writes one tab-separated row per suite that reported,
+# in corpus order, once every suite has finished: the suite path, its wall
+# seconds (the number its TIME line prints) and its exit code. FILE is
+# overwritten. Linux and Git Bash write the same format, and the baseline built
+# from it is docs/test-wall-clock-baseline.md. Without the flag
+# nothing is written and nothing else changes.
 set -uo pipefail
 
 # Fixture isolation. `-C` only changes directory, while an exported
@@ -130,7 +139,7 @@ ADVISORY_LIST="${PLUGIN_TEST_ADVISORY_LIST:-$script_dir/run-plugin-tests-advisor
 EXCEPTIONS_LIST="${PLUGIN_TEST_SUITE_EXCEPTIONS:-$script_dir/suite-budget-exceptions.txt}"
 
 usage() {
-  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] [--budget SECONDS] | --list [--root DIR]" >&2
+  echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] [--budget SECONDS] [--timings FILE] [SUITE ...] | --list [--root DIR]" >&2
   exit 2
 }
 
@@ -198,10 +207,21 @@ shard_spec="0/1"
 suites_from=""
 budget=""
 budget_given=0
+timings_file=""
+named_suites=()
 list=0
 while (($# > 0)); do
   case "$1" in
   --strict-skips) strict_skips=1 ;;
+  --timings)
+    [[ $# -ge 2 && -n "$2" ]] || usage
+    timings_file="$2"
+    shift
+    ;;
+  --timings=*)
+    timings_file="${1#--timings=}"
+    [[ -n "$timings_file" ]] || usage
+    ;;
   --budget)
     [[ $# -ge 2 ]] || usage
     budget="$2"
@@ -233,7 +253,8 @@ while (($# > 0)); do
     shift
     ;;
   --shard=*) shard_spec="${1#--shard=}" ;;
-  *) usage ;;
+  -*) usage ;;
+  *) named_suites+=("$1") ;;
   esac
   shift
 done
@@ -285,6 +306,14 @@ if [[ -n "$suites_from" ]]; then
     exit 2
   fi
   suites_from="$(cd "$(dirname "$suites_from")" && pwd)/$(basename "$suites_from")" || exit 2
+fi
+if [[ -n "$timings_file" ]]; then
+  if [[ ! -d "$(dirname "$timings_file")" ]]; then
+    echo "error: --timings directory not found: $(dirname "$timings_file")" >&2
+    exit 2
+  fi
+  timings_file="$(cd "$(dirname "$timings_file")" && pwd)/$(basename "$timings_file")" || exit 2
+  : >"$timings_file" || exit 2
 fi
 
 if [[ -n "$root" ]]; then
@@ -354,16 +383,25 @@ fi
 # guard, so the allowlist is still matched against the full discovery, and
 # before the shard, so --suites-from and --shard compose the way --shard alone
 # always did.
-if [[ -n "$suites_from" ]]; then
+if [[ -n "$suites_from" ]] || ((${#named_suites[@]} > 0)); then
   supplied=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -n "$line" ]] || continue
+  if [[ -n "$suites_from" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -n "$line" ]] || continue
+      if [[ ! -f "$line" ]]; then
+        echo "error: --suites-from names '$line', which is not a file" >&2
+        exit 2
+      fi
+      supplied+=("$line")
+    done <"$suites_from"
+  fi
+  for line in ${named_suites[@]+"${named_suites[@]}"}; do
     if [[ ! -f "$line" ]]; then
-      echo "error: --suites-from names '$line', which is not a file" >&2
+      echo "error: suite argument '$line' is not a file (suite arguments are repo-relative)" >&2
       exit 2
     fi
     supplied+=("$line")
-  done <"$suites_from"
+  done
   if ((${#supplied[@]} == 0)); then
     echo "The supplied selection is empty; nothing to run."
     exit 0
@@ -492,6 +530,7 @@ for i in "${!tests[@]}"; do
     continue
   fi
   rc="$(<"$log.rc")"
+  [[ -z "$timings_file" ]] || printf '%s\t%s\t%s\n' "$t" "$(<"$log.secs")" "$rc" >>"$timings_file"
   if ((rc != 0)) && [[ -n "${is_advisory[$t]+x}" ]]; then
     suite_annotate warning "$t" "$t failed (exit $rc) but is advisory on this run (nonce $advisory_nonce; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
     advisory_failed=$((advisory_failed + 1))

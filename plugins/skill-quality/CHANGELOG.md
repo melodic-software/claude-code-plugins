@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.16] - 2026-10-31
+
+### Changed
+
+- `/skill-quality:check validate-evals` says it reads only the skill-creator file a skill may still carry, and points new evals at `case.yaml` cases in the plugin's `evals/` directory, written by `/evals:design` and checked by `/evals:validate`. The plugin's first eval case, `ve-new-evals-route-to-suite`, covers that pointer.
+
 ## [0.31.15] - 2026-10-30
 
 ### Changed

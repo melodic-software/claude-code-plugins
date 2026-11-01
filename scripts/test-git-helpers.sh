@@ -33,6 +33,15 @@
 # it. scripts/check-fixture-git-isolation.sh keeps that true.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 
+# TMPDIR INSIDE A REPOSITORY. fixture_tree::build and git_init_safe refuse such a
+# root, and a suite that runs raw `git -C "$fixture" ...` on the empty path that
+# leaves acts on the repository it runs from: `rm --cached .` empties a real
+# index. Stop the suite here, before any fixture exists.
+if [[ -d ${TMPDIR:-} ]] && git -C "$TMPDIR" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "test-git-helpers: refusing TMPDIR inside a git repository: $TMPDIR" >&2
+  exit 2
+fi
+
 # EMPTY OR NON-REPO DIR. `git -C ""` leaves the working directory unchanged
 # (git(1), -C), and a dir with no .git of its own discovers the nearest
 # enclosing repository. Either way a fixture write lands in the repo the suite

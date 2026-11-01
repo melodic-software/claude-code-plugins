@@ -1,13 +1,13 @@
 # Source records for the default layer set
 
 The four layers this skill falls back to are this plugin's selections from published standards,
-never copies of them, and none of them is this plugin's own invention. Each carries a record in
-the links-only shape (our decision, a pointer, an as-of date, a recheck trigger) so a later reader
-can tell what we took, where to read the standard live, when the selection was last checked, and
-what event should send someone back to check.
+never copies of them and never this plugin's own invention. Each carries a record in the
+links-only shape (our decision, a pointer, an as-of date, a recheck trigger): what we took, where
+to read the standard live, when the selection was last checked, and what event should send
+someone back to check.
 
-Read this when you need to know how faithful a layer is, cite a layer to someone, or decide whether
-a standard has moved since the selection was made.
+Read this to judge how faithful a layer is, to cite a layer, or to decide whether a standard has
+moved since the selection was made.
 
 ## Diátaxis: the mode layer
 
@@ -45,16 +45,15 @@ document written to this layer is not thereby STE-conformant.
 - **Recheck trigger**: a new Issue of the specification is published, or STEMG revises its paper on
   AI.
 
-This caveat is a real constraint, not boilerplate. Anyone claiming STE conformance for a document
-needs the specification; anyone wanting sentences that load one idea at a time can use the
-principles alone.
+Claiming STE conformance for a document needs the specification; sentences that load one idea at a
+time need only the principles.
 
 ### AI-checked STE is plausible, not verified
 
-We treat an AI checker's STE verdict, and this skill's own output, as plausible and unverified. The
-text can be plain and short, and nobody has verified conformance. The dictionary rules cannot be
-checked without the specification, which this plugin does not bundle. Never describe model-written
-or model-checked text as STE-conformant.
+We treat an AI checker's STE verdict, and this skill's own output, as plausible and unverified:
+the text can be plain and short with nobody having verified conformance, and the dictionary rules
+cannot be checked without the specification, which this plugin does not bundle. Never describe
+model-written or model-checked text as STE-conformant.
 
 ## Global English: the ambiguity layer
 
@@ -67,9 +66,8 @@ readers, translators, and machine parsers.
 
 ## Why these four and not one
 
-Each answers a different question, and no one of them answers another's. Diátaxis decides what kind
-of document this is and says nothing about sentences. Google's guide decides how a sentence
-addresses its reader and says nothing about how much it carries. STE decides how much one sentence
-carries and says nothing about whether it can be read two ways. Global English decides that, and
-says nothing about document shape. Dropping one leaves its question unanswered rather than answered
-worse.
+Each answers a different question, and none answers another's. Diátaxis decides what kind of
+document this is, not sentences. Google's guide decides how a sentence addresses its reader, not
+how much it carries. STE decides how much one sentence carries, not whether it can be read two
+ways. Global English decides that, not document shape. Dropping one leaves its question
+unanswered.

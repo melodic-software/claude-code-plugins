@@ -25,6 +25,10 @@ Read `$ARGUMENTS` whole; stop and name this accepted set on any other token.
   (`YYYY-MM-DD`, UTC) or `--days` set the window; `--project` keeps sessions whose repository or
   working directory contains the text; `--session` keeps named sessions; `--source <dir>` adds a
   directory laid out like `~/.claude/projects` (fetching it from another machine is out of scope).
+  The report header lists the projects roots: each `--source`, and for the machine store the
+  collector's default root, labeled as such since the store does not record its root. `mine` warns about a sibling tree the run
+  skipped, with the `--source` argument that adds it: a Windows user's tree under WSL's drive
+  mounts, or on Windows a running WSL distribution's tree (a stopped one is listed as unchecked).
 - `--verify` picks the verification depth (see [Verify](#5-verify)).
 
 ## Default decision policy
@@ -85,8 +89,9 @@ F mine --data-dir "<D>" <scope flags> <collector options> --format md
 ```
 
 A first collect reads every transcript: give it a long timeout or run it in the background. Exit 1
-from `mine` is a warning (a failed source, or records that predate friction mining): report it and
-continue. Exit 2: report and stop.
+from `mine` is a warning (a failed source, an unread sibling projects tree, or records that predate
+friction mining): report it and continue. For a sibling tree, put the warning at the top of the
+report. Exit 2: report and stop.
 
 ### 2. Classify (one agent)
 

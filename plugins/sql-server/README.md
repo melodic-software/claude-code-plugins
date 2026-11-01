@@ -68,8 +68,10 @@ A timer of `requestTimeoutMs` starts once the call has a connection, covers the 
 statement and the check, and cancels the running request when it fires.
 The row cap counts rows as they stream: the first row past `rowCap` cancels the request, and the
 call returns the rows it kept with `truncated: true`. After a timeout, a cancel, an error or a
-truncated result, the connection is closed. Until measurement sets them, the defaults are
-provisional: `requestTimeoutMs` 30000, `lockTimeoutMs` 5000, `rowCap` 1000.
+truncated result, the connection is closed. The defaults, `requestTimeoutMs` 30000,
+`lockTimeoutMs` 5000 and `rowCap` 1000, come from a measurement against a local container with a
+concurrent writer: [reference/read-safety-measurement.md](reference/read-safety-measurement.md)
+holds the results, the chosen row and how to rerun `scripts/measure-read-safety.mjs`.
 
 The pool holds at most two connections, each opened to one database of the allow-list, and closes
 a connection idle for 30 seconds. Every session carries the application name
@@ -139,3 +141,33 @@ tests drive it through a fake `tedious` connection.
 ```bash
 npm test --prefix plugins/sql-server
 ```
+
+### Integration test
+
+`integration/read-path.mjs` runs the server against a real SQL Server. It needs Docker, `openssl`
+and the plugin's installed dependencies:
+
+```bash
+npm ci --prefix plugins/sql-server
+node plugins/sql-server/integration/read-path.mjs
+```
+
+The script starts a `mcr.microsoft.com/mssql/server:2022-latest` container (Developer edition)
+on a random local port, with a self-signed certificate for `localhost` that only this run trusts.
+It creates a read-only login, a database `app` that the login can read and a database `other` that
+it cannot, and starts the server on a registration confined to `app`. Each password is generated
+for the run and reaches the plugin's server only through environment variables. It then checks the S1/S2,
+S5, S6 and S7 requirements of
+[#5940](https://github.com/melodic-software/claude-code-plugins/issues/5940) and prints one line
+per check:
+
+| Check | What passes |
+|---|---|
+| S1/S2 | Every write, DDL and session-state statement sent through `query` is refused, in each of two rounds. A statement the reject list lets through, such as `SELECT NEXT VALUE FOR` on a sequence, must meet a permission refusal. Each write is also sent straight to the server as the read-only login, past the reject list, and must meet a permission refusal there. After each attempt, a probe call shows the per-call settings in force and no plugin session holds a transaction. The database, read as `sa`, is unchanged at the end. |
+| S5 | Each tool refuses `database: "other"` before connecting. A three-part name into `other` is refused because the login cannot access that database. `list_objects` shows only `app`. |
+| S6 | Neither password appears in the plugin's files, in the config and registration files the run wrote, or in the server's output. |
+| S7 | `tools/list` returns the same list after every tool call of the run. The `tools` capability declares `listChanged` false. |
+
+It exits 0 when every check passes and 1 when a check or the setup fails. Without a reachable
+Docker daemon it prints `SKIP: docker not available` and exits 0. It removes the container and
+its temporary files when it ends.

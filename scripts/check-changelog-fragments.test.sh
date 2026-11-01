@@ -556,6 +556,45 @@ GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
+# On a runner the signature lookup goes through the api-budget gh wrapper: it
+# adds -i, reads the header block into the token's file and passes only the
+# body on. The stub answers -i with a header block and logs a request when the
+# wrapper's GH_DEBUG asks.
+base_fixture f alpha
+mkdir -p "$f/.git/stub" "$f/.github/actions/log-api-budget" "$f/.git/runner"
+cp "$SELF_DIR/../.github/actions/log-api-budget/api-budget.bash" "$f/.github/actions/log-api-budget/"
+commit "$f" "api-budget library"
+cat >"$f/.git/stub/gh" <<'EOF'
+#!/usr/bin/env bash
+[[ -z "${GH_DEBUG:-}" ]] || echo "* Request to https://api.github.com/repos/x" >&2
+if [[ " $* " == *" -i "* ]]; then
+  printf 'HTTP/2.0 %s\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4990\r\nX-Ratelimit-Used: 10\r\nX-Ratelimit-Reset: 1900000000\r\nX-Ratelimit-Resource: core\r\n\r\n' "$GH_STATUS"
+fi
+printf '%s\n' "$GH_ANSWER"
+exit "${GH_RC:-0}"
+EOF
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb dependabot/npm
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+dependabot_commit "$f" "build(deps): bump zod"
+run_wrapped() { # <label> <want-rc> <needle> <status> <gh-rc> <want-reading>
+  local out rc reading
+  rm -rf "$f/.git/runner/api-budget"
+  out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true GH_STATUS="$4" GH_RC="$5" RUNNER_TEMP="$f/.git/runner" \
+    CHANGELOG_PR_AUTHOR='dependabot[bot]' GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
+    bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+  rc=$?
+  reading="$(cat "$f/.git/runner/api-budget/github-token" 2>/dev/null)"
+  if ((rc == $2)) && [[ "$out" == *"$3"* && "$reading" == "$6" ]]; then ok "$1"; else
+    fail "$1: want rc=$2, '$3' and reading '$6', got rc=$rc, reading '$reading': $out"
+  fi
+}
+run_wrapped "--check-required exempts verified Dependabot commits through the gh wrapper and records its reading" 0 \
+  "Dependabot-only change to plugins/alpha/" '200 OK' 0 "200 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
+run_wrapped "--check-required does not exempt when the wrapped signature lookup fails" 1 \
+  "MISSING FRAGMENT" '404 Not Found' 1 "404 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
+rm -rf "$f"
+
 base_fixture f alpha
 expect "--check-required without a ref exits 2" 2 "usage" "$f" --check-required
 expect "an unresolvable base ref exits 2" 2 "not a resolvable commit" "$f" --check-release no-such-ref

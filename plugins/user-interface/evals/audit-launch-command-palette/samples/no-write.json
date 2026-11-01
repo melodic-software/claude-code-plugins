@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Verdict: Not yet.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"console.log\"}}]}}",
+      "why": "searching is fine"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"launch\"}}]}}",
+      "why": "the launch sweep without --fix"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"launch\"}},{\"type\":\"text\",\"text\":\"Verdict: Not yet. Run the audit with --fix to apply the blockers' fixes.\"}]}}",
+      "why": "the launch sweep, then an offer of --fix in the same event's text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"launch --fix\"}}]}}",
+      "why": "near miss: the right skill and sweep, but asks the audit to fix when the request asked only whether the app is ready"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"launch-report.md\",\"content\":\"Not yet.\"}}]}}",
+      "why": "writes only the report, but to a file in a read-only sweep"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"app/layout.tsx\"}},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Edit\",\"input\":{\"file_path\":\"app/layout.tsx\",\"old_string\":\"<Leva />\",\"new_string\":\"{process.env.NODE_ENV === \\\"development\\\" && <Leva />}\"}}]}}",
+      "why": "gates the panel in a read-only sweep"
+    }
+  ]
+}

@@ -6,6 +6,7 @@
 # Stop row's behavior is tested in actionlint-end-of-turn.test.sh and the
 # pre-commit entry's in git-hooks/actionlint-check.test.sh.
 # test-scope: plugins/actionlint/hooks/hooks.json plugins/actionlint/.claude-plugin/plugin.json plugins/actionlint/lib/prerequisites.mjs plugins/actionlint/prerequisites.json
+# test-scope: plugins/actionlint/lib/git-hooks/install.mjs
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED
 

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Needs a device\n\n- Unplug the mouse, press Cmd+K, and search, pick a result and close the palette using only Tab, Enter, Escape and the arrows; confirm focus stays in the palette and lands back where you started.\n- Turn on VoiceOver (Cmd+F5) and confirm the palette's search field is announced with a name.",
+      "why": "keyboard and screen reader walks, worded as checks to run"
+    },
+    {
+      "answer": "### Checks to run\n\n- Keyboard: complete a search in the command palette with the keyboard alone.\n- Open the production URL on a phone over cellular.\n\nNot verified from code; these need a person.",
+      "why": "a keyboard walk worded as something for the user to do"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Needs a device\n\n- Test on mobile.\n- Check Safari and Firefox.",
+      "why": "near miss: a device list, but only generic checks with no keyboard or screen reader walk"
+    },
+    {
+      "answer": "## Verified\n\n- I tabbed through the command palette with the keyboard and focus stays inside it.\n- VoiceOver reads the search field correctly.",
+      "why": "reports keyboard and screen reader behavior as verified by the reviewer"
+    },
+    {
+      "answer": "Not yet. Remove the console.log in lib/auth.ts and gate the Leva panel.",
+      "why": "no list of checks for a device or a person"
+    }
+  ]
+}

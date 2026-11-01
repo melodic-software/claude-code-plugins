@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0] - 2026-10-31
+
+### Changed
+
+- `/code-tidying:batch-simplify` takes `--unattended` in place of the bare word `unattended`, accepted anywhere in its arguments. The bare word no longer skips the native `simplify` step: the run stops and names `--unattended`. The argument hint lists `--unattended` after the scope, and the evals pass the flag.
+
 ## [0.33.0] - 2026-10-31
 
 ### Added

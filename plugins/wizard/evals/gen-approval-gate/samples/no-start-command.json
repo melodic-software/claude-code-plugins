@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "bash -n and shellcheck are clean. Here is the STAGES block; approve it and I will make it executable.",
+      "why": "no start command"
+    },
+    {
+      "answer": "I checked it with `bash -n scripts/setup-sms.sh`.",
+      "why": "syntax check named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Start it with:\n\n```\n./scripts/setup-sms.sh\n```",
+      "why": "start command"
+    },
+    {
+      "answer": "Run `bash scripts/setup-sms.sh` in your terminal.",
+      "why": "bash form"
+    }
+  ]
+}

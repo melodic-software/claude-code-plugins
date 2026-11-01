@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: de-skill-target-suite
+description: "Hard case. Why hard: the base model reaches for the skill-creator JSON file next to the skill; this plugin's design skill writes claude plugin eval case directories in the plugin's eval directory and checks them with /evals:validate. Source: the owner's decision to make case.yaml the one eval format for skills."
+tags: [design, skill-target, hard]
+runs: 3
+expected_outcome: "The answer puts each case in its own directory under plugins/release-tools/evals/ with a case.yaml, keeps the cases out of the skill directory, and checks them with /evals:validate before any paid run"
+execution:
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10
+graders:
+  - name: 'names-case-yaml'
+    type: 'regex'
+    pattern: '\bcase\.yaml\b'
+    flags: 'i'
+    arm: 'both'
+  - name: 'names-validate'
+    type: 'regex'
+    pattern: '/?\bevals:validate\b'
+    flags: 'i'
+    arm: 'both'
+  - name: 'suite-layout'
+    type: 'llm'
+    arm: 'both'
+    criteria: "PASS if the answer says each case goes in its own directory under the plugin's eval directory (plugins/release-tools/evals/, or the directory the plugin manifest names) with a case.yaml, and says to check the cases statically before a paid run. FAIL if it puts the cases in a JSON file inside the skill's directory (such as skills/deploy-notes/evals/evals.json), writes the cases now, or later contradicts or retracts this."
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"evals:design"'

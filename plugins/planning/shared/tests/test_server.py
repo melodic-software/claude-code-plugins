@@ -1,3 +1,5 @@
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
+# test-scope: plugins/planning/surface/schema/*.schema.json
 """server.py: listeners, auth classes, Host checks, headers, caps, errors and the snapshot.
 
 Expected values come from the Design's Contracts ("Listeners", "Auth classes", "Guest listener
@@ -1918,6 +1920,99 @@ class TestClientLog(LogCase):
             h.flush()
         self.assertEqual(sorted(p.name for p in d.glob("server.log*")), ["server.log", "server.log.1", "server.log.2", "server.log.3"])
         self.assertIn("entry-19", (d / "server.log").read_text(encoding="utf-8"))
+
+
+class TestFaultSpike(LogCase):
+    """README "Logs": SPIKE_THRESHOLD faults of one kind (client error, rejection or api, or a 5xx answer) within
+    SPIKE_WINDOW seconds write one fault-spike event from the server's own counts, then none for SPIKE_COOLDOWN."""
+
+    PLANTED = {"kind": "error", "message": "planted-message-okapi", "source": "/planted-source.js:9", "route": "/planted-route", "ua": "chrome computer", "fp": "feedc0de"}
+
+    def spikes(self):
+        with self.app.session._lock:
+            return [e for e in self.app.session.state["log"]["events"] if e["kind"] == "fault-spike"]
+
+    def fault(self, headers, body=None):
+        self.assertEqual(self.post("/api/client-log", body or self.PLANTED, headers)[0], 200)
+
+    def test_the_constants_are_the_decided_values(self):
+        self.assertEqual((server.SPIKE_THRESHOLD, server.SPIKE_WINDOW, server.SPIKE_COOLDOWN), (3, 300, 600))
+
+    def test_no_event_below_the_threshold_and_one_with_only_the_counts_above_it(self):
+        pid, guest = self.join("Ann")
+        for _ in range(server.SPIKE_THRESHOLD - 1):
+            self.fault(guest)
+        self.assertEqual(self.spikes(), [])
+        self.fault(guest)
+        events = self.spikes()
+        self.assertEqual(len(events), 1)
+        ev = events[0]
+        self.assertEqual(set(ev), {"seq", "at", "kind", "fault", "count", "window", "threshold"})
+        self.assertEqual((ev["fault"], ev["count"], ev["window"], ev["threshold"]), ("error", 3, 300, 3))
+        text = json.dumps(ev)
+        for planted in ("planted-message-okapi", "planted-source", "planted-route", "feedc0de", pid):
+            self.assertNotIn(planted, text)
+
+    def test_no_other_event_until_the_cooldown_ends(self):
+        _, guest = self.join("Ann")
+        for _ in range(server.SPIKE_THRESHOLD + 3):
+            self.fault(guest)
+        self.assertEqual(len(self.spikes()), 1)
+        with mock.patch.object(server, "SPIKE_COOLDOWN", 0):
+            self.app._spike_quiet_until = 0.0  # the cooldown has ended
+            self.fault(guest, {**self.PLANTED, "kind": "rejection"})
+            self.assertEqual(len(self.spikes()), 1)  # rejection has one fault in the window
+            self.fault(guest)
+        self.assertEqual([e["count"] for e in self.spikes()], [3, 7])
+
+    def test_kinds_are_counted_apart_and_layout_not_at_all(self):
+        _, guest = self.join("Ann")
+        for kind in server.SPIKE_KINDS:
+            for _ in range(server.SPIKE_THRESHOLD - 1):
+                self.fault(guest, {**self.PLANTED, "kind": kind})
+        for _ in range(server.SPIKE_THRESHOLD):
+            self.fault(guest, {**self.PLANTED, "kind": "layout"})
+        self.assertEqual(self.spikes(), [])
+
+    def test_faults_older_than_the_window_do_not_count(self):
+        _, guest = self.join("Ann")
+        with mock.patch.object(server, "SPIKE_WINDOW", 0.2):
+            for _ in range(server.SPIKE_THRESHOLD - 1):
+                self.fault(guest)
+            time.sleep(0.3)
+            self.fault(guest)
+        self.assertEqual(self.spikes(), [])
+
+    def test_server_errors_count_as_request_faults(self):
+        _, guest = self.join("Ann")
+        with mock.patch.object(session.Session, "rename", side_effect=RuntimeError("planted-trace-okapi")):
+            for _ in range(server.SPIKE_THRESHOLD):
+                self.assertEqual(self.post("/api/rename", {"name": "Bo"}, guest)[0], 500)
+        events = self.spikes()
+        self.assertEqual([(e["fault"], e["count"]) for e in events], [("request", 3)])
+        self.assertNotIn("planted-trace-okapi", json.dumps(events))
+
+    def test_a_refused_unknown_method_is_no_fault(self):
+        for _ in range(server.SPIKE_THRESHOLD):
+            self.assertEqual(call(self.port, "PROPFIND", "/")[0], 501)
+        self.assertEqual(self.spikes(), [])
+
+    def test_a_spike_that_fails_to_write_leaves_no_cooldown(self):
+        _, guest = self.join("Ann")
+        with mock.patch.object(session.Session, "fault_spike", side_effect=RuntimeError("disk full")):
+            for _ in range(server.SPIKE_THRESHOLD):
+                self.fault(guest)
+        self.assertEqual(self.spikes(), [])
+        self.fault(guest)
+        self.assertEqual([e["count"] for e in self.spikes()], [4])
+
+    def test_the_event_reaches_claude(self):
+        _, guest = self.join("Ann")
+        for _ in range(server.SPIKE_THRESHOLD):
+            self.fault(guest, {**self.PLANTED, "kind": "api", "code": "network"})
+        code, _, out = call(self.app.control_port, "GET", "/api/wait?after=handled&timeout=5", headers={"X-Shared-Token": self.app.hub.token}, timeout=20)
+        self.assertEqual(code, 200)
+        self.assertEqual([(e["kind"], e["fault"]) for e in out["events"]], [("fault-spike", "api")])
 
 
 class TestHostHealth(LogCase):

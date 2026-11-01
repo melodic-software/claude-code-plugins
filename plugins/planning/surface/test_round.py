@@ -2986,14 +2986,45 @@ class TestReviseSetsAsideOwn(DirCase):
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
-    def test_accept_and_alt_answers_are_not_set_aside(self):
-        for kind in ("accept", "alt"):
+    def test_alt_and_defer_answers_are_not_set_aside(self):
+        for kind in ("alt", "defer"):
+            self.write_doc(base_doc())
             self.answer(kind)
             rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
-            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_of_the_old_recommendation_is_set_aside(self):
+        for kind in ("accept", "hedged"):
+            self.write_doc(base_doc())
+            self.answer(kind, "if it holds" if kind == "hedged" else "")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
+            self.assertEqual(rc, 0, out + err)
+            q = self.q("Q1")
+            self.assertEqual(q["setAsideSeq"], 1)
+            self.assertEqual(q["asideRecommendation"]["text"], "Yes. It keeps things simple.")
+            self.assertEqual(q["asideRecommendation"]["seq"], 1)
+            self.assertIsNone(self.latest())
+            self.assertIn(self.OPEN, self.status())
+
+    def test_an_accept_survives_a_revision_to_the_same_recommendation(self):
+        self.answer("accept")
+        rec = {**self.REC, "rec": "Yes. It keeps things simple."}
+        rc, out, err = self.op("revise", id="Q1", **rec, seq=1)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_after_the_revision_counts(self):
+        self.answer("accept")
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="accept")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "accept")
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
 
     def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
         sys.path.insert(0, str(HERE))
@@ -3002,7 +3033,7 @@ class TestReviseSetsAsideOwn(DirCase):
         snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
         self.answer("own", "arrived after the guard read")
         q = self.q("Q1")
-        r.set_aside_own(snapshot, self.doc(), q)
+        r.set_aside_answer(snapshot, self.doc(), q, "Use the lock.")
         self.assertNotIn("setAsideSeq", q)
 
     def test_a_terminal_own_answer_is_set_aside_too(self):
@@ -4010,6 +4041,24 @@ class TestRoundTooling(DirCase):
         rows = ledger.read_text(encoding="utf-8").splitlines()
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
+    def test_sync_ledger_names_the_ledger_ledger_check_reads(self):
+        ledger = self.ledger()
+        self.assertNotIn("seededFrom", self.doc()["meta"])
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["syncedLedger"], str(ledger.resolve()))
+        self.assertEqual(meta["ledgerSync"], {"rev": self.doc()["rev"], "rows": []})
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+
     def test_sync_ledger_with_a_missing_ledger_writes_nothing(self):
         self.assert_refused(
             "add-round",
@@ -4638,6 +4687,18 @@ class TestLedgerCheck(DirCase):
         rc, out, err = self.rp("ledger-check")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_a_page_synced_to_a_ledger_is_checked_against_it(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 6, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
 
     def test_wake_logs_the_disagreeing_row_after_apply(self):
         self.drift_one_row()

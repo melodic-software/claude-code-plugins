@@ -35,8 +35,9 @@ ops, and supersede and resolve read their text from a file.
   import-ledger   seed an empty data dir from an existing ledger
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
-  ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
-                  export-ledger --diff does; records meta.ledgerSync for the page header and logs
+  ledger-check    compare the page with --ledger F, else the ledger sync-ledger last wrote, else
+                  the one it was seeded from, as export-ledger --diff does; records
+                  meta.ledgerSync for the page header and logs
                   an Activity line when the rows that disagree change; exit 6 when any does
                   (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with the proposal
@@ -460,14 +461,23 @@ def checked_alts(q, alts):
     return alts
 
 
-def set_aside_own(r, doc, q):
-    """A recommendation revision answers the user's own text, so a counted `own` decision stops
-    counting (the same stamps as a user hold, without the hold). Accept, alt and defer stay."""
+def set_aside_answer(r, doc, q, rec):
+    """A recommendation revision to `rec` sets aside the counted decision it outdates (the same
+    stamps as a user hold, without the hold): an `own` answer, which the revision answers, and an
+    accept or hedged accept of a different recommendation, which records the text it accepted in
+    asideRecommendation. Alt and defer stay."""
     latest = exporters.latest_decision(q, r.get("responses", {}))
-    if latest and latest.get("decision") == "own":
-        q.update(
-            setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1
-        )
+    said = (latest or {}).get("decision")
+    old = q.get("recommendation") or ""
+    if said in exporters.CARRIES and old and old != rec:
+        q["asideRecommendation"] = {
+            "text": old,
+            **({"seq": latest["seq"]} if "seq" in latest else {}),
+            "decidedAt": latest["updatedAt"],
+        }
+    elif said != "own":
+        return
+    q.update(setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1)
 
 
 def checked_list(doc, ids):
@@ -1350,7 +1360,7 @@ def op_reply(d, doc, a):
             "pass revised `alternatives` in the same op",
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
-        set_aside_own(snapshot, doc, q)
+        set_aside_answer(snapshot, doc, q, a.rec)
         if q.get("recommendation") or not q.get("proposed"):
             # An accepted proposal's first recommendation revises nothing.
             q["previousRecommendation"] = q.get("recommendation", "")
@@ -1456,7 +1466,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
-        set_aside_own(snapshot, doc, q)
+        set_aside_answer(snapshot, doc, q, a.rec)
         if q.get("recommendation") or not q.get("proposed"):
             # An accepted proposal's first recommendation revises nothing.
             q["previousRecommendation"] = q.get("recommendation", "")
@@ -1590,6 +1600,8 @@ def op_record_terminal(d, doc, a):
     if q.get("setAsideRev") == doc["rev"] + 1:
         # A user hold earlier in this same write: this answer came after it, so it counts.
         q["setAsideRev"] = doc["rev"]
+    # A terminal record carries no seq, so a stale accepted text could match it by time alone.
+    q.pop("asideRecommendation", None)
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
         "accept": "Accepted",
@@ -2093,6 +2105,7 @@ def cmd_add_round(d, a):
             f"({cause}); run: round.sh --dir {shlex.quote(str(d))} sync-ledger --ledger "
             f"{shlex.quote(a.sync_ledger)}"
         )
+    record_synced_ledger(d, a.sync_ledger)
     report_notes(notes, ("conflict",))
 
 
@@ -2733,38 +2746,53 @@ def cmd_export_ledger(d, a):
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
 
 
+def record_ledger_sync(d, doc, ledger, force=False):
+    """Compare the page with `ledger` as `export-ledger --diff` does and record the result in
+    doc's meta.ledgerSync for the page header, for the caller to save; `force` records it even when
+    it is unchanged. A change in which rows disagree adds an Activity Log line. Return (drift
+    lines, disagreeing rows, whether doc changed)."""
+    notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
+    drift = [line for kind, line in notes if kind in ("change", "conflict")]
+    # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
+    rows = list(
+        dict.fromkeys(
+            (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
+            for line in drift
+        )
+    )
+    was = doc["meta"].get("ledgerSync") or {}
+    if not force and was.get("rows") == rows and was.get("rev") == doc["rev"]:
+        return drift, rows, False
+    if rows and was.get("rows") != rows:
+        log_activity(
+            doc,
+            capped_text(
+                f"Ledger out of sync, {len(rows)} "
+                f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
+                LINE_CAP,
+            ),
+            [],
+        )
+    doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+    return drift, rows, True
+
+
 def cmd_ledger_check(d, a):
-    """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
-    does, and record the result in meta.ledgerSync for the page header. A change in which rows
-    disagree adds an Activity Log line; exit 6 when any row does."""
+    """Compare the page with --ledger, else the ledger the last sync-ledger wrote, else the one the
+    page was seeded from, and record the result in meta.ledgerSync; exit 6 when any row disagrees."""
     with sidecar_lock(d):
         doc = load(d)
-        ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
-        if not ledger:
-            print("no ledger to check: the page was not seeded from one")
-            return
-        notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
-        drift = [line for kind, line in notes if kind in ("change", "conflict")]
-        # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
-        rows = list(
-            dict.fromkeys(
-                (re.match(r"Q\d+\b", line) or re.match(r"", line)).group() or "order"
-                for line in drift
-            )
+        meta = doc["meta"]
+        ledger = (
+            a.ledger
+            or meta.get("syncedLedger")
+            or (meta.get("seededFrom") or {}).get("ledger")
         )
-        was = doc["meta"].get("ledgerSync") or {}
-        if was.get("rows") != rows or was.get("rev") != doc["rev"]:
-            if rows and was.get("rows") != rows:
-                log_activity(
-                    doc,
-                    capped_text(
-                        f"Ledger out of sync, {len(rows)} "
-                        f"{'row' if len(rows) == 1 else 'rows'}: {drift[0]}",
-                        LINE_CAP,
-                    ),
-                    [],
-                )
-            doc["meta"]["ledgerSync"] = {"rev": doc["rev"] + 1, "rows": rows}
+        if not ledger:
+            print("no ledger to check: the page was not seeded from one or synced to one")
+            return
+        drift, rows, changed = record_ledger_sync(d, doc, ledger)
+        if changed:
             save(d, doc)
     for line in drift:
         print(line)
@@ -2796,8 +2824,22 @@ def write_synced_ledger(d, ledger):
     return notes
 
 
+def record_synced_ledger(d, ledger):
+    """Name `ledger` in meta.syncedLedger, the one ledger-check reads, and record its check in
+    meta.ledgerSync, so the page header shows the ledger line on a page not seeded from one."""
+    with sidecar_lock(d):
+        doc = load(d)
+        path = str(Path(ledger).resolve())
+        renamed = doc["meta"].get("syncedLedger") != path
+        doc["meta"]["syncedLedger"] = path
+        if record_ledger_sync(d, doc, ledger, force=renamed)[2]:
+            save(d, doc)
+
+
 def cmd_sync_ledger(d, a):
-    report_notes(write_synced_ledger(d, a.ledger), ("conflict",))
+    notes = write_synced_ledger(d, a.ledger)
+    record_synced_ledger(d, a.ledger)
+    report_notes(notes, ("conflict",))
 
 
 def edit_ledger(a, edit):
@@ -3319,7 +3361,8 @@ def main(argv=None):
     )
     s.add_argument(
         "--ledger",
-        help="the ledger to compare with (default: the one import-ledger seeded the page from)",
+        help="the ledger to compare with (default: the one sync-ledger last wrote, else the one "
+        "import-ledger seeded the page from)",
     )
     s.set_defaults(fn=cmd_ledger_check)
 

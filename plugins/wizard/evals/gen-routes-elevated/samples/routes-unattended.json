@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:unattended"
+          }
+        }
+      ],
+      "why": "routes by calling the unattended skill and never names it in the reply"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "unattended",
+            "args": "swap the portal release from an admin shell"
+          }
+        }
+      ],
+      "why": "bare skill name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: a text-only referral to /wizard:unattended fails"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:generate"
+          }
+        }
+      ],
+      "why": "stays on the entry skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:generate",
+            "args": "this is really a wizard:unattended job"
+          }
+        }
+      ],
+      "why": "target named only in args, not the skill key"
+    }
+  ]
+}

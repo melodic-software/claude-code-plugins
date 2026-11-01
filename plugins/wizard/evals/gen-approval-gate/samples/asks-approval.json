@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "Here is the STAGES block. Do you approve this?",
+      "why": "do you approve"
+    },
+    {
+      "answer": "Please approve the stage code before I make it executable.",
+      "why": "please approve"
+    },
+    {
+      "answer": "Approve it and I'll run chmod +x and tell you how to start it.",
+      "why": "approve it and I'll"
+    },
+    {
+      "answer": "Read it through, then say approved.",
+      "why": "say approved"
+    },
+    {
+      "answer": "Once you approve the STAGES block I will make it executable.",
+      "why": "once you approve"
+    },
+    {
+      "answer": "Reply with your approval and I'll run `chmod +x`.",
+      "why": "observed reply: reply with your approval"
+    },
+    {
+      "answer": "Give me your approval on the STAGES block and I will make it executable.",
+      "why": "give me your approval"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "It's executable now; start it with ./scripts/setup-sms.sh.",
+      "why": "no ask"
+    },
+    {
+      "answer": "The wizard asks you to confirm the target repository before it writes the CI secret.",
+      "why": "describes the script's own prompt"
+    },
+    {
+      "answer": "No need to reply with your approval; it is executable now.",
+      "why": "near-miss: negated reply with your approval"
+    },
+    {
+      "answer": "You don't need to give me your approval; the stages are approved by default.",
+      "why": "near-miss: negated give me your approval, approved by default"
+    },
+    {
+      "answer": "There is no need to approve anything here.",
+      "why": "no need to approve"
+    }
+  ]
+}

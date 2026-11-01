@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "look around"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/plugins/wizard/skills/unattended/template.ps1 ./rebuild-debian-build.ps1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "template copied"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > rebuild.ps1 <<'EOF'\n#requires -Version 7.0\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc"
+    }
+  ]
+}

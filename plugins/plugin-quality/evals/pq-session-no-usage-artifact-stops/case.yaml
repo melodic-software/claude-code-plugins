@@ -26,7 +26,8 @@ graders:
     arm: both
   - name: no-invented-commit-row
     type: regex
-    pattern: '\bsource-control:commit\b'
+    pattern: '^\s*(?:[-*|]|\d+\.)\s*(?:\|\s*)?[`*]*source-control:commit\b|source-control:commit\b[`*]*[^\n\d]{0,24}(?<![#\w])(?<!step )[1-9]\d*\b'
+    flags: 'mi'
     match: not_contains
     target: last_message
     arm: both

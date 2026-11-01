@@ -333,7 +333,7 @@ test("each response's rate-limit headers are appended as a reading under API_BUD
     await budget.fetch("https://api.example/repos/o/r/b");
     assert.equal(
       readFileSync(join(dir, "api-budget", "github-token"), "utf8"),
-      "200 5000 4000 1000 1792378942 core\n403 5000 3999 1001 1792378942 core\n",
+      "200 5000 4000 1000 1792378942 core other\n403 5000 3999 1001 1792378942 core other\n",
     );
   } finally {
     for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {

@@ -15,9 +15,9 @@ Contents: `the-reset`, `logical-properties`, `oklch-color`,
 
 Why: one base stylesheet removes the layout, font and touch defaults that every later rule fights.
 
-Baseline: [`text-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#browser_compatibility),
-[`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/scrollbar-gutter#browser_compatibility),
-[`interpolate-size`](https://developer.mozilla.org/en-US/docs/Web/CSS/interpolate-size#browser_compatibility);
+Baseline: [`text-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap#browser_compatibility),
+[`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-gutter#browser_compatibility),
+[`interpolate-size`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/interpolate-size#browser_compatibility);
 the rest is widely available. As of 2026-10-11, recheck on a status change.
 
 Start a new project with it. In an existing project add one rule at a time and look at the result:
@@ -58,13 +58,16 @@ img, svg, video {
 
 input, textarea, select { font-size: max(16px, 1rem); }
 
-button, a, [role="button"] { touch-action: manipulation; }
+button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
 
 button, [role="button"] {
   user-select: none;
   -webkit-user-select: none;
 }
 ```
+
+In a Tailwind project this goes in the base layer of the global CSS, using the project's tokens.
+Merge it into the root rules the project already has; never add a second global stylesheet.
 
 Rules:
 
@@ -76,21 +79,41 @@ Rules:
   `press-feedback` (`interaction.md`).
 - Never fix input zoom with `user-scalable=no` or `maximum-scale=1`; that takes zoom from people
   who need it.
-- Keep `user-select: none` to controls, never on `body` or links: people copy text.
+- `max(16px, 1rem)` keeps input text at 16px even when the root font size is set lower. If the
+  design needs smaller input text on desktop, set the smaller size outside
+  `@media (pointer: coarse)` and keep 16px inside it; why is the `touch` concern's.
+- Keep `user-select: none` to controls, never on `body` or links: people copy text. Extend the
+  selector to the project's other controls (tabs, chips, drag handles), and give a link or image
+  used as a control `-webkit-touch-callout: none` so a long press opens no callout.
+- In an app shell with its own scroll areas, add the root rule of
+  `no-rubber-band-bounce-on-desktop` (`scroll-and-viewport.md`); a scrolling document leaves it
+  out.
+- `text-wrap: pretty` on `:root` is deliberate, and long-form body text keeps it; the pointer
+  below records what the value is for and what it costs. Where layout speed matters more than the
+  last line, as in a long text that re-lays often, such as a live log, set `text-wrap: wrap` on
+  that element.
 - Typed text inherits `pretty` in `textarea` and `contenteditable`. If lines shift while typing,
   set `text-wrap: stable` on that element.
 - The reserved gutter puts centered content slightly off-center on a page too short to scroll.
   Accept it.
 - `svh` is for documents and heroes. An app shell with UI pinned to the bottom uses
-  `height: 100dvh`, so it tracks the browser toolbar.
+  `height: 100dvh`, so it tracks the browser toolbar
+  (`full-height-that-browser-chrome-cannot-cover`, `scroll-and-viewport.md`).
+
+- **Pointer**: MDN, `text-wrap-style`, "Values" (`pretty`) and "Selecting a value" (its
+  performance note),
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#values> and
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-wrap-style#selecting_a_value>
+- **As of**: 2026-10-29
+- **Recheck trigger**: either section changes what `pretty` is intended for or what it costs.
 
 ## Logical properties: `logical-properties`
 
 Why: inline and block sides follow writing direction, so one rule serves left-to-right,
 right-to-left and vertical text.
 
-Baseline: [`margin-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/margin-inline#browser_compatibility),
-[`inset-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/inset-inline#browser_compatibility).
+Baseline: [`margin-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/margin-inline#browser_compatibility),
+[`inset-inline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset-inline#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use them in place of every left, right, top and bottom: spacing, borders, offsets, alignment.
@@ -121,8 +144,8 @@ Rules:
 Why: OKLCH is perceptually even, so mixes and tints derived from one base stay on hue and
 lightness steps look equal.
 
-Baseline: [`oklch()`](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklch#browser_compatibility),
-[`color-mix()`](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/color-mix#browser_compatibility).
+Baseline: [`oklch()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/oklch#browser_compatibility),
+[`color-mix()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/color-mix#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Write colors in `oklch()` and derive every related color from a base with
@@ -150,10 +173,14 @@ Rules:
 Why: each token holds both values, so there is no second variable block under a media query or a
 `.dark` class to drift out of sync.
 
-Baseline: [`light-dark()`](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/light-dark#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
+Baseline: [`light-dark()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#browser_compatibility);
+the image form has its own compat row. As of 2026-10-29, recheck on a status change.
+
+Use it in an app with two designed themes. A single-theme app declares its one scheme instead (the
+`theming` concern), and a project with its own theme mechanism keeps it.
 
 ```css
+/* Two-theme apps only */
 :root {
   color-scheme: light dark;
   --background: light-dark(var(--background-light), var(--background-dark));
@@ -166,18 +193,25 @@ As of 2026-10-11, recheck on a status change.
 
 Rules:
 
-- Switch themes by setting `color-scheme`. Never redefine the tokens.
+- Switch themes by setting `color-scheme`.
 - Grays use `none` for the hue so they mix without drifting toward red (`oklch-color`).
-- `light-dark()` takes two colors. Anything else that differs by theme, such as an image, needs
-  its own rule.
-- Add `<meta name="color-scheme" content="light dark">` so the browser paints the right background
-  before the CSS loads.
+- `light-dark()` takes two colors, or two images such as `url()` values or gradients. Check the
+  image form's own compat row before relying on it. Anything else that differs by theme needs its
+  own rule.
+- In a two-theme app, add `<meta name="color-scheme" content="light dark">` so the browser paints
+  the right background before the CSS loads. A single-theme app's tag names its one scheme.
+
+- **Pointer**: MDN, `light-dark()`, "Syntax" (the color and image forms),
+  <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/color_value/light-dark#syntax>
+- **As of**: 2026-10-29
+- **Recheck trigger**: the page changes the forms it accepts, or the image form's compat row
+  reaches Baseline.
 
 ## Fluid sizes with `clamp()`: `fluid-sizes-with-clamp`
 
 Why: one declaration that grows with the screen replaces a ladder of breakpoint overrides.
 
-Baseline: [`clamp()`](https://developer.mozilla.org/en-US/docs/Web/CSS/clamp#browser_compatibility).
+Baseline: [`clamp()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/clamp#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it for anything that should grow with the screen, starting with font sizes and section
@@ -208,7 +242,7 @@ Rules:
 Why: six numbers describe every size and the browser derives the steps, replacing a per-breakpoint
 size table and a generator someone must rerun.
 
-Baseline: [`pow()`](https://developer.mozilla.org/en-US/docs/Web/CSS/pow#browser_compatibility).
+Baseline: [`pow()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/pow#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it when a design has more than two or three font sizes.

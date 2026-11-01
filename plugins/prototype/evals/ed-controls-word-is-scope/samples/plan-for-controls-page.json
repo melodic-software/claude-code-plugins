@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Plan: thermostat controls page, HTML mockup, variants A to C (Dial, Timeline, Presets), states idle, heating, schedule-empty, offline.",
+      "why": "plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Which variant should I put on the control panel?",
+      "why": "parsed as action"
+    }
+  ]
+}

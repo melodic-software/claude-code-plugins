@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: pt-html-demo-offline
+description: "Base HTML demo shell for a driver outside engineering: one offline page in a mktemp run directory with the CSP meta tag and a fake-data disclosure. csp-base-directives checks that one meta tag carries every directive of the base policy, MB:plugins/prototype/skills/pressure-test/SKILL.md:111-113, in any order."
+tags: [pressure-test, hard]
+runs: 3
+expected_outcome: "The demo is one HTML page written inside a pressure-test-XXXXXX mktemp directory outside the workspace, with a CSP meta tag whose policy starts default-src 'none' and a footer saying the data is synthetic or fake. The Content-Security-Policy meta tag carries every directive of the base policy, not only default-src 'none'."
+execution:
+  prompt: "/prototype:pressure-test coupon stacking at checkout: can a percent-off coupon combine with a free-shipping coupon and a loyalty discount, and in what order do they apply? Our product manager will click through it; she doesn't use a terminal."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 900

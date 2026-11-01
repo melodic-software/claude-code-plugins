@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "When it finishes I'll read unattended-results/result-latest.json; no need to paste the output here.",
+      "why": "negated"
+    },
+    {
+      "answer": "Tell me when it has finished.",
+      "why": "no paste ask"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then paste the console output here so I can check it.",
+      "why": "paste here"
+    },
+    {
+      "answer": "Copy the transcript back to me when done.",
+      "why": "copy back"
+    }
+  ]
+}

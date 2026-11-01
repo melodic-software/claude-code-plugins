@@ -1,5 +1,158 @@
 # Changelog for the PR pipeline convention
 
+## [8.27.4] - 2026-10-31
+
+### Fixed
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` job also re-runs a head's `ci-status` when a `pr-unblock.yml` run completes after setting or clearing a `pr-unblock/*` status on it, and when a person on the trusted-actor list approves it. Before, both changes waited for a hand re-run: the status is written with a `GITHUB_TOKEN`, whose events start no workflow, and no `pull_request` event fires on a review.
+- The new `pr-review-approved.yml` relays an approving review of a same-repository pull request, with no permission, as a `workflow_run` upstream, so the re-run it causes is recorded for pr-verify's trigger gate.
+
+- A thread a `review-threads.reviewer-ids` bot opened, with no trusted person's direction on it, is
+  worked only when a trusted actor asked for that bot's review. Anyone can comment `@codex` on a
+  public repository.
+  - **An explicit request** is a `@codex` comment in an issue comment, a review comment or a review
+    body, posted since the same bot's previous review. It must come from a person on the
+    trusted-actor list. The bot's own text does not count.
+  - **An automatic review** has no `@codex` comment and counts as asked for by whoever triggered it.
+    That is the pull request's author on opening, or the actor of a ready-for-review event. Every
+    such event in the window must be a trusted person's or the lanes App's.
+  - Any untrusted request or event in the window leaves the thread for a person, and so does none
+    that can be read. So do these, since each may have held a request:
+    - an untrusted comment or review edited since the window opened, whatever it says now (review
+      edit times come from GraphQL);
+    - an untrusted comment that was deleted (GraphQL `CommentDeletedEvent`). The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
+  - The select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml`
+    apply the same check. `chatgpt-codex-connector[bot]` stays on `reviewer-ids`, and the
+    trusted-actor list is unchanged.
+
+## [8.27.3] - 2026-10-31
+
+### Fixed
+
+- Both review lanes (`review-code`, `review-security`) run on the `pr-review` profile at `opus`, effort `high`, in place of `sonnet`: they judge work the Opus profiles write, and no objective failure signal is on the head when their model is chosen (`docs/plugin-philosophy.md`, "Model tiers", rules 3 and 4). A test fails when either review route resolves to a model weaker than a route that writes code.
+
+## [8.27.2] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep now also removes `needs-session` after a push that mends the stop. That holds when the head is no longer any stop's head, the newest `pr-unblock/*` status for each stop's activity at the new head, if any, is a success, and its checks pass, not counting `ci-status`, which the label keeps red. Before, only a same-head retry lifted the label, and a session had to remove it by hand after a new head. A `dependency-workflow-unpinned` stop still comes off only on its own head. If the cause still holds, the lane stops again on the new head and labels it again ([#11200](https://github.com/melodic-software/claude-code-plugins/issues/11200)).
+
+- check-wip-cap reads the queued `agent-ready` issues from the repository issues listing
+  (`GET /repos/{repo}/issues`, open, oldest first) in place of the search API, whose results carry
+  no recency guarantee, so parallel apply-verdict admissions count against a fresh queued count.
+  Pull requests and the hold labels (`needs-human`, `needs-owner-decision`,
+  `status: needs-decision`, `status: needs-info`, in any case) are left out client-side. A failed
+  page, or one that is not a list, leaves the queued count unread (`admission_basis`
+  `fail-open`), so intake admission admits nothing, as before. Past 10 pages one more issue
+  counts as unlisted and admissions pause. The pull request searches are unchanged.
+- Intake admission reads the racing admissions' `admission-deferred` listing before the
+  `agent-ready` one. A run that adds `agent-ready` and then drops its claim between the two
+  reads was missing from both, so a parallel admission could take one place past the room.
+  The claim order is unchanged.
+- Intake admission tests run `Promise.all` bursts of 2, 4 and 5 concurrent `admit()` runs
+  against one shared fake GitHub with room 1, 2 and 3: no burst admits past its room, every
+  shuffled burst admits, and a burst whose runs all read the room before any claim admits
+  exactly the room.
+
+## [8.27.1] - 2026-10-31
+
+### Fixed
+
+- `pr-merge`'s candidate listing no longer sleeps a fixed 15 s and 30 s or ends red on an outage.
+  It runs through the new `.github/scripts/pr-merge/retry-call.bash`: at most three tries, waiting
+  out a recorded rate stop or a capped, fully jittered backoff, within 60 s of waits in all. Each
+  try also reads the open pull request count and fails when the listing does not match it, so a
+  200 with items missing no longer reaches the gate. A listing still unknown ends the step green
+  with a `::notice::` hold: the job gates, merges, re-fires and clears nothing, and the next
+  scheduled run lists again. A listing that reaches its limit of 1000 ends the job red at once with
+  no retry. The re-fire and escalation-clear steps skip on a red listing too.
+- A held `pr-merge` run still writes the `pr-merge-summary` artifact, with `listing_held` and
+  `listing_held_reason`, and its sweep cost line. It files, dequeues and merges nothing: the next
+  run that lists records a failed lane merge and dequeues the lane's entries.
+- `retry_call` repeats only a call passed `--read`; without it the command runs once, so a write
+  is never repeated.
+- `maintenance-monitor-signals` has a new signal, `12 listing held`: 4 scheduled or hand-started
+  `pr-merge` sweeps in a row whose listing held raise a rolling issue. Signals 5 and 8 read the
+  newest sweep that listed, and one over 70 minutes old for any reason is a gap for them, read as
+  no sweep. Signal 3 counts a rate-limited hold still unbroken at the monitoring run.
+
+## [8.27.0] - 2026-10-31
+
+### Added
+
+- `merge.dependabot.trusted-action-owners` lists action owners whose Dependabot bumps skip
+  ci-status's trust-gate hold: a Dependabot pull request passes when every changed file is a
+  modified workflow or `action.yml` and every change block only swaps the SHA ref of one `uses:`
+  line of an action by a listed owner, to a commit a tag of that action's repository points to.
+  Any other line, file, owner or ref keeps the hold, and an unreadable list fails closed. This repository lists `anthropics` (owner decision Q-ANTHROPIC-DEPS).
+
+### Fixed
+
+- `fix-ci-context.mjs` writes two more fields to fix-ci's context file. `spec` holds the linked issues' trusted spec text, read by pr-verify's `linkedIssues`. `feedback_lines` holds the non-blank lines the pull request's last address-feedback commit added. Before, fix-ci could cut a line that met a criterion just to get under a size cap, and pr-verify then failed the head on that criterion. On #10919 the two lanes undid each other until the verify-fail cap left the PR unarmed. Each field has its own byte budget so the file stays under the read job's 1 MiB limit. A field the runner cannot read whole, or that does not fit its budget, is `null`, never a partial list.
+
+## [8.26.2] - 2026-10-31
+
+### Fixed
+
+- An issue parked at `status: confirmed` no longer gets `agent-ready` from work-unblock when its last blocker closes: that path never checked for `status: ready`, so a parked issue skipped admission. When a blocker closes after admission parked the issue, the lanes App now removes `status: confirmed`, once per close, and `intake-reenter` adds `needs-triage` and dispatches intake. An issue whose milestone is in the new `cordoned-milestones` list in `admission-rules.json` (`After zero`), whose author intake does not admit, that carries a refuse label, or that admission did not park stays where it is. Until a trusted `status: ready` follows that removal, work-unblock does not label the issue. `intake-reenter` ignores every other App removal of that label.
+- A hold now replaces a parked `status: confirmed` instead of landing beside it. A refinement with open questions, a held verdict and a refusal for a person each take `status: confirmed` off after adding the hold, so one status stands and a listed human lifting `needs-human` re-enters the issue.
+
+- `pr-verify` hands the final judge each chunk's output whole, in as many files as it takes, so a
+  cut can no longer hide a delivered done-when item and fail a head on size. `notes_left_out` is
+  gone from a chunk's result.
+- `pr-verify` folds a diff line over 1800 bytes onto lines that start `\ continued:`, so a verifier
+  reads every byte of it and no head passes on a line Read cut short.
+- A `pr-verify` `fail` that hit a permission denial or holds credential-shaped text, a `pass` or
+  `pass-notes` that holds a credential format, and any verdict from a judge step `run-claude-cli` failed
+  on its own credential scan, is now written instead of leaving no verdict and a second sample of the
+  head. A `pass` or `pass-notes` of that kind becomes a `fail` that counts toward the repeated-fail cap;
+  one holding only a secret assignment, which may be a fixture, still leaves no verdict. Each publishes a fixed text and
+  none of the model's, logs the credential's kind alone as a warning, and holds the pull request for a person with the
+  human-gated label, a dequeue and a `security` stop reason, since a later clean commit rotates nothing. The verdict
+  records `withheld: true` in code, so a fail quoting that text gets no hold and no model can claim one. The comment
+  posts once per head and the label goes on in any pull request state, so a closed pull request that reopens stays
+  held, whatever else the label stands for, and the comment keeps the label through
+  `clear-escalations`, `enable-auto-merge`'s lift and `ci-status`'s cost-hold clear until a person removes it. A failed
+  hold skips no notes, no fix round works past it, and a withheld fail stands on a short read with no
+  notes or a scan stop that left no log. A denial alone still voids a `pass` or `pass-notes`. The scan
+  reads through the
+  `\ continued:` fold, with any white space before it, and across two quoted diff lines, and the prompts forbid quoting
+  a credential.
+- On a `refs` entry, a `pr-verify` final judge's `pass` or `pass-notes` needs the context read
+  whole, in parts one Read returns, since the delivered part is named there. Chunk results over
+  300000 bytes stop with no verdict before the final judge runs.
+
+- A `pr-unblock.yml` or `pr-refine.yml` run sent by a dispatcher on an older copy of its file ends green before any model turn, with no check and no stop, and the next dispatcher sends the head again. The broker refused such a run's write tokens as `workflow-modified` only after the model had spent its turns.
+- `fix-ci-dispatch.mjs` retries a head whose `pr-unblock / apply-patch` failed on a `lane-token-denied` refusal, under the same caps as a stopped run, in place of skipping it as handled.
+- `report-escalation.sh clear` annotates a refused statuses read with `::error::` and gh's message and fails, in place of dying in jq at exit code 5 with no annotation.
+
+## [8.26.1] - 2026-10-31
+
+### Security
+
+- `resolve-conflicts-select`, `address-feedback-select`, `review-dependency-select` and `fix-ci-context` in `pr-unblock.yml` fail on a PR whose head is in another repository, before it writes any head output, so a hand dispatch of a fork's PR posts no status on that head.
+
+## [8.26.0] - 2026-10-31
+
+### Added
+
+- `mark-lanes`, `lint-repo`, `lint-shell`, `check-plugins` and `check-skills` now report their job
+  token requests: `gh` runs through the api-budget wrapper in their steps, in the hygiene aggregator
+  and in the Dependabot signature check, and each job ends with `api-budget` and `api-calls` notices.
+  zizmor's online audits spend the token through their own client and stay uncounted.
+
+### Changed
+
+- `api_budget_emit` prints the last reading of each resource and reset, so a notice shows each core
+  counter a job touched, not only the one its last call landed on. The job's latest core reading
+  stays the last line.
+
+## [8.25.1] - 2026-10-31
+
+### Fixed
+
+- The entry-hold check on a capped lane pull request and a queued lane entry counts a member's newest comment saying "do not merge", not any comment with blocking text, matching the arm path.
+
 ## [8.25.0] - 2026-10-31
 
 ### Changed

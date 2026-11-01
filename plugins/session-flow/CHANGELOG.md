@@ -1,5 +1,41 @@
 # Changelog: session-flow plugin
 
+## [3.0.2] - 2026-10-31
+
+### Fixed
+
+- `/session-flow:audit-sessions` now counts a merge conflict only when a shell call runs `git merge`, `rebase`, `pull`, `cherry-pick`, `revert`, `am`, or `stash pop` or `apply`, and its result shows the conflict text. Before, any tool result with that text counted, including a `cat`, a `grep`, a Read or a CI log ([#11601](https://github.com/melodic-software/claude-code-plugins/issues/11601)).
+
+## [3.0.1] - 2026-10-31
+
+### Changed
+
+- `/session-flow:workflow` stage definitions route unsettled users to UX research before the PRD, design a new user-facing flow and its screens before the technical design, and add an interface review to the review of a diff that changes a user interface, each through an installed capability (for example `/user-experience:shape`, `/user-experience:structure`, `/user-interface:design`, `/user-interface:audit`) with an inline fallback.
+
+### Fixed
+
+- **Friction events for one tool call count once.** Each `denied` and `prompt-approved` event the audit-sessions collector stores now carries the call's `tool_use_id`. A session keeps one such event per call and kind, so a repeated result record no longer adds a second event to the counts or the shape tally. The friction block counts the skipped records in `duplicates_dropped`, and `/session-flow:audit-friction`'s `mine` reports their total, so you can trace where the repeats come from.
+
+- `/session-flow:orchestrate`, `/session-flow:keep-going` and the observer docs point at the upstream sections behind their claims, and the effort floor and the cross-vendor advisor preference are labeled as this repository's judgment.
+
+## [3.0.0] - 2026-10-31
+
+### Changed
+
+- `/session-flow:handoff`, `/session-flow:retro` and `/session-flow:clean-stop` take `--unattended` in place of the bare word `unattended`, accepted anywhere in their arguments. The bare word no longer marks a run unattended: in `handoff` it is read as the topic or purpose text like any other word, and `retro` and `clean-stop` stop and name `--unattended`. The argument hints list `--unattended` after the action, and the evals pass the flag.
+
+## [2.3.3] - 2026-10-31
+
+### Fixed
+
+- `/session-flow:audit-friction`'s `mine` output adds `stop_hook_wait_ms`, the time the person waits: the slowest Stop hook per stop, summed over stops. It sits next to `stop_hook_ms`, the sum of every hook's duration. Matching Stop hooks run in parallel, so that sum overstated the wait. The markdown report opens its Stop-hook line with the wait and labels the sum as parallel hook time.
+
+## [2.3.2] - 2026-10-31
+
+### Fixed
+
+- `/session-flow:audit-friction` now lists every projects root it read in the report header. It also warns when a default run skipped a sibling projects tree on the same host: under WSL, a Windows user's tree under the drive mounts; on Windows, a running WSL distribution's tree. The warning names the path and the `--source` argument that adds it. A stopped WSL distribution is listed as unchecked and is never started.
+
 ## [2.3.1] - 2026-10-31
 
 ### Fixed

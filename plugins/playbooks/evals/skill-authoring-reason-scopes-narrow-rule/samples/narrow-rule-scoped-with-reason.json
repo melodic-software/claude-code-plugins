@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Rules\n\n- Regenerate the lockfile in step 4 with `pnpm install --lockfile-only` and commit it with `--no-verify`: the pre-commit hook times out on the 40,000-line generated lockfile. Every other commit runs the hooks.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "## Rules\n\n- Step 4 only: commit the regenerated lockfile with `--no-verify`, because the pre-commit hook times out on that generated file.\n- Regenerate the lockfile with `pnpm install --lockfile-only`.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Rules\n\n- Commit with `--no-verify`; the pre-commit hook is slow on large files.\n- Regenerate the lockfile in step 4 with `pnpm install --lockfile-only` and commit it.",
+      "why": "reason given but applied to every commit"
+    },
+    {
+      "answer": "## Rules\n\n- Commit the step 4 lockfile with `--no-verify`. Other commits run the hooks.\n- Regenerate the lockfile with `pnpm install --lockfile-only`.",
+      "why": "scoped but no reason"
+    }
+  ]
+}
