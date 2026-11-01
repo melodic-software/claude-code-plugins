@@ -905,11 +905,20 @@ jobs:
       python_plan: ${{ steps.plan.outputs.python_plan }}
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
+      # The one Playwright browser cache key test-bash and test-python restore and save
+      # under. It is named here because workflow- and job-level env allow neither runner
+      # nor hashFiles. It names the install arguments, so changing them misses the cache.
+      playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Name the Playwright browser cache key
+        id: playwright_key
+        env:
+          KEY: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
+        run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
       # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
       # merge queue the holds that cost no lane work, its hold labels, a
       # pr-unblock stop on its head and the lanes kill switch, are judged by
@@ -3429,7 +3438,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
+          key: ${{ needs.select-tests.outputs.playwright_cache_key }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3638,7 +3647,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
+          key: ${{ needs.select-tests.outputs.playwright_cache_key }}
       - name: Install locked plugin test toolchains
         timeout-minutes: 4
         id: toolchains
