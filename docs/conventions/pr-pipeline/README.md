@@ -3390,7 +3390,10 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. Restarts, re-fires and relabels re-run issues already admitted and are never
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. A
+born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
+nothing else, waits with no write (a deferred one stays deferred) and uses none of that cap; if the fields never
+land, the triage sweep sends it to intake. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 

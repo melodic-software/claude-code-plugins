@@ -3696,7 +3696,7 @@ const admissionFor = (setter = OWNER.id) => async () => ({
   fieldSetters: async () => ({ 15462270: setter, 48625720: setter, 48625721: setter }),
 });
 const MARKED = ["admission-deferred", "status: ready", "work-class: mechanical"];
-const markedIssue = (labels) => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen." });
+const markedIssue = (labels, body = "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.") => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body });
 // Who added each label: intake's App wrote the decision, a person marked it.
 const labelAdd = (name, actor, at = "2026-10-16T07:00:00Z") => ({ event: "labeled", label: { name }, actor, created_at: at });
 const DECIDED = [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT)];
@@ -3714,14 +3714,15 @@ const markedWorld = ({
   blockers = [issue(10, { state: "closed" })],
   done = {},
   failOn,
+  body,
 } = {}) =>
   world({
     specs,
     done,
     failOn,
     closing: { 25: closing },
-    deferred: [markedIssue(labels)],
-    issues: { 25: markedIssue(labels) },
+    deferred: [markedIssue(labels, body)],
+    issues: { 25: markedIssue(labels, body) },
     blockedBy: { 25: blockers },
     comments: { 25: comments },
     events: { 25: [...decided, ...extraEvents, deferredAdd(by)] },
@@ -4652,6 +4653,73 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
   assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+// A born-triaged issue (check-born-triaged notBornTriaged) whose filer has not
+// set its Size and Uncertainty yet waits: no label, no comment, no share of
+// readmit-per-run. A set value the rules refuse, or a marker the trust check
+// does not accept, still refuses.
+const BORN = `${readyIssue(26).body}\n\n<!-- work-items:born-triaged -->\n`;
+const UNSET_REASONS = ["Size unset is not one of small, medium", "Uncertainty unset is not one of known, knowable"];
+const parkedFor = (n, status, reasons) => [
+  `POST /repos/${REPO}/issues/${n}/labels {"labels":["${status}"]}`,
+  `DELETE /repos/${REPO}/issues/${n}/labels/status%3A%20ready`,
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
+];
+
+test("a born-triaged status: ready issue whose fields are not set yet waits with no write, and is admitted once they are", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const early = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: [] });
+  assert.equal(await sweep({ github: early.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #26 waits: born triaged, size and uncertainty not set yet"), lines.join("\n"));
+  const later = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: SMALL_LOW_KNOWN });
+  assert.equal(await sweep({ github: later.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(later.calls), [labeled(26)]);
+});
+
+test("an issue with unset fields is still refused when it is not born triaged, or its marker or author fails the trust check", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const stranger = { id: 4242, login: "drive-by" };
+  const cases = [
+    // No marker: as today.
+    [readyIssue(26), "status: confirmed", UNSET_REASONS],
+    // The marker quoted mid-body, not the body's last line.
+    [readyIssue(26, { body: `<!-- work-items:born-triaged -->\n\n${readyIssue(26).body}` }), "status: confirmed", UNSET_REASONS],
+    // An author who is not listed.
+    [readyIssue(26, { body: BORN, user: stranger }), "status: needs-decision", ["the author is neither a listed human nor the lanes App", ...UNSET_REASONS]],
+  ];
+  for (const [item, status, reasons] of cases) {
+    const { github, calls } = readyWorld({ items: [item], fields: [] });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), parkedFor(26, status, reasons), item.body);
+  }
+});
+
+test("a born-triaged issue with a field set to a refused value is refused, its unset field named too", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const unknown = [fieldRow(48625721, 85127656)];
+  const { github, calls } = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: unknown });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), parkedFor(26, "status: confirmed", ["Size unset is not one of small, medium", "Uncertainty unknown is not one of known, knowable"]));
+});
+
+test("a born-triaged issue waiting on its fields does not use up readmit-per-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const items = [readyIssue(30, { body: BORN, updated: "2026-10-16T05:00:00Z" }), readyIssue(26, { updated: "2026-10-16T06:00:00Z" })];
+  const { github, calls } = readyWorld({ items, extra: { fieldValues: { 30: [], 26: SMALL_LOW_KNOWN } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 1 } })), 0);
+  assert.deepEqual(writes(calls), [labeled(26)]);
+});
+
+test("a person's mark on a born-triaged issue whose fields are not set yet stays deferred with no write", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ fields: [], body: BORN });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #25, marked by a person, stays deferred: born triaged, size and uncertainty not set yet"), lines.join("\n"));
 });
 
 test("a status: ready issue in no queue refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
