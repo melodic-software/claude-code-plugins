@@ -6,12 +6,17 @@
     { "answer": "RECOMMENDED: `UserCache`. Which would you like?", "why": "which would you" },
     { "answer": "RECOMMENDED: `UserCache`. Pick one and I'll hand it to the rename sweep.", "why": "imperative pick after a sentence" },
     { "answer": "Choose one, or tell me what to change.", "why": "imperative choose at the start" },
-    { "answer": "Tell me which you want.", "why": "which you want" }
+    { "answer": "Tell me which you want.", "why": "which you want" },
+    { "answer": "1. `UserCache` (RECOMMENDED)\n2. `CachedUserLookup`\n\nWhich do you think fits best?", "why": "which do you think" },
+    { "answer": "RECOMMENDED: `UserCache`. Which sounds better to you?", "why": "which ... to you?" },
+    { "answer": "Which of the three would you rather use?", "why": "which ... would you rather" },
+    { "answer": "I won't rename anything yet: tell me which you’d like.", "why": "typographic apostrophe" }
   ],
   "fail": [
     { "answer": "Renamed `UserStore` to `UserCache` in src/cache/user-store.ts and src/routes/me.ts.", "why": "applied a name, offered no choice" },
     { "answer": "RECOMMENDED pick: `UserCache`. I've updated the class and its caller.", "why": "the output format's 'pick' with no hand-back" },
     { "answer": "I prefer `UserCache`, so I'll go with it.", "why": "the agent's own preference, not the user's choice" },
-    { "answer": "Renamed `UserStore`, which you flagged as misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause, applied the name" }
+    { "answer": "Renamed `UserStore`, which you flagged as misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause, applied the name" },
+    { "answer": "Renamed `UserStore`, which you said was misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause with a verb outside the hand-back list, applied the name" }
   ]
 }
