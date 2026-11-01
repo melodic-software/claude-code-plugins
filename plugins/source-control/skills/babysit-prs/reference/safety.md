@@ -56,25 +56,26 @@ value and its unset fallback.
   worktree outside `<worktree-root>`), or on a **stale local branch tip** behind the PR head. If
   `HEAD` differs from that head, **stop**. Never merge, edit, or push onto a stale tip: a naive
   `git merge origin/<baseRefName>` + push from a behind-head tip silently reverts the newest branch
-  commit(s). The assertion is also on **identity, not just the commit**: a clean worktree whose tip
-  merely equals `headRefOid` while checked out on some OTHER local branch must not enter full mode,
-  because a fix committed there advances that unrelated branch while only the refspec push lands on
-  the PR branch. Require the checkout to be on the PR branch or in
+  commit(s). Safety comes from this assertion, not from the assigned `HEAD` happening to match. The
+  assertion is also on **identity, not just the commit**: a clean worktree whose tip merely equals
+  `headRefOid` while checked out on some OTHER local branch must not enter full mode. A fix committed
+  there advances that unrelated branch while only the refspec push lands on the PR branch, leaving the
+  other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via the forge's PR checkout,
   [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). This
-  extends the head-SHA re-check below (head moving *mid-work*) to the moment the worktree is first
-  assigned. **One codified exception:** the conflict-resolution push in
-  `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the conflict worker's
-  local merge commit, which the live PR does not carry yet, so the assertion is checked
+  extends the head-SHA re-check below, which covered only the head moving *mid-work*, to the moment
+  the worktree is first assigned. **One codified exception:** the conflict-resolution push in
+  `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
+  the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
   one commit back: the merge commit must have exactly two parents, its **first parent** must equal
   the live `headRefOid` (re-checked immediately before the push), and its second parent the
   reported base. Every other condition of that contract still binds, and everywhere outside that
   push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
-  if it changed unexpectedly: someone else moved the branch.
+  if it changed unexpectedly. Someone else moved the branch.
 - **Refspec push to the PR's head, never branch checkout.** Do not
-  depend on `git checkout <headRefName>` to reach the branch: when a sibling worktree locks it,
-  that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
+  depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
+  worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
   the head assertion holds, push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`
   and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Attended, with
   `sync_stale_base` on, it may first add one base-merge commit whose first parent is that asserted
@@ -91,8 +92,9 @@ value and its unset fallback.
   still be within `<watched-owners>`, else read-only (Stop And Ask, below): an external-fork head
   with maintainer edits enabled must not receive a push just because it is reachable. Because
   `HEAD` equaled the PR head and you only added commits on top, this push is a fast-forward; never
-  `--force` or `--force-with-lease`. A rejected non-fast-forward push means the assertion no longer
-  holds: re-fetch and stop, never force past it.
+  `--force` or `--force-with-lease`. A rejected
+  non-fast-forward push means the assertion no longer holds. Re-fetch and stop, never force past it.
+  (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
 - Never update the branch of a PR carrying the tracker's standards-sync role label
@@ -127,9 +129,10 @@ value and its unset fallback.
   a new commit, and at most once per check at one PR head (the Flake Cap in `orchestration.md`).
   Record the rerun with `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` before
   triggering it, naming the check only by its hex id: the hex right after `rerun_id=` at the start
-  of that check's `failing check:` line in the snapshot, never the GitHub name that follows it.
-  Ledger exit 4 means the check already had its rerun at this head, so its failure is real: fix it
-  or report it, never rerun it again.
+  of that check's `failing check:` line in the snapshot. Copy only the id, never the GitHub name
+  that follows it. When the ledger exits 4, the check
+  already had its rerun at this head, so its failure is real: fix it or report it, never rerun it
+  again.
 - Edit, commit, and push to the PR branch only for clear branch-owned CI failures or actionable
   bot-review findings when the snapshot allows writes to the head repository, including
   bot-authored branches when needed for a CI fix.
@@ -158,21 +161,21 @@ value and its unset fallback.
 - The fix belongs in an upstream source-of-truth repository (shared CI workflows, org-wide
   policy, a managed configuration sync) rather than the PR's own repo.
 - The worktree is dirty, the head SHA changes while working, or permissions are missing,
-  including a harness/runtime permission denial (Harness Permission Layer below tells it apart
-  from a script-level gate denial).
+  including a harness/runtime permission denial; see Harness Permission Layer below for how to
+  tell that apart from a script-level gate denial before deciding how to react.
 - A merge conflict appears. In default (safe) mode this is always a stop: report it as a blocker
   and take no resolution action. In worker or autopilot mode only, a textual/mechanical conflict
   (formatting, adjacent unrelated changes, both sides adding different items to the same list) is
   not an automatic stop: hand it off to a dedicated, fresh conflict worker per
   `orchestration.md`'s Merge Conflict Resolution section, never resolved by the worker that
   discovered it mid-fix-round. The orchestrator never resolves a conflict dispatched to a conflict
-  worker: it does not touch conflict markers or edit a resolution. (The safe tier's inline
-  handling of a simple conflict met while freshening a branch is separate, per
-  `loop.md` §5.1.2.) It does own the conflict worker's one outward step: after re-asserting the
+  worker: it does not touch conflict markers or edit a resolution. (The safe tier's own inline
+  handling of a simple conflict met while freshening a branch is separate and unaffected, per
+  `loop.md` §5.1.2.) It does own the conflict worker's one outward step. After re-asserting the
   live head against the merge commit's first parent and re-running the affected-file verification
   itself, it performs the push, which the conflict worker never does (same section, Orchestrator
   Contract). In worker or
-  autopilot, stop and ask only when that conflict worker finds the conflict genuinely
+  autopilot, stop and ask only when that fresh conflict worker finds the conflict genuinely
   semantically ambiguous (both sides made incompatible design/behavioral decisions about the same
   logic, not just textually overlapping edits) or when the same conflict recurs across repeated
   resolution attempts.
@@ -191,7 +194,8 @@ Before reporting a blocker as real, and before raising a "this PR is not converg
 rounds be capped," or "should we pause the loop" question to the user, re-query GitHub and read
 the actual content of every currently-unresolved review thread on the PR(s) in question. Never
 escalate on unresolved-thread count or round number alone. This section binds every escalation of
-that shape whichever skill's escalation path carries it, a loop's own escalation contract included.
+that shape regardless of which skill's escalation path carries it. A lane escalating through a
+loop's own escalation contract is not outside it.
 
 - Classify each unresolved thread: (a) a genuine duplicate: the same finding recurring after a
   fix that should have addressed it, real evidence of non-convergence; (b) a new, distinct,
@@ -205,28 +209,28 @@ that shape whichever skill's escalation path carries it, a loop's own escalation
   urgent-but-cannot-land, or fix-blocked-on-research one. A second consecutive **advisory** round whose findings are *all* (c) means incremental
   patching is injecting defects about as fast as it removes them; that is the non-convergence
   signal a round count only approximates. The test is scoped to advisory rounds because those are
-  the rounds the ledger records; a blocking-defect round in between neither counts nor resets it.
-  It survives context rollover because the classification is durable, and two duties follow:
+  the rounds the ledger records. A blocking-defect round in between neither counts nor resets it.
+  It survives context rollover because the classification itself is durable, and two duties follow:
   - **Classify at record time on EVERY advisory round, not only when an escalation is already
-    being prepared.** The heading scopes when to *escalate*; classification is a per-round duty,
-    because a round that runs it only at escalation time has already lost the history the tripwire
-    consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
+    being prepared.** This section's heading scopes when to *escalate*; the classification itself
+    is a per-round duty, because a round that runs it only at escalation time has already lost the
+    history the tripwire consumes. Run the (a)/(b)/(c) taxonomy over the round's findings before
     recording it, and pass one `--finding-class` per finding to `manage_feedback_ledger.py
     record-advisory-round` (`feedback.md`); the helper refuses an unclassified round, so no silent
     path leaves the tripwire nothing to read. Also stamp the literal marker `(class (a))`, `(class
     (b))`, or `(class (c))` beside the disposition in the D5 reply row for every finding
-    classified: the canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not carry this
-    taxonomy, and the markers let a human reading the PR check the ledger's arithmetic against the
-    threads.
-  - **Read the verdict; never re-derive it.** One computation, two reads, answering different
-    questions. The snapshot's `advisory_fix_rounds.non_convergence_tripwire`, `armed`
+    classified. The canonical D5 vocabulary (VALID/INCORRECT/UNCERTAIN) does not carry this
+    taxonomy, and the markers are what let a human reading the PR check the ledger's arithmetic
+    against the threads themselves.
+  - **Read the verdict; never re-derive it.** One computation, two reads, and they answer
+    different questions. The snapshot's `advisory_fix_rounds.non_convergence_tripwire`, `armed`
     plus the `basis` it was decided on, covers the rounds already recorded, so at round start it
-    reports whether the lane arrived already non-converging. The **decisive** read for the
+    reports whether the lane arrived here already non-converging. The **decisive** read for the
     round about to be dispatched is the verdict `record-advisory-round` returns once this round's
-    own classes are recorded: it answers "is THIS round all-(c) after an all-(c)
-    predecessor", which is why the classification is recorded before the fix is dispatched.
-    Either read is a field a fresh worker can read instead of reconstructing the previous round's
-    composition from GitHub threads. A round
+    own classes are recorded: that is what answers "is THIS round all-(c) after an all-(c)
+    predecessor", and it is why the classification is recorded before the fix is dispatched rather
+    than after it. Either read is a field a fresh worker with no prior context can just read,
+    instead of reconstructing the previous round's composition from GitHub threads. A round
     recorded before per-finding classes were persisted reads as UNKNOWN, not (a)/(b), and the
     tripwire **fails closed** on it: a current all-(c) round following an UNKNOWN round arms, and
     the escalation says so rather than silently resetting the count. Armed means change METHOD
@@ -235,17 +239,17 @@ that shape whichever skill's escalation path carries it, a loop's own escalation
 - Escalate a bounding/cap-policy question only when verification shows (a), a second consecutive
   all-(c) advisory round, or a finding that is structurally impossible to resolve (the check
   itself is external or non-deterministic). If every unresolved thread is (b) or (c) and each is
-  individually fixable (a mechanical fix or a clearly-scoped judgment call), fix directly
+  individually fixable, a mechanical fix or a clearly-scoped judgment call, fix directly
   instead. A high round count alone is not evidence of non-convergence.
 - This verification is required even when a sub-agent, advisor, or other second opinion reads
-  round-count or metadata as a non-convergence pattern: that read is a hypothesis to test
+  round-count or metadata as a non-convergence pattern. That read is a hypothesis to test
   against actual thread content, never a conclusion to act on or escalate over.
 - See the Fix-Round Cap in `orchestration.md` for the mechanical cap this verification gates.
 
 ## Two Gates, One Merge-Ready Authority
 
-Two scripts produce a verdict easy to call "readiness". They answer different questions and are
-not interchangeable:
+Two different scripts produce a verdict that is easy to call "readiness".
+They answer different questions and are not interchangeable:
 
 | Script | Question it answers | What it never checks |
 | --- | --- | --- |
@@ -259,7 +263,8 @@ unprotected base is held without `--allow-unprotected` (a self author is exempt 
 is the repository's default branch), and an enabled autopilot merge
 tier adds that tier's own criteria. So `ready: false` can mean "GitHub would merge this; the plugin
 will not." Read the `blockers` list to tell the two apart, and never restate a plugin policy hold
-as a GitHub restriction.
+as a GitHub restriction. That mislabel is the same terminology ambiguity this section exists to
+remove.
 
 **Only the merge gate's `ready` field determines merge-readiness.** Any `MERGE-READY` claim,
 whether a human-facing report, a worker's return, or an autonomous merge decision, must cite a
@@ -273,7 +278,8 @@ The classification gate is a **pre-gate**, not a weaker merge gate: it must pass
 iteration reports at all, and passing it says only that the findings were decomposed. Both gates
 must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
 
-"Both gates satisfied" binds the decomposition claim, not a second script run on every path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
+"Both gates satisfied" binds the decomposition claim, not a mandatory second script run on every
+path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
 unticked `--checklist`), so it constrains any iteration that actually processed findings. The
 orchestrator's direct zero-blocker path, a non-draft PR the engine snapshot reports with zero
 blockers *and* no untriaged material feedback (`SKILL.md`, "Fan out"), goes straight to a
@@ -294,8 +300,8 @@ so such a PR may get neither a worker nor the direct gate that cycle. That path 
 on an agent's own reading that a PR has nothing outstanding, and merge-readiness on it still comes
 only from the merge gate's `ready` field.
 
-The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it and reports
-merge-readiness as **unchecked**. An unavailable merge gate is never grounds to promote
+The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
+reports merge-readiness as **unchecked**. An unavailable merge gate is never grounds to promote
 `READINESS_OK` into a merge-ready claim.
 
 ## Review-Settle Hold
@@ -303,8 +309,8 @@ merge-readiness as **unchecked**. An unavailable merge gate is never grounds to 
 `mergeStateStatus == CLEAN` is a statement about the *present*, and a reviewer that re-reviews on
 push contradicts it for the few minutes its next round takes. GitHub reports the PR mergeable that
 whole time, because the review does not exist yet and there is no unresolved thread to block on,
-so a gate reading only mergeability merges past findings that land seconds later, possibly a
-regression the PR itself introduced.
+and a gate reading only mergeability merges past findings that land seconds later. A reviewer round can
+land within a minute of the final commit and carry a regression the PR itself introduced.
 
 The hold closes that window and is **dormant unless configured**: with
 `babysit_review_bot_logins` and `babysit_review_settle_minutes` both set, the gate adds a policy
@@ -314,30 +320,31 @@ a repository's default-branch declaration of either key is ignored with a note, 
 reviewer that a repository could add would clear the hold before the operator's reviewer reviewed.
 Its shape, and why each part is that way:
 
-- **A review of the live head clears it outright**, before the clock is consulted, so the common
-  already-reviewed case adds no latency. Evidence is a
+- **A review of the live head clears it outright**, before the clock is consulted. The common case
+  where the reviewer already reviewed this head costs nothing and adds no latency. Evidence is a
   submitted review *or* an inline review comment whose own commit id equals the head, by a
   configured login **that GitHub types as a `Bot`**: the same current-head test
   `review-trigger.md` specifies, reused rather than restated. A review of an earlier head is not
   evidence about this one. That shared test also admits a login the operator declared in
   `--extra-bot-logins`, but the merge gate does not pass that declaration through, so at *this*
   call site the `Bot`-type requirement still holds: a configured reviewer GitHub reports as a
-  `User` never clears the hold early, and every merge waits the full window (fail-closed, but
-  slower).
-- **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires:
-  past the window the gate merges on its ordinary criteria. The window is a latency budget, not a
-  review requirement: it buys the reviewer time, it does not guarantee a review happened.
+  `User` never clears the hold early, so every merge waits the full window. Fail-closed, but
+  slower.
+- **The window bounds it.** A reviewer that never engages must not wedge a PR, so the hold expires
+  rather than waiting forever. Past the window the gate stops waiting and merges on its ordinary
+  criteria. The window is therefore a latency budget, not a review requirement: it buys the
+  reviewer time, it does not guarantee a review happened.
 - **An unestablishable head age holds rather than merges.** If neither clock below can be read,
   whether the reviewer still owes this head a review is undecidable, and a transient read failure
-  must not silently disable the hold. The block self-clears on the next run.
-- **Both keys or neither.** Either alone is a usage error (exit 2), not an inert flag: a
-  half-configured hold must never read as an active one. The gate defaults no duration: how long a
-  reviewer takes is a property of that reviewer, so the operator supplies it.
+  must not be the thing that silently disables the hold. The block is self-clearing on the next run.
+- **Both keys or neither.** Either alone is a usage error (exit 2), not an inert flag. A
+  half-configured hold must never read as an active one. No duration is defaulted in the gate:
+  how long a reviewer takes is a property of that reviewer, so the operator supplies it.
 
 Set the window above the reviewer's observed latency, measured against that reviewer rather than
-inherited from this file. The hold costs up to one window of latency on any merge whose head the
-reviewer has not yet reviewed, including every merge when the reviewer is down, in exchange for not
-merging past a review already on its way.
+inherited from this file. Priced honestly, the hold costs up to one window of latency on any merge
+whose head the reviewer has not yet reviewed, including every merge when the reviewer is down,
+in exchange for not merging past a review already on its way.
 
 **Which clock the age is measured on**, in order, because the difference decides whether the hold
 fires at all:
@@ -355,28 +362,30 @@ fires at all:
    reviewer has not reviewed is one that should be held anyway.
 
    **The same timestamp is also the review-recency floor.** GitHub keeps a review against the SHA,
-   not the head position, so the earlier occurrence's review of A still matches `commit_oid`
-   when A returns as head; matching on the SHA alone would let that stale review clear the hold
-   through the short-circuit before any clock was read. A review clears the hold only when it
-   postdates the newest CI start on the live head; one that cannot be dated does not clear it. A
-   check start cannot distinguish a restored head from a re-run on the standing head, so a re-run
-   minted after the review re-arms the hold for up to one window instead of short-circuiting past
-   it: the fail-closed direction, paying latency to refuse the safety failure.
+   not against the head position, so the earlier occurrence's review of A still matches `commit_oid`
+   when A returns as head, and matching on the SHA alone let that stale review clear the hold
+   before any clock was read, restoring the race through the short-circuit rather than through the
+   clock. A review clears the hold only when it postdates the newest CI start on the live head; one
+   that cannot be dated does not clear it. A check start cannot distinguish a restored head from a
+   re-run on the standing head, so a re-run minted after the review re-arms the hold for up to one
+   window instead of short-circuiting past it. That is the fail-closed direction, paying latency to
+   refuse the safety failure.
 
 2. **The head commit's committer date**, only when the rollup carries no usable timestamp. A weaker
-   proxy that errs the wrong way: a commit pushed long after it was written (local batching, an
-   offline delay, or replaying an existing commit) reads as already-settled, and the hold silently
+   proxy that errs the wrong way: a commit pushed long after it was written, whether from local
+   batching, an offline delay, or replaying an existing commit, reads as already-settled, and the hold silently
    does not fire on exactly the push that triggered a fresh review. A repository with no checks on
    its PRs gets only this fallback, so the hold is best-effort there.
 
-**One residual, stated because it is not closed.** If a force-push back to a previously-checked SHA produces new check
-runs, the newest timestamp is fresh: the head is aged from it, and any earlier review of that SHA
-falls below the recency floor, so the hold fires correctly whether or not that review exists. If GitHub instead reuses the existing
-results and mints none, the rollup carries only the old timestamps, there is no floor above them,
-and that head reads as settled. Which happens is not verified here, and no queryable "this SHA
-became the head at T" record covers both ordinary pushes and force-pushes (the force-push timeline
-event covers only the latter). Treat the hold as strong for ordinary pushes and best-effort across
-a head reverting to an already-tested SHA that mints no new checks.
+**One residual, stated because it is not closed.** If a force-push back to a previously-checked SHA
+produces new check runs, the newest timestamp is fresh: the head is aged from it, and any earlier
+review of that SHA falls below the recency floor, so the hold fires correctly whether or not that
+review exists. If GitHub instead reuses the existing results and mints none, the rollup carries only
+the old timestamps, there is no floor above them, and that head reads as settled. Which of those
+happens is not verified here, and no queryable "this SHA became the head at T" record covers both
+ordinary pushes and force-pushes. The force-push timeline event covers only the latter. Treat the
+hold as strong for ordinary pushes and best-effort across a head reverting to an already-tested SHA
+that mints no new checks.
 
 ## Guarded Mutation Wrappers
 
@@ -394,8 +403,8 @@ bash "<plugin-root>/scripts/source-control-babysit-merge" <args>
 bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" <args>
 ```
 
-Launching the wrapper by path still runs the wrapper itself, every guard intact; only invoking the
-raw Python dodges them.
+Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact.
+It is not a guard-dodging re-spelling (only invoking the raw Python is).
 
 Two facts decide the invocation form:
 
@@ -409,8 +418,8 @@ Two facts decide the invocation form:
   builtins `command` and `builtin`, and zsh's `noglob`
   ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers)).
   `bash` is not among them, so `bash "…/scripts/source-control-babysit-merge" …` matches as a `bash`
-  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`, nor can while
-  the wrappers have no bare name, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
+  command and never satisfies a pre-approved `Bash(source-control-babysit-merge:*)`. That rule does
+  not cover these invocations, and cannot while the wrappers have no bare name, so **what happens next is the permission mode's call, not the allow rule's.** Six modes
   exist, named by the config values hooks and settings use: `default`, `acceptEdits`, `plan`,
   `auto`, `dontAsk`, and `bypassPermissions`. `default` is the mode the CLI, `claude --help`, the
   VS Code and JetBrains extensions, and the desktop app display as **Manual**, and from v2.1.200 the
@@ -420,7 +429,7 @@ Two facts decide the invocation form:
   - **`default` and `acceptEdits` prompt.** `acceptEdits` auto-approves file edits and common
     filesystem commands (`mkdir`, `touch`, `mv`, `cp`, and others) that `bash` is not among; every
     other Bash command outside the built-in read-only set still prompts. A per-call
-    prompt here is expected, not a misconfiguration.
+    permission prompt is expected behavior here, not a misconfiguration.
   - **`plan` prompts only on its no-classifier branch.** Plan mode still *runs* shell commands (it
     blocks source edits, not commands). When auto mode is available and `useAutoModeDuringPlan` is
     on, which is the default, the classifier reviews them "instead of prompting you"; in a session
@@ -481,7 +490,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - **What the merge gate actually evaluates.** It gates on GitHub's own `mergeStateStatus == CLEAN`
   plus explicit cross-checks of its own: branch rules, review decision, unresolved threads, the
   check rollup keyed by check type and name, head match, and base freshness (next bullet). It
-  reports the exact `blockers` list. React to those blockers; never bypass the gate. One caveat: a `ready: false` immediately
+  reports the exact `blockers` list.
+  React to those blockers; never bypass the gate. One reading caveat: a `ready: false` immediately
   following a `ready: true` on the same expected head is often GitHub's own mergeability recompute
   lag, so re-run the read-only check once before treating it as a real block.
 - **`CLEAN` is not proof the PR was tested against the live base.** GitHub regenerates a PR's test
@@ -505,12 +515,13 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   [freshness.md](freshness.md#upstream-drift-record-for-the-loose-base-and-merge-queue-decisions).
 - **`--self-logins @me,<self-logins>` rides on every merge form too**, read-only and mutating
   alike. `@me` resolves to your own `gh` login and the `babysit_self_logins` extras follow it; drop
-  the trailing `,<self-logins>` when that value is empty. On the merge gate this flag exempts your
-  own PRs from the unprotected-base hold, only **on the default branch** (unprotected-base bullet
-  below); without it your own PR is classified as a non-self author and held.
+  the trailing `,<self-logins>` when that value is empty. On the merge gate this flag is what
+  exempts your own PRs from the unprotected-base hold, and only **on the default branch** (see the
+  unprotected-base bullet below). Without it your own PR is classified as a non-self author and
+  held.
 - **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
-  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification decides
-  which threads the resolver may touch at all, and structural detection cannot see a
+  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
+  decides which threads the resolver may touch at all, and structural detection cannot see a
   registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
   the flag silently reclassifies that account's threads as human and skips them in worker tier.
   Omit the flag only when the key is unset.
@@ -532,24 +543,26 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
   so the merge proceeds with the hold silently dormant under a setting that looks active. Stop and
   report the misconfiguration instead of constructing the merge command. The converse is not an
-  error: `babysit_review_bot_logins` alone is the review-trigger module's own configuration and
+  error. `babysit_review_bot_logins` alone is the review-trigger module's own configuration and
   leaves the settle hold correctly dormant.
 - **`--self-logins @me,<self-logins>` rides on every resolve-thread form too**, listing and
   mutating alike, always (`@me` resolves your own `gh` login; append `babysit_self_logins`
   extras). The bot-only classifier (`project_thread`'s `botOnly`) requires a BOT OPENER **and**
   inspects every other fetched participant, so the worker's OWN reply to a bot thread (a
-  classification reply, a `Fixed in <sha>` follow-up) is a comment the classifier sees. Without
-  `--self-logins` that reply reads as a third-party human joining: `botOnly` goes false, locking
-  the thread out of the default bot-only scope, and `--include-human` stays unset by design in
-  worker/safe modes, so a bot thread the worker correctly handled becomes permanently unresolvable
-  by the normal flow. `--self-logins` marks the caller's own posting identity as neutral for that
-  test, as a REPLY only: the OPENING comment must still be an ACTUAL bot's, so a thread the
+  classification reply, a `Fixed in <sha>` follow-up) is itself a comment the classifier sees.
+  Without `--self-logins` that reply is indistinguishable from a genuine third-party human joining the
+  thread: `botOnly` goes false, which locks the thread out of the default bot-only scope, and
+  `--include-human` stays unset by design in worker/safe modes, so nothing lifts it back in and a
+  bot thread the worker correctly handled is permanently unresolvable by the normal flow.
+  `--self-logins` marks the caller's own posting identity as neutral for that test instead, and
+  neutral as a REPLY only: the OPENING comment must still be an ACTUAL bot's, so a thread the
   worker itself opened stays out of scope even after a bot replies to it (`review-discipline.md`
   D7.5 forbids resolving your own threads). Omit the flag only when `babysit_self_logins` is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
-  <merge-method>`, and rejects `--allow-unpinned-head` outright: there is no unpinned merge. A
+  <merge-method>`, and rejects `--allow-unpinned-head` outright. There is no unpinned merge. A
   missing pin, or a pin that no longer matches the live head, refuses the merge: re-snapshot and
-  reassess the new head rather than reaching for an override. The pin is carried through to GitHub's own server-side head match (the async merge API's
+  reassess the new head rather than reaching for an override, so no unattended unpinned merge
+  exists. The pin is carried through to GitHub's own server-side head match (the async merge API's
   `sha`, or the CLI merge's head match, [GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)), so the refusal holds on GitHub's side as well as in
   the wrapper. Which API merges is in §Async Merge Path below.
 - The merge wrapper never uses `--admin`, and it cannot resolve threads, post replies, or
@@ -573,15 +586,15 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `--lane-logins` and `--approver-bot-logins` are non-empty and the effective block labels are
   non-empty (the `--block-labels` fallback plus the target repository's `babysit_merge_block_labels`;
   the gate checks that set after it reads the repository's policy). Supplying any of those three
-  flags without the umbrella is a usage error (exit `2`). Absent the flag the base gate, and so
-  worker/autopilot's gate-proven merges, are unchanged. The tier is wired only when
-  `babysit_autopilot_merge_tier` is enabled.
+  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate is
+  exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
+  tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
   the pre-push-outdated rule in `orchestration.md`), `--resolve --include-human` (autopilot's
   addressed-thread widening), and `--independent-resolver --resolve` (the evidence-gated third
   mode below). `--autonomous` admits only threads GitHub marks `isOutdated`. The worker must
-  also confine its resolves to threads already outdated in the PRE-push snapshot; that rule is
-  agent discipline, not machine-enforced, so a thread a worker's own push
+  additionally confine its resolves to threads already outdated in the PRE-push snapshot; that
+  pre-push-outdated rule is agent discipline, not machine-enforced, so a thread a worker's own push
   merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
   the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
   dismiss reviews.
@@ -605,12 +618,13 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED, so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
-  file, the anchor never moves and the guard refuses a genuinely addressed finding forever, leaving
-  an autonomous prose lane no sanctioned route to zero unresolved threads. This mode replaces
-  `isOutdated` with two properties. The first is **independence**: it is dispatched to a fresh
-  context that is neither the merging worker nor the author of the fix, so the actor resolving is
-  not the actor whose permission slip it is. The script cannot check that property of the dispatch,
-  which is why the second half is machine-checked here. **Who dispatches it, and the D7.5 ledger the dispatched agent owes before calling the
+  file, the anchor never moves and the guard refuses a genuinely addressed finding forever. That
+  left an autonomous prose lane with no sanctioned route to zero unresolved threads. This mode
+  replaces `isOutdated` with two other properties. The first is **independence**: it is dispatched
+  to a fresh context that is neither the merging worker nor the author of the fix, so the actor
+  resolving is not the actor whose permission slip it is. That is a property of the dispatch and
+  cannot be checked by the script, which is precisely why the second half is machine-checked
+  here. **Who dispatches it, and the D7.5 ledger the dispatched agent owes before calling the
   wrapper, live in [`independent-resolution.md`](independent-resolution.md)**; this bullet is the
   wrapper's half of the contract, not the route's. Everything `--autonomous` guards besides
   `isOutdated` is retained: bot-only authorship, a
@@ -650,12 +664,13 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   `refused-counter-evidence-not-found`, `refused-linked-pr-not-cited`,
   `refused-linked-pr-not-found`, `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`, and `refused-evidence-unverifiable` for an API that could
   not be consulted, kept distinct so an outage is never reported as a false claim. **Only a
-  confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure (403,
-  429, 5xx, a timeout, an unreachable API, or no HTTP response at all) reports
-  `refused-evidence-unverifiable`: telling a caller to replace possibly valid evidence is the wrong
-  instruction when the real fix is to retry. Evidence is validated in list mode too, and a
-  `--thread-id` whose pins have already drifted reports `refused-stale-pin` in list mode as well,
-  so in every mode a dry run predicts what `--resolve` would actually do.
+  confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure, whether
+  403, 429, 5xx, a timeout, an unreachable API, or no HTTP response at all, reports
+  `refused-evidence-unverifiable`, because telling a caller to replace evidence that may be
+  perfectly valid is the wrong instruction when the real fix is to retry. Evidence is validated in
+  list mode too, so a dry run proves the evidence rather than predicting the resolve, and a
+  `--thread-id` whose pins have already drifted reports `refused-stale-pin` in list mode as well.
+  A dry run predicts what `--resolve` would actually do, in every mode.
 - **A multi-finding thread is refused outright** (`skipped-multi-finding-thread`). One
   `--disposition` is a claim about ONE finding, while `resolveReviewThread` clears the whole
   thread and drops every comment it carries out of the readiness denominator, so evidence for
@@ -665,24 +680,26 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   vocabulary over the thread's own comments, with a self classification reply's table rows
   stripped so the worker's own echo of a finding is not counted twice, and it fails closed: a
   truncated comment page could hide another finding, so an unknown count refuses too. Such a
-  thread escalates. The guard is scoped to this mode alone: `--autonomous` rests on `isOutdated`,
-  which GitHub computes for the whole thread, so it carries no per-finding claim to under-cover.
+  thread escalates. The guard is scoped to this mode alone. `--autonomous` rests on `isOutdated`,
+  which GitHub computes for the thread as a whole rather than per finding, so it carries no
+  per-finding claim to under-cover.
 - **Thread-pin pair rule.** Any `--thread-id` resolve must also pin both
   `--expected-comment-count <n>` and `--expected-last-updated <ts>`, read from that thread's
   `commentCount` and `lastCommentUpdatedAt` in the same list output used to vet it. The wrapper
   refuses a target whose live comment count or latest comment-edit timestamp no longer matches
   either pin, so a reply added or a comment edited after vetting blocks that thread instead of
   being silently swept in. A thread id alone is never enough (the live thread is re-fetched at
-  execution time), nor a comment count alone (an edit leaves the count unchanged). The pins
-  enforce **comment state only**; nothing else about the thread is pinned. A
+  execution time), and a comment count alone is never enough (an edit leaves the count
+  unchanged). The pins enforce **comment state only**: drift in the comment count or the latest
+  comment-edit timestamp blocks the thread, and nothing else about the thread is pinned. A
   `--resolve --thread-id` missing either pin is refused before anything is fetched or resolved,
   unless the caller supplies the explicit `--allow-unpinned-thread` override, which belongs to no
   unattended path (`--independent-resolver` refuses it outright).
 - **Parse JSON, never trust exit codes alone.** Both wrappers emit structured JSON; confirm what
   actually happened from each target's `action` field. For a resolve, exit `10` is a reliable
   "nothing was resolved" signal (a stale pin refused, the thread was skipped, or the mutation
-  failed), but exit `0` alone does not prove success for a given thread: it also covers list mode
-  and a multi-thread run where some other thread resolved while this one did not.
+  failed), but exit `0` is not by itself proof of success for a given thread. It also covers
+  list mode and a multi-thread run where some other thread resolved while this one did not.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so and `merged` is true;
   `"action": "auto-merge"` means armed, not merged, and `"action": "enqueue"` with
@@ -806,12 +823,12 @@ fields the gate reads back are recorded with their basis, date and recheck trigg
 
 A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`'s rung partition,
 at **any** merge-capable tier, worker and autopilot alike, carries the lane's **partitioned head
-SHA** (supplied in the invocation brief) as its merge authorization: the merge gate's
-`--expected-head` is that head, never a fresher one this invocation picked itself. The lane's
-partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor), and
-this skill's merge gate does not class-check, so a worker push that moves the head off the pin is
-not a cue to re-pin but the end of this invocation's merge authority. The pinned gate's head-match
-refusal enforces the boundary deterministically; the invocation reports the new head and
+SHA** as its merge authorization, supplied in the invocation brief: the merge gate's
+`--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
+lane's partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor),
+and this skill's merge gate does not class-check, so a worker push that moves the head off the pin
+is not a cue to re-pin. It is the end of this invocation's merge authority. The pinned gate's
+head-match refusal enforces the boundary deterministically; the invocation reports the new head and
 stops, and the lane reruns its partition on the post-push diff before any merge-capable
 re-invocation (`babysit-loop/SKILL.md`, Cycle shape step 3, "The verdict authorizes a head SHA, not
 the PR"). Every other invocation of this skill re-pins to the vetted post-push head exactly as
@@ -949,23 +966,24 @@ that path is this narrow:
 - **Only a fresh, independent context.** The dispatch must share no conversation history with
   whatever produced the PR or previously replied on the blocking thread (the convention's §3
   independence requirement). A continuation of the authoring session, or a re-invocation of the
-  subagent that already commented on the blocker, never qualifies, whatever it claims about
-  itself. This is a contract on how the lane dispatches, not a credential the dispatch presents: a
-  run that cannot establish it is fresh escalates.
+  subagent that already commented on the blocker, never qualifies, regardless of what it claims
+  about itself. This is a contract on how the lane dispatches, not a credential the dispatch
+  presents: a run that cannot establish it is fresh escalates.
 - **Only through these wrappers.** The resolution runs through the guarded-mutation path above,
   with every pin, refusal, and JSON-parse rule intact. The dispatch changes who may attempt the
-  resolution, never what the wrappers permit, which is why the severity refusal above still lands
-  on it.
+  resolution, never what the wrappers permit, which is exactly why the severity refusal above
+  still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
   to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.
 
 ## Autopilot Merge Tier: Enabled-Path Mechanics
 
-Reachable only while `babysit_autopilot_merge_tier` is enabled; otherwise none of this section
-applies and autopilot merges through the base path. This is the single home for the enabled-path
-merge command autopilot's step 3 in `SKILL.md` points at, so the base and enabled-tier merge paths
-never drift apart. The tier is off by default; enabling it is a separate announced operator step.
+Reachable only while `babysit_autopilot_merge_tier` is enabled; absent that flag none of this
+section applies and autopilot merges through the base path. This is the single home for the
+enabled-path merge command that autopilot's step 3 in `SKILL.md` points at, so the base and
+enabled-tier merge paths never drift apart. The tier is off by default; enabling it is a separate
+announced operator step.
 
 - **Enabled-path merge command.** After the worker's final push and a fresh post-push snapshot
   (or the exact pushed commit, vetted), merge on that post-push head by layering the tier flags
@@ -988,13 +1006,14 @@ never drift apart. The tier is off by default; enabling it is a separate announc
   or a literal unexpanded token; omit the settle pair as a pair, never one half), and
   `--stacked-prs` when `babysit_stacked_prs` is `true`.
 
-- **Second-account approve mechanic.** The agent submits the approving review the gate's
-  distinct-bot criterion requires out-of-band; the gate only verifies one exists on the live head
-  and never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
+- **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
+  requires is submitted out-of-band by the agent. The gate only verifies one exists on the live
+  head and never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
   accounts, never the PR author or a lane identity), run a **genuine** review pass, through a
   review skill/plugin when one is installed and otherwise an equivalent thorough manual review (this
-  skill declares no review-plugin dependency; the gate requires only the approval on the live head,
-  not a particular tool), and only when that pass is clean submit the approval under that identity:
+  skill declares no review-plugin dependency; the gate requires only that the resulting approval
+  exists on the live head, not that a particular tool produced it), and only when that pass is
+  clean submit the approval under that identity:
 
   ```text
   # portability-ok: test_skill_contract.py pins this approve command in the spoke
@@ -1006,7 +1025,7 @@ never drift apart. The tier is off by default; enabling it is a separate announc
   equivalent when the approver is a persisted gh account rather than a bound token. Submit on the
   live head so the gate's head-unchanged-since-review pin (`--expected-head`) still holds; any
   push after the approval invalidates it and the review pass must be re-run against the new head.
-  Never approve on an unclean pass, and never under the author or a lane identity: either
+  Never approve on an unclean pass, and never under the author or a lane identity. Either
   collapses author ≠ approver and the gate refuses the merge fail-closed.
 
 - **Review-workflow requiredness precondition (enabling).** Enable the tier ONLY on a base branch
@@ -1014,26 +1033,26 @@ never drift apart. The tier is off by default; enabling it is a separate announc
   always runs to a non-skipped conclusion on every PR to that base. The gate proves the review ran
   solely through `mergeStateStatus == CLEAN`, which guarantees only that *required* contexts passed;
   a review workflow that is present but not required can be absent, skipped, or failing while the PR
-  still reads CLEAN, so the gate could green-light a merge the review never gated.
+  still reads CLEAN, so the gate could green-light a merge the review never actually gated.
   Requiredness is necessary but not sufficient: a conditionally-skipped review job can report a
-  `SKIPPED` conclusion counted as passing, so a required-but-skipped review still reads CLEAN
-  without having run. Requiring the review workflow closes that hole *only when* it cannot
-  conditionally skip on the paths or conditions the tier's PRs hit: it must always execute and
-  produce a non-skipped result on the pinned head. Where the review workflow is not a required
-  context, or can skip on those PRs, do not enable the tier: this is an
-  operator enabling precondition, verified before the flip, not something the merge gate can
+  `SKIPPED` conclusion that is counted as a passing state, so a required-but-skipped review still
+  reads CLEAN without having run. Requiring the review workflow therefore closes that hole
+  deterministically *only when* it cannot conditionally skip on the paths or conditions the tier's
+  PRs hit. It must always execute and produce a non-skipped result on the pinned head. Where the
+  review workflow is not a required context, or can skip on those PRs, do not enable the tier: this
+  is an operator enabling precondition, verified before the flip, not something the merge gate can
   self-enforce.
 
 - **Bot-review precision precondition (enabling).** Enable the tier ONLY after the fleet's bot-review
   lane has demonstrated recorded precision over a sustained window, the same earned-promotion trigger
   ADR 0002 sets for flipping an advisory review lane to a blocking gate. The tier lets a
-  fleet-produced approval satisfy a required-review ruleset, promoting that lane from advisory to
-  merge-deciding, so it is earned on that same bar: precision proven over a sustained window and
-  ratified as a reviewed change citing that evidence, never a calendar flip or operator discretion
-  alone. Absent a recorded precision window for the reviewing bot, do not enable the tier. The
-  requiredness precondition governs whether the review workflow ran; this one governs whether its
-  verdicts have earned the authority to stand in for a human approval, and it too is an operator
-  enabling precondition the merge gate cannot self-enforce.
+  fleet-produced approval satisfy a required-review ruleset, which promotes that lane from advisory to
+  merge-deciding, so it is earned on that same evidence bar: precision proven over a sustained window
+  and ratified as a reviewed change citing that evidence. It is never a calendar flip, and operator
+  discretion alone is insufficient. Absent a recorded precision window for the reviewing bot, do not
+  enable the tier. The requiredness precondition above governs whether the review workflow ran; this
+  one governs whether its verdicts have earned the authority to stand in for a human approval, and
+  like requiredness it is an operator enabling precondition the merge gate cannot self-enforce.
 
 ## Unattended Merge Path
 
@@ -1236,25 +1255,26 @@ merge only through `--unattended`.
 
 ## Harness Permission Layer
 
-A permission denial can come from two layers. Tell them apart before deciding how to react, and
-never retry or route around either one.
+A permission denial can come from two different layers. Tell them apart before deciding how to
+react. Never retry or route around either one.
 
 - **Harness/runtime permission denial.** The host runtime's own permission layer (its rules plus,
   in some runtimes, an auto-mode safety classifier) blocks a tool call before any skill script
-  runs: a harness policy decision, not this skill's. Treat it as the "permissions are missing"
-  Stop And Ask case above: do not retry the call, do not route around it with a different tool or
-  approach, and report exactly what was attempted and that the harness blocked it.
+  even runs; this is a policy decision made by the harness, not by this skill. Treat it as the
+  "permissions are missing" Stop And Ask case above: do not retry the call, do not route around
+  it with a different tool or approach, and report exactly what was attempted and that the
+  harness blocked it.
 - **Script-level gate denial.** A skill script or wrapper runs to completion and itself returns a
   deliberate non-ready or refused result: the merge wrapper reporting `ready: false` with a list
-  of blockers, or the lease helper exiting `3` because another run holds the requested lease.
-  This is expected, structured output from the script's own gate, not a permissions problem.
-  React to the reported blockers or exit code per the relevant reference file; never bypass the
-  gate and never retry as if it were a transient failure.
+  of blockers, or the lease helper exiting `3` because the requested lease is already held by
+  another run. This is expected, structured output from the script's own gate, not a permissions
+  problem. React to the reported blockers or exit code per the relevant reference file; never
+  bypass the gate and never retry as if it were a transient failure.
 
 The harness layer is independent of, and sits above, the wrapper gates: it can deny a mutation
 the wrapper gate has already proven ready and in-tier. That denial is an environment-level
-ceiling this skill's contract has no authority over: a normal outcome to plan for, not a bug in
-this skill, a stalled worker, or a reason to retry with broader permissions.
+ceiling this skill's own contract has no authority over. It is a normal, expected outcome to plan
+for, not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
 Configuring that host layer means deciding which of this lane's entry points mutate, which flags
 gate which guard, and where each refusal is enforced. Those facts are in
@@ -1267,9 +1287,9 @@ the consuming configuration.
 rules-layer denial: a retried classifier denial can succeed. Nothing in this file resolves whether
 that makes a retry appropriate, so follow the never-retry bullet above for classifier denials too,
 and report the denial rather than reasoning about the classifier. The Lane-Script Reachability
-section below is about whether the lane's own scripts are reachable at all, not what to do after a
-denial; its restatement of the denial contract is inherited from the bullet above, not fresh
-confirmation of it.
+section that follows is about whether the lane's own scripts are reachable at all, not about what
+to do after a denial; read its restatement of the denial contract as inherited from the bullet
+above, not as fresh confirmation of it.
 
 ### Lane-Script Reachability (operator prerequisite)
 
@@ -1277,16 +1297,18 @@ That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. 
 readiness with a bundled script: the Python engine and gates under `skills/babysit-prs/scripts/`,
 the guarded wrappers and the plugin-scope helpers under `scripts/` that the
 Python-free degrade path itself depends on, including the **read-only** merge-readiness check,
-which mutates nothing and is still a shell invocation the host may deny. So invoking those scripts
-without a per-call denial is a declared prerequisite of the lane, on the same footing as Python.
+which mutates nothing and is still a shell invocation the host may deny. So those scripts being
+invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
+Python.
 
 **The no-degrade half is narrower than the prerequisite, and that distinction is the point.** It
 binds the paths that *prove readiness*: the readiness gate and the read-only merge-readiness
-check. Unlike Python those have no degrade tier: there is no permission-free path to a proven
-readiness verdict, and a verdict never produced cannot be handed to anyone. A denied *mutation* is
-not in that set: the gate has already proven the PR ready, so Pinned-Command Degradation below
-degrades it to a ready-to-execute operator handoff. The prerequisite covers reachability of every
-bundled script; the no-degrade rule covers the check paths only.
+check. Unlike Python those have no degrade tier, because there is no permission-free path to a
+proven readiness verdict, and a verdict that was never produced cannot be handed to anyone. A
+denied *mutation* is not in that set: there the gate has already proven the PR ready, so
+Pinned-Command Degradation below degrades it to a ready-to-execute operator handoff. So the
+prerequisite covers reachability of every bundled script; the no-degrade rule covers the check
+paths only.
 
 **What this prerequisite rests on.** With `autoMode.classifyAllShell` enabled, every narrow Bash
 allow rule is suspended, including grants purpose-built for this lane's scripts, so under that
@@ -1304,8 +1326,8 @@ Reachability is **not** implied by a `permissions.allow` rule. Whether shell all
 all while a host safety classifier is active is governed by the host's own auto-mode configuration.
 Read [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config) for the current
 semantics of `autoMode.classifyAllShell`, of the prose `autoMode.allow` exceptions, and of which
-settings scopes the classifier reads `autoMode` from; never infer them from this file, nor assume a
-prose entry guarantees a given command runs. The lane requires only the outcome:
+settings scopes the classifier reads `autoMode` from; never infer them from this file, and never
+assume a prose entry guarantees a given command runs. What the lane requires is only the outcome:
 a configuration under which this plugin's bundled scripts, invoked in the path forms this file
 mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
 configuration with `claude auto-mode config`.
@@ -1320,9 +1342,9 @@ exits 0 with no verdict; that form is not a check run, it is the non-mutating se
 is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
 proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
 ([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its
-face. That is the mechanical half of this rule and its limit: a gate the harness never let run
-cannot report its own non-invocation, so the quoted-verdict requirement lives on the report, not
-inside the script.
+face. That is both the mechanical half of this rule and its limit: a gate the harness never let run
+cannot report its own non-invocation, which is why the quoted-verdict requirement lives on the
+report rather than inside the script.
 
 When readiness is not gate-proven, whether an emitted `READINESS_UNPROVEN` or a call the harness
 denied outright, `mergeStateStatus`, the check rollup, or any other live `gh` state a worker reports is
@@ -1331,8 +1353,8 @@ author, unprotected base, self-login exemption, head match). Report that PR as *
 unproven**, quoting the verdict line when there is one and naming the exact command attempted when
 the harness blocked the call, and surface the prerequisite above once for the cycle rather than
 re-attempting the call per PR. Pinned-Command Degradation below covers the denied-*mutation* case;
-this clause covers the denied-*check* case, which has no ready-to-execute handoff because nothing
-was ever proven ready.
+this clause covers the denied-*check* case, which has no ready-to-execute handoff precisely because
+nothing was ever proven ready.
 
 ### Pinned-Command Degradation
 
@@ -1340,9 +1362,9 @@ When the runtime denies a guarded mutation that this skill's own gate already pr
 degrade that one PR to the same outcome default (safe) mode reports for a ready PR: mark it
 **"ready, awaiting human execution"** and surface the exact, fully-argument-pinned command for the
 operator to run, in the `scripts/`-path wrapper form (§Guarded Mutation Wrappers), which runs the
-wrapper with every guard intact. The case is distinguishable because the wrapper never ran, so
-there is no wrapper exit code and no `blockers` output. Never surface a workaround, nor a
-raw-Python re-spelling of the command that would dodge the wrapper's guards and the
+wrapper with every guard intact. The case is distinguishable because the wrapper itself never ran,
+so there is no wrapper exit code and no `blockers` output to react to. Never surface a workaround,
+and never a raw-Python re-spelling of the command that would dodge the wrapper's guards and the
 narrow allow rule.
 
 For a merge:
@@ -1351,9 +1373,10 @@ For a merge:
 bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins> --review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes> --state-dir <state-dir>
 ```
 
-When the autopilot merge tier is enabled, surface the enabled-path command from Autopilot Merge
-Tier: Enabled-Path Mechanics above instead of this flagless base form, so the operator's manual
-merge is held to the tier criteria the blocked gate would have enforced.
+When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
+surface the enabled-path command from Autopilot Merge Tier: Enabled-Path Mechanics above, not this
+flagless base form, so the operator's manual merge is held to the same tier criteria the blocked
+gate would have enforced.
 
 For a thread resolve, never surface a bare `--autonomous` or `--include-human` resolve: both
 re-fetch the live thread list and re-evaluate every eligible thread at execution time, so an
@@ -1372,13 +1395,14 @@ bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a
-failure or a blocker to resolve. Continue the rest of the queue exactly as if the wrapper's own
-gate had refused the mutation. Hand off the pinned command and move on: the
-no-background-monitor clause (Worker Contract, `orchestration.md`) governs here too, so a
-harness-blocked merge is never a reason to arm a watch waiting to retry it. When this agent (or the
-operator) later checks whether a deferred command acted, parse the JSON `action` field per Guarded
-Mutation Wrappers above, never the exit code alone, before treating the thread as cleared or the
-merge as done and re-running the gate.
+failure and not a blocker to resolve. Continue the rest of the queue exactly as if the mutation
+had been refused by the wrapper's own gate. Hand off the pinned command and move on: the
+no-background-monitor clause (Worker Contract, `orchestration.md`) governs this point too, so a
+harness-blocked merge is never a reason to arm a watch that sits waiting to retry it. When this
+agent (or the operator) later checks
+whether a deferred command actually acted, parse the JSON `action` field per Guarded Mutation
+Wrappers above, never the exit code alone, before treating the thread as cleared or the merge
+as done and re-running the gate.
 
 ## Never Do Automatically
 
@@ -1386,9 +1410,9 @@ merge as done and re-running the gate.
   gate. Worker and autopilot merge only a PR that gate proves 100% ready.
 - Generate an approving review to satisfy a required-review ruleset, or merge on a review the
   fleet produced itself, **except** under the autopilot merge tier, a deliberate, config-gated
-  opt-in, off by default, that engages only when the operator sets
+  opt-in that is off by default. It engages only when the operator sets
   `babysit_autopilot_merge_tier`; enabling that flag is a separate, announced operator step,
-  never a side effect of another change. When the tier is enabled, a second
+  never a default and never a side effect of another change. When the tier is enabled, a second
   bot account (author ≠ approver) runs a **genuine**
   review pass and submits an approving review **only when it is clean**, and the pinned merge
   wrapper's `--autopilot-merge-tier` gate then merges **only when every criterion holds**, each
@@ -1419,11 +1443,11 @@ merge as done and re-running the gate.
 
   Any criterion failing falls back to the base behavior: the PR is reported on the human
   merge-ready list. The tier never routes around the gate and never rubber-stamps: the bot
-  review is a real review pass. Absent the enable flag this tier does not exist and the first
-  bullet governs unchanged.
-- Enable auto-merge (Merge lane: no auto-merge, above): armed, it can merge ahead of AI review, or
-  a later review round can leave the PR unmergeable after the lane has moved on. Instead merge
-  synchronously against a `ready: true` merge-gate run, or
+  review is a real review pass, and the ruleset stays meaningful. Absent the enable flag this
+  tier does not exist and the first bullet governs unchanged.
+- Enable auto-merge (Merge lane: no auto-merge, above). Armed, a review round landing after it
+  can merge ahead of AI review or leave the PR unmergeable while the lane has
+  already moved on. Otherwise merge synchronously against a `ready: true` merge-gate run, or
   report the PR as merge-ready and leave it in the queue.
 - Force-push.
 - Rebase or force-update a PR branch as freshness maintenance.
@@ -1445,6 +1469,6 @@ human threads are stop-and-ask conditions until GitHub state resolves them (`fee
 ## Comment Policy
 
 Beyond the classification replies and follow-ups the shared review discipline requires, prefer
-commits and concise reports over more GitHub comments; the one-shot review-trigger comment
+commits and concise reports over additional GitHub comments. The one-shot review-trigger comment
 (`review-trigger.md`, when configured) is the only other proactive comment. Never impersonate
 another tool or identity in a comment.

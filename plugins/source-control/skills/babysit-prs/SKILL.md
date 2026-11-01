@@ -19,13 +19,13 @@ Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
 <!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
 
-Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the block above: the harness composes it into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. Dated record: the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
+Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. The dated record for that composition claim is the [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation".
 
 ## Purpose
 
 Keep pull requests moving without taking unsafe forge actions. Guarantees are enforced in
 deterministic gate scripts; judgment stays with the agent. The safe default discovers your own
-open PRs (authored by one of your self logins) under the current repo's owner (or the configured
+open PRs, author is one of your self logins, under the current repo's owner (or the configured
 watched owners), works each to readiness, and reports. **The safe tier never resolves threads
 and never merges**; merging exists only behind the explicit `worker`/`autopilot` opt-in and a
 deterministic merge gate. Designed for `/loop /source-control:babysit-prs` continuous coverage.
@@ -35,9 +35,10 @@ self-reply filtering) is the plugin-scope seam shared with `/source-control:pull
 [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md).
 Read it before processing findings; dispatched workers cite it directly.
 
-This body names forge operations; their commands on GitHub, the one forge supported today, are in
-[the GitHub provider reference](../../reference/providers/github/README.md), and the bundled
-scripts and `reference/` spokes already carry them.
+This body names forge operations; the commands that perform them on GitHub, the one forge
+supported today, are in
+[the GitHub provider reference](../../reference/providers/github/README.md). The bundled scripts
+and the `reference/` spokes already carry them.
 
 ## Modes and arguments
 
@@ -51,13 +52,13 @@ An invocation is `[mode] [--unattended] [scope]`; mode and scope are orthogonal.
 | `help` (or `?`) | Print the common flows and the effective configuration below; take no other action. |
 
 **Tier selection is explicit.** The tier keyword in the invocation wins. An explicitly typed
-`/source-control:babysit-prs` invocation with no keyword, including inside `/loop`, runs the
-configured `default_tier` (`safe` unless the consumer changed it). An auto-routed match (this
+`/source-control:babysit-prs` invocation with no keyword, including inside `/loop`. Runs the
+configured `default_tier`, `safe` unless the consumer changed it. An auto-routed match (this
 skill loaded from conversational vocabulary such as "babysit my PRs" rather than a typed
-invocation) always runs the safe tier: `default_tier` never acts on it, so a merge-capable tier
-engages only through the `worker`/`autopilot` keyword or a typed invocation under a deliberately
-changed `default_tier`. Configuration never turns a casual invocation into standing merge
-authority.
+invocation) always runs the safe tier: `default_tier` never acts on auto-routed invocations, so
+a merge-capable tier engages only when the user names it, the `worker`/`autopilot` keyword, or
+a typed invocation under a deliberately changed `default_tier`. Configuration can never convert
+a casual invocation into standing merge authority.
 
 Any tier also honors an explicit user instruction to merge or resolve specific PRs now; that is a direct order, not autonomous behavior, and it runs the same guarded gates below.
 
@@ -124,12 +125,13 @@ and D4 in [review-discipline](../../reference/review-discipline.md) §3. Contrac
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md);
 full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#grounding-bar).
 
-**Reading the merge-conflict blocker string.** The snapshot classifier has no tier input, so it
-emits the same blocker string, `"merge conflict;
-dedicated conflict-resolution agent required"`, for every conflicting PR in every tier. It names
-a capability of this skill, not an instruction to invoke it. In the safe tier the table's
-`no — report` still governs: report the blocker exactly as stated and dispatch no conflict
-worker. Only `worker` and `autopilot` read it as license to act.
+**Reading the merge-conflict blocker string.** The snapshot classifier is mode-agnostic by
+design, it has no tier input, so it emits the same blocker string, `"merge conflict;
+dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.
+That string names a capability that exists in this skill, not an instruction to invoke it. In
+the safe tier the table's `no — report` still governs: report the blocker exactly as stated
+and dispatch no conflict worker. Only `worker` and `autopilot` read that same string as
+license to act.
 
 **Cross-tier invariants**, hold in every tier including autopilot: never a force-push (freshness is
 merge-only, refspec-pushed fast-forward, [reference/loop.md](reference/loop.md)); never `--admin`;
@@ -144,14 +146,13 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously by this skill in ANY tier (a pr-merge lane with its Dependabot class on owns those merges);
 the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** in ANY tier, a PR is held when its body says "do not merge" (or "don't
-merge") or has a line starting `Hold:` (the merge gate reads the live body and reports a
-blocker), or when it carries a `do-not-merge` label, which the gate blocks on unconditionally (an
-`--unattended` run or the autopilot merge tier also on the human-gated label, `needs-human` by
-default); `--block-labels` adds further labels in the autopilot merge tier. The PR is reported and
-left unmerged. The hyphenated label name in a body is not a hold.
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
+starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+label is held the same way: the gate blocks on that label unconditionally (an `--unattended` run or the autopilot merge
+tier also on the human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the autopilot
+merge tier. The PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
 
-**Draft policy (per tier).** Drafts enter evaluation scope in every tier; there is no blanket
+**Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
@@ -178,7 +179,8 @@ That gate merges **only when every criterion holds**, the criteria and the safet
 ## Guarded mutations: deterministic gates, agent judgment
 
 The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
-never the bare command name nor the raw Python behind them; each `source-control-babysit-<x>` below means that wrapper in that form. Both fail closed without `--allowed-owners`.
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `scripts/`-path form; the exact form is the single
+home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 **Before composing either wrapper command, read [reference/safety.md](reference/safety.md),
 "Guarded Mutation Wrappers", for the exact flag set.** That section is the single home for the
@@ -200,26 +202,27 @@ silently dropped guard.
 - **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to
   a human (Pinned-Command Degradation, [reference/safety.md](reference/safety.md)), report that
   outcome and end the PR's cycle. The no-background-monitor clause (Worker Contract,
-  [reference/orchestration.md](reference/orchestration.md)) governs this step as it governs a
-  worker's turn: proving readiness is never a license to arm a watch.
+  [reference/orchestration.md](reference/orchestration.md)) governs this gate-completion step
+  exactly as it governs a worker's turn. Proving readiness is never a license to arm a watch.
 
 - **Thread resolution**. `source-control-babysit-resolve-thread` is the gate, and the mode is the
   tier's: safe lists only and never resolves; worker resolves `--autonomous`, confined further to
   threads already outdated in the PRE-push snapshot
-  ([reference/orchestration.md](reference/orchestration.md)), agent discipline rather than
-  machine-enforced; autopilot widens to threads it has addressed, human threads included. The
+  ([reference/orchestration.md](reference/orchestration.md)), a rule that is agent discipline rather
+  than machine-enforced; autopilot widens to threads it has addressed, human threads included. The
   wrapper touches only bot-authored threads unless that widening is in play, and it can never merge,
-  reply, or dismiss reviews. Exit code 0 alone never proves a specific thread was resolved: parse
-  the per-thread JSON `action` field and the run summary before reporting or re-checking the merge
-  gate.
+  reply, or dismiss reviews. Never treat exit code 0 alone as proof a specific thread was resolved.
+  Always parse the per-thread JSON `action` field and the run summary before reporting or
+  re-checking the merge gate.
 
 - **Independent resolution**. `--independent-resolver` is a THIRD mode, parallel to `--autonomous`
   and never a relaxation of it. `isOutdated` means the referenced code moved, so on a prose or
   documentation PR a genuinely addressed finding never becomes outdated and the worker guard refuses
   forever. This mode is dispatched to a FRESH context that is not the merging worker and did not
-  author the fix; that independence replaces `isOutdated` as the anti-self-certification property.
-  The script cannot verify it, so the other half is machine-checked: one pinned thread per call, and
-  a disposition whose evidence the script validates against the world rather than the claim. A thread carrying more than one finding is refused outright
+  author the fix, that independence is what replaces `isOutdated` as the anti-self-certification
+  property, and the script cannot verify it, which is why the other half is machine-checked: one
+  pinned thread per call, and a disposition whose evidence the script validates against the world
+  rather than against the claim. A thread carrying more than one finding is refused outright
   (`skipped-multi-finding-thread`) and escalates: one disposition cannot clear a thread whose other
   findings nothing validated. Bot-only and the security/P1 bright line still hold. Who dispatches
   this mode, the per-finding
@@ -333,24 +336,25 @@ The snapshot engine and gates are Python (stdlib-only) under
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
-[reference/loop.md](reference/loop.md) (discovery via the forge's PR list, finding classification via the
-plugin-scope gate script, cadence via the static ladder). The merge gate is itself Python, so that
-path cannot assess merge-readiness at all: let the safe iteration proceed and report
-merge-readiness unchecked, never inferred from the classification gate.
+[reference/loop.md](reference/loop.md). Discovery via the forge's PR list, finding classification via the
+plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that
+path cannot assess merge-readiness at all: report it unchecked, never inferred from the
+classification gate. Let a safe iteration proceed when the engine is absent, reporting
+merge-readiness as unchecked.
 
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
-In a cloud session behind the GitHub proxy, a forge GraphQL call can be refused in a way that
-reads like an expired token or a missing scope while being neither: switch APIs rather than
-re-authenticate (the signal, the REST routes and the upstream pointer: provider reference
-"Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
-discovery, classification, and the branch-rule and freshness checks keep working.
+In a cloud session behind the GitHub proxy, a forge GraphQL call can be refused, and the
+refusal reads like an expired token or a missing scope while being neither: take it as a signal to
+switch APIs rather than to re-authenticate (the signal, the REST routes and the upstream pointer:
+provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
+discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
 Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.
 The merge gate reports `threadResolutionProven: false` and `unresolvedThreadCount: null`, never `0`,
 and holds the PR with a blocker naming the restriction: an empty thread list would read as "zero
 unresolved threads", the false-clean signal [reference/safety.md](reference/safety.md) exists to
-prevent. Report readiness there as UNPROVEN, never clean, quoting the blocker, and run the lane
-from a session served GraphQL when a PR actually needs to merge. `reviewDecision`
+prevent. Readiness there is UNPROVEN, never clean. Report it that way, quoting the blocker, and run
+the lane from a session that is served GraphQL when a PR actually needs to merge. `reviewDecision`
 degrades the same way: REST can prove `CHANGES_REQUESTED` but cannot prove an approval, so a
 protected base holds rather than merging on evidence that does not reach it.
 
@@ -383,8 +387,8 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
 
 **Execution discipline:** the primary failure mode is claiming to process findings without
 running per-finding D1–D7. Every iteration MUST output the completed evidence checklist
-(§5.5). "Done" means the forge shows evidence; model memory of "I replied" or "I pushed" is not
-evidence, so re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
+(§5.5). "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
+evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
 
 ## Operational runbook (engine-backed cycle)
 
@@ -416,7 +420,8 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 
 ## Boundary, the built-in `/autofix-pr` command
 
-Both watch a pull request and push fixes, so "watch my PR and fix what breaks" can land on either.
+Both watch a pull request and push fixes to it, so "watch my PR and fix what breaks" can land on
+either.
 
 - **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's PR
   and pushes fixes when CI fails or reviewers comment, and keeps running after the local session
@@ -443,10 +448,10 @@ present. The four-part records live in
 
 The `reference/` files write this skill's directory as `<skill-dir>`, which is
 `${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Substitute each before running a command or writing it into a brief:
-those files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the
-Bash tool unsubstituted, and its environment has no `CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to
-expand it from. Basis: the plugins reference,
+`${CLAUDE_PLUGIN_ROOT}`. Put each path in place of its placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 

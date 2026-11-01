@@ -1,7 +1,7 @@
 # AI Review Trigger
 
-A bot-agnostic module that summons an external AI reviewer with a trigger comment and reads its
-engagement gate. Four configuration slots drive it: `<review-trigger-phrase>` (the
+A generic, bot-agnostic module for summoning an external AI reviewer with a trigger comment and
+reading its engagement gate. Four configuration slots drive it: `<review-trigger-phrase>` (the
 exact comment body that summons the reviewer), `<review-bot-logins>` (the reviewer's GitHub App
 login or logins), `<review-gate-context>` (the commit-status context that reports reviewer
 engagement), and `<ci-gateway-context>` (the aggregate CI gateway context, where the repo has
@@ -19,7 +19,8 @@ phrase and reviewer logins in `userConfig` and the two contexts in `userConfig` 
 repository:**
 no trigger comments are ever posted, the engagement gate is treated as absent (the snapshot
 degrades to `gate_state == "absent"` and never reports a pending-engagement blocker), and nothing
-else in this file activates. Configure the slots only for repositories that wire such a reviewer.
+else in this file activates. Configure the slots only for repositories that actually wire such a
+reviewer.
 
 ## Engagement Gate Semantics
 
@@ -36,7 +37,7 @@ polling window, while `SUCCESS` can reflect activity from an earlier head. A fai
 engagement signal: it is never a trigger candidate, and reaches the operator through the ordinary
 failing-check blocker rather than through an automatic trigger comment.
 
-Keep both records. Verify completion only from a submitted review or inline review
+Therefore, keep both records. Verify completion only from a submitted review or inline review
 comment whose own commit ID equals the current head SHA and whose author carries an exact login
 from `<review-bot-logins>` AND is a bot, either by the authoritative GitHub `Bot` type or because
 the operator declared that login in `<extra-bot-logins>`, the standing slot for an automation account
@@ -48,14 +49,15 @@ the current head.
 
 Reactions do not carry a commit SHA and persist across pushes. An eyes reaction on this run's
 durable trigger comment means the reviewer is engaged while that comment's recorded head remains
-current, but it is not completion; keep waiting for a commit-scoped review. A PR-level,
-arbitrary-comment, or thumbs-up reaction may suppress another automatic request, but stays
-unverified and is never treated as current-head approval.
+current, but it is not completion; continue waiting for a commit-scoped review. A PR-level,
+arbitrary-comment, or thumbs-up reaction may suppress another automatic request, but must remain
+unverified and must not be treated as current-head approval.
 
 ## Requesting A Review
 
 Only the orchestrator may post the trigger comment, and posting is terminal for that PR's cycle:
-after posting, defer the PR until a later snapshot. Post only through the guarded helper:
+after posting, defer the PR until a later snapshot. Use the guarded helper rather than posting
+directly:
 
 ```text
 python "<skill-dir>/scripts/request_review.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --trigger-phrase <review-trigger-phrase> --review-bot-logins <review-bot-logins> --extra-bot-logins <extra-bot-logins> --lease-token <worker-token> --state-dir <state-dir> --apply
@@ -68,8 +70,8 @@ The helper requires all of these conditions:
 - the PR-scoped worker lease held by the orchestrator;
 - the explicit pending engagement signal, `<review-gate-context>` pending while no
   current-head review from the configured reviewer exists, observed in two consecutive
-  snapshots at least three minutes apart, so a status flapping through an asynchronous recompute
-  never triggers a post;
+  snapshots at least three minutes apart. This confirmation window is the generic anti-flap
+  rule: a status flapping through an asynchronous recompute never triggers a post;
 - every other observed check terminal and nonfailing, including a green `<ci-gateway-context>`
   where one is configured;
 - no durable request or attempt record for the current head SHA, including close/reopen or
@@ -84,7 +86,7 @@ write-ahead attempt plus confirmed comment history. GitHub's issue-comment API h
 head-SHA precondition, so a push or another trigger can still race the POST. The helper rescans
 trigger commands immediately before posting and rechecks the head after posting; ambiguous
 outcomes require user review instead of retrying. Treat any unattributed trigger-phrase comment,
-including one with extra guidance, the same way. Strictly one shot per head: never repost for a
-SHA with any durable attempt, and if the reviewer does not engage after that one request, report
-it rather than retrying. A genuinely new head SHA starts a new observation window unless its SHA
+including one with extra guidance, the same way. Never repost for a SHA with any durable attempt.
+It is strictly one shot per head. If the reviewer does not engage after that one request, report it
+rather than retrying. A genuinely new head SHA starts a new observation window unless its SHA
 already exists in history.

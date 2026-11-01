@@ -1,8 +1,9 @@
 # babysit-prs orchestration on GitHub
 
-GitHub commands and CLI facts for the operations the babysit-prs
-[orchestration spoke](../../../../skills/babysit-prs/reference/orchestration.md) names. The spoke
-owns every contract, check and refusal around them. The [GitHub provider reference](../README.md) indexes the other
+This file serves the babysit-prs
+[orchestration spoke](../../../../skills/babysit-prs/reference/orchestration.md): it holds the
+GitHub commands and CLI facts for the operations that spoke names. The spoke owns every contract,
+check and refusal around them. The [GitHub provider reference](../README.md) indexes the other
 operations, and the [safety provider file](safety.md#a-cli-merge-the-queue-took) holds the CLI
 merge.
 

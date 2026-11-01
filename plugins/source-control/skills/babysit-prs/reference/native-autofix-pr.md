@@ -12,11 +12,11 @@ it was checked, and the event that makes it worth checking again. "The extractio
 ## No merge step
 
 An `/autofix-pr` session fixes and pushes; it never merges the PR, arms auto-merge, or enqueues it.
-Merging stays with this skill's merge gate at the tier the person chose, or with a person. The
-cloud session loads the repository's own instructions, not necessarily this plugin, so a
-repository that wants it to triage the way this skill does writes those rules, the no-merge rule
-included, into its own instructions: for example a "Post-PR triage" section in
-`docs/conventions/source-control.md` that its `AGENTS.md` or `CLAUDE.md` points at.
+Merging stays where it is today: with this skill's merge gate at the tier the person chose, or with
+a person. The cloud session loads the repository's own instructions, not necessarily this plugin,
+so a repository that wants the session to triage the way this skill does writes those rules into
+its own instructions: for example a "Post-PR triage" section in `docs/conventions/source-control.md`
+that its `AGENTS.md` or `CLAUDE.md` points at, stating the no-merge rule as well.
 
 ## Why the verdict is complementary
 

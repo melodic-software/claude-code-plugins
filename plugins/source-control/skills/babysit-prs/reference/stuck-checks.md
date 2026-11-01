@@ -3,27 +3,29 @@
 Routing for checks that degrade `mergeStateStatus` to `UNSTABLE` without ever completing, blocking
 a clean merge-readiness read even when every REQUIRED check is green, and for checks held for
 approval (§Held For Approval). Use this only when the snapshot reports a non-empty `checks.stuck`
-or `checks.approval_held` array for a PR. That field is the queue signal: a **report/escalation**
-signal, never an auto-fix trigger.
+or `checks.approval_held` array for a PR. That field is the queue signal, and it
+is a **report/escalation** signal, never an auto-fix trigger.
 
 ## The Queue Signal
 
 The snapshot engine classifies stuck checks from data it already normalizes, with no extra GitHub
 fetch. Each PR carries `checks.stuck[]`, always present (empty when none), where each entry is
 `{name, type, class, target_url, details_url, age_seconds}`. `age_seconds` is the check's age at
-snapshot time in seconds, or **`null`** when no inception timestamp is known, as expected for
-`orphaned_status` entries from apps that post a pending status without a `createdAt`. Detection
-fires only under `mergeStateStatus == UNSTABLE`, whose contract ("mergeable, every REQUIRED gate
-satisfied, a non-required commit status not passing") makes a stuck non-required check not a
-required-check failure; the pull-request skill's
-[readiness reference](../../pull-request/reference/readiness.md) states the same fact for the
-single-PR lifecycle (the `codex-review` duplicate-row gotcha). So every check reaching a stuck
-class is non-required by construction, and no per-check required flag is needed.
+snapshot time in seconds, or **`null`** when no inception timestamp is known, which is expected for
+`orphaned_status` entries from apps that post a pending status without a `createdAt`, which is also
+why that class is detected structurally rather than by age. Detection fires only under
+`mergeStateStatus == UNSTABLE`. That state's own contract, "mergeable, every REQUIRED gate
+satisfied, a non-required commit status not passing", is why a stuck non-required check is not a
+required-check failure; the same fact is stated for the single-PR lifecycle in the pull-request
+skill's [readiness reference](../../pull-request/reference/readiness.md) (the `codex-review`
+duplicate-row gotcha). Because detection is gated on `UNSTABLE`, every check reaching a stuck class
+is non-required by construction: the merge-state gate supplies the required/non-required split, so
+no per-check required flag is needed.
 
-The engine surfaces the same signal as a `material_findings` entry, **never a `blockers` string**:
-a blocker would pin `classification == active` and re-dispatch a worker every cycle for a check no
-branch action can clear, while a material finding reports and escalates without re-firing the
-fan-out.
+The engine surfaces the same signal as a `material_findings` entry, **never a `blockers` string**.
+That distinction matters: a blocker would pin `classification == active` and re-dispatch a
+worker every cycle for a check no branch action can clear. A material finding reports and escalates
+without re-firing the fan-out.
 
 ### The three classes
 
@@ -35,16 +37,16 @@ fan-out.
 
 Report a `stuck_queued` entry as **queued**, not as a slow-running job. Name the runner-pool
 contention when the snapshot or a jobs-API read supplies it: the job's `runs-on` labels, how long
-it has been queued, and occupancy (`N/M busy`) when the token can list runners. On a
-capacity-constrained pool each calls for different operator action: a running job is the change's
+it has been queued, and occupancy (`N/M busy`) when the token can list runners. Queued-versus-running
+calls for different operator action on a capacity-constrained pool: a running job is the change's
 own time, a queued job behind a busy pool is fleet capacity, and a queued job with no online runner
-for its label is the unmatched-label case. Never wait on it with a
+for its label is the unmatched-label case this class already names. Never wait on it with a
 blocking checks watch ([GitHub](../../../reference/providers/github/README.md#checks-and-ci-logs)); a long wait is a REST poll per the pull-request
 [monitor reference](../../pull-request/reference/monitor.md) "Waiting on a pending check".
 
 The age threshold is `--stuck-check-age-seconds` (default 30 minutes), so normal in-flight CI and
-freshly-started non-required checks are never reported. `orphaned_status` has no backing run, so
-no start time to age against, and is detected structurally, not by age. A pending check whose
+freshly-started non-required checks are never reported. `orphaned_status` has no backing run, thus
+no start time to age against, and so is detected structurally, not by age. A pending check whose
 inception time is unknown (a QUEUED `CheckRun` gh reports without `startedAt`) is left unflagged for
 the age-gated classes rather than reported on an unprovable age.
 
@@ -78,9 +80,10 @@ malicious-run hold, or changes either page.
 
 ## Not Stuck: Never Scheduled
 
-A different failure with the same surface complaint ("CI is not finishing"), told apart by the
-merge state, not the check list. Everything above concerns checks that are PRESENT and never
-settle, under `UNSTABLE`; this section covers checks that never appear at all, under `DIRTY`.
+A different failure with the same surface complaint ("CI is not finishing"), and the two are
+distinguished by the merge state, not by the check list. Everything above concerns checks that are
+PRESENT and never settle, detected only under `UNSTABLE`. This section is the opposite: checks that
+never appear at all, under `DIRTY`.
 
 **Its queue signal is therefore not `checks.stuck`, which is empty here by construction.** A
 conflicted PR surfaces as `branch_freshness.state == "conflicting"` (`DIRTY` or `CONFLICTING`, per
@@ -93,25 +96,27 @@ base. When the PR is conflicted there is no such ref to compute, so those workfl
 scheduled. They are **absent**, not queued, not pending, not failing. Nothing in `checks.stuck`
 reports them, because a check that was never created has no record to classify.
 
-This misleads because `pull_request_target` workflows run against the base commit and are
-unaffected, as are external apps posting commit statuses and any `schedule` or `push` lane. A
-conflicted PR in a repository that splits its lanes that way still runs the base-anchored ones
-while the `pull_request` workflow carrying most of the gates never schedules: a short all-green
-check list that reads as "passing" or "not started yet" while nearly every gate is missing.
-Resolving the conflict makes the absent lanes appear and the count jumps.
+What makes this actively misleading is that `pull_request_target` workflows run against the base
+commit and are therefore unaffected, as are external apps posting commit statuses and any
+`schedule` or `push` lane. A conflicted PR in a repository that splits its lanes that way still
+runs the base-anchored ones while the `pull_request` workflow carrying the great majority of the
+gates does not schedule at all. The result is a short all-green check list with no failures
+anywhere: a PR that reads as "passing" or "not started yet" while nearly every gate is simply
+missing. Resolving the conflict makes the absent lanes appear and the count jumps.
 
 So read `mergeStateStatus` BEFORE reasoning about a check list that looks too short. `DIRTY`
-explains the absence completely; the remedy is to merge the base branch or rebase, not to
-investigate CI. The missing lanes are not a trigger, permissions, or App-token problem.
+explains the absence completely, and the remedy is to merge the base branch or rebase, not to
+investigate CI. Diagnosing the missing lanes as a trigger, permissions, or App-token problem is
+time spent on a mechanism that is not involved.
 
-The event split is a repo fact, not a constant: derive it from the `on:` blocks under
-`.github/workflows/` rather than trusting any count written down, since a new lane changes which
-side it lands on.
+The event split is a repo fact, not a constant: derive it by reading the `on:` blocks under
+`.github/workflows/` rather than trusting any count written down, since a lane added tomorrow
+changes which side it lands on.
 
 ## Before Acting: Confirm Required-Green
 
-`UNSTABLE` alone does not prove the required gates are green for THIS decision. Re-confirm from
-the guarded merge wrapper's own read, never by inference: [`../scripts/babysit_merge.py`](../scripts/babysit_merge.py)
+`UNSTABLE` alone does not prove the required gates are green for THIS decision. Re-confirm against
+the guarded merge wrapper's own read rather than inferring it: [`../scripts/babysit_merge.py`](../scripts/babysit_merge.py)
 emits a `requiredChecks` field in its snapshot JSON. Only once required checks are green is a stuck
 non-required check the sole thing holding `UNSTABLE`, and even then the merge gate correctly
 refuses `UNSTABLE` and forbids any `--admin` / raw-merge-command bypass. This auditor is the clean path
@@ -123,8 +128,8 @@ Cancelling a stuck check makes it worse (`CANCELLED` is a failure state). Remedi
 judgment call the orchestrator escalates; the categories map to different owners:
 
 - **Branch-CI-config-fixable** (e.g. a wrong `runs-on:` label in the PR branch's own workflow YAML):
-  a corrected workflow is a new commit, so the normal `head_sha_changed` delta makes the next
-  snapshot re-read checks for the new head. Route the fix to that workflow. When the
+  this rides the normal `head_sha_changed` delta: a corrected workflow is a new commit, and the
+  next snapshot re-reads checks for the new head. Route the fix to that workflow. When the
   label is organization-owned, read the standards `runner-policy` component vendored at
   `.github/standards/runner-policy/policy.json` and `docs/ci-runner-routing.md`, and edit the
   approved-label list those record rather than guessing a workflow name.
