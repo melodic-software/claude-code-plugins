@@ -135,7 +135,9 @@ its top-up holds more than the count or does not read, or the incremental
 read before it held more, which reading again cannot cure. The refresh before an allow reads the same way. A listing from
 the API that fails once it began a whole listing is noted beside `LISTING_ENV`'s file
 (`FAILED_LISTING_SUFFIX`), and every later Reader of the job refuses on it
-without paging.
+without paging. The whole listing an over-count takes is noted there too
+(`OVERCOUNT_FALLBACK_SUFFIX`), whatever its outcome, and a later Reader of the
+job whose pages over-count refuses without another.
 
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
@@ -449,6 +451,11 @@ COUNT_OVER = _CountMissed()
 # candidate, each paging three whole listings, 825 to 1,015 calls a run on
 # 2026-11-01).
 FAILED_LISTING_SUFFIX = ".failed"
+# Beside `LISTING_ENV`'s file, written when an incremental over-count takes its
+# whole listing, whatever that listing's outcome: a later Reader of the job
+# whose pages over-count again refuses without another whole listing, so an
+# over-count costs one whole listing a job.
+OVERCOUNT_FALLBACK_SUFFIX = ".overcount-fallback"
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -1318,6 +1325,13 @@ class Reader:
         self.listing_mode = "incremental"
         if not isinstance(listing, list):
             self.listing_mode = "full"
+            if self._over_counted and not self._take_overcount_fallback():
+                self._listing_error = (
+                    "repository artifacts: the pages held more than GitHub's live "
+                    "artifact count, and this job already took its whole listing "
+                    "for that"
+                )
+                raise _Unreadable(self._listing_error)
             try:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
@@ -1747,6 +1761,23 @@ class Reader:
         except OSError:
             return None
         return text or "repository artifacts: an earlier listing in this job failed"
+
+    def _take_overcount_fallback(self) -> bool:
+        """Whether this Reader may take the job's one whole listing for an
+        over-count (`OVERCOUNT_FALLBACK_SUFFIX`), noting it taken. With no
+        `listing_path` there is no job to note it for, so it may; a failed
+        write leaves the next Reader to take it too."""
+        if not self.listing_path:
+            return True
+        path = Path(f"{self.listing_path}{OVERCOUNT_FALLBACK_SUFFIX}")
+        try:
+            with path.open("x", encoding="utf-8") as note:
+                note.write("taken")
+        except FileExistsError:
+            return False
+        except OSError:
+            pass
+        return True
 
     def _note_failed_listing(self, error: str) -> None:
         """Best effort: a failed write leaves the next Reader to list. A

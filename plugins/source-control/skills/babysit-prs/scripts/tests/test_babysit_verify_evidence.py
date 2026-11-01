@@ -4212,6 +4212,28 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual(fake.pages(), 3)
         self.assertEqual(self.sleep.call_args_list, [])
 
+    def test_two_readers_that_over_count_take_one_whole_listing_a_job(
+        self,
+    ) -> None:
+        # GitHub dropped 300, 90 days from expiry, so both Readers' pages over
+        # the carry hold one more than the live count. The first takes the
+        # whole listing, which holds the count, and allows. The second, its
+        # saved listing gone (as past its age), refuses without another.
+        base = self.tail()
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 300])
+        _, first = self.judge(fake)
+        self.assertIsNone(first.refusal, first.detail)
+        self.assertEqual(fake.full_listings(), 1)
+        self.saved.unlink()
+        reader, second = self.judge(fake)
+        self.assertEqual(second.refusal, "verify:unreadable")
+        self.assertIn("already took its whole listing", second.detail or "")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        # Not a failed listing: #11926's note stays unwritten.
+        self.assertFalse(self.failed.exists())
+
     def test_an_over_count_the_pages_near_expiry_leave_takes_one_whole_listing(
         self,
     ) -> None:
@@ -4976,7 +4998,7 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     out from the live listing: its `total_count` and the FAILs it lists. The
     workflow's figure must cover the reader's listing caps at any listing
     size, so raising `INCREMENTAL_READS`, `LISTING_READS`, `LISTING_WAITS`
-    or `LISTING_TOP_UP_PAGES` without it fails here. The other terms are the
+    `LISTING_TOP_UP_PAGES` or `NEAR_EXPIRY_PAGE_CAP` without it fails here. The other terms are the
     workflow comment's: 3 reads a FAIL (its run, a compare and a download),
     at most 13 pages an incremental read, the count read before the whole
     listings, one page more than the live count fills, and the step's own
@@ -5013,14 +5035,15 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
                     + ve.INCREMENTAL_READS * 13
                     + 1
                     + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
+                    + ve.NEAR_EXPIRY_PAGE_CAP
                 )
                 self.assertEqual(self.cold_cost(total, fails), worst)
 
     def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
         # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
-        # 264: 2,021 against 1,623, worked by hand in ci-lanes-pr-hold.test.sh.
-        self.assertEqual(self.cold_cost(10_450, 300), 2_021)
-        self.assertEqual(self.cold_cost(7_522, 264), 1_623)
+        # 264: 2,045 against 1,647, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 2_045)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_647)
 
 
 # --- The --authority pr-merge path ------------------------------------------------

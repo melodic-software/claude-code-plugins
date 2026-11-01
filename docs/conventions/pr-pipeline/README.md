@@ -2002,7 +2002,8 @@ at once goes cold together, so the step first lists every artifact page once and
 starts only when the token's core pool then has at least one cold read's worst case under the
 listing's caps (the step's own listing, 3 reads per listed FAIL, 3 incremental reads of at most 13
 pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1`
-pages, each with a top-up of at most 7: 1,623 at 7,522 artifacts and 264 FAILs) times
+pages, each with a top-up of at most 7, and at most 24 pages near expiry read again: 1,647 at 7,522
+artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
 read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
 An entry with a carried run cache but no carried listing pays the listing's part
@@ -2655,7 +2656,8 @@ live count the candidate refuses `verify:unreadable`, and after the first when i
 than the count or does not read, or the pages read before it held more, which another whole listing
 cannot cure. A listing that fails once
 it began a whole listing is noted beside the saved listing, and every later reader in the job
-refuses on that note without paging.
+refuses on that note without paging. So is the one whole listing an over-count takes, whatever its
+outcome: a later reader in the job whose pages over-count refuses without another.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
