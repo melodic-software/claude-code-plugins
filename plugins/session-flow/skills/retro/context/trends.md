@@ -1,7 +1,8 @@
 # Trends Mode: Cross-Session Performance Analysis
 
 Analyze historical session health scores to identify patterns, improvements, and areas needing
-attention. No current-session analysis; purely retrospective across sessions.
+attention, and show the team's delivery metrics beside them when the work-items plugin is installed.
+No current-session analysis; purely retrospective across sessions.
 
 ## Data source
 
@@ -14,7 +15,7 @@ Format: `| Date | Session | Type | Workflow | Technical | Alignment | Efficiency
 ### 1. Load and parse the score history
 
 If the file doesn't exist, report "No historical scores found. Run `/session-flow:retro session` to build
-history." and exit.
+history." and skip to step 6.
 
 ### 2. Compute aggregate statistics
 
@@ -47,10 +48,25 @@ Suggest 2-3 specific focus areas for the next session:
 Highlight outliers: best sessions (overall 9+, what made them great) and worst (overall <6, what
 went wrong).
 
+### 6. Delivery metrics
+
+When `/work-items:measure-delivery` is among the available skills, invoke it through the Skill tool
+with no arguments, which reads the default 84-day window in weekly buckets. Show its table and trend
+lines under a `Delivery` heading, with the window, branch and deploy signal it reports and its
+note that the history runs up to the last fetch. They
+describe the team's delivery from the default branch's history, so keep them in their own table,
+apart from the session score statistics. Keep its rule of never naming a person.
+
+When the skill is not among the available skills (the work-items plugin is not installed), write
+"Delivery metrics: not read, `/work-items:measure-delivery` is not available in this session."
+under that heading. When the skill runs and stops on an error, put its error line there instead;
+when it stops because `origin/HEAD` is unset, also name `--branch` as the fix the person can rerun
+it with. The step is done when the `Delivery` heading holds the table, the not-read line or the error line.
+
 ## What this mode does NOT do
 
 - No current-session analysis, no transcript metrics
 - No memory writes or rule edits
 - No skill/follow-up candidate generation
 
-It's analytical: load data, find patterns, suggest focus areas.
+It's analytical: load data, find patterns, suggest focus areas, show delivery metrics.
