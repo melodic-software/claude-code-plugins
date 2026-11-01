@@ -403,7 +403,7 @@ out of scope until such a signal exists.
   weaker evidence about others; it contains no `MultiEdit` or `NotebookEdit`
   entries at all. `NotebookEdit` is covered by the contract suite and the shared
   matcher, not by the sweep; the matcher no longer names the legacy `MultiEdit`.
-  **The ratio considered acceptable for this surface is a false-positive rate
+  **The ratio considered acceptable for this lane is a false-positive rate
   near zero, and the justification is that the cost of a wrong block here is
   unusually low**: the agent gets a stderr line naming `%TEMP%` and reissues
   the write, which is a second of friction,
@@ -1266,7 +1266,7 @@ three PreToolUse processes to one, three PostToolUse processes to one.
 Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
-plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the surface that
+plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the cost that
 changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
 ≤ 2 s worst-case.
 
@@ -1455,8 +1455,8 @@ repo-specific policy of their own:
   narrow or switch it off (`block_dangerous_git_enabled`,
   `block_dangerous_git_allow`). The `harness-config` plugin's `audit` skill reads
   it to demote a missing baseline deny pattern to `info` when the family is
-  already blocked by a live hook, citing the manifest and naming the levers as
-  the residual. It is data, never executed, and adds no per-call latency;
+  already blocked by a live hook, citing the manifest and naming the options that
+  narrow or switch it off as the residual. It is data, never executed, and adds no per-call latency;
   `coverage-manifest.test.sh` pins it to the guards it describes.
 
 ## Telemetry (opt-in)
@@ -1505,7 +1505,7 @@ guards behave exactly as before.
 /plugin install guardrails@<marketplace>
 ```
 
-Then verify the runtime prerequisites and live guard surface with
+Then verify the runtime prerequisites and the active guards with
 `/guardrails:check`; `/guardrails:setup apply` resolves anything the
 check reports with guidance. `/guardrails:setup apply install-git-hooks` registers the
 [git hooks](#git-hooks) (commit convention, secrets and paths, flags and references) for this
@@ -1586,8 +1586,14 @@ expanded and each match judged as a literal path, and a relative path after a cd
 not follow (a relative cd while CDPATH is set, a glob target with no match or several) is refused.
 The judgment is bounded (512 targets, 256 glob entries, 25 seconds of wall time) and refuses past a
 bound. A target it cannot place (an expansion other than HOME, a relative path after a non-literal
-cd) is left alone. With the same payload cwd, a protected tree is refused ahead of every root above,
-the working tree included: a `.git`, and a directory holding one, so a throwaway clone under temp
+cd) is left alone. That is a measured decision
+([#9770](https://github.com/melodic-software/claude-code-plugins/issues/9770)): refusing an operand
+that still holds an expansion (`rm -rf "$X/build"`) fired on 900 of 5,926 delete-shaped commands in
+one operator's recorded corpus, and in at least 145 of them the target, with the value the command
+assigned substituted, was inside an allowed root. A blocking check ships with zero false positives
+([ADR 0080](../../docs/adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)),
+so the guard does not refuse it. With the same payload cwd, a protected tree is refused ahead of
+every root above, the working tree included: a `.git`, and a directory holding one, so a throwaway clone under temp
 too; the git toplevel itself; every worktree root git has registered for that repository (the
 first 256, read from its `worktrees/*/gitdir` files); anything under `~/.claude`, so every delete
 in a working tree there; Claude Code's temp tree, `<temp>/claude-<uid>` (`%TEMP%\claude` on
