@@ -2719,14 +2719,14 @@ test("shared-copies: a path the base registry does not list, the registry itself
     writeFileSync(join(repo, "notes.md"), "x\n");
   });
   const api = fakeApi(stray.repo, stray.head);
-  assert.deepEqual(await copyPush(stray, api, new Set([COPY])), { outcome: "escalate", escalationReason: "unexpected-path-staged" });
+  assert.deepEqual(await copyPush(stray, api, new Set([COPY])), { outcome: "escalate", escalationReason: "shared-copy-unexpected-path-staged" });
   assert.equal(api.calls.some((call) => call.createCommit), false);
   // A head-side registry edit carried in the patch is not a registered copy.
   const registry = copyFixture(t, (repo) => {
     mkdirSync(join(repo, "scripts"), { recursive: true });
     writeFileSync(join(repo, "scripts/shared-copies.txt"), `lib/shared.sh ${COPY}\nlib/shared.sh notes.md\n`);
   });
-  assert.deepEqual(await copyPush(registry, fakeApi(registry.repo, registry.head), new Set([COPY])), { outcome: "escalate", escalationReason: "unexpected-path-staged" });
+  assert.deepEqual(await copyPush(registry, fakeApi(registry.repo, registry.head), new Set([COPY])), { outcome: "escalate", escalationReason: "shared-copy-unexpected-path-staged" });
 });
 
 test("shared-copies: sharedCopiesFrom reads the base registry's copy column, and the predicate needs it", (t) => {
@@ -2741,9 +2741,9 @@ test("shared-copies: sharedCopiesFrom reads the base registry's copy column, and
 test("shared-copies: select takes only a written patch on a clean merge, and checkRow keeps clean-patch to that row", () => {
   const sel = (mergeState, patchState) =>
     select({ row: row("shared-copies"), patchState, patchSha256: "a".repeat(64), patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: "/nonexistent", reportDir: "/nonexistent", mergeState });
-  assert.equal(sel("conflicted", "written").escalationReason, "conflict-patch-invalid");
-  assert.equal(sel("clean", "").escalationReason, "conflict-patch-invalid");
-  assert.equal(sel("clean", "empty").escalationReason, "conflict-patch-invalid");
+  assert.equal(sel("conflicted", "written").escalationReason, "shared-copy-patch-invalid");
+  assert.equal(sel("clean", "").escalationReason, "shared-copy-patch-invalid");
+  assert.equal(sel("clean", "empty").escalationReason, "shared-copy-patch-invalid");
   assert.throws(() => checkRow({ ...row("shared-copies"), allow: ["merge-result"] }), /shared-copies alone/);
   assert.throws(() => checkRow({ ...row("default"), "clean-patch": true }), /does not commit a merge/);
 });

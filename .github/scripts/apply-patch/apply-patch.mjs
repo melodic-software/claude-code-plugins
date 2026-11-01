@@ -742,12 +742,14 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
   ) {
     throw new Error("a merge row needs the pinned base, the conflict tree, the merge state, the conflicted paths and tree-entries.sh");
   }
+  // A row names a merge reason as is or under its own prefix (shared-copy-).
   const reason = (name, why) => {
-    if (!row.escalations.includes(name)) {
+    const named = row.escalations.find((listed) => listed === name || listed.endsWith(`-${name}`));
+    if (!named) {
       throw new Error(`the ${row.name} row cannot escalate ${name}`);
     }
     log(why);
-    return { outcome: "escalate", escalationReason: name };
+    return { outcome: "escalate", escalationReason: named };
   };
   if (patchHeadSha !== headSha) {
     log("the head moved since the select job; the merge is superseded");

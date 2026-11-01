@@ -128,6 +128,7 @@ activity_of() {
     feedback-*) echo address-feedback ;;
     dependency-*) echo review-dependency ;;
     ci-fix-*) echo fix-ci ;;
+    shared-copy-*) echo sync-shared-copies ;;
     *) echo resolve-conflicts ;;
   esac
 }
@@ -156,12 +157,15 @@ HOLD_REASONS=(feedback-round-cap feedback-uncertain feedback-disputed
 SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
-  dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned)
+  dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
+  shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
+  shared-copy-patch-protected-path)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-unadjudicated feedback-untaken-threads feedback-publish-failed
   dependency-invalid
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry)
+  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry
+  shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"

@@ -63,7 +63,7 @@
     "reads-report": null,
     "skip-moved-head": true,
     "empty-at-push": "invalid",
-    "escalations": ["workflow-staged", "unexpected-path-staged", "conflict-patch-invalid", "conflict-patch-not-applied", "conflict-patch-protected-path"]
+    "escalations": ["shared-copy-workflow-staged", "shared-copy-unexpected-path-staged", "shared-copy-patch-invalid", "shared-copy-patch-not-applied", "shared-copy-patch-protected-path"]
   },
   "docs": {
     "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "skills", "skill-md"],

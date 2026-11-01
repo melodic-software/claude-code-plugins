@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, main, shareTimeline } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, main, shareTimeline } from "./dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1494,4 +1494,83 @@ test("a retry that did not stop, or a select job's own lane stop, handles the he
   await terminal.run();
   assert.deepEqual(dispatchedNumbers(terminal.api), []);
   assert.deepEqual(terminal.api.calls.stops.map((call) => call.sha), [head], "the push job's checks are read, and hold no stop");
+});
+
+// sync-shared-copies: pr-merge's shared-copy escalation as babysit_merge.py
+// writes it (the marker comment, then the lanes App's label), read through
+// gate-source.mjs sharedCopyGate.
+const COPY_APP = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
+const copyPr = (number, overrides = {}) =>
+  pr(number, { mergeable: "MERGEABLE", author: { login: COPY_APP.login, databaseId: LANES_APP }, labels: { nodes: [{ name: "needs-human" }] }, ...overrides });
+const copyRefusal = (head, reason = "shared-copy-sources-changed:lib/x.sh changed on main since merge base c") => [
+  {
+    event: "commented",
+    user: COPY_APP,
+    body: `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the copies are stale at head \`${head}\`.\n\nRefusal: \`${reason}\``,
+    created_at: "2026-10-18T09:59:58Z",
+    updated_at: "2026-10-18T09:59:58Z",
+  },
+  { event: "labeled", actor: COPY_APP, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" },
+];
+function copyApi({ timelines = new Map(), checks = new Map(), runs = [] } = {}) {
+  const calls = { dispatched: [], checkReads: [] };
+  return {
+    calls,
+    listTimeline: async (number) => timelines.get(number) ?? [],
+    listReviewComments: async () => [],
+    listReviews: async () => [],
+    async listCheckRuns({ sha, checkName }) {
+      calls.checkReads.push({ sha, checkName });
+      return checks.get(sha) ?? [];
+    },
+    listWorkflowRuns: async () => runs,
+    async dispatchWorkflow(request) {
+      calls.dispatched.push(request);
+      return { workflowRunId: 7000 + calls.dispatched.length };
+    },
+  };
+}
+const copyDispatch = (api, listed, extra = {}) =>
+  dispatchSharedCopies({ api, runId: "55", log: () => {}, listed, gateLabel: "needs-human", appSenderId: LANES_APP, ...extra });
+
+test("sync-shared-copies: dispatches a lanes App PR whose newest pr-merge refusal at its head is shared-copy-sources-changed", async () => {
+  const node = copyPr(41);
+  const api = copyApi({ timelines: new Map([[41, copyRefusal(node.headRefOid)]]) });
+  const result = await copyDispatch(api, [node]);
+  assert.deepEqual(result, { dispatched: [{ number: 41, workflowRunId: "7001" }], failed: 0 });
+  assert.deepEqual(api.calls.dispatched, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "41", activity: "sync-shared-copies", "dispatcher-run-id": "55" } },
+  ]);
+  assert.deepEqual(api.calls.checkReads, [{ sha: node.headRefOid, checkName: "pr-unblock / sync-shared-copies" }]);
+});
+
+test("sync-shared-copies: no dispatch for another author, another reason, an older head, a draft or no label", async () => {
+  const head = pr(42).headRefOid;
+  const cases = [
+    [copyPr(42, { author: { login: "kyle-sexton", databaseId: 153232337 } }), copyRefusal(head)],
+    [copyPr(42), copyRefusal(head, "check-inputs-changed:x changed on main")],
+    [copyPr(42), copyRefusal("b".repeat(40))],
+    [copyPr(42, { isDraft: true }), copyRefusal(head)],
+    [copyPr(42, { labels: { nodes: [] } }), copyRefusal(head)],
+    [copyPr(42, { labels: { nodes: [{ name: "needs-human" }, { name: "do-not-merge" }] } }), copyRefusal(head)],
+  ];
+  for (const [node, timeline] of cases) {
+    const api = copyApi({ timelines: new Map([[42, timeline]]) });
+    assert.deepEqual(await copyDispatch(api, [node]), { dispatched: [], failed: 0 }, JSON.stringify(node.author) + JSON.stringify(node.labels));
+    assert.equal(api.calls.dispatched.length, 0);
+  }
+});
+
+test("sync-shared-copies: a head with its check run is skipped, and recorded once the run completed; a run in flight holds it", async () => {
+  const node = copyPr(43);
+  const timelines = new Map([[43, copyRefusal(node.headRefOid)]]);
+  const record = emptyRecord();
+  const done = copyApi({ timelines, checks: new Map([[node.headRefOid, [{ status: "completed", conclusion: "neutral" }]]]) });
+  assert.deepEqual(await copyDispatch(done, [node], { record }), { dispatched: [], failed: 0 });
+  // Recorded: the next run reads nothing for the head.
+  const next = copyApi({ timelines });
+  assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
+  assert.deepEqual(next.calls.checkReads, []);
+  const flying = copyApi({ timelines, runs: [{ id: 9, status: "in_progress", display_title: pr_unblockTitle("sync-shared-copies", 43) }] });
+  assert.deepEqual(await copyDispatch(flying, [node]), { dispatched: [], failed: 0 });
 });
