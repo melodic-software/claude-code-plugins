@@ -67,7 +67,7 @@ Sequence:
 1. Verify state via status.sh. Abort if firewall rule absent or ICACLS deny missing (run `setup` first).
 2. **Disable firewall block** (`scripts/firewall.ps1 disable`).
 3. **User opens Kindle for PC, syncs, double-clicks new books, quits Kindle.** Agent cannot drive GUI; pause for user confirmation.
-4. **Delete any newly-staged installer** at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` (`scripts/sync-finalize.sh delete-cache`). ICACLS deny prevents *future* writes but doesn't stop one that lands during the brief firewall-disabled window.
+4. **Delete any newly-staged installer** at `%LOCALAPPDATA%\Amazon\Kindle\updates\*` (`scripts/sync-finalize.sh`). ICACLS deny prevents *future* writes but doesn't stop one that lands during the brief firewall-disabled window.
 5. **Re-enable firewall block** (`scripts/firewall.ps1 enable`).
 6. **Re-run keyfinder** (`~/Tools/Kindle_Key_Finder/Run_keyfinder_admin.vbs`). Saved config auto-loads; tool processes only new books.
 7. **Verify new EPUBs** under Calibre Library.
