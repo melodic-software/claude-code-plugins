@@ -313,8 +313,9 @@ handled, the answers written, and the guard mode. The upsert runs
 `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`; read
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md) before the first upsert of a run for
 its arguments, its exit codes and what each one tells the lane to do, the `$BODY_FILE` contract,
-and what to do when the bound provider is not `github`. Compose the body and invoke the script; do
-not write the comment by hand.
+and what to do when the bound provider is not `github`. That file writes this plugin's data dir as
+`<plugin-data>`: it is `${CLAUDE_PLUGIN_DATA}`, substituted here and not there. Compose the body in
+it, pass it as `--body-dir`, and invoke the script; do not write the comment by hand.
 
 ## Rate-limit guard floor (inlined)
 

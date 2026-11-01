@@ -914,8 +914,8 @@ another's. The marker therefore carries a lane-instance suffix, the lane-type ma
 MARKER="<lane-marker>@<lane_instance>"
 ```
 
-`<lane_instance>` is resolved from launch config, defaulting to the sanitized lowercased machine
-hostname when unset (headless-config floor: never block on an interview, log the assumption). It
+`<lane_instance>` is resolved from launch config, defaulting to a random id made once and kept in
+the plugin data dir when unset (never the hostname, which the public marker would publish) (headless-config floor: never block on an interview, log the assumption). It
 must be **stable across restarts**, since durable state is precisely what survives a `/loop` expiry
 or a cycle-budget relaunch, and **distinct across concurrently running instances**, so two lanes on one
 machine must each be given an explicit id. It is operator-supplied text interpolated into a shell
