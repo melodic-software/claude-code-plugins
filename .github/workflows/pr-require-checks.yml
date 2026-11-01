@@ -6390,13 +6390,16 @@ jobs:
             # most 13 pages each, LISTING_CARRY_MAX_AGE), then one count read
             # and LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
-            # and a top-up after each (LISTING_TOP_UP_PAGES, 7). A whole
+            # and a top-up after each (LISTING_TOP_UP_PAGES, 7), plus at most
+            # NEAR_EXPIRY_PAGE_CAP (24) pages near expiry read again when a
+            # count is over, and NEAR_EXPIRY_ID_READ_CAP (34) artifacts read
+            # by id that those pages omit. A whole
             # listing pages ceil(total_count / 100), plus one for uploads while
             # it pages, so a cold read costs at most
-            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7), plus the pages of
-            # this step's own listing, which every entry the queue builds at
-            # once also reads, cold_cost below: 1,623 at 7,522 artifacts and
-            # 264 FAILs, 2,021 at 10,450 and 300.
+            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7) + 24 + 34, plus the
+            # pages of this step's own listing, which every entry the queue
+            # builds at once also reads, cold_cost below: 1,681 at 7,522
+            # artifacts and 264 FAILs, 2,079 at 10,450 and 300.
             # test_babysit_verify_evidence runs these lines against those caps
             # at several sizes. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
@@ -6438,7 +6441,7 @@ jobs:
                 exit 1
               fi
               listing_pages=$(((total + 99) / 100 + 1))
-              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7)))
+              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7) + 24 + 34))
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||

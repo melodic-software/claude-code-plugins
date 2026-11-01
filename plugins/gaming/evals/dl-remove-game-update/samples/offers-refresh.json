@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "I can run the refresh: remove -ConfirmRefresh 3f9a0c7e12b4 removes the mod and applies it again on the new build. Say yes to go ahead.", "why": "names the refresh" },
+    { "answer": "Option: re-apply the mod against the updated game.", "why": "re-apply" },
+    { "answer": "Want me to apply it again on build 25458807?", "why": "apply again" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Run Steam > Verify integrity of game files, then remove again.", "why": "old advice only" }
+  ]
+}

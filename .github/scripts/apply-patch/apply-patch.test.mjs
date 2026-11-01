@@ -2688,6 +2688,25 @@ test("review-threads: a content-only fix reads no merge base", async (t) => {
   assert.deepEqual(api.compares, []);
 });
 
+// #11840's ref updates failed with only "returned 422" (runs 41308756974,
+// 41312571464): the error now carries what GitHub answered, safe for one
+// ::error:: line.
+test("createGitHubApi's failed ref update names GitHub's answer, with the token and credentials redacted and no line break", async () => {
+  const token = "ghs_" + "T".repeat(36);
+  const answers = [
+    new Response(JSON.stringify({ message: "Update is not a fast forward", documentation_url: "https://docs" }), { status: 422 }),
+    new Response(`bad\n::set-output name=x::${token} ${"github_pat_" + "a".repeat(30)}`, { status: 403 }),
+    new Response("", { status: 404 }),
+  ];
+  const fetch = async () => answers.shift();
+  const api = createGitHubApi({ token, repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} });
+  await assert.rejects(api.updateRef("heads/release/plugins", "a".repeat(40), false), {
+    message: 'PATCH git/refs/heads/release/plugins returned 422: {"message":"Update is not a fast forward"}',
+  });
+  await assert.rejects(api.updateRef("heads/x", "a".repeat(40), false), { message: "PATCH git/refs/heads/x returned 403: bad ::set-output name=x::[redacted] [redacted]" });
+  await assert.rejects(api.updateRef("heads/x", "a".repeat(40), false), { message: "PATCH git/refs/heads/x returned 404" });
+});
+
 test("createGitHubApi reads a comparison and a tree", async () => {
   const sent = [];
   const fetch = async (url, init) => {
