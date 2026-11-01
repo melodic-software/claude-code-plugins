@@ -6356,7 +6356,7 @@ function assertHandoffEvidenceJob(job) {
   assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
-  assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed)+$/);
+  assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed| handed-off)+$/);
   assert.deepEqual(Object.keys(read.env).sort(), ["CALLS", "GH_TOKEN"]);
   assertFallbackPresence(job);
 }
@@ -6558,17 +6558,19 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.ok(handoff, "pr-refine.yml has a fix-docs-handoff job");
   assert.doesNotMatch(sub.if, /needs\.fix-docs\.outputs\./, "the start reads no fix-docs output");
   // The evaluator refuses any reference left unset: the start reads only these.
-  const starts = (posted, allowed, result = "success") =>
+  const starts = (posted, allowed, handedOff, result = "success") =>
     evaluate(sub.if, {
       "needs.fix-docs.result": result,
       "needs.fix-docs-handoff.outputs.posted": posted,
       "needs.fix-docs-handoff.outputs.allowed": allowed,
+      "needs.fix-docs-handoff.outputs.handed-off": handedOff,
     });
-  assert.equal(starts("false", "true"), true, "a handoff after the broker's allow");
-  assert.equal(starts("true", "true"), false, "fix-docs posted its check");
-  assert.equal(starts("false", "false"), false, "a kill switch or broker refusal");
-  assert.equal(starts("", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
-  assert.equal(starts("", "", "skipped"), false, "no fix-docs call, no fallback");
+  assert.equal(starts("false", "true", "true"), true, "a credit stop or an empty key hands off after the broker's allow");
+  assert.equal(starts("true", "true", "false"), false, "fix-docs posted its check");
+  assert.equal(starts("false", "false", "false"), false, "a kill switch or broker refusal");
+  assert.equal(starts("false", "true", "false"), false, "a supersede or trigger decline: allowed, nothing posted, but its scan job ran");
+  assert.equal(starts("", "", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
+  assert.equal(starts("", "", "", "skipped"), false, "no fix-docs call, no fallback");
   assert.deepEqual(handoff.needs, ["fix-docs-head", "fix-docs"]);
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
     assert.equal(evaluate(handoff.if, { "needs.fix-docs.result": result }), runs, result);
@@ -6578,17 +6580,24 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.deepEqual(handoff.outputs, {
     posted: "${{ steps.posted.outputs.posted }}",
     allowed: "${{ steps.posted.outputs.allowed }}",
+    "handed-off": "${{ steps.posted.outputs.handed-off }}",
     "fallback-ready": "${{ steps.fallback.outputs.ready }}",
   });
   const step = handoff.steps[1];
   assert.equal(step.env.CALLS, "fix-docs");
-  // The one read fix-ci-unreported runs, byte for byte.
-  assert.equal(step.run, workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted").run);
-  const listing = ({ posted = false, reportRan = true, allowed = true } = {}) => ({
+  // The one read fix-ci-unreported runs, plus the handed-off fact the third
+  // calls' handoff jobs read.
+  const unreported = workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted").run;
+  assert.equal(step.run, unreported.replace("posted allowed", "posted allowed handed-off"));
+  assert.notEqual(step.run, unreported);
+  // A handoff skips the scan and report jobs; a supersede or a trigger decline
+  // runs both, and posts nothing.
+  const listing = ({ posted = false, reportRan = true, allowed = true, scanRan = reportRan } = {}) => ({
     jobs: [
       { name: "fix-docs-head", conclusion: "success", steps: [] },
       { name: "fix-docs / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
       { name: "fix-docs / run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
+      { name: "fix-docs / scan", conclusion: scanRan ? "success" : "skipped", steps: [] },
       {
         name: "fix-docs / report",
         conclusion: reportRan ? "success" : "skipped",
@@ -6597,14 +6606,22 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
     ],
   });
   for (const [name, list, outputs] of [
-    ["fix-docs posted its check", listing({ posted: true }), { posted: "true", allowed: "true" }],
-    ["a handoff skipped the report job", listing({ reportRan: false }), { posted: "false", allowed: "true" }],
-    ["the broker allowed nothing", listing({ allowed: false }), { posted: "false", allowed: "false" }],
+    ["fix-docs posted its check", listing({ posted: true }), { posted: "true", allowed: "true", "handed-off": "false" }],
+    ["a credit stop or an empty key handed off", listing({ reportRan: false }), { posted: "false", allowed: "true", "handed-off": "true" }],
+    ["a supersede posted nothing after its scan ran", listing({ posted: false }), { posted: "false", allowed: "true", "handed-off": "false" }],
+    ["the broker allowed nothing", listing({ allowed: false }), { posted: "false", allowed: "false", "handed-off": "false" }],
   ]) {
     const read = readPosted(t, step, list);
     assert.equal(read.status, 0, name);
     assert.deepEqual(read.outputs, outputs, name);
   }
+  // End to end: a superseded fix-docs starts no second leg; a handoff does.
+  const legFrom = (list) => {
+    const { outputs } = readPosted(t, step, list);
+    return starts(outputs.posted, outputs.allowed, outputs["handed-off"]);
+  };
+  assert.equal(legFrom(listing({ posted: false })), false, "a superseded call starts no next leg");
+  assert.equal(legFrom(listing({ reportRan: false })), true, "a credit stop or an empty key starts the next leg");
   const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
