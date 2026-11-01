@@ -4167,9 +4167,8 @@ def idle_refusal(
         if _quarantine_touched(repo, since):
             return "quarantine-changed"
         recorded = report["pins"]
-        reader = pin_reader(repo, shared.identity)
-        reader.prefetch(int(n) for n in recorded)
-        if {str(n): sha for n, sha in reader.pins.items()} != recorded:
+        pins = read_pins(repo, (int(n) for n in recorded), shared.identity)
+        if {str(n): sha for n, sha in pins.items()} != recorded:
             return "pins-changed"
     except (PostMergeReadError, ValueError) as exc:
         return f"unreadable: {exc}"
