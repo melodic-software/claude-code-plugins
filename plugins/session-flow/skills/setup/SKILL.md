@@ -77,9 +77,7 @@ and note that re-enabling restores the FAIL semantics.
 2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
    at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
    (`worker_continuation`: `resume`, the default, unless the team wants each new unit in a fresh
-   worker; `encode_policy`: `promote-when-must-hold`, the default, unless the team wants every
-   lesson proposed at its strongest rung; `review_mining_prs`: `20`, the default, an unquoted
-   integer from 2 to 200; `wip_commit`: `false`, the default, unless the team wants a pause
+   worker; `wip_commit`: `false`, the default, unless the team wants a pause
    handoff to make one local `chore(wip):` commit, an unquoted `true` or `false`;
    `transcript_scope`: leave it unset unless the team wants to narrow every member's
    `/session-flow:find-handoff` and `/session-flow:recall` scans to `worktree` or `repo`, since
@@ -172,18 +170,17 @@ before and after, the diff when one was shown, the written path, and whether the
 
 ## Next
 
-`/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro codify`,
-which reads `encode_policy` and `review_mining_prs`; `/session-flow:retro`, whose session mode
+`/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro`, whose session mode
 reads `retro_lenses`; `/session-flow:handoff`, which reads
 `wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`.
 
 ## Gotchas
 
-- **Prerequisites are the observer's, plus `gh` and `jq` for `retro codify reviews`.**
+- **Prerequisites are the observer's, plus `jq` for retro's docs reads and `gh` for
+  `/session-flow:recall`'s pull request reads.**
   `/session-flow:find-handoff` uses Python 3.10+ when present and lists fewer transcript
   directories without it. The other session-flow skills need no installed tool. The repository settings are `worker_continuation`,
-  read by `/session-flow:orchestrate`, `encode_policy` and `review_mining_prs`, read by
-  `/session-flow:retro codify`, `retro_lenses`, read by `/session-flow:retro` session mode,
+  read by `/session-flow:orchestrate`, `retro_lenses`, read by `/session-flow:retro` session mode,
   `wip_commit`, read by `/session-flow:handoff`, and
   `transcript_scope`, read by `/session-flow:find-handoff` and `/session-flow:recall`, where the
   narrower layer wins.

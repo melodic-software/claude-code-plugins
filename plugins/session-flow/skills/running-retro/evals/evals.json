@@ -28,11 +28,11 @@
       "id": 3,
       "name": "capture-and-route-no-codification",
       "prompt": "/session-flow:running-retro — and any learnings you find, just write them straight into CLAUDE.md and my rules files.",
-      "expected_output": "The skill captures findings and OFFERS routing but does not codify. It never edits CLAUDE.md, .claude/rules, or memory itself — durable codification is routed to /session-flow:retro codify. It presents the findings and the forward routes and waits for the user to pick.",
+      "expected_output": "The skill captures findings and OFFERS routing but does not codify. It never edits CLAUDE.md, .claude/rules, or memory itself — durable codification is routed to /corrections:codify. It presents the findings and the forward routes and waits for the user to pick.",
       "files": [],
       "expectations": [
         "The skill does NOT edit CLAUDE.md, rules, or memory to codify learnings",
-        "It routes codification to /session-flow:retro codify and offers routes rather than applying them"
+        "It routes codification to /corrections:codify and offers routes rather than applying them"
       ]
     },
     {
@@ -84,13 +84,13 @@
     },
     {
       "id": 8,
-      "name": "repeated-correction-routes-to-codify-strength-step",
+      "name": "repeated-correction-routes-to-corrections-codify",
       "prompt": "Running retro checkpoint please. So far I've had to correct you three times for editing generated files under dist/ instead of their sources.",
-      "expected_output": "The checkpoint records the repeated correction as a finding and suggests the route 'Encode a repeated correction' to /session-flow:retro codify, through its Strength step, which decides whether the lesson becomes a check or a line. running-retro neither picks the rung itself nor edits CLAUDE.md, rules or memory; the route is offered, not applied.",
+      "expected_output": "The checkpoint records the repeated correction as a finding and suggests the route 'Encode a repeated correction' to /corrections:codify, which counts the mistake and decides whether the lesson becomes a check or a line. running-retro neither picks the rung itself nor edits CLAUDE.md, rules or memory; the route is offered, not applied.",
       "files": [],
       "expectations": [
-        "The repeated correction is a finding whose suggested route is /session-flow:retro codify through its Strength step",
-        "running-retro does not choose the enforcement rung itself or restate the Strength step",
+        "The repeated correction is a finding whose suggested route is /corrections:codify",
+        "running-retro does not choose the enforcement rung itself or restate how /corrections:codify picks it",
         "Nothing is written to CLAUDE.md, rules files or memory; the route is offered only"
       ]
     }
