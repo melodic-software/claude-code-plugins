@@ -10,6 +10,7 @@
 const CLASSES = new Set([
   "auth",
   "rate-limit",
+  "credit-stop",
   "overloaded",
   "max-turns",
   "timeout",
