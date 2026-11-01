@@ -33,4 +33,8 @@ convention, with its boundary and adopters, is
     question that names the evidence that would settle it.
 - **Re-emit.** When evidence changes a pending recommendation, restate it as
   old → new → why, where new is a verified or judgment recommendation or the
-  withheld open question; name the unchanged ones in one line.
+  withheld open question; name the unchanged ones in one line. When the
+  evidence is dispatched work that returned while open items wait on the
+  user, the async-round-presentation contract governs instead: the message
+  ends with every open item in full, the moved one marked
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/async-round-presentation/README.md>).

@@ -10,8 +10,8 @@ Major: the re-emit section defers to the async-round-presentation contract when 
 recommendation comes from dispatched work that returned while open items wait on the user. That
 message ends with every open item in full, the moved one marked, in place of the one-line list of
 unchanged recommendations. The re-emit shape for any other evidence is unchanged. The
-`/planning:interview` out-of-band drift rule carries the change; the plugin-shipped copies still
-state the one-line form and have not yet been updated.
+`/planning:interview` out-of-band drift rule and the plugin-shipped
+`context/recommendation-basis.md` copies carry the change.
 
 ## [2.0.1] - 2026-10-10
 
