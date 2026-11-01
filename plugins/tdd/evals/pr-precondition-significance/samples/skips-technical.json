@@ -47,6 +47,18 @@
     {
       "answer": "Yes for Account.Withdraw; no for CsvRowParser.Parse, since only the exporter calls it.",
       "why": "verdict after a semicolon"
+    },
+    {
+      "answer": "Yes for Account.Withdraw, no for CsvRowParser.Parse.",
+      "why": "comma-joined verdicts"
+    },
+    {
+      "answer": "Yes for Account.Withdraw and no for CsvRowParser.Parse, since only the exporter calls it.",
+      "why": "and-joined verdicts"
+    },
+    {
+      "answer": "Test Account.Withdraw, but skip CsvRowParser.Parse: the check only protects indexing.",
+      "why": "but-joined skip"
     }
   ],
   "fail": [
@@ -97,6 +109,18 @@
     {
       "answer": "Yes — test CsvRowParser.Parse. Skipping it would hide a contract.",
       "why": "'Skipping' in the next sentence is not a skip verdict"
+    },
+    {
+      "answer": "No for Account.Withdraw, yes for CsvRowParser.Parse.",
+      "why": "comma-joined, verdicts swapped"
+    },
+    {
+      "answer": "No for Account.Withdraw and yes for CsvRowParser.Parse.",
+      "why": "and-joined, verdicts swapped"
+    },
+    {
+      "answer": "Yes, test CsvRowParser.Parse; no caller sends a short row today, but the guard documents the contract.",
+      "why": "comma after the yes; the later 'no' is not the verdict"
     }
   ]
 }

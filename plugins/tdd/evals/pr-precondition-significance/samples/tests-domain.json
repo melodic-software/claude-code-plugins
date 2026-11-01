@@ -43,6 +43,18 @@
     {
       "answer": "No for CsvRowParser.Parse; yes for Account.Withdraw, it is a business rule.",
       "why": "verdict after a semicolon"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse, yes for Account.Withdraw.",
+      "why": "comma-joined verdicts"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse and yes for Account.Withdraw, it is a business rule.",
+      "why": "and-joined verdicts"
+    },
+    {
+      "answer": "Skip CsvRowParser.Parse, but yes, test the overdraft guard.",
+      "why": "but-joined yes"
     }
   ],
   "fail": [
@@ -81,6 +93,18 @@
     {
       "answer": "No — skip Account.Withdraw. Yes, CsvRowParser.Parse deserves one.",
       "why": "the yes sentence names (b)"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse, no for Account.Withdraw.",
+      "why": "comma-joined, verdicts swapped"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse and no for Account.Withdraw.",
+      "why": "and-joined, verdicts swapped"
+    },
+    {
+      "answer": "No, skip Account.Withdraw; yes is the wrong call there since the happy path covers it.",
+      "why": "comma after the no; the later 'yes' is not the verdict"
     }
   ]
 }
