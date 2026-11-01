@@ -66,7 +66,11 @@
 // ready` issues in no queue (neither agent-ready nor admission-deferred, no
 // hold or refuse label, no open blocker or sub-issue), at most
 // limits.readmit-per-run of them, oldest updated first (readmitReady), and
-// writes as intake's admission does.
+// writes as intake's admission does. A born-triaged issue (check-born-triaged
+// notBornTriaged: the marker as its body's last line, a listed human or the
+// App its author) that the rules refuse only for a Size or Uncertainty no one
+// set yet waits with no write: its filer sets them after filing, and if no one
+// does, the triage sweep dispatches intake for it.
 //
 // An agent-ready issue left with nothing running is stranded: no hold, no open
 // lane pull request or open pull request of a listed human's for it, no
@@ -222,6 +226,13 @@
 // (refreshSplitWait): on each sub-issue close above, and on the sweep for the
 // open-sub-issue parents whose number is the UTC hour modulo 24.
 //
+// The sweep also rescans open parents whose sub_issues_summary shows every
+// sub-issue completed and whose number is the UTC hour modulo 24, at most
+// limits.parent-rescan-per-run of them, oldest updated first
+// (rescanSplitParents), with the same rules: a parent whose last sub-issue
+// closed outside the sweep window still closes, and one that stays open logs
+// why.
+//
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
@@ -258,6 +269,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { notBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
@@ -875,6 +887,14 @@ async function admissionDecision({ github, repo, number, issue, events, humans, 
   const decision = trustedLabeler(newestAdd(events, READY), { bot, humans })
     ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
     : { verdict: "skip", reasons: [`${READY} was added by neither a listed human nor the lanes App`] };
+  // A born-triaged issue's filer sets its fields after filing, so a refusal
+  // for unset fields alone is a wait (`fields`): readmitReady writes nothing,
+  // and a person's deferral says why and comes off, so the triage sweep still
+  // sends it to intake if they never land.
+  const trusted = (id) => humans.has(id) || (appId !== undefined && id === appId);
+  if (decision.unsetOnly && notBornTriaged(issue, trusted) === null) {
+    return { decision: { verdict: "wait", reasons: [`born triaged, ${decision.unsetOnly.join(" and ")} not set yet`], pulls: [], fields: true }, facts };
+  }
   return { decision, facts };
 }
 
@@ -946,8 +966,8 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 
 // Runs intake's admission on the open `status: ready` issues in no queue:
 // neither agent-ready nor admission-deferred, so nothing else revisits them (a
-// deferral whose label was lost, or a `status: ready` set by hand). One listing,
-// oldest updated first; an issue with a hold or refuse label, an open blocker
+// deferral whose label was lost, or a `status: ready` set by hand). Those of
+// the sweep's one open-issue listing (`listed`), oldest updated first; an issue with a hold or refuse label, an open blocker
 // (its close admits it) or an open sub-issue is left out unread, and at most
 // `cap` of the rest are decided. Skipped as intake's admit skips, on two reads
 // and not counted against `cap`, since a skip writes nothing and so stays
@@ -957,6 +977,8 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // verdict within the gate's room gets agent-ready, past it admission-deferred;
 // a refusal parks at status: confirmed, or status: needs-decision when it
 // holds for a person; a wait on an open pull request adds admission-deferred.
+// A born-triaged issue whose fields are not set yet (admissionDecision `fields`)
+// gets no write, no comment and no share of `cap`.
 // Of the open-sub-issue issues left out, those whose number is the UTC hour of
 // `now` modulo 24 get refreshSplitWait: one comments read each, and a
 // sub-issues read only for a comment it may rewrite, so each is read once a
@@ -964,17 +986,9 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // sub-issue goes to the rules: the summary leaves a duplicate close out of
 // `completed`, so it can show a wait with nothing open. Returns how many reads
 // or writes failed.
-async function readmitReady({ github, repo, humans, bot, gate, appId, admission, cap, now }) {
-  let listed;
-  try {
-    listed = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(READY)}&sort=updated&direction=asc`)).filter(
-      (item) => !item.pull_request && NUMBER.test(String(item.number)),
-    );
-  } catch (error) {
-    reportError("ready", error);
-    return 1;
-  }
+async function readmitReady({ github, repo, listed: open, humans, bot, gate, appId, admission, cap, now }) {
   const lower = (item) => labelNames(item).map((name) => name.toLowerCase());
+  const listed = open.filter((item) => lower(item).includes(READY));
   const queued = (labels) => labels.includes(LABEL) || labels.includes(DEFERRED_LABEL) || labels.some((label) => HOLDS.has(label));
   const waiting = (item) => item.issue_dependencies_summary?.blocked_by > 0 || (item.sub_issues_summary?.total ?? 0) > (item.sub_issues_summary?.completed ?? 0);
   let failed = 0;
@@ -1057,6 +1071,8 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
         await dropParked(github, base, [status], labelNames(issue));
         await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
         console.log(`label-unblocked: #${number} refused: ${reasons}`);
+      } else if (decision.fields) {
+        console.log(`label-unblocked: #${number} waits: ${reasons}`);
       } else if (decision.retriage) {
         await sendToTriage({ github, repo, base, comments: facts.comments, decision, reasons });
         console.log(`label-unblocked: #${number} sent back to intake: ${reasons}`);
@@ -2012,14 +2028,46 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// Closes, as completed and with one comment first, the open parent of issue
-// `number` once its split is finished (admit.mjs splitLeftOpen, owner Q93).
-// Its body is never edited.
+// Closes the open parent of issue `number` once its split is finished
+// (closeDoneParent).
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
   if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
   }
-  const parent = await github("GET", `/repos/${repo}/issues/${number}/parent`);
+  await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${number}/parent`), humans, closes, bot });
+}
+
+// On the sweep, the open issues (`listed`) whose sub_issues_summary shows
+// every sub-issue completed, whose number is the UTC hour of `now` modulo 24,
+// at most `cap` of them in listing order, each read fresh and closed when its
+// split is finished (closeDoneParent): a parent whose last sub-issue closed
+// outside the sweep window. Returns how many reads or writes failed.
+async function rescanSplitParents({ github, repo, listed, humans, bot, cap, now }) {
+  const hour = new Date(now).getUTCHours();
+  const done =(item) => (item.sub_issues_summary?.total ?? 0) > 0 && item.sub_issues_summary.completed === item.sub_issues_summary.total;
+  const due = listed.filter((item) => done(item) && Number(item.number) % 24 === hour);
+  if (due.length === 0) {
+    return 0;
+  }
+  console.log(`label-unblocked: ${due.length} open issue(s) with every sub-issue completed in this hour's rotation; checking up to ${cap} (limits.parent-rescan-per-run)`);
+  const closes = new Map();
+  let failed = 0;
+  for (const item of due.slice(0, cap)) {
+    try {
+      await closeDoneParent({ github, repo, parent: await github("GET", `/repos/${repo}/issues/${item.number}`), humans, closes, bot });
+    } catch (error) {
+      failed += 1;
+      reportError(item.number, error);
+    }
+  }
+  return failed;
+}
+
+// Closes `parent` (an issue as just read), as completed and with one comment
+// first, when it is open here and its split is finished (admit.mjs
+// splitLeftOpen, owner Q93, which checks every sub-issue's close). Its body is
+// never edited.
+async function closeDoneParent({ github, repo, parent, humans, closes, bot }) {
   if (parent?.state !== "open" || !NUMBER.test(String(parent.number)) || !String(parent.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase())) {
     return;
   }
@@ -2169,7 +2217,19 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     // closed, not decided, on the sweep that sees that close.
     failed += await closeSplitParents({ github, repo, closed, sweep, humans, bot });
     if (sweep) {
-      failed += await readmitReady({ github, repo, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now });
+      // One listing of the open issues, oldest updated first, for the parent
+      // rescan and readmitReady.
+      let listed;
+      try {
+        listed = (await paginate(github, `/repos/${repo}/issues?state=open&sort=updated&direction=asc`)).filter((item) => !item.pull_request && NUMBER.test(String(item.number)));
+      } catch (error) {
+        reportError("open", error);
+        failed += 1;
+      }
+      if (listed) {
+        failed += await rescanSplitParents({ github, repo, listed, humans, bot, cap: limits["parent-rescan-per-run"], now });
+        failed += await readmitReady({ github, repo, listed, humans, bot, gate, appId: logins.get(bot), admission, cap: limits["readmit-per-run"], now });
+      }
       failed += await restartLimited({ github, actions, jobLog, repo, bot, humans, now, limits, status });
     }
     return failed === 0 ? 0 : 1;
