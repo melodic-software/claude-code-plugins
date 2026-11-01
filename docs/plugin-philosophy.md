@@ -1265,7 +1265,7 @@ An implementation phase the plan routes `sonnet` as well-scoped drops one tier, 
 `implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
 or complex phases stay on `implementation:implementer` at the strong tier.
 
-The heavy default must be explicit: every agent definition in this repository pins `model`, because an agent that omits it
+Every agent definition in this repository pins `model`, so the heavy default is explicit. An agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
 set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
@@ -1313,7 +1313,7 @@ For generic agents in a multi-agent run, the per-role defaults built on these ro
 | Mechanical work an objective failure signal backs | `sonnet` |
 | Bulk mechanical sweeps | `sonnet` |
 
-No row names `haiku`: no role routes to it until it passes this repository's routing eval, and the
+No row names `haiku`, and no role routes to it until it passes this repository's routing eval, and the
 [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns that rule and the effort
 a Haiku role runs at. The release evidence behind it is recorded in
 [docs/upstream/haiku-5-5-launch.md](upstream/haiku-5-5-launch.md).
