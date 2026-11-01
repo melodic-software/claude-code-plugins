@@ -158,14 +158,14 @@ One subagent per digest unit, dispatched in waves that fit the session's free sl
 session may be running other subagents, sibling runs included, and which agents share the
 concurrent subagent limit, this run's verifiers among them, is
 [subagents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)'s
-to state (as of 2026-11-01; recheck when that section changes which agents share the limit). A spawn the harness refuses for that limit is handled by the
+to state. A spawn the harness refuses for that limit is handled by the
 subagent-death ladder in [context/pipeline-hardening.md](context/pipeline-hardening.md#subagent-death--usage-limit-ladder),
 not retried at once and not collapsed into inline writing.
 
 - **Pointer**: <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>
-- **As of**: 2026-10-17
-- **Recheck trigger**: that section changes what the limit counts or what the refusal tells
-  Claude to do.
+- **As of**: 2026-11-01
+- **Recheck trigger**: that section changes what the limit counts, which agents share the
+  limit, or what the refusal tells Claude to do.
 
 Each unit writes `<work-root>/digests/NN-slug.md` with this fixed
 structure: Summary / Key claims (verbatim) / Figure claims (verbatim; only when the unit has
