@@ -23,6 +23,14 @@
     {
       "answer": "## Exit code\n\n2 (unverifiable)",
       "why": "heading then value"
+    },
+    {
+      "answer": "Exit code: 2 unverifiable, curl could not reach GitHub.",
+      "why": "one exit code, its meaning, then a comma (review finding on #11833)"
+    },
+    {
+      "answer": "update.sh exited 1 drift, see context/update.md for the changed pins.",
+      "why": "exited form with a single meaning and a comma"
     }
   ],
   "fail": [
