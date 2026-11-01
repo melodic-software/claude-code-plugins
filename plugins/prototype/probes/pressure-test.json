@@ -1,0 +1,132 @@
+{
+  "skill": "prototype:pressure-test",
+  "plugin": "prototype",
+  "skill_dir": "plugins/prototype/skills/pressure-test",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings prototype:explore-directions (throwaway, structurally different UI layouts of one screen behind a switcher) and prototype:build-generator (a tunable throwaway generator for an artifact prompting cannot hit). pressure-test owns building a throwaway, hand-driven model of business rules, a state machine, a data model or an API surface to see what it does with awkward cases before committing to it.",
+  "competitors": [
+    "prototype:explore-directions",
+    "prototype:build-generator"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "If a customer cancels while the warehouse is already packing, and the courier picks it up anyway, what do our order rules end up doing? I'd like to click through it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Throw together a quick terminal toy so I can poke at our seat-reservation rules: hold, release, expire, double-book."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can a ticket go straight from closed back to in progress under the workflow we drafted? Let me drive it step by step before we build it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm not sure our proposed invoice record can represent a split payment across two cards. Build something throwaway so I can try it with weird examples."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we lock the public interface for the scheduler, I want to play with a draft of the calls, by job id or by name, in a scratch harness."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our loan rules allow two renewals, but nobody knows what happens when someone else has a hold on the book. Make a small interactive model I can step through."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn the subscription lifecycle into a clickable HTML page the product manager can operate with buttons, no terminal needed."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sketch the coupon stacking rules as a disposable CLI so I can feed it odd combinations and watch the totals change."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What do our inventory reservation rules do when a restock lands between two partial shipments? Spin up a scratch app to find out."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want to try our draft refund policy against strange orderings of events interactively before anyone writes production code."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me three different ways the subscription billing page could be laid out so the team can pick one."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me decide the types and module boundaries for the new fulfillment package before I write the implementation plan."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write unit tests for the existing refund calculator, covering partial refunds and currency rounding."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Orders got stuck in pending after payment succeeded in production last night. Figure out why it's broken."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw an ERD of our tables from the Prisma schema so I can see which entities relate to which."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What should the returns screen look like? Give me a few clickable mockups to flip between."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "We need to handle late refunds better somehow. List some approaches we could take, from cheapest to most ambitious."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add property-based tests to the booking module so CI catches invalid status transitions."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Moving an order from shipped to returned throws an exception for some customers. Debug it."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Settle the domain types for loyalty points (balances, accruals, expiries) and the contract the checkout service will call, so I can plan the work."
+    }
+  ]
+}

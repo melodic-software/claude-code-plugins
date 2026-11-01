@@ -33,13 +33,6 @@ constraint, not around reading `/mcp` connection status directly.
 - **Recheck trigger**: that section changes which configurations report a failed server to
   Claude, or where the error appears.
 
-Official contracts:
-
-- <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
-- <https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed> (as of
-  2026-10-11; recheck when that section changes which configurations report a failed server to
-  Claude)
-
 ## Task
 
 1. Check whether a Dometrain tool (e.g. `list_courses`, `search_dometrain`) is present in the

@@ -135,7 +135,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
-   `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (never C4/C5). Before
+   `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (no rung admits C4 or C5). Before
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
@@ -160,7 +160,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    pair, and any fail-closed reason, followed by one line naming the step 0 bootstrap check's
    findings (each option and its problem), or that the bootstrap is complete as far as that check
    can see. When a cell's `line` reports a demotion, report that line; the escalation it names
-   follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
+   follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C5 hold, see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible: no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class; the
@@ -182,9 +182,10 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier,
    the eligible set is empty; the widening does not apply without tracked adoption either
    (config-resolution.md, "Baseline activation is tracked adoption").
-   **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER in the
-   eligible set, at any rung, under any invocation argument. Checked before, and independent of,
-   the rung comparison above. **Both are tests on the PR, not lookups of the linked item's stamp**:
+   **C5 hold and C4 veto:** a PR that is C5 (untrusted-provenance) is NEVER in the eligible set,
+   at any rung, under any invocation argument; a PR that is C4 (structural) is outside every rung,
+   which admit classes up to C3. Both are checked before the rung comparison above. **Both are
+   tests on the PR, not lookups of the linked item's stamp**:
    `work-classes.md` assigns a class from the risk-property bundle. Blast radius, reversibility,
    provenance, and "the bundle, not the task's surface description, is what assigns a class".
    - **C5, the code's provenance.** Two tests on the cycle-start snapshot, either one marking the

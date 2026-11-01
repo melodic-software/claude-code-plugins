@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .claude/unhobble/quay-opus-5-5-20261101-a1b2",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "makes the directory"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' > .claude/unhobble/quay-opus-5-5-20261101-a1b2/manifest.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '| Date |' | tee .claude/unhobble/quay-opus-5-5-20261101-a1b2/stumbles.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    }
+  ]
+}
