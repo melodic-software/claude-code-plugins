@@ -5,6 +5,7 @@ runs: 3
 max_turns: 15
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
+env: {EVAL_PLAYWRIGHT_SKIP_PYDEPS: "1"}
 expected_outcome: "The reply's playwright-cli commands all carry one named session (-s=<name>) from open through close, take a snapshot before clicking, click by a snapshot ref such as e42 rather than a CSS or text selector, and close the session"
 ---
 
