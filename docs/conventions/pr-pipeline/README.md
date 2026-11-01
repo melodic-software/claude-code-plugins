@@ -13,6 +13,7 @@
 - [Merge authority](#merge-authority)
 - [Review-lane holds](#review-lane-holds)
 - [Trust-root paths](#trust-root-paths)
+- [Claude Code CLI releases](#claude-code-cli-releases)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
 - [Write identities](#write-identities)
@@ -80,7 +81,9 @@ into `intake`.
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
-trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
+`status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
+a decision, whether admission parked it there or a person confirmed it, or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
@@ -2243,7 +2246,9 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main, and after each one whose only failures are
+same-repository, non-draft pull request into main that did not start while the pull request was a
+draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and neither pr-verify
+nor the merge gate below counts a FAIL judged from one), and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
 widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
 jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session
@@ -2388,7 +2393,8 @@ run), and a changed closing set or a removed spec comment leaves no time to
 compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
-its own reads every run it would not judge: a head already judged or moved past, a draft, a run red
+its own reads every run it would not judge: a head already judged or moved past, a draft or a run
+that started on one, a run red
 for anything an approval does not lift, an author it does not judge. So the gate's reads go only to
 a run the resolver would judge, and nothing either writes reaches the model before both pass.
 
@@ -2854,6 +2860,36 @@ any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
 passing verdict like any other (see the switches above), unless it widens the trusted-actor
 list ([Trusted-actor widening](#the-local-babysit-lane)).
+
+## Claude Code CLI releases
+
+The lanes run the latest Claude Code CLI, with no version pin (owner decision, 2026-10-31,
+[#8595](https://github.com/melodic-software/claude-code-plugins/issues/8595)): ci-workflows'
+`run-claude-cli` resolves `latest` at run time when no caller passes `cli-version`, and
+claude-code-action moves on Dependabot bumps. Claude Code's built-in read-only command set can
+change between releases and is not configurable
+([permissions: Read-only commands](https://code.claude.com/docs/en/permissions#read-only-commands);
+as of 2026-11-01; recheck when that section changes), so a new release could let a write lane run
+a command that prints the environment, and with it the lane token. The `shell_denied` list in
+`.github/actions/collect-base-activity/action.yml` is the control, and a sweep keeps it current.
+
+After each Claude Code CLI release, and after each claude-code-action bump merges, a host runs the
+sweep on that version:
+
+1. Run `claude -p` with `--permission-mode dontAsk`, `--setting-sources project` from an empty
+   directory (no user settings, plugins or hooks), and `--disallowedTools` built from
+   `shell_denied` plus `Read(//proc/**)`, the rules a write lane gets. Start it under `env -i`
+   with a planted dummy variable and no credential in the environment.
+2. Ask it to run, one Bash call each, a list of commands that print `/proc/self/environ` or the
+   shell's variables through programs outside `shell_denied`, plus `pwd` as a control that Bash
+   runs at all.
+3. From the stream-json output, check that every listed command produced a tool call (a skipped
+   line is untested, not clean), and mark each result that contains the dummy value.
+4. A command whose result holds the dummy value gets a `Bash(<command> *)` rule in `shell_denied`,
+   and in the list in [`pr-run-activity.md`](pr-run-activity.md#skill-activities), before anything
+   else ships.
+5. Update the swept version and date in the comment above `shell_denied`, and post the command
+   list, the CLI version and the per-command result on #8595.
 
 ## The lane sweep
 

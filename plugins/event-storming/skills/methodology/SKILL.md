@@ -1,5 +1,5 @@
 ---
-description: "EventStorming facilitation knowledge and reference across Big Picture, Process Modeling, and Design-Level formats. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Actions: --big-picture / --process / --design-level (format guidance), --patterns (facilitation patterns/anti-patterns), --glossary, --notation, --remote. No args: interactive discovery, which checks Miro for boards (if available), asks goal, recommends format. Not for agentic simulation. Use /event-storming:simulation."
+description: "EventStorming facilitation reference for Big Picture, Process Modeling and Design-Level workshops: choosing a format, facilitation patterns and anti-patterns, notation, glossary, remote sessions. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Not for an AI-simulated workshop (/event-storming:simulation), types and module boundaries in code (/planning:design), or message topology read from code (/architecture:map-events)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--big-picture|--process|--design-level|--patterns|--glossary|--notation|--remote]"

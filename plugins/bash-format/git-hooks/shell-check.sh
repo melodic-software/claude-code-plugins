@@ -150,6 +150,10 @@ for f in ${indexed[@]+"${indexed[@]}"}; do
   sed "s#^-:#$escaped:#" "$CHECKS_TMP/one" >>"$out"
 done
 to_contract <"$out" | checks_filter_findings >"$CHECKS_TMP/blocking"
+# A failed sed leaves findings out, so it fails the hook; 141 means the filter
+# stopped first, and the filter reports.
+contract=${PIPESTATUS[0]}
+((contract == 0 || contract == 141)) || checks_tool_failed sed "$contract" 'reading the shellcheck findings'
 if [[ -s "$CHECKS_TMP/blocking" ]]; then
   cat "$CHECKS_TMP/blocking" >&2
   printf 'bash-format: fix the findings above, or adjust the repository .shellcheckrc.\n' >&2

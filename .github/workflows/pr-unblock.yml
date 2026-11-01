@@ -128,6 +128,7 @@ jobs:
       && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    cache-mode: read
     permissions:
       contents: read # check out main and the PR head
       pull-requests: read # the PR's head and mergeable state
@@ -1596,6 +1597,7 @@ jobs:
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
+    cache-mode: read
     permissions:
       contents: read # the base checkout and the disputed files at the head
       issues: read # the linked issues' spec text (contract.json)

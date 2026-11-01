@@ -276,6 +276,12 @@ class FakeGitHub:
         # The pull request's RELINK_QUERY answer (its `pullRequest`), or
         # "error" for a failed read; None answers as the closing read does.
         self.relink: Any = None
+        # The pr-require-checks pull_request runs at each head, and a
+        # total_count that cuts them; a head with none named answers 404.
+        self.checks_runs: dict[str, list[dict[str, Any]]] = {}
+        self.checks_total: dict[str, int] = {}
+        # Each checks run's latest jobs; a run with none named answers 404.
+        self.jobs: dict[int, dict[str, Any]] = {}
 
     def listed(self) -> list[dict[str, Any]]:
         """The artifacts a whole listing returns now, newest id first as
@@ -512,6 +518,24 @@ class FakeGitHub:
             if login not in self.permissions:
                 return missing()
             return ok({"permission": self.permissions[login]})
+        checks = re.fullmatch(
+            rf"repos/{REPO}/actions/workflows/pr-require-checks\.yml/runs"
+            r"\?head_sha=([0-9a-f]{40})&event=pull_request&per_page=100",
+            path,
+        )
+        if checks:
+            if checks[1] not in self.checks_runs:
+                return missing()
+            listed = self.checks_runs[checks[1]]
+            total = self.checks_total.get(checks[1], len(listed))
+            return ok({"total_count": total, "workflow_runs": listed})
+        jobs = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/jobs\?filter=latest&per_page=100",
+            path,
+        )
+        if jobs:
+            found_jobs = self.jobs.get(int(jobs[1]))
+            return missing() if found_jobs is None else ok(found_jobs)
         prefix = f"repos/{REPO}/actions/runs/"
         if path.startswith(prefix):
             run_id = int(path[len(prefix) :])
@@ -6552,6 +6576,171 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
         ):
             ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
         self.assertNotIn("ineligible", json.loads(out.getvalue()))
+
+
+def ci_status_jobs(draft_step: str) -> dict[str, Any]:
+    """ci-status's steps as `GET .../actions/runs/{id}/jobs?filter=latest`
+    returned them for #11832's checks runs at head 8d7ef05b: `Note a draft`
+    ran (success) in run 41273054889, started on the draft, and was skipped in
+    run 41273113342, started after the ready flip (pr-require-checks.yml:
+    `if: github.event.pull_request.draft == true`)."""
+    steps = [("Note a draft", draft_step), ("Aggregate lane results", "success")]
+    job = {
+        "id": 9001,
+        "name": "ci-status",
+        "conclusion": "success",
+        "steps": [{"name": n, "conclusion": c} for n, c in steps],
+    }
+    return {"total_count": 1, "jobs": [job]}
+
+
+DRAFT_JOBS = ci_status_jobs("success")
+READY_JOBS = ci_status_jobs("skipped")
+
+
+def ci_status_with(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    job = {"id": 9001, "name": "ci-status", "conclusion": "success", "steps": steps}
+    return {"total_count": 1, "jobs": [job]}
+
+
+# The jobs API can list a finished job's steps empty or cut short
+# (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
+# conclusion of the draft step decides; each of these is unreadable.
+UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
+    "an empty step list": ci_status_with([]),
+    "the draft step listed with no conclusion": ci_status_with(
+        [{"name": "Note a draft", "conclusion": None}]
+    ),
+    "the draft step not listed": ci_status_with(
+        [{"name": "Aggregate lane results", "conclusion": "success"}]
+    ),
+    "no ci-status job": {
+        "total_count": 1,
+        "jobs": [{"id": 9002, "name": "lint-repo", "conclusion": "success"}],
+    },
+}
+DRAFT_CHECKS, READY_CHECKS = 41273054889, 41273113342
+# #11832's times: the draft checks run was created at 04:25:39, the verifier
+# run that judged it and uploaded the FAIL at 04:26:22, and the ready checks
+# run at 04:26:33.
+FAIL_JUDGED = "2026-11-01T04:26:22Z"
+
+
+def draft_race(
+    fake: FakeGitHub, sha: str, before: dict[str, Any] = DRAFT_JOBS
+) -> FakeGitHub:
+    """Give `sha` #11832's two checks runs, the earlier one's jobs `before`."""
+    fake.checks_runs[sha] = [
+        {"id": READY_CHECKS, "created_at": "2026-11-01T04:26:33Z"},
+        {"id": DRAFT_CHECKS, "created_at": "2026-11-01T04:25:39Z"},
+    ]
+    fake.jobs[DRAFT_CHECKS] = before
+    fake.jobs[READY_CHECKS] = READY_JOBS
+    return fake
+
+
+class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
+    """A pull request opened as a draft and marked ready seconds later gets
+    two checks runs at one head; pr-verify judged the draft one, whose suites
+    all skipped, and failed it for "no tests ran" (#11832, #11836). Such a
+    FAIL counts nowhere: not at the head, not at another head, not toward
+    the cap of this or another pull request. Every failed read keeps it."""
+
+    @staticmethod
+    def fail_at(*shas: str) -> FakeGitHub:
+        """A pass at the head, and this pull request's FAILs at `shas`, each
+        uploaded by a verifier run created when #11832's was."""
+        runs = {i: judged(i, FAIL_JUDGED) for i in range(2, 2 + len(shas))}
+        return passing(
+            *(artifact(named(sha, "fail"), i) for i, sha in zip(runs, shas)),
+            runs=runs,
+        )
+
+    def test_at_the_head(self) -> None:
+        self.assertIsNone(read(draft_race(self.fail_at(HEAD), HEAD)).refusal)
+        ready = draft_race(self.fail_at(HEAD), HEAD, READY_JOBS)
+        self.assertEqual(read(ready).refusal, "verify:fail")
+
+    def test_at_an_earlier_head(self) -> None:
+        self.assertIsNone(read(draft_race(self.fail_at(EARLIER), EARLIER)).refusal)
+        self.assertEqual(read(self.fail_at(EARLIER)).refusal, "verify:earlier-fail")
+
+    def test_toward_the_cap(self) -> None:
+        heads = (EARLIER, IN_PR, UNRELATED)
+        fake = self.fail_at(*heads)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+        for sha in heads:
+            draft_race(fake, sha)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_toward_another_pull_requests_cap(self) -> None:
+        fake = FailsOnAnotherPullRequestForTheSameIssueCount.sibling_fails(
+            *SIBLING_HEADS
+        )
+        for run_id in set(fake.runs) - {1}:
+            fake.runs[run_id] = judged(run_id, FAIL_JUDGED)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+        for sha in SIBLING_HEADS:
+            draft_race(fake, sha)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_only_a_listed_draft_step_conclusion_reads_the_state(self) -> None:
+        def draft_run(jobs: dict[str, Any]) -> bool:
+            fake = FakeGitHub([], {})
+            fake.jobs[DRAFT_CHECKS] = jobs
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                return ve.Reader(REPO, "main")._draft_run(DRAFT_CHECKS)
+
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label), self.assertRaises(ve._Unreadable):
+                draft_run(jobs)
+        self.assertTrue(draft_run(DRAFT_JOBS))
+        self.assertFalse(draft_run(READY_JOBS))
+
+    def test_an_unreadable_draft_state_keeps_the_fail(self) -> None:
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label):
+                fake = draft_race(self.fail_at(HEAD), HEAD, jobs)
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_failed_or_short_read_keeps_the_fail(self) -> None:
+        def cut(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def jobs_unread(fake: FakeGitHub) -> None:
+            del fake.jobs[DRAFT_CHECKS]
+
+        def jobs_cut(fake: FakeGitHub) -> None:
+            fake.jobs[DRAFT_CHECKS] = {**DRAFT_JOBS, "total_count": 2}
+
+        def none_before(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD] = fake.checks_runs[HEAD][:1]
+
+        def a_ready_one_before(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000001, "created_at": "2026-11-01T04:25:00Z"}
+            )
+            fake.jobs[41273000001] = READY_JOBS
+
+        def no_time(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append({"id": 41273000002})
+
+        def listing_fails(fake: FakeGitHub) -> None:
+            fake.checks_runs.pop(HEAD)
+
+        for change in (
+            cut,
+            jobs_unread,
+            jobs_cut,
+            none_before,
+            a_ready_one_before,
+            no_time,
+            listing_fails,
+        ):
+            with self.subTest(change.__name__):
+                fake = draft_race(self.fail_at(HEAD), HEAD)
+                change(fake)
+                self.assertEqual(read(fake).refusal, "verify:fail")
 
 
 if __name__ == "__main__":
