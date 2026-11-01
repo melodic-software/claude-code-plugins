@@ -214,7 +214,7 @@ skill's pre-check only fast-fails client-side before the hook round-trip. When n
    footer major. The subject and body go under `### Added` (`feat`), `### Fixed` (`fix`) or
    `### Changed` (anything else), and a `none` fragment gets one line saying why no release is
    needed. A later releasing-type commit on the branch adds its entry to the branch's fragment and
-   only raises the bump. On exit 2 for a subject it cannot map, rerun with
+   raises the bump only upward. On exit 2 for a subject it cannot map, rerun with
    `--level major|minor|patch|none`. Without the list, or for a plugin the list does not name, it
    writes nothing, and the repository's own release record (a version bump plus CHANGELOG entry)
    still applies.

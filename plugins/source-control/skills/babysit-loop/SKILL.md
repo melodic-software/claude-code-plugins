@@ -126,7 +126,7 @@ the convention's autonomy ladder. The rung composes with the tier, never overrid
 happens only when the resolved babysit-prs tier is merge-capable AND its deterministic gate proves
 the PR ready AND the PR's work item sits within the rung. The cycle's deterministic pre-partition
 (Cycle shape, step 3) enforces the rung: merge-capable invocations only ever receive rung-eligible
-PR refs, never standing instructions the invoked skill is trusted to honor.
+PR refs, never by standing instructions the invoked skill is trusted to honor.
 
 **Explicit-`autopilot` widening (single-invocation, non-standing, paired-token).** Independent of
 the tracked rung, an invocation whose own argument line types both `autopilot` as the tier argument

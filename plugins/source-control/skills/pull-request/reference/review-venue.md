@@ -78,7 +78,7 @@ person may run a local review anyway.
 
 - **Merge evidence.** A local review is never merge evidence. Only the lane's own records on the
   pull request's head count, read by [readiness.md](readiness.md) and the merge gate.
-- **One pull request's coverage.** The lanes are read per repository, often before the pull
+- **One pull request's coverage.** The review lanes are read per repository, often before the pull
   request exists, so the venue cannot see that a lane skips this one (a fork head, a bot author the
   lane does not admit). The backstop is per pull request: monitor's B2 step and readiness Gate 5
   substitute a local review for a lane that produced nothing on the head, and name it on
