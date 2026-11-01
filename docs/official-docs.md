@@ -25,7 +25,7 @@ training-data recall.
 
 One row per plugin component type, per the current [Add components to a plugin](https://code.claude.com/docs/en/plugins/components) page.
 We cite the [Skills](https://code.claude.com/docs/en/skills) page for both skills and legacy
-`commands/`. Statusline gets no row: we treat it as a settings key a plugin's `settings.json` may
+`commands/`. Statusline gets no row because we treat it as a settings key a plugin's `settings.json` may
 set, not a component. Channels get a row for the `channels` manifest field, not a file location.
 For workflows we cite the [Workflows](https://code.claude.com/docs/en/workflows) page. The manifest
 (`.claude-plugin/plugin.json`) is the container these components are declared in, not a component,
@@ -193,5 +193,5 @@ contract: `marketplace.json` →
 `plugin.json` →
 [`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)
 (published on SchemaStore, sourced from the same plugin system these pages document).
-`plugin.json` files carry no `$schema` key: claude.ai's marketplace sync strips it with a warning,
+`plugin.json` files carry no `$schema` key. claude.ai's marketplace sync strips it with a warning,
 and Claude Code ignores it at load time.
