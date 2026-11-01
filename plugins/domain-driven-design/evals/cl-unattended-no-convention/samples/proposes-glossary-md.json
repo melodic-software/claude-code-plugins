@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "## Proposed file\n\n`src/fulfillment/GLOSSARY.md`, opening with a short description of the Fulfillment context, holding the Shipment entry once someone confirms.",
+      "why": "# heading then path"
+    },
+    {
+      "answer": "**Proposal (unconfirmed):** `src/fulfillment/GLOSSARY.md` from the plugin default.",
+      "why": "bold label"
+    },
+    {
+      "answer": "| File | Status |\n|---|---|\n| src/fulfillment/GLOSSARY.md | proposed, awaiting confirmation |",
+      "why": "table"
+    },
+    {
+      "answer": "- I would create GLOSSARY.md beside src/fulfillment after you confirm the location.",
+      "why": "list, would create"
+    },
+    {
+      "answer": "I'd put the Shipment entry in GLOSSARY.md beside src/fulfillment.",
+      "why": "I'd put"
+    },
+    {
+      "answer": "GLOSSARY.md (not created) would open with the Fulfillment context.",
+      "why": "not created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Created src/fulfillment/GLOSSARY.md with the Shipment entry.",
+      "why": "created it"
+    },
+    {
+      "answer": "Created GLOSSARY.md; rename it if you would prefer another name.",
+      "why": "near miss: created, incidental would"
+    },
+    {
+      "answer": "I propose a glossary for the Fulfillment context once someone confirms.",
+      "why": "no file name"
+    }
+  ]
+}

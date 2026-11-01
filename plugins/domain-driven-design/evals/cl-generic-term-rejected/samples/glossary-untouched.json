@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "",
+      "why": "empty file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Retry**\n\nA Polly policy stored in Redis that retries the HTTP request three times with exponential backoff.\n",
+      "why": "entry added verbatim"
+    },
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier.\n\nAvoid: parcel, order line\n\n**Retry**\n\nA repeated delivery attempt.\n",
+      "why": "generic term admitted with a softened definition"
+    },
+    {
+      "answer": "# Northwind Trading glossary\n\nLanguage of the order-fulfillment domain.\n\n**Order**\n\nA buyer's confirmed request to purchase one or more catalog items.\n\nAvoid: basket, cart\n\n**Shipment**\n\nOne physical consignment handed to a carrier; delivery is retried with backoff.\n\nAvoid: parcel, order line\n",
+      "why": "implementation detail folded into an existing entry"
+    }
+  ]
+}
