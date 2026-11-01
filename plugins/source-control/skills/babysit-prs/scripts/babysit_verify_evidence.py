@@ -1563,11 +1563,14 @@ class Reader:
             cause = "never held"
         noun = "listing" if reads == 1 else "listings"
         # A top-up page lost to a 5xx or network error, or a count left
-        # unsettled only by the near-expiry caps or the time they took, is
-        # transient: not noted for the job (`_note_failed_listing`), so a later
-        # Reader can list again.
+        # unsettled only by the near-expiry caps or the time they took, or a
+        # top-up page out of time after near-expiry reads began, is transient:
+        # not noted for the job (`_note_failed_listing`), so a later Reader can
+        # list again.
         transient = listing is None and (
-            self._page_transient or self._near_expiry_spent
+            self._page_transient
+            or self._near_expiry_spent
+            or self._near_expiry_out_of_time(deadline, "top-up", reads)
         )
         raise (_Transient if transient else _Unreadable)(
             f"repository artifacts: {reads} whole {noun} {cause} "
@@ -1850,9 +1853,10 @@ class Reader:
     def _near_expiry_out_of_time(
         self, deadline: float | None, stage: str, reads: int
     ) -> bool:
-        """Whether a whole listing that failed did so for want of time after
-        this listing's near-expiry reads began, which `listing_timeout` does
-        not size for: then it prints a `LISTING_MISS_PREFIX` line with
+        """Whether a whole listing or top-up page that failed did so for want
+        of time after this listing's near-expiry reads began, which
+        `listing_timeout` does not size for: then it prints a
+        `LISTING_MISS_PREFIX` line with
         `NEAR_EXPIRY_DEADLINE_CAUSE`, and is refused as transient."""
         if (
             deadline is None

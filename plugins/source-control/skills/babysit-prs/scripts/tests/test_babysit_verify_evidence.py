@@ -5472,9 +5472,15 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         # listings' 60 s (`listing_timeout` for five artifacts), the caps out
         # of reach. The first top-up reads 600's page and id and comes out
         # short; at 15 s a read the second whole listing finds no time left,
-        # at 10 s the second top-up's page near expiry does. Either way the
-        # time ran out after near-expiry reads began: refused, not noted.
-        for step, stage in ((15.0, "whole-listing"), (10.0, "top-up")):
+        # at 12 s the second top-up's page 1 does, and at 10 s its page near
+        # expiry does. Each way the time ran out after near-expiry reads
+        # began: refused, not noted. `whole` marks the miss line printed for
+        # a failed whole listing or top-up page, not a region read.
+        for step, stage, whole in (
+            (15.0, "whole-listing", True),
+            (12.0, "top-up", True),
+            (10.0, "top-up", False),
+        ):
             with self.subTest(step=step):
                 self.failed.unlink(missing_ok=True)
                 fake = self.skipped(850)
@@ -5506,14 +5512,14 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
                 self.assertEqual(evidence.refusal, "verify:unreadable")
                 self.assertFalse(self.failed.exists())
                 causes = [
-                    (m["stage"], m.get("cause"))
+                    (m["stage"], m.get("cause"), "whole_listings" in m)
                     for m in (
                         json.loads(line.split(" ", 1)[1])
                         for line in stderr.getvalue().splitlines()
                         if line.startswith(ve.LISTING_MISS_PREFIX)
                     )
                 ]
-                self.assertIn((stage, ve.NEAR_EXPIRY_DEADLINE_CAUSE), causes)
+                self.assertIn((stage, ve.NEAR_EXPIRY_DEADLINE_CAUSE, whole), causes)
 
     def test_a_5xx_on_an_exact_count_id_read_refuses_as_transient(self) -> None:
         # The skipped listing, with 600's read by id answering 502 through its
