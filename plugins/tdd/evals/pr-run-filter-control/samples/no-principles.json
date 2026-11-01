@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "toolchain:check"
+          }
+        }
+      ],
+      "why": "another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "mutation-testing:principles"
+          }
+        }
+      ],
+      "why": "another plugin's principles skill is not this one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "tdd:principles"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "principles",
+            "args": "run only OrderServiceTests"
+          }
+        }
+      ],
+      "why": "bare with args"
+    }
+  ]
+}

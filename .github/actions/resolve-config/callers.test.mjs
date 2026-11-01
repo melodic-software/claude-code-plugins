@@ -3368,11 +3368,20 @@ const CREDENTIALS = {
   "Azure client secret": ` abc1Q~${"x".repeat(32)}`,
   "Cloudflare API token": `${"cfut"}_${"A".repeat(40)}`,
   "upload token": `${"pgup"}_${"A".repeat(20)}`,
+  "npm token": `${"npm"}_${"Ab1".repeat(12)}`,
+  "Google API key": `${"AI"}za${"Fake_-9".repeat(5)}`,
+  "JSON Web Token": `${"eyJ"}hbGciOiJub25lIn0.${"eyJ"}zdWIiOiJGQUtFIn0.${"x".repeat(24)}`,
+  "Docker registry auth": `{"${"au"}th":"${"QUJD".repeat(5)}"}`,
+  "Azure storage account key": `Account${"Key"}=${"QUJD".repeat(11)}==`,
+  "Pulumi access token": `${"pul"}-${"0a".repeat(20)}`,
+  "base64-encoded PEM block": `${"LS0tLS1CRUdJ"}Ti${"A".repeat(24)}`,
+  "netrc password": `machine api.example.com login fakeuser pass${"word"} fakepassword1`,
 };
 const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
 test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
   const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
-  const blocking = SECRET_PATTERNS.map(([label]) => label).filter((label) => label !== "password or secret assignment");
+  // A label with two patterns (netrc password) needs one sample.
+  const blocking = [...new Set(SECRET_PATTERNS.map(([label]) => label))].filter((label) => label !== "password or secret assignment");
   assert.deepEqual(Object.keys(CREDENTIALS).toSorted(), blocking.toSorted(), "one sample per blocking label");
   for (const [label, sample] of Object.entries(CREDENTIALS)) {
     const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));

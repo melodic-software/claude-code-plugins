@@ -164,42 +164,6 @@ hpc_path_allowlisted() {
   esac
 }
 
-# Set SCAN_ROOT for hpp::scan_text's repo-path branch, from <project root>.
-#
-# That branch matches the project root as a literal substring and is never
-# OS-suppressed. It is a valid machine-specific marker ONLY when the root sits
-# inside a genuine git checkout whose TOPLEVEL is not the user's home (nor an
-# ancestor of it): a project dir can be a subdirectory of its checkout, and when
-# home is itself a checkout (chezmoi-managed dotfiles) a project dir like
-# $HOME/Desktop would clear a root-only home test and wrongly re-enable the
-# branch, hard-denying every path under it. Empty is the lib's documented seam to
-# skip the branch. Native Windows exposes home as %USERPROFILE%, not $HOME, so
-# fall back to it; a missing home leaves the branch active (fail toward
-# detection, never a false negative). A caller that already asked git for
-# <root>'s toplevel passes the answer as $2, so git runs once, not twice.
-hpc_resolve_scan_root() {
-  local root="$1" toplevel tl_norm home_norm
-  SCAN_ROOT=""
-  [[ -n "$root" ]] || return 0
-  if (($# > 1)); then
-    toplevel=$2
-  else
-    toplevel="$(exec git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
-  fi
-  [[ -n "$toplevel" ]] || return 0
-  tl_norm=""
-  hook::normalize_path_to tl_norm "$toplevel"
-  tl_norm="${tl_norm%/}"
-  home_norm=""
-  hook::normalize_path_to home_norm "${HOME:-${USERPROFILE:-}}"
-  home_norm="${home_norm%/}"
-  if [[ -n "$home_norm" && ("$tl_norm" == "$home_norm" || "$home_norm" == "$tl_norm"/*) ]]; then
-    SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
-  else
-    SCAN_ROOT="$root"
-  fi
-}
-
 # Scan every file a GitHub MCP write carries, and block the whole tool call if
 # any of them holds a machine-specific path. Exits 2 on a violation; returns for
 # a clean call.
@@ -229,7 +193,7 @@ hpc_mcp_lane() {
   local count=1 i path content violations="" first_offender="" scan_out
   local single_path="${HOOK_JQ_FIELDS[5]}" single_content="${HOOK_JQ_FIELDS[2]}"
 
-  hpc_resolve_scan_root "${CLAUDE_PROJECT_DIR:-}"
+  hpp::resolve_scan_root "${CLAUDE_PROJECT_DIR:-}"
 
   if [[ "$TOOL" == *__push_files ]]; then
     hook::jq_fields "$INPUT" '.tool_input.files | length' || return 0
@@ -358,7 +322,7 @@ fi
 # protect at this path).
 #
 # One git process answers both questions this lane asks of the project dir:
-# line 1 is the work-tree test, line 2 the toplevel hpc_resolve_scan_root needs.
+# line 1 is the work-tree test, line 2 the toplevel hpp::resolve_scan_root needs.
 # Where --show-toplevel fails, git has already printed line 1, so the toplevel
 # is empty, as a separate call's would be. `exec` makes git the substitution's
 # own process: with a redirect on the command, bash would fork once more.
@@ -396,9 +360,9 @@ fi
 PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 
 # SCAN_ROOT gates hpp::scan_text's repo-path branch; which checkouts earn that
-# branch, and why, is hpc_resolve_scan_root above. PROJECT_ROOT itself is left
+# branch, and why, is hpp::resolve_scan_root above. PROJECT_ROOT itself is left
 # alone: telemetry below still anchors the repo-relative path on it.
-hpc_resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
+hpp::resolve_scan_root "$PROJECT_ROOT" "$_hpc_toplevel"
 
 # Emit one telemetry envelope: $1 status, $2 labels JSON array. Gated on the
 # high-res start stamp and the opt-in sink — the unwired path spawns nothing,

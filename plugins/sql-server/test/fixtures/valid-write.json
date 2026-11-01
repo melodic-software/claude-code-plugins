@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/config.v1.schema.json",
+  "schemaVersion": 1,
+  "environments": {
+    "local": {
+      "server": "localhost",
+      "port": 1433,
+      "databases": ["app"],
+      "auth": { "type": "sql-login", "user": { "env": "SQL_READER_USER" }, "password": { "env": "SQL_READER_PASSWORD" } },
+      "write": {
+        "auth": { "type": "sql-login", "user": { "env": "SQL_WRITER_USER" }, "password": { "env": "SQL_WRITER_PASSWORD" } }
+      }
+    },
+    "read-only": {
+      "server": "localhost",
+      "databases": ["app"],
+      "auth": { "type": "sql-login", "user": { "env": "SQL_READER_USER" }, "password": { "env": "SQL_READER_PASSWORD" } }
+    },
+    "same-principal": {
+      "server": "localhost",
+      "databases": ["app"],
+      "auth": { "type": "sql-login", "user": { "env": "SQL_READER_USER" }, "password": { "env": "SQL_READER_PASSWORD" } },
+      "write": {
+        "auth": { "type": "sql-login", "user": { "env": "SQL_READER_USER" }, "password": { "env": "SQL_OTHER_PASSWORD" } }
+      }
+    }
+  }
+}

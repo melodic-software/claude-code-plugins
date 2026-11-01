@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "tdd:principles"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "principles",
+            "args": "should I test this precondition"
+          }
+        }
+      ],
+      "why": "bare with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:write"
+          }
+        }
+      ],
+      "why": "adjacent test-writing skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:test-value"
+          }
+        }
+      ],
+      "why": "adjacent test-value skill"
+    }
+  ]
+}

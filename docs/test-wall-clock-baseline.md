@@ -560,7 +560,6 @@ and is empty until one is made.
 | `plugins/session-flow/skills/keep-going/scripts/check-child-input-wait.test.sh` | 2 | |
 | `plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh` | 1 | |
 | `plugins/session-flow/skills/keep-going/scripts/measure-stop-gap.test.sh` | 0 | |
-| `plugins/session-flow/skills/retro/scripts/fetch-review-comments.test.sh` | 1 | |
 | `plugins/session-flow/skills/retro/scripts/parse-transcript.test.sh` | 4 | |
 | `plugins/session-flow/skills/running-retro/scripts/observer.test.sh` | 11 | |
 | `plugins/session-flow/skills/setup/scripts/setup-apply.test.sh` | 6 | |

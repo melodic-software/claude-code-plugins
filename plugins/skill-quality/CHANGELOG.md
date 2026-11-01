@@ -3,6 +3,19 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0] - 2026-11-01
+
+### Changed
+
+- `check-skill.sh` check 3 now tracks unquoted `Use when` triggers. It splits the `Use when` clause of `description` and of `when_to_use` at commas, and warns when an item from the base ref is gone. Before, check 3 tracked only single-quoted phrases.
+- `check-skill.sh` check 12 no longer warns that `Use when` triggers are not single-quoted, because check 3 now covers unquoted triggers.
+
+## [0.32.2] - 2026-11-01
+
+### Changed
+
+- The `check` invocation probe `pos-train-04` and its listing-overlap baseline word the sample skill location without a cross-plugin skill path; it keeps the same words, so its score is unchanged.
+
 ## [0.32.1] - 2026-11-01
 
 ### Added

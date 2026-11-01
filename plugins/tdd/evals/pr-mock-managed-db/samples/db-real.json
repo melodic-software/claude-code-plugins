@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "Keep Postgres real. Spin it up with Testcontainers and mock only the RabbitMQ publisher.",
+      "why": "Testcontainers"
+    },
+    {
+      "answer": "**Postgres is a managed dependency**: only your service touches it, so its schema is an implementation detail. Use a real instance in the tests.",
+      "why": "names it managed, bold"
+    },
+    {
+      "answer": "| Dependency | Treatment |\n|---|---|\n| Postgres | Real instance |\n| RabbitMQ | Mock |",
+      "why": "table row"
+    },
+    {
+      "answer": "- Database: real\n- Message bus: mocked",
+      "why": "terse list with colon"
+    },
+    {
+      "answer": "Run the tests against a real Postgres database and replace the bus with a mock.",
+      "why": "plain prose"
+    },
+    {
+      "answer": "For the database, use it for real; nobody else depends on its shape.",
+      "why": "use it for real"
+    },
+    {
+      "answer": "Don't mock Postgres: keep a real database behind the repository, and mock the publisher.",
+      "why": "negation before mock, not before keep"
+    },
+    {
+      "answer": "It shouldn't be faked. Run the tests against a real Postgres instance.",
+      "why": "negation in an earlier sentence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Mock both: replace the user repository with a mock and the publisher with a fake.",
+      "why": "mocks the managed dependency"
+    },
+    {
+      "answer": "Use the EF Core InMemory provider for the database and mock RabbitMQ.",
+      "why": "in-memory substitute, not the real database"
+    },
+    {
+      "answer": "RabbitMQ is an unmanaged dependency, so mock it. Mock the repository as well so the test stays fast.",
+      "why": "names only unmanaged, mocks the repository"
+    },
+    {
+      "answer": "Mock the repository so the tests don't need a real database, and mock the RabbitMQ publisher too.",
+      "why": "base-model default that names a real database only to avoid it"
+    },
+    {
+      "answer": "Mock the repository so the tests don't hit a real database, and mock the RabbitMQ publisher too.",
+      "why": "negated hit"
+    },
+    {
+      "answer": "Mock both, without using a real database.",
+      "why": "without using"
+    },
+    {
+      "answer": "Never use a real database in these tests; mock the repository and the publisher.",
+      "why": "never use"
+    },
+    {
+      "answer": "Rather than using a real Postgres database, mock the repository and the bus.",
+      "why": "rather than using"
+    }
+  ]
+}

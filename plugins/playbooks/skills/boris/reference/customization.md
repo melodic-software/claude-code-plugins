@@ -42,6 +42,13 @@ Quick settings to make Claude Code feel right:
 
 Boris uses High for everything.
 
+> Which of these levels a model accepts, and its default, vary by model.
+>
+> - **Pointer**: before picking a level for a given model, fetch
+>   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live.
+> - **As of**: 2026-11-01
+> - **Recheck trigger**: a new model release, or that section's levels table changes.
+
 ---
 
 ## 18. Plugins
@@ -62,7 +69,21 @@ Install from the official Anthropic plugin marketplace, or create your own compa
 
 Drop `.md` files in `.claude/agents`. Each agent gets custom name, color, tool set, pre-allowed and pre-disallowed tools, permission mode, model.
 
+> The tip names only some of the fields an agent file can set.
+>
+> - **Pointer**: when writing an agent file, fetch the
+>   [subagent frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+>   live.
+> - **As of**: 2026-11-01
+> - **Recheck trigger**: that frontmatter table adds, renames or removes a field.
+
 **Little-known feature:** Set the default agent for the main conversation. Set `"agent"` in `settings.json` or use `--agent`.
+
+> - **Pointer**: before setting a default agent for a session, fetch
+>   [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly)
+>   live.
+> - **As of**: 2026-11-01
+> - **Recheck trigger**: the `agent` setting or the `--agent` flag is renamed, or that section moves.
 
 `/agents` to get started.
 

@@ -86,10 +86,11 @@ The levels and their recommended uses resolve at the pointers, never from this f
 
 - **Pointer**: for effort, see
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth)
-  and
-  [Recommended effort levels for Claude Opus 4.8](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-opus-4-8).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
+  and the Claude Opus 4.8 entry of
+  [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the effort page dropping its Claude Opus 4.8 entry, or a re-read of either
+  section no longer supporting the decision above.
 
 ## Thinking controls
 
@@ -156,7 +157,12 @@ keeps the Fable 5 guide pointers below for these behaviors under the Fable 5.1 a
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions for yourself or workers, enumerate scope and cases explicitly. Specificity is a
   per-model dial, not a virtue: the same over-prescription that helps you degrades Fable.
-  `[CC: prompt-authoring]`
+  `[CC: prompt-authoring]` Pointer: when weighing how much to spell out for this model, fetch
+  [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following)
+  live; for Fable, fetch
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live. As of:
+  2026-11-01. Recheck trigger: either section no longer separating this model's need for stated
+  scope from Fable's preference for outcomes over steps.
 - **Size plan granularity to the executor, not to yourself.** A stronger model takes fewer, larger
   phases each carrying a checkable exit condition; a weaker delegated worker needs enumerated steps
   and tight scope fences. Ask who runs a plan before choosing step size. `[CC: prompt-authoring]`

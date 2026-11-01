@@ -479,7 +479,11 @@ disagree with it.
   (the gate-meeting, model-agnostic one). Convergent model guide: Fable 5, "Recommended
   scaffolding changes" (prior-model skills as too prescriptive). The worked instance's basis is
   the same guide, "Parallel subagents"; its Opus counter-basis is the Opus 5 guide's and the Opus
-  4.8 guide's "Controlling subagent spawning".
+  4.8 guide's "Controlling subagent spawning". Pointer for the two Fable arms: on a `fable-5`
+  target, fetch [Fable 5 guide, "Parallel subagents"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#parallel-subagents)
+  live; on a `fable-5-1` target, fetch [Fable 5.1 guide, "Let the lead agent keep working while subagents run"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#let-the-lead-agent-keep-working-while-subagents-run)
+  live. As of: 2026-11-01. Recheck trigger: either section is renamed or stops advising against
+  blocking on each subagent before dispatching the next.
 - **The general principle, and why it is cited separately.** The migration-framed sources above
   point a reader at what looks like leftover prior-model scaffolding, walking straight past
   freshly authored over-enumeration, which is the same defect with no legacy provenance to
@@ -1040,10 +1044,11 @@ skill bodies.
   `omitClaudeMd: true`. In such an agent's own body, an instruction to read the root `CLAUDE.md`
   is likewise not redundant. Pointer: [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
   and the `omitClaudeMd` row of [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-  Source conflict: those two and the `--agent` passage under
+  This exemption covers such an agent only when it is spawned as a subagent; when the agent runs as
+  the session's main agent, fetch the `omitClaudeMd` row and
   [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly)
-  disagree on whether `CLAUDE.md` still loads under that field. As of: 2026-10-18. Recheck trigger:
-  the page reconciles them, or the field is renamed.
+  live. As of: 2026-11-01. Recheck trigger: either section changes when the field applies, or the
+  field is renamed.
 - **Source:** subagents, "What loads at startup": we treat a non-fork subagent's initial context as
   holding every level of the CLAUDE.md hierarchy *the main conversation loads*, except an agent
   whose definition sets `omitClaudeMd: true` (see the Must NOT flag above), and that qualifier
@@ -1275,7 +1280,9 @@ since each prescribes a request the model refuses.
   frontmatter, and model configuration for `/effort`, the session and global thinking toggles, and
   ultracode, the last enumerating the three routes that turn the *setting* on (`/effort`,
   `--effort`, `--settings` / Agent SDK). The keyword's separation from the setting is read from
-  workflows, "Ask for a workflow in your prompt". The second arm is thinking's per-model table,
+  [workflows, "Ask for a workflow in your prompt"](https://code.claude.com/docs/en/workflows#ask-for-a-workflow-in-your-prompt)
+  (as of 2026-11-01; recheck when that section changes what the keyword does to the session's
+  effort level). The second arm is thinking's per-model table,
   where those models refuse `"disabled"` with no effort qualifier while Opus 5 refuses it only at
   the top levels: that is what makes the arm unconditional rather than a wider pairing, and why
   the two are read as separate arms rather than one range.
@@ -1421,10 +1428,9 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   fire on one surface that gets the whole variable wrong, and both should be reported when they do.
 - **Must NOT flag: a claim carrying its own gate, of either kind.** Text naming Opus 4.6 or Sonnet
   4.6, where the fixed-budget mode is live and `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1` does exactly
-  what it says, is correct rather than stale. **So is text scoped to a Claude Code release before
-  v2.1.111**, which is where the variable lost its reach over the adaptive-reasoning models. The
-  gate here is a version as well as a model set, and I12's precondition rule already says a claim
-  scoped to a pinned older release is measured against that release. This fence matters more here
+  what it says, is correct rather than stale. **So is text scoped to a pinned older Claude Code
+  release**: the gate here can be a release as well as a model set, and I12's precondition rule
+  already says a claim scoped to a pinned older release is measured against that release. This fence matters more here
   than usual: the tempting shape of this check is a bare grep for the variable name, which would flag
   every accurate piece of documentation about it. **The finding is the missing gate, never the
   mention.**
@@ -1436,19 +1442,20 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   this catalog audits instruction text.
 - **Remediate:** point at the effort parameter as the depth control on adaptive-reasoning models, or
   carry the model gate with the claim. We do not offer effort as a like-for-like budget
-  replacement: effort is a separate control, not a thinking budget (effort page).
+  replacement, and treat it as a control separate from a thinking budget. Pointer: when weighing
+  effort against a thinking budget, fetch
+  [effort, "Effort with thinking"](https://platform.claude.com/docs/en/build-with-claude/effort#effort-with-thinking)
+  live. As of: 2026-11-01. Recheck trigger: that section starts treating effort as a thinking
+  budget or as a substitute for `budget_tokens`.
 - **Source:** environment variables, the `MAX_THINKING_TOKENS` and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` rows (nonzero values ignored on adaptive-reasoning
-  models; the latter's loss of reach from v2.1.111 over the always-adaptive models). The version
-  qualifier is the second half of the gate fence above. Model configuration, "Adaptive reasoning
+  models). Model configuration, "Adaptive reasoning
   and fixed thinking budgets", covers the same partition from the other side, including the Opus
   4.6 and Sonnet 4.6 revert that is the fence above. The API arm's model range is read from
   thinking's per-model table (the Pointer under Detect); the migration-guide URL that first carried
   it is now an index of per-model guides. Corroborated for this model generation by the Sonnet 5
   guide, "Calibrating effort and thinking depth".
-- **As of 2026-10-01** for the model set under Detect; **as of 2026-08-04** for the v2.1.111
-  version fence, which the environment-variables row no longer states (re-read 2026-10-01), so that
-  fence rests on its first reading. **Recheck trigger:** the set of models that always use adaptive
+- **As of 2026-10-01** for the model set under Detect. **Recheck trigger:** the set of models that always use adaptive
   reasoning changing, `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` regaining or losing reach, or manual
   extended thinking being reinstated on any model in the range.
 
@@ -1464,7 +1471,10 @@ Severity `warning` · Model scope: `sonnet-5`.
   failure is silent: fewer tool calls, not an error.
 - **Remediate:** add an explicit tool nudge to the system prompt, describing which tools, when, and
   why, or leave thinking on. Effort is a second lever: we treat `high` or `xhigh` as raising tool
-  use in agentic search and coding.
+  use in agentic search and coding. Pointer: when sizing that lever, fetch
+  [effort, "Effort with tool use"](https://platform.claude.com/docs/en/build-with-claude/effort#effort-with-tool-use)
+  live. As of: 2026-11-01. Recheck trigger: that section stops tying higher effort to more tool
+  calls.
 - **Must NOT flag:** a thinking-disable with no tool dependence. A tool-dependent surface that
   already instructs its tool use explicitly. That is the remediation, present. A surface with no
   control over and no claim about the thinking configuration, whose tool reliance runs under the
@@ -1728,8 +1738,10 @@ not a `Model scope` annotation**, for the reason I17 states.
   and [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
   (as of 2026-10-17; recheck when either order gains a source or changes precedence). **The exemption speaks to
   calibration staleness only, never to level adequacy:** a model guide may recommend running above
-  the default for named lanes, as the Opus 4.8 guide does when it recommends `xhigh` for coding and
-  agentic use, and whether a `high` pin under-serves such a lane is that surface's sizing decision,
+  the default for named lanes (for one such guide, fetch
+  [Opus 4.8 guide, "Calibrating effort and thinking depth"](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth)
+  live; as of 2026-11-01, recheck when that section stops recommending a level above the default
+  for any lane), and whether a `high` pin under-serves such a lane is that surface's sizing decision,
   outside this row's subject.
 - **Must NOT flag: a per-task or single-turn effort choice**, such as "reach for `xhigh` on hard
   problems", `ultrathink`, or `ultracode`, which selects a level for one piece of work rather than

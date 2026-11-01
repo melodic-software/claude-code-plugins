@@ -91,6 +91,8 @@ source "$_HOOK_SELF/abort-boundary.sh"
 guard::abort_boundary block-fix-request-post PreToolUse open 0 2
 # shellcheck source=hook-utils.sh
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+# shellcheck source=../lib/github-post/github-post-body.sh
+source "${CLAUDE_PLUGIN_ROOT:-$_HOOK_SELF/..}/lib/github-post/github-post-body.sh" || exit 70
 
 _bfr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_FIX_REQUEST_POST_ENABLED:-true}"
 start=${EPOCHREALTIME:-}
@@ -130,8 +132,6 @@ _bfr_q="[\"'=]"
 _BFR_RE_ANY="(["$'\n'"\"'=])${_BFR_PHRASE}([^[:alnum:]_]|\$)"
 _BFR_RE_LINE="^(.*${_bfr_q})?${_BFR_PHRASE}([^[:alnum:]_]|\$)"
 _BFR_RE_FENCE="^ {0,3}(\`\`\`|~~~)"
-# A 1 MiB read covers a comment body.
-_BFR_MAX_READ=1048576
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
@@ -235,306 +235,6 @@ _bfr_carries() {
   return 1
 }
 
-# _bfr_read_to <dest> <path>: the file's first _BFR_MAX_READ characters;
-# 1 when it is stdin, missing or unreadable.
-_bfr_read_to() {
-  local -n __bfr_dest="$1"
-  local p="$2"
-  __bfr_dest=""
-  case "$p" in
-  - | /dev/stdin | /dev/fd/0) return 1 ;;
-  \~) p="$HOME" ;;
-  \~/*) p="$HOME/${p#\~/}" ;;
-  /* | [A-Za-z]:[\\/]*) ;;
-  *) p="$_BFR_CWD/$p" ;;
-  esac
-  [[ -f "$p" && -r "$p" ]] || return 1
-  IFS= read -r -N "$_BFR_MAX_READ" __bfr_dest <"$p"
-  return 0
-}
-
-# What the parse collects. A command posts when one segment posts; then every
-# collected text and file is read.
-_BFR_POST=""      # the form of the first posting segment
-_BFR_TEXTS=()     # words of posting segments
-_BFR_FILES=()     # body files of posting segments
-_BFR_STDIN=0      # a posting segment reads stdin
-_BFR_SUBST=0      # a posting word expands something (`$`, or a split `$(`)
-_BFR_WRITES=0     # the command writes a body file before posting it
-_BFR_WTARGETS=()  # files the command writes: redirects, and cp/mv/ln/tee runs
-_BFR_AUX_TEXTS=() # here-strings, read only when the whole command is
-_BFR_AUX_FILES=() # `cat` operands and `<` targets, likewise
-
-# _bfr_file_operand <value>: record a body file, or stdin for `-`.
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_file_operand() {
-  case "$1" in
-  - | /dev/stdin | /dev/fd/0) _BFR_STDIN=1 ;;
-  ?*) _BFR_FILES+=("$1") ;;
-  *) ;;
-  esac
-}
-
-# _bfr_at_operand <value>: `@file` (gh -F, curl -d) names a file.
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_at_operand() {
-  [[ "$1" == @* ]] && _bfr_file_operand "${1#@}"
-  return 0
-}
-
-# _bfr_is_mutation <text>... plus the files recorded since <mark>: GraphQL
-# writes only through a mutation.
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_is_mutation() {
-  local mark="$1" t f c
-  shift
-  for t in "$@"; do
-    [[ "${t,,}" == *mutation* ]] && return 0
-  done
-  for f in ${_BFR_FILES[@]+"${_BFR_FILES[@]:mark}"}; do
-    _bfr_read_to c "$f" && [[ "${c,,}" == *mutation* ]] && return 0
-  done
-  ((_BFR_STDIN)) && [[ "${COMMAND,,}" == *mutation* ]]
-}
-
-# gh pr|issue <action> <args>
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_gh_body() {
-  local a
-  while (($#)); do
-    a="$1"
-    shift
-    case "$a" in
-    -F | --body-file) _bfr_file_operand "${1-}" && shift ;;
-    --body-file=*) _bfr_file_operand "${a#--body-file=}" ;;
-    -F?*) _bfr_file_operand "${a#-F}" ;;
-    *) ;;
-    esac
-  done
-}
-
-# gh api <args>: 0 when it writes.
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_gh_api() {
-  local a v method="" endpoint="" writes=0 mark=${#_BFR_FILES[@]} stdin0=$_BFR_STDIN
-  local -a vals=()
-  while (($#)); do
-    a="$1"
-    shift
-    v=""
-    case "$a" in
-    -X | --method) method="${1-}" && shift && continue ;;
-    --method=*) method="${a#--method=}" && continue ;;
-    -X?*) method="${a#-X}" && continue ;;
-    -F | --field) v="${1-}" && shift ;;
-    --field=*) v="${a#--field=}" ;;
-    -F?*) v="${a#-F}" ;;
-    -f | --raw-field)
-      vals+=("${1-}")
-      shift
-      writes=1
-      continue
-      ;;
-    --raw-field=*) vals+=("${a#--raw-field=}") && writes=1 && continue ;;
-    -f?*) vals+=("${a#-f}") && writes=1 && continue ;;
-    --input)
-      _bfr_file_operand "${1-}"
-      shift
-      writes=1
-      continue
-      ;;
-    --input=*) _bfr_file_operand "${a#--input=}" && writes=1 && continue ;;
-    -H | --header | -q | --jq | -t | --template | --hostname | --cache | -p | --preview) shift && continue ;;
-    -*) continue ;;
-    *)
-      [[ -z "$endpoint" ]] && endpoint="$a"
-      continue
-      ;;
-    esac
-    writes=1
-    vals+=("$v")
-    _bfr_at_operand "${v#*=}"
-  done
-  method="${method^^}"
-  if [[ -n "$method" ]]; then
-    [[ "$method" != GET && "$method" != HEAD ]] && writes=1
-    [[ "$method" == GET || "$method" == HEAD ]] && writes=0
-  fi
-  if ((writes)) && [[ "${endpoint#/}" == graphql ]]; then
-    _bfr_is_mutation "$mark" ${vals[@]+"${vals[@]}"} || writes=0
-  fi
-  if ((! writes)); then
-    _BFR_FILES=("${_BFR_FILES[@]:0:mark}")
-    _BFR_STDIN=$stdin0
-    return 1
-  fi
-  return 0
-}
-
-# curl <args>: 0 when it sends data to a GitHub API route.
-# shellcheck disable=SC2329  # reached from the parse callback
-_bfr_curl() {
-  local a v github=0 graphql=0 data=0 get=0 mark=${#_BFR_FILES[@]} stdin0=$_BFR_STDIN
-  local -a vals=()
-  local re_gh='(^|[/.@])api\.github\.com|/api/v3(/|$)|/api/graphql'
-  while (($#)); do
-    a="$1"
-    shift
-    v=""
-    case "$a" in
-    -d | --data | --data-ascii | --data-binary | --json | --data-urlencode) v="${1-}" && shift ;;
-    --data=* | --data-ascii=* | --data-binary=* | --json=* | --data-urlencode=*) v="${a#*=}" ;;
-    -d?*) v="${a#-d}" ;;
-    --data-raw | --form-string) vals+=("${1-}") && shift && data=1 && continue ;;
-    --data-raw=* | --form-string=*) vals+=("${a#*=}") && data=1 && continue ;;
-    -F | --form)
-      v="${1-}"
-      shift
-      vals+=("$v")
-      data=1
-      v="${v#*=}"
-      [[ "$v" == '<'* ]] && v="@${v#<}"
-      _bfr_at_operand "${v%%;*}"
-      continue
-      ;;
-    -T | --upload-file) _bfr_file_operand "${1-}" && shift && data=1 && continue ;;
-    --upload-file=*) _bfr_file_operand "${a#*=}" && data=1 && continue ;;
-    -G | --get) get=1 && continue ;;
-    *)
-      [[ "$a" =~ $re_gh ]] && github=1
-      [[ "$a" == */graphql* ]] && graphql=1
-      continue
-      ;;
-    esac
-    data=1
-    vals+=("$v")
-    # --data-urlencode takes `name@file` as well as `@file`.
-    [[ "$v" != @* && "$v" =~ ^[^=@]*@ ]] && v="@${v#*@}"
-    _bfr_at_operand "$v"
-  done
-  if ((github && data && ! get)) && { ((! graphql)) || _bfr_is_mutation "$mark" ${vals[@]+"${vals[@]}"}; }; then
-    return 0
-  fi
-  _BFR_FILES=("${_BFR_FILES[@]:0:mark}")
-  _BFR_STDIN=$stdin0
-  return 1
-}
-
-# hook::bash_parse_segments callback: one segment's argv words.
-# shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
-_bfr_segment() {
-  local j cmd form=""
-  # What stdin and here-strings feed this segment: read only when it posts,
-  # which is judged after the whole parse, so record them now.
-  for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
-    ((${HOOK_SEG_REDIR_OPAQUE[j]:-0})) && continue
-    case "${HOOK_SEG_REDIR_OP[j]}" in
-    '<') _BFR_AUX_FILES+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
-    '>' | '>>' | '>|' | '<>')
-      # Only the sinks; /dev/shm and /dev/../ are ordinary files.
-      [[ "${HOOK_SEG_REDIR_TARGET[j]}" =~ ^/dev/(null|stdout|stderr|tty|fd/[0-9]+)$ ]] ||
-        _BFR_WTARGETS+=("${HOOK_SEG_REDIR_TARGET[j]}")
-      ;;
-    '<<<') _BFR_AUX_TEXTS+=("${HOOK_SEG_REDIR_TARGET[j]}") ;;
-    *) ;;
-    esac
-  done
-  if hook::shell_c_operand "$@"; then
-    hook::bash_parse_segments "$HOOK_SHELL_C_OPERAND" _bfr_segment
-    return 0
-  fi
-  # Step over what stands before the command word: assignments, a reserved
-  # word the tokenizer leaves at a segment head, and launchers with flags.
-  while (($#)); do
-    case "$1" in
-    '{' | '}' | '!' | then | do | else | elif | if | while | until | command | builtin | time | exec | nohup | sudo | doas | env | nice | timeout | --) shift ;;
-    -u | -g | -C | -D)
-      shift
-      (($#)) && shift
-      ;;
-    -* | [0-9]*) shift ;;
-    *)
-      [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || break
-      shift
-      ;;
-    esac
-  done
-  (($#)) || return 0
-  cmd="${1##*/}"
-  cmd="${cmd##*\\}"
-  cmd="${cmd,,}"
-  cmd="${cmd%.exe}"
-  shift
-  case "$cmd" in
-  eval)
-    hook::bash_parse_segments "$*" _bfr_segment
-    return 0
-    ;;
-  # A file copied, moved or linked into place may be the body a later post
-  # names; its sources are read like `cat` operands.
-  cp | mv | ln | install | rsync | tee)
-    _BFR_WTARGETS+=("$cmd")
-    for j in "$@"; do
-      [[ "$j" == -* ]] || _BFR_AUX_FILES+=("$j")
-    done
-    return 0
-    ;;
-  cat | type | get-content | gc)
-    for j in "$@"; do
-      [[ "$j" == -* ]] || _BFR_AUX_FILES+=("$j")
-    done
-    return 0
-    ;;
-  gh)
-    case "${1-}" in
-    pr | issue)
-      local group="$1"
-      shift
-      while [[ "${1-}" == -R || "${1-}" == --repo ]]; do
-        shift
-        (($#)) && shift
-      done
-      [[ "${1-}" == --repo=* || "${1-}" == -R?* ]] && shift
-      case "${1-}" in
-      comment | review | create | edit)
-        form="gh-$group-$1"
-        _bfr_gh_body "${@:2}"
-        ;;
-      *) ;;
-      esac
-      ;;
-    api) _bfr_gh_api "${@:2}" && form="gh-api" ;;
-    *) ;;
-    esac
-    ;;
-  curl) _bfr_curl "$@" && form="curl" ;;
-  *) ;;
-  esac
-  [[ -n "$form" ]] || return 0
-  [[ -n "$_BFR_POST" ]] || _BFR_POST="$form"
-  local w rest
-  _BFR_TEXTS+=("$@")
-  # A variable or substitution brings its text from elsewhere in the command
-  # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and
-  # leaves a word ending in `$`.
-  for w in "$@"; do
-    [[ "$w" == *'$'* ]] && _BFR_SUBST=1
-  done
-  # A quoted `$(cat file)` or `$(<file)` stays inside its word, unparsed.
-  # shellcheck disable=SC2016  # a regex: `$(` is matched, not expanded
-  local re_sub='(\$\(|`)(cat[[:space:]]+|<[[:space:]]*)([^)`]*)'
-  for w in "$@"; do
-    rest="$w"
-    while [[ "$rest" =~ $re_sub ]]; do
-      rest="${rest#*"${BASH_REMATCH[0]}"}"
-      for j in ${BASH_REMATCH[3]}; do
-        [[ "$j" == -* ]] || _BFR_FILES+=("${j//[\"\']/}")
-      done
-    done
-  done
-  return 0
-}
-
 # --- the GitHub MCP server's write tools ------------------------------------
 if [[ "$TOOL_NAME" == mcp__* ]]; then
   # hooks.json names the tools; any other MCP payload that reaches here has no
@@ -575,45 +275,18 @@ if [[ "$_bfr_flat" != *"pr-fix lane"* && "$_bfr_flat" != *pr-fix%20lane* && "$_b
   [[ "$_bfr_lc" == *@* || "$_bfr_lc" == *-f* || "$_bfr_lc" == *--input* || "$_bfr_lc" == *'<'* || "$_bfr_lc" == *cat* ]] || exit 0
 fi
 
-hook::bash_parse_segments "$COMMAND" _bfr_segment
-if [[ -z "$_BFR_POST" ]]; then
+ghpost::collect "$COMMAND" "$_BFR_CWD" "$TOOL_NAME"
+if [[ -z "$GHPOST_POST" ]]; then
   emit_tel ok ""
   exit 0
 fi
 
-# The body may sit anywhere in the command when a posting command reads
-# stdin or expands a variable or substitution, when it posts a body file and
-# the command writes a file (a redirect other than to a /dev sink, or cp, mv, ln,
-# install, rsync, tee: `printf ... > x && mv x b.md && gh pr comment 1 -F b.md`),
-# when a body file does not exist yet, or on PowerShell (whose quoting the
-# bash tokenizer only approximates): then read all of it. A backtick may open a substitution too,
-# but ``` in a fenced body is one as well, so it adds only the files `cat` and
-# `<` name. Otherwise only the posting command's words and files are read, so
-# a grep of the phrase beside an unrelated post stays quiet.
-_bfr_c=""
-for _bfr_f in ${_BFR_FILES[@]+"${_BFR_FILES[@]}"}; do
-  # A body file may hold what the command itself writes (a redirect, or a
-  # cp, mv or ln into its name), not what is on disk now.
-  ((${#_BFR_WTARGETS[@]})) && _BFR_WRITES=1
-  if _bfr_read_to _bfr_c "$_bfr_f"; then
-    _bfr_carries "$_bfr_c" && block "$_BFR_POST, from $_bfr_f"
-  else
-    _BFR_WRITES=1
-  fi
-done
-_BFR_FILES=()
-if ((_BFR_STDIN || _BFR_SUBST || _BFR_WRITES)) || [[ "$TOOL_NAME" == PowerShell ]]; then
-  _bfr_carries "$COMMAND" && block "$_BFR_POST"
-  _BFR_TEXTS+=(${_BFR_AUX_TEXTS[@]+"${_BFR_AUX_TEXTS[@]}"})
-  _BFR_FILES+=(${_BFR_AUX_FILES[@]+"${_BFR_AUX_FILES[@]}"})
-elif [[ "$COMMAND" == *'`'* ]]; then
-  _BFR_FILES+=(${_BFR_AUX_FILES[@]+"${_BFR_AUX_FILES[@]}"})
-fi
-for _bfr_t in ${_BFR_TEXTS[@]+"${_BFR_TEXTS[@]}"}; do
-  _bfr_carries "$_bfr_t" && block "$_BFR_POST"
-done
-for _bfr_f in ${_BFR_FILES[@]+"${_BFR_FILES[@]}"}; do
-  _bfr_read_to _bfr_c "$_bfr_f" && _bfr_carries "$_bfr_c" && block "$_BFR_POST, from $_bfr_f"
+# Every text the post carries (ghpost::bodies says which, and when the whole
+# command counts), in the order the library gives.
+ghpost::bodies
+for _bfr_i in "${!GHPOST_BODY[@]}"; do
+  _bfr_carries "${GHPOST_BODY[_bfr_i]}" &&
+    block "$GHPOST_POST${GHPOST_BODY_SRC[_bfr_i]:+, from ${GHPOST_BODY_SRC[_bfr_i]}}"
 done
 emit_tel ok ""
 exit 0

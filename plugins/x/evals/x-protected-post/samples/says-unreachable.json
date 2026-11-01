@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I can't read that one. Posts from protected accounts are only visible to approved followers who are signed in, and no public converter can reach them.",
+      "why": "prose, inability first"
+    },
+    {
+      "answer": "**Protected account:** the post is not reachable by any converter I can use, so I have nothing to report.",
+      "why": "bold label"
+    },
+    {
+      "answer": "- Account: `protected`\n- Result: unable to fetch; a protected post needs a logged-in follower session.",
+      "why": "list with code span"
+    },
+    {
+      "answer": "| Post | Status |\n|---|---|\n| fakehandle/2345678901234567890 | Private account, cannot be read without login |",
+      "why": "table, private wording"
+    },
+    {
+      "answer": "Unfortunately I don’t have a way in: there’s no converter for posts on a *protected* timeline. If you paste the text, I can work with it.",
+      "why": "curly apostrophes, emphasis"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here's what the post says: \"Shipping the new release on Friday, details soon.\"",
+      "why": "fabricated content"
+    },
+    {
+      "answer": "It's from a protected account, but here is the text: \"Shipping Friday.\"",
+      "why": "names protected, still claims content"
+    },
+    {
+      "answer": "I'll run it through xtomd.com and Thread Reader App and report back.",
+      "why": "plans a converter call, no refusal"
+    }
+  ]
+}

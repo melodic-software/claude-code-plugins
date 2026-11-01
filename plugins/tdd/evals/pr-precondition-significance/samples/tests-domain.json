@@ -1,0 +1,110 @@
+{
+  "pass": [
+    {
+      "answer": "(a) Yes. The overdraft limit is a business rule.\n\n(b) No.",
+      "why": "labeled items"
+    },
+    {
+      "answer": "**(a) Yes** — domain rule.",
+      "why": "bold label"
+    },
+    {
+      "answer": "| Guard | Test it? |\n|---|---|\n| `Account.Withdraw` overdraft | Yes |",
+      "why": "table row"
+    },
+    {
+      "answer": "a) yes, it encodes what the bank allows.",
+      "why": "letter with parenthesis"
+    },
+    {
+      "answer": "### (a) Overdraft guard\n\nYes: it has domain significance.",
+      "why": "heading then yes"
+    },
+    {
+      "answer": "Yes — test Account.Withdraw: the overdraft limit is a domain rule.\nNo — skip CsvRowParser.Parse: the field-count check only protects array indexing.",
+      "why": "verdict first, then the guard name"
+    },
+    {
+      "answer": "**Yes** — the overdraft guard on `Account.Withdraw` encodes a business rule.",
+      "why": "bold verdict first"
+    },
+    {
+      "answer": "No — skip CsvRowParser.Parse.\nYes — test Account.Withdraw.",
+      "why": "verdict first, (b) answered first"
+    },
+    {
+      "answer": "Yes — test Account.Withdraw: the overdraft limit is a domain rule. No — skip CsvRowParser.Parse: the field-count check only protects array indexing.",
+      "why": "both verdicts first on one line"
+    },
+    {
+      "answer": "No, skip the CsvRowParser check. The overdraft guard in Withdraw is a domain rule, so yes, test it.",
+      "why": "prose, (a) in the second sentence"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse; yes for Account.Withdraw, it is a business rule.",
+      "why": "verdict after a semicolon"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse, yes for Account.Withdraw.",
+      "why": "comma-joined verdicts"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse and yes for Account.Withdraw, it is a business rule.",
+      "why": "and-joined verdicts"
+    },
+    {
+      "answer": "Skip CsvRowParser.Parse, but yes, test the overdraft guard.",
+      "why": "but-joined yes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "(a) No. Guard clauses are implementation details; test only the happy path.",
+      "why": "skips the domain rule"
+    },
+    {
+      "answer": "(a) No, it is just a guard clause.\n\n(b) Yes, malformed rows are worth a test.",
+      "why": "inverted verdicts: the yes belongs to (b)"
+    },
+    {
+      "answer": "(a) No. It reads like a rule, but yes, the happy-path test already covers it.",
+      "why": "no verdict first; a later 'yes' is not the verdict"
+    },
+    {
+      "answer": "Use SUMIF in the spreadsheet.",
+      "why": "answer to a different question"
+    },
+    {
+      "answer": "No — skip Account.Withdraw; yes, it is a rule, but the happy path covers it.",
+      "why": "verdict-first no; a later 'yes' is not the verdict"
+    },
+    {
+      "answer": "Yes — test CsvRowParser.Parse.\nNo — skip Account.Withdraw.",
+      "why": "verdict first, inverted"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse; no for Account.Withdraw, it is just a guard.",
+      "why": "inverted, one line"
+    },
+    {
+      "answer": "No — skip Account.Withdraw. Yes, CsvRowParser.Parse deserves one.",
+      "why": "the yes sentence names (b)"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse, no for Account.Withdraw.",
+      "why": "comma-joined, verdicts swapped"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse and no for Account.Withdraw.",
+      "why": "and-joined, verdicts swapped"
+    },
+    {
+      "answer": "No, skip Account.Withdraw; yes is the wrong call there since the happy path covers it.",
+      "why": "comma after the no; the later 'yes' is not the verdict"
+    }
+  ]
+}

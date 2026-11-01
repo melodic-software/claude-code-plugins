@@ -10,16 +10,16 @@
 #
 # Usage:
 #   lane-telemetry-upsert.sh --lane work-loop|attend-queue --instance <id> \
-#     --repo <owner/name> --issue <n> --body-file <path> [--app-slug <slug>]
+#     --repo <owner/name> --issue <n> --body-file <path> --body-dir <dir> \
+#     [--app-slug <slug>]
 #
 #   --lane        Lane type. Names the marker's lane half.
 #   --instance    Lane-instance id, ^[a-z0-9][a-z0-9-]{0,31}$. Names the WRITER,
 #                 so two instances of one lane never clobber each other. An empty
 #                 value, or a surviving literal ${user_config.…} placeholder,
-#                 means the key is unset and falls back to the sanitized lowercased
-#                 hostname; the fallback is validated by the same gate, so a
-#                 hostname that cannot produce a conforming id stops the lane
-#                 rather than yielding a marker nobody chose.
+#                 means the key is unset and falls back to a random id made once
+#                 and kept in <body-dir>/lane-instance, validated by the same gate.
+#                 Never the hostname: the marker is published in a public comment.
 #   --repo        Target repository, owner/name. Validated before it reaches any
 #                 API URL path, so a traversal value cannot redirect the write.
 #   --issue       Tracking issue number.
@@ -29,6 +29,16 @@
 #                 payload bytes below line 1. The lookup matches on that prefix,
 #                 so a body composed without it would never be found again and
 #                 the next cycle would post a second comment.
+#   --body-dir    Directory the body file must resolve under (default: an
+#                 inherited CLAUDE_PLUGIN_DATA). Either counts only when its last
+#                 path segment names work-items, and never when it is /, the home
+#                 dir, or an ancestor of it: a caller-chosen `--body-dir ~` would
+#                 otherwise contain nothing. SECURITY: lane prompts drive this script, and
+#                 an unconstrained path would let a prompt-injected
+#                 `--body-file ~/.ssh/id_rsa` be posted as a public comment. A
+#                 symlink leaf or a path resolving outside it is refused before
+#                 any read. The body is then scanned with scanLeak and findMachine
+#                 and withheld whole on any hit.
 #   --app-slug    The GitHub App whose installation token gh runs under; its
 #                 writes land as <slug>[bot]. An empty value, or a surviving
 #                 literal ${user_config.…} placeholder, means the key is unset
@@ -85,14 +95,15 @@
 #   0   upserted and verified; any duplicates superseded
 #   2   usage: a missing, repeated, or unknown argument
 #   3   --lane is not one of work-loop|attend-queue
-#   4   the resolved lane instance is empty, starts with a hyphen, or carries a
+#   4   the stored lane-instance fallback is a symlink or malformed (never
+#       echoed), or the resolved lane instance is empty, starts with a hyphen, or carries a
 #       character outside [a-z0-9-] — rejected, never trimmed into something
 #       that looks valid
 #   5   the resolved lane instance exceeds 32 characters (the length half of
 #       ^[a-z0-9][a-z0-9-]{0,31}$, which code 4 enforces the shape half of)
 #   6   --repo is not owner/name
 #   7   --issue is not a positive integer
-#   8   prerequisite missing: gh or jq is not on PATH
+#   8   prerequisite missing: gh, jq or node is not on PATH
 #   9   the body file is missing, empty, or opens with a literal `@` — NOTHING written
 #   10  the body is not sentinel-prefixed, or carries under 16 payload bytes
 #       below line 1 — NOTHING written
@@ -109,12 +120,22 @@
 #   15  the write identity is unresolved, or --app-slug is not a slug — NOTHING
 #       written; or a create landed under another login (a wrong --app-slug) —
 #       lane UNREPORTED either way
+#   16  no safe body dir (none, not this plugin's data dir, or /, the home dir or
+#       an ancestor of it), or the body file is a symlink or resolves outside it
+#       - NOTHING read or written
+#   17  the body matches the leak scan, a credential shape, a home path or a
+#       private hostname (the message names the rule, never the match), or the scan could not run - NOTHING written; rotate a real
+#       credential
+#   18  the resolved lane instance matches findMachine (a fleet or private
+#       hostname), which the public marker would publish, or that scan could not
+#       run - NOTHING written; unset lane_instance so the stored random id is used
 #
-# KNOWN LIMITS. Not implemented: the 64 KiB cap, body-file containment, and read
-# retries that the `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
+# KNOWN LIMITS. Not implemented: the 64 KiB cap and read retries that the
+# `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
 # why this mechanism lives here rather than deferring to that wrapper.
 
 set -uo pipefail
+unset CDPATH
 
 MIN_PAYLOAD_BYTES=16
 
@@ -132,12 +153,13 @@ INSTANCE=""
 REPO=""
 ISSUE=""
 BODY_FILE=""
+BODY_DIR=""
 APP_SLUG=""
 while (($#)); do
   case "$1" in
   # Normalize `--opt=value` to `--opt value` for the next pass. Known options only,
   # so an unknown `--bogus=x` still reaches the catch-all intact.
-  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --app-slug=*)
+  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --body-dir=* | --app-slug=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
     ;;
   --lane)
@@ -163,6 +185,11 @@ while (($#)); do
   --body-file)
     require_value "$@"
     BODY_FILE="$2"
+    shift 2
+    ;;
+  --body-dir)
+    require_value "$@"
+    BODY_DIR="$2"
     shift 2
     ;;
   --app-slug)
@@ -209,11 +236,48 @@ case "$APP_SLUG" in
 *) : ;;
 esac
 
-# A default, not a sanitizer: the gate below validates it. Keep the transform
-# byte-for-byte; changing it orphans every comment written under the fallback.
+for bin in gh jq node; do
+  command -v "$bin" >/dev/null 2>&1 || {
+    err "$bin not found (required)"
+    exit 8
+  }
+done
+
+# --- Body-file containment ---------------------------------------------------
+# telemetry-body-gate.sh (a generated copy of lib/telemetry-body-gate.sh) holds
+# the rule every lane telemetry upsert shares: the safe body dir must be this
+# plugin's data dir, the body must resolve under it, and it is read once into a
+# private copy that every later step (the gate, the scan, the write, the
+# read-back) uses, so gh never re-reads the caller's path.
+# shellcheck source=telemetry-body-gate.sh
+. "${BASH_SOURCE[0]%/*}/telemetry-body-gate.sh"
+if ! tbg_safe_dir work-items "$BODY_DIR"; then
+  err "$TBG_ERR - nothing read or written"
+  exit 16
+fi
+tbg_read_body "$BODY_FILE"
+case $? in
+0) : ;;
+2)
+  err "body is missing or empty - nothing written; fix the body composition, do not re-run blind"
+  exit 9
+  ;;
+*)
+  err "$TBG_ERR - nothing read or written"
+  exit 16
+  ;;
+esac
+BODY_FILE="$TBG_COPY"
+trap 'rm -f "$BODY_FILE"' EXIT
+
+# A default, not a sanitizer: the gate below validates it too.
 if [[ -z "$INSTANCE" ]]; then
-  INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-  err "no lane instance supplied; assuming the sanitized hostname '$INSTANCE'"
+  if ! tbg_instance; then
+    err "$TBG_ERR - nothing written"
+    exit 4
+  fi
+  INSTANCE="$TBG_INSTANCE"
+  err "no lane instance supplied; using the stored random id '$INSTANCE'"
 fi
 
 # Rejected, never sanitized: this operator text is interpolated into a marker, a
@@ -229,6 +293,10 @@ if ((${#INSTANCE} > 32)); then
   err "lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker"
   exit 5
 fi
+if ! tbg_check_instance "${BASH_SOURCE[0]%/*}/../lib/publish-gate.mjs" "$INSTANCE"; then
+  err "$TBG_ERR - nothing written"
+  exit 18
+fi
 
 # Checked before any gh api URL path: GitHub's routing normalizes `..` segments,
 # redirecting the write to another repository the token can reach.
@@ -240,13 +308,6 @@ if [[ ! "$ISSUE" =~ ^[0-9]+$ ]]; then
   err "--issue must be a positive integer (got: '$ISSUE')"
   exit 7
 fi
-
-for bin in gh jq; do
-  command -v "$bin" >/dev/null 2>&1 || {
-    err "$bin not found (required)"
-    exit 8
-  }
-done
 
 MARKER="work-items:$LANE@$INSTANCE"
 SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
@@ -275,6 +336,21 @@ sentinel_ok() {
 if ! sentinel_ok "$BODY_TEXT"; then
   err "body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind"
   exit 10
+fi
+
+# --- Leak scan ---------------------------------------------------------------
+# The comment is public. scanLeak and findMachine (this plugin's generated copy of
+# lib/publish-gate.mjs) judge the body; a hit withholds all of it, never a masked
+# copy, and the message names only the rule. A plain assignment, which scanLeak
+# only warns on, and a home path or private hostname are withheld too. A scan
+# that cannot run withholds as well.
+if ! leak="$(tbg_scan "${BASH_SOURCE[0]%/*}/../lib/publish-gate.mjs" <"$BODY_FILE")"; then
+  err "the leak scan could not run - nothing written"
+  exit 17
+fi
+if [[ -n "$leak" ]]; then
+  err "body withheld: $leak - nothing written"
+  exit 17
 fi
 
 # --- Write identity ----------------------------------------------------------
