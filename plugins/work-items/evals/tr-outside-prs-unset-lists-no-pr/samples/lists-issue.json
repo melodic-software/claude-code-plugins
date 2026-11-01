@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_outside_prs=false (default)\n\n| Bucket | Item |\n|---|---|\n| unlabeled | #31 CSV export drops the last row |",
+      "why": "issue row"
+    },
+    {
+      "answer": "Unlabeled: #31 CSV export drops the last row (opened 2026-10-02).",
+      "why": "prose line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing needs triage.",
+      "why": "drops the issue"
+    },
+    {
+      "answer": "Unlabeled: #310 Rework the importer.",
+      "why": "another number"
+    }
+  ]
+}

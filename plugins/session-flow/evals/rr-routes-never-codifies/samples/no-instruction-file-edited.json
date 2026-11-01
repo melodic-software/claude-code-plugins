@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/.work/running-retros/20261013T120000Z-running-retro-build-fix.md", "old_string": "## Checkpoint\n", "new_string": "## Checkpoint\n- Edited dist/ instead of src/ twice. Route: /session-flow:retro codify.\n"}}
+      ],
+      "why": "the ledger, which names the learning in its content"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/src/app.js", "old_string": "Hello", "new_string": "Hi"}}
+      ],
+      "why": "the task's own source file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/.claude/rules/build.md", "old_string": "- Run `npm run build` before committing.\n", "new_string": "- Run `npm run build` before committing.\n- Never edit dist/.\n"}}
+      ],
+      "why": "learning added to the existing rule file; a denied attempt still counts"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "/tmp/eval/CLAUDE.md", "old_string": "from src/.\n", "new_string": "from src/.\n\n- Never edit dist/.\n"}}
+      ],
+      "why": "learning appended to CLAUDE.md"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "CLAUDE.local.md", "old_string": "", "new_string": "- Never edit dist/.\n"}}
+      ],
+      "why": "relative path to a local instruction file"
+    }
+  ]
+}

@@ -1,13 +1,12 @@
 # Promotion-evidence bootstrap contract
 
 The operator-supplied surfaces the trusted seam in
-[`promotion-evidence-resolution.md`](promotion-evidence-resolution.md) reads: what each one is,
+[`promotion-evidence-resolution.md`](promotion-evidence-resolution.md) reads: what each is,
 where it may live, and why. That file owns the resolution rule and the fail-closed table; this file
-owns what an operator provides. A compliant set lets the seam return a qualified read: cycle-shape
+owns what an operator provides. With a compliant set the seam returns a qualified read: cycle-shape
 step 3 runs the operator-supplied `check-security-binding.mjs` on the three evidence surfaces each
-cycle. A cell then resolves
-promoted only when the binding's ceiling and the in-epoch evidence say so, and every cell stays
-effective-unpromoted when a surface is absent or non-compliant. Operators keep `--merge human-only`
+cycle. A cell then resolves promoted only when the binding's ceiling and the in-epoch evidence say
+so; every cell stays effective-unpromoted when a surface is absent or non-compliant. Operators keep `--merge human-only`
 on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 
 ## Contents
@@ -33,7 +32,7 @@ fact 5). The lane's step 0 preflight reads the option values substituted into th
 skill body ("Promotion-evidence bootstrap options" in [`SKILL.md`](../SKILL.md); fact 7) and never
 the `CLAUDE_PLUGIN_OPTION_*` environment mirror.
 
-The resolution helper does not take the values from the lane at all. It reads
+The resolution helper takes no values from the lane. It reads
 `pluginConfigs["<name>@<marketplace>"].options` itself (channel F of
 [hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-config-delivery/README.md)),
 from two sources, managed winning per option:
@@ -61,8 +60,8 @@ uses that source and ignores the managed settings files
 ([managed settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
 "How Claude Code combines managed sources", as of 2026-10-11; recheck when that section or the
 `managedSourcesBehavior` default changes). The helper sees only the files, so on such a host a
-stale `managed-settings.json` the harness no longer applies can still supply these options. Keep the
-options out of managed files on a host whose policy comes from a remote or MDM source, or
+stale `managed-settings.json` the harness no longer applies can still supply these options. On a
+host whose policy comes from a remote or MDM source, keep the options out of managed files or
 remove the stale file.
 
 The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
@@ -83,12 +82,12 @@ options page substitutes only non-sensitive values into skill content, which put
 the lane's context. What protects a surface is that the lane cannot write it, not that its path
 stays unknown. Never put a secret in one of these options.
 
-The options say where a surface is; they do not make it unwritable. A user settings file is
-writable by any agent running as that user, so a location kept there is only as protected as that
-file. Managed settings keep the location out of the agent's reach too, where the managed system
-directory itself is not writable by the lane's identity (not the case on WSL by default; see
-[Deployment requirements by host](#deployment-requirements-by-host)). Whether a deployment meets the requirement is the operator's to establish. This
-file states the requirement and does not certify a deployment.
+The options say where a surface is; they do not make it unwritable. Any agent running as the user
+can write a user settings file, so a location kept there is only as protected as that file.
+Managed settings also keep the location out of the agent's reach where the lane's identity cannot
+write the managed system directory (not the case on WSL by default; see
+[Deployment requirements by host](#deployment-requirements-by-host)). The operator establishes
+whether a deployment meets the requirement; this file states it and certifies no deployment.
 
 ## The options
 
@@ -106,13 +105,13 @@ plugin's `check-security-binding.mjs`, shipped with `/autonomy:setup`).
 ### `promotion_evidence_binding`
 
 The security binding document: each cell's bound `promotion_state` and its `ratified_at`. It lives
-in the binding's own home, the settings-as-code repository or org policy home (setup skill,
-"Two-surface split"), as a copy the executor provisions on the lane's host.
+in the binding's own home (the settings-as-code repository or org policy home; setup skill,
+"Two-surface split") as a copy the executor provisions on the lane's host.
 
 Agent-unwritable, because the bound state is the ceiling: an agent that can edit the document
-raises a cell's bound state, or moves `ratified_at` past a contrary event so the checker drops that
-event as pre-epoch. Outside the target repository's blast radius, because that repository is where
-the agents being governed write.
+raises a cell's bound state, or moves `ratified_at` past a contrary event so the checker drops it
+as pre-epoch. Outside the target repository's blast radius, because the governed agents write
+there.
 
 ### `promotion_evidence_root`
 
@@ -130,7 +129,7 @@ entry as unproven. Outside the target repository's blast radius, for the same re
 The events file: a JSON array of `{cell, event, at}` records, `event` one of `gate-failure`,
 `reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant. The checker scopes the
 events to each cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode
-header comment owns the rules; they are not restated here).
+header comment owns the rules).
 
 Publication requirements:
 
@@ -170,8 +169,8 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
   spellings of the review bots on this repository's pull requests (read from #7361's reviews,
   2026-10-13).
 - **Every revert counts** as `reverted-merge`, whoever merged or enqueued the revert pull request
-  (a human, a bot or the lane), and so does a revert commit pushed with no pull request. The
-  trade-off: a bot able to merge reverts can hold a cell down. That fails safe, because a revert
+  (a human, a bot or the lane), and so does a revert commit pushed with no pull request.
+  Trade-off: a bot able to merge reverts can hold a cell down, which fails safe because a revert
   can only demote.
 - **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
@@ -261,7 +260,7 @@ with `--merge human-only` on the launch line.
 Common rules, on every host:
 
 - **Options only in managed settings.** A user settings file sits under a directory the lane user
-  owns, so it can only ever serve an attended lane.
+  owns, so it can only serve an attended lane.
 - **Admin-owned surfaces.** The binding, the probe evidence root, the events file and the checker
   copy each sit in a directory an administrator owns, and the lane identity neither owns nor can
   write that directory or any directory above it. A checker in the plugin cache under the lane
@@ -275,8 +274,8 @@ Common rules, on every host:
   `--restricted`, is defense in depth where its tool set allows it.
 - **No promotion keys in managed files on a remote or MDM policy host.** Where a remote or MDM
   source delivers the policy, the managed settings files the helper reads may be ones Claude Code
-  no longer applies (above). So no `promotion_evidence_*` key goes in any managed file on such a
-  host, and with the user scope ruled out for unattended use, that host runs the lane attended.
+  no longer applies (above), so no `promotion_evidence_*` key goes in any managed file on such a
+  host; with the user scope ruled out for unattended use, that host runs the lane attended.
 
 | Host | Unattended | Requirements beyond the common rules |
 |---|---|---|

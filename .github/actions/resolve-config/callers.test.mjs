@@ -2878,7 +2878,9 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   assert.equal(atStep(scan.if, { ...stopped, "needs.run.outputs.go": "true" }), true);
   // The verdict steps keep the default success(): they run when no step before
   // them failed, so a skipped scan still posts the skip and a hit posts nothing.
-  for (const name of ["Write the verdict", "Upload the verdict"]) assert.equal(step(name).if, undefined, name);
+  // The upload also needs its own scan's clean output.
+  for (const name of ["Write the verdict", "Scan the upload for credentials"]) assert.equal(step(name).if, undefined, name);
+  assert.equal(step("Upload the verdict").if, "steps.scan-upload.outputs.clean == 'true'");
   for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
     assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
@@ -5380,7 +5382,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(proceed("skipped", "", ""), "", "a kill-switch stop");
   assert.equal(proceed("success", "true", "", "true"), "", "a pass-only round proceeds to no model");
   const upload = select.steps.find((s) => s.id === "upload");
-  assert.equal(upload.if, "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
+  assert.equal(upload.if, "(steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true') && steps.scan-upload.outputs.clean == 'true'");
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 
@@ -7444,6 +7446,44 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
     }
   }
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
+});
+
+// A checkout with no path: replaces the workspace, .base included, so an
+// action loaded from ./.base/ after it is head code.
+test("no job loads an action from ./.base/ after a checkout that replaced it", () => {
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      let replaced = null;
+      for (const step of job.steps ?? []) {
+        const uses = String(step.uses ?? "");
+        if (uses.startsWith("actions/checkout@")) {
+          if (step.with?.path === ".base") replaced = null;
+          else if (!step.with?.path) replaced = step.name;
+        }
+        if (replaced !== null && uses.startsWith("./.base/")) assert.fail(`${file} ${id}: ${step.name} loads ${uses} after ${replaced}`);
+      }
+    }
+  }
+});
+
+test("the read runner's scan job and the write runner's run job scan uploads with a scanner staged in RUNNER_TEMP before the head checkout", () => {
+  const run = 'node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"';
+  const jobs = [
+    [workflow("pr-run-activity-read.yml").jobs.scan, "Check out the gated head"],
+    [workflow("pr-run-activity-write.yml").jobs.run, "Check out the PR head"],
+  ];
+  for (const [job, head] of jobs) {
+    const index = (find) => job.steps.findIndex(find);
+    const stage = index((s) => s.name === "Stage the upload scanner");
+    assert.ok(stage >= 0 && stage < index((s) => s.name === head), "staged before the head checkout");
+    assert.equal(job.steps[stage].if, undefined, "staged on every run");
+    const scans = job.steps.filter((s) => /^scan-upload/.test(s.id ?? ""));
+    assert.ok(scans.length > 0);
+    for (const scan of scans) {
+      assert.equal(scan.uses, undefined, scan.id);
+      assert.equal(scan.run, run, scan.id);
+    }
+  }
 });
 
 // sync-shared-copies-select decides from base code alone: it proceeds once

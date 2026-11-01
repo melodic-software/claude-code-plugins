@@ -121,6 +121,8 @@ async function artifactsNamed({ repo, actions, runId, name }) {
 // The id of the newest trusted run of `workflow` (pr-merge.yml unless named),
 // this one aside, holding an unexpired artifact named `name` and passing
 // `accept`, or undefined when there is none.
+const runOrder = (run) => (Number.isSafeInteger(run?.id) ? run.id : -1);
+
 export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH }) {
   const file = workflow.slice(workflow.lastIndexOf("/") + 1);
   let asked = 0;
@@ -132,8 +134,11 @@ export async function newestTrustedRun({ repo, runId, actions, name, accept = as
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error(`the ${file.replace(/\.yml$/, "")} run listing has an unexpected shape`);
     }
-    // The API lists runs newest first.
-    for (const run of listing.workflow_runs) {
+    // Newest first by id, not the API's order, which follows created_at: on
+    // 2026-11-01 runs created 08:00-09:00Z were stamped an hour ahead and
+    // listed above later runs, so a carry came from a run an hour older.
+    const runs = [...listing.workflow_runs].sort((a, b) => runOrder(b) - runOrder(a));
+    for (const run of runs) {
       if (!trustedRun(run, workflow) || String(run.id) === runId) {
         continue;
       }

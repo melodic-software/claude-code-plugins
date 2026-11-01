@@ -23,7 +23,7 @@ extraction of the installed 2.1.284 binary, 2026-09-29.
 
 `pr` and `/commit-push-pr` stop at an open PR and apply Claude Code's generic format. This skill
 applies the repository's own title pattern, body contract, and open-state rule, then carries the
-PR through ready, monitoring, and merge. `/autofix-pr` monitors too, but in a cloud session that
-fixes everything by default and keeps running after the local session ends; this skill's monitor
-loop runs locally, gates every CI fix on research, and classifies each review finding with a
-reply before fixing. The model offers `/autofix-pr` to the person because only the person runs it.
+PR through ready, monitoring, and merge. `/autofix-pr` also monitors, but in a cloud session that
+fixes everything by default and outlives the local session; this skill's monitor loop runs
+locally, gates every CI fix on research, and classifies each review finding with a reply before
+fixing. The model offers `/autofix-pr` to the person because only the person runs it.

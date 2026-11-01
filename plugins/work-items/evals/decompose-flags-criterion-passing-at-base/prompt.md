@@ -5,7 +5,7 @@ runs: 3
 max_turns: 20
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "Runs the base-commit check, flags AC2 as already passing at base, does not flag AC1 or AC3, and asks whether to sharpen AC2 or leave it out as met"
+expected_outcome: "Runs the base-commit check, flags AC2 as already passing at base, does not flag AC1 or AC3, and asks whether to sharpen AC2, leave it out as met, or keep it with a written reason"
 ---
 
 Load /work-items:decompose and run its base-commit check on the acceptance criteria below. Report

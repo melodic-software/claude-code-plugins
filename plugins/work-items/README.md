@@ -84,9 +84,24 @@ adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 
-`/work-items:work` and `/work-items:track start` claim an item by **assigning it
-and writing a lease comment**, race-safe at the seam via lease-comment identity,
-so multiple concurrent agents never grab the same item. A session-start
+An item is claimed by **assigning it and writing a lease comment**, race-safe at
+the seam via lease-comment identity, so multiple concurrent agents never grab the
+same item. These skills claim:
+
+- `/work-items:work`, `/work-items:track start` and `/work-items:ship run`,
+  before they execute an item.
+- `/work-items:triage`, before its first write to an item (a comment, label,
+  edge or close), with `--phase triage`, clearing its assignee and releasing the
+  claim after its last write.
+- `/work-items:work-loop`, through the `/work-items:work` and
+  `/work-items:triage` runs it makes.
+- `/work-items:attend-queue`, before it writes to a row, with `--phase triage`,
+  releasing the claim after the row's disposition. Its `[intake]` rows are left
+  to triage's own claim.
+
+A claim lost to another session (exit `7`) skips the item. Read-only listings,
+such as the triage attention view and `/work-items:track stats`, never claim.
+A session-start
 `reclaim` runs idempotently to recover the stale leases of crashed or abandoned
 sessions. Claim assignments always run on the session's own authenticated
 identity, never a shared bot, so the race check stays sound.
@@ -187,10 +202,25 @@ triage posts an "Objection window until <UTC>" comment beside the brief of each
 item it makes autonomous-eligible; the work-loop lane skips the item until the
 window ends and escalates it if a person replies inside the window.
 
+`triage_stale_reporter_info_days` exists only in the repository file and has no
+default, so it is off until a repository sets it. When it is set, the
+`/work-items:triage` attention view lists each open `needs-reporter-info` item as
+a close candidate if its reporter lacks write access and has not replied for
+that many days since the last triage note. Listing closes nothing. In an attended
+session triage asks once and closes only the candidates the operator says yes
+to. A lane or CI run reports the list and never closes.
+
 `ai_disclaimer` (default `false`) takes the same layers, in the same order:
 when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
+
+`triage_outside_prs` (default `false`) lives only in the repository file. Set it
+to `true` when the repository takes requests as pull requests from outside
+contributors: the `/work-items:triage` attention view then lists those pull
+requests beside the issues. When it is `false`, the view lists only issues. A
+pull request named explicitly, as `/work-items:triage <number>`, is triaged
+either way.
 
 `work_priority_order` lives only in the repository file: a list of `priority:`
 label names, highest first, defaulting to `priority: critical`,

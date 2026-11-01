@@ -140,6 +140,11 @@ assert_exit "pr review: exit 0" 0 "$?"
 assert_eq "pr review: the call is recorded" \
   '{"command":"pr review","pr":7,"args":["7","--approve","--body","ok"]}' "$(tail -n 1 "$CALLS")"
 
+out=$(printf 'skipped\n' | run_gh "$THREADED" pr comment 7 --body-file - 2>&1)
+assert_exit "pr comment: exit 0" 0 "$?"
+assert_eq "pr comment: the call is recorded" \
+  '{"command":"pr comment","pr":7,"args":["7","--body-file","-"]}' "$(tail -n 1 "$CALLS")"
+
 # The eval sandbox holds .git read-only and a fetch opens FETCH_HEAD for writing before it reads anything.
 READONLY="$TEST_TMPDIR/readonly"
 make_forge readonly --no-pr

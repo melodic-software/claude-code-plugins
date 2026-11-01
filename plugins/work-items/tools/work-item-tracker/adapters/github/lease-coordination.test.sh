@@ -15,7 +15,8 @@
 #       the caller's active one;
 #   (5) a lane's lease-only claim and release under a --holder override: a local
 #       claim backs off while the lane lease is live and holds once it is
-#       released, and a lane claim backs off on a live local lease.
+#       released, and a lane claim backs off on a live local lease;
+#   (6) claim --phase writes the lease's phase and renew-lease keeps it.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
@@ -520,5 +521,45 @@ ttl_case() {
 ttl_case "a 169 h claim is refused" 2 0 --ttl-hours 169
 ttl_case "a 168 h 1 m claim is refused" 2 0 --ttl-hours 168 --ttl-minutes 1
 ttl_case "a 168 h claim is accepted" 0 1 --ttl-hours 168
+
+# [phase] claim --phase writes the field into the lease comment and renew-lease keeps
+# it; no --phase writes no field (an implementation claim); an unknown phase is
+# refused before any write.
+stored_lease() { jq -r --argjson id "$1" '.[] | select(.id == $id) | .body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->")' "$GH_STUB_DIR/lease-comments"; }
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+out="$(bash "$CLAIM" "$ID" --ttl-hours 24 --phase triage 2>/dev/null)"
+assert_eq "claim --phase triage succeeds (0)" "0" "$?"
+PHASE_CID="$(jq -r '.lease_comment_id' <<<"$out")"
+assert_eq "claim --phase triage writes phase into the lease comment" "triage" "$(stored_lease "$PHASE_CID" | jq -r '.phase')"
+sleep 1
+bash "$RENEW" "$ID" --lease-comment-id "$PHASE_CID" >/dev/null 2>&1
+assert_eq "renew-lease on the triage lease succeeds (0)" "0" "$?"
+assert_eq "renew-lease keeps the phase" "triage" "$(stored_lease "$PHASE_CID" | jq -r '.phase')"
+assert_eq "renew-lease bumped renewed_at past acquired_at" "true" \
+  "$(stored_lease "$PHASE_CID" | jq -r '.renewed_at > .acquired_at')"
+cleanup_scenario
+
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf 'alice\n' >"$GH_STUB_DIR/login"
+printf '[]\n' >"$GH_STUB_DIR/assignees"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+out="$(bash "$CLAIM" "$ID" --ttl-hours 24 2>/dev/null)"
+assert_eq "a claim with no --phase writes no phase field" "false" \
+  "$(stored_lease "$(jq -r '.lease_comment_id' <<<"$out")" | jq -r 'has("phase")')"
+cleanup_scenario
+
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 24 --lease-only --holder "$LANE" --phase review >/dev/null 2>&1 || rc=$?
+assert_eq "claim refuses an unknown phase (2)" "2" "$rc"
+assert_not_contains "a refused phase posts no lease" "$(calls)" "POST_COMMENT"
+cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1

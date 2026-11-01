@@ -3,7 +3,8 @@
 // a JSON data block, through the shared view-builder's interactive profile.
 // The data is K2 (it describes a pull request), so nothing here writes a data
 // value into markup; view-builder puts it in the data block and the inlined
-// runtime renders it as text.
+// runtime renders it as text. The one exception is the title, which view-builder
+// escapes into the page's <title> (rendered-views rule 5).
 //
 //   build-digest.mjs < data.json      write the page into a fresh temp dir, print its path
 //   build-digest.mjs --connect http://127.0.0.1:<port> --dir <data_dir> < data.json
@@ -72,11 +73,13 @@ export function shapeDigest(input) {
 }
 
 export function buildDigest(input, connect = null) {
+  const data = shapeDigest(input);
   return buildView({
     profile: "interactive",
     template: readFileSync(TEMPLATE_PATH, "utf8"),
-    data: shapeDigest(input),
+    data,
     connect,
+    title: data.title,
   });
 }
 
