@@ -337,12 +337,10 @@ pointer with an as-of date and a recheck trigger, live in
 
 ## Next
 
-- Verdict CONFIRMED: /source-control:pull-request.
+- Verdict CONFIRMED, or NEEDS WORK with `Evidence loop: 3/3 cap reached, last NEEDS WORK`:
+  /source-control:pull-request.
 - Improvement claimed without data: /verification:measure.
 - Gaps found, evidence loop count below 3 before this verdict: fix them, then /verification:confirm.
-- NEEDS WORK with `Evidence loop: 3/3 cap reached, last NEEDS WORK`: /source-control:pull-request,
-  so the pipeline's park-and-retry path takes over.
-- Touched features not matched (app-control not installed): install the app-control plugin.
 - Lessons listed, or a touched feature's control skill not refreshed: /app-control:map refresh
   <feature> ["<lesson>"] (or <control skill path> for every feature), or /corrections:codify
   "<lesson>" for one not about driving the app.
