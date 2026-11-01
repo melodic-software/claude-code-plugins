@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: au-meta-string-true-fails
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: c18-string-true-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+  - name: c18-fail-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?FAIL)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: c12-missing-hint-warn
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC12\b|readOnlyHint))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+  - name: c12-not-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC12\b|readOnlyHint))(?=[^\n]*(?:\|\s*\**FAIL\**\s*\||(?:→|->|:|=|\bis\b|\bas\b)\s*\**FAIL\b))'
+    flags: 'i'
+    match: 'not_contains'
+  - name: overall-counts-line
+    type: regex
+    pattern: 'Overall\W{0,6}\d+\s+pass(?:es|ed)?[,;\s]+(?:and\s+)?\d+\s+warn(?:s|ings?)?[,;\s]+(?:and\s+)?\d+\s+fail(?:s|ures?)?[,;\s]+(?:and\s+)?\d+\s+info'
+    flags: 'i'
+  - name: c12-warn-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC12\b|readOnlyHint))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?WARN)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

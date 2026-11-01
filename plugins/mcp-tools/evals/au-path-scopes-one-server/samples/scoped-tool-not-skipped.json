@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: inventory_list_items",
+      "why": "audited"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "inventory_list_items was not audited: no tools found.",
+      "why": "negated"
+    }
+  ]
+}

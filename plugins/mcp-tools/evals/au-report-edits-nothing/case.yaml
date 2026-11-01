@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: au-report-edits-nothing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: c18-string-true-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+  - name: source-unchanged
+    type: regex
+    pattern: '"anthropic/requiresUserInteraction":\s*"true"'
+    target: { source: file, path: servers/tickets/node/src/server.ts }
+  - name: no-shell-source-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*tickets/node/src/server\.ts)(?:[^"\\]|\\.)*?(?:\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i\b|\bperl\s+-\S*i|>>?\s*\\?["'']?\S*server\.ts|\btee\s+(?:-\S+\s+)*\\?["'']?\S*server\.ts|\b(?:cp|mv|install)\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\S*server\.ts\\?["'']?(?=\s*(?:[;&|)]|\\n|"))|\bdd\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\bof=|\brm\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\S*server\.ts|\b(?:python3?|node|ruby|perl)\s+(?:-\S+\s+)*-[ceE]\s(?:[^"\\]|\\.)*?(?:\bwrite\w*|\bunlink\w*|\brename\w*|\btruncate\w*|\bos\.remove|\bshutil\.(?:copy|move)\w*))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-source-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?server\.ts"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-source-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?server\.ts"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: c18-fail-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?FAIL)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

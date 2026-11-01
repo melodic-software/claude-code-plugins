@@ -1,5 +1,44 @@
 # Changelog for the PR pipeline convention
 
+## [8.29.0] - 2026-11-01
+
+### Changed
+
+- `verify:too-old` now means a pull request created more than 80 days ago with no counted verdict at its head, and a fresh pass there clears it. The lost-run reconciler re-runs that head's passed `pr-require-checks` run once, recorded, inside GitHub's 30-day re-run window, so pr-verify judges the head. The pr-merge lane no longer closes such a pull request for a fresh attempt; `verify:repeated-fail` still does ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+- The convention's "Unsure" rule now says what the lane does: an adjudicator judges an unsure finding, and only a finding at the security tier a person decides, or a thread a person opened or directed, goes to that person.
+
+### Fixed
+
+- A review thread the address-feedback lane answered `UNCERTAIN`, `VALID-defer` or `INCORRECT`
+  and left open no longer stalls the pull request with no queue. `feedback-untaken-threads` and
+  `feedback-unadjudicated` now add `needs-session` beside their failing status, so a session
+  builder takes the thread. While that stop stands on the head, the select job skips the new
+  `awaiting-session` reason instead of escalating again; it still clears the stop
+  (`stop-resolved`) once no thread is unresolved, and a new head escalates afresh.
+
+## [8.28.0] - 2026-11-01
+
+### Added
+
+- `stage-order-baseline.md` records rounds, re-verifications, and lane turns and minutes per merged
+  pull request over the 7 days to 2026-10-31, measured before the stage order changes.
+
+### Changed
+
+- `verify-scripts` may be set on a `prepare: ci-context` skill. The read runner stages each listed script's base copy behind its wrapper under `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run those scripts only through the wrappers. `fix-ci` lists `plugins/planning/scripts/repin-digests.sh`, so the instructed route for re-pinning a digest pin the pull request's own diff moved is the base's script. That is an instruction, not a rule: `ci-context` keeps Bash, Edit and Write unrestricted, so the controls on a re-pin are review of the patch and apply-patch's `ci-context` patch rules.
+
+## [8.27.6] - 2026-11-01
+
+### Changed
+
+- pr-review-main runs the trigger gate and reads the pull request's file list once per run, in a
+  new `trigger` job, instead of once per review lane. The key leg takes that job's result (the
+  gate's verdict, the PR number, the head and base SHAs and the lane-source flag, each checked
+  against a fixed shape) only when it comes from the same run attempt, and gates itself otherwise,
+  so a lane re-run alone still checks its own re-runner and the reconciler's record. The later legs
+  still gate themselves. The file list read now goes through the api-budget gh wrapper, so its
+  requests are counted.
+
 ## [8.27.5] - 2026-11-01
 
 ### Fixed
