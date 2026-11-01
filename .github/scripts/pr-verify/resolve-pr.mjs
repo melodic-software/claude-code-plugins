@@ -10,7 +10,8 @@
 // - exactly one open PR into main has that run's head SHA as its current head
 //   and its head in this repository;
 // - the PR is not a draft and not a dependency manager's (a Bot account with
-//   one of DEPENDENCY_MANAGERS' logins);
+//   one of DEPENDENCY_MANAGERS' logins), and the run did not start while it
+//   was a draft (draftRun), whose suites all skipped;
 // - under merge.verify-authors `lane` (the default) the lanes App opened it:
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
@@ -23,7 +24,8 @@
 //   this PR, each looked up by exact artifact name, uploaded by a completed
 //   run that the pr-merge lane's reader would count (countedBy, the same checks as
 //   babysit_verify_evidence.py). A run still going or one that uploaded
-//   nothing does not stop a new judgment, and neither do passes that all
+//   nothing does not stop a new judgment, nor does a FAIL judged from a run
+//   that started on the draft (draftJudgments), and neither do passes that all
 //   started before the spec last changed (`specChanged`): the head is judged
 //   again, with reason `spec-changed`.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
@@ -289,6 +291,57 @@ export async function heldOnly(github, readLog, repository, runId, number) {
   }
 }
 
+// pr-require-checks.yml's ci-status step that runs only when the run's event
+// is a draft's (`if: github.event.pull_request.draft == true`); every suite
+// skips on such a run.
+export const DRAFT_STEP = "Note a draft";
+
+// Whether checks run `runId` started while its pull request was a draft: its
+// latest ci-status job ran DRAFT_STEP. The step reads the run's own event,
+// which a re-run keeps, so marking the pull request ready since changes
+// nothing. A read that fails, or a job list cut short, throws.
+export async function draftRun(github, repository, runId) {
+  const listed = await github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+  const jobs = listed?.jobs;
+  if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
+    throw new Error(`the jobs of run ${runId} could not be read whole`);
+  }
+  return jobs.some((job) => job?.name === "ci-status" && Array.isArray(job.steps) && job.steps.some((step) => step?.name === DRAFT_STEP && step.conclusion === "success"));
+}
+
+// For a counted FAIL's pr-verify run, whether it judged a checks run that
+// started on the draft: every pr-require-checks pull_request run at the head
+// created before it ran DRAFT_STEP. pr-verify starts when a checks run
+// completes, so the run it judged is among them. Such a FAIL judged suites
+// that never ran, which resolvePull no longer does. A read that fails, a list
+// cut short, or no run before it answers false, so the FAIL counts.
+function draftJudgments(github, repository, head) {
+  let listing;
+  const drafts = new Map();
+  return async (verify) => {
+    try {
+      listing ??= github("GET", `/repos/${repository}/actions/workflows/${UPSTREAM_PATH.split("/").at(-1)}/runs?head_sha=${head}&event=pull_request&per_page=100`);
+      const listed = await listing;
+      const runs = listed?.workflow_runs;
+      if (!Array.isArray(runs) || listed.total_count !== runs.length) {
+        return false;
+      }
+      const before = runs.filter((run) => Date.parse(run?.created_at ?? "") < Date.parse(verify.created_at ?? ""));
+      for (const { id } of before) {
+        if (!drafts.has(id)) {
+          drafts.set(id, Number.isSafeInteger(id) ? draftRun(github, repository, id) : Promise.resolve(false));
+        }
+        if (!(await drafts.get(id))) {
+          return false;
+        }
+      }
+      return before.length > 0;
+    } catch {
+      return false;
+    }
+  };
+}
+
 // Every artifact with exactly this name; a read that fails throws.
 async function artifactsNamed(github, repository, name) {
   const artifacts = [];
@@ -383,7 +436,9 @@ async function pullsOfCommit(github, repository, head) {
 // `ownFail`, the earliest creation time of its counted runs, so the caller
 // can weigh a relink (`relinkedByPeople`) and then look up the rest with
 // `afterOwn`.
-async function judged({ github, repository, number, head, base, prs, issues, afterOwn = false }) {
+// A FAIL whose run judged a checks run that started on the draft counts as
+// none (`draftJudged`, draftJudgments).
+async function judged({ github, repository, number, head, base, prs, issues, afterOwn = false, draftJudged }) {
   const named = (pr, verdict) => `pr-verify-${pr}-${head}-${verdict}`;
   const own = named(number, "fail");
   const suffix = issues === undefined ? "" : issuesSuffix(issues);
@@ -407,6 +462,9 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
       }
       const runId = artifact.workflow_run?.id;
       const run = Number.isSafeInteger(runId) ? await countedRun({ github, repository, runId, verdict, base }) : null;
+      if (run !== null && verdict === "fail" && (await draftJudged(run))) {
+        continue;
+      }
       if (run !== null && verdict === "fail" && name === own && issues === undefined) {
         created.push(Date.parse(run.created_at ?? ""));
       } else if (run !== null && verdict === "fail") {
@@ -610,8 +668,12 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (run.conclusion === "failure" && !(typeof readLog === "function" && (await heldOnly(github, readLog, repository, upstreamRunId, pull.number)))) {
     return skip("not-a-passing-run");
   }
+  if (await draftRun(github, repository, upstreamRunId)) {
+    return skip("draft-run");
+  }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
-  let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs });
+  const draftJudged = draftJudgments(github, repository, head);
+  let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
   if (fail) {
     return skip("already-judged");
   }
@@ -625,7 +687,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
       return skip("already-judged");
     }
-    ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true }));
+    ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true, draftJudged }));
     if (fail) {
       return skip("already-judged");
     }
@@ -664,7 +726,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
-  if ((await judged({ github, repository, number: pull.number, head, base, prs, issues })).fail) {
+  if ((await judged({ github, repository, number: pull.number, head, base, prs, issues, draftJudged })).fail) {
     return skip("already-judged");
   }
   return {

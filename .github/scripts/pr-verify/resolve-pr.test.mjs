@@ -17,7 +17,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -98,10 +98,29 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs } = {}) {
+// ci-status's steps that tell a draft's run from a ready one, as GET
+// /actions/runs/{id}/jobs?filter=latest returned them for #11832's two runs at
+// head 8d7ef05b: `Note a draft` ran in run 41273054889, started while the pull
+// request was a draft, and skipped in run 41273113342, started after it was
+// marked ready (pr-require-checks.yml: `if: github.event.pull_request.draft == true`).
+const ciStatusJobs = (draftStep) => ({
+  total_count: 1,
+  jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: draftStep }, { name: "Aggregate lane results", conclusion: "success" }] }],
+});
+const DRAFT_JOBS = ciStatusJobs("success");
+const READY_JOBS = ciStatusJobs("skipped");
+
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
+    const jobsOfRun = /\/actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/.exec(apiPath);
+    if (jobsOfRun && jobsOf[jobsOfRun[1]]) return jobsOf[jobsOfRun[1]];
+    // The head's pr-require-checks pull_request runs; with none given the read fails.
+    if (apiPath === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
+      if (upstreamRuns === undefined) throw new Error(`GET ${apiPath} failed with status 502`);
+      return { total_count: upstreamTotal ?? upstreamRuns.length, workflow_runs: upstreamRuns };
+    }
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
     if (listed && restFails) throw new Error(`GET ${apiPath} failed with status 500`);
     if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
@@ -725,6 +744,61 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
   const pulls = [pull(), pull({ number: 99, state: "closed" })];
   for (const [label, [item, record]] of Object.entries(cases)) {
     assert.equal(await reason({ pulls, artifacts: [item], runs: { 77: record } }), "already-judged", label);
+  }
+});
+
+// draftRun reads a draft's run from ci-status's DRAFT_STEP, which must run on
+// a draft's event and on nothing else.
+test("ci-status's draft step runs exactly when the run's pull request was a draft", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const job = /^ {2}ci-status:\n((?: {4}.*\n|\n)*)/m.exec(workflow)?.[1] ?? "";
+  const step = new RegExp(`^ {6}- name: ${DRAFT_STEP}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(job)?.[1] ?? "";
+  assert.match(step, /^ {8}if: github\.event\.pull_request\.draft == true$/m);
+});
+
+test("a run that started while its pull request was a draft is not judged, though the pull request is ready now", async () => {
+  const draft = await resolve({ jobs: DRAFT_JOBS });
+  assert.equal(draft.proceed, false);
+  assert.equal(draft.reason, "draft-run");
+  assert.equal(await reason({ jobs: READY_JOBS }), "ok");
+});
+
+// #11832 at head 8d7ef05b: opened as a draft, marked ready seconds later.
+// Checks run 41273054889 (created 04:25:39) started on the draft and skipped
+// every suite; pr-verify run 41273103059 (created 04:26:22, once the pull
+// request read as ready) judged it and uploaded a FAIL for "no suite ran";
+// checks run 41273113342 (created 04:26:33) started on the ready pull request.
+const DRAFT_CHECKS = 41273054889;
+const DRAFT_FAIL_RUN = 41273103059;
+const draftRace = (beforeFail = DRAFT_JOBS, overrides = {}) => ({
+  artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, DRAFT_FAIL_RUN)],
+  runs: { [DRAFT_FAIL_RUN]: verifyRun(DRAFT_FAIL_RUN, { created_at: "2026-11-01T04:26:22Z", run_started_at: "2026-11-01T04:26:22Z" }) },
+  upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" })],
+  jobsOf: { [DRAFT_CHECKS]: beforeFail },
+  ...overrides,
+});
+
+test("a FAIL judged from a run that started on the draft does not stop the ready run's judgment", async () => {
+  const ready = await resolve(draftRace());
+  assert.equal(ready.proceed, true);
+  assert.equal(ready.reason, "ok");
+});
+
+test("a FAIL counts when a run it could have judged started on a ready pull request, or the head's runs cannot be read", async () => {
+  const cases = {
+    "the run before the FAIL was a ready one": draftRace(READY_JOBS),
+    "a ready run beside the draft one before the FAIL": draftRace(DRAFT_JOBS, {
+      upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" }), upstream({ id: 41273000001, created_at: "2026-11-01T04:25:00Z" })],
+      jobsOf: { [DRAFT_CHECKS]: DRAFT_JOBS, 41273000001: READY_JOBS },
+    }),
+    "the draft run's jobs cannot be read": draftRace(null),
+    "the jobs list is cut short": draftRace({ ...DRAFT_JOBS, total_count: 2 }),
+    "the head's runs cannot be read": draftRace(DRAFT_JOBS, { upstreamRuns: undefined }),
+    "the head's runs are cut short": draftRace(DRAFT_JOBS, { upstreamTotal: 3 }),
+    "no run started before the FAIL's judgment": draftRace(DRAFT_JOBS, { upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" })] }),
+  };
+  for (const [label, setup] of Object.entries(cases)) {
+    assert.equal(await reason(setup), "already-judged", label);
   }
 });
 
@@ -1492,18 +1566,20 @@ async function calls(setup) {
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
   const cases = [
-    // run, commit pulls, three names without issues, the spec, the FAIL name with issues.
-    ["an unjudged head", {}, "ok", 7],
-    // run, commit pulls, the FAIL name, its run and compare, the spec, the relink read.
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
+    // run, commit pulls, the run's jobs, three names without issues, the spec, the FAIL name with issues.
+    ["an unjudged head", {}, "ok", 8],
+    // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
+    // the head's checks runs, the spec, the relink read.
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 9],
     // As above, but the PR links no issue now, so the relink is never read.
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 6],
-    // run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare.
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 9],
-    // run, commit pulls, three names, the pass's run and compare, the spec.
-    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
+    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
+    // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
+    // the FAIL's run and compare, the head's checks runs.
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
+    // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
+    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
     // As above, then the FAIL name with issues.
-    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 9],
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
   for (const [label, setup, expected, count] of cases) {

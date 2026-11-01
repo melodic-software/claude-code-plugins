@@ -326,7 +326,8 @@ export function stubGitHub(s) {
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
   const gets = [
     [`${R}/actions/runs/${s.runId}`, () => s.run],
-    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=1$/.test(apiPath) ? { total_count: s.jobs.length, jobs: s.jobs } : { total_count: s.jobs.length, jobs: [] })],
+    // upstream-jobs.mjs pages; resolve-pr's draftRun reads one unpaged list.
+    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=(?!1$)\d+$/.test(apiPath) ? { total_count: s.jobs.length, jobs: [] } : { total_count: s.jobs.length, jobs: s.jobs })],
     [`${R}/commits/${s.head}/pulls?`, page([s.pull])],
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
