@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "The paragraph restates the vendor's retry defaults, but it is not fix-eligible: no span is fingerprint-confirmed.",
+      "why": "not fix-eligible"
+    },
+    {
+      "answer": "Nothing here is fix-eligible, so the file is unchanged.",
+      "why": "nothing ... fix-eligible"
+    },
+    {
+      "answer": "The finding stays report-only at llm-suspected.",
+      "why": "report-only"
+    },
+    {
+      "answer": "I made no edits: the source page could not be fetched.",
+      "why": "made no edits"
+    },
+    {
+      "answer": "Fixed 0. Left docs/retry-defaults.md unchanged.",
+      "why": "left unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Converted the paragraph in docs/retry-defaults.md into a pointer to the vendor page.",
+      "why": "claims a fix"
+    },
+    {
+      "answer": "The finding is fix-eligible, so I applied the pointer disposition.",
+      "why": "fix-eligible and applied"
+    }
+  ]
+}
