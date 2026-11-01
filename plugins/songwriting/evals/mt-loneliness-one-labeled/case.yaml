@@ -3,7 +3,7 @@ name: mt-loneliness-one-labeled
 graders:
   - name: family-distance-label
     type: regex
-    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|'
+    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)[- ]distance\b'
     flags: 'i'
     target: last_message
   - name: one-labeled-candidate
