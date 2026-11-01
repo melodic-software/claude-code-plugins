@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run `git worktree remove .worktrees/search-box` and the same for date-filter.",
+      "why": "command"
+    },
+    {
+      "answer": "Use /source-control:worktree cleanup --dry-run.",
+      "why": "skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run /repo-hygiene:clean tree to reset everything.",
+      "why": "wrong tool"
+    },
+    {
+      "answer": "Just delete the .worktrees folder.",
+      "why": "rm only"
+    }
+  ]
+}

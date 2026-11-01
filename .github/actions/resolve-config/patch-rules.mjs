@@ -42,8 +42,9 @@ export function checkPatchRules(patchRules, schema, activities = {}) {
     if (missing.length > 0) {
       fail(`patch-rules.json row \`${row}\` does not refuse ${missing.join(", ")}`);
     }
-    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== "merge-result")) {
-      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [merge-result]`);
+    const only = rules["clean-patch"] === true ? "shared-copies" : "merge-result";
+    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== only)) {
+      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [${only}]`);
     }
   }
   for (const [name, activity] of Object.entries(activities)) {

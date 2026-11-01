@@ -6,7 +6,11 @@
 // only when the issue's author is one intake admits on open (a listed human
 // or the lanes App). A decision on an issue that carries `needs-human`
 // changes nothing, and a listed human's removal of `needs-human` re-enters an
-// issue at `status: needs-decision` (owner decision on #10735). Anything else
+// issue at `status: needs-decision` (owner decision on #10735). A decision on
+// a `status: confirmed` issue whose only status that is, with no
+// `agent-ready`, re-enters it whether admission parked it or a person
+// confirmed it (requested behavior: a person's confirmation followed by that
+// person's decision must reach triage). Anything else
 // changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -150,9 +154,44 @@ test("a listed human's decision on an issue admission parked at status: confirme
   expectDispatched(w);
 });
 
-test("a decision on a verified status: confirmed issue admission never parked changes nothing", async () => {
-  for (const labels of [["status: confirmed"], ["status: confirmed", "agent-ready"]]) {
-    const w = world({ labels, comments: [...(labels.includes("agent-ready") ? [PARKED] : []), { id: 1, user: OWNER, body: DECISION }] });
+test("a listed human's decision on a status: confirmed issue admission never saw sends it back to triage", async () => {
+  const w = world({
+    labels: ["status: confirmed", "priority: medium"],
+    comments: [{ id: 1, user: OWNER, body: DECISION }],
+  });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage", "priority: medium"]);
+  expectDispatched(w);
+});
+
+test("a decision on an outside author's hand-confirmed issue moves it to needs-triage without a model run", async () => {
+  const w = world({ labels: ["status: confirmed"], author: AUTHOR, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  assert.deepEqual(w.labels(), ["needs-triage"]);
+  assert.equal(w.dispatches().length, 0);
+});
+
+test("a hand-confirmed issue stays put for a stranger's decision, needs-human, or a second status label", async () => {
+  for (const [name, labels, user] of [
+    ["stranger", ["status: confirmed"], STRANGER],
+    ["needs-human", ["needs-human", "status: confirmed"], OWNER],
+    ["needs-info", ["status: confirmed", "status: needs-info"], OWNER],
+  ]) {
+    const w = world({ labels, comments: [{ id: 1, user, body: DECISION }] });
+    assert.equal(await run(w, 1), 0);
+    // With needs-info also on, the reply answers needs-info instead; the
+    // confirmed path leaves status: confirmed on either way.
+    assert.ok(w.labels().includes("status: confirmed"), name);
+    if (name !== "needs-info") {
+      assert.deepEqual([...w.labels()].sort(), [...labels].sort(), name);
+      assert.equal(w.dispatches().length, 0, name);
+    }
+  }
+});
+
+test("a decision on a status: confirmed issue that is admitted or ready changes nothing", async () => {
+  for (const labels of [["status: confirmed", "agent-ready"], ["status: confirmed", "status: ready"]]) {
+    const w = world({ labels, comments: [PARKED, { id: 1, user: OWNER, body: DECISION }] });
     assert.equal(await run(w, 1), 0);
     assert.deepEqual([...w.labels()].sort(), [...labels].sort(), labels.join());
     assert.equal(w.dispatches().length, 0, labels.join());
@@ -441,7 +480,8 @@ test("the workflow runs on a needs-human unlabel", () => {
 });
 
 // The reenter job's folded `if:`, evaluated against one event. Covers only
-// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels.
+// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels
+// and, case-insensitively as GitHub does, over the comment body.
 function reenterGate({ event, labels, label = null, comment = null, sender = null }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)* {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
@@ -452,6 +492,10 @@ function reenterGate({ event, labels, label = null, comment = null, sender = nul
     .filter(Boolean)
     .join(" ");
   body = body.replace(/contains\(github\.event\.issue\.labels\.\*\.name, ('[^']*')\)/g, (_, name) => `${JSON.stringify(labels)}.includes(${name})`);
+  body = body.replace(
+    /contains\(github\.event\.comment\.body, ('[^']*')\)/g,
+    (_, text) => `${JSON.stringify(String(comment?.body ?? "").toLowerCase())}.includes(${text}.toLowerCase())`,
+  );
   const context = {
     "github.event.comment.performed_via_github_app": null,
     "github.event.comment.user.type": comment?.type ?? null,
@@ -476,8 +520,23 @@ test("a parked swap that lifts needs-human and adds status: confirmed starts no 
 test("a plain needs-human lift and a comment on a parked issue still start the job", () => {
   assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["priority: medium"] }), true);
   assert.equal(reenterGate({ event: "issues", label: "needs-human", labels: ["host-run"] }), true);
-  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User" }, labels: ["status: confirmed"] }), true);
+  assert.equal(reenterGate({ event: "issue_comment", comment: { type: "User", body: DECISION }, labels: ["status: confirmed"] }), true);
   assert.equal(reenterGate({ event: "issues", label: "priority: low", labels: [] }), false);
+});
+
+// The script takes a comment at needs-decision or confirmed only when its first
+// line, leading whitespace trimmed, starts `**Decision recorded.**`; any other
+// comment there starts no runner. needs-info takes any comment.
+test("a comment at needs-decision or confirmed starts the job only with the decision marker", () => {
+  const comment = (labels, body) => reenterGate({ event: "issue_comment", comment: { type: "User", body }, labels });
+  for (const status of ["status: needs-decision", "status: confirmed"]) {
+    assert.equal(comment([status], DECISION), true, status);
+    assert.equal(comment([status], "  \n**Decision recorded.**\n\nOption 1."), true, `${status}, leading whitespace`);
+    assert.equal(comment([status], "Thanks, looking."), false, status);
+    assert.equal(comment([status], "Decision recorded."), false, `${status}, no bold`);
+    assert.equal(comment([status, "status: needs-info"], "An answer."), true, `${status} beside needs-info`);
+  }
+  assert.equal(comment(["status: needs-info"], "An answer."), true);
 });
 
 test("only a bot's status: confirmed removal with nothing else to move the issue starts the job", () => {

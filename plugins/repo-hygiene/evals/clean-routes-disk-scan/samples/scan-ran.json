@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /sb/config/plugins/repo-hygiene/skills/clean/scripts/scan.sh",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "scan ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "du -sh *",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "hand-rolled du"
+    },
+    {
+      "answer": [],
+      "why": "nothing ran"
+    }
+  ]
+}

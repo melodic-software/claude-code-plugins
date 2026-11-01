@@ -178,10 +178,11 @@ with your own edit tools. Never runs from bare `apply`.
    chose to leave remain. A `hooks-path` decision is the one `git config core.hooksPath
    .githooks` per clone that plain shared hooks need; `block-no-verify` allows exactly that
    value.
-6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that a
-   commit-msg subject with no team-tracked `subject_pattern` passes everything, so the
+6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that with
+   no team-tracked `subject_pattern`, and no personal one in a git-ignored
+   `docs/conventions/source-control.local.yaml`, every commit-msg subject passes, so the
    `commit-msg-convention` entry is inert until `/source-control:setup apply` writes a
-   convention.
+   convention or the operator writes that file.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the

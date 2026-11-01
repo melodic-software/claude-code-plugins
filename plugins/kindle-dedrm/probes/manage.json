@@ -1,0 +1,131 @@
+{
+  "skill": "kindle-dedrm:manage",
+  "plugin": "kindle-dedrm",
+  "skill_dir": "plugins/kindle-dedrm/skills/manage",
+  "ranking_note": "Authored from the description at base commit 2ce6729ac9, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling kindle-dedrm:setup is in this plugin but user-invoked only (disable-model-invocation true), and manage's own router owns setup routing and status, so state and first-time-setup phrasings are positives here, not near-misses. No other installed plugin covers Kindle DRM removal, so the near-miss negatives (Calibre work without Kindle, Send to Kindle, library ACSM loans, Kindle hardware, Audible, a DRM legality question, firewall and ICACLS rules for other programs) test quietness, not competitor wins. Positives paraphrase the actions rather than repeat the description's quoted phrases.",
+  "competitors": [
+    "kindle-dedrm:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want to read the Kindle ebooks I've paid for on my Kobo Libra. What's the process with Calibre on my Windows laptop?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just bought two more ebooks on Amazon. How do I get them through the DeDRM process without Kindle for PC updating itself?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are the pinned Kindle 2.8 installer link and the Satsuoni DeDRM_tools release still current, or has something upstream moved?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm finished stripping DRM from my Amazon purchases. Undo the firewall rule and the update-folder lock you put in place, one thing at a time."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Calibre refuses to open the AZW files Kindle for PC downloaded; it says they're DRM protected. They're books I bought."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Kindle for PC popped up an update prompt while I was pulling down new books to decrypt. What now?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What state is my Kindle decryption setup in right now: firewall block, keyfinder, how many books are converted?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make the books in my Amazon library readable in Apple Books on my iPad; I own every one of them."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Remove the keyfinder tools and the downloaded installers from my PC, but keep the Kindle version lock in place."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'd like my purchased Kindle ebooks as EPUB files, and Calibre is already installed on this Windows PC."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Convert this PDF to EPUB in Calibre and fix the cover and author metadata."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How do I email a Word document to my Kindle with Send to Kindle?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a Windows Firewall outbound rule that stops Spotify from updating itself."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My public library loaned me an ebook as an ACSM file. How do I open it in Adobe Digital Editions?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My Kindle Paperwhite is stuck on the boot screen. How do I factory reset it?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Convert my Audible AAX audiobooks to MP3 so they play in VLC."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "In general terms, is removing DRM from ebooks legal in the US under the DMCA?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Python script that renames the EPUB files in a folder by author and title."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Use icacls to deny write access on a folder so a backup service can't change it."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Recommend a good Android reading app for EPUB files with adjustable fonts."
+    }
+  ]
+}

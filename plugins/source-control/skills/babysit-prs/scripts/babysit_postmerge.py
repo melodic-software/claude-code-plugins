@@ -64,6 +64,7 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_merge_policy as policy
+import babysit_tracker_binding as tracker_binding
 from babysit_gh import (
     RUN_SEARCH_CAP,
     flatten_paginated_items,
@@ -138,7 +139,6 @@ DEFAULT_ROLE_LABEL = "needs-human"
 # The role marking a pull request whose only writer is the standards sync App.
 STANDARDS_SYNC_ROLE = "standards-sync"
 DEFAULT_STANDARDS_SYNC_LABEL = "standards-sync"
-TRACKER_CONFIG = ".work-item-tracker.json"
 # The follow-up note on an existing record; the demotion-alert workflow writes
 # the same prefix, so either filer's note is a sighting to the other.
 FAILURE_NOTE = "The post-merge check found this failure again: "
@@ -2799,34 +2799,53 @@ def _role_label(
     role: str = HUMAN_GATED_ROLE,
     default: str = DEFAULT_ROLE_LABEL,
 ) -> str:
-    """The tracker's label for `role` (human-gated unless named), or `default`
-    when the tracker config is absent (404) or maps none. Any other failed
-    read is the default too, unless `strict`: then it raises
-    `PostMergeReadError`, so a gate never acts on a label the tracker may
-    have remapped."""
+    """The tracker binding's label for `role` (human-gated unless named) on
+    the default branch, or `default` when no binding file is present (404)
+    or none maps it (`babysit_tracker_binding`). Any other failed read is the
+    default too, unless `strict`: then it raises `PostMergeReadError`, so a
+    gate never acts on a label the tracker may have remapped."""
     try:
-        config = _read(
+        return tracker_binding.role_label(
+            lambda path: _default_branch_text(owner, name, path),
+            policy.yaml_records,
+            role,
+            default,
+        )
+    except PostMergeReadError:
+        if strict:
+            raise
+        return default
+    except (policy.PolicyReadError, tracker_binding.BindingError) as exc:
+        if strict:
+            raise PostMergeReadError(f"tracker binding: {exc}") from exc
+        return default
+
+
+def _default_branch_text(owner: str, name: str, path: str) -> str | None:
+    """`path`'s text on the default branch, or None when it is absent (404).
+    Any other failed read raises `PostMergeReadError`."""
+    try:
+        proc = gh_capture(
             [
                 "api",
                 "-H",
                 "Accept: application/vnd.github.raw+json",
-                f"repos/{owner}/{name}/contents/{TRACKER_CONFIG}",
-            ],
-            TRACKER_CONFIG,
+                f"repos/{owner}/{name}/contents/{path}",
+            ]
         )
-    except PostMergeReadError as exc:
-        if strict and gh_http_status(str(exc)) != 404:
-            raise
-        return default
-    label = json_object(
-        json_object(json_object(config).get("config")).get("role_labels")
-    ).get(role)
-    return label.strip() if isinstance(label, str) and label.strip() else default
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PostMergeReadError(f"{path}: {exc}") from exc
+    if proc.returncode != 0:
+        detail = (proc.stderr or "").strip() or str(proc.returncode)
+        if gh_http_status(detail) == 404:
+            return None
+        raise PostMergeReadError(f"{path}: {detail}")
+    return proc.stdout
 
 
 def standards_sync_label(owner: str, name: str) -> str:
-    """The tracker's standards-sync role label (`standards-sync` unless
-    `.work-item-tracker.json` maps it). No branch refresh updates a pull
+    """The tracker's standards-sync role label (`standards-sync` unless the
+    tracker binding maps it). No branch refresh updates a pull
     request carrying it: the sync App is its only writer. A failed read other
     than a 404 raises `PostMergeReadError`."""
     return _role_label(

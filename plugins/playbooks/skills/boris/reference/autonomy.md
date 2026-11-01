@@ -61,7 +61,7 @@ Source: [@trq212 status 2044548257058328723](https://x.com/trq212/status/2044548
 
 ## 63. /compact vs /clear: Know the Difference
 
-Two ways to shed weight from a long session. Feel similar; behave very differently.
+Two ways to shed weight from a long session. Feel similar; behave differently.
 
 **/compact, lossy LLM summary:**
 
@@ -212,7 +212,7 @@ Next: I need a screen recording of the remaining horizontal rewrap
 on cc -c to target that separate cause.
 ```
 
-Pairs naturally with auto mode: launch Claude, switch focus, come back, see what happened immediately. Disable in `/config`.
+Pairs with auto mode: launch Claude, switch focus, come back, see what happened immediately. Disable in `/config`.
 
 Source: [@bcherny status 2044847853030580247](https://x.com/bcherny/status/2044847853030580247)
 

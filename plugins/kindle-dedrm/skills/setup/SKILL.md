@@ -59,7 +59,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
 4. **Cached auto-update installer.** `status.sh`'s `cached_installer` present is FAIL: it is the
    auto-update payload that breaks key extraction; remediation is
    `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh apply` /
-   `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh delete-cache` (never run it).
+   `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh` (never run it).
 5. **Calibre plugins and books.** INFO: report `calibre_plugins` (KFX Input, DeDRM, `dedrm.json`
    presence) and the `books` synced/converted counts. Report the key store `dedrm.json` presence-only.
    Never print its contents (it holds extracted keys).

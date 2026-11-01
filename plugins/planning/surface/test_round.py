@@ -1,5 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/shared/schema/event.schema.json
 """Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
@@ -3748,6 +3749,43 @@ class TestEmojiMarkersValue(unittest.TestCase):
         for value, want in cases:
             with self.subTest(value=value):
                 self.assertIs(self.markers_after(value), want)
+
+
+class TestQuestionPacingValue(unittest.TestCase):
+    """`--pacing` records single for single in any case, round for anything else, and nothing without the flag."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="iv-pacing-"))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        cls.dir = cls.tmp / "data"
+        cls.dir.mkdir()
+        (cls.dir / "questions.json").write_text(
+            json.dumps(base_doc()), encoding="utf-8"
+        )
+        cls.addClassCleanup(run_round, cls.dir, "stop")
+
+    def pacing_after(self, *flag):
+        rc, out, err = run_round(self.dir, "ensure-running", "--port", "0", *flag)
+        self.assertEqual(rc, 0, f"{flag!r}: {out}{err}")
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        return doc["meta"].get("questionPacing")
+
+    def test_every_value_form(self):
+        self.assertIsNone(self.pacing_after())
+        cases = [
+            ("single", "single"),
+            (" SINGLE ", "single"),
+            ("round", "round"),
+            ("", "round"),
+            ("${user_config.question_pacing}", "round"),
+            ("one at a time", "round"),
+        ]
+        for value, want in cases:
+            with self.subTest(value=value):
+                self.assertEqual(self.pacing_after("--pacing", value), want)
+        self.assertEqual(self.pacing_after("--pacing", "single"), "single")
+        self.assertEqual(self.pacing_after(), "single")
 
 
 class TestRoundStamp(DirCase):

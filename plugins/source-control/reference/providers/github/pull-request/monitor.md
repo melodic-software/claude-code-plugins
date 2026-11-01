@@ -29,8 +29,8 @@ placeholder the pull-request skill resolves. `BASELINE_FILE` stays empty on the 
 re-arm sets it to the snapshot file this same script wrote in a snapshot run (`SNAPSHOT_FILE`
 set: one state check and checks read, the `cur_checks` lines written under a marker line, then
 exit 0, or exit 1 with nothing written when the read failed). A baseline file without that
-marker line is refused with `BASELINE-UNREADABLE`, so only this script's own serializer ever
-produces a baseline.
+marker line is refused with `BASELINE-UNREADABLE`, so only this script's serializer produces a
+baseline.
 
 ```bash
 PR_NUMBER=<N>
@@ -240,9 +240,9 @@ interval, or when either runners endpoint changes its permission requirement.
 
 ## Fetch failed logs
 
-`gh run view --log-failed` is the LAST resort because it truncates at the CLI display layer (~4MB
-cap, cli/cli #11059, #10551, #7771, #7642). The REST API path the bundled scripts use returns
-complete logs every time. The last-resort eyeball:
+`gh run view --log-failed` is the LAST resort: it truncates at the CLI display layer (~4MB cap,
+cli/cli #11059, #10551, #7771, #7642), while the bundled scripts' REST path returns complete logs.
+The last-resort eyeball:
 
 ```bash
 gh run view <run-id> --log-failed 2>&1 | grep '##\[error\]'

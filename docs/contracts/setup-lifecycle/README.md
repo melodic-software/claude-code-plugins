@@ -117,7 +117,40 @@ and a per-section `source=chosen|default` marker
 
 ### Converge-by-state `apply`
 
-Placeholder, filled by slice 3: `apply` converges on the observed state rather than replaying steps.
+`apply` acts on the state it finds rather than replaying steps. The shared writer,
+`lib/setup-apply.mjs`, detects one of three states, and `--state` prints it as one line,
+`<state> <path>`, with the path as its evidence, and writes nothing:
+
+| State | Evidence | What a write does |
+|---|---|---|
+| `init` | No `<home>/<plugin>.yaml` and no retired file | Creates the file from the `<key>=<value>` and `--default` arguments. |
+| `migrate` | The retired file is present | Carries every value from the retired file into `<home>/<plugin>.yaml`, then removes the retired file. |
+| `configure` | `<home>/<plugin>.yaml` exists | Writes each key given over its line, or appends it. |
+
+- **The retired file** is the one the plugin's
+  [`retirements.yaml`](../retired-conventions/README.md#the-manifest-pluginspluginretirementsyaml)
+  record names: the entry point passes the record id as `retired`, and the record must be an active
+  `migrate` record of kind `file`. Detection is the record's own: a regular file at `path` whose
+  content matches any `content_match`. A demoted (`report-only`) record never migrates. An entry
+  point that names no record has only `init` and `configure`.
+- **What is carried.** The top-level scalars of the retired file (a JSON object for a `.json`
+  path, else the YAML subset), each with its [provenance](#provenance) entry. A value with no
+  entry is carried as `chosen`. Each value goes through the same check as a `<key>=<value>`.
+  The provenance rules apply against the retired file's `written_against`. A `default` value
+  whose plugin default changed is carried at the new default, and the change is printed. A
+  `chosen` value whose default changed is carried with the same WARN a write prints.
+- **The new location wins.** A key that `<home>/<plugin>.yaml` or the command line already sets keeps
+  that value. When both files exist, the run warns and names both paths.
+- **Nothing is dropped silently.** A value it does not carry is printed: a key outside the
+  schema, a value the schema does not allow, an empty key, a map or a list, or a value the new
+  location sets differently. When any value is printed, the retired file stays in place. The retired file is
+  removed only when every value in it is in `<home>/<plugin>.yaml` as written, and only after that
+  file is written.
+- **Confirmation.** A migration that would carry a value or remove the retired file needs `--yes`.
+  Without it, the writer prints the plan and exits 3.
+  `migrate` is the only state that runs with no `<key>=<value>`. In the other states a run with no
+  key is a usage error (exit 2).
+- **Idempotent.** A second run with the same inputs writes nothing.
 
 ### Current-facts check
 

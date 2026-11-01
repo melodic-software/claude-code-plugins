@@ -78,7 +78,21 @@ for (const [key, row] of Object.entries(families)) {
   }
 }
 
-// Every upload step: { file, line, job, name, retention }.
+// A leak-scan step earlier in the same steps: { id, path } for a
+// .github/actions/scan-upload step or a run step calling its script, with the
+// path it scans; { id: "leak-scan" } for the read runner's own scan.
+const SCAN_ACTION = /(?:^|\/)\.github\/actions\/scan-upload$/;
+function scanOf(step) {
+  const id = step.get("id");
+  if (typeof id !== "string") return null;
+  const condition = String(step.get("if") ?? "");
+  if (id === "leak-scan") return { id, condition };
+  if (SCAN_ACTION.test(String(step.get("uses") ?? ""))) return { id, condition, path: step.get("with", true)?.get?.("path") };
+  if (/scan-upload\/scan-upload\.mjs/.test(String(step.get("run") ?? ""))) return { id, condition, path: step.get("env", true)?.get?.("SCAN_PATHS") };
+  return null;
+}
+
+// Every upload step: { file, line, job, name, retention, path, condition, scans }.
 const steps = [];
 const lineCounterFor = new Map();
 function collect(file, stepSeqs) {
@@ -90,12 +104,16 @@ function collect(file, stepSeqs) {
       if (typeof uses !== "string" || !UPLOAD.test(uses)) continue;
       const withMap = step.get("with", true);
       const input = (key) => (yaml.isMap(withMap) ? withMap.get(key) : undefined);
+      const index = seq.items.indexOf(step);
       steps.push({
         file,
         line: lineCounterFor.get(file).linePos(step.range[0]).line,
         job,
         name: input("name"),
         retention: input("retention-days"),
+        path: input("path"),
+        condition: String(step.get("if") ?? ""),
+        scans: seq.items.slice(0, index).filter(yaml.isMap).map(scanOf).filter(Boolean),
       });
     }
   }
@@ -167,6 +185,31 @@ for (const step of steps) {
   }
   const [key] = claimed;
   used.add(key);
+  const scan = families[key].scan;
+  // The scan gates the upload only as a top-level && conjunct of its if:,
+  // with no top-level ||. A scan step's gate is the whole condition: that
+  // step's own if:, parenthesized, then the clean output, so the scan runs
+  // whenever the upload would.
+  const conjuncts = topLevelAnd(step.condition);
+  const clean = (id) => `steps.${id}.outputs.clean == 'true'`;
+  const gated = (id) => conjuncts !== null && conjuncts.includes(clean(id));
+  const gatedBy = (scan) => {
+    if (conjuncts === null || conjuncts.at(-1) !== clean(scan.id)) return false;
+    const own = squash(scan.condition).replace(/^\$\{\{\s*([\s\S]*?)\s*\}\}$/, "$1");
+    if (conjuncts.length === 1) return own === "";
+    return conjuncts.length === 2 && own !== "" && conjuncts[0] === `(${own})`;
+  };
+  if (scan === "upload") {
+    const viaLeakScan = step.scans.some((s) => s.id === "leak-scan") && String(step.path ?? "").includes("steps.leak-scan.outputs.dir") && gated("leak-scan");
+    const viaScanStep = step.scans.some((s) => s.path !== undefined && String(s.path) === String(step.path ?? "") && gatedBy(s));
+    if (!viaLeakScan && !viaScanStep) {
+      findings.push(
+        `${label} has no scan before it; ${TABLE} family \`${key}\` says scan: upload, so a .github/actions/scan-upload step over the same path must come first and the upload's if: must require its clean output`,
+      );
+    }
+  } else if (scan === "plaintext" && step.scans.length === 0) {
+    findings.push(`${label} has no scan step before it; ${TABLE} family \`${key}\` says scan: plaintext`);
+  }
   const want = families[key]["retention-days"];
   const raw = step.retention;
   if (raw === undefined || raw === null || raw === "") {
@@ -198,6 +241,39 @@ for (const [key, row] of Object.entries(families)) {
 }
 
 report();
+
+function squash(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+// The top-level && conjuncts of an if: condition; null when it has a
+// top-level ||, or a `${{ }}` with text around it (a non-empty string, so
+// always true).
+function topLevelAnd(raw) {
+  let text = squash(raw);
+  const wrapped = /^\$\{\{([\s\S]*)\}\}$/.exec(text);
+  if (wrapped) text = wrapped[1].trim();
+  if (text.includes("${{")) return null;
+  const parts = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    if (c === "'") quoted = !quoted;
+    if (quoted) continue;
+    if (c === "(") depth += 1;
+    else if (c === ")") depth -= 1;
+    else if (depth === 0 && text.startsWith("||", i)) return null;
+    else if (depth === 0 && text.startsWith("&&", i)) {
+      parts.push(text.slice(start, i).trim());
+      start = i + 2;
+      i += 1;
+    }
+  }
+  parts.push(text.slice(start).trim());
+  return parts;
+}
 
 function report() {
   if (findings.length === 0) {

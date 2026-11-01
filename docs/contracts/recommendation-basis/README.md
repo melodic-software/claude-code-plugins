@@ -98,13 +98,14 @@ and may ground a code edit, but its label carries the flag,
 When evidence changes a recommendation the user still has pending, restate it as **old → new →
 why**: the superseded recommendation named as superseded, the replacement in its own outcome (a
 `Basis:`-labeled recommendation, or the withheld open question), and the evidence that moved it. Re-state only the recommendations that moved; name the rest as
-unchanged in one line. A pending recommendation the session has disproved is worse than none,
-because the user decides against it.
+unchanged in one line. When the evidence is dispatched work that returned while open items wait on
+the user, [async-round-presentation](../async-round-presentation/README.md) governs instead: the
+message ends with every open item in full, the moved one marked. A pending recommendation the
+session has disproved is worse than none, because the user decides against it.
 
-The shape is adopted from `/planning:interview`'s out-of-band drift rule, outcome 2 and "Re-present
-narrowly" in
-[`plugins/planning/skills/interview/context/loop.md`](../../../plugins/planning/skills/interview/context/loop.md)
-(lines 267-270). That file owns the wording; this doc generalizes it beyond an interview round.
+The shape is adopted from `/planning:interview`'s out-of-band drift rule, outcome 2, in
+[`plugins/planning/skills/interview/context/loop.md`](../../../plugins/planning/skills/interview/context/loop.md).
+That file owns the wording; this doc generalizes it beyond an interview round.
 
 ## Routing
 

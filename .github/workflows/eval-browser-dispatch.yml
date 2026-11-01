@@ -122,6 +122,7 @@ jobs:
       && !github.event.pull_request.draft)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    cache-mode: read
     permissions:
       contents: read # check out the repository; nothing in this job writes
       pull-requests: read # check-trusted-trigger reads the pull request
@@ -676,11 +677,20 @@ jobs:
       # Only a dispatched run, whose cases merged through review, uploads its
       # results: a pull request's prompts could steer model output into a
       # public artifact.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/eval-results/
+
       - name: Upload the eval results
-        if: always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch'
+        if: >-
+          (always() && steps.stage.outputs.go == 'true' && github.event_name == 'workflow_dispatch') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/eval-results/
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 3

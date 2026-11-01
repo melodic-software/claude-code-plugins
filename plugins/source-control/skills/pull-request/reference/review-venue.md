@@ -2,8 +2,8 @@
 
 A change gets one AI review venue per lane. When the repository's CI review lane covers that lane
 and is healthy, CI reviews the pull request and no local review runs for it. When the lane is
-absent or unhealthy, the local review runs and the report names it as the stand-in for that lane.
-This file is the one statement of that rule; [prep.md](prep.md) §1.2,
+absent or unhealthy, the local review runs and the report names it as that lane's stand-in. This
+file is the one statement of that rule; [prep.md](prep.md) §1.2,
 [ready-for-review.md](ready-for-review.md) §2.5.3 and any other skill that reviews before or at
 the ready flip read the venue through it, never through a copy of its test.
 
@@ -68,10 +68,9 @@ An unread venue never skips a review.
 - **`tests`**: [ready-for-review.md](ready-for-review.md) §2.5.3 owns the skip, its
   `--verify-local` override and its report line.
 
-Read the venue once per phase, just before the first review it decides: prep reads it at §1.2, and
-the ready step reads it again at §2.5.3, since a lane can fail between the two. The ready step
-reads the `tests` line once more, with `--head`, after its commit and before the verify gate. The
-venue is a
+Read the venue once per phase, just before the first review it decides: prep at §1.2, and the
+ready step again at §2.5.3, since a lane can fail between the two. The ready step reads the
+`tests` line once more, with `--head`, after its commit and before the verify gate. The venue is a
 built-in skip like the docs-only skip: `pre_ready` and `--skip` still only remove steps, and a
 person may run a local review anyway.
 
@@ -79,9 +78,10 @@ person may run a local review anyway.
 
 - **Merge evidence.** A local review is never merge evidence. Only the lane's own records on the
   pull request's head count, read by [readiness.md](readiness.md) and the merge gate.
-- **One pull request's coverage.** The review lanes are read per repository, often before the
-  pull request exists, so the venue cannot see that a lane skips this one (a fork head, a bot author the lane does not
-  admit). The backstop is per pull request: monitor's B2 step and readiness Gate 5 substitute a
-  local review for a lane that produced nothing on the head, and name it on `Review lanes:`.
+- **One pull request's coverage.** The review lanes are read per repository, often before the pull
+  request exists, so the venue cannot see that a lane skips this one (a fork head, a bot author the
+  lane does not admit). The backstop is per pull request: monitor's B2 step and readiness Gate 5
+  substitute a local review for a lane that produced nothing on the head, and name it on
+  `Review lanes:`.
 - **Findings.** The venue picks who reviews, never what a review found. Findings from either venue
   go through the same verification (prep.md §1.3) and the same reply discipline.

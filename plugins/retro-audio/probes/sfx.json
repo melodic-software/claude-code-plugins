@@ -1,0 +1,136 @@
+{
+  "skill": "retro-audio:sfx",
+  "plugin": "retro-audio",
+  "skill_dir": "plugins/retro-audio/skills/sfx",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are retro-audio:music (a short looping chiptune score rendered from MML), pixel-art:vfx (visual effect sprite sheets such as explosions and hit sparks, a picture rather than a sound), pixel-art:scene (a self-contained HTML pixel-art scene that can play a WAV it is given), speech:narrate (text-to-speech narration with word timings), playwright:demo-video (a produced demo video of a web UI change for a pull request) and user-interface:write-animation (one interface animation in an app's own stack). sfx owns rendering one retro sound effect to a WAV from a preset (coin, jump, laser, explosion) or an sfxr-style parameter set.",
+  "competitors": [
+    "retro-audio:music",
+    "pixel-art:vfx",
+    "pixel-art:scene",
+    "speech:narrate",
+    "playwright:demo-video",
+    "user-interface:write-animation"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a short blip for when the player collects a coin in my platformer and save it as a wav."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a boing noise for the jump button, old-school arcade style."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a crunchy blast audio clip for when an enemy ship gets destroyed."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Render a pew-pew laser shot for my space shooter, about a quarter second long."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create a power-up chime with a rising pitch sweep, square wave, half a second."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My game needs a hurt sound when the hero takes damage, something like an NES game would play."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Generate a menu select click in a chip style and write it to a wav file."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Use these params, attack 0.01, sustain 0.1, decay 0.3, square wave, start frequency 600 Hz sliding down, and render the effect."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Could you whip up a door-unlock bleep for my retro puzzle game?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want a noisy rumble for a bomb going off, lo-fi and 8-bit flavored, as audio I can drop into my scene."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a looping chiptune theme for the forest level, around thirty seconds."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a pixel-art explosion as a sprite sheet with eight frames."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn this paragraph into a spoken voiceover wav."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record a demo video of the new settings page for this pull request."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why does my Postgres query ignore the index on created_at?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a hit spark animation for when the sword connects, as pixel-art frames."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a bounce animation to the modal when it opens in our React app."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Score a short boss battle track with pulse leads and a noise drum part."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build a pixel-art cutscene of a campfire at night as one HTML page."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize the main points of this meeting transcript in five bullets."
+    }
+  ]
+}
