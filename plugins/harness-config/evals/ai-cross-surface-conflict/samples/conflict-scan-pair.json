@@ -89,6 +89,42 @@
         }
       ],
       "why": "one file scanned; another .md read before the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat CLAUDE.md services/billing/CLAUDE.md && bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two files read before a one-file scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "F=\"CLAUDE.md services/billing/CLAUDE.md\"; bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "file list assigned but the scanner gets no arguments"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md; cat services/billing/CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one-file scan, another .md read after it"
     }
   ]
 }
