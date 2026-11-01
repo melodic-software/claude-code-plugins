@@ -15,6 +15,7 @@ Recall is NOT licensed as the sole basis for writing an exact identifier, whethe
 
 - TRIGGER: about to type an exact identifier you have not seen in this session's tool output → one lookup first (help text, source read, doc fetch), for every such identifier in the artifact, not only the first one you felt unsure about.
 - EXCEPTION: skip that lookup only when a compiler or type checker inside this session's working loop will reject a wrong identifier before it can do harm. Config keys, CLI flags, environment-variable names, and other stringly-typed names never qualify, because nothing rejects those loudly.
+- At a low effort level this rule and the check/skip matrix below bind harder, not softer: recognizing a name is not knowing its current state, and partial background is what makes a stale answer sound authoritative. Where the effort level cannot be raised, label the claim recall-grade rather than delivering it as verified; code-changing and verifying work runs at `medium` or above. Pointers: for search at low effort, see [Search triggering at low effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#search-triggering-at-low-effort); for the floor, [Effort floor](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#effort-floor). As of: 2026-11-01. Recheck trigger: a re-read of the guide section no longer supporting this rule, or the floor changing.
 
 Session-verified knowledge decays: a file you have edited since reading it is back to recall grade, since your memory of your own change is a claim, not an observation. The single re-read bar that restores the grade is owned by the verification chapter, section "Verify the final state".
 
@@ -96,6 +97,8 @@ Tool outputs are routinely capped by search-hit limits, log tails, and listing l
 ## Deliberation budget is per decision, not per session
 
 A session has no single correct effort level; each decision inside it does. Budget deliberation by the decision's reversibility tier, never by how careful the session as a whole feels. The tiers are reversible, expensive, and permanent, per the planning chapter, section "Reversibility tiers". A reversible-tier decision gets one pass even in a careful session; a permanent-tier decision gets the full planning ritual even inside a low-effort session. The permanent-tier ritual survives every effort level.
+
+The session's effort level itself is chosen per model from a sweep on your own evals, never carried over from another model, because the level names are calibrated per model. Pointers: for the sweep, see [Consider all effort levels](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#consider-all-effort-levels); for what each level changes in a Claude Code session, [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (correlate with <https://claude.dev/blog/spending-your-effort>). As of: 2026-11-01. Recheck trigger: a re-read of either section no longer supporting this rule.
 
 > Weak: three candidate spellings debated for a local variable name.
 > Strong: the local name decided instantly; the exported name paused on. It propagates to every caller and every future search, so it earns a higher tier.
