@@ -469,9 +469,9 @@ function workflowJobs(name) {
   return jobs;
 }
 
-// claude-code-action and run-claude-cli pass the job's GITHUB_TOKEN to the
-// model, so a job that runs either holds contents and pull-requests read and no
-// issues permission.
+// claude-code-action passes the job's GITHUB_TOKEN to the model, and a
+// run-claude-cli job's other steps hold it, so a job that runs either holds
+// contents and pull-requests read and no issues permission.
 for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
   test(`${file}: no model job holds issues or a contents or pull-requests write`, () => {
     const jobs = [...workflowJobs(file)];

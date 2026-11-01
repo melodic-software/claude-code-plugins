@@ -197,6 +197,24 @@ test("rung C2 with authority local-babysit fails on both the missing diff-check 
   );
 });
 
+// Each rung above off has a name and a code kept as its alias; both spellings
+// carry the same conditional requirements.
+for (const rung of ["merge", "merge-reviewed", "C2", "C3"]) {
+  test(`rung ${rung} validates and carries the requirements of a rung above off`, () => {
+    assert.doesNotThrow(() => run(withMerge({ rung })));
+    assert.doesNotThrow(() => run(withMerge({ ...LANE, rung, "require-verifier-verdict": true })));
+    rejectedFor(withMerge({ ...LANE, rung }), /require-verifier-verdict/);
+    rejectedFor(
+      withMerge({ rung, authority: "local-babysit", "agent-identity": IDENTITY }),
+      /required property 'diff-check'/,
+    );
+  });
+}
+
+test("a rung outside off, its names and its codes fails the schema", () => {
+  rejectedFor(withMerge({ rung: "C4" }), /\/merge\/rung must be equal to one of the allowed values/);
+});
+
 test("an agent-identity without the [bot] suffix fails the schema: it must be a GitHub App", () => {
   rejectedFor(
     withMerge({ authority: "local-babysit", "agent-identity": "some-user" }),

@@ -9,9 +9,15 @@ git config user.name eval
 
 printf '.work/\n' >.gitignore
 printf '# widget\n\nA small widget library.\n' >README.md
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
+mkdir -p docs/conventions
+cat >docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+YAML
 
 mkdir -p .work-items
 cat >.work-items/1.md <<'MD'

@@ -234,7 +234,7 @@ broader grants. The dated basis, the full contract, remediation, and the
 Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
 invariant ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Shared tracker context") is discharged **here, before Step 0 runs**, never left to surface as a raw
-`exit 3` mid-reclaim. If `.work-item-tracker.json` does not resolve, surface the actionable choice
+`exit 3` mid-reclaim. If the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, surface the actionable choice
 before attempting `reclaim`: **(1) setup was never run** → run `/work-items:setup` to bind the
 provider; **(2) a deliberate gh-native operating mode** → this lane is coordination-*dependent* (Step
 0 `reclaim`, `list-frontier`, and the Step 5 `claim` are all seam verbs that need the binding), so an
@@ -282,8 +282,9 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 ### Role-label preflight
 
-Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` when the file or entry is absent (the documented default,
+Before any tracker read, resolve `recurring-maintenance` from `config.role_labels` of the binding
+the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the legacy repo-root
+JSON binding), using `recurring` when the file or entry is absent (the documented default,
 no warning). Stop on a malformed, empty, or non-string configured value. Use the resolved string
 for every recurring/non-recurring filter and every adapter query in this action; do not compare
 labels against the default literal after a remap.
@@ -308,8 +309,17 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 **Auto-selected (<tier-name>):** #42 Fix <thing>
 Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
+I read this item as: <goal; done when>
+
 Proceed with this item? (yes / pick different / skip)
 ```
+
+The `I read this item as:` line restates, in your own words, what the item asks, so the user can
+catch a misread before the claim. Draw the goal from the item's brief (its Summary or Desired
+behavior, or the Outcome section of a decomposed item, its `Goal:` line when present) and the done-when from its
+Acceptance criteria or Done when list, condensed to one line. With no brief, draw both from the
+title and body, and say `done when: not stated` when the item names no check. The line is
+attended-only: an autonomous run prints neither it nor the prompt.
 
 **Autonomous invocation (no interactive user).** When a loop lane (e.g. `/work-items:work-loop`)
 or another unattended context invokes this skill, do not present the prompt and do not block. The

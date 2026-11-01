@@ -185,7 +185,20 @@ function stderrSummary(stderr) {
 // `expected`: refusals the round is sent for, which warn nothing.
 // `carry`: fetches what pr-merge carried, before the first read only, when the
 // job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
-export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
+export function verifyCapReader(env, options) {
+  const read = verifyReader(env, options);
+  return async (request) => (await read(request)).cap;
+}
+
+// babysit_verify_evidence.py Evidence.report's field: a counted FAIL at the
+// head the gate's `_superseded` gave way.
+export const SUPERSEDED_AT_HEAD = "supersededAtHead";
+
+// verifyCapReader's read, answering { cap, supersededAtHead }: `cap` as above,
+// and `supersededAtHead` true only when the read at the head says so, so a
+// failed read, an answer for another head or a reader without the field is
+// not superseded.
+export function verifyReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   let carried = null;
   let deadlineMissed = false;
   return async ({ number, head, base, expected = [] }) => {
@@ -218,21 +231,22 @@ export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => conso
       }
     } catch (error) {
       log(`::warning::#${number}: the verifier reader did not read its FAIL cap (${oneLine(error.message)}); the round runs under its own caps`);
-      return null;
+      return { cap: null, supersededAtHead: false };
     }
+    const answer = (cap) => ({ cap, supersededAtHead: report[SUPERSEDED_AT_HEAD] === true });
     if (report.refusal === UNREADABLE && report.detail === SIBLING_UNREADABLE) {
-      return `${UNREADABLE}: ${SIBLING_UNREADABLE}`;
+      return answer(`${UNREADABLE}: ${SIBLING_UNREADABLE}`);
     }
     if (report.refusal === UNREADABLE && String(report.detail ?? "").startsWith(DEADLINE_UNREADABLE)) {
       deadlineMissed = true;
-      return `${UNREADABLE}: ${oneLine(report.detail)}`;
+      return answer(`${UNREADABLE}: ${oneLine(report.detail)}`);
     }
     if (report.refusal !== CAPPED) {
       if (report.refusal != null && !expected.includes(report.refusal)) {
         log(`::warning::#${number}: the verifier reader refused ${oneLine(report.refusal)} (${oneLine(report.detail)}), not its FAIL cap; the round runs under its own caps`);
       }
-      return null;
+      return answer(null);
     }
-    return typeof report.detail === "string" && report.detail ? `${CAPPED}: ${oneLine(report.detail)}` : CAPPED;
+    return answer(typeof report.detail === "string" && report.detail ? `${CAPPED}: ${oneLine(report.detail)}` : CAPPED);
   };
 }

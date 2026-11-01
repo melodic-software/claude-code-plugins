@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "list is not registration"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp add-json dometrain '{\"type\":\"http\",\"url\":\"https://mcp.dometrain.com/mcp\"}' --scope user",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "add-json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp add --transport http dometrain https://mcp.dometrain.com/mcp",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "add"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws && claude  mcp  add-json dometrain x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd, extra spaces"
+    }
+  ]
+}

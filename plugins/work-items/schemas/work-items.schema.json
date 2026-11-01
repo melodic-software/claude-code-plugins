@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/schemas/work-items.schema.json",
   "title": "work-items team config",
-  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0064). A key set here wins over the same key in the plugin's userConfig. Readers: /work-items:triage for the triage keys (the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts), every lane that follows reference/ai-disclaimer.md for ai_disclaimer, and /work-items:work for work_priority_order.",
+  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0064). A key set here wins over the same key in the plugin's userConfig. Readers: /work-items:triage for the triage keys (the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts; triage_outside_prs has no userConfig layer; triage_stale_reporter_info_days is read by the attention view), every lane that follows reference/ai-disclaimer.md for ai_disclaimer, and /work-items:work for work_priority_order. The tracker seam (tools/work-item-tracker/lib/binding.sh) reads tracker, and work-items.local.yaml beside this file may refine its overlayable keys.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -19,6 +19,16 @@
       "default": 0,
       "description": "Hours after triage marks an item autonomous-eligible during which the work-loop lane does not dispatch it, so a person can object. 0 turns the window off."
     },
+    "triage_outside_prs": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the repository takes requests as pull requests from outside contributors. true: the /work-items:triage attention view lists their open pull requests beside the issues. false or absent: it lists no pull request. A pull request named explicitly is triaged either way."
+    },
+    "triage_stale_reporter_info_days": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Days without a reply from a reporter who lacks write access after which /work-items:triage's attention view lists a needs-reporter-info item as a close candidate. Absent (no default): off, and no candidate is listed. Repository layer only; no userConfig option. Listing never closes: only the operator's yes in an attended session closes a candidate, and lanes never close."
+    },
     "ai_disclaimer": {
       "type": "boolean",
       "default": false,
@@ -31,6 +41,48 @@
       "uniqueItems": true,
       "default": ["priority: critical", "priority: high", "priority: medium", "priority: low"],
       "description": "The priority: label names, highest first, that /work-items:work ranks candidates by within each selection tier before the tier's own order (next_due, the guardrails preference, or oldest-first) breaks ties; the work-loop lane ranks its admitted items the same way. A candidate with no priority: label, or one this list does not name, ranks below every listed label. Quote each item (- \"priority: high\"): an unquoted item parses as a mapping and drops out of the list. Absent: the default list."
+    },
+    "tracker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "provider", "config"],
+      "description": "The work-item tracker binding: the one active provider the seam (tools/work-item-tracker/CONTRACT.md, Setup) dispatches to. Absent: the seam reads the legacy repo-root JSON binding while the migration runs, with a notice, and stops pointing at /work-items:setup when neither exists. In work-items.local.yaml only config.lease_ttl_hours, config.lease_ttl_minutes, the per-provider auth_email/auth_env keys and docs may be set.",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "pattern": "^1\\.",
+          "description": "Binding format version; quote it (\"1.0\") so it stays a string. Only major version 1 is read."
+        },
+        "provider": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "description": "The adapter directory name: github, local-markdown, jira, gitea, linear, or a consumer-local adapter."
+        },
+        "docs": {
+          "type": "string",
+          "description": "A free-form pointer naming what this binding is and where its contract lives; the seam never reads it."
+        },
+        "config": {
+          "type": "object",
+          "required": ["lease_ttl_hours"],
+          "description": "Provider-neutral keys, plus one subtree per provider (github, jira, linear, gitea) whose keys the adapter's README documents.",
+          "properties": {
+            "lease_ttl_hours": { "type": "integer", "minimum": 0, "description": "Claim lease lifetime in hours. Required." },
+            "lease_ttl_minutes": { "type": "integer", "minimum": 0, "maximum": 59, "description": "Minutes added to lease_ttl_hours. Absent: 0." },
+            "storage_dir": { "type": "string", "description": "The local-markdown store, required for that provider. A relative path roots at the repository root." },
+            "container_label": { "type": "string", "description": "The label that marks a spec container. Absent or empty: work-map." },
+            "role_labels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" },
+              "description": "Canonical role to label remaps (human-gated, autonomous-eligible, recurring-maintenance); an absent or empty value keeps the default label."
+            },
+            "github": { "type": "object" },
+            "jira": { "type": "object" },
+            "linear": { "type": "object" },
+            "gitea": { "type": "object" }
+          }
+        }
+      }
     }
   }
 }

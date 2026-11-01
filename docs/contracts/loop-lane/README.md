@@ -62,8 +62,8 @@ too ([the pr-merge lane](../../conventions/pr-pipeline/README.md#the-pr-merge-la
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
 by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
-no class caps its rung, its promotion evidence is read by rung, not class (C2 needs
-`C2-auto-merge`, C3 every C3 cell), and its one class-named
+no class caps its rung, its promotion evidence is read by rung, not class (`merge` (`C2`) needs
+`C2-auto-merge`, `merge-reviewed` (`C3`) every C3 cell), and its one class-named
 check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
 untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
@@ -720,6 +720,18 @@ The reasons behind each binding:
   frontier dispatch self-heals where Fable is unavailable instead of failing or silently running a
   stale pin. For Fable's access, version and billing requirements, see
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
+
+  *Note, 2026-11-01:* `best` is a launch alias, not a value the Agent tool's per-invocation
+  `model` takes
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); recheck
+  when that list changes). A lane's frontier-tier Agent dispatch, the security-surface rule's
+  included, therefore names `opus` while the Fable rung waits on an owner decision and a per-week Fable
+  allowance, as the CI lane profiles' ladder paragraph under "Models" in
+  `docs/conventions/pr-pipeline/README.md` records, and `fable` once both are set. The lane prompts follow this note.
+  One exception: the explicit-`autopilot` pre-escalation resolver (babysit-loop's
+  `reference/pre-escalation-dispatch.md`) does not take `opus`, because `opus` is also the strong
+  tier's alias and adds no capability over the review-work model that reference rules out; while
+  the Fable rung is off, that run escalates instead of dispatching.
 - **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
   model it resolves to as the general starting point; raw capability order (Fable above Opus) does
   not decide the binding alone.
@@ -1103,8 +1115,11 @@ posture; and the `lane-stop-gate` hook mechanizes exactly one of them, so the cl
 redundant with a lane that has the gate armed.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble, because a dispatched subagent runs in a fresh, non-inherited context: it inherits no
-posture from the cycle root's own sweep and has to set its own. When the `discipline` plugin is
+preamble, because a dispatched non-fork subagent runs in a fresh, non-inherited context: it inherits no
+posture from the cycle root's own sweep and has to set its own. A fork inherits the root's
+context instead
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+as of 2026-11-01; recheck when that section changes what a fork inherits). When the `discipline` plugin is
 installed, the dispatch prompt invokes its sweep skill, which resolves its own membership. The
 preamble never enumerates the individual disciplines, per this doc's own **Pointer-not-copy** rule:
 a hand-copied list drifts from the plugin that owns it. Invoked at the subagent's conversation

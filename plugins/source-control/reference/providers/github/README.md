@@ -2,15 +2,15 @@
 
 The `source-control` skill bodies name operations (open a draft change request, read its checks,
 reply on a review thread). This file is how GitHub, the one forge the plugin supports today, does
-each of them, with the `gh` CLI. Read it before the first forge operation a skill performs. The
-decision that skill bodies stay forge-neutral and the provider detail lives here is
+each with the `gh` CLI. Read it before a skill's first forge operation. Skill bodies stay
+forge-neutral and the provider detail lives here per
 [ADR 0060](../../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 
-This file is the index from an operation to its command; a skill's spoke is the authority on the
-full step around it. A spoke whose steps need more than a table row has a provider file of the same
-name under a directory named for its skill: [`pull-request/`](pull-request/) holds the GitHub
-commands, scripts and `gh` facts behind the pull-request skill's `create.md`, `ready-for-review.md`,
-`monitor.md`, `readiness.md`, `merge.md` and `review-venue.md`, and each spoke links its steps there. The worktree
+This file indexes operations to commands; a skill's spoke is the authority on the full step around
+each. A spoke whose steps need more than a table row has a provider file of the same name under a
+directory named for its skill: [`pull-request/`](pull-request/) holds the GitHub commands, scripts
+and `gh` facts behind the pull-request skill's `create.md`, `ready-for-review.md`, `monitor.md`,
+`readiness.md`, `merge.md` and `review-venue.md`, and each spoke links its steps there. The worktree
 skill's spokes need only the rows below. The babysit-prs and babysit-loop skills' spokes link
 their commands in [`babysit-prs/`](babysit-prs/) and [`babysit-loop/`](babysit-loop/).
 
@@ -110,8 +110,8 @@ A cloud session behind the GitHub proxy is served no GraphQL operation: every Gr
 [Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
 As-of: 2026-10-11. Recheck trigger: that section changes its GraphQL entry, or a release note names
 the GitHub proxy. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready`
-and `gh pr merge` all run over GraphQL. The 403 reads like an expired token or a missing scope and
-is neither: switch to the REST route the spoke names rather than re-authenticating. Probe it
+and `gh pr merge` all run over GraphQL. The 403 looks like an expired token or a missing scope but
+is neither: switch to the REST route the spoke names rather than re-authenticating. Probe
 read-only:
 
 ```bash
