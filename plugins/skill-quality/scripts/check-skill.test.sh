@@ -5459,6 +5459,38 @@ if grep -q "WARN: docs/conventions/skill-quality.local.yaml: description_warn is
 else
   fail "check 30 should name the invalid value and fall back to the default 419: $out"
 fi
+# A repository whose AGENTS.md region binds a home reads the layers from that
+# home, never from docs/conventions; a region that does not resolve WARNs and
+# reads no layer.
+rm -f "$TMP/docs/conventions/skill-quality.local.yaml"
+printf 'description_warn: 280\n' >"$TMP/docs/conventions/skill-quality.yaml"
+mkdir -p "$TMP/team-conv"
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
+out="$(run sz-setting 2>&1)"
+if grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
+  ! grep -q 'docs/conventions' <<<"$out"; then
+  pass "check 30 ignores docs/conventions when the pointer region binds another home"
+else
+  fail "check 30 should read no docs/conventions layer when the region binds team-conv: $out"
+fi
+printf 'description_warn: 290\n' >"$TMP/team-conv/skill-quality.yaml"
+out="$(run sz-setting 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description is 300 chars, above the description_warn setting 290 from team-conv/skill-quality.yaml' <<<"$out" &&
+  ! grep -q 'docs/conventions' <<<"$out"; then
+  pass "check 30 reads the description settings from the bound convention home"
+else
+  fail "check 30 should WARN at team-conv's description_warn 290, exit 0 (rc=$rc): $out"
+fi
+printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\nAlso `docs/conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
+out="$(run sz-setting 2>&1)"
+if grep -q 'WARN: the convention-home pointer region does not resolve' <<<"$out" &&
+  grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
+  pass "check 30 WARNs on an unresolvable pointer region and uses the default settings"
+else
+  fail "check 30 should WARN on two pointer lines and fall back to the defaults: $out"
+fi
+rm -rf "$TMP/AGENTS.md" "$TMP/team-conv"
 rm -rf "$TMP/docs"
 size_skill sz-setting-cap 1025 10
 out="$(run sz-setting-cap 2>&1)"
