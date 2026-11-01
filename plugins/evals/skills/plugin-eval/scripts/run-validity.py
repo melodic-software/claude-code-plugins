@@ -44,14 +44,15 @@ one line per check, detail lines indented under it:
                       other than Skill (tool and target) with no absolute path
                       at, under or above the plugin's directory, since the
                       environment then denied it with or without the plugin,
-                      such as a user-scope read of ~/.claude, or when every
-                      denial in the run is a named call other than Skill
-                      aimed only under the run's own plugin-data directory
-                      (<sandbox>/config/plugins/data, CLAUDE_PLUGIN_DATA),
-                      which the sandbox denies to any skill that persists
-                      state; its score counts as taken under that denial, so
-                      compare it only with runs denied the same way.
-                      Otherwise a
+                      such as a user-scope read of ~/.claude. A denial of a
+                      named call other than Skill aimed only under the run's
+                      own plugin-data directory (<sandbox>/config/plugins/data,
+                      CLAUDE_PLUGIN_DATA), which the sandbox denies to any
+                      skill that persists state, is always a warning and is
+                      set aside before the rules here judge the run's other
+                      denials, so it never counts toward a FAIL; the run's
+                      score was taken under it, so compare it only with runs
+                      denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -941,19 +942,20 @@ def under(path, directory):
         return False
 
 
-def own_data_only(run, found):
-    """True when every denial in run names a call other than Skill whose every
-    target path is under the run's own plugin-data directory. The eval sandbox
-    keeps that directory, where CLAUDE_PLUGIN_DATA points, out of reach, so a
-    skill that persists state is denied there in every run whatever it does; no
-    case or skill change can avoid it. A denial elsewhere in the run's config
-    directory, or with no rooted path, never qualifies."""
+def own_data_denial(run, denial):
+    """True when the denial names a call other than Skill whose every target path
+    is under the run's own plugin-data directory. The eval sandbox keeps that
+    directory, where CLAUDE_PLUGIN_DATA points, out of reach, so a skill that
+    persists state is denied there in every run whatever it does; no case or
+    skill change can avoid it. A denial elsewhere in the run's config directory,
+    or with no rooted path, never qualifies."""
+    _, paths, name, _, _ = denial
     data = own_data_dir(run)
-    return bool(data) and all(
-        name not in (None, SKILL_TOOL)
+    return (
+        bool(data)
+        and name not in (None, SKILL_TOOL)
         and bool(paths)
         and all(under(p, data) for p in paths)
-        for _, paths, name, _, _ in found[run]
     )
 
 
@@ -1004,18 +1006,21 @@ def probe_split(case, runs, found, root):
 
 def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
-    found = {r: denials(r) for r in traced}
-    denied = [r for r in traced if found[r]]
+    every = {r: denials(r) for r in traced}
+    # Plugin-data denials are environment: they warn and never count toward a FAIL,
+    # so every other rule judges a run on the denials left.
+    found = {r: [d for d in every[r] if not own_data_denial(r, d)] for r in traced}
+    denied = [r for r in traced if every[r]]
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, runs, root)
+        if not found[r]
+        or probe_denial(r, found, runs, root)
         or same_as_clean(r, found, runs, roots)
         or in_every_run(r, found, runs, roots)
-        or own_data_only(r, found)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _, _ in found[r]]
+    details = [line for r in denied for line, _, _, _, _ in every[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
@@ -1030,10 +1035,11 @@ def check_denials(runs, roots, root):
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
             " plugin; or a run denied only named calls other than Skill that every"
-            " run of its case was denied in both arms, none inside the plugin; or a"
-            " run denied only named calls other than Skill aimed under its own"
-            " plugin-data directory, whose score was taken under that denial, so"
-            " compare it only with runs denied the same way): %s"
+            " run of its case was denied in both arms, none inside the plugin; and"
+            " any named call other than Skill aimed only under the run's own"
+            " plugin-data directory, which never counts toward a FAIL; a run's score"
+            " was taken under such a denial, so compare it only with runs denied the"
+            " same way): %s"
             % ", ".join(warned_cases)
         )
     if failed:

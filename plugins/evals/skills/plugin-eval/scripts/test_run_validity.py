@@ -1080,8 +1080,24 @@ class RunValidityTest(unittest.TestCase):
         ):
             proc = self.denied_in_sandbox(calls)
             self.assertDenials(proc, "WARN")
-            self.assertIn("aimed under its own plugin-data directory", proc.stdout)
+            self.assertIn("aimed only under the run's own plugin-data directory", proc.stdout)
             self.assertIn("compare it only with runs denied the same way", proc.stdout)
+            for _, tool_input in calls:
+                target = tool_input.get("file_path") or tool_input["command"]
+                self.assertIn(
+                    "  case measurable-criterion, with-arm run 2: %s %s (" % (_, target),
+                    proc.stdout,
+                )
+
+    def test_a_mixed_run_fails_counting_only_its_other_denials(self):
+        proc = self.denied_in_sandbox([
+            ("Read", {"file_path": self.own_data("p", "lease")}),
+            ("Bash", {"command": "cat " + self.own_data("p", "state.json")}),
+            ("Read", {"file_path": "/etc/hosts"}),
+        ])
+        self.assertDenials(proc, "FAIL")
+        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        self.assertIn("Read " + self.own_data("p", "lease") + " (", proc.stdout)
 
     def test_a_denial_beside_or_outside_the_runs_own_plugin_data_is_a_fail(self):
         sandbox = self.dir / "claude-eval-ab"
@@ -1090,6 +1106,9 @@ class RunValidityTest(unittest.TestCase):
             # The rest of the run's config directory is not plugin data.
             ([("Read", {"file_path": str(sandbox / "config" / "settings.json")})], None),
             ([("Bash", {"command": "ls " + str(sandbox / "config")})], None),
+            ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
+            # A Bash call with one path inside plugin data and one outside.
+            ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
             # Another sandbox's plugin data is not this run's.
             ([("Read", {"file_path": str(self.dir.joinpath(
                 "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),
