@@ -9,7 +9,7 @@
 # a pushed citation of a deleted path, reading the consumer's own files, until the consumer
 # declines that entry; a new commit on main
 # reaches the consumer on its next lefthook install.
-# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .github/scripts/pr-require-checks/install-lefthook.sh
+# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh plugins/guardrails/git-hooks/pre-push-content.sh plugins/guardrails/git-hooks/content-scan.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .lefthook/pre-push/guardrails-pre-push-content.sh .github/scripts/pr-require-checks/install-lefthook.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA LEFTHOOK
 # Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
@@ -41,7 +41,7 @@ jobs="$(awk '
   /^ *- name: / { name = $3 }
   /^ *script: / { print event, name, $2 }
 ' "$CONFIG")"
-expect "the remote config has one job per entry event" "commit-msg pre-commit pre-push" \
+expect "the remote config has one job per entry" "commit-msg pre-commit pre-push pre-push" \
   "$(cut -d' ' -f1 <<<"$jobs" | sort | xargs)"
 GUARD="$(mktemp -d)"
 trap 'rm -rf "$GUARD"' EXIT
@@ -119,7 +119,7 @@ printf '## subject_pattern\n^[A-Z]+-[0-9]+: .+\n' >"$REPO/.claude/source-control
 node -e 'const p = JSON.parse(process.argv[1]); console.log(p.decisions.find((d) => d.kind === "lefthook-config").snippet)' \
   "$(node "$INSTALL" plan --scope remote --repo "$REPO")" >"$REPO/lefthook.yml"
 (cd "$REPO" && lefthook install >/dev/null 2>&1)
-expect "lefthook install fetches the remote and verify reports every entry ok" "ok ok ok" \
+expect "lefthook install fetches the remote and verify reports every entry ok" "ok ok ok ok" \
   "$(node "$INSTALL" verify --repo "$REPO" | cut -f1 | xargs)"
 
 git -C "$REPO" add -A
