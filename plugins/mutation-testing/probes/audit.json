@@ -1,0 +1,137 @@
+{
+  "skill": "mutation-testing:audit",
+  "plugin": "mutation-testing",
+  "skill_dir": "plugins/mutation-testing/skills/audit",
+  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are mutation-testing:principles (mutation-testing theory from the primary literature: what a score, a surviving or equivalent mutant, or an arid node means, and whether to gate on the score), mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config), testing:audit (a static scan for tests that cannot fail: assertion-free bodies, self-identical expectations, retry-masking runner configs), testing:cleanup (acting on low-value tests by rewriting, merging or deleting them behind a mutation gate), testing:write (authoring new tests and placing them), testing:plan (a test plan and coverage gaps for a change) and verification:measure (before-and-after baselines of performance, complexity or coverage). audit owns running mutation analysis on a diff or on the code changed tests exercise, and reporting and triaging the surviving mutants.",
+  "competitors": [
+    "mutation-testing:principles",
+    "mutation-testing:setup",
+    "testing:audit",
+    "testing:cleanup",
+    "testing:write",
+    "testing:plan",
+    "verification:measure"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Mutate the functions I changed on this branch and tell me which mutants the tests let through."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Line coverage on the billing module is 94% but I suspect half those tests assert nothing useful. Can you prove it one way or the other by breaking the code and seeing what fails?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I ask for review, check whether my new unit tests would catch a flipped comparison or a dropped return in parser.ts."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's the mutation score on this PR?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I only touched tests/test_pricing.py. Mutate the production code those tests call and show me the survivors."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Point Stryker at src/cart and list the mutants that survive, worst-tested file first."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our suite is green and coverage looks great, yet bugs keep slipping into prod. Inject faults into the diff and see what the tests miss."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a PIT pass over the changed Java classes, cap it at 50 mutants, and save the survivors so the fix pass can pick them up."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Of the mutants that lived in the auth service changes, which are equivalent and which point at a real hole in the tests?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tests just went green on my refactor. Kick off mutation analysis on the diff before I open the PR."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does it actually mean when a mutant survives, and is a 70% mutation score good or bad?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install and configure Stryker for this TypeScript repo so we can start doing mutation runs."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the test folder for tests with no assertions or that compare a value to itself."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add tests for the boundary conditions in discount.ts so that changing >= to > would make one fail."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Prune the useless tests in tests/legacy: rewrite the weak ones and delete the ones that guard nothing."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I've finished the feature. Which of the changed files still need tests, and where are the coverage gaps?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Capture a coverage baseline now so I can show coverage went up after the refactor."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Should we fail CI when the mutation score drops below a threshold, or does that tend to backfire?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which mutation tool fits this Go repo, and is it configured yet?"
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a CI gate that fails when someone commits a test that can't fail, like an empty test body or a leftover test.only."
+    }
+  ]
+}

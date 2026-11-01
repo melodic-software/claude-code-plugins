@@ -1,0 +1,137 @@
+{
+  "skill": "mutation-testing:principles",
+  "plugin": "mutation-testing",
+  "skill_dir": "plugins/mutation-testing/skills/principles",
+  "ranking_note": "Authored from the before descriptions at commit dd26f634f41dfba929dc695f02eb4737a317bab3, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are mutation-testing:audit (running mutation analysis on a diff or the code changed tests exercise, and triaging the surviving mutants), mutation-testing:setup (user-invoked: installing and configuring the ecosystem's mutation tool and the tracked config), testing:test-value (what makes a test worth keeping: where expected values come from, when mock-call checks are legitimate), testing:audit (a static scan for tests that cannot fail), testing:plan (a test plan and coverage gaps for a change), testing:write (authoring new tests and placing them) and verification:measure (before-and-after baselines of performance, complexity or coverage). principles owns explaining mutation-testing theory from the primary literature: what the score says beyond coverage, what mutant states and dispositions mean, operator choice, gating on the score, and the underlying hypotheses.",
+  "competitors": [
+    "mutation-testing:audit",
+    "mutation-testing:setup",
+    "testing:test-value",
+    "testing:audit",
+    "testing:plan",
+    "testing:write",
+    "verification:measure"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is mutation testing worth the CI time for a mid-size Python service, or is it mostly academic?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Explain, in terms of mutants, why 100% branch coverage doesn't mean the suite is strong."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's an equivalent mutant, and why can't the tools just detect them automatically?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where does the coupling effect come from, and does it hold for real-world bugs?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which mutation operators give the most signal per mutant? Our tool enables dozens by default and runs take forever."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why would Google suppress mutants in logging statements? What makes a node arid?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our mutation score is stuck around 55% even though coverage is above 90%. What usually explains a gap like that?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is it sensible to block merges on a minimum mutation score, or does that backfire in practice?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick one: what is the competent programmer hypothesis?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need to explain to my manager what mutation testing measures that code coverage doesn't. Help me make the case."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mutate the code changed in this branch and list the mutants that survive."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up PIT for our Gradle build and write the mutation config file."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This test asserts the mock was called twice. Is that check worth keeping, or should the expected value come from somewhere else?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find tests in the repo that pass no matter what the code does."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Did my refactor actually reduce cyclomatic complexity? Compare against main."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which parts of this change are riskiest and need new tests before merge?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our coverage is high but I don't trust it. Break the payment code on purpose and see whether the tests notice."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is mutation testing configured in this repo? The last mutation run fell back to defaults."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this snapshot-only test of the invoice renderer worth keeping?"
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write property-based tests for the date parser so random inputs exercise the edge cases."
+    }
+  ]
+}
