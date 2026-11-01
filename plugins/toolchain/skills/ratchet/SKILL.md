@@ -138,9 +138,11 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/ratchet.py" add --file <ceilings file> \
 
 ### Per-file counters
 
-A lint rule or suppression count is a per-file counter: one repository-wide count lets a fix in one
+A lint rule's violation count is a per-file counter: one repository-wide count lets a fix in one
 file pay for a new copy elsewhere. Keep the single count for a counter no file owns (a spawn, query
-or telemetry count). Add `--per-file`, with a command that prints one `<path> <field>=<number>` line
+or telemetry count), and for a suppression count from `suppression-scan.py --count`, which prints
+only the repository-wide `suppressions=<n>` and `unjustified=<n>` lines, so `add --per-file` exits
+`2` on it. Add `--per-file`, with a command that prints one `<path> <field>=<number>` line
 per file with a count above `0` and no other non-blank line. The command exits `0` when it finds
 violations, since a linter's own non-zero exit on a violation would read as a failed measurement
 (exit `2`), and non-zero only when the linter itself could not run:

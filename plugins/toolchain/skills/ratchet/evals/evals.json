@@ -100,6 +100,30 @@
         "Turns the rule on at error severity, not warn",
         "Runs no ratchet.py add and writes no ceilings entry"
       ]
+    },
+    {
+      "id": 9,
+      "name": "mechanical-fix-gets-a-codemod-then-error",
+      "prompt": "/toolchain:ratchet the ruff rule UP006 (use builtin generics in type annotations). `ruff check --select UP006 --statistics` reports 54 violations today, and `ruff check --select UP006 --fix` rewrites every one of them safely with no judgment call.",
+      "expected_output": "Takes the codemod path: runs the rule's safe autofix across the repository in the same change and turns UP006 on at error severity in the ruff configuration. Records no ceiling: runs no ratchet.py add and writes no ceilings entry, because after the codemod the count is 0 and the rule itself fails the next violation.",
+      "files": [],
+      "expectations": [
+        "Applies the autofix to every violation in the same change",
+        "Turns the rule on at error severity, not warn",
+        "Runs no ratchet.py add and writes no ceilings entry"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "warn-severity-needs-an-end-date",
+      "prompt": "/toolchain:ratchet our in-house lint rule no-print. `python3 tools/lint.py --rule no-print --per-file` prints one `<path> violations=<n>` line per file, 120 in total, and exits 0; there is no autofix and no native baseline. We want it at warn severity for now and will decide later when to make it an error.",
+      "expected_output": "Refuses an open-ended warn rule: warn severity is only a dated step, so it asks for the date the rule moves to error, or takes the per-file baseline at error severity. When it records the per-file counter while the rule sits at warn, the --goal passed to ratchet.py add ends with `warn until <YYYY-MM-DD>, then error`.",
+      "files": [],
+      "expectations": [
+        "Does not set the rule to warn severity with no end date",
+        "Any ceilings entry recorded while the rule is at warn has a --goal ending in `warn until <YYYY-MM-DD>, then error`",
+        "Offers error severity with a per-file baseline as the alternative to a dated warn step"
+      ]
     }
   ]
 }
