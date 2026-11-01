@@ -1,6 +1,6 @@
 ---
 description: "Re-runs overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
-argument-hint: "[layer ...] [unattended]"
+argument-hint: "[--unattended] [layer ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Re-run the enforcement-surface audit and report only what moved since the last run
 ---
 
-**Arguments.** `[layer ...] [unattended]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
+**Arguments.** `[--unattended] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 
@@ -78,8 +78,10 @@ Parse `$ARGUMENTS` with `overengineering:audit`'s vocabulary and **pass it throu
 - **Layer scope**: one or more of the **ten enforcement layers** in `findings-artifact.md`'s
   vocabulary; default `all`. Forwarded verbatim; it bounds the comparison too. The justification
   lane's five layers are not accepted, since the audit cannot walk them.
-- **`unattended`** (also `--unattended`): forwarded verbatim. **Attended is the default**, never
-  inferred. Under `unattended`, ask nothing, offer nothing, take the non-interactive defaults.
+- **`--unattended`**, anywhere in the arguments: forwarded as `--unattended`. **Attended is the
+  default**, never inferred. Under `--unattended`, ask nothing, offer nothing, take the
+  non-interactive defaults. The bare word `unattended` is not this flag and not a hint: stop and
+  name `--unattended`.
 - Anything else is a free-text hint. **Do not forward it**: it would make this cycle's walk
   incomparable with the baseline's. Report it as declined, with the reason.
 
@@ -102,8 +104,8 @@ Parse `$ARGUMENTS` with `overengineering:audit`'s vocabulary and **pass it throu
    does not match is no baseline, naming both. An **unrecognized `schema:`** is a **stop, with a
    visible message**, before invoking anything; `1` and `2` are recognized. `Basis` is prose outside
    the spine and never enters the diff.
-3. **Invoke `overengineering:audit` via the Skill tool**, passing the layer scope and `unattended`
-   exactly as received. Do not re-derive anything it does.
+3. **Invoke `overengineering:audit` via the Skill tool**, passing the layer scope exactly as
+   received and `--unattended` when the caller passed it. Do not re-derive anything it does.
 4. **Read the post-run artifact**: its spine, `## Closed since last run`, `## Suppressed`, its
    evidence-availability tokens, and any verdict its merge flagged as moved under a carried-forward
    judgment. With no branch identity there is no post-run artifact: report what the audit found

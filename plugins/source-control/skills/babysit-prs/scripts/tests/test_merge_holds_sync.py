@@ -418,7 +418,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 14)
+        self.assertEqual(len(FLOOR.author_review), 15)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -440,7 +440,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 67)
+        self.assertEqual(len(FLOOR.high), 69)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)

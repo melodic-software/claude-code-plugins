@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """Rate-limit readings from `babysit_gh._run_gh`'s own responses.
 
 With API_BUDGET_TOKEN (or API_BUDGET_OVERRIDE_TOKEN for a call that carries

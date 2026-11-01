@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/payments.md: admission PASS\ndocs/conventions/payments.md: 3 finding(s) \u2014 T1=1, T2=2, T3=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1 | conversational-antecedent | 5 | \"As you asked, this page now lists the retry rules in one place.\" | Delete the address to the requester |\n| 2 | ticket-pr-residue | 7 | \"Keep `maxRetries` in `config/payments.json` at 3. See PR #45 for the rationale.\" | Review: delete the bare back-reference or relocate it to a ## Sources footer |\n| 2 | ghost-ref | 8 | \"`.work/payments-retry-spike/PLAN.md`\" | 3-way classify (promote / SHA-permalink / strip) |\n\nTotal: 1 file(s) audited, 1 Tier 1, 2 Tier 2, 0 Tier 3 findings."
+    },
+    {
+      "answer": "Three lines to fix:\n\n1. Line 5, \"As you asked, this page now lists the retry rules in one place.\" Remove it; the reader never saw that conversation.\n2. Line 7, \"See PR #45 for the rationale.\" Move the reference to a Sources section at the bottom, or state the reason inline.\n3. Line 8, `.work/payments-retry-spike/PLAN.md` points into a working folder that will be deleted. Promote the open questions to a durable doc or drop the line.\n\nLeft alone: the API tokens rule is a hard guardrail and stays as written; `.work/handoffs/` is a reserved root, not a dangling path; the open task item with #123 is outstanding work."
+    },
+    {
+      "answer": "- \"As you asked, ...\": cut the conversational aside.\n- \"See PR #45 for the rationale\": tracker back-reference; delete or relocate.\n- `.work/payments-retry-spike/PLAN.md`: ghost ref into a slice; replace with a permalink."
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "maxRetries is 3 and backoffMs is 400 in config/payments.json."
+    },
+    {
+      "answer": "Line 9 (API tokens) is a guardrail; not a negation finding.",
+      "why": "mentions negation but dismisses it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/conventions/payments.md: admission PASS\ndocs/conventions/payments.md: 3 finding(s) \u2014 T1=1, T2=2, T3=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1 | conversational-antecedent | 5 | \"As you asked, this page now lists the retry rules in one place.\" | Delete the address to the requester |\n| 2 | ticket-pr-residue | 7 | \"Keep `maxRetries` in `config/payments.json` at 3. See PR #45 for the rationale.\" | Review: delete the bare back-reference or relocate it to a ## Sources footer |\n| 2 | ghost-ref | 8 | \"`.work/payments-retry-spike/PLAN.md`\" | 3-way classify (promote / SHA-permalink / strip) |\n\nTotal: 1 file(s) audited, 1 Tier 1, 2 Tier 2, 0 Tier 3 findings.\n| 2 | negation | 9 | \"Never commit API tokens or merchant credentials to the repository.\" | Rewrite to the positive form |\n| 2 | ghost-ref | 10 | \"Write session handoffs under `.work/handoffs/`, not under `docs/`.\" | 3-way classify (promote / SHA-permalink / strip) |\n| 2 | ticket-pr-residue | 15 | \"- [ ] Move the backoff multiplier into `config/payments.json` (#123).\" | Review: delete or relocate the back-reference |",
+      "why": "guardrail flagged as negation"
+    },
+    {
+      "answer": "- \"Never commit API tokens or merchant credentials\": rewrite it in the positive.",
+      "why": "prose overflag"
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 # Organize Tests
 
-Decisions about where tests live, when to create new test projects, how to structure fixtures. Activates when placement or organization decisions are needed.
+Where tests live, when to create a test project, and how to structure fixtures.
 
 ## Two locations, one rule
 
 **Unit tests co-locate, cross-cutting tests centralize.**
 
-Per-ecosystem naming + locations come from the consuming project's testing conventions (its `CLAUDE.md` / rules / test docs); when undocumented, infer from the project's existing test layout. Placement decisions cite that source rather than inventing new structure.
+Per-ecosystem naming and locations come from the consuming project's testing conventions (its `CLAUDE.md`, rules, test docs); when undocumented, infer them from the existing test layout. Cite that source for each placement decision rather than inventing new structure.
 
 | Test type | Convention source |
 |-----------|-------------------|
@@ -38,7 +38,7 @@ Per-ecosystem naming + locations come from the consuming project's testing conve
 
 ### Architecture-test project: stays as ONE project per ecosystem
 
-When the project has an architecture-test project, all architecture rules for that ecosystem share one assembly-loading context. Scale via per-app fixtures (one fixture per app, parameterized tests), not separate test projects.
+All architecture rules for an ecosystem share one assembly-loading context. Scale with per-app fixtures (one fixture per app, parameterized tests), not separate test projects.
 
 ### Collection fixtures: repo-specific shared-state workarounds
 

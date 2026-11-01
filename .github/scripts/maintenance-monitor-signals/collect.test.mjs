@@ -318,6 +318,75 @@ const sweepRoutes = (artifacts, runs) => [
   ...routes(),
 ];
 
+const summaryOf = (runId, held) =>
+  held
+    ? { run_id: runId, event: "schedule", live: true, candidates: null, listing_held: true, listing_held_reason: "failed 3 times", results: [] }
+    : { run_id: runId, event: "schedule", live: true, candidates: 3, listing_held: false, listing_held_reason: null, results: [] };
+const sweepsOf = (ids) => ({
+  artifacts: ids.map((id, i) => artifact(id, `2026-10-19T16:${String(40 - i).padStart(2, "0")}:00Z`, 900 + id)),
+  runs: Object.fromEntries(ids.map((id) => [900 + id, prMergeRun(900 + id)])),
+});
+
+test("held sweeps are counted newest first, and signals 5 and 8 read the newest sweep that listed", async () => {
+  const { artifacts, runs } = sweepsOf([4, 3, 2, 1]);
+  const read = [];
+  const readArtifact = async (id, files) => {
+    if (files) return reportFiles("0");
+    read.push(id);
+    return summaryOf(900 + id, id > 2);
+  };
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact }));
+  assert.deepEqual(data.gaps, []);
+  assert.equal(data.sweep.runId, 902);
+  assert.equal(data.sweep.candidates, 3);
+  assert.deepEqual(data.heldSweeps, [
+    { runId: 904, url: "https://github.com/o/r/actions/runs/904", reason: "failed 3 times", createdAt: "2026-10-19T16:40:00Z" },
+    { runId: 903, url: "https://github.com/o/r/actions/runs/903", reason: "failed 3 times", createdAt: "2026-10-19T16:39:00Z" },
+  ]);
+  // The walk stops at the sweep that listed: an older held streak is over.
+  assert.deepEqual(read, [4, 3, 2]);
+});
+
+test("a held summary from a pull request event neither counts nor resets the streak", async () => {
+  const { artifacts, runs } = sweepsOf([4, 3, 2]);
+  runs[903] = prMergeRun(903, { event: "pull_request_target" });
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id) => summaryOf(900 + id, id !== 2) }));
+  assert.deepEqual(data.heldSweeps.map((s) => s.runId), [904]);
+  assert.equal(data.sweep.runId, 902);
+});
+
+test("a hold that outlasts the sweep age leaves no sweep and a gap for signals 5 and 8; a fresh listed sweep leaves none", async () => {
+  const { artifacts, runs } = sweepsOf([7, 6, 5, 4, 3, 2, 1]);
+  const readArtifact = async (id, files) => (files ? reportFiles("0") : summaryOf(900 + id, id > 1));
+  const fresh = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact }));
+  assert.deepEqual(fresh.gaps, []);
+  assert.equal(fresh.sweep.runId, 901);
+  // 6 held sweeps at the 15-minute cron put the sweep that listed 90 minutes back.
+  artifacts[6].created_at = "2026-10-19T15:11:00Z";
+  const stale = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact }));
+  assert.equal(stale.heldSweeps.length, 6);
+  assert.equal(stale.sweep, null);
+  assert.deepEqual(stale.gaps, ["pr-merge listed sweep: the newest is over 70 minutes old"]);
+});
+
+test("a stale listed sweep with no hold is the same gap: the lane may have stopped writing summaries", async () => {
+  const { artifacts, runs } = sweepsOf([1]);
+  artifacts[0].created_at = "2026-10-19T15:11:00Z";
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id, files) => (files ? reportFiles("0") : summaryOf(900 + id, false)) }));
+  assert.equal(data.sweep, null);
+  assert.deepEqual(data.heldSweeps, []);
+  assert.deepEqual(data.gaps, ["pr-merge listed sweep: the newest is over 70 minutes old"]);
+});
+
+test("a hold longer than the read keeps its streak and leaves a gap for signals 5 and 8 alone", async () => {
+  const ids = Array.from({ length: LIMITS.sweepArtifacts + 2 }, (_, i) => 20 - i);
+  const { artifacts, runs } = sweepsOf(ids);
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id) => summaryOf(900 + id, true) }));
+  assert.equal(data.sweep, null);
+  assert.equal(data.heldSweeps.length, LIMITS.sweepArtifacts);
+  assert.deepEqual(data.gaps, [`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`]);
+});
+
 test("the sweep ignores a newer pr-merge-summary artifact from a fork, PR or branch run", async () => {
   const artifacts = [
     artifact(5, "2026-10-19T16:40:00Z", 905, { workflow_run: { id: 905, head_branch: "attacker" } }),

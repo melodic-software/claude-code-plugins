@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "ratchet_offer: true (docs/conventions/corrections.yaml)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "ratchet_offer: false (nowhere)"
+    }
+  ]
+}

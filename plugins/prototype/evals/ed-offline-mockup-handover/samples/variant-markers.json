@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head></head><body><section data-variant=\\\"a\\\" data-variant-label=\\\"Checklist\\\"></body></html>\\n\"}}]}}",
+      "why": "page written with Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"printf '%s' '<section data-variant=\\\"a\\\" data-variant-label=\\\"Checklist\\\">' > \\\"$RUN/index.html\\\"\",\"description\":\"x\"}}]}}",
+      "why": "page written with Bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"Mark each variant with data-variant-label=\\\"...\\\"\"}]}}",
+      "why": "tool result carrying the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n 'data-variant-label=' SKILL.md\",\"description\":\"x\"}}]}}",
+      "why": "Bash read or search, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
+      "why": "page written without the marker"
+    }
+  ]
+}

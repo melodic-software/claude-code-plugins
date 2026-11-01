@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n## tallyctl 2.4.0\n\n### Breaking changes\n\n- `tallyctl export`: `--out-dir` is now `--output`, and the old flag is gone. Use `--output` in your scripts.\n\n### New\n\n- `tallyctl export`: you can write Parquet with `--format parquet`.\n\n### Fixed\n\n- `tallyctl sync` no longer hangs when the remote returns 304.\n- `tallyctl import` keeps the last row of a CSV that has no trailing newline.\n````\n\nApplied the release-note rules in docs/contributing/writing.md.",
+      "why": "rename under Breaking"
+    },
+    {
+      "answer": "````markdown\n# 2.4.0\n\n## Breaking changes\n- `tallyctl export` renames `--out-dir` to `--output`; update any script that passes `--out-dir`.\n\n## New\n- `tallyctl export --format parquet` writes Parquet files.\n\n## Fixed\n- `tallyctl sync`: no hang on a 304 from the remote.\n- `tallyctl import`: the final CSV row is no longer dropped.\n````\n\nStyle: the project's writing guide, `docs/contributing/writing.md`.",
+      "why": "rename under h2 Breaking"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "tallyctl 2.3.0 shipped last month.",
+      "why": "different question"
+    },
+    {
+      "answer": "````markdown\n## [2.4.0]\n\n### Added\n- `--format parquet` for `tallyctl export`.\n\n### Changed\n- Renamed `--out-dir` to `--output` (breaking).\n\n### Fixed\n- `tallyctl sync` hang on 304.\n- `tallyctl import` dropped last CSV row.\n````",
+      "why": "no Breaking heading"
+    },
+    {
+      "answer": "````markdown\n### Breaking changes\n- `tallyctl import` behavior changed for CSV files without a trailing newline.\n\n### New\n- `tallyctl export --format parquet`; `--out-dir` is now `--output`.\n\n### Fixed\n- `tallyctl sync` hang on 304.\n````",
+      "why": "rename filed under New"
+    }
+  ]
+}

@@ -15,10 +15,10 @@ Contents: `long-text-that-wraps-truncates-or-clamps`, `image-box-that-holds-any-
 Why: content from users and a CMS is longer than the design; deciding wrap, one-line cut or
 few-line clamp up front keeps it from breaking the layout.
 
-Baseline: [`text-overflow`](https://developer.mozilla.org/en-US/docs/Web/CSS/text-overflow#browser_compatibility),
-[`line-clamp`](https://developer.mozilla.org/en-US/docs/Web/CSS/line-clamp#browser_compatibility),
-[`overflow-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/overflow-wrap#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
+Baseline: [`text-overflow`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/text-overflow#browser_compatibility),
+[`line-clamp`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/line-clamp#browser_compatibility),
+[`overflow-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overflow-wrap#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
 
 Use it on names, titles, URLs and excerpts that come from a user or a CMS.
 
@@ -38,6 +38,10 @@ Use it on names, titles, URLs and excerpts that come from a user or a CMS.
   overflow: clip;
 }
 ```
+
+The rules it serves are the `layout-stability` concern (long values that break the layout) and the
+`typography` concern (when truncating is acceptable) of `/user-interface:design`. This recipe is the
+CSS for them.
 
 Rules:
 
@@ -89,6 +93,10 @@ avatars.
 }
 ```
 
+The rule itself (reserve the space before the file arrives) is the `layout-stability` concern of
+`/user-interface:design`; the outline is the `shape-and-depth` concern. This recipe is the CSS for
+them.
+
 Rules:
 
 - One axis must be `auto`. A `height` attribute or fixed height wins over the ratio. The reset sets
@@ -120,6 +128,9 @@ Use it on any number that changes or sits in a column: prices, tables, timers, c
 td,
 time { font-variant-numeric: tabular-nums; }
 ```
+
+The rules it serves are the `layout-stability` concern (numbers that change in place) and the
+`typography` concern (number columns) of `/user-interface:design`. This recipe is the CSS for them.
 
 Rules:
 

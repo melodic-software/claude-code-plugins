@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.11] - 2026-10-31
+
+### Fixed
+
+- The reader contract's subagent `autoCompactWindow` row points at the sub-agents docs section that documents the field, in place of the changelog, and no longer says the surface appears only there.
+
 ## [1.1.10] - 2026-10-30
 
 ### Fixed

@@ -8,7 +8,7 @@ one prompt the person approved, an ask answered "yes, go with recommended", a ha
 900 s of turn time. Its subagent (`general-purpose`) holds a deny-rule denial and a classifier denial
 ([Self-Modification]). `proj-f/sess-f2` (headless, 2026-09-12) holds two rule denials, one of them
 also listed in the closing `result` record's `permission_denials`. `proj-g/sess-g1` (2026-08-01)
-holds one approved prompt.
+holds one approved prompt and two stops, each running two Stop hooks in parallel.
 """
 
 from __future__ import annotations
@@ -163,6 +163,17 @@ def test_mine_project_and_session_filters(store):
     assert [(r["key"], r["count"]) for r in by_project["rows"]] == [("prompt-approved", 1)]
     by_session = data_of(friction("mine", "--data-dir", str(store), *WINDOW, "--session", "sess-f2"))
     assert by_session["sessions"] == 1
+
+
+def test_mine_reports_the_stop_hook_wait_beside_the_parallel_sum(store):
+    # sess-g1's two stops each run two hooks in parallel: 300 and 100 ms, then 50 and 200 ms.
+    args = ("mine", "--data-dir", str(store), "--since", "2026-07-01", "--project", "beta")
+    perf = data_of(friction(*args))["perf"]
+    assert (perf["stop_hook_wait_ms"], perf["stop_hook_ms"]) == (500, 650)
+    markdown = friction(*args, "--format", "md").stdout
+    assert "Stop-hook wait: 500 ms" in markdown
+    assert "parallel hook time, every hook's duration summed: 650 ms" in markdown
+    assert markdown.index("Stop-hook wait") < markdown.index("Perf: ")
 
 
 def test_mine_without_a_store_is_an_error(tmp_path):

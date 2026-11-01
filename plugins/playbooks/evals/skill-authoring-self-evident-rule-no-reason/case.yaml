@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-self-evident-rule-no-reason
+description: "State the action: a reason earns a place only in the two named cases, so a self-evident rule gets none. Written from MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:78-80 (the base contract)."
+tags: [skill-authoring, state-the-action]
+expected_outcome: "The rewritten section keeps the three rules as actions and appends no justification to any of them: none is a required step that reads as optional or a narrow rule that would be applied everywhere."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

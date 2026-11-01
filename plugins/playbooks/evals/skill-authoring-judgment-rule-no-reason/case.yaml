@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-judgment-rule-no-reason
+description: "contract-change, State the action: a judgment rule that is stated without its reason gains it, since head gives each rule its reason unless the wording already shows why (plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md \"State the action\"). Base stated such a rule without its reason (MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:78-80), so a base failure is the intended change, reported apart from the non-inferiority verdict."
+tags: [skill-authoring, state-the-action, contract-change]
+expected_outcome: "The rewritten section states both rules as firm actions (past tense; lead with the user-visible effect) and gives each its reason: readers scan the notes after the release ships, and most readers stop after the first clause."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

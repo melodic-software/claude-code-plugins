@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "# billing-service\n\nRun `npm test` before committing.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# billing-service\n\nRun `npm test` before committing.\n\nUse withRetry().\n"
+    }
+  ]
+}

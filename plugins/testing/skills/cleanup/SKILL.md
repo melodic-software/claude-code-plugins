@@ -10,7 +10,7 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call:
+Collect each with its own Bash call:
 
 - Current branch, `git branch --show-current`
 - Default branch, `git symbolic-ref --short refs/remotes/origin/HEAD` (unset: ask, unless the
@@ -21,10 +21,10 @@ Collect these with **individual** Bash calls, one command per call:
 
 `$ARGUMENTS`: `<folder>` (required, one folder per batch; the repository root runs the
 [Repository plan](#repository-plan) instead of the steps), `--max <n>` (the recording run's mutant
-cap, default 100), `--flaky <test>` (repeatable; tests the user names as flaky, also accepted from
-the conversation), `--cannot-fail-only` (run [Cannot-fail-only mode](#cannot-fail-only-mode)
-instead of steps 1 to 6). No folder: run the plan when the user asked for the whole repository,
-otherwise ask for one.
+cap, default 100), `--flaky <test>` (repeatable; flaky tests the user names, also taken from the
+conversation), `--cannot-fail-only` (run [Cannot-fail-only mode](#cannot-fail-only-mode) instead of
+steps 1 to 6). No folder: run the plan when the user asked for the whole repository, otherwise ask
+for one.
 
 ## Working files
 
@@ -32,23 +32,23 @@ Every step reads and writes `<work>` = `.work/testing-cleanup/<folder-slug>/` in
 root, `<folder-slug>` being the folder path lowercased with every character outside `[a-z0-9._-]`
 replaced by `-`. It holds `before.tsv` and `after.tsv` (the mutant records), `classifier-brief.md`,
 `classifier-answer.md` (in cannot-fail-only mode, `skeptic-brief-<n>.md` and
-`skeptic-answer-<n>.md` instead), `decisions.md` (the decision table, each item's approval state, the step
-reached, and for every file the batch edits its `git hash-object` after the last edit) and
-`pr-body.md`. Right after each edit to a test file (the quarantine in step 2, each rewrite,
-deletion or merge in step 5 or the cannot-fail-only step 4, each revert the user makes in step 6), run `git hash-object "<path>"`
-and record the hash and the step reached in `decisions.md`; step 0's resume check reads them.
+`skeptic-answer-<n>.md` instead), `decisions.md` (the decision table, each item's approval state,
+the step reached, and each edited file's `git hash-object` after its last edit) and `pr-body.md`.
+Right after each edit to a test file (the step 2 quarantine, each rewrite, deletion or merge in
+step 5 or cannot-fail-only step 4, each revert the user makes in step 6), run
+`git hash-object "<path>"` and record the hash and the step reached in `decisions.md`; step 0's
+resume check reads them.
 
 Read the working files from that path at every step, never from conversation memory, so a
 compacted or resumed session continues where the files say it stopped. Before the first write,
-confirm `.work/` is ignored (`git check-ignore -q .work/x`); when it is not, create `.work/.gitignore`
-holding `*`, and say so.
+confirm `.work/` is ignored (`git check-ignore -q .work/x`); when it is not, create
+`.work/.gitignore` holding `*`, and say so.
 
 ## Repository plan
 
 For the repository root (`git rev-parse --show-toplevel`), plan one batch per test project, then
-run each batch through the single-folder steps below. The plan edits no test and runs none. Its
-files live in `.work/testing-cleanup-plan/`, read at every batch boundary, never from conversation
-memory.
+run each through the single-folder steps below. The plan edits and runs no test. Its files live in
+`.work/testing-cleanup-plan/`, read at every batch boundary, never from conversation memory.
 
 1. **Findings.** Run the step 1 scanner command once with `CANT_FAIL_SCAN_ROOT` set to the
    repository root, and save its table as `findings.md` there.
@@ -70,8 +70,8 @@ memory.
 4. **Run.** Run steps 0 to 7 on each chosen folder in turn, unchanged, with the invocation's
    `--max` and `--cannot-fail-only` and the `--flaky` tests under that folder: each batch has its
    own `<work>`, diff and approval. The next batch starts only after the user approves and
-   commits this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch that stops records why, and the
-   plan goes on only on the user's yes. Unattended, run only the first `pending` batch whose kind
+   commits this one, since step 0 refuses a dirty tree. Record each outcome in `plan.md`; a batch
+   that stops records why, and the plan goes on only on the user's yes. Unattended, run only the first `pending` batch whose kind
    is not `unknown`.
 
 ## Steps
@@ -86,7 +86,7 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
   path after its last edit, continue at the step it records, in cannot-fail-only mode when
   `decisions.md` holds the `mode: cannot-fail-only` line. A path with a different hash carries
   an edit the batch did not make: refuse.
-- The `mutation-testing` plugin is not enabled. The mutation gate needs it: report that.
+- The `mutation-testing` plugin is not enabled; the mutation gate needs it.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
   standalone, unquoted `{tests}` word: both mutation runs use it. Point to
   `/mutation-testing:setup apply`.
@@ -107,14 +107,15 @@ Gather all four before any edit, and write the candidate list to `decisions.md`:
 
 1. The scanner's findings over the folder:
    `env CANT_FAIL_SCAN_ROOT="<absolute folder>" bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --findings`.
-   Quote every path you put in a command, each as its own argument.
-   Every row is a candidate, report-only rules included. `Location` is repo-relative.
-2. Judge-pass findings, when `/testing:audit --judge --persist-findings` wrote any. Read every `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal
-   to the current branch exactly (the frontmatter, not the directory, proves the branch), and keep
+   Quote every path in a command, each as its own argument. Every row is a candidate, report-only
+   rules included. `Location` is repo-relative.
+2. Judge-pass findings, when `/testing:audit --judge --persist-findings` wrote any. Read every
+   `.work/reviews/*/*.md` whose frontmatter has `type: review-findings` and a `branch:` equal to
+   the current branch exactly (the frontmatter, not the directory, proves the branch), and keep
    the `testing/judge/rule-restated-expectation` rows whose `Location` is under the folder. A FLAG
    makes its test a candidate; a PASS clears no scanner finding.
-3. The tests the user names as flaky. Cleanup detects no flakiness itself. For each, ask for an
-   owner and a tracking issue, which step 2 writes into the reason; cleanup files no issue itself.
+3. The tests the user names as flaky; cleanup detects no flakiness. For each, ask for an owner and
+   a tracking issue, which step 2 writes into the reason; cleanup files no issue.
 4. The tests the user names as suspected duplicates or layer replays (a suite that re-proves,
    through a mock, what a stronger suite already proves). `mock-only-oracle` rows from input 1 are
    where layer replays usually surface.
@@ -143,7 +144,7 @@ edit; a re-enabled test that still fails turns step 3's baseline red. Quarantine
 both mutation runs skip these tests.
 
 A quarantine keeps a flaky test off the blocking path while an owner tracks it to a fix; a skip
-with no owner and no expiry turns the test off for good. Basis, MEDIUM (two independent
+with no owner or expiry turns it off for good. Basis, MEDIUM (two independent
 primaries): Google's auto-quarantine files a bug
 ([Flaky Tests at Google](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html),
 2016, Google's internal CI; the post also warns quarantine can mask a real race condition), and
@@ -158,7 +159,7 @@ Invoke `/mutation-testing:audit --exercised <folder> --max <n> --record-mutants 
 through the Skill tool, with no `--paths`. Then read its report:
 
 - A red baseline stops the batch. List the failing tests so the user can name the flaky ones for
-  step 2 or fix them. Quarantine nothing on your own. A test that fails the same way on every run is
+  step 2 or fix them; quarantine nothing on your own. A test that fails the same way every run is
   not flaky: report it as a possible product bug whose fix is its own change, never a quarantine.
 - `K0 empty`, `no mapping: scope empty`, or a refusal after the user declines both the audit's
   install command and its `tool: manual` offer: the gated batch stops, since nothing the tests
@@ -171,14 +172,16 @@ through the Skill tool, with no `--paths`. Then read its report:
 ### 4. Classify
 
 Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/classifier-brief.md),
-with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with `model: opus`, so it does not inherit
-the session's model. Opus is chosen over the judge pass's default `sonnet` because a wrong deletion costs more
-than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
-reading rules.
+with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context
+`general-purpose` subagent with `model: opus` (for the cases where that alias resolves to the
+session's own model, see
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
+2026-10-31; recheck when that section changes those cases). Opus, not the judge pass's default
+`sonnet`, because a wrong deletion costs more than a wrong verdict. Write its table to
+`<work>/classifier-answer.md` and apply that file's reading rules.
 
-Every brief this skill writes keeps the rendered plugin root, with no resolver or fallback path. We
-rely on how the harness retires a plugin's superseded version directory after an update, not on a
-path of our own.
+Every brief this skill writes keeps the rendered plugin root, with no resolver or fallback path,
+relying on how the harness retires a plugin's superseded version directory after an update.
 
 - **Pointer**: when deciding whether a rendered plugin root can still be relied on, fetch
   <https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> live.
@@ -215,15 +218,15 @@ item listed and unapplied.
 ### 6. Gate
 
 First re-scan each file the batch rewrote with the step 1 command plus `--file "<path>"`. A finding
-step 1 did not list is a rewrite that cannot fail or checks little, such as a weak oracle or a
-recomputed expectation: the batch stops and names it until the rewrite is repaired. The re-scan
-sees only the scanner's rules; the judgment-only shapes in `test-value` §5 stay with the review of
-each rewrite's row.
+step 1 did not list is a rewrite that cannot fail or checks little (a weak oracle, a recomputed
+expectation): the batch stops and names it until the rewrite is repaired. The re-scan sees only
+the scanner's rules; the judgment-only shapes in `test-value` §5 stay with each rewrite's row
+review.
 
 Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
 --record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line. The replay
-applies each `before.tsv` mutant again and compares the two records mutant by mutant: one detected
-before and not after is newly surviving.
+reapplies each `before.tsv` mutant and compares the records mutant by mutant: one detected before
+and not after is newly surviving.
 
 - A red replay baseline (a changed test fails on unmutated code) stops the batch and names the
   failing tests.
@@ -232,8 +235,8 @@ before and not after is newly surviving.
   or every changed test when none does, since each mutant ran against the whole test set. The
   user reverts the ones they choose; then replay again. Cleanup reverts nothing itself.
 - `Gate: pass`: go on.
-- Any other outcome (no `Gate:` line, a refusal, a compare that could not run) stops the batch the
-  same way. Only `Gate: pass` reaches step 7.
+- Any other outcome (no `Gate:` line, a refusal, a compare that could not run) stops the batch.
+  Only `Gate: pass` reaches step 7.
 
 ### 7. Report and commit
 
@@ -243,8 +246,8 @@ triage) to `<work>/pr-body.md`, and the findings file to the branch's findings d
 `/review:fanout` "Shared inputs" defines them. One row per candidate that a rule selected, in the
 shape `plugins/review/reference/findings-file-shape.md` gives: `Tier` and `Confidence` copied from
 the source row, `Surface(s)` `testing:cleanup`, `Finding` the source row's `Finding` (rule id and
-threshold first) followed by `cleanup row <n>: <action>`, `Action` reading `applied by /testing:cleanup in this branch;
-review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule and appear in
+threshold first) followed by `cleanup row <n>: <action>`, `Action` reading
+`applied by /testing:cleanup in this branch; review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule and appear in
 `pr-body.md` only, each with its expiry, owner and tracking issue, beside each expired quarantine
 and the user's choice for it (re-enabled, escalated, renewed to a date, or undecided).
 
@@ -255,22 +258,21 @@ user. Unattended runs stop before the commit.
 
 ## Cannot-fail-only mode
 
-For a folder no usable mutation tool can gate. Deleting a test that cannot fail
-loses no kill a mutation run could record, so this mode deletes only such tests and needs no gate.
-It runs no test and no mutation tool, which keeps it safe on suites whose tests reach live systems.
-It proposes no quarantine, rewrite or merge. Step 0's branch, tree and folder checks still apply;
+For a folder no usable mutation tool can gate. Deleting a test that cannot fail loses no kill a
+mutation run could record, so this mode deletes only such tests and needs no gate. It runs no test
+and no mutation tool, so it is safe on suites whose tests reach live systems. It proposes no
+quarantine, rewrite or merge. Step 0's branch, tree and folder checks still apply;
 these steps replace steps 1 to 6, and step 7 follows unchanged.
 
 1. **Candidates.** Write `mode: cannot-fail-only` to `decisions.md`, and record each step reached
-   as `cannot-fail-only <n>`. Run the step 1 scanner command and the step 1 quarantine sweep, and
-   record the scanner's `test blocks parsed` count in `decisions.md`. An in-scope row is one whose rule is
+   as `cannot-fail-only <n>`. Run the step 1 scanner command and quarantine sweep, and record the
+   scanner's `test blocks parsed` count in `decisions.md`. An in-scope row is one whose rule is
    `rule-zero-assertion`, `rule-recomputed-expectation` or `rule-inert-assertion` (section 5 of
    `${CLAUDE_PLUGIN_ROOT}/skills/test-value/SKILL.md` says what each means). The last two flag one
    statement, so a test is a candidate only when it has no assertion at all or every assertion in
    it is an in-scope row; a test with any other assertion is `not in this mode`. Every other row is
    out of scope, `rule-conditional-assertion` included (its assertion runs, and can fail, when the
-   branch is taken), as are judge verdicts and tests the user names as flaky or
-   duplicate: list each in `decisions.md` as `not in this mode` and leave it. So is a test in a
+   branch is taken), as are judge verdicts and tests the user names as flaky or duplicate: list each in `decisions.md` as `not in this mode` and leave it. So is a test in a
    `block_model: file` adapter's file, and a test holding a `catch ... when (...)` guard, such as a
    trial-license check: neither is deleted or edited. List expired quarantines found by the sweep,
    and change none. No candidate: report `nothing to clean in <folder>` and stop, unless step 2
@@ -278,26 +280,26 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
 2. **Skeptic.** Per test file holding a candidate, write `<work>/skeptic-brief-<n>.md` from
    [`context/skeptic-brief.md`](context/skeptic-brief.md), with `<plugin-root>` rendered as
    `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with
-   `model: opus`, for the reason step 4 (Classify) gives. Write its table to `<work>/skeptic-answer-<n>.md`
-   and apply that file's reading rules: only a `cleared` row is a deletion candidate.
+   `model: opus`, for the reason step 4 (Classify) gives. Write its table to
+   `<work>/skeptic-answer-<n>.md` and apply that file's reading rules: only a `cleared` row is a
+   deletion candidate.
 3. **Propose.** Fill `decisions.md` with one row per candidate: test, rule, quoted line, skeptic
    verdict, action, approved-by. A `cleared` row is a row 4 deletion whose no-contract statement is
    the skeptic's reason, unless a reference it quotes as naming a symbol elsewhere lies inside
    another `cleared` test: skeptics run per file, so two candidates can each be the other's only
    witness. That row is `keep: compile-time reference only in another candidate (<file:line>)`.
-   Any other row is `keep`; when the skeptic names a statement that can throw,
-   the action reads `keep: throw is the only oracle (<file:line>)`, which a gated run or a
+   Any other row is `keep`; when the skeptic names a statement that can throw, the action reads `keep: throw is the only oracle (<file:line>)`, which a gated run or a
    `cant-fail-ok: <why>` annotation can settle later.
 4. **Delete.** Apply each deletion only after the user's yes to that item; unattended, apply none.
    Remove the whole test (its attributes, decorators and doc comment) and an import only it used,
    and nothing else: a helper or field the test alone used stays, for
-   `/code-tidying:audit-dead-code`. Keep the file's line
-   endings: a file whose every line ended in CRLF before the edit
+   `/code-tidying:audit-dead-code`. Keep the file's line endings: a file whose every line ended in
+   CRLF before the edit
    (`grep -c $'\r$' -- "<path>"` equals `wc -l < "<path>"`) still does after it. The
    `test-change: cleanup row 4: <reason>` comment rule of step 5 applies.
 5. **Check.** Re-run the scanner over the folder. Its `test blocks parsed` count must be the count
-   `decisions.md` recorded in step 1 minus the approved deletions, and `git status --porcelain` must list only files under the
-   folder. Any other result stops the batch and names the difference.
+   `decisions.md` recorded in step 1 minus the approved deletions, and `git status --porcelain`
+   must list only files under the folder. Any other result stops the batch and names the difference.
 
 Step 7's report states that the batch ran in this mode, which step 0 check or step 3 result led to
 it, if any, and that no mutation gate ran; it has no K1, and no K0 beyond that step 3 result.
@@ -328,8 +330,8 @@ build and lint the test project before approving the batch.
   injection, reflection or an HTTP route does not show up in a search; that test is rewritten or
   kept.
 - **The gate compares sets, not tests.** A weakened test passes the gate when another changed test
-  in the batch now kills the same mutants. Each rewrite is still
-  reviewed on its own row; per-test kill attribution is not built.
+  in the batch now kills the same mutants. Each rewrite is still reviewed on its own row; per-test
+  kill attribution is not built.
 - **Cleanup never edits production code.** The replay refuses when production changes, so an export
   whose only caller was a deleted test stays until a separate dead-code pass removes it.
 - **In cannot-fail-only mode the skeptic is the only check.** A test with no assertion still fails

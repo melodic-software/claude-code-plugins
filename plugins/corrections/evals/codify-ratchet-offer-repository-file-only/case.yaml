@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-ratchet-offer-repository-file-only
+description: 'The team file alone sets the offer off, named as the layer (Decision 3: corrections.yaml replaces review.yaml).'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The team file alone sets the offer off, named as the layer (Decision 3: corrections.yaml replaces review.yaml).'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md The settings reader printed {"min_occurrences":2,"layer":"defaults","path":null,"ratchet_offer":{"value":false,"layer":"team","path":"docs/conventions/corrections.yaml"},"review_mining_prs":{"value":20,"layer":"defaults","path":null}} This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: reports-the-layer
+    type: 'regex'
+    pattern: 'ratchet_offer:?`?\s*`?false`?\s*\(`?docs/conventions/corrections\.yaml'
+    flags: 'i'
+    arm: 'both'
+  - name: no-ratchet-offer
+    type: 'regex'
+    pattern: '/toolchain:ratchet'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

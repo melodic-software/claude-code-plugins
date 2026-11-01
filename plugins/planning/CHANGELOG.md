@@ -3,6 +3,95 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.134.2] - 2026-11-01
+
+### Fixed
+
+- The interview's Gates block, in the first 20,000 bytes of its SKILL.md, now also states the confirmation gate and the Step 4 `--brief` Brief cross-check command, each pointing at its full rule. A compaction re-attaches only the start of a skill, so before this a compacted session could lose both gates ([#9864](https://github.com/melodic-software/claude-code-plugins/issues/9864)).
+
+## [0.134.1] - 2026-11-01
+
+### Fixed
+
+- `/planning:interview` names the `resolve-convention-home.sh` command in its EARS spoke and has it run before any `AGENTS.md`, `CLAUDE.md` or `authoring-formats/README.md` read for `acceptance_criteria_format`, so a repository whose pointer line names a non-default convention home gets its own format instead of the default path's.
+
+- `align.test.sh` now fails under `CI=true` when node is missing or when `align.js` skips for want
+  of playwright-core or a Chromium, as the UI suites already do, so a CI leg without a browser no
+  longer reports the page alignment check green. Local runs still skip green
+  ([#8498](https://github.com/melodic-software/claude-code-plugins/issues/8498)).
+
+## [0.134.0] - 2026-11-01
+
+### Added
+
+- The shared interview server now sends Claude a `fault-spike` event when 3 faults of one kind arrive within 300 seconds. The kinds are page `error`, `rejection` and `api` entries, plus the server's own 5xx answers. After one event, none follows for 600 seconds. The event carries only the server's counts: the fault kind, the count, the window and the threshold. It never carries a fault's message, source, route, fingerprint or pid. Claude handles it like a problem report: it diagnoses the spike and proposes a fix to the owner in the terminal ([#9975](https://github.com/melodic-software/claude-code-plugins/issues/9975)).
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+### Fixed
+
+- The interview's Step 4 Brief gate command now passes `--surface '<data_dir>'` on a page-surface run, so it runs the Intent and Decisions checks. SKILL.md, `context/loop.md` and the checklist template name the flag.
+- With `--surface`, `check-open-questions.sh --procedure --brief` now fails a Brief that lost a line the page export writes under its TLDR or Acceptance criteria.
+- It also fails a Brief whose Decisions repeat an export line or hold a `Q<N>` line the export does not write, such as a decision put back in an earlier form or contradicted by a second line.
+
+## [0.133.1] - 2026-10-31
+
+### Fixed
+
+- The interview surface now sets aside an accept when the session revises the recommendation the
+  user accepted. `reply --rec` and `revise --rec` set aside a counted accept or hedged accept
+  whose recommendation the revision changes, and record the accepted text. The question reads
+  open until the user accepts again: the page shows it as needing reconfirmation and quotes the
+  accepted text, and `export-ledger` writes an open row whose `aside::` names that text, never the
+  revised one. `import-ledger` restores such a row still set aside. Before this, the export and
+  the page recorded the revised text as the user's answer
+  ([#11584](https://github.com/melodic-software/claude-code-plugins/issues/11584)).
+
+## [0.133.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview product <idea>` stress-tests a product or feature idea one question at a time against twenty product principles and ends in a verdict; `/planning:prd` and `/planning:brainstorm` point to it.
+
+### Changed
+
+- `/planning:design` names `/user-interface:design` as the next step when the contract being designed is a UI component's props API.
+
+## [0.132.5] - 2026-10-31
+
+### Fixed
+
+- The interview page's Decide list now fades its top or bottom edge when rows are scrolled out of view past that edge. With every row in view, it shows no fade. The Rec row clamps to four lines, so a long recommendation no longer fills the list. When the clamp cuts the text, a Read all button opens the whole recommendation in a dialog ([#11649](https://github.com/melodic-software/claude-code-plugins/issues/11649)).
+
+## [0.132.4] - 2026-10-31
+
+### Fixed
+
+- The interview page's Finish no longer warns that you have not answered Claude in Notes just because Claude's reply was the last Notes entry. It warns only while a Claude note sent with `needsAnswer` has no answer. Each such note stays pinned in Loose ends until a note from you answers it, and each note you send answers the oldest one still open. A second `needsAnswer` note posted in the same apply is now pinned too, and one reply no longer clears both. The Brief's `asked in Notes, not answered` lines follow the same rule ([#11585](https://github.com/melodic-software/claude-code-plugins/issues/11585)).
+
+## [0.132.3] - 2026-10-31
+
+### Fixed
+
+- `/planning:interview`'s page Brief lists a decision once, in its final status, when its commitments are ticked at Confirm. `export-brief` rewrites a Decisions recap line taken while unticked commitments held the row `open` as `answered`, with the row's whole answer (also when the recap cut that answer short), so the row adds no second Constraints line.
+- SKILL.md and the page surface guide now agree that on the page the restate goes out over a procedure-check exit 1 when the only `open` rows are accepted questions waiting on commitment ticks, since the page offers those ticks in the restatement box.
+
+## [0.132.2] - 2026-10-31
+
+### Fixed
+
+- `ledger-check` now checks the ledger that `sync-ledger` or `add-round --sync-ledger` last wrote, recorded as `meta.syncedLedger`, before the ledger the page was seeded from. Both commands also record the check in `meta.ledgerSync`, so the page header shows its ledger line on an interview that was never imported from a ledger ([#11586](https://github.com/melodic-software/claude-code-plugins/issues/11586)).
+
 ## [0.132.1] - 2026-10-31
 
 ### Changed

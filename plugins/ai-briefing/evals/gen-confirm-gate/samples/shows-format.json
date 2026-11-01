@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\n",
+      "why": "Output: markdown"
+    },
+    {
+      "answer": "Format: Markdown (default).",
+      "why": "capitalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Output: HTML slides.",
+      "why": "wrong format"
+    },
+    {
+      "answer": "Window: 2026-10-20. Providers: Northwind, Contoso. Proceed?",
+      "why": "format missing"
+    }
+  ]
+}

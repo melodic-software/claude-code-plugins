@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Only two files carry these rules, so a new docs/policies/release-tags.md would be a third file to keep in sync (below the Rule of Three). Instead, make docs/releasing.md the owner and have CONTRIBUTING.md cite it.\n\ndocs/releasing.md, \"Tagging\" (owner, wording aligned):\n\n```markdown\n## Tagging\n\nTag releases as `vMAJOR.MINOR.PATCH` from `main` only, after the release workflow passes. A pushed tag is permanent: never move or delete it; ship the next patch instead. Hotfix tags add `-hotfix.N`, counting from 1.\n```\n\nCONTRIBUTING.md, \"Release tags\":\n\n```markdown\n## Release tags\n\nTag releases per `docs/releasing.md` \"Tagging\".\n```",
+      "why": "declines new file, names releasing.md owner, CONTRIBUTING cites it"
+    },
+    {
+      "answer": "I would not add a new file: with two copies the fix is to pick one as the owner. CONTRIBUTING.md is what the README and the PR template already point at, so it owns the rules.\n\ndocs/releasing.md becomes:\n\n```markdown\n## Tagging\n\nFollow the tag rules in [CONTRIBUTING.md](../CONTRIBUTING.md#release-tags).\n```\n\nCONTRIBUTING.md keeps its section, reworded to the agreed text. Revisit a shared file if a third copy appears.",
+      "why": "declines new file, CONTRIBUTING owner, releasing links to it, revisit at third copy"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Plan: create docs/policies/release-tags.md with the merged rules, then replace both sections with a link.\n\nCONTRIBUTING.md:\n\n```markdown\n## Release tags\n\nSee [release tag policy](docs/policies/release-tags.md).\n```\n\ndocs/releasing.md:\n\n```markdown\n## Tagging\n\nSee [release tag policy](policies/release-tags.md).\n```",
+      "why": "creates the suggested new file"
+    },
+    {
+      "answer": "Both files should say the same thing, so align them. Put this text in both CONTRIBUTING.md \"Release tags\" and docs/releasing.md \"Tagging\":\n\nTag releases as `vMAJOR.MINOR.PATCH` from `main` after the release workflow passes. Never move or delete a pushed tag. Hotfix tags add `-hotfix.N`.",
+      "why": "keeps two full copies"
+    },
+    {
+      "answer": "Two options: (a) create docs/policies/release-tags.md, or (b) make CONTRIBUTING.md the owner. Either works; your call.",
+      "why": "no recommendation, new file offered as equal option"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "To cut a release, bump the version in package.json, push a tag and post the changelog.",
+      "why": "answers a different question"
+    }
+  ]
+}

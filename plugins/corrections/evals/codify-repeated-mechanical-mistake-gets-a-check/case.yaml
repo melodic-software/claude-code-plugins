@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: codify-repeated-mechanical-mistake-gets-a-check
+description: 'A repeated banned import takes a checking rung proposed by the skill, built by nobody.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The answer names a checking rung by id and writes only under .work/codify/.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify "imports from the deprecated legacy/http module" twice this session you did this even though the rules file says not to. Make sure it does not happen again.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 720
+graders:
+  - name: checking-rung
+    type: 'regex'
+    pattern: 'analyzer-pack-rule|semgrep-rule|architecture-test|custom-analyzer|make-impossible'
+    flags: 'i'
+    arm: 'both'
+  - name: writes-only-under-work-codify
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?![^"]*\.work/codify/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit
+    type: 'tool_used'
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: 'both'

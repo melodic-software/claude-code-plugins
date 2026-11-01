@@ -1,6 +1,6 @@
 ---
 description: "Mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
-argument-hint: "[unattended] [file|prompt] [topic] [purpose...]"
+argument-hint: "[file|prompt] [--unattended] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Write a mid-session save-point for clear-and-resume
 ---
 
-**Arguments.** `[unattended] [file|prompt] [topic] [purpose...]`. e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team
+**Arguments.** `[file|prompt] [--unattended] [topic] [purpose...]`. e.g., /handoff, /handoff prompt, /handoff file phase-3 review the design with the team, /handoff prompt --unattended
 
 ## Context. Gather first
 
@@ -46,12 +46,12 @@ save-point engine, different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
+`$ARGUMENTS` carries `[file|prompt] [--unattended] [topic] [purpose...]`, all optional, the non-flag tokens positional:
 
-- **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
-  changes only the steps that would ask the user: the `/export` step (record the suggestion in
-  output, do not ask) and stuck dependent work ("Settle in-flight work before writing"). It is
-  never read as the topic or a method; the Method rule below then applies to the next token.
+- **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take it out of
+  `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
+  ask the user: the `/export` step (record the suggestion in output, do not ask) and stuck dependent work
+  ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -425,7 +425,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
-- [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
+- [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`--unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
   emphasis only"), never discarded; a goal-conflicting purpose flagged rather than obeyed. No

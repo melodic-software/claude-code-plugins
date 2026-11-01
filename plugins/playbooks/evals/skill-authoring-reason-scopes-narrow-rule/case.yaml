@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-reason-scopes-narrow-rule
+description: "State the action: a narrow rule that would otherwise be applied everywhere gets its reason. Written from MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:79-80 (the base contract)."
+tags: [skill-authoring, state-the-action]
+expected_outcome: "The rewritten section limits `--no-verify` to the step 4 lockfile commit and gives the reason (the pre-commit hook times out on the generated lockfile), so the rule is not applied to other commits."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

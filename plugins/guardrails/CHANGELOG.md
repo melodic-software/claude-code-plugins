@@ -3,6 +3,27 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.2] - 2026-11-01
+
+### Fixed
+
+- The pre-commit content check now fails the commit, with a message saying the scan did not finish, when a text tool it runs (awk, grep, sed, sort or cut) fails. A crashed awk run used to leave the staged text unscanned and the commit passing.
+- The pre-commit content check no longer takes over 30 seconds on a single large added file: its whitespace-only test ran in time that grew with the square of the file's size. A 1,300-file merge now takes about 30 seconds instead of about 100.
+
+## [0.77.1] - 2026-10-31
+
+### Fixed
+
+- **block-root-delete-target outside-tree fix line.** The refusal now says to put scratch work under the working tree, for example a gitignored `.work/`. It used to name the session scratchpad, which sits under the OS temp directory that every concurrent session shares.
+
+- The `workflow-resilience-check` description says the fan-out it flags has no wave cap of its own, in place of calling it un-throttled, and points at the workflow runtime's concurrency limit.
+
+## [0.77.0] - 2026-10-31
+
+### Added
+
+- `block_root_delete_target_allowed_roots` accepts a segment entry, `<dir>/*/<name>`, such as `D:/worktrees/*/.work`. A recursive delete passes only when its target is strictly under `<name>` exactly one directory level below `<dir>`, so agents can clean the scratch under every worktree without the whole worktree root being allowed. The named directory itself, its siblings (`<dir>/wt-a/src`), the same name at another depth and a symlink stay refused, and the protected trees are still judged first. An entry whose `*` shares a segment with other text, or that holds a second `*`, still grants nothing, and every existing entry shape behaves as before.
+
 ## [0.76.0] - 2026-10-31
 
 ### Added

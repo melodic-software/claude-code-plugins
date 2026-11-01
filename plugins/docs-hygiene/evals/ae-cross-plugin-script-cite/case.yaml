@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ae-cross-plugin-script-cite
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?audit-encapsulation"'
+  - name: names-ship-skill
+    type: regex
+    pattern: 'ship/SKILL\.md'
+    arm: both

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A parameter explorer that returns a prompt is the first-party `playground` skill; it is not installed here, so install the playground plugin from its marketplace. I won't build an imitation.",
+      "why": "routes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Built shadow-explorer.html with four sliders and a copy button.",
+      "why": "built it"
+    }
+  ]
+}

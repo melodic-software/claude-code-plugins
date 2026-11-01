@@ -1,5 +1,34 @@
 # Changelog: evals
 
+## [0.13.0] - 2026-11-01
+
+### Added
+
+- `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's
+  skill-creator `evals.json` cases into `claude plugin eval` cases under the plugin's `evals/`:
+  a `prompt.md` with the prompt and expected outcome, a `case.yaml` with one `llm` grader per
+  expectation, and a `skill-fired` grader with sample answers where the prompt is natural
+  language and no expectation reads as the skill staying quiet. Each expectation grader gets
+  the case's `expected_output` as a must-pass sample, labeled for a person to confirm before
+  judge calibration, and `narration: true` carries over as a tag and a `description` line.
+  It prints the plugin's case count (`--dry-run` writes nothing), removes each converted
+  `evals.json`, and refuses, writing nothing, when a case directory already exists.
+
+## [0.12.0] - 2026-10-31
+
+### Changed
+
+- `/evals:design skill <name>` writes `case.yaml` cases in the eval directory of the plugin that ships the skill, one directory per case with a `prompt.md` and samples for each deterministic grader, and checks them with `/evals:validate`. It no longer writes a skill-creator `evals/evals.json`. A case's difficulty is a `hard` or `routine` tag, and its source and why it is hard go in its `description`. A new case, `de-skill-target-suite`, covers the skill target.
+- `/evals:validate`, `/evals:plugin-eval`, `/evals:methodology` and the README treat the suite layout as the one eval format for a skill. A skill-creator JSON eval file is converted to case directories and then validated, no longer routed to `/skill-quality:check validate-evals`.
+
+## [0.11.5] - 2026-10-31
+
+### Fixed
+
+- `plugin-eval` no longer says a target after `--json` is swallowed: on current Claude Code `--json` takes an optional path. A target after `--tag` or `--allow-tools` still is, and the CLI then loads every suite under the working directory; the `target-before-json` case now tests that.
+- `plugin-eval` records that with-arm reads under a plugin directory named `evals` are denied while the same copy under another name reads its spokes, and tells a run to copy such a plugin under another name.
+- The `va-unknown-timeout-key` case no longer grants Bash, so no case in the suite needs it.
+
 ## [0.11.4] - 2026-10-31
 
 ### Fixed

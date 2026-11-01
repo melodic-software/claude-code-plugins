@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Tests for buffer.sh: adapter binding, fallback, obs_id, redaction, caps and dedupe.
+# test-scope: plugins/corrections/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDE_PROJECT_DIR
 

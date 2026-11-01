@@ -4,7 +4,7 @@
 //
 // Usage:
 //   setup-apply.mjs [--root <dir>] --check
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //
 // The YAML reader is the copy bundled with /education:explain,
 // under skills/explain/scripts/. The options, guarantees and exit codes are in
@@ -17,6 +17,7 @@ import { run, wholeFileReport } from "../../../lib/setup-apply.mjs";
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 run({
   plugin: "education",
+  provenance: true,
   schema: join(PLUGIN, "schemas", "education.schema.json"),
   reader: join(PLUGIN, "skills", "explain", "scripts", "parse-concern-value.sh"),
   fixedTemp: true,

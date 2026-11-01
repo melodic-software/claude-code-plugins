@@ -323,6 +323,38 @@ call stalled on a host without `timeout` (stock macOS). Its false positives
 [#6627](https://github.com/melodic-software/claude-code-plugins/issues/6627)) are exit-2 denials,
 which `onFailure` does not affect.
 
+### Adopted-row probes (melo-desk-001, 2026-10-31)
+
+These probes check each row above against its shipped `hooks.json`
+([#9989](https://github.com/melodic-software/claude-code-plugins/issues/9989)). Each session runs
+Claude Code 2.1.316 on WSL2 Linux as `claude -p --plugin-dir <plugin> --permission-mode dontAsk
+--allowedTools <the probed tools> --strict-mcp-config`, with the installed copies of the four
+plugins turned off through `--settings` `enabledPlugins`. The session's init event lists only the
+probed copy of the four. The `block` arm runs with `PATH=/usr/bin:/bin`, which has no `node`. The
+control arm keeps `node` (for guardrails and disk-hygiene, the session's whole `PATH`, `jq`
+included) but has no `gh`, so the merge guard makes no GitHub read.
+The GitHub MCP rows are matched by a stdio stand-in server named `github` that exposes
+`push_files`, `merge_pull_request` and `add_issue_comment`, does nothing, and touches a marker per
+call. A control call counts as run when its marker or its tool output appears.
+
+| Plugin | Row | Matched call | No `node` | Control |
+| --- | --- | --- | --- | --- |
+| guardrails | `Write\|Edit\|NotebookEdit` | `Write` | Denied: `failed; blocking because onFailure is "block"` | File written |
+| guardrails | GitHub MCP file-write | `mcp__github__push_files` | Denied, same message | Ran |
+| guardrails | MCP merge | `mcp__github__merge_pull_request` | Denied, same message | Ran |
+| guardrails | GitHub MCP comment | `mcp__github__add_issue_comment` | Denied, same message | Ran |
+| guardrails | `Bash\|PowerShell` | `Bash` `touch` | Denied, same message | Marker written |
+| disk-hygiene | `Bash(*hygiene.py*)` | engine `inventory` of an empty directory | Denied, same message | Ran, report returned |
+| disk-hygiene | `PowerShell(*hygiene.py*)` | not probed | WSL sessions have no `PowerShell` tool | not probed |
+| discovery | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied: `Executable not found in $PATH: "node"`, then the blocking message | Marker written |
+| multi-agent | `Bash`, docs-fetcher gate | `Bash` `touch` | Denied, same message | Marker written |
+| multi-agent | `WebFetch`, drift-checker gate | `WebFetch` of `example.com` | Denied, same message | Page fetched |
+
+Each adopted row probed denies its matched call when `node` is missing, and with `node` present it
+lets a normal call through. The disk-hygiene `PowerShell` row still needs a probe on a Windows host.
+A control environment with no `jq` is not a normal call: there the guardrails dispatcher denies
+with its own `jq is not on PATH` verdict, and that is a guard's choice, not an `onFailure` block.
+
 ## Gated Stop rows at the exec-form floor
 
 A Stop row whose launcher gate is closed sits at its shape's floor, k = 1: `node` starts,
@@ -331,8 +363,9 @@ is the fewest such a row can cost, so it has no overage for Rule 2 to hold again
 shapes cover the Stop rows this applies to:
 
 - the default-off end-of-turn checks of actionlint, bash-format, biome-format, go-format,
-  markdown-format, powershell-format, ruff-format and typos-format (`--require-true
-  <PLUGIN>_END_OF_TURN`, manifest default false);
+  powershell-format, ruff-format and typos-format (`--require-true <PLUGIN>_END_OF_TURN`,
+  manifest default false), and markdown-format's once its option is `false`
+  (`--run-if-unset-or-true MARKDOWN_FORMAT_END_OF_TURN`; unset, its default, runs the check);
 - autonomy's lane-stop gate (`--run-if-any-set` or `--run-if-settings-mention`, one any-of gate).
 
 These rows stay synchronous Stop hooks. Stop has no matcher support and a hook with `if` set on a

@@ -272,7 +272,7 @@ test("a merge-pr slot the config turns off prints its skip reason before the tok
   const after = names.slice(names.indexOf("Request the lane token") + 1);
   for (const name of after) {
     const condition = mergeIf(name);
-    const unminted = { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped" }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } };
+    const unminted = { ...configured("false"), "lane-token": { outputs: { token: "" } }, mode: { outputs: {} }, candidates: { outcome: "skipped", outputs: {} }, gate: { outcome: "skipped" }, "head-refs": { outcome: "skipped" }, "post-merge": { outcome: "skipped", outputs: {} }, "lane-records": { outcome: "skipped" }, carry: { outputs: {} } };
     const always = () => true;
     const value = new Function("steps", "github", "needs", "always", `return (${condition.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(unminted, { event_name: "schedule" }, { "post-merge-dispatch": { result: "success", outputs: { "rate-limited": "" } } }, always);
     // It reads the job's own token, and runs on a kill switch too.
@@ -355,7 +355,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
       assert.equal(r.status, 0, r.stdout + r.stderr);
     }
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
     assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
   } finally {
@@ -639,11 +639,11 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10
     const r = spawnSync("bash", ["-c", run], {
       cwd: dir,
       encoding: "utf8",
-      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", GITHUB_RUN_ID: "77", LIMITED: "", RUNNER_TEMP: dir, SWEEP_SUMMARY_TO: join(dir, "sweep.json") },
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", GITHUB_RUN_ID: "77", LIMITED: "", LISTING_HELD: "", RUNNER_TEMP: dir, SWEEP_SUMMARY_TO: join(dir, "sweep.json") },
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.equal(readFileSync(join(dir, "started"), "utf8"), "2026-10-28T00:00:00Z\n");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/runs/{n}\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -834,7 +834,7 @@ test("the pr-merge/unarmed statuses are posted by a job of their own, with statu
   assert.match(post, /\n {10}STATUSES: \$\{\{ needs\.enable-auto-merge\.outputs\.unarmed-statuses \}\}\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/post-unarmed-status\.mjs\n/);
 });
 
-// The merge job's sizing comment: about a minute before the loop, then the
+// The merge job's sizing comment: about two minutes before the loop, then the
 // longer of the gate budget (10) plus a candidate's read limit (4) and a
 // deferred candidate's ceiling (20), plus one read's own timeout (4); the
 // escalation clear's own timeout comes on top.
@@ -842,7 +842,7 @@ test("the merge job's ceiling covers the gate's sweep and the escalation clear",
   const gate = job("merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
   const clear = Number(/- name: Clear escalations whose reason no longer holds\n[\s\S]*?\n {8}timeout-minutes: ([0-9]+)\n/.exec(gate)[1]);
-  assert.ok(total >= 1 + Math.max(10 + 4, 20) + 4 + clear, `${total} minutes for the gate and a ${clear}-minute clear`);
+  assert.ok(total >= 2 + Math.max(10 + 4, 20) + 4 + clear, `${total} minutes for the gate and a ${clear}-minute clear`);
 });
 
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {

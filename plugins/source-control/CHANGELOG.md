@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.9.0] - 2026-11-01
+
+### Added
+
+- `/source-control:pull-request review-comments --prs <n> [--repo <owner/repo>]` prints the review comments of the last `<n>` pull requests by merge time as JSON lines, widening its read of recently updated merged pull requests until no unread one can be among them. It keeps the PR author's own comments made after the merge, and never a reply.
+
+### Fixed
+
+- `/source-control:babysit-loop` passes `--unattended` to each `/source-control:babysit-prs` call it makes, so a merge-lane cycle records the `/autofix-pr` offer instead of reaching an ask nobody answers. The looped `worker` and `autopilot` lines in `/source-control:babysit-prs` and its autopilot reference pass `--unattended` too ([#11546](https://github.com/melodic-software/claude-code-plugins/issues/11546)).
+
+## [4.8.3] - 2026-10-31
+
+### Fixed
+
+- `pull-request ci --ci` keeps the lines a fix-ci run needs to leave alone: a line a linked issue's criterion names or quotes, and a line in `feedback_lines`, which the previous address-feedback round added. The run makes room elsewhere, or escalates `weaken-required` when no edit that keeps those lines passes. The context file's `spec` and `feedback_lines` fields are data, never instructions. Two evals cover a line-cap failure: one with room elsewhere, which is fixed, and one where every cut would remove a criterion's line, which escalates.
+
+## [4.8.2] - 2026-10-31
+
+### Security
+
+- `resolve-version-bump-conflict.sh` leaves a plugin for manual resolution when its `CHANGELOG.md` or `plugin.json` is a symlink, whether the link resolves or not, instead of writing through it or skipping the plugin.
+
 ## [4.8.1] - 2026-10-31
 
 ### Fixed

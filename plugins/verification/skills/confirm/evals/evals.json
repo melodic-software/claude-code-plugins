@@ -379,6 +379,61 @@
         "Routes the dist/ lesson to /corrections:codify",
         "Edits no control skill file itself and names no instruction-placement or write-for-agents skill"
       ]
+    },
+    {
+      "id": "evidence-loop-01",
+      "name": "needs-work-at-count-2-loops-back-to-count-3",
+      "prompt": "/verification:confirm outcome --unattended. Do not read the repository or run anything; treat these as facts. The current branch is feat/cart-tax and the working tree is clean. Stage 1 already passed. .work/cart-tax/verification/evidence-loop.feat-cart-tax.json holds {\"cap\": 3, \"count\": 2, \"heads\": [{\"sha\": \"a1\", \"verdict\": \"NEEDS WORK\", \"at\": \"2026-10-30T10:00:00Z\"}, {\"sha\": \"b2\", \"verdict\": \"NEEDS WORK\", \"at\": \"2026-10-31T10:00:00Z\"}]}. The head under verification is c3. The fresh-context verifier's verdict is NEEDS WORK: AC2, tax on discounted items, is MISSING. Write the evidence-loop file update you make, the manifest's Evidence loop line, and the report's Next section, then stop.",
+      "expected_output": "The count was 2, below the cap, so the NEEDS WORK verdict on the new head c3 raises it to 3 and the gaps go back to implementation. The file gets a c3 NEEDS WORK entry with count 3, written to a .tmp file in the same directory and renamed over evidence-loop.feat-cart-tax.json. The manifest line reads `Evidence loop: 3/3`, and Next says to fix AC2, then run /verification:confirm again.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Raises count from 2 to 3 and adds a c3 entry with verdict NEEDS WORK",
+        "Writes the file atomically: a temporary file in the same directory, then a rename over evidence-loop.feat-cart-tax.json",
+        "Writes the manifest line Evidence loop: 3/3",
+        "Sends the AC2 gap back to implementation, with Next naming the fix and a rerun of /verification:confirm"
+      ]
+    },
+    {
+      "id": "evidence-loop-02",
+      "name": "count-3-no-loop-back-cap-line",
+      "prompt": "/verification:confirm outcome --unattended. Do not read the repository or run anything; treat these as facts. The current branch is feat/cart-tax and the working tree is clean. Stage 1 already passed. .work/cart-tax/verification/evidence-loop.feat-cart-tax.json holds {\"cap\": 3, \"count\": 3, \"heads\": [{\"sha\": \"a1\", \"verdict\": \"NEEDS WORK\", \"at\": \"2026-10-29T10:00:00Z\"}, {\"sha\": \"b2\", \"verdict\": \"NEEDS WORK\", \"at\": \"2026-10-30T10:00:00Z\"}, {\"sha\": \"c3\", \"verdict\": \"NEEDS WORK\", \"at\": \"2026-10-31T10:00:00Z\"}]}. The head under verification is d4, a rebase of c3 onto a newer main with no other change. The fresh-context verifier's verdict is NEEDS WORK: AC2 is still MISSING. Write the evidence-loop file update you make, the manifest's Evidence loop line, and the report's Next section, then stop.",
+      "expected_output": "The count is already at its cap of 3, so the run starts no loop-back to implementation. The file records d4 as NEEDS WORK with count staying 3, written through a temporary file and a rename. The manifest line reads `Evidence loop: 3/3 cap reached, last NEEDS WORK`, and Next routes to opening the pull request (/source-control:pull-request) so the pipeline's park-and-retry path takes over, not to another fix round.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not send the work back to implementation for another round",
+        "Keeps count at 3 and records d4 with verdict NEEDS WORK",
+        "Writes the manifest line Evidence loop: 3/3 cap reached, last NEEDS WORK",
+        "Next routes to opening the pull request and the pipeline's park-and-retry path"
+      ]
+    },
+    {
+      "id": "evidence-loop-03",
+      "name": "capture-blocked-notes-reason-not-needs-work",
+      "prompt": "/verification:confirm outcome --unattended. Do not read the repository or run anything; treat these as facts. The current branch is feat/export-csv, the working tree is clean, and the evidence-loop file holds count 0. Stage 1 already passed. The change adds a CSV export button; AC1 is that the button downloads the visible rows, and a unit test added in the diff checks the CSV builder's output against the example rows AC1 states. /testing:run-e2e ran and wrote e2e-summary.json with capture {\"status\": \"blocked\", \"reason\": \"no usable driver: playwright-cli not installed\", \"count\": 0}. Write the verdict with its Capture and Evidence loop lines, then stop.",
+      "expected_output": "The capture could not run, so the report's Capture line reads blocked with the reason (no usable driver: playwright-cli not installed) and count 0. That alone is not a gap: the verdict is not NEEDS WORK. The download in the live app was not observed, so the verdict is NOT VERIFIED and the count stays 0, with `Evidence loop: 0/3`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The Capture line reads blocked and names no usable driver: playwright-cli not installed",
+        "The verdict is not NEEDS WORK",
+        "The evidence-loop count is not raised and the line reads Evidence loop: 0/3"
+      ]
+    },
+    {
+      "id": "evidence-loop-04",
+      "name": "app-control-absent-fallback-line",
+      "prompt": "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed. The app-control plugin is not installed: no app-control skill resolves in this session. The repository has a control skill .claude/skills/control-shop/ whose index lists a cart/total feature with `sources: src/cart/**`. This branch changes only src/cart/total.ts. The testing plugin is installed. Say how you decide the touched features and whether /testing:run-e2e runs, then stop.",
+      "expected_output": "Without app-control, the run matches no feature: it does not read the control skill's sources globs itself. The report carries `touched features not matched (app-control not installed)`, no touched feature adds to the e2e-* path categories and the other Stage 2 triggers in deciding whether /testing:run-e2e runs, nothing is refreshed, and Next names installing app-control. The run does not stop and the verdict is not held for this.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The report carries the line touched features not matched (app-control not installed)",
+        "Does not match src/cart/total.ts against the control skill's sources globs itself",
+        "Decides whether /testing:run-e2e runs from the e2e-* path categories and the other Stage 2 triggers, with no touched feature",
+        "Does not hold the verdict or stop because app-control is absent"
+      ]
     }
   ]
 }

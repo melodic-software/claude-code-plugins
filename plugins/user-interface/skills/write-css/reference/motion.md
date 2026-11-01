@@ -7,8 +7,12 @@ it, and name each default you used.
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
 
-Contents: `opt-in-motion`, `motion-tokens`, `transition-a-custom-property-with-property`,
-`shadow-change-that-fades-and-does-not-repaint`, `cross-document-view-transitions`,
+The motion rules these recipes serve (which curve, how long, reduced motion, hover motion) are the
+`motion` concern of `/user-interface:design`; the recipes are the CSS for them.
+
+Contents: `opt-in-motion`, `reduced-motion-swap`, `motion-tokens`,
+`transition-a-custom-property-with-property`, `shadow-change-that-fades-and-does-not-repaint`,
+`hover-that-keeps-its-hit-area`, `cross-document-view-transitions`,
 `indicator-that-slides-to-the-active-item`.
 
 ## Opt-in motion: `opt-in-motion`
@@ -23,11 +27,11 @@ Use it for every transition or animation that moves or scales something.
 
 ```css
 @media (hover: hover) and (pointer: fine) {
-  .box:hover { transform: scale(1.2); }
+  .button:hover .icon { transform: translateX(2px); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .box { transition: transform 200ms var(--ease-out, ease-out); }
+  .button .icon { transition: transform 200ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -37,6 +41,39 @@ Rules:
   with a global rule that sets every duration to `0.01ms`.
 - Fades of opacity and color are not motion and can stay outside the query.
 - Animation driven by a script checks the same query with `matchMedia`.
+
+## Reduced-motion swap: `reduced-motion-swap`
+
+Why: movement swaps to opacity; feedback stays.
+
+Baseline: [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Use it when motion already exists in shared keyframes, classes or duration tokens and was not
+built opt-in: make the swap there, at the token or config level, which fixes every instance at
+once (the `motion` concern's `reduced-motion` rule).
+
+```css
+/* Existing shared rules, written before reduced motion was handled */
+.modal  { transition: opacity 200ms var(--ease-out, ease-out), scale 200ms var(--ease-out, ease-out); }
+.drawer { transition: opacity 300ms var(--ease-out, ease-out), transform 300ms var(--ease-out, ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal  { transition-property: opacity; } /* was opacity, scale */
+  .drawer { transition-property: opacity; } /* was opacity, transform */
+}
+```
+
+Rules:
+
+- Never the blanket `* { animation: none !important; transition: none !important; }`. It removes
+  the fades that tell the user something happened.
+- Swap a movement for a fade; never set `animation: none` or `transition: none` on feedback the
+  user needs to see.
+- A utility framework's motion variants (`motion-safe:` and `motion-reduce:` in Tailwind) do the
+  same query per class.
+- Check with the browser's rendering tools emulating `prefers-reduced-motion: reduce`: a reduced
+  variant still moves when one transform lives in a shared class.
 
 ## Motion tokens: `motion-tokens`
 
@@ -54,6 +91,7 @@ for each role. The project's own easing and duration tokens beat both.
 ```css
 :root {
   --ease-out: cubic-bezier(<animation.easing.out>);
+  --ease-in: cubic-bezier(<animation.easing.in>);
   --ease-in-out: cubic-bezier(<animation.easing.in_out>);
   --duration-medium: <animation.duration_ms.medium>ms;
 }
@@ -63,14 +101,19 @@ for each role. The project's own easing and duration tokens beat both.
 
 Rules:
 
-- Never use `ease-in` on UI. It starts slow and reads as lag. Unless the user explicitly asks for an
-  exit that accelerates away: then use it for that exit and warn that its slow start can read as lag.
-- `out` is for anything entering or leaving, `in_out` for something already on screen that moves
-  or morphs, and `drawer` for a drawer or sheet.
+- Never use `ease-in` on an entrance or on-screen motion. It starts slow and reads as lag. A
+  permanent exit (dismissed or removed for good, not toggled closed by its own trigger, as the
+  `motion` concern's "Easing" defines it: a modal closing, a toast dismissed) is the exception: it
+  accelerates away on `--ease-in`, the configured accelerate curve, never the bare `ease-in`
+  keyword, and stays short. An explicit request for an exit that accelerates away gets `--ease-in`
+  too, with a warning that its slow start can read as lag.
+- `out` is for anything entering or leaving, `in` for a permanent exit, `in_out` for something
+  already on screen that moves or morphs, and `drawer` for a drawer or sheet on the way in and out.
 - Keep each transition within its role: `press` for press feedback, `small` for tooltips and small
   popovers, `medium` for dropdowns, menus and any other UI transition, `large` for modals, dialogs,
-  drawers, sheets and toasts.
-  Small, frequent UI sits near the short end of its role.
+  drawers, sheets and toasts, `page` for page-level and full-screen transitions.
+  Small, frequent UI sits near the short end of its role, and an exit runs at most
+  `animation.duration_ms.exit_factor` of its entrance.
 - Name the properties in a transition. Never write `transition: all`.
 - Other techniques write `var(--ease-out, ease-out)`, so their snippets work before these tokens
   exist.
@@ -178,10 +221,42 @@ Use it on cards that lift on hover, most of all in a grid of many cards or with 
 Rules:
 
 - The card needs its own background. The pseudo-elements have none.
-- It uses both pseudo-elements. `hit-area-larger-than-the-visual` and
-  `whole-card-clickable-from-one-link` (`interaction.md`) use `::after`, so do not combine them on
-  one element.
+- It uses both pseudo-elements, so do not combine it on one element with another technique that
+  draws on `::before` or `::after`, such as `hit-area-larger-than-the-visual` (`interaction.md`) or
+  a link stretched over the card.
 - For a single small element, transition `box-shadow` directly; the saving is small per card.
+
+## Hover that keeps its hit area: `hover-that-keeps-its-hit-area`
+
+Why: an element that moves on hover moves its own hit area, so at the edge the cursor falls off,
+hover ends, the element returns and hover starts again: a flicker loop.
+
+Baseline: [`transform`](https://developer.mozilla.org/en-US/docs/Web/CSS/transform#browser_compatibility),
+widely available. As of 2026-10-29, recheck on a status change.
+
+Use it on any card or button that lifts, slides or scales on hover.
+
+```html
+<a class="card" href="/projects/atlas"><div class="card-inner">…</div></a>
+```
+
+```css
+.card { display: block; }
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover .card-inner { transform: translateY(-4px); } /* parent hover area never moves */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .card-inner { transition: transform 200ms var(--ease-out, ease-out); }
+}
+```
+
+Rules:
+
+- Keep the hovered element still and animate a child, so the hit area never moves.
+- The card is a link or a button: motion on hover promises a click. How far a hover may lift or
+  scale is the `motion` concern's (`pointer-gating`).
 
 ## Cross-document view transitions: `cross-document-view-transitions`
 

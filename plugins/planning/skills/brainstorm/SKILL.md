@@ -122,6 +122,7 @@ routes write nothing.
 
 - The engineering contract is next, carrying the handoff block: /planning:interview.
 - Product intent is still fuzzy: /planning:prd.
+- The direction is a product or feature idea to stress-test before building it: /planning:interview product.
 - Type and module decisions, with the contract already locked: /planning:design.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 

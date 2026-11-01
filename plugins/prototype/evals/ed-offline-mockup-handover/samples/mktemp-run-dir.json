@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/explore-directions-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
+      "why": "page written with Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > /tmp/explore-directions-a1B2c3/index.html <<'HTML'\\n<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "page written with Bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"/tmp/explore-directions-a1B2c3\"}]}}",
+      "why": "tool result carrying the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"explore-directions/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
+      "why": "page written without the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/mockup/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
+      "why": "page written without the marker"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
 description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
-argument-hint: "[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
+argument-hint: "[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -14,7 +14,7 @@ Relay the sentence below to the user and do not run `/skill-doctor` yourself: it
 
 If /skill-doctor is available in your session (claim: `/skill-doctor` is a built-in command reserved for the person to run, and it requires a minimum Claude Code version and a session that fetches feature flags; basis: the `/skill-doctor` row on the commands reference and the find-unused-skills section of the skills reference, both fetched 2026-09-29; as of 2026-09-29; recheck: either page changes that requirement, or a release renames it or merges it into `/doctor`), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
-**Arguments.** `[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked. Full form: [unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
+**Arguments.** `[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading the rest, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is recorded in the report instead of asked. The bare word `unattended` is neither this flag nor a path: stop and name `--unattended`. Full form: [--unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
 ## Purpose
 
@@ -464,7 +464,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (claim: `/doctor` is reserved for the person to run, `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry hides it, and it survives `disableBundledSkills`; basis: the `/doctor` row on the commands reference and the bundled-skills section of the skills reference, both fetched 2026-09-29, and the 2.1.263 binary registering it as model-invocation-disabled on 2026-09-11; as of 2026-09-29; recheck: either page drops that gate, or a release lets the model invoke it), run it for the bundled checkup's unused-components pass when you want fixes offered in place.
 
-**`unattended`:** record both suggestions in the report; do not ask.
+**`--unattended`:** record both suggestions in the report; do not ask.
 
 ## Gotchas
 

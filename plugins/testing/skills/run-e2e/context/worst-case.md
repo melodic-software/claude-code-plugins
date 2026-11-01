@@ -1,10 +1,9 @@
 # Worst-case content
 
 The `worst-case` action renders a component or screen with the most demanding data a real user
-could produce, in the environments that stress layout, and reports what breaks. Demo data is
-chosen, usually without anyone noticing, to make a design look good: names that fit on one line,
-counts that never need a separator, every optional field filled. This action undoes that choice
-one field at a time. It reports; it fixes nothing.
+could produce, in the environments that stress layout, and reports what breaks. Demo data makes a
+design look good (names that fit on one line, counts that never need a separator, every optional
+field filled); this action undoes that one field at a time. It reports; it fixes nothing.
 
 The project's own fixtures, limits and conventions override this catalog. The consumer extension
 file `.claude/testing/worst-case.md` (read after this file, when present) adds the project's own
@@ -18,8 +17,8 @@ the dirty-file refusal, the revert proof or `--keep`; report it under What broke
 
 1. **Plausible or schema-backed, never random.** Each value is something a real user could produce,
    or the actual limit from the validation schema, database column or API contract. A field with
-   no limit anywhere is a finding: say "unbounded" and test something long but believable. Strings
-   of one repeated character prove nothing.
+   no limit anywhere is a finding: say "unbounded" and test something long but believable. Never
+   use strings of one repeated character.
 2. **Change the data, not the component.** The worst case enters through the same boundary the demo
    data does. Never edit markup or styles to produce a break.
 3. **One dataset, many failures.** Spread different failures across the first rows on screen, as

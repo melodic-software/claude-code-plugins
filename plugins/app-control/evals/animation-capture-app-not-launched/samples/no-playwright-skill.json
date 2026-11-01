@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "app-control:drive", "args": "capture --kind animation --unattended"}}],
+      "why": "the drive skill itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "playwright:playwright", "args": "animation capture of the checkout drawer"}}],
+      "why": "the browser skill as a stand-in"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "playwright"}}],
+      "why": "bare name"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "## Fabrikam\n\nNo items in this window.",
+      "why": "heading then sentence"
+    },
+    {
+      "answer": "## Fabrikam\n\n### HIGH\n\n- None\n\n### MEDIUM\n\n- None\n\n### LOW\n\n- None",
+      "why": "tiered layout"
+    },
+    {
+      "answer": "**Fabrikam**\n\nEmpty: the changelog had nothing since 2026-10-20.",
+      "why": "bold heading"
+    },
+    {
+      "answer": "### Fabrikam (empty)",
+      "why": "inline empty"
+    },
+    {
+      "answer": "## Fabrikam\n\nNo Fabrikam items this window.",
+      "why": "no Fabrikam items"
+    },
+    {
+      "answer": "## Fabrikam\n\n**Empty: no items in the window.** The full Ledger changelog was read; its two entries came before the window.",
+      "why": "bold empty line under the heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Source status\n\n- fabrikam-changelog: empty\n\n## Northwind\n\n- HIGH: Atlas 2",
+      "why": "status list only, bucket omitted"
+    },
+    {
+      "answer": "## Fabrikam\n\n- MEDIUM: Ledger 3.1 released (2026-09-02)",
+      "why": "out-of-window item kept"
+    },
+    {
+      "answer": "### Fabrikam\n\n- MEDIUM: Ledger 3.1 released\n\n### Contoso\n\nNo items: feed unreadable.",
+      "why": "empty wording belongs to the next bucket"
+    },
+    {
+      "answer": "## Fabrikam\n\n**Ledger 3.1.0** (2026-09-02): spreadsheet Q&A.\n\n**Contoso**\n\nNothing: feed unreadable.",
+      "why": "empty wording belongs to the next bold bucket"
+    }
+  ]
+}

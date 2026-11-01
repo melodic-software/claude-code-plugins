@@ -8,6 +8,7 @@
 # Expected values are Ruff's documented output: `x=1` formats to `x = 1`, F821 is
 # "Undefined name", a safe F401 fix deletes the unused import.
 # test-scope: plugins/ruff-format/git-hooks/entries.json plugins/ruff-format/lib/git-hooks/check-lib.sh plugins/ruff-format/lib/git-hooks/install.mjs
+# test-scope: plugins/ruff-format/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE CLAUDECODE AI_AGENT
 

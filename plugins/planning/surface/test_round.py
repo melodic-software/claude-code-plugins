@@ -2986,14 +2986,45 @@ class TestReviseSetsAsideOwn(DirCase):
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
-    def test_accept_and_alt_answers_are_not_set_aside(self):
-        for kind in ("accept", "alt"):
+    def test_alt_and_defer_answers_are_not_set_aside(self):
+        for kind in ("alt", "defer"):
+            self.write_doc(base_doc())
             self.answer(kind)
             rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
-            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_of_the_old_recommendation_is_set_aside(self):
+        for kind in ("accept", "hedged"):
+            self.write_doc(base_doc())
+            self.answer(kind, "if it holds" if kind == "hedged" else "")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
+            self.assertEqual(rc, 0, out + err)
+            q = self.q("Q1")
+            self.assertEqual(q["setAsideSeq"], 1)
+            self.assertEqual(q["asideRecommendation"]["text"], "Yes. It keeps things simple.")
+            self.assertEqual(q["asideRecommendation"]["seq"], 1)
+            self.assertIsNone(self.latest())
+            self.assertIn(self.OPEN, self.status())
+
+    def test_an_accept_survives_a_revision_to_the_same_recommendation(self):
+        self.answer("accept")
+        rec = {**self.REC, "rec": "Yes. It keeps things simple."}
+        rc, out, err = self.op("revise", id="Q1", **rec, seq=1)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_after_the_revision_counts(self):
+        self.answer("accept")
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="accept")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "accept")
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
 
     def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
         sys.path.insert(0, str(HERE))
@@ -3002,7 +3033,7 @@ class TestReviseSetsAsideOwn(DirCase):
         snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
         self.answer("own", "arrived after the guard read")
         q = self.q("Q1")
-        r.set_aside_own(snapshot, self.doc(), q)
+        r.set_aside_answer(snapshot, self.doc(), q, "Use the lock.")
         self.assertNotIn("setAsideSeq", q)
 
     def test_a_terminal_own_answer_is_set_aside_too(self):

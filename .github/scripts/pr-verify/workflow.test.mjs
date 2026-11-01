@@ -475,7 +475,7 @@ test("the subscription job takes check-intent's pre-judge reads and still runs t
   assert.equal(index("Hand the reads on", FB), -1);
 });
 
-test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
+test("the model reads only the data directory, with Read alone, and is told never to quote a credential", () => {
   for (const job of JOBS) {
     const judge = step("Judge the pull request", job);
     assert.equal(input(judge, "tools"), "Read", job);
@@ -486,7 +486,7 @@ test("the model reads only the data directory, with Read alone, and is told noth
     }
     const preamble = /^ {10}preamble: >-\n((?: {12}.*\n)+)/m.exec(judge)?.[1].replace(/\s+/g, " ").trim();
     assert.match(preamble ?? "", /unattended/, job);
-    assert.match(preamble ?? "", /nothing you write is posted/, job);
+    assert.match(preamble ?? "", /never quote a credential/, job);
   }
 });
 
@@ -660,12 +660,18 @@ test("every job has one judge step per chunk, each repeating the first but for i
   }
 });
 
+// A step run-claude-cli failed with no lane class, having left an execution
+// file, stopped on its credential scan, so its fail is still a judgment;
+// write-verdict counts nothing else of it. A step that timed out or never
+// started the CLI leaves that file empty and skips the verdict for a re-run.
+const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && steps.${id}.outputs.lane-class == '' && steps.${id}.outputs.execution-file != ''))`;
+
 test("the verdict needs every chunk the diff has, and reads each chunk's files", () => {
   for (const job of JOBS) {
     const verdict = step("Write the verdict", job);
     assert.equal(
       /^ {8}if: (.*)$/m.exec(verdict)[1],
-      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), "(fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')"].join(" && ")})) }}`,
+      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), `(fromJSON(steps.diff.outputs.chunks || '0') < 2 || ${judged("judge-spec")})`].join(" && ")})) }}`,
       job,
     );
     for (const k of SLOTS) {
@@ -780,6 +786,12 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "FINAL_LOG_FILE"), "${{ steps.judge-spec.outputs.log-file }}", job);
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
     assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
+    assert.equal(input(verdict, "CONTEXT_FILE"), undefined, job);
+    assert.equal(input(verdict, "FINAL_OUTCOME"), "${{ steps.judge-spec.outcome }}", job);
+    // Each chunk's step outcome, so a failed step's text is never written.
+    for (const block of [verdict, results]) assert.deepEqual(list(block, "JUDGE_OUTCOMES"), SLOTS.map((k) => `\${{ steps.${judgeId(k)}.outcome }}`), job);
+    // One budget: the results are cut to the size the diff's parts are.
+    assert.equal(input(results, "PART_BYTES"), input(step("Write the diff", job), "PART_BYTES"), job);
   }
   for (const [job, name] of [[KEY, "Check the key leg, whole spec"], [SUB, "Check the subscription leg, whole spec"]]) {
     const leg = step(name, job);
@@ -794,9 +806,10 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
     for (const k of SLOTS) {
       const check = step(`Read chunk ${k}'s verdict`, job);
       assert.match(check, new RegExp(`^ {8}id: chunk-fail${suffix(k)}$`, "m"), job);
-      assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && steps.${judgeId(k)}.outcome == 'success' }}`, job);
+      assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && ${judged(judgeId(k))} }}`, job);
       assert.match(check, /^ {8}continue-on-error: true$/m, job);
       assert.equal(input(check, "EXECUTION_FILE"), `\${{ steps.${judgeId(k)}.outputs.execution-file }}`, job);
+      assert.equal(input(check, "JUDGE_OUTCOME"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
       assert.equal(input(check, "LOG_FILE"), `\${{ steps.${judgeId(k)}.outputs.log-file }}`, job);
       assert.equal(input(check, "CHUNK"), `"${k}"`, job);
       assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
@@ -809,6 +822,11 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
     }
     assert.match(step("Summarize the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
   }
+});
+
+test("the diff is folded at the line length the review reads whole", async () => {
+  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
+  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), `"${LONG_LINE_BYTES}"`, job);
 });
 
 test("the report steps only record, so a broken one cannot stop the judgment", () => {

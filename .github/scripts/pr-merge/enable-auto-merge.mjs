@@ -217,6 +217,7 @@ import {
   labelHistory,
   laneHold,
   openReviewHold,
+  openCredentialHold,
   openSignedCommitsHold,
   PAIRED_MS,
   personSince,
@@ -806,6 +807,9 @@ export function liftBlocker({ timeline, reviewComments = [], reviews = [], label
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return "check-signed-commits holds it";
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return "pr-verify holds it for a credential";
   }
   const foreign = foreignMarker(appComments, since, REFUSAL_LINES);
   if (foreign !== undefined) {

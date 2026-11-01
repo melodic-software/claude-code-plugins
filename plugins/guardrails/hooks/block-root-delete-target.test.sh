@@ -1123,6 +1123,10 @@ guard_invoke "${RDT_CWD[@]}" --command 'rm -rf /opt/nonexistent-rdt/x'
 assert_exit "outside tree exits 2" 2 "$GUARD_RC"
 assert_contains "outside tree names its form" "$GUARD_ERR" "outside the working tree"
 assert_contains "outside tree carries a Fix line" "$GUARD_ERR" "Fix:"
+assert_contains "outside tree sends scratch work under the working tree" "$GUARD_ERR" \
+  "put scratch work under the working tree, for example a gitignored .work/"
+assert_absent "outside tree no longer sends scratch work to the session scratchpad" "$GUARD_ERR" \
+  "put scratch work in the session scratchpad"
 
 # A git that fails leaves the origin with no tree, so the failure lands on the
 # refusal side rather than allowing everything.
