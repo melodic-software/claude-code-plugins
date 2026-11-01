@@ -609,7 +609,10 @@ Each leaf declares:
   a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
   `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (effect `read`
-  without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing.
+  without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
+  `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
+  skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
+  of the patch is the control.
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
@@ -713,7 +716,10 @@ entry that names `"label": "needs-session"` is a change the lane cannot make: a 
 not push, a fix that weakens a required check after its fresh fixer round, a failing check the
 `fix-ci` rung-up retry could not fix, or a dependency update
 the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
-an uncited control, a workflow change beyond a pin swap). `review-dependency` and
+an uncited control, a workflow change beyond a pin swap), or a review thread the lane left open
+that no lane or verdict will settle (`feedback-untaken-threads`, `feedback-unadjudicated`; while
+that stop stands on the head, `address-feedback`'s select job skips `awaiting-session` instead of
+escalating again). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
 rebased head until a session removes the label, or `clear-escalations.mjs` does: once a same-head
@@ -948,7 +954,9 @@ job's activity check it ends the head; on a push, reply or verdict job's check t
 retries the head under its per-head cap), `pass-only` (a pass-only address-feedback round's reply
 job, which ran no model and only resolved fail-note threads a pr-verify pass superseded; the
 dispatcher's release reads skip it), `stop-resolved` (an address-feedback or fix-ci select job found
-no stop standing on its head, whether or not one ever did), or, for an issue run under
+no stop standing on its head, whether or not one ever did), `awaiting-session` (an address-feedback
+select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
+again), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and

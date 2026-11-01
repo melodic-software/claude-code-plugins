@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": ".git/lane/verify/bin/repin 'rules.md is unchanged' 'The reworded rule still holds every red required check.'"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/case/.git/lane/verify/bin/repin 'rules.md is unchanged' 'The reworded rule still holds every red required check.'"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .git/lane/verify/bin/repin"
+          }
+        }
+      ],
+      "why": "read, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/repin.sh 'rules.md is unchanged' 'The reworded rule still holds every red required check.'"
+          }
+        }
+      ],
+      "why": "the checkout's copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tests/rules-pin.test.sh .git/lane/verify/bin/repin docs/rules.md"
+          }
+        }
+      ],
+      "why": "read after a .sh name, not run"
+    }
+  ]
+}

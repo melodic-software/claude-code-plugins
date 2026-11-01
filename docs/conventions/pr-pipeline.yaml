@@ -246,6 +246,10 @@ activities:
     # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
     # read runner gives the skill that file, Bash, Edit and Write.
     prepare: ci-context
+    # The re-pin script for the digest pins a PR's own diff moved: the skill
+    # is told to run its base copy. Bash, Edit and Write stay open, so review
+    # of the patch, not this list, controls what a re-pin changes.
+    verify-scripts: [plugins/planning/scripts/repin-digests.sh]
     # Runs head code, so no write token: the change leaves as a patch.
     effect: read
     applied-by:

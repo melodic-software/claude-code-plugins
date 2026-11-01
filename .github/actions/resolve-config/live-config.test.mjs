@@ -503,8 +503,10 @@ test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the 
   ]);
   for (const script of RUNS_CHECKOUT_CODE) assert.ok(!scripts.includes(script), script);
   const doc = parse(FILES.config);
-  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["verify-scripts"]);
+  const others = Object.entries(doc.activities).filter(([name, a]) => !["resolve-issue", "fix-ci"].includes(name) && a["verify-scripts"]);
   assert.deepEqual(others, []);
+  // fix-ci re-pins a digest the PR moved only with the base's data-only script.
+  assert.deepEqual(doc.activities["fix-ci"]["verify-scripts"], ["plugins/planning/scripts/repin-digests.sh"]);
 });
 
 // resolve-issue reads any host: it runs on the launcher, which stages no
