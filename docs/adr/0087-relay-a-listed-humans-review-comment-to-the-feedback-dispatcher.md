@@ -28,7 +28,8 @@ waited for the next review round, the next tick's fix-request sweep, or a hand d
    relay run on a lane branch of this repository whose actor is a `User`.
    [`feedback-dispatch.mjs`](../../.github/scripts/pr-unblock/feedback-dispatch.mjs) reads the run
    back and requires a listed human as actor and re-runner (never the lanes App), the PR among its
-   `pull_requests`, and an unresolved thread carrying a listed human's direction. As for a fix
+   `pull_requests`, and an unresolved thread the lane escalated (or let a finding stand in) that a listed human
+   answered; a fix request alone keeps the tick's fix-request sweep. As for a fix
    request, only address-feedback check runs started after the relay run count, so a head an
    earlier round handled is sent again. The kill switch, hold labels, the resolve-config slot and
    the select job's round cap still apply. The record names the relay run as the upstream.

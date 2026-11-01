@@ -110,7 +110,8 @@
 // record names, and the relay's creation time as requestSince, as a fix
 // request's: check runs started by then stop counting and the head's handled
 // record is skipped. The PR must be among the relay run's pull_requests, and
-// only a thread carrying a listed human's direction can cause the dispatch.
+// only a thread the lane escalated (or let a finding stand in) that a listed
+// human answered can cause the dispatch; a fix request keeps the tick's sweep.
 // GitHub starts no review-comment run on a conflicted PR; a reply posted then
 // keeps its thread workable on any head (address-feedback.mjs onReviewedHead),
 // so the review run after resolve-conflicts' push dispatches it.
@@ -319,12 +320,13 @@ async function requestEvidence({ api, number, pull, comments, threads, reviewerI
   };
 }
 
-// With needsDirection, only a thread where threadAuthors marks a trusted
-// person's direction counts.
-export const hasWorkableThread = (threads, { needsDirection = false, ...options }) =>
+// With escalatedOnly, only a thread the lane answered (its escalation or a
+// finding-stands adjudication) that threadAuthors marks with a trusted
+// person's direction after it counts: a decided thread, not a fix request.
+export const hasWorkableThread = (threads, { escalatedOnly = false, ...options }) =>
   threads.some((thread) => {
     const authors = keptAuthors(thread, options);
-    return authors !== null && (!needsDirection || authors.some((entry) => entry.direction === true));
+    return authors !== null && (!escalatedOnly || (authors.some((entry) => entry.author === "lane") && authors.some((entry) => entry.direction === true)));
   });
 
 // When the newest fix request by one of `fixers` was posted in a thread the
@@ -569,12 +571,13 @@ export async function dispatchFeedback({
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
     const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
-    // A relayed comment sends a round only for a thread carrying a trusted
-    // person's direction, so a comment elsewhere does not re-send threads a
-    // round already worked at this head.
-    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log, needsDirection: relayed });
+    // A relayed comment sends a round only for a thread the lane escalated
+    // that a trusted person has since answered, so a comment elsewhere does
+    // not re-send threads a round already worked at this head; a fix request
+    // keeps the tick's sweep (sweepFixRequest).
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log, escalatedOnly: relayed });
     if (relayed && !workable) {
-      return skip(`#${number} has no unresolved thread carrying a trusted person's direction`);
+      return skip(`#${number} has no unresolved escalated thread a trusted person answered`);
     }
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);

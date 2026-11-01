@@ -1017,7 +1017,7 @@ test("a relay run that does not name the PR dispatches nothing", async (t) => {
 
 // A listed human's comment elsewhere must not re-send threads a round already
 // worked, and an edit or reply by anyone unlisted carries no direction.
-test("a relayed comment dispatches only for a thread carrying a listed human's direction", async (t) => {
+test("a relayed comment dispatches only for an escalated thread a listed human answered", async (t) => {
   const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const unlistedEdit = decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:05:00Z", editor: STRANGER });
@@ -1029,8 +1029,32 @@ test("a relayed comment dispatches only for a thread carrying a listed human's d
     const api = relayApi({ threads });
     const { lines } = await relayMain(dir, api);
     assert.deepEqual(api.calls.dispatch, []);
-    assert.match(lines.at(-1), /no unresolved thread carrying a trusted person's direction/);
+    assert.match(lines.at(-1), /no unresolved escalated thread a trusted person answered/);
   }
+});
+
+// A fix request in a thread the lane never answered is not a decided thread:
+// the relay leaves it to the tick's fix-request sweep, while a review run at
+// the head still dispatches it as before.
+test("a relayed fix request in a thread the lane never answered dispatches nothing; a review run still does", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const request = {
+    isResolved: false,
+    comments: {
+      nodes: [
+        { author: CLAUDE, body: "finding", createdAt: "2026-10-17T20:00:00Z", lastEditedAt: null, editor: null, ...onReview(CLAUDE) },
+        { author: { ...KYLE, login: "kyle-sexton" }, body: "PR-fix lane: please fix this finding. Drop the reference.", createdAt: "2026-10-17T20:01:00Z", lastEditedAt: null, editor: null },
+      ],
+      pageInfo: { hasNextPage: false },
+    },
+  };
+  const relayed = relayApi({ threads: [request] });
+  const { lines } = await relayMain(dir, relayed);
+  assert.deepEqual(relayed.calls.dispatch, []);
+  assert.match(lines.at(-1), /no unresolved escalated thread a trusted person answered/);
+  const reviewed = fakeApi({ threads: [request] });
+  assert.equal((await decide(reviewed)).result?.number, 42);
 });
 
 test("a relayed reply still stops on a held label, a disabled slot and a lane that does not apply", async (t) => {
