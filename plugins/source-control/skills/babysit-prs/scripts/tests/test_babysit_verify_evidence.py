@@ -1345,6 +1345,39 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         )
         self.assertIsNone(read(fake).refusal)
 
+    def test_the_report_names_a_fail_superseded_at_the_head(self) -> None:
+        # pr-unblock resolves that FAIL's fail-note threads on this field
+        # alone (feedback-dispatch.mjs), so it is true only where the FAIL at
+        # the head gave way.
+        self.assertIs(read(self.edited()).report()["supersededAtHead"], True)
+        for label, answer in (
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("person connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                evidence = read(self.edited(answer))
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertIs(evidence.report()["supersededAtHead"], False)
+
+    def test_the_report_names_no_fail_superseded_elsewhere_or_capped(self) -> None:
+        # Superseded at an earlier head only: nothing at this head gave way.
+        merge_only = ARelinkByPeopleSupersedesAFailAtItsHead().merge_only(
+            superseded=True
+        )
+        self.assertIs(read(merge_only).report()["supersededAtHead"], False)
+        # At the cap the FAIL at the head is never judged superseded.
+        fake = self.edited()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+            evidence = reader.evidence(PR, HEAD, pull())
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertIs(evidence.report()["supersededAtHead"], False)
+
 
 def rename(old: str, new: str) -> str:
     """A pure rename as GitHub's compare diff shows it: no hunk."""
@@ -5429,6 +5462,7 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
             "earlierFails": sorted(earlier),
             "ignored": 0,
             "detail": None,
+            "supersededAtHead": False,
             **extra,
         }
 
