@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for sync-shared-copies.sh on fixture repositories that carry this
 # repository's real scripts/sync-shared-copies.sh and scripts/lib.
+# shellcheck disable=SC2310  # run chains its steps with &&, so its status is the first failure's
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,10 +52,10 @@ fixture() {
 # clean merge, then run the activity's script.
 run() {
   local repo=$1 base_dir=$2
-  g "$repo" checkout -q pr
-  rm -f "$TMP/out.patch"
-  g "$repo" merge -q --no-ff --no-commit main >/dev/null 2>&1
-  bash "$SUT" "$base_dir" "$repo" "$(g "$repo" rev-parse main)" "$TMP/out.patch" 2>/dev/null
+  g "$repo" checkout -q pr &&
+    rm -f "$TMP/out.patch" &&
+    g "$repo" merge -q --no-ff --no-commit main >/dev/null 2>&1 &&
+    bash "$SUT" "$base_dir" "$repo" "$(g "$repo" rev-parse main)" "$TMP/out.patch" 2>/dev/null
 }
 
 # A changed canonical: the copy is regenerated, the patch holds it alone, and
@@ -88,6 +89,7 @@ check "head alters the registry: nothing written outside the merge" "" "$(g "$re
 # A head that edits the sync script: refused before the script runs.
 repo=$(fixture script)
 g "$repo" checkout -q pr
+# shellcheck disable=SC2016  # the planted line expands when the head's script runs
 printf 'touch "$(git rev-parse --show-toplevel)/pwned"\n' >>"$repo/scripts/sync-shared-copies.sh"
 g "$repo" commit -qam script
 g "$repo" checkout -q main
