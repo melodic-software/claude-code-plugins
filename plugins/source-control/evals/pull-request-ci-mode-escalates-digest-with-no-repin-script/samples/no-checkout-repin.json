@@ -40,7 +40,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "diff .git/lane/verify/base/repin.sh scripts/repin.sh"
+            "command": "diff .git/lane/verify/scripts/repin.sh scripts/repin.sh"
           }
         }
       ],

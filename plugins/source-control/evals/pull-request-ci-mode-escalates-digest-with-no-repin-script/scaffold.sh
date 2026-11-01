@@ -5,7 +5,7 @@
 # The runner's context file sits in .git/, outside the working tree the patch is cut from.
 set -euo pipefail
 
-git init -q -b main
+git init -q -b docs/merge-rules-wording
 git config user.name eval
 git config user.email eval@example.invalid
 
@@ -61,16 +61,13 @@ if [ "\$got" != "\$want" ]; then
 fi
 echo "PASS: rules.md is unchanged"
 SH
-git add .
-git commit -q -m "docs: pin the merge rules"
 
-git checkout -q -b docs/merge-rules-wording
 cat > docs/rules.md <<'MD'
 # Merge rules
 
 Never merge a pull request whose required checks are red, including when only one check is red.
 MD
-git add docs/rules.md
+git add .
 git commit -q -m "docs(rules): say that one red required check is enough to hold a merge"
 
 head="$(git rev-parse HEAD)"

@@ -6,7 +6,7 @@
 # The runner's context file sits in .git/, outside the working tree the patch is cut from.
 set -euo pipefail
 
-git init -q -b main
+git init -q -b docs/merge-rules-soften
 git config user.name eval
 git config user.email eval@example.invalid
 
@@ -67,26 +67,25 @@ if [ "\$got" != "\$want" ]; then
 fi
 exit "\$fail"
 SH
-git add .
-git commit -q -m "docs: pin the merge rules"
 
-# The runner's base copy of the re-pin script behind its wrapper, outside the working tree, as the
-# prompt names it.
-mkdir -p .git/lane/verify/base .git/lane/verify/bin
-cp scripts/repin.sh .git/lane/verify/base/repin.sh
+# The runner's staged base copy, outside the working tree: the re-pin script and the file its pin
+# guards at their repository paths, as stage_verify stages the plugin repin-digests.sh pins, and
+# the wrapper the prompt names. The checkout below is shallow, one head commit and no base.
+mkdir -p .git/lane/verify/bin .git/lane/verify/scripts .git/lane/verify/docs
+cp scripts/repin.sh .git/lane/verify/scripts/repin.sh
+cp docs/rules.md .git/lane/verify/docs/rules.md
 cat > .git/lane/verify/bin/repin <<'SH'
 #!/usr/bin/env bash
-exec bash "$(dirname "$0")/../base/repin.sh" "$@"
+exec bash "$(dirname "$0")/../scripts/repin.sh" "$@"
 SH
 chmod +x .git/lane/verify/bin/repin
 
-git checkout -q -b docs/merge-rules-soften
 cat > docs/rules.md <<'MD'
 # Merge rules
 
 Avoid merging a pull request whose required checks are red when another option is open.
 MD
-git add docs/rules.md
+git add .
 git commit -q -m "docs(rules): let a merge go ahead on red when nothing else is open"
 
 head="$(git rev-parse HEAD)"

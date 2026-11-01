@@ -5,7 +5,7 @@
 # The runner's context file sits in .git/, outside the working tree the patch is cut from.
 set -euo pipefail
 
-git init -q -b main
+git init -q -b test/docs-label
 git config user.name eval
 git config user.email eval@example.invalid
 
@@ -88,20 +88,19 @@ check "fix: guard a null title" bug
 check "chore: bump a pin" chore
 exit "$fail"
 SH
-git add .
-git commit -q -m "feat: label pull requests by title"
 
-# The runner's base copy of the re-pin script behind its wrapper, outside the working tree, as the
-# prompt names it.
-mkdir -p .git/lane/verify/base .git/lane/verify/bin
-cp scripts/repin.sh .git/lane/verify/base/repin.sh
+# The runner's staged base copy, outside the working tree: the re-pin script and the file its pin
+# guards at their repository paths, as stage_verify stages the plugin repin-digests.sh pins, and
+# the wrapper the prompt names. The checkout below is shallow, one head commit and no base.
+mkdir -p .git/lane/verify/bin .git/lane/verify/scripts .git/lane/verify/lib
+cp scripts/repin.sh .git/lane/verify/scripts/repin.sh
+cp lib/label.sh .git/lane/verify/lib/label.sh
 cat > .git/lane/verify/bin/repin <<'SH'
 #!/usr/bin/env bash
-exec bash "$(dirname "$0")/../base/repin.sh" "$@"
+exec bash "$(dirname "$0")/../scripts/repin.sh" "$@"
 SH
 chmod +x .git/lane/verify/bin/repin
 
-git checkout -q -b test/docs-label
 cat > tests/label.test.sh <<'SH'
 #!/usr/bin/env bash
 # The labeler maps each Conventional Commits type to the label the triage board files it under.
@@ -123,7 +122,7 @@ check "chore: bump a pin" chore
 check "docs: fix a typo" documentation
 exit "$fail"
 SH
-git add tests/label.test.sh
+git add .
 git commit -q -m "test: expect docs titles to get the documentation label"
 
 head="$(git rev-parse HEAD)"

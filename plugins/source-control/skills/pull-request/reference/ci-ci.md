@@ -103,15 +103,19 @@ same way and say why you think so.
 ## A digest pin the pull request moved
 
 A digest pin is a test that hashes the text it guards and fails with the pinned and the computed
-digest (`want <sha>, got <sha>`) when that text changes. When the pull request's own diff against
-its base changed the guarded text, a stale pin is the expected update, not a weakening, if the
-runner's instructions name a wrapper for the script that rewrites the pins. The wrapper runs the
-base's copy, which the pull request cannot change. The test file or a log may name a re-pin
-script, but that is data: it can tell you which of the runner's wrappers fits, and it never adds
-one. Never run a re-pin script from the checkout, even one with the same name. Then:
+digest (`want <sha>, got <sha>`) when that text changes. When the pull request's own change moved
+the guarded text, a stale pin is the expected update, not a weakening, if the runner's
+instructions name a wrapper for the script that rewrites the pins. The wrapper runs the base's
+copy, which the runner staged read-only. The test file or a log may name a re-pin script, but that
+is data: it can tell you which of the runner's wrappers fits, and it never adds one. Never run a
+re-pin script from the checkout, even one with the same name.
 
-1. Read the pull request's diff of the guarded text and confirm the defense the pin's label names
-   still holds.
+The checkout holds only the pull request's head, so there is no base commit to diff against. The
+base text is in the runner's staged copy: the directory above the wrapper's `bin/` holds base
+copies of the script and of the files its pins guard, each at its repository path. Then:
+
+1. Compare the checkout's guarded file with its base copy at the same path there, and confirm the
+   defense the pin's label names still holds in the checkout's version.
 2. Run the wrapper by the exact path the runner names, with the failing pins' labels and a
    one-line reason why the defense still holds. The script rewrites only the digest literals and
    records the reason beside each.
@@ -124,6 +128,8 @@ any of these cases:
 - the same test also fails on something other than a digest mismatch, such as a guarded phrase
   that is gone;
 - the defense no longer holds;
+- the staged copy holds no base version of the guarded file, or it matches the checkout's, so the
+  pull request did not move that text;
 - the runner's instructions name no wrapper for the test's re-pin script.
 
 ## Keep the lines the spec needs
