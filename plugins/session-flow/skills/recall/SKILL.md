@@ -1,5 +1,5 @@
 ---
-description: "History of what past sessions tried on a topic: scans this repository's transcripts for it, has subagents condense each matching session, adds reverted commits, closed unmerged pull requests and open tracker items, and reports what was tried, kept and reverted along with the scope searched. Use when: 'what did we try for X', 'have we attempted this before', 'why did the X change get reverted', 'what happened last time we touched X', 'recall X', 'history of our attempts at X'. Skip: current state is /session-flow:orient; why it was built is /discovery:trace-intent; a lost handoff is /session-flow:find-handoff; session efficiency is /session-flow:audit-sessions."
+description: "Report what past sessions tried on a topic from this repo's transcripts, reverted commits, closed unmerged PRs and open items: tried, kept, reverted. Use when: 'what did we try for X', 'have we attempted this before'. Current state: /session-flow:orient."
 argument-hint: "<topic>"
 user-invocable: true
 disable-model-invocation: false
