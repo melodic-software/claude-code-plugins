@@ -10,12 +10,12 @@
 set -euo pipefail
 mode="${1:?mode: scan, tree, stash, worktree or setup}"
 
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow one only when both it and the workspace
-# lie under the run's TMPDIR; refuse the root, the home directory, a workspace that is already a
-# repository, and any other enclosing repository. Then stop git from walking up past this
-# directory, so every git call below lands in the nested repository created here, never the one
-# above.
+# The eval workspace sits inside the run's temporary home (claude-eval-*/home, beside TMPDIR at
+# claude-eval-*/tmp), which is itself a repository, so a repository above the workspace is
+# expected there. Allow only that one; refuse the root, the home directory, a workspace that is
+# already a repository, and any other enclosing repository. Then stop git from walking up past
+# this directory, so every git call below lands in the nested repository created here, never the
+# one above.
 here="$(pwd -P)"
 case "${here}" in
 / | "${HOME:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
@@ -27,7 +27,8 @@ if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     echo "refusing to scaffold: ${here} is already a repository" >&2
     exit 3
   fi
-  if [[ -z "${tmp}" || "${tmp}" == / || "${top}" == "${tmp}" || "${top}/" != "${tmp}/"* || "${here}/" != "${tmp}/"* ]]; then
+  run="$(dirname "${tmp:-/}")"
+  if [[ -z "${tmp}" || "$(basename "${tmp}")" != tmp || "$(basename "${run}")" != claude-eval-* || "${top}" != "${run}/home" || "${here}/" != "${top}/"* ]]; then
     echo "refusing to scaffold inside ${top}, a repository outside TMPDIR (${TMPDIR:-unset})" >&2
     exit 3
   fi
