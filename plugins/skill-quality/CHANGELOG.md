@@ -3,6 +3,15 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.0] - 2026-11-01
+
+### Added
+
+- `check-skill.sh` check 30 WARNs when a SKILL.md is above the 5,000-token router cap, estimated
+  from the whole file at 4 characters per token, and prints the estimate as INFO otherwise. The
+  WARN never fails the run
+  ([#11955](https://github.com/melodic-software/claude-code-plugins/issues/11955)).
+
 ## [0.31.19] - 2026-11-01
 
 ### Added

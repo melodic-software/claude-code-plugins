@@ -26,9 +26,8 @@ Treat a failure (not a repository, git unavailable) as an unknown value and carr
 separate body Bash calls rather than pre-compute lines, so a worktree-isolated session screens each
 git read on its own. The dated record for why a pre-compute block that carries git is refused is
 kept by `/source-control:worktree`, in its gather-block reference under "The pre-compute block
-runs as one shell invocation". It is cited by skill name, not by path or link, so it carries no
-anchor; that record holds its own as-of date and recheck trigger. Relay as of 2026-10-11; recheck
-when that skill drops or renames that section.
+runs as one shell invocation". Relay as of 2026-10-11; recheck when that skill drops or renames
+that section.
 
 Pointer for how injected commands run:
 [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
@@ -206,7 +205,7 @@ Discovery runs as a **parallel subagent fan-out. One agent per primary-source fi
 sequential pass. A single context skips claims as it fills, which is the most common way an audit
 misses drift; a fresh context per file does not. Each agent applies the claim-extraction method
 (read top-to-bottom → extract every factual claim → verify each independently → record), fenced per
-the scope-fencing rules in [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/discovery-method.md`](context/discovery-method.md).
+the scope-fencing rules of the discovery method linked below.
 
 **Scope first (cost gate):** require a `[scope]` or dimension filter (`--docs-only`
 etc.) for large targets; if the enumerated list exceeds ~20 files, confirm with the user before
@@ -214,7 +213,8 @@ dispatching. Never fan out the whole repo unprompted: one subagent per doc, conf
 file is a very large token cost.
 
 Full method. Claim-extraction steps, the verify-ALL-claims-on-a-line rule,
-enumerate/scope/dispatch/collect detail, and the per-finding report format. In
+enumerate/scope/dispatch/collect detail with the scope-fencing rules, and the per-finding report
+format. In
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/context/discovery-method.md`](context/discovery-method.md).
 Dimension-specific claim guidance:
 [`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/audit-checklist.md`](reference/audit-checklist.md).
@@ -231,11 +231,11 @@ false-positive gate as a SEPARATE subagent that re-verifies each finding against
 truth. Do NOT let the discovering agent grade its own findings. A model re-checking its own work
 rubber-stamps it; an independent agent re-reading the doc claim AND the actual code catches both
 false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
-correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the
-fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve
-(per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
-Fence each validator to read-only (its
-findings' files + verification-sources).
+correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set
+up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per
+its own docs, with the fresh-context same-vendor subagent as the stated fallback, never a route to
+a command that may not resolve. Fence each validator to read-only (its findings' files +
+verification-sources).
 
 ### External research (required when the tooling exists)
 

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "[C5-disableType] project permissions.disableAutoMode is true"
+    },
+    {
+      "answer": "auto mode is NOT disabled here"
+    },
+    {
+      "answer": "The boolean does nothing."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Confirmed: auto mode is disabled for everyone.",
+      "why": "confirms the lock"
+    }
+  ]
+}

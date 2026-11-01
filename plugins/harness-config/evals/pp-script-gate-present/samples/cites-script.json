@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "scripts/wipe-cache.sh line 4 reads y/N."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The skill body has no confirmation.",
+      "why": "script not cited"
+    }
+  ]
+}

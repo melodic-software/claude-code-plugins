@@ -1,0 +1,141 @@
+{
+  "skill": "repo-fleet-hygiene:audit",
+  "plugin": "repo-fleet-hygiene",
+  "skill_dir": "plugins/repo-fleet-hygiene/skills/audit",
+  "ranking_note": "Authored from the before description at origin/main commit 30a665f349, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings repo-fleet-hygiene:sync, :apply and :setup are in this plugin but user-invoked only; the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "repo-fleet-hygiene:sync",
+    "repo-fleet-hygiene:apply",
+    "repo-fleet-hygiene:setup",
+    "repo-hygiene:clean",
+    "source-control:worktree",
+    "source-control:babysit-prs",
+    "disk-hygiene:audit",
+    "disk-hygiene:clean",
+    "fleet:reach",
+    "session-flow:clean-stop",
+    "playbooks:repo-sweep"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Across every repo I have checked out on this laptop, which local branches already had their pull requests merged on GitHub?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We transferred and renamed a few GitHub repositories last quarter. Find which of my local clones still point at the old names."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me one report covering all the repositories under my projects folder: dead worktrees, merged branches, anything that needs tidying. Don't touch anything."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Plenty of our PR branches are still sitting on origin after they merged, in several repos. List them per repository so I can see how bad it is."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I reimage this machine, sweep all my checkouts for leftover worktrees and branches that are safe to drop, and give me a plan I can run later."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of the repos in the org folder have worktree registrations pointing at directories that no longer exist?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Weekly hygiene pass over the whole set of checkouts, please: roll up per repo what's clean and what needs attention."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Branches named agent-3fa9c1 and claude/something are piling up on the remotes of a dozen repos. Show me where they are."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Scan the git repositories under the work folder and tell me which ones have stale branches or orphaned worktrees."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I juggle checkouts of about thirty services. Which ones have local branches I could delete because GitHub shows them merged?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Clean up the merged branches and clear the build caches in this repository."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Create a new worktree for the payments-retry branch so I can work on it in parallel."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My disk is almost full. Find temp files, stale lock files and partial downloads under my home directory."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run this command on my desktop machine and tell me what it prints."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Watch my open pull requests and merge the ones whose checks are green."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Reset this one checkout to match origin/main exactly and throw away my local edits."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Delete node_modules and .venv folders across all my repos to free up space."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Before I shut the laptop, make sure nothing I worked on today is uncommitted or unpushed."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a .gitignore for this Python project."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pull the latest main into every repo I have checked out."
+    }
+  ]
+}

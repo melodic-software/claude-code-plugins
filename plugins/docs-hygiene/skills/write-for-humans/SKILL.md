@@ -37,9 +37,9 @@ A project that adopted a different guide (Microsoft's, Chicago, an in-house one)
 A project with none gets these, and you say so, so the choice stays visible and the project can
 overrule it later. Never silently impose one.
 
-## Three rules that survive a declared guide
+## Four rules that survive a declared guide
 
-A project's own guide replaces everything else in this skill, but not these three: they concern
+A project's own guide replaces everything else in this skill, but not these four: they concern
 doing the work, not choosing a style. Apply them under whatever standard you resolved. If a
 project's guide contradicts one of them, the project's guide wins.
 
@@ -48,6 +48,7 @@ project's guide contradicts one of them, the project's guide wins.
 | **Delete every word that carries nothing.** | Delete the word and reread. If the meaning holds, it stays deleted. | "At this point in time" becomes "now". "It should be noted that" becomes nothing at all. |
 | **Prefer the short, common word.** | A longer word stays only when it is more exact than the short one. | "Start", not "commence". "About", not "approximately". |
 | **Write the real name, and the real number.** | Could a reader paste the term into a codebase search and find it? Name a symbol, file, option, or command as the code names it, not by a description or synonym. | `retry_limit`, not "the retry setting". |
+| **Introduce each concept before a sentence relies on it, or name it as assumed knowledge.** | For each project-specific term or name a sentence needs, find the earlier sentence that says what it is. Failing that, find the line that names it as knowledge you assume the reader has. With neither, add one before that sentence. | Before "To write an archive to your vault, run `stash export`.", a README says "Stash keeps your archives in a vault, a folder that `stash init` creates." Or its opening says "This guide assumes you have a stash vault." |
 
 Two cases the third rule's test misses:
 

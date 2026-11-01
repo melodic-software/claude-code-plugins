@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-01
+
+### Changed
+
+- `debug`'s post-mortem routes a check-shaped repo or policy mistake to `/corrections:codify "<the mistake>"`, in place of `/review:audit-enforceability`, so no review-findings file is needed first.
+
 ## [0.16.0] - 2026-11-01
 
 ### Added

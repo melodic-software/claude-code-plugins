@@ -71,6 +71,19 @@
         "Declines to perform a cross-document audit, naming the write-time-only posture",
         "Routes existing-prose grading to the docs-hygiene audit siblings and ai-slop:audit rather than performing it"
       ]
+    },
+    {
+      "id": 7,
+      "name": "grounds-each-concept-before-relying-on-it",
+      "prompt": "Write the README for stash, our backup CLI. Users run `stash init` to create a vault, then `stash export --since <date>` to write an archive into it, and `stash prune` drops archives older than the retention window, 30 days unless `--keep <days>` sets it.",
+      "expected_output": "The README says what each concept is (stash, a vault, an archive, the retention window) before the first sentence that relies on it, or names it once as knowledge the reader is assumed to have. No sentence uses a term the reader meets there for the first time without that introduction.",
+      "files": [],
+      "expectations": [
+        "Says what stash is before the README's first command",
+        "Introduces 'vault' before the first sentence that tells the reader to act on a vault, or states that the reader is assumed to know it",
+        "Says what an archive is and what the retention window is before a sentence relies on them, or names them as assumed knowledge",
+        "The first command in the README comes after every term in it has been introduced or named as assumed knowledge"
+      ]
     }
   ]
 }

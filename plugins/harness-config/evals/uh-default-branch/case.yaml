@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: uh-default-branch
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'no-strip'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit\s+(?:rm|commit)\b|instruction-files\.sh(?:\\\")?\s+strip'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-instruction-delete'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\brm\s+(?:-\S+\s+)*(?:\\"|[^"])*?(?:CLAUDE\.md|\.claude/rules)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-instruction-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'names-branch'
+    type: 'regex'
+    pattern: '\bmain\b|default branch|experiment/unhobble'
+    target: 'last_message'
+    flags: 'i'
