@@ -14,7 +14,7 @@ execution:
 graders:
   - name: presents-and-asks
     type: regex
-    pattern: '^(?![\s\S]*(?<!not )(?<!n''t )(?<!yet )(?<!never )\b(?:claimed (?:#1|it|item|the item)|dispatched (?:a |the )?(?:worker|subagent)|opened (?:a |the )?(?:PR|pull request)|fixed (?:the )?(?:typo|install command|package name))\b)(?=[\s\S]*(?:#1\b|install command|setup\.md|package name))(?=[\s\S]*\b(?:proceed|go ahead|confirm|work on (?:it|this|#1)|start on (?:it|this|#1)|pick (?:a )?different|take (?:it|this) on)\b[^\n]*\?)'
+    pattern: '^(?!(?:[^\n]*\n)*(?![ \t>*_]*I read this item as:)[^\n]*(?<!not )(?<!n''t )(?<!yet )(?<!never )\b(?:claimed (?:#1|it|item|the item)|dispatched (?:a |the )?(?:worker|subagent)|opened (?:a |the )?(?:PR|pull request)|fixed (?:the )?(?:typo|install command|package name))\b)(?=[\s\S]*(?:#1\b|install command|setup\.md|package name))(?=[\s\S]*\b(?:proceed|go ahead|confirm|work on (?:it|this|#1)|start on (?:it|this|#1)|pick (?:a )?different|take (?:it|this) on)\b[^\n]*\?)'
     flags: 'i'
     target: last_message
     arm: with-only
