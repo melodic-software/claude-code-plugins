@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: find-implement-request-routes
-description: 'Asked to rank and then go implement the top pick right away, find does not implement it in its own hands and hands the pick to a pipeline skill through the Skill tool'
+description: 'Asked to rank and then go implement the top pick right away, find writes the ranked list first and then hands the pick to a pipeline skill through the Skill tool, never implementing it in its own hands'
 tags: [find, execution-request]
-expected_outcome: 'The run hands the top pick to a pipeline skill (/improvement:improve, /planning:interview, /planning:plan, /implementation:implement, or /discovery:explore or research) through the Skill tool rather than implementing it itself.'
+expected_outcome: 'The reply shows the ranked list, with a rank-1 row carrying its evidence rung or confidence label, before the Skill tool call that hands the top pick to a pipeline skill (/improvement:improve, /planning:interview, /planning:plan, /implementation:implement, or /discovery:explore or research). The run does not implement the pick itself.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -16,3 +16,9 @@ graders:
     tool: 'Skill'
     input_match: '"skill"\s*:\s*"(?:improvement:improve|planning:(?:interview|plan)|implementation:implement|discovery:(?:explore|research))"'
     min: 1
+  - name: ranked-list-before-handoff
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"assistant")[^\n]*?(?:"text":"|\\n)[ \t]*(?:\|[ \t]*\**#?1\**[ \t]*\||[-*]?[ \t]*\**#?1[.)]\**[ \t]|#{1,4}[ \t]*\**(?:#|rank[ \t]*|candidate[ \t]*)?1\b)(?:[^"\\\n]|\\[^n]|\\n(?=[ \t]+[^ \t\\]))*?\b(?:rung[ \t]*[1-4]|medium-high|medium-low|confidence|judge?ment|high|low)\b[\s\S]*?"name":"Skill","input":\{(?=[^}]*"skill"\s*:\s*"(?:improvement:improve|planning:(?:interview|plan)|implementation:implement|discovery:(?:explore|research))")'
+    flags: 'mi'
+    arm: both
