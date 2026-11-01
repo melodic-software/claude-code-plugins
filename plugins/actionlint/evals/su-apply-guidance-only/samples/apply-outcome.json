@@ -11,6 +11,10 @@
     },
     {
       "answer": "FAIL: actionlint. See github.com/rhysd/actionlint for install options."
+    },
+    {
+      "answer": "I ran `/actionlint:setup apply`. Everything it needs is installed. The one problem is that the git pre-commit check isn't registered in this repository. `apply` only gives guidance, so I didn't install or change anything.\n\n| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.3.9; the minimum is 3.2 |\n| 2 | `node` | PASS | Node 24.21.0 is installed |\n| 3 | `actionlint` | PASS | 1.7.12 is installed |\n| 4 | actionlint config | INFO | There is no `.github/actionlint.yaml` or `.yml` at the repository root (`/tmp/proj`). It's optional. |\n| 5a | `actionlint_enabled` | INFO | `true` (not set, so the default applies) |\n| 5b | `actionlint_end_of_turn` | INFO | `false` (not set, so the default applies) |\n| 6 | Hook registration | INFO | To confirm the plugin is enabled for this project, open `/plugin` and look under Installed. |\n| 7 | Git pre-commit check | **FAIL** | `verify` reports `missing\tactionlint-check\tnot installed` |\n\n**Fix for #7:** run `/actionlint:setup apply install-git-hooks`. Add `scope=local` to install it for this clone only, with nothing committed. Add `scope=shared` to commit it under `.githooks/actionlint/`. If you'd rather not have the check in this clone, run `node ${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs decline --entry actionlint-check`.\n\nI ran `verify` again during this session and it still reports `missing`, so this isn't fixed yet.",
+      "why": "smoke 2026-11-01 with-arm reply (paths neutralized): the verify FAIL routed per setup:82-83"
     }
   ],
   "fail": [
@@ -23,6 +27,10 @@
     {
       "answer": "actionlint is missing; install it.",
       "why": "no guide and no 'already configured'"
+    },
+    {
+      "answer": "I didn't change anything. There's nothing here to set up actionlint against.\n\n- **The command isn't installed.** `/actionlint:setup` isn't available in this session, so it didn't run.\n- **actionlint itself is ready.** Version 1.7.12 is installed and is on your PATH.\n- **There are no workflows to lint.** The working directory has no `.github/workflows/` folder.\n\nTo go ahead, tell me which of these you want:\n\n1. **Point me at the real repo** that has your GitHub Actions workflows.\n2. **Start fresh here.** I'll add a `.github/workflows/actionlint.yml` CI job and a lefthook pre-commit hook.",
+      "why": "smoke 2026-11-01 without-arm reply (shortened): no outcome the skill defines"
     }
   ]
 }

@@ -52,6 +52,18 @@
         }
       ],
       "why": "reading install docs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise latest actionlint 2>&1 | tail -3",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, routed case with-arm: a version lookup, not an install"
     }
   ],
   "fail": [
@@ -192,6 +204,18 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise upgrade actionlint 2>&1 | tail -15",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, routed case without-arm: scored as a pass before the fix"
     }
   ]
 }

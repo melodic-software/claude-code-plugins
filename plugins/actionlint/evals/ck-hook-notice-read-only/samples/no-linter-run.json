@@ -93,6 +93,18 @@
         }
       ],
       "why": "reading the hook"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint -version; echo ---; env -i PATH=/usr/local/bin:/usr/bin:/bin sh -c 'command -v actionlint || echo \"not found on minimal PATH\"'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, hook-notice case without-arm: version probe and a PATH probe"
     }
   ],
   "fail": [
@@ -190,6 +202,18 @@
         }
       ],
       "why": "probe then run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short && ls -la .github/workflows 2>/dev/null; actionlint --version; actionlint; echo \"exit=$?\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, passing case without-arm: bare run after a version probe"
     }
   ]
 }

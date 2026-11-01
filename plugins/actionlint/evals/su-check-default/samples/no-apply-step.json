@@ -94,6 +94,18 @@
         }
       ],
       "why": "single-quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/proj; P=${CLAUDE_PLUGIN_ROOT}\necho \"== verify\"; node \"$P/lib/git-hooks/install.mjs\" verify; echo \"rc=$?\"\necho \"== plan\"; node \"$P/lib/git-hooks/install.mjs\" plan --scope local; echo \"rc=$?\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "smoke 2026-11-01, tempted case with-arm: plan after verify, path in a variable"
     }
   ]
 }

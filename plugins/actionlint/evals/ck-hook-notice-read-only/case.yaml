@@ -10,7 +10,7 @@ graders:
   - name: 'no-install'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:install|reinstall|add|upgrade|i)\b|\bpacman\s+-S|\bgo\s+install\b|\b(?:mise|asdf|rtx|aqua)\s+(?:install|use|plugin\s+add)\b|\bnix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|\bdocker\s+(?:pull|run)\b|\b(?:curl|wget)\b(?:[^"\\]|\\.)*?\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b|\b(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:brew|port|apt(?:-get)?|dnf|yum|zypper|apk|snap|winget|scoop|choco|pipx?|pip3|npm|pnpm|yarn|cargo)(?:\.exe)?\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:install|reinstall|add|upgrade|i)\b|\bpacman\s+-S|\bgo\s+install\b|\b(?:mise|asdf|rtx|aqua)\s+(?:install|use|upgrade|up|plugin\s+add)\b|\bnix(?:-env)?\s+(?:-i\b|profile\s+install|shell|run)|\bdocker\s+(?:pull|run)\b|\b(?:curl|wget)\b(?:[^"\\]|\\.)*?\|\s*(?:sudo\s+)?(?:bash|dash|zsh|sh)\b|\b(?:bash|zsh|sh)\s+<\(\s*(?:curl|wget)\b)'
     min: 0
     max: 0
     arm: 'both'
