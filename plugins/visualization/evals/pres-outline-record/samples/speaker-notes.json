@@ -5,6 +5,14 @@
     },
     {
       "answer": "No Slides Artifact type is available in this session, so I'm delivering the outline only.\n\n**Title:** Moving Support to a Follow-the-Sun Rota\n\nSections: Problem (overnight tickets wait too long). Proposal (three regions share one queue). Decision (approve the Manila hires).\n\n### 1. The overnight gap\nText: Median first reply for tickets after 18:00 is 9 hours.\nSpeaker notes: Start with the Lisbon complaint.\n\n### 2. Three regions, one queue\nText: Dublin, Manila, Austin, 8 hours each.\nSpeaker notes: No night shifts for anyone.\n\n### 3. The ask\nText: 4 Manila hires by December.\nSpeaker notes: Budget already reviewed by finance."
+    },
+    {
+      "answer": "# Moving Support to a Follow-the-Sun Rota\n\nSections: the gap, the rota, the ask.\n\n### 1. The overnight gap\nTickets after 18:00 wait a median 9 hours. Speaker notes: open with the Lisbon complaint.\n\n### 2. Three regions, one queue\nDublin, Manila and Austin cover 8 hours each. Speaker notes: nobody works nights.\n\n### 3. The ask\n4 Manila hires by December. **Speaker notes:** finance has seen the budget line.",
+      "why": "notes inline after each slide's text"
+    },
+    {
+      "answer": "# Follow-the-Sun Rota\n\n## Slide 1: The overnight gap\nTickets after 18:00 wait 9 hours.\n\nPresenter notes: open with Lisbon.\n\n## Slide 2: Three regions\nDublin, Manila, Austin.\n\n**Speaker notes**\nNobody works nights.\n\n## Slide 3: The ask\n4 Manila hires by December.\n\nSpeaker's notes — finance has seen the budget line.",
+      "why": "other common notes labels"
     }
   ],
   "fail": [
@@ -13,6 +21,14 @@
     },
     {
       "answer": "# Follow-the-Sun Rota\n\n## The overnight gap\nTickets after 18:00 wait 9 hours.\nNotes: open with Lisbon.\n\n## Three regions\nDublin, Manila, Austin.\n\n## The ask\n4 Manila hires by December."
+    },
+    {
+      "answer": "# Follow-the-Sun Rota\n\n## Slide 1: The overnight gap\n- Tickets after 18:00 wait 9 hours.\n- Notes: open with Lisbon.\n\n## Slide 2: Three regions\n- Dublin, Manila, Austin.\n- Notes: no night shifts.\n\n## Slide 3: The ask\n- 4 Manila hires by December.",
+      "why": "notes on two of three slides"
+    },
+    {
+      "answer": "I built this from your notes: the gap, the rota and the ask. Per your notes: keep it short.\n\n## Slide 1: The overnight gap\n- Tickets after 18:00 wait 9 hours.\n- Notes: open with Lisbon.\n\n## Slide 2: Three regions\n- Dublin, Manila, Austin.\n\n## Slide 3: The ask\n- 4 Manila hires by December.",
+      "why": "prose mentions of the user's notes are not speaker notes"
     }
   ]
 }
