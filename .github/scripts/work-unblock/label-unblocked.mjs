@@ -139,8 +139,10 @@
 // listed human or the App) did no work and left no lanes-App outcome marker since: a
 // crash before the report, a run cancelled after admit passed and before any
 // resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
-// or a run that ended green at the read runner's `Stop on stale workflow files`
-// step in any of its calls (it waited in its slot past a lane workflow change, so no model ran).
+// or a run that stopped at the read runner's `Stop on stale workflow files`
+// step in any of its calls (it waited in its slot past a lane workflow change, so no model ran)
+// and whose report-outcome did not re-fire it at once (report-outcome.mjs
+// refireStale: its mint refused, or limits.limit-stops-per-issue re-fires already).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
 // admit never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired once per version
@@ -273,20 +275,16 @@ import { notBornTriaged } from "../../actions/check-born-triaged/check-born-tria
 import { createGitHub, isTrustedClose as closedByHumanOrMerge, loadTrustedList, paginate, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { clampReset, isLaneBranch, LANE_HOLDS, LANE_WORKFLOWS, parseOutcomeMarker, REFIRED, refireComment as refireRecord, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionParked, admissionSettled, ATTENDED, authorAdmitted, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
 const DEFERRED_LABEL = "admission-deferred";
-// The lane's caller and the write runner: the broker refuses a run whose copy
-// of either differs from main's.
-const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
 const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
 // A label event's run is created within seconds; this window finds it.
 const RUN_WINDOW_MS = 10 * 60_000;
@@ -338,7 +336,6 @@ const LOG_CAP_BYTES = 1_048_576;
 // only this step's success shows a sweep ran.
 const SWEEP_JOB = "label-unblocked";
 const SWEEP_STEP = "Label the unblocked issues";
-const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // The pr-merge lane's capped-close record on the issue
 // (babysit_verify_evidence.py CAPPED_CLOSE_RE) naming an attempt: it closed
@@ -346,10 +343,9 @@ const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// The lane never starts on these: a person decides each but `attended`,
-// which waits on a step the owner takes present (admit.mjs ATTENDED). Only a
-// person removes OUTSIDE_ACTOR_LABEL, so its issue is never handed to triage.
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED, OUTSIDE_ACTOR_LABEL]);
+// The lane never starts on these (report-outcome.mjs LANE_HOLDS). Only a
+// person removes the outside-actor label, so its issue is never handed to triage.
+const HOLDS = LANE_HOLDS;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it
@@ -1165,8 +1161,7 @@ export const failedComment = ({ stops, run = "", onResumed = false }) =>
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
 const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
-export const refireComment = (key, cause = FAILED_CAUSE) =>
-  `<!-- work-unblock refired ${key} -->\n${cause} work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
+export const refireComment = (key, cause = FAILED_CAUSE) => refireRecord(key, cause);
 
 // Why a stranded issue has nothing running, as the comments say it.
 const strandedCause = {
@@ -1384,11 +1379,13 @@ async function stoppedUntrusted(jobsOf, runs) {
   return false;
 }
 
-// Whether one of `runs` ended green at the read runner's stale-workflow stop,
-// in any of its calls: a later leg waits for its slot after the first hands
-// off, so it can be the one that stops.
+// Whether one of `runs` stopped at the read runner's stale-workflow stop, in
+// any of its calls: a later leg waits for its slot after the first hands off,
+// so it can be the one that stops. The run's report-outcome then re-fires the
+// issue at once; a run that ended red there (its mint refused or failed) still
+// ran no model, so it counts here, ahead of any failed mint.
 async function stoppedStale(jobsOf, runs) {
-  for (const run of runs.filter((item) => item.conclusion === "success" && RUN_ID.test(String(item.id)))) {
+  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
     const jobs = await jobsOf(run);
     const resolve = RESOLVE_CALLS.flatMap((name) => namedJobs(jobs, name));
     if (resolve.some((job) => (job?.steps ?? []).some((step) => step?.name === STALE_STEP && step.conclusion === "success"))) {
@@ -1688,7 +1685,10 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   if (await stoppedUntrusted(jobsOf, runs)) {
     return { reason: "its lane run stopped on an outside author or untrusted provenance, which a person decides" };
   }
-  const { stalled, run: refused, stage } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
+  // A stale stop ran no model; a failed mint in its re-fire job is no failed
+  // mint of the lane's, so it skips the did-no-work clock below.
+  const stale = await stoppedStale(jobsOf, runs);
+  const { stalled, run: refused, stage } = (!stale && (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs))) || {};
   if (stalled) {
     // Breaker trips since a listed human last added agent-ready or a run last
     // reported; past limits.limit-stops-per-issue of them, the stranded backoff.
@@ -1726,12 +1726,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
   }
-  if (
-    !runs.some((run) => FAILED.has(run.conclusion)) &&
-    !(await stoppedMint(jobsOf, runs)) &&
-    !(await cancelledBeforeWork(jobsOf, runs)) &&
-    !(await stoppedStale(jobsOf, runs))
-  ) {
+  if (!stale && !runs.some((run) => FAILED.has(run.conclusion)) && !(await stoppedMint(jobsOf, runs)) && !(await cancelledBeforeWork(jobsOf, runs))) {
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();

@@ -4,8 +4,8 @@
 # job runs head code and can forge them). Run by every job that decides on a
 # handoff: pr-unblock.yml's handoff jobs and fix-ci-unreported,
 # pr-refine.yml's fix-docs-handoff, work-resolve-issue.yml's
-# resolve-issue-handoff, and each lane's <subscription>-handoff job before its
-# third call.
+# resolve-issue-handoff and resolve-issue-stale, and each lane's
+# <subscription>-handoff job before its third call.
 #
 # Facts, each over the calls in CALLS (true when any call holds it):
 #   allowed  the call's broker-allowed job succeeded: pr-run-activity-read.yml
@@ -19,6 +19,9 @@
 #   handed-off  the call handed off: allowed, its run job succeeded, and its
 #            scan job, which the read runner skips only on a handoff, is
 #            skipped or absent. All three are job conclusions.
+#   stale    the call's run job stopped at `Stop on stale workflow files`
+#            (issue mode, before any model turn): read from the step, which
+#            no run job can rename. A skipped or absent run job is false.
 #
 # GitHub's jobs listing can return a job's steps empty, or a step's conclusion
 # null, for minutes after the job ends. Job-level fields come at once, so they
@@ -28,7 +31,7 @@
 # job is absent or neither succeeded nor skipped answers through its broker
 # step the same way.
 #
-# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off)
+# Usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
 # Outputs: one FACT=true|false line per requested fact, and one log line
 # naming them with the read count. Exit 1, with one
@@ -37,11 +40,11 @@
 set -euo pipefail
 
 [[ $# -gt 0 ]] || {
-  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off)"
+  echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)"
   exit 2
 }
 for fact in "$@"; do
-  case $fact in allowed | posted | handed-off) ;; *)
+  case $fact in allowed | posted | handed-off | stale) ;; *)
     echo "::error::unknown handoff fact: $fact"
     exit 2
     ;;
@@ -82,13 +85,17 @@ settle='
       elif $s == null or $s.conclusion == "skipped" then "true"
       elif ($s.conclusion // "") == "" then "missing: \($s.name) has no conclusion"
       else "false" end;
+  def stale($c): job("\($c) / run") as $r
+    | if $r == null or $r.conclusion == "skipped" then "false"
+      elif ($r.conclusion // "") == "" then "missing: \($r.name) has no conclusion"
+      else by_step($r; "Stop on stale workflow files") end;
   def any_of($vals): if any($vals[]; . == "true") then "true"
     elif any($vals[]; startswith("missing")) then ([$vals[] | select(startswith("missing"))] | join("; "))
     else "false" end;
   ($calls | split(" ") | map(select(. != ""))) as $cs
   | $facts | split(" ")[]
   | . as $f
-  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) else handed_off(.) end]))"'
+  | "\($f)\t\(any_of([$cs[] | if $f == "allowed" then allowed(.) elif $f == "posted" then posted(.) elif $f == "stale" then stale(.) else handed_off(.) end]))"'
 
 reads=0
 for delay in "${delays[@]}" ""; do
