@@ -10,8 +10,8 @@ graders:
     target: last_message
   - name: verified-non-issues
     type: regex
-    pattern: 'verified non-?issues?\b(?:(?!\n[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*)(?:\d+\.[ \t]*)?(?:drift patterns|fix priority|enforcement|config[- ]gap))[\s\S]){0,1500}?(?:package\.json|config\.js|config\.test\.js)'
-    flags: 'i'
+    pattern: '(?:verified non-?issues?\b|^[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*|\d+\.[ \t]+)(?:\d+\.[ \t]*)?claims? (?:that )?(?:checked out|(?:were |I )?(?:checked|verified) (?:and (?:found )?|as )?(?:correct|accurate|true))\b)(?:(?!\n[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*)(?:\d+\.[ \t]*)?(?:drift patterns|fix priority|enforcement|config[- ]gap|settings worth|coverage gaps? worth))[\s\S]){0,1500}?(?:package\.json|config\.js|config\.test\.js)'
+    flags: 'im'
     target: last_message
   - name: needs-you-line
     type: regex
