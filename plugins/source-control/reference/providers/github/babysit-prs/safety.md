@@ -1,9 +1,9 @@
 # babysit-prs safety on GitHub
 
-This file serves the babysit-prs [safety spoke](../../../../skills/babysit-prs/reference/safety.md):
-it holds the GitHub commands and CLI facts for the operations that spoke names. The spoke owns
-every rule, invariant and refusal around them. The [GitHub provider reference](../README.md)
-indexes the other operations.
+This file holds the GitHub commands and CLI facts for the operations the babysit-prs
+[safety spoke](../../../../skills/babysit-prs/reference/safety.md) names; the spoke owns every
+rule, invariant and refusal around them. The [GitHub provider reference](../README.md) indexes the
+other operations.
 
 ## True PR head and push destination
 

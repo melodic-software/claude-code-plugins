@@ -5,9 +5,9 @@ mutate at the resolved autonomy tier, and where the escalation and no-progress c
 stop modes in [`../SKILL.md`](../SKILL.md) decide whether a cycle runs; this file decides what one
 is.
 
-**Identity gate (every cycle, first, before any write).** The gate runs at the start of every
-cycle, the first included (ahead of step 0), so a lane that was already running when the target
-adopted an identity, or whose credential changed mid-run, is caught on its next cycle. Read the
+**Identity gate (every cycle, first, before any write).** It runs at the start of every cycle, the
+first included (ahead of step 0), so a lane already running when the target adopted an identity,
+or whose credential changed mid-run, is caught on its next cycle. Read the
 target's `docs/conventions/pr-pipeline.yaml` fresh from its default branch through the forge's
 contents read (provider reference: [GitHub](../../../reference/providers/github/README.md), "Read
 a tracked file from a repository's default branch"), never from the local checkout, the same
@@ -30,9 +30,8 @@ source the worker lane reads. Then:
   the lane's pushes will run but the push, so a checkout that could not push fails before any
   write. A lane launched from a neutral directory has no such checkout at cycle start (per-PR
   checkouts come later), so where `git rev-parse --is-inside-work-tree` fails it skips the second
-  command; each push's `lane-push.sh` still runs every
-  refusal before it pushes. Every push the lane makes then goes through `lane-push.sh` (every refusal either can
-  print: the convention's "Lane write identity", §1).
+  command; each push's `lane-push.sh` still runs every refusal first. Every lane push then goes
+  through `lane-push.sh` (every refusal either can print: the convention's "Lane write identity", §1).
 
 On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,
 thread resolution, dequeue or merge), reports the reason (the printed `error`, or the config
@@ -59,10 +58,10 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    Windows host. The
    check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke the
    checker; step 3 does, and only when this check found no problem. A problem it finds leaves every
-   promotable cell effective-unpromoted, because step 3 then skips the invocation, and step 3
-   reports the result each cycle.
-1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
-   context is compaction-lossy, the comment is the source of truth for the counters) through the
+   promotable cell effective-unpromoted, because step 3 then skips the invocation and reports the
+   result each cycle.
+1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (compaction loses
+   conversation context; the comment is the counters' source of truth) through the
    upsert script's `--read` mode, which considers only comments the lane's own write identity wrote
    ([reference/telemetry-upsert.md](telemetry-upsert.md), "Reading the state block"); classify
    guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
@@ -76,13 +75,13 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    login / bot-type fields the issue-author test consumes. A `null` provenance field is a field
    GitHub did not return, and the tests below fail closed on it.
    **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
-   failure and 4 a list incomplete on two reads (the queue kept moving), and both print
+   failure and 4 a list incomplete on two reads (the queue kept moving); both print
    nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, hold
    `cycle` and `backoff_level`, and invoke no mechanic. Count the cycle as one with no progress
    and work in view (fail closed: the queue is unknown, not empty), so `no_progress_streak`
    increments and a failure that never clears raises the step 6 stall escalation at the threshold,
    naming the snapshot failure as the cause. Still upsert the telemetry with a cycle report naming
-   the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
+   the snapshot failure, its stderr reason, and a fresh `heartbeat_at`, then schedule the next
    wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
    **Post-merge check (every cycle, before any merge).** When this cycle's identity gate read a
@@ -117,23 +116,22 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labeling takes triage or write
-   permission on the base repository, the same permission surface the C5 trust test below keys on,
-   while a body is editable by its own author, who need hold none. A trailer supplying the class
+   permission on the base repository (the permission surface the C5 trust test below keys on),
+   while a body's own author, who need hold neither, can edit it. A trailer supplying the class
    would make the item self-certifying, against the governing rule that "no repo-local
    (agent-writable) surface may supply any admission input. Rules, caps, or the work class used
    for admission"
    ([`admission-policy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/admission-policy.md)).
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
-   such, but it never partitions: an item classified only in its body counts as **unclassified
-   here**, not eligible at any rung, exactly as an item with no record at all.
+   such, but never partitions: an item classified only in its body counts as **unclassified
+   here**, not eligible at any rung, exactly as an item with no record.
    Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
    that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
    degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
-   sessions"). That is the no-close-linkage case already
-   ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
-   merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
-   because review-thread resolution has no REST equivalent. Report the restriction once for the
-   cycle rather than per PR.
+   sessions"). That is the no-close-linkage case below, so it partitions the same way: NOT
+   eligible, at any rung. It is also moot for merging there: the merge gate itself holds every PR
+   as readiness UNPROVEN in such a session, because review-thread resolution has no REST
+   equivalent. Report the restriction once per cycle, not per PR.
    A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
@@ -163,26 +161,26 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    findings (each option and its problem), or that the bootstrap is complete as far as that check
    can see. When a cell's `line` reports a demotion, report that line; the escalation it names
    follows Escalation below, and this step adds no write path. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
-   close-linked item, or an item with no recorded classification, is NOT eligible, no
+   close-linked item, or an item with no recorded classification, is NOT eligible: no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
-   carrying the do-not-merge label at partition time is NOT eligible at any rung or class, the
+   carrying the do-not-merge label at partition time is NOT eligible at any rung or class; the
    label veto binds here, in the partition, because a merge-capable babysit-prs tier's ordinary
    gate has no label input (its `--block-labels` criterion is confined to the autopilot merge
    tier); such a PR routes to the `safe` per-PR pass like any other non-eligible PR. The one
    ordered exception: when THIS invocation carries `--strip-do-not-merge`, the strip executes
-   between the snapshot and this partition, the label is removed from the flag's target PRs and
+   between the snapshot and this partition: the label is removed from the flag's target PRs and
    recorded in the cycle report, so a stripped PR partitions on its work-class like any other; the
    flag is a per-invocation direct order and never persists (see do-not-merge below). This is a
    deterministic pre-partition, never narrative guidance handed to the invoked skill. Two further
    withholdings bind here, both because the downstream merge gate inspects neither surface: a PR
    whose close-linked item wears the human-gated role label WITHOUT the machine escalation marker
    is operator-*parked* (Escalation below), NOT eligible at any rung, routed to the `safe` pass;
-   and a PR carrying human blocking feedback, a human `CHANGES_REQUESTED` review, explicit human
-   blocking language, or an unresolved inline human thread, is NOT eligible either, because a
+   and a PR carrying human blocking feedback (a human `CHANGES_REQUESTED` review, explicit human
+   blocking language, or an unresolved inline human thread) is NOT eligible either, because a
    merge-capable tier's own runbook widens thread scope to human threads, which under this lane
-   stays stop-and-ask: `safe` pass plus escalation. At
+   stay stop-and-ask: `safe` pass plus escalation. At
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier,
-   the eligible set is empty, the widening does not apply without tracked adoption either
+   the eligible set is empty; the widening does not apply without tracked adoption either
    (config-resolution.md, "Baseline activation is tracked adoption").
    **C4/C5 floor:** a PR that is C4 (structural) or C5 (untrusted-provenance) is NEVER in the
    eligible set, at any rung, under any invocation argument. Checked before, and independent of,
@@ -193,7 +191,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      PR C5, each failing closed to C5 when its field is missing or unreadable. **Fork test:** the
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
      from the base owner). **Trust test:** C5 unless one arm positively passes, `authorAssociation` `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) listed in the TARGET repository's team-tracked, default-branch `babysit_loop_trusted_internal_bot_logins` (grammar, binding, fail-closed empty set: config-resolution reference, "the C5 trust test's one reviewed widening").
-     A listing never bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens the dependency hold-merge invariant, which wins on intersection. Never test the author login against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5, the class travels with the code's provenance, not the issue it closes.
+     A listing never bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens the dependency hold-merge invariant, which wins on intersection. Never test the author login against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5: the class travels with the code's provenance, not the issue it closes.
    - **C4, the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
      change is a refactor, migration, or contract change is C4 however its item is stamped, and a
      PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
@@ -201,18 +199,18 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    - **The verdict authorizes a head SHA, not the PR.** This partition class-checked the snapshot
      head's diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
      partitioned head as its merge gate's `--expected-head` pin, and the gate's head-match refusal
-     makes the binding deterministic rather than narrative. Any worker push, an ordinary CI or
-     review-finding fix, not only the pre-escalation resolver's, moves the head off the pin; the
+     makes the binding deterministic rather than narrative. Any worker push (an ordinary CI or
+     review-finding fix, not only the pre-escalation resolver's) moves the head off the pin; the
      pinned gate refuses the merge, and the invocation ends by reporting the new head instead of
      re-pinning (babysit-prs Autopilot step 3's lane-pin exception, `babysit-prs/reference/safety.md`). The
-     lane then re-partitions the post-push head, provenance, C4-diff, rung, and only a
+     lane then re-partitions the post-push head (provenance, C4-diff, rung), and only a
      still-eligible PR gets a fresh merge-capable invocation pinned to the new head.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
-   its single-PR scope form (`owner/repo#N`), the lane's own step-2 snapshot is the discovery
+   its single-PR scope form (`owner/repo#N`); the lane's own step-2 snapshot is the discovery
    surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
-   to the mechanic at all. Three enforcement rules bind each per-PR invocation:
+   to the mechanic. Three enforcement rules bind each per-PR invocation:
    - **Report-only PRs get zero invocations.** A PR marked report-only in step 2 (grace window,
-     WIP-signal draft) appears in the cycle report and nowhere else, no tier, not even `safe`,
+     WIP-signal draft) appears in the cycle report and nowhere else: no tier, not even `safe`,
      is invoked against it, because `safe` still makes and pushes clear branch-owned fixes.
    - **Rung binds the tier.** Merge-eligible PRs (step 3) are invoked at the resolved
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
@@ -232,19 +230,19 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    - **Dimension overrides bind by tier flooring, never narrative, and bind every capability this
      step exercises, not only the tier keyword it passes on.** Before invoking, lower the tier for
      a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension override
-     (babysit-prs's tier keyword is its only enforcement surface, a natural-language narrowing
+     (babysit-prs's tier keyword is its only enforcement surface; a natural-language narrowing
      handed to a higher tier is not enforcement). **The pre-escalation resolution dispatch is inside
-     that boundary**, the lane fires it directly rather than through that keyword, and it resolves
+     that boundary**: the lane fires it directly rather than through that keyword, and it resolves
      threads, so a thread-resolution override withholds it outright
      ([reference/pre-escalation-dispatch.md](pre-escalation-dispatch.md)). Capabilities the floor forgoes are reported as
      override-constrained; the deliberate cost, here and in the rung partition, is that coupled
-     higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs,
+     higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are foregone on floored PRs;
      failing closed gives up only actions the overrides or rung already denied. The same limit cuts
      the other way: an UPWARD override on a single dimension is unenforceable when honoring it would
-     exceed another. Ignored and reported as override-unenforceable, never smuggled in as narrative
-     to a higher tier. Raising one dimension means raising the preset (every dimension consents);
-     the invoked mechanic exposes no per-dimension enforcement.
-   All per-PR mechanics, checkout, fixes, threads, gates, fan-out, run under that skill's own
+     exceed another; it is ignored and reported as override-unenforceable, never smuggled in as
+     narrative to a higher tier. Raising one dimension means raising the preset (every dimension
+     consents); the invoked mechanic exposes no per-dimension enforcement.
+   All per-PR mechanics (checkout, fixes, threads, gates, fan-out) run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
@@ -256,5 +254,5 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    cycle as UNREPORTED per that file; evaluate the stop condition; if not
    stopping, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
    tool result from this cycle, and say which work is unverified rather than omitting the
-   distinction.** Nobody watched this cycle, so the report is the only record of it and a fabricated
+   distinction.** Nobody watched this cycle, so the report is its only record, and a fabricated
    line is indistinguishable from a true one until someone re-does the work.

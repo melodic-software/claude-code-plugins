@@ -1,8 +1,7 @@
 # Native commit surfaces: verification record
 
 Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again.
+record: claim, basis, date checked, and the event that triggers a recheck.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
@@ -19,5 +18,5 @@ This skill exists for repositories that declare their own: the layered `source-c
 convention and `trailer_policy`, a project commit-msg hook, surgical staging against the four
 preconditions, and the per-commit format, exec-bit, and pre-check steps that composing workflows
 rely on. Neither replaces the other; both create a commit, so one is chosen per commit.
-`/commit-push-pr` goes further than either: it also pushes and opens a PR, so a request to commit
-and nothing more never routes to it.
+`/commit-push-pr` also pushes and opens a PR, so a request to commit and nothing more never routes
+to it.

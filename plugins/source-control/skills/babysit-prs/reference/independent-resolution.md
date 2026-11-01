@@ -1,8 +1,8 @@
 # Independent resolution dispatch
 
 The route a **current** bot review thread takes once its finding is addressed but the addressing
-context is not allowed to retire it. This file is the single owner of that contract; callers name
-when they dispatch and what bounds their own tier adds, and point here for how the dispatch runs.
+context may not retire it. This file solely owns that contract; callers name when they dispatch
+and what bounds their tier adds, and point here for how the dispatch runs.
 
 ## Why a dispatch exists at all
 
@@ -23,10 +23,10 @@ construction, so none can ever satisfy either guard:
 A prose fix does it a third way: rewriting elsewhere in the file addresses the finding without
 moving the anchored lines.
 
-Widening `--autonomous` is the wrong answer: it deletes the anti-self-certification property for
-exactly the actor it was written to constrain. The property being preserved is **the context that
-authored the evidence is not the context that acts on it**, and `isOutdated` was only ever the
-cheapest available proxy for it. This dispatch keeps the property and drops the proxy: a fresh
+Never widen `--autonomous`: that deletes the anti-self-certification property for exactly the
+actor it constrains. The property is **the context that authored the evidence is not the context
+that acts on it**, and `isOutdated` is only its cheapest proxy. This dispatch keeps the property
+and drops the proxy: a fresh
 context that authored neither the fix nor the counter-evidence, and is not the context trying to
 merge, adjudicates the disposition and resolves through the guarded wrapper's
 `--independent-resolver` mode (`safety.md`).
@@ -45,17 +45,17 @@ unblocks. Two callers:
 
 ## The independence contract
 
-Independence is a property of the **dispatch**, not a credential the dispatched agent presents, and
-no script can verify it, which is precisely why the evidence half is machine-checked. A run that
-cannot establish it escalates rather than dispatching.
+Independence is a property of the **dispatch**, not a credential the dispatched agent presents;
+no script can verify it, which is why the evidence half is machine-checked. A run that cannot
+establish it escalates rather than dispatching.
 
-- **A fresh subagent.** It shares no conversation history with whatever produced the PR, with the
-  worker that fixed it, or with any context that previously replied on the blocking thread. A
-  continuation of the authoring session, or a re-invocation of the subagent that already commented
-  on the thread, never qualifies regardless of what it claims about itself.
-- **Never the merging context.** The dispatching orchestrator does not resolve the thread itself.
-  It holds the merge decision, so adjudicating its own unblock is the same self-satisfaction one hop
-  up.
+- **A fresh subagent.** It shares no conversation history with whatever produced the PR, the worker
+  that fixed it, or any context that previously replied on the blocking thread. A continuation of
+  the authoring session, or a re-invocation of the subagent that already commented on the thread,
+  never qualifies, whatever it claims about itself.
+- **Never the merging context.** The dispatching orchestrator does not resolve the thread itself:
+  it holds the merge decision, so adjudicating its own unblock is the same self-satisfaction one
+  hop up.
 - **Evidence is read from the world, not from the brief.** The brief names the thread and the
   claimed disposition; the dispatched agent re-derives the evidence at the live head: the
   counter-evidence read from the code or docs, the tracker item re-queried, the fix commit confirmed
@@ -67,10 +67,10 @@ cannot establish it escalates rather than dispatching.
 ## The D7.5 verification ledger, per finding, before the wrapper is called
 
 The guarded wrapper checks authorship, severity, comment-state pins, and the evidence's existence in
-the world; it cannot check whether a finding was actually **addressed**. Without a ledger the
-dispatched agent could resolve a current thread over an unaddressed finding and clear the merge
-gate's zero-unresolved-threads predicate, the same self-satisfaction the worker-side outdated-only
-guard exists to prevent, moved one hop.
+the world; it cannot check whether a finding was **addressed**. Without a ledger the dispatched
+agent could resolve a current thread over an unaddressed finding and clear the merge gate's
+zero-unresolved-threads predicate, the self-satisfaction the worker-side outdated-only guard
+prevents, moved one hop.
 
 Extract every finding in the thread (one comment carrying N findings is N work items) and record for
 each one the disposition plus its evidence:
@@ -139,12 +139,12 @@ to self-resolve, and never a reason to reach past the wrapper to raw `resolveRev
   path, and no evidence buys past it. The scan keys on **structured** markers, shields badges and
   bracketed `[P0]`/`[P1]`, not prose mentions of P1 in a P2 thread's body. Vetted
   `--resolve --thread-id` (with TOCTOU pins) applies **no** severity screen; it trusts the calling
-  agent's vetting. That asymmetry is deliberate. This is a bound of **the mode**, not of the callers. It is
-  terminal on the `babysit-prs` orchestrator route, whose only resolve form for a current thread is
-  this mode, so such a thread escalates. `babysit-loop`'s widening carries the one named exception
-  (`safety.md`, Security/P1 escalation), and which guarded form that exception uses is its own
-  contract's call, not this file's: this file governs the mode and the discipline every dispatch
-  owes, and it neither widens nor narrows what a caller's tier already permits.
+  agent's vetting; the asymmetry is deliberate. This is a bound of **the mode**, not of the callers.
+  It is terminal on the `babysit-prs` orchestrator route, whose only resolve form for a current
+  thread is this mode, so such a thread escalates. `babysit-loop`'s widening carries the one named
+  exception (`safety.md`, Security/P1 escalation), and its own contract, not this file, picks which
+  guarded form that exception uses: this file governs the mode and the discipline every dispatch
+  owes, and neither widens nor narrows what a caller's tier already permits.
 - **Multi-finding threads.** Refused outright (`skipped-multi-finding-thread`): one disposition is a
   claim about one finding, while resolution clears the whole thread. An unknown count, where a
   truncated comment page could hide another finding, refuses the same way.
@@ -168,8 +168,8 @@ the PR. Which context holds it differs by caller, and the two are not interchang
 
 - **`babysit-prs`'s orchestrator already holds the lease** for the whole of that PR's cycle, and
   `orchestration.md`'s Cleanup releases it at the end of integration. The dispatch fires **inside**
-  that held lease, before Cleanup. The dispatched subagent operates under it and acquires nothing
-  of its own. Attempting an acquire here would refuse against the lease its own dispatcher holds.
+  that held lease, before Cleanup; the dispatched subagent operates under it and acquires nothing,
+  since an acquire would refuse against its own dispatcher's lease.
 - **`babysit-loop`'s pre-escalation dispatch holds no lease** when it fires, so it acquires and
   heartbeats before the subagent starts and releases after, exactly as any per-PR fix or worker
   assignment requires (`safety.md`, `orchestration.md`). A lease another worker already holds means
@@ -179,15 +179,15 @@ the PR. Which context holds it differs by caller, and the two are not interchang
 HEAD asserted at the live PR head, commit and refspec push (`safety.md`), not the wrappers alone,
 which implement merge and thread resolution and create no worktree; a lane launched from a neutral
 directory has no usable tree without it. This applies to a caller whose dispatch may push code,
-which `babysit-loop`'s does. It does not arise on the `babysit-prs` orchestrator route: there the fix
-already landed through the ordinary worker, and what remains is a current thread to adjudicate, so
-that dispatch resolves and never pushes.
+as `babysit-loop`'s does. On the `babysit-prs` orchestrator route the fix already landed through
+the ordinary worker and only a current thread remains to adjudicate, so that dispatch resolves and
+never pushes.
 
 ## After the dispatch
 
 Re-snapshot the PR before anything acts on the result. A resolution that pushed code can have moved
 the head, and a merge-capable caller re-runs its own class partition on the post-push diff before
 any merge. The verdict authorizes a head SHA, not the PR. If the dispatch cannot resolve the
-thread, including any case where the dispatched agent is itself uncertain the resolution is
-correct, the fail-closed fallback above applies unchanged. This dispatch adds one resolution
+thread, including when the dispatched agent is itself uncertain the resolution is correct, the
+fail-closed fallback above applies unchanged. This dispatch adds one resolution
 attempt; it never removes an escalation path or lowers a gate's bar.

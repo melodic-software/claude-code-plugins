@@ -55,11 +55,11 @@ Oldest-first (FIFO): lowest PR number processed first.
 
 **Author scope:** `@me` is your current login ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#pr-discovery)); the `babysit_self_logins` key
 in SKILL.md's effective-configuration block adds extra posting identities on top of it. Run the
-listing once per identity (`@me` plus each configured extra) and merge the results. Drop the author filter only
-in `autopilot` or on an explicit user instruction to widen. A widened discovery includes other
-authors' PRs. A dependency-manager PR with failing CI gets the same diagnose-and-fix
-attention as any other, but dependency-authored PRs are never merged autonomously in any tier
-(SKILL.md cross-tier invariants).
+listing once per identity (`@me` plus each configured extra) and merge the results. Drop the
+author filter only in `autopilot` or on an explicit user instruction to widen; a widened discovery
+includes other authors' PRs. A dependency-manager PR with failing CI gets the same
+diagnose-and-fix attention as any other, but dependency-authored PRs are never merged autonomously
+in any tier (SKILL.md cross-tier invariants).
 
 **Draft policy:** drafts stay in the discovery list in
 every tier. In the safe tier a draft is evaluated for terminal state, CI, and unaddressed findings,
@@ -228,11 +228,9 @@ rules:
   (`integrated`, `current`) keep full mode; a lingering `conflict-attempting` (resolution
   skipped) degrades to read-only rather than granting write access mid-merge.
 
-**Integration conflict handling (graduated).** Freshness is merge-only: integrate a behind-default
-branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the PR's head repository
-and branch through `lane_push` (`push-branch.sh` between two auto-merge disarms, for a same-repo
-head and a write-allowed cross-repo head alike; fast-forward, never force, since rebasing or force-pushing a PR branch as freshness
-maintenance is forbidden, safety.md and orchestration.md). Then:
+**Integration conflict handling (graduated).** After the merge-only freshness integration above
+(`git merge origin/$DEFAULT_BRANCH`), pushed by refspec to the PR's head repository and branch through `lane_push` (for a same-repo
+head and a write-allowed cross-repo head alike; fast-forward, never force):
 
 - **Zero conflicts** (`INTEGRATION_STATUS=integrated`): the merge succeeded; `lane_push` and
   continue normally
@@ -264,9 +262,9 @@ from GitHub: substitute each only when it matches `^[A-Za-z0-9._/-]+$`, does not
 `-` and contains no `..`, and keep the single quotes; any other value reaches no command,
 report it as data), research claims, classify, reply with evidence: the full
 D1-D5 workflow. Only D6-D7 (edit + commit + push + follow-up reply) are blocked. Read-only is
-NOT passive. Every comment still gets investigated and replied to. Fixes that can't be pushed
-are described in the reply with exact code changes so the user or the PR's own worktree session
-can apply them.
+NOT passive: every comment still gets investigated and replied to, and a fix that can't be pushed
+is described in the reply with exact code changes so the user or the PR's own worktree session
+can apply it.
 
 **Full mode:** full flow including the fix cycle (D1-D7). Commit and push to the PR branch (by
 refspec, which works from a detached HEAD too) after each wave of fixes.
@@ -313,8 +311,8 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
 - [ ] **F:** Per-finding classification table + PR status report, both gates as separate fields (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
-verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"
-is not evidence. Re-query the API.
+verification sub-step confirms the action landed on GitHub. Memory of "I posted a reply" is not
+evidence: re-query the API.
 
 ### 5.1.4 Fix cycle (full mode only)
 
@@ -334,9 +332,9 @@ validation, run one wave over all of them:
 **One wave at a time:** address all current comments on this PR → commit each → one push →
 then round-robin to the next PR. While a reviewer check run on the head is still running, leave
 the PR's fixes to a later iteration rather than push a partial wave, since a finding that lands
-after the push costs a second full CI run. Don't jump between PRs mid-wave. After pushing, new CI runs trigger.
-Those results are checked on the next babysit iteration (or the next round-robin pass if
-processing multiple PRs).
+after the push costs a second full CI run. Don't jump between PRs mid-wave. The CI runs a push
+triggers are checked on the next babysit iteration (or the next round-robin pass if processing
+multiple PRs).
 
 **Re-review trigger after a fix push:** bots that reviewed the PR may need an explicit trigger
 to re-evaluate fixes. After pushing, check each bot's trigger mode per
@@ -355,12 +353,12 @@ file's "Inline vs subagent dispatch decision".
 
 ### 5.1.5 Human comments
 
-Classify but DO NOT auto-fix. Reply with investigation findings per step D. Note: D4.5
-reactions proceed autonomously for human reviewer comments (no approval gate, since babysit runs
-without a user present). This differs from the single-PR monitor flow
-([pull-request monitor.md](../../pull-request/reference/monitor.md) §3.3.1 step 4), which
-pauses for approval in interactive sessions. Report to the user in the babysit iteration output.
-Human review items are surfaced, not silently skipped.
+Classify but DO NOT auto-fix. Reply with investigation findings per step D. D4.5 reactions
+proceed autonomously for human reviewer comments (no approval gate, since babysit runs without a
+user present), unlike the single-PR monitor flow
+([pull-request monitor.md](../../pull-request/reference/monitor.md) §3.3.1 step 4), which pauses
+for approval in interactive sessions. Surface human review items to the user in the babysit
+iteration output, never silently skip them.
 
 ### 5.1.6 Transition after a PR is done
 
@@ -407,18 +405,16 @@ live in [cadence.md](cadence.md); this table owns the seconds:
 | `idle`                | 3600 (ceiling, see caveat)    |
 
 **This mapping ALWAYS wins** over the generic `/loop` skill's own delay-picking heuristic whenever
-a snapshot supplies `recommended_cadence`. Read the field out of the snapshot/state JSON and
-schedule from this table. Do not fall back to the generic skill's "lean 1200–1800s" range. In
-babysit dynamic mode the `ScheduleWakeup` delay **is** the primary cadence signal, not a fallback
-heartbeat sitting behind some other armed wake event, so the generic skill's heartbeat framing does
-not apply here: an `active` cycle schedules at 300s, never 1200–1800s.
+a snapshot supplies `recommended_cadence`: read the field from the snapshot/state JSON and schedule
+from this table, never the generic skill's "lean 1200–1800s" range. In babysit dynamic mode the
+`ScheduleWakeup` delay **is** the primary cadence signal, not a fallback heartbeat behind another
+armed wake event, so an `active` cycle schedules at 300s, never 1200–1800s.
 
 **Idle ceiling (a true daily cadence cannot run in single-session `/loop`).** `ScheduleWakeup`
 clamps `delaySeconds` to `[60, 3600]`, so cadence.md's `idle` = daily (86400s) truncates to the
-3600s ceiling, the same wake interval as `quiet`. This is a documented limitation, not a silent
-truncation: within `/loop`, `idle` and `quiet` both wake hourly. A genuine daily babysit cadence
-needs the durable `/schedule` cron mechanism (a scheduled routine on a real cron interval), not a
-single-session `/loop` wakeup. Reach for `/schedule` when that is what is wanted.
+3600s ceiling: within `/loop`, `idle` and `quiet` both wake hourly. For a genuine daily babysit
+cadence use `/schedule` (a scheduled routine on a real cron interval), not a single-session
+`/loop` wakeup.
 
 The `[60, 3600]` bound is verified 2026-09-06 against Claude Code 2.1.263 and the
 [tools reference](https://code.claude.com/docs/en/tools-reference), where `ScheduleWakeup`
@@ -448,8 +444,8 @@ These constraints override any other instruction within the babysit loop:
 
 - **Never declare an iteration complete or schedule the next wake without a passing
   `babysit-readiness-gate.sh <N>` run** (exit 0 `READINESS_OK`). The gate counts classification
-  rows vs source findings and blocks under-decomposition. "I classified them" is not evidence.
-  The gate exit code is. See §5.1.3 step E
+  rows vs source findings and blocks under-decomposition. "I classified them" is not evidence;
+  the gate exit code is. See §5.1.3 step E
 - **Never report a readiness verdict the gate did not emit.** The §5.5
   finding-classification-gate line quotes the gate's `READINESS_*` stdout verbatim.
   `READINESS_UNPROVEN` (the gate ran, reached no verdict) and a harness-denied call (the gate never
@@ -464,11 +460,11 @@ These constraints override any other instruction within the babysit loop:
   (read, explore, validate, classify, reply, fix, follow-up). "Bot findings need classification"
   without classifying is a violation
 - **Never trust a finding without validating.** Bot/AI assertions have demonstrated error
-  rates. Always verify against actual code (D3) before implementing. Explore the referenced
-  code; research non-trivial claims
+  rates. Always verify against the actual code (D3) before implementing: explore the referenced code and
+  research non-trivial claims
 - **Never process comments from the wrong branch.** HEAD must be asserted at the true PR head
-  (attached or detached, §5.1.2) before D2-D3.
-  Exploring code on the default branch or another branch produces wrong classifications
+  (attached or detached, §5.1.2) before D2-D3; code explored on another branch produces wrong
+  classifications
 - **Never advance to the next PR with unaddressed comments on the current PR.** Focus-first
   rule (§5.0). Complete the current wave before moving on
 - **Never skip AI review summaries.** AI-reviewer posts (issue-level comments with
@@ -485,11 +481,11 @@ These constraints override any other instruction within the babysit loop:
 - **Never leave uncommitted changes** on a full-mode PR checkout (attached or detached) when
   transitioning to the next PR
 - **Never skip emoji reactions.** Every classified finding gets a reaction on its parent
-  comment (+1 VALID, -1 INCORRECT, eyes UNCERTAIN). Reactions are the fastest audit signal for
-  reviewers scanning a PR
+  comment (+1 VALID, -1 INCORRECT, eyes UNCERTAIN): the fastest audit signal for reviewers
+  scanning a PR
 - **Never skip the branch freshness check.** Always `git fetch origin <default-branch>` +
-  `git merge-base --is-ancestor origin/<default-branch> HEAD` after checkout. Stale branches
-  cause CI failures; proactive integration is cheaper than a reactive fix. See §5.1.2
+  `git merge-base --is-ancestor origin/<default-branch> HEAD` after checkout: stale branches
+  cause CI failures, and proactive integration is cheaper than a reactive fix. See §5.1.2
 - **Never skip reply verification.** After posting a reply (D5) or follow-up (D7), verify it
   landed on GitHub via API query. Model memory of "I replied" across compaction is not evidence
 - **Never skip resolving a BOT-authored thread; never resolve a HUMAN or OWN thread.** Once
@@ -526,8 +522,8 @@ These constraints override any other instruction within the babysit loop:
 
 ## 5.5 Checklist-driven output format
 
-Every iteration MUST output a completed checklist with evidence per step. Free-form narrative
-reports are not acceptable. They hide skipped steps.
+Every iteration MUST output a completed checklist with evidence per step, never a free-form
+narrative report, which hides skipped steps.
 
 **Gate-enforced:** completing an iteration requires a passing `babysit-readiness-gate.sh <N>` run
 (§5.1.3 step E). To mechanically gate checklist completeness too, write this iteration's checklist
@@ -537,9 +533,9 @@ says nothing about merge-readiness, which the template below reports as its own 
 
 **Gate verdict, quoted verbatim.** The per-PR "Gate verdict" line carries the gate's `READINESS_*`
 stdout as printed, never paraphrased, never reconstructed from memory. The gate prints exactly one
-such line on every run, so the only way to have none is that the gate never ran; in that case the
-line reads `not emitted — harness denied: <exact command>` and the readiness line reads *readiness
-unproven*. This is what stops a blocked gate from being indistinguishable from a passing one
+such line on every run, so having none means the gate never ran; then the line reads
+`not emitted — harness denied: <exact command>` and the readiness line reads *readiness
+unproven*, so a blocked gate is never indistinguishable from a passing one
 ([safety.md](safety.md) §Lane-Script Reachability).
 
 ```text
@@ -594,14 +590,13 @@ with reason.
 
 ## 5.6 Performance notes
 
-- **Run the D5/D6/D7 verification sub-steps on every pass.** They exist because model
-  memory is unreliable across compaction boundaries. One API call to confirm costs seconds;
-  acting on false memory costs an entire re-processing cycle
-- **Quality over speed.** Processing 3 findings thoroughly with verified evidence is better
-  than "processing" 10 findings with blanket classifications and no verification
+- **Run the D5/D6/D7 verification sub-steps on every pass.** Model memory is unreliable across
+  compaction boundaries: one API call to confirm costs seconds, acting on false memory costs an
+  entire re-processing cycle
+- **Quality over speed.** Processing 3 findings thoroughly with verified evidence beats
+  "processing" 10 with blanket classifications and no verification
 - **One finding at a time.** Complete per-finding D1-D7 for finding N before starting finding
-  N+1. Interleaving findings across comments produces partial work that looks complete but
-  isn't
-- **Evidence-based state, not memory-based state.** Never say "I already replied to that".
-  Check GitHub. Never say "I already pushed that fix". Check the remote. GitHub is the state
-  store; this session's memory is ephemeral
+  N+1; interleaving findings across comments produces partial work that looks complete
+- **Evidence-based state, not memory-based state.** Never say "I already replied to that" or "I
+  already pushed that fix": check GitHub and the remote. GitHub is the state store; this session's
+  memory is ephemeral

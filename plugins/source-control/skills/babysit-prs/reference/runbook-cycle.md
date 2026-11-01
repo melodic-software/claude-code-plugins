@@ -35,9 +35,9 @@ instead of this runbook.
    `material_findings`: delegate a worker (only when `needs_worker` is true), act locally, report,
    back off, or escalate. Load [freshness.md](freshness.md) only when a branch is behind,
    [stuck-checks.md](stuck-checks.md) when a PR's `checks.stuck` or `checks.approval_held` is
-   non-empty (escalate the routing, never auto-fix) **or** when `branch_freshness.state == "conflicting"`, since that file also
-   covers the inverse case, where a conflicted PR's `pull_request` lanes are never scheduled and the
-   check list is short rather than stuck, [feedback.md](feedback.md) and [review-trigger.md](review-trigger.md)
+   non-empty (escalate the routing, never auto-fix) **or** when `branch_freshness.state == "conflicting"`
+   (that file also covers a conflicted PR whose `pull_request` lanes are never scheduled, leaving the
+   check list short rather than stuck), [feedback.md](feedback.md) and [review-trigger.md](review-trigger.md)
    only for feedback or review gates, the fan-out gate in [orchestration.md](orchestration.md) only
    before assigning workers, and [cadence.md](cadence.md) only before interpreting a cadence state.
 
@@ -56,11 +56,10 @@ instead of this runbook.
    call per thread, pins taken from the same snapshot that vetted it. `--autonomous --resolve` refuses
    a bulk (no `--thread-id`) call, so the comment-state pins are always enforced (a reply or edit
    after vetting blocks the resolve). Those pins do NOT catch displacement: a push that flips
-   `isOutdated` while the comment count and last-updated still match is still resolved. So keeping
+   `isOutdated` while the comment count and last-updated still match is still resolved, so keeping
    such a thread unresolved rests on the pre-push-outdated agent-discipline rule. In autopilot,
-   after addressing the findings, additionally
-   resolve AI-review and human threads with `--resolve --include-human`, then run the same pinned
-   merge gate. The gate is never bypassed. After any `--resolve` run, parse its JSON output
+   after addressing the findings, also resolve AI-review and human threads with
+   `--resolve --include-human`, then run the same pinned merge gate. The gate is never bypassed. After any `--resolve` run, parse its JSON output
    (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
 
 7. After each PR is integrated, prune only that PR's clean worktree with `--pr`, `--lease-token`, and

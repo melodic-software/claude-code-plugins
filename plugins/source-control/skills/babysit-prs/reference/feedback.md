@@ -69,7 +69,7 @@ row for each finding.
 
 After triaging a blocking bot feedback item as an approval, stale, or non-actionable, the
 orchestrator records a durable disposition, under that PR's worker lease and before acting on the
-triage result, so later snapshots stop re-flagging it as a blocker:
+result, so later snapshots stop flagging it as a blocker:
 
 ```text
 python "<skill-dir>/scripts/manage_feedback_ledger.py" dispose --pr owner/repo#42 --expected-head-sha <head-sha> --feedback-id "comment:123456789" --reason approval --lease-token <worker-token> --state-dir <state-dir> --apply
@@ -86,10 +86,10 @@ python "<skill-dir>/scripts/manage_feedback_ledger.py" dispose --pr owner/repo#4
 ## Advisory Fix-Round Cap
 
 Autonomous fix rounds addressing advisory bot findings (`P2` or other nonblocking suggestions)
-are counted per PR in the durable feedback ledger. Keep iterating and driving the PR toward
-mergeable as long as each round makes real progress or responds to a genuinely new finding. Do
-not stop after a small, arbitrary number of rounds while real, still-fixable advisory findings
-remain. Record each round write-ahead, before starting the fix, keyed by the snapshot head SHA
+are counted per PR in the durable feedback ledger. Keep driving the PR toward mergeable while each
+round makes real progress or responds to a genuinely new finding; never stop after a small,
+arbitrary number of rounds while still-fixable advisory findings remain. Record each round
+write-ahead, before starting the fix, keyed by the snapshot head SHA
 the findings were observed on, with one `--finding-class` per finding carrying that finding's
 `safety.md` (a)/(b)/(c) provenance class:
 
@@ -97,16 +97,15 @@ the findings were observed on, with one `--finding-class` per finding carrying t
 python "<skill-dir>/scripts/manage_feedback_ledger.py" record-advisory-round --pr owner/repo#42 --expected-head-sha <head-sha> --finding-class c --finding-class c --finding-class b --lease-token <worker-token> --state-dir <state-dir> --apply
 ```
 
-The classes are what makes the second-consecutive-all-(c) non-convergence tripwire evaluable after
-context rollover, so the helper refuses a round recorded without them. It reports the round's
-`composition` and the resulting `non_convergence_tripwire` verdict back to the caller, the read
-that arms the round being recorded, and the snapshot carries the verdict over the rounds recorded
-so far under `advisory_fix_rounds` for the next worker.
+The helper refuses a round recorded without classes, because they keep the
+second-consecutive-all-(c) non-convergence tripwire evaluable after context rollover. It reports
+the round's `composition` and the resulting `non_convergence_tripwire` verdict to the caller, the
+read that arms the round being recorded, and the snapshot carries the verdict over the rounds
+recorded so far under `advisory_fix_rounds` for the next worker.
 
-`<advisory-fix-round-cap>` sets the round ceiling deliberately high: it is not a normal
-operational limit meant to halt legitimate fix work, but a safety backstop that only trips a
-genuinely stuck or looping worker, one that keeps recording rounds without making real progress.
-The helper refuses a round beyond that ceiling; from then on report new advisory findings and
+`<advisory-fix-round-cap>` is deliberately high: not an operational limit on legitimate fix work,
+but a backstop that trips only a stuck or looping worker that keeps recording rounds without real
+progress. The helper refuses a round beyond that ceiling; from then on report new advisory findings and
 wait for the user, after verifying actual thread content per `safety.md`'s Verify Before
 Escalating Non-Convergence section. Clear blocking defects, meaning failing checks, `P0`, `P1`,
 and regressions, are never capped. The snapshot surfaces the counter as `advisory_fix_rounds` and
@@ -115,28 +114,27 @@ adds a material finding when the cap is reached.
 ## Bot-Authored PRs: Dependency Bump Vs. Reviewed Content Return
 
 Not every bot-authored PR is a dependency-acceptance decision. Distinguish by what the PR's diff
-actually is, not by hardcoding a bot's login:
+is, never by hardcoding a bot's login:
 
 - **Dependency-manager PR** (Dependabot, Renovate, or an equivalent, detected structurally per
   Bot Identity Detection above and extended by `extra_bot_logins`): the diff bumps a pinned external
   dependency version (a lockfile, a manifest version field, a pinned Action SHA/tag for a
-  third-party action). Accepting the new version is a human policy call. Dependency-manager PRs
+  third-party action). Accepting the new version is a human policy call, so dependency-manager PRs
   are never merged autonomously in any tier. `SKILL.md` states the invariant, and the merge
-  wrapper enforces it mechanically (`safety.md`, Guarded Mutation Wrappers). The wrapper matches a
-  built-in dependency-manager login set (dependabot/renovate); a non-dependabot/renovate dependency
-  bot an operator runs is added to that hold via `babysit_extra_dependency_manager_logins`.
+  wrapper enforces it (`safety.md`, Guarded Mutation Wrappers) by matching a built-in
+  dependency-manager login set (dependabot/renovate); any other dependency bot an operator runs is
+  added to that hold via `babysit_extra_dependency_manager_logins`.
 - **Policy/content-sync bot PR**: the diff is this repository receiving content it does not own
   back from an upstream repository, through a mechanism the repository itself declares (for
-  example a sync manifest naming which local paths are managed from where). This is the reviewed
-  return path for a change already authored and reviewed upstream, not a new dependency to
-  accept. Ordinary fix-or-escalate and merge-when-green rules apply exactly as for a
-  human-authored PR; do not hold it for a dependency-acceptance instruction that was never meant
-  to gate it.
+  example a sync manifest naming which local paths are managed from where): the reviewed return
+  path for a change already authored and reviewed upstream, not a new dependency. Ordinary
+  fix-or-escalate and merge-when-green rules apply exactly as for a human-authored PR; never hold
+  it for a dependency-acceptance instruction that was never meant to gate it.
 
-When the two are hard to tell apart from the diff alone, check whether the changed paths are
-declared managed by a sync mechanism the target repo documents; if the repo declares no such
-mechanism, default to treating an unfamiliar automation-authored PR as a dependency-acceptance
-hold, the safer default when the structural signal is absent.
+When the diff alone does not tell them apart, check whether the changed paths are declared managed
+by a sync mechanism the target repo documents; if the repo declares none, treat an unfamiliar
+automation-authored PR as a dependency-acceptance hold, the safer default without the structural
+signal.
 
 ## Ignore For Auto-Fix
 
@@ -152,5 +150,5 @@ hold, the safer default when the structural signal is absent.
 - Ordinary human comments are classified, replied to with evidence, and surfaced per
   `<plugin-root>/reference/review-discipline.md`, never auto-fixed, and never resolved
   on the human's behalf, outside autopilot's addressed-thread widening. Report each new stable
-  comment id once, and do not keep an otherwise unchanged PR permanently active after the
-  notification has been recorded.
+  comment id once; once the notification is recorded, do not keep an otherwise unchanged PR
+  permanently active.

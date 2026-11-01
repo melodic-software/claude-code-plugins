@@ -1,9 +1,8 @@
 # babysit-prs freshness on GitHub
 
-This file serves the babysit-prs [freshness spoke](../../../../skills/babysit-prs/reference/freshness.md):
-it holds the GitHub commands for the reads that spoke names. The spoke owns the comparison rule
-and every refresh invariant. The [GitHub provider reference](../README.md) indexes the other
-operations.
+GitHub commands for the reads the babysit-prs [freshness spoke](../../../../skills/babysit-prs/reference/freshness.md)
+names. The spoke owns the comparison rule and every refresh invariant. The
+[GitHub provider reference](../README.md) indexes the other operations.
 
 ## Single-PR diagnostic
 

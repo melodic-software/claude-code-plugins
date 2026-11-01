@@ -1,7 +1,7 @@
 # babysit-prs loop on GitHub
 
-This file serves the babysit-prs [loop spoke](../../../../skills/babysit-prs/reference/loop.md):
-it holds the GitHub commands for the operations that spoke names. The spoke owns every rule,
+GitHub commands for the operations the babysit-prs
+[loop spoke](../../../../skills/babysit-prs/reference/loop.md) names. The spoke owns every rule,
 order and threshold around them. The [GitHub provider reference](../README.md) indexes the other
 operations.
 
@@ -19,7 +19,7 @@ listing with `--author <login>` in place of `--author "@me"`.
 
 ## Per-PR rescan reads
 
-- Terminal check (spoke §5.0.3 step 1): `gh pr view <N> --json state -q '.state'`. The checklist's
+- Terminal check (spoke §5.0.3 step 1): `gh pr view <N> --json state -q '.state'`; the checklist's
   step A is the same read, `gh pr view <N> --json state`.
 - CI check, one-off read (§5.0.3 step 2): `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`.
   A pending check is never waited on with `gh pr checks --watch`, which blocks the foreground and
