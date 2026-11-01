@@ -1,0 +1,128 @@
+{
+  "skill": "dometrain:grounding",
+  "plugin": "dometrain",
+  "skill_dir": "plugins/dometrain/skills/grounding",
+  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings dometrain:setup and dometrain:sync are disable-model-invocation: true, so they cannot compete and are not listed; probes about the MCP connection and upstream drift still test that grounding stays quiet on their requests. The competitors live in other plugins: knowledge:course-digest takes a Dometrain course URL to extract lesson by lesson, knowledge:video-digest a public talk, context7:lookup current library API docs, and discovery:research multi-source external research. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "knowledge:course-digest",
+    "knowledge:video-digest",
+    "context7:lookup",
+    "discovery:research"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm adding a transactional outbox to our ASP.NET Core order service so events reach RabbitMQ reliably. Walk me through the implementation and point me to the lesson that covers it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Entity Framework queries on the Invoices table got slow after we added three Include calls. Help me debug whether it's a cartesian explosion and whether split queries would fix it."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Review this MediatR validation pipeline behavior I wrote for our vertical slice API and tell me whether it holds up."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Design the module boundaries for a modular monolith that handles bookings, payments and notifications for the Thornfield clinic app."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Set up integration tests for our minimal API with WebApplicationFactory and a Testcontainers Postgres instance."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a retrieval-augmented question answering service in C# over our internal wiki. Base the design on what the Dometrain material recommends and link the lessons you used."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My MassTransit consumer keeps retrying the same message and then it lands in the error queue. Help me figure out why."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The shipping cost calculator is one giant switch statement. Refactor it toward the Strategy pattern so new carriers don't need edits to that class."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a GitHub Actions workflow that builds our .NET 9 API into a Docker image and deploys it to Azure Container Apps."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm typing a generic event emitter in TypeScript and the conditional types keep fighting me. Help me get the signatures right."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here is a Dometrain course link: https://dometrain.com/course/getting-started-docker/ . Pull every lesson out of it and tell me what this repository should adopt."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The Dometrain MCP tools aren't showing up in my session and the last call returned an authentication error. Check whether the server connection is configured."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What parameters does AddDbContextPool take in the newest EF Core release? Fetch the official API reference page."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename the variable orderTotal to grandTotal everywhere it appears in the repo."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draft a friendly email to my landlord asking to renew the lease for another year."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Has our vendored copy of the Dometrain grounding guidance drifted from the upstream Dometrain/mcp repository since the last sync?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Gather independent benchmarks and blog posts from this year comparing gRPC and REST throughput, and tell me how far each source can be trusted."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me tune the PID controller gains in my quadcopter's flight firmware so it stops oscillating on pitch."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize this conference talk on event sourcing for me: https://www.youtube.com/watch?v=Q7kfW2mXb4s"
+    }
+  ]
+}

@@ -2,9 +2,7 @@
 
 `<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
 
-Full detail for the `/source-control:worktree audit` action. SKILL.md carries the headline plus Step 1 (run `status` internally); this file carries the Step 2 configuration-health checklist, Steps 2b and 2c, and the Step 3 findings presentation.
-
-Periodic health check for worktree infrastructure. Suitable as a recurring item in your work-item tracker.
+Full detail for `/source-control:worktree audit`. SKILL.md carries the headline and Step 1 (run `status` internally); this file carries the Step 2 configuration-health checklist, Steps 2b and 2c, and the Step 3 findings presentation.
 
 **Outside a repository**, Step 1 runs `status` in its cross-repository mode ([status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode)), keeping the `worktree-discover.sh` rows. Run Step 2's per-repository checks once for each `repo` row whose linked count is above 0, with `<repo>` set to it (the `.worktreeinclude` check reads that repository's root). Step 2b's "resolved worktree root" is every `root` row. Step 2c runs once per `root` row, with `--root <root>` and every `repo` row as a `--repo-dir`. Present findings grouped by repository.
 
@@ -31,12 +29,11 @@ on disk when it has uncommitted or untracked work or the reap fails. Subagent an
 worktrees are not: Claude Code keeps them and runs no `WorktreeRemove` hook, so they stay until
 `cleanup` removes them. Pointer: [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove);
 as of 2026-10-26; recheck when that section changes which removals fire the event. Every worktree
-removed some other way left its records behind, and they accumulate indefinitely because nothing
-else reaps a record whose path is gone. Audit is where they become visible.
+removed any other way left its records behind, and they accumulate indefinitely because nothing
+else reaps a record whose path is gone. Audit makes them visible.
 
-**Read-only. This step reports; it never removes a record.** That is the whole boundary: a
-project-scope record for a live repository on an unmounted network share or a detached external
-volume is indistinguishable from a dead worktree to a bare existence check, so nothing here may act
+**Read-only. This step reports; it never removes a record.** A project-scope record for a live
+repository on an unmounted network share or detached external volume is indistinguishable from a dead worktree to a bare existence check, so nothing here may act
 on path non-resolution.
 
 Collect (enumeration is cwd-independent, measured in [fixtures/README.md](../fixtures/README.md)
@@ -52,11 +49,11 @@ claude plugin list --json | jq -r '
 ```
 
 **Precondition: check this FIRST, and stop the step if it fails.** Confirm the resolved worktree
-root itself is a directory that exists right now. If it does not, the volume holding every worktree
-is detached or unmounted, and *every* path under it would classify as orphaned on identical
-evidence. Report "orphaned-record check unavailable: the worktree root `<root>` does not resolve"
-and offer nothing. A root that is merely empty is a different answer from a root that is absent, and
-only the second one poisons the whole classification.
+root itself exists as a directory right now. If not, the volume holding every worktree is detached
+or unmounted, and *every* path under it would classify as orphaned on identical evidence. Report
+"orphaned-record check unavailable: the worktree root `<root>` does not resolve" and offer nothing.
+A merely empty root differs from an absent one; only the absent root poisons the whole
+classification.
 
 Classify each path into exactly one of four buckets, and never merge them:
 
@@ -72,16 +69,16 @@ worktree root is shared: `create` places worktrees at `<root>/<owner>-<repo>-<sl
 serving every repository on the machine (`reference/worktree-root-convention.md` owns the root key;
 `scripts/worktree-create.sh` owns the `<owner>-<repo>-<slug>` naming). So most paths
 under that root belong to **other repositories' live worktrees**, and "not in *this* repository's
-`git worktree list`" is true of every one of them. Classifying on that test alone would report a
-colleague repository's active worktree as dead and hand it a destructive remedy. The registration
-test is scoped to one repository; the liveness test is not, which is exactly why both are needed.
+`git worktree list`" is true of every one. Classifying on that test alone would report another
+repository's active worktree as dead and hand it a destructive remedy. The registration test is
+scoped to one repository; the liveness test is not, which is why both are needed.
 
 The fourth bucket exists because this plugin owns worktree lifecycle and nothing more. A record for
-some other project's checkout may be perfectly current, including one whose volume simply is not
-mounted right now, and this skill has no standing to judge it. Report the count; stop there.
+another project's checkout may be current, including one whose volume is not mounted right now,
+and this skill has no standing to judge it. Report the count; stop there.
 
 **What the `candidate orphan` bucket cannot tell you, and must say so.** It is reached by two
-failures, not by positive evidence of death. Three different live things fail both tests exactly as a
+failures, not positive evidence of death. Three different live things fail both tests exactly as a
 deleted worktree does, and every row must carry all three as its caveat, never "these are dead":
 
 - a path on an **unmounted network share** or a **detached external volume**;
@@ -90,12 +87,12 @@ deleted worktree does, and every row must carry all three as its caveat, never "
   [cleanup.md](cleanup.md) Step 4a guards against;
 - any directory whose contents nobody has accounted for.
 
-So before confirming a row, check it the way `cleanup` does. **Strip every trailing separator from
-the path first**, then: not a symlink, no `.git` entry, empty. The normalization is required, not
-cosmetic: `test -L "<path>/"` resolves through the link and answers about its target, so one trailing
+So before confirming a row, check it as `cleanup` does. **Strip every trailing separator from
+the path first**, then: not a symlink, no `.git` entry, empty. The normalization is required:
+`test -L "<path>/"` resolves through the link and answers about its target, so one trailing
 character turns the symlink check into a silent pass ([cleanup.md](cleanup.md) Step 4a carries the
-measurement). Strip it the way `cleanup` does, every trailing separator the platform recognizes,
-never a single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
+measurement). Strip every trailing separator the platform recognizes, as `cleanup` does, never a
+single `${path%/}` pass; off Windows a trailing `\` is a legal filename byte and must
 survive, or the checks and remedy point at a different sibling path:
 
 ```bash
@@ -109,7 +106,7 @@ Require the user to confirm each path individually before anything is run.
 
 **The remedy, emitted for the user to run, never inline.** Removing a record requires standing in
 the directory it names (`-s project` has no path flag, measured; `-s local` is unmeasured and treated the same), so the only route to a path that no longer
-exists is to recreate it. That is a deliberate act, not something an audit performs:
+exists is to recreate it, a deliberate act no audit performs:
 
 ```bash
 # Only paths the user has individually confirmed are dead worktrees — not another
@@ -120,8 +117,8 @@ bash "<remedy>" "<path>" ["<path>" ...]
 **Substitute `<remedy>` with the resolved absolute path** to
 `scripts/reap-orphaned-plugin-records.sh` before presenting this, and pass only the confirmed
 paths, in the order to reap them. Do not emit
-`${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
-user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. Pointer:
+`${CLAUDE_PLUGIN_ROOT}` here: that variable is set for the tooling that runs this skill, not in the
+user's shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. Pointer:
 [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
 as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell.
 
@@ -130,12 +127,12 @@ For each path, in order, the script runs: plain `mkdir`,
 call without `--dry-run`, removal of the path's `.claude`, back out, and `rmdir`. It prints a result
 per path and stops at the first failure, naming the path and the step. Its guards:
 
-- Plain `mkdir`, never `mkdir -p`: it **fails** if the directory already exists, which is the one
-  mechanical stop left if the classification above was wrong. `-p` would no-op on a live directory
-  and carry straight on into the reap. A path whose parent is missing fails here too, with a message
+- Plain `mkdir`, never `mkdir -p`: it **fails** if the directory already exists, the one mechanical
+  stop left if the classification above was wrong; `-p` would no-op on a live directory and carry
+  on into the reap. A path whose parent is missing fails here too, with a message
   pointing at #7461.
 - If the reap exits non-zero, whether some record survived (exit 1) or the CLI was unavailable
-  (exit 3), the directory is **left in place**, because deleting it would put the surviving records
+  (exit 3), the directory is **left in place**, since deleting it would put the surviving records
   back out of reach. The `--dry-run` pass runs first and prints what the second call will remove.
 - It removes only the directory it created.
 
@@ -202,4 +199,4 @@ Read-only: neither the scan nor this step removes anything.
   commands are in Step 2b, and they are yours to run, not the audit's.
 ```
 
-Every stranded row contributes its unpushed commits to "commits at risk", including `superseded` and `unknown` rows, so the count and the figure are computed over the same rows; a row whose `unpushed` is `?` is named as unknown, never added as zero. Stranded and unproven counts lead the health list and are reported even when zero: a class that only appears when non-zero cannot be distinguished from one that was never measured, and "the Work axis could not be computed" is exactly the answer an audit must not swallow. `in-progress` and `dirty` follow them for the same reason: both are classes `/worktree cleanup` refuses to act on, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.
+Every stranded row contributes its unpushed commits to "commits at risk", including `superseded` and `unknown` rows, so the count and the figure cover the same rows; a row whose `unpushed` is `?` is named as unknown, never added as zero. Stranded and unproven counts lead the health list and are reported even when zero: a class shown only when non-zero is indistinguishable from one never measured, and "the Work axis could not be computed" is exactly what an audit must not swallow. `in-progress` and `dirty` follow for the same reason: `/worktree cleanup` refuses both, and `in-progress` is invisible to `git status --porcelain`, so nothing else in the audit surfaces it unless named here.

@@ -1826,6 +1826,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
     "issue",
     "merge-base",
     "review-threads",
+    "shared-copies",
   ]);
 });
 

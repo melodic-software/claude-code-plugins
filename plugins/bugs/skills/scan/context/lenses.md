@@ -26,8 +26,9 @@ there.
   drop it.
 - **Reporting no candidate is a valid, expected outcome.** Most lenses on most runs find nothing. An
   empty return is a successful run. Never manufacture a candidate to look productive.
-- **You are read-only.** Read, search, and (where a cheap check exists) run it. Never edit, never
-  write to the repository, never branch, never file anything.
+- **You are read-only.** Read and search. Never run the scanned repository's code (no test,
+  script, REPL or build: the checkout may be one nobody here controls), never edit, never write to
+  the repository, never branch, never file anything.
 - **One hop outside the scope is allowed, and tagged.** A fault often straddles a boundary, so you
   may follow a scoped file into one direct caller or callee and report a candidate there. Such a
   candidate carries `Scope: out-of-lane (via <scoped path>)`; every other candidate carries

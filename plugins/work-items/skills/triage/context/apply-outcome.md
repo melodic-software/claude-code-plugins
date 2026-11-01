@@ -92,19 +92,20 @@ Label edits, comments, and closes route through the adapter's write mechanics (a
 
 **Closing invariant, no outcome leaves a re-selectable raw item.** The attention view lists *open* items and re-selects anything still carrying the raw marker, so every outcome must leave the item unre-selectable:
 
-- **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels, no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, and `status:needs-info` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction, the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
+- **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels, no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, `status:needs-info`, and an idea issue's `needs-spec` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction, the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
 - **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot, a closed item never re-triages.
 - **`status: confirmed` is not a routing outcome.** Step 3 applies it beside the raw marker. The outcome edit here always clears the raw marker, and replaces `status: confirmed` when it applies another `status:` value; a human-gated outcome, which applies none, keeps `status: confirmed`.
 
 ## Status and provenance labels
 
-Two labels this skill writes come from the live label set and are never invented:
+Three labels this skill writes come from the live label set and are never invented:
 
 - `status: confirmed`, applied by step 3 on a passed verification.
 - `provenance: signal`, applied by the outcome edit to an item whose body carries the autonomy
   signal marker (step 1).
+- `needs-spec`, applied to an idea issue (step 1).
 
-**Preflight.** Before the edit that would apply either one, check that it exists in the repository
+**Preflight.** Before the edit that would apply any of them, check that it exists in the repository
 (adapter: the label listing step 2 uses for `priority:`). When it is absent, stop without mutating
 anything, not even the other labels of that edit, and report it as a provisioning gap for the
 repository's label-as-code owner, or for a person to create in the tracker. Never fall back to a

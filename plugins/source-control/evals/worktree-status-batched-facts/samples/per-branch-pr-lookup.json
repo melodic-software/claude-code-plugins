@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "gh pr list --head feat/a --state all --json number,state" } }
+      ],
+      "why": "one per-branch read"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "for b in feat/a feat/b; do gh pr list --state all --head \"$b\" --json number; done" } }
+      ],
+      "why": "per-branch loop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no PR lookup"
+    },
+    {
+      "answer": [
+        { "tool": "Bash", "input": { "command": "gh pr list --state all --json number" } }
+      ],
+      "why": "repo-wide list only"
+    }
+  ]
+}

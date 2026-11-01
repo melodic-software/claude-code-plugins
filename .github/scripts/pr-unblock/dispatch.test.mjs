@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, main, shareTimeline } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, dispatchSharedCopies, main, shareTimeline } from "./dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -503,7 +503,7 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -533,7 +533,7 @@ test("a person's inline review-thread reply since another lane's escalation hold
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -767,7 +767,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), now },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), loadOwnedBranches: async () => [], now },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -917,7 +917,7 @@ async function mainWithFailedListing(error) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     return { api, code, lines };
   } finally {
@@ -964,7 +964,7 @@ async function mainWithHistoryAnswers(answers, pulls) {
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
-      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     return { api, code, lines, sent };
   } finally {
@@ -1032,7 +1032,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
     writeFileSync(output, "");
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: output },
-      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api: fakeApi({ pages: [[pr(150)]], ciFixPulls: [ciFixPull(151)] }), log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.equal(code, 1);
     assert.equal(readFileSync(output, "utf8"), "run-ids=9150\n");
@@ -1054,7 +1054,7 @@ test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns",
     };
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), RUN_IDS_FILE: file },
-      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+      { api, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] },
     );
     assert.deepEqual(seen, ["", "9160\n"], "the first id is on disk before the second dispatch");
     assert.equal(readFileSync(file, "utf8"), "9160\n", "an id that is not a run id is not recorded");
@@ -1340,7 +1340,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
   };
   // A recorded head no open PR carries any more is dropped.
   writeFileSync(path, JSON.stringify({ version: 4, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
-  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) });
+  const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
@@ -1414,7 +1414,7 @@ test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns o
       checked: new Map([[fixCi.headRefOid, [notApplicable, notApplicable, notApplicable]]]),
     });
     const lines = [];
-    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) } };
+    return { api, lines, options: { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}), loadOwnedBranches: async () => [] } };
   };
   const warning = `::warning::#151: head ${fixCi.headRefOid}'s pr-unblock / fix-ci ran 3 time(s), the most one head gets; no fix-ci until a new push`;
   try {
@@ -1494,4 +1494,100 @@ test("a retry that did not stop, or a select job's own lane stop, handles the he
   await terminal.run();
   assert.deepEqual(dispatchedNumbers(terminal.api), []);
   assert.deepEqual(terminal.api.calls.stops.map((call) => call.sha), [head], "the push job's checks are read, and hold no stop");
+});
+
+// sync-shared-copies: pr-merge's shared-copy escalation as babysit_merge.py
+// writes it (the marker comment, then the lanes App's label), read through
+// gate-source.mjs sharedCopyGate.
+const COPY_APP = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
+const copyPr = (number, overrides = {}) =>
+  pr(number, { mergeable: "MERGEABLE", author: { login: COPY_APP.login, databaseId: LANES_APP }, labels: { nodes: [{ name: "needs-human" }] }, ...overrides });
+const copyRefusal = (head, reason = "shared-copy-sources-changed:lib/x.sh changed on main since merge base c") => [
+  {
+    event: "commented",
+    user: COPY_APP,
+    body: `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the copies are stale at head \`${head}\`.\n\nRefusal: \`${reason}\``,
+    created_at: "2026-10-18T09:59:58Z",
+    updated_at: "2026-10-18T09:59:58Z",
+  },
+  { event: "labeled", actor: COPY_APP, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" },
+];
+function copyApi({ timelines = new Map(), checks = new Map(), runs = [] } = {}) {
+  const calls = { dispatched: [], checkReads: [] };
+  return {
+    calls,
+    listTimeline: async (number) => timelines.get(number) ?? [],
+    listReviewComments: async () => [],
+    listReviews: async () => [],
+    async listCheckRuns({ sha, checkName }) {
+      calls.checkReads.push({ sha, checkName });
+      return checks.get(sha) ?? [];
+    },
+    listWorkflowRuns: async () => runs,
+    async dispatchWorkflow(request) {
+      calls.dispatched.push(request);
+      return { workflowRunId: 7000 + calls.dispatched.length };
+    },
+  };
+}
+const copyDispatch = (api, listed, extra = {}) =>
+  dispatchSharedCopies({ api, runId: "55", log: () => {}, listed, gateLabel: "needs-human", appSenderId: LANES_APP, ...extra });
+
+test("sync-shared-copies: dispatches a lanes App PR whose newest pr-merge refusal at its head is shared-copy-sources-changed", async () => {
+  const node = copyPr(41);
+  const api = copyApi({ timelines: new Map([[41, copyRefusal(node.headRefOid)]]) });
+  const result = await copyDispatch(api, [node]);
+  assert.deepEqual(result, { dispatched: [{ number: 41, workflowRunId: "7001" }], failed: 0 });
+  assert.deepEqual(api.calls.dispatched, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "41", activity: "sync-shared-copies", "dispatcher-run-id": "55" } },
+  ]);
+  assert.deepEqual(api.calls.checkReads, [{ sha: node.headRefOid, checkName: "pr-unblock / sync-shared-copies" }]);
+});
+
+test("sync-shared-copies: no dispatch for another author, another reason, an older head, a draft or no label", async () => {
+  const head = pr(42).headRefOid;
+  const cases = [
+    [copyPr(42, { author: { login: "kyle-sexton", databaseId: 153232337 } }), copyRefusal(head)],
+    [copyPr(42), copyRefusal(head, "check-inputs-changed:x changed on main")],
+    [copyPr(42), copyRefusal("b".repeat(40))],
+    [copyPr(42, { isDraft: true }), copyRefusal(head)],
+    [copyPr(42, { labels: { nodes: [] } }), copyRefusal(head)],
+    [copyPr(42, { labels: { nodes: [{ name: "needs-human" }, { name: "do-not-merge" }] } }), copyRefusal(head)],
+  ];
+  for (const [node, timeline] of cases) {
+    const api = copyApi({ timelines: new Map([[42, timeline]]) });
+    assert.deepEqual(await copyDispatch(api, [node]), { dispatched: [], failed: 0 }, JSON.stringify(node.author) + JSON.stringify(node.labels));
+    assert.equal(api.calls.dispatched.length, 0);
+  }
+});
+
+test("sync-shared-copies: a head with its check run is skipped, and recorded once the run completed; a run in flight holds it", async () => {
+  const node = copyPr(43);
+  const timelines = new Map([[43, copyRefusal(node.headRefOid)]]);
+  const record = emptyRecord();
+  const done = copyApi({ timelines, checks: new Map([[node.headRefOid, [{ status: "completed", conclusion: "neutral" }]]]) });
+  assert.deepEqual(await copyDispatch(done, [node], { record }), { dispatched: [], failed: 0 });
+  // Recorded: the next run reads nothing for the head.
+  const next = copyApi({ timelines });
+  assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
+  assert.deepEqual(next.calls.checkReads, []);
+  const flying = copyApi({ timelines, runs: [{ id: 9, status: "in_progress", display_title: pr_unblockTitle("sync-shared-copies", 43) }] });
+  assert.deepEqual(await copyDispatch(flying, [node]), { dispatched: [], failed: 0 });
+});
+
+test("sync-shared-copies: a failed select job's failure is retried until limit-stops-per-head failures stand on the head, then recorded", async () => {
+  const node = copyPr(44);
+  const timelines = new Map([[44, copyRefusal(node.headRefOid)]]);
+  const cap = LIMIT_DEFAULTS["limit-stops-per-head"];
+  const failure = { name: "pr-unblock / sync-shared-copies", status: "completed", conclusion: "failure", completed_at: "2026-10-18T10:05:00Z", output: { title: "Failed", summary: "The activity step failed." } };
+  for (let failures = 1; failures < cap; failures += 1) {
+    const api = copyApi({ timelines, checks: new Map([[node.headRefOid, Array(failures).fill(failure)]]) });
+    assert.equal((await copyDispatch(api, [node])).dispatched.length, 1, `${failures} failure(s): sent again`);
+  }
+  const record = emptyRecord();
+  const capped = copyApi({ timelines, checks: new Map([[node.headRefOid, Array(cap).fill(failure)]]) });
+  assert.deepEqual(await copyDispatch(capped, [node], { record }), { dispatched: [], failed: 0 });
+  const next = copyApi({ timelines });
+  assert.deepEqual(await copyDispatch(next, [node], { record }), { dispatched: [], failed: 0 });
+  assert.deepEqual(next.calls.checkReads, [], "recorded at the cap: nothing read again");
 });

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        }
+      ],
+      "why": "reads an item"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/2.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: [\"status: confirmed\"]"
+          }
+        }
+      ],
+      "why": "relabels an item"
+    }
+  ]
+}

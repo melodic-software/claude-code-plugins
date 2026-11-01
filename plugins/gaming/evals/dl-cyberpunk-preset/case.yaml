@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: dl-cyberpunk-preset
+graders:
+  - name: proposes-dxgi
+    type: regex
+    pattern: '\bdxgi\.dll\b'
+    flags: 'i'
+    target: last_message
+  - name: dbghelp-is-stock
+    type: regex
+    pattern: '\bdbghelp(?:\.dll)?\b[^\n]{0,160}\b(?:stock|game''s own|the game''s|ships|shipped|existing|game file|already (?:exists|there|present|in)|collision|collides|overwrit\w*|replac\w*)\b|\b(?:stock|existing|game file|game''s own|its own|ships|shipped)\b[^\n]{0,80}\bdbghelp\b'
+    flags: 'i'
+    target: last_message
+  - name: autocapture-stays-false
+    type: regex
+    pattern: '\bAutoCapture\b[^\n]{0,140}\b(?:false|stays off|off|can''t|cannot|won''t|will[\s*_]+not|not allowed|no preset|never|refuse\w*)\b|\b(?:won''t|will[\s*_]+not|can''t|cannot|never|not going to)\b[^\n]{0,60}\bAutoCapture\b'
+    flags: 'i'
+    target: last_message
+  - name: names-preset
+    type: regex
+    pattern: '\bcyberpunk-2077\b'
+    flags: 'i'
+    target: last_message
+  - name: asks-for-yes
+    type: regex
+    pattern: '\b(?:yes|confirm\w*|go ahead|proceed|OK to)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-apply-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?-Verb\s+apply\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-dbghelp-proxy
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?-Proxy\s+(?:\\?[''"])?dbghelp'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-autocapture-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"content"\s*:\s*"(?:[^"\\]|\\.)*?AutoCapture(?:\s*=\s*|\\?"\s*,\s*\\?"value\\?"\s*:\s*\\?")true'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-autocapture-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"new_string"\s*:\s*"(?:[^"\\]|\\.)*?AutoCapture(?:\s*=\s*|\\?"\s*,\s*\\?"value\\?"\s*:\s*\\?")true'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply holds no link"
+    },
+    {
+      "answer": "Dometrain (dometrain.com) has courses on ASP.NET Core authentication, but its tools are not available here.",
+      "why": "names the site without a lesson path"
+    },
+    {
+      "answer": "Course access needs a subscription: https://dometrain.com/dometrain-pro/",
+      "why": "non-lesson page"
+    },
+    {
+      "answer": "## Sources\n\n- Microsoft docs: https://learn.microsoft.com/aspnet/core/security/authentication/jwt-authn?t=1",
+      "why": "timestamp-like query on another host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Following [Validating JWTs](https://dometrain.com/take/course/aspnet-core-auth-1234/validating-jwts-5678/?t=135).",
+      "why": "invented take link"
+    },
+    {
+      "answer": "| Lesson | https://dometrain.com/course/aspnet-core-auth/jwt?t=95 |",
+      "why": "invented timestamp link without /take/"
+    },
+    {
+      "answer": "**Watch:** www.dometrain.com/take/course/x/y/",
+      "why": "take path without scheme"
+    }
+  ]
+}

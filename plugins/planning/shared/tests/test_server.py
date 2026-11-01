@@ -1,5 +1,5 @@
 # test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
-# test-scope: plugins/planning/surface/schema/*.schema.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/surface/question_shape.py
 """server.py: listeners, auth classes, Host checks, headers, caps, errors and the snapshot.
 
 Expected values come from the Design's Contracts ("Listeners", "Auth classes", "Guest listener
