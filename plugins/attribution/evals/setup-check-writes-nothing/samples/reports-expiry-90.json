@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| stamp_expiry_days | 90 | team: docs/conventions/attribution.yaml |",
+      "why": "table row"
+    },
+    {
+      "answer": "Effective: stamp_expiry_days=90 (from docs/conventions/attribution.yaml)",
+      "why": "show-config line"
+    },
+    {
+      "answer": "The stamp expiry window is 90 days, set by the team layer.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "stamp_expiry_days: 180 (bundled default)",
+      "why": "missed the team layer"
+    },
+    {
+      "answer": "excluded_paths: drafts/** (team layer)",
+      "why": "other key only"
+    }
+  ]
+}

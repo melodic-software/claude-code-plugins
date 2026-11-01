@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "They stay under .work/codify/fixture/."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Writing beside the file."
+    }
+  ]
+}
