@@ -46,24 +46,28 @@ mk_tree() {
     "build-report": {
       "retention-days": 1,
       "readers": [".github/workflows/build.yml publish job, same run"],
-      "reason": "Read only by its own run."
+      "reason": "Read only by its own run.",
+      "scan": "none"
     },
     "lane-patch-*": {
       "retention-days": 7,
       "readers": [".github/workflows/build.yml publish job"],
-      "reason": "A manual re-run of the publish job reads it."
+      "reason": "A manual re-run of the publish job reads it.",
+      "scan": "upload"
     },
     "verdict-*": {
       "retention-days": "max",
       "readers": [".github/workflows/build.yml gate job, look-back of 80 days"],
       "max-reader": ".github/workflows/build.yml",
       "reason": "The gate reads verdicts back to the pull request's creation.",
+      "scan": "none",
       "uploads": [".github/workflows/build.yml#verdict"]
     },
     "pack-*": {
       "retention-days": 3,
       "readers": [".github/actions/pack/action.yml caller, same run"],
       "reason": "Read only by its own run.",
+      "scan": "plaintext",
       "pending-cut": "1 day is enough."
     }
   }
@@ -80,7 +84,12 @@ jobs:
           name: build-report
           path: report.json
           retention-days: 1
-      - uses: actions/upload-artifact@v7
+      - id: scan-patch
+        uses: ./.github/actions/scan-upload
+        with:
+          path: patch.diff
+      - if: steps.scan-patch.outputs.clean == 'true'
+        uses: actions/upload-artifact@v7
         with:
           name: lane-patch-${{ github.run_attempt }}
           path: patch.diff
@@ -100,6 +109,11 @@ EOF
 runs:
   using: composite
   steps:
+    - id: scan
+      shell: bash
+      env:
+        SCAN_PATHS: plain.json
+      run: node "$GITHUB_ACTION_PATH/../scan-upload/scan-upload.mjs"
     - uses: actions/upload-artifact@v7
       with:
         name: pack-${{ github.run_id }}
@@ -171,7 +185,7 @@ run_case "a name matching no family fails" 1 \
 
 run_case "a value differing from the table fails" 1 \
   "subst $WORKFLOW 'retention-days: 7' 'retention-days: 14'" \
-  "$WORKFLOW:11: upload \`lane-patch-\${{ github.run_attempt }}\` keeps 14 days; $TABLE family \`lane-patch-*\` says 7"
+  "$WORKFLOW:15: upload \`lane-patch-\${{ github.run_attempt }}\` keeps 14 days; $TABLE family \`lane-patch-*\` says 7"
 
 run_case "a dynamic name maps by its literal prefix, not by a longer family" 1 \
   "subst $WORKFLOW 'name: lane-patch-' 'name: lane-patch-x-'" \
@@ -179,11 +193,11 @@ run_case "a dynamic name maps by its literal prefix, not by a longer family" 1 \
 
 run_case "an upload in a composite action is checked" 1 \
   "subst $ACTION 'retention-days: 3' 'retention-days: 5'" \
-  "$ACTION:4: upload \`pack-\${{ github.run_id }}\` keeps 5 days"
+  "$ACTION:9: upload \`pack-\${{ github.run_id }}\` keeps 5 days"
 
 run_case "a computed name its job is not listed for fails" 1 \
   "edit $TABLE 't.families[\"verdict-*\"].uploads=[\".github/workflows/build.yml#build\"]'" \
-  "$WORKFLOW:21: upload \`\${{ steps.name.outputs.name }}\` matches no family" \
+  "$WORKFLOW:26: upload \`\${{ steps.name.outputs.name }}\` matches no family" \
   "$TABLE: family \`verdict-*\` lists upload .github/workflows/build.yml#build, which uploads no computed name"
 
 run_case "a max row keeps 90 days, so 89 differs" 1 \
@@ -207,7 +221,7 @@ run_case "a computed-by naming no file of the tree fails" 1 \
   "$TABLE: family \`verdict-*\` computed-by scripts/gone.mjs names no file"
 
 run_case "a row no upload matches fails" 1 \
-  "edit $TABLE 't.families[\"old-*\"]={\"retention-days\":1,\"readers\":[\".github/workflows/build.yml\"],\"reason\":\"gone\"}'" \
+  "edit $TABLE 't.families[\"old-*\"]={\"retention-days\":1,\"readers\":[\".github/workflows/build.yml\"],\"reason\":\"gone\",\"scan\":\"none\"}'" \
   "$TABLE: family \`old-*\` matches no upload step"
 
 run_case "a max row with no max-reader fails" 1 \
@@ -228,6 +242,45 @@ run_case "a reader naming no file of the tree fails" 1 \
 
 run_case "a row with no reason fails the schema" 1 \
   "edit $TABLE 'delete t.families[\"build-report\"].reason'" \
+  "$TABLE: schema:"
+
+run_case "a scanned family's upload with no scan step fails" 1 \
+  "drop_line $WORKFLOW '        uses: ./.github/actions/scan-upload'" \
+  "$WORKFLOW:14: upload \`lane-patch-\${{ github.run_attempt }}\` has no scan before it; $TABLE family \`lane-patch-*\` says scan: upload"
+
+run_case "a scan over a different path does not count" 1 \
+  "subst $WORKFLOW '          path: patch.diff
+      - if' '          path: other.diff
+      - if'" \
+  "has no scan before it"
+
+run_case "an upload whose if: does not require the scan's clean output fails" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean' 'if: steps.other.outputs.clean'" \
+  "has no scan before it"
+
+run_case "an if: with text around \${{ }} is always true, so it gates nothing" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (\${{ always() }}) && steps.scan-patch.outputs.clean == '" \
+  "has no scan before it"
+
+run_case "a top-level || beside the clean output gates nothing" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: always() || steps.scan-patch.outputs.clean == '" \
+  "has no scan before it"
+
+run_case "an upload that runs when its scan step does not fails" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (always()) && steps.scan-patch.outputs.clean == '" \
+  "has no scan before it"
+
+run_case "the upload's condition repeats its scan step's if:, parenthesized" 0 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (always() && inputs.go) && steps.scan-patch.outputs.clean == ' && subst $WORKFLOW '      - id: scan-patch' '      - id: scan-patch
+        if: always() && inputs.go'" \
+  "check-artifact-retention: 4 upload step(s) match"
+
+run_case "a plaintext family with no scan step before the seal fails" 1 \
+  "subst $ACTION 'scan-upload/scan-upload.mjs' 'seal.mjs'" \
+  "$ACTION:9: upload \`pack-\${{ github.run_id }}\` has no scan step before it; $TABLE family \`pack-*\` says scan: plaintext"
+
+run_case "a row with no scan field fails the schema" 1 \
+  "edit $TABLE 'delete t.families[\"build-report\"].scan'" \
   "$TABLE: schema:"
 
 run_case "a missing table fails as environment" 2 \

@@ -75,13 +75,36 @@ Every surviving finding carries exactly one label:
 
 | Label | Use when |
 |---|---|
-| `reproduced` | A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
-| `verified-by-reading` | No cheap check exists, and the fault is established from the source plus a traced reproduction argument. State why a check was not run (no harness, no fixture, side effects, requires production data). |
+| `reproduced` | On an attended run only: a check the person approved was run by the scan's main thread and observed to fail as predicted. State the command and what it showed. |
+| `verified-by-reading` | The fault is established from the source plus a traced reproduction argument, and no approved check ran. State why: no cheap check exists (no harness, no fixture, side effects, requires production data), the run is unattended, or the person declined the check. |
 
-**Attempt a cheap reproduction first.** If a test file, a REPL, or a one-line invocation can settle it
-in under a minute, run it. Reproduction is the strongest precision lever available. Never claim
-`reproduced` for a check you did not run, and never run anything that mutates the repository or any
-external system.
+## Running the scanned repository's code
+
+The scanned checkout may be one nobody here controls, and its tests and scripts are its code. The
+gate therefore **runs none of the scanned repository's code**: no test, script, REPL, build or
+one-line invocation. Where a cheap check (under a minute, mutating neither the repository nor any
+external system) would settle the candidate, the gate names it in `proposed-check:` with the exact
+command and the failure it predicts, and labels the finding `verified-by-reading`.
+
+The rest of this section is for the scan's main thread, which decides whether a proposed check
+runs. It is not part of the gate prompt.
+
+- **Unattended run: nothing runs.** A run is unattended when its caller passes `--unattended`
+  (a loop, a routine, a lane rule; `/bugs:scan` Step 7), never inferred from the environment.
+  Such a run executes none of the scanned repository's code, and every surviving finding keeps
+  the label `verified-by-reading`, with its proposed check recorded unrun.
+- **Attended (interactive) run: each check runs only after the person agrees.** Before each
+  proposed check, the main thread shows the person the exact command, the candidate it tests and
+  the predicted failure, and asks whether to run it. One answer covers one check; a yes to one
+  never covers the next. It runs exactly the approved command. When the output shows the
+  predicted failure, the finding becomes `reproduced`, citing the command and what it showed.
+  When the check ran cleanly and its output contradicts the prediction, the candidate is refuted,
+  with the command and its output as the refuting argument. When the check could not run (a
+  missing dependency, a setup error), the finding stays `verified-by-reading` and records the
+  output. A declined check, a question nobody answers, or a run with no way to ask the person
+  leaves the finding `verified-by-reading`.
+
+Never claim `reproduced` for a check that was not run with the person's approval.
 
 ## Retained-refuted output contract
 
@@ -93,12 +116,16 @@ Return every candidate in one of two shapes:
 
 ```markdown
 VERDICT: finding
-label: reproduced | verified-by-reading
+label: verified-by-reading
 evidence: <verbatim quote with path:line>
 reproduction: <the concrete path to the fault>
 impact: <observable wrong behavior, and who it affects>
 falsification-attempted: <routes tried, and why each failed>
+proposed-check: <exact command, and the failure it predicts> | none (<why no cheap check exists>)
 ```
+
+The gate always returns `verified-by-reading`; only the main thread's approved run upgrades a
+finding to `reproduced`.
 
 ```markdown
 VERDICT: refuted
@@ -110,7 +137,8 @@ not a refuting argument.
 
 ## Boundaries
 
-- Read-only. No edits, no writes, no branches, no filing, no network mutation.
+- Read-only. No edits, no writes, no branches, no filing, no network mutation, and no running of
+  the scanned repository's code.
 - One candidate per dispatch. Do not compare candidates or deduplicate. The scan skill owns that.
 - Do not rewrite the candidate into a different, better bug you noticed while reading. Refute this one
   and mention the observation in one line with its `path:line`; the scan records it in the report's

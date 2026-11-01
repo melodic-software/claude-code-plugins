@@ -2643,13 +2643,19 @@ hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merg
 fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
-kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
+kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages
+around kept entries near expiry, up to a page cap, since GitHub can delete an artifact up to an hour
+before its `expires_at` (`EARLY_DELETION_LEAD`, `NEAR_EXPIRY_PAGE_CAP`). Any count still other than it, a missing, older or
 malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
 lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
 A whole listing is held to the same count: deduplicated by id, added to the whole listings read
 before it and checked by a top-up from the first page, since one can skip an artifact at a page
 boundary while an earlier one expires (#10486); after three whole listings that never hold the
-live count the candidate refuses `verify:unreadable`.
+live count the candidate refuses `verify:unreadable`, and after the first when its top-up holds more
+than the count or does not read, or the pages read before it held more, which another whole listing
+cannot cure. A listing that fails once
+it began a whole listing is noted beside the saved listing, and every later reader in the job
+refuses on that note without paging.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
@@ -3064,10 +3070,16 @@ Each profile under `models.profiles` names:
   `resolve-config` resolves any value outside `haiku`, `sonnet` and `opus` to `opus`, so a
   config that skipped the schema check still never runs `default` or the frontier tier.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
-  passes none, so the model's default effort applies.
+  passes none, so the run takes whatever level the effort resolution order reaches next, the
+  model's default when nothing else sets one
+  ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+  as of 2026-11-01; recheck when that section changes the order).
 - `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
   `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing, and any
-  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win.
+  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
+  2026-11-01; recheck when that section changes the order or adds an override such as a mod's
+  `agent.spawn` hook).
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the
