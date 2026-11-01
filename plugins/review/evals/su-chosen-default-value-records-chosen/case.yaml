@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: su-chosen-default-value-records-chosen
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: chosen-value-passed
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?\sratchet_offer=true\b'
+  - name: no-default-flag-for-chosen-key
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?--default\s+ratchet_offer\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: file-records-chosen
+    type: regex
+    pattern: '^  ratchet_offer: chosen \(default true\)$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/review.yaml }
+  - name: file-not-recorded-default
+    type: regex
+    pattern: '^(?![\s\S]*^  ratchet_offer: default$)[\s\S]*^provenance:$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/review.yaml }

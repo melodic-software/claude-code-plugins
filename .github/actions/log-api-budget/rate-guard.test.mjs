@@ -436,7 +436,7 @@ test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none 
       for (const url of [URL_A, URL_A, URL_B]) {
         await guarded(url);
       }
-      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core\n404 5000 4989 11 1792751600 core\n500 na na na na na\n");
+      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core repos/{repo}/pulls/{n}\n404 5000 4989 11 1792751600 core repos/{repo}/pulls/{n}\n500 na na na na na repos/{repo}/issues/{n}\n");
     } finally {
       for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
         if (value === undefined) delete process.env[key];

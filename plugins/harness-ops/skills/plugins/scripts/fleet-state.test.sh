@@ -2624,6 +2624,52 @@ assert_exit "--from: projects with every CC state file absent" 0 "$rc"
 assert_eq "--from: the state-free projection still emits the ids" \
   "$(printf 'delta@market1\ngamma@market1')" "$out"
 
+# ============================================================================
+# projectEnabledEntry — the raw enabledPlugins entry in each present path's
+# .claude/settings.json, so an explicit false is told from no entry.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+mkdir -p "$case_dir/set/.claude" "$case_dir/bad/.claude" "$case_dir/bare"
+write "$case_dir/set/.claude/settings.json" '{"enabledPlugins":{"t@market1":true,"f@market1":false,"o@market1":["x"]}}'
+write "$case_dir/bad/.claude/settings.json" '{"enabledPlugins":'
+# A planted separator: past the U+001F the text spells an entry for the absent
+# path `gone`, and the part before it parses as a settings file with no entry.
+mkdir -p "$case_dir/evil/.claude"
+printf '{"enabledPlugins":{}}\037%s\036F{"enabledPlugins":{"n@market1":false}}' "$case_dir/gone" \
+  >"$case_dir/evil/.claude/settings.json"
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"t@market1\": [{\"scope\": \"project\", \"projectPath\": \"$case_dir/set\", \"installPath\": \"x\", \"version\": \"0.1.0\"},
+                    {\"scope\": \"user\", \"installPath\": \"x\", \"version\": \"0.2.0\"}],
+    \"f@market1\": [{\"scope\": \"project\", \"projectPath\": \"$case_dir/set\", \"installPath\": \"x\", \"version\": \"0.1.0\"}],
+    \"o@market1\": [{\"scope\": \"local\", \"projectPath\": \"$case_dir/set\", \"installPath\": \"x\", \"version\": \"0.1.0\"}],
+    \"n@market1\": [{\"scope\": \"project\", \"projectPath\": \"$case_dir/set\", \"installPath\": \"x\", \"version\": \"0.1.0\"},
+                    {\"scope\": \"project\", \"projectPath\": \"$case_dir/bare\", \"installPath\": \"x\", \"version\": \"0.1.0\"},
+                    {\"scope\": \"project\", \"projectPath\": \"$case_dir/bad\", \"installPath\": \"x\", \"version\": \"0.1.0\"},
+                    {\"scope\": \"project\", \"projectPath\": \"$case_dir/gone\", \"installPath\": \"x\", \"version\": \"0.1.0\"},
+                    {\"scope\": \"project\", \"projectPath\": \"$case_dir/evil\", \"installPath\": \"x\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "t"}, {"name": "f"}, {"name": "o"}, {"name": "n"}]}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+entry_of() { jq -r --arg id "$1" --arg p "$case_dir/$2" '.installed[] | select(.id == $id and .projectPath == $p) | .projectEnabledEntry' <<<"$out" 2>/dev/null; }
+assert_eq "projectEnabledEntry: an explicit true" "true" "$(entry_of t@market1 set)"
+assert_eq "projectEnabledEntry: an explicit false is not read as no entry" "false" "$(entry_of f@market1 set)"
+assert_eq "projectEnabledEntry: a value that is not a boolean" "other" "$(entry_of o@market1 set)"
+assert_eq "projectEnabledEntry: no key in the map" "absent" "$(entry_of n@market1 set)"
+assert_eq "projectEnabledEntry: no settings file" "absent" "$(entry_of n@market1 bare)"
+assert_eq "projectEnabledEntry: a file that does not parse" "unreadable" "$(entry_of n@market1 bad)"
+assert_eq "projectEnabledEntry: null for a path that is not present" "null" "$(entry_of n@market1 gone)"
+assert_eq "projectEnabledEntry: a file holding a separator byte is unreadable" "unreadable" "$(entry_of n@market1 evil)"
+assert_eq "projectEnabledEntry: null for a user-scope record" "null" \
+  "$(jq -r '.installed[] | select(.scope == "user") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
+assert_eq "projectEnabledEntry: carried on divergences[].scopes[] too" "true" \
+  "$(jq -r '.divergences[] | select(.id == "t@market1") | .scopes[] | select(.scope == "project") | .projectEnabledEntry' <<<"$out" 2>/dev/null)"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
