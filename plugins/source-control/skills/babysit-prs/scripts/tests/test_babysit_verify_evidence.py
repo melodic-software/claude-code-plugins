@@ -5232,7 +5232,7 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
             expires=None if expires is None else LISTED_AT + expires,
         )
 
-    def fail(self, artifact_id: int) -> Any:
+    def earlier_fail(self, artifact_id: int) -> Any:
         """An earlier head's FAIL of this pull request, two days old."""
         return dated(
             named(EARLIER, "fail"), 2, artifact_id, self.base_at - timedelta(days=2)
@@ -5249,7 +5249,7 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         holds 600, expiring in 30 minutes, which GitHub then deletes early:
         the union holds exactly the live count, with 600 in the FAIL's place."""
         dropping = self.entry(600, timedelta(minutes=30))
-        fake = self.fake(self.fail(650), dropping)
+        fake = self.fake(self.earlier_fail(650), dropping)
         fake.full_skips = [{650}]
         listed = fake.listed
 
@@ -5281,15 +5281,49 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         # 30 minutes before its expiry: five against a live count of five.
         # Page 3 (700) does not reach 750, but 600's own read answers 404,
         # so the count is one short and the whole listing holds the FAIL.
+        # No wait on this base could restore it: no INCREMENTAL_WAITS.
         self.write_carry([*self.base, self.entry(600, timedelta(minutes=30))])
-        fake = self.fake(self.fail(750))
+        fake = self.fake(self.earlier_fail(750))
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        self.assertTrue(self.by_id(fake))
+        self.assertEqual(len(self.by_id(fake)), 1)
+        self.assertEqual(self.sleep.call_args_list, [])
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1000, 900, 800, 750, 700])
+
+    def test_a_dropped_entry_does_not_spend_the_top_ups_page_cap(self) -> None:
+        # As above, with 650 live and near expiry too: the incremental read
+        # takes pages 3 and 4, and the whole listing's top-up, which keeps
+        # 650, takes page 3 again: three of a cap of six. Re-read after each
+        # wait on the same base, the incremental read would take all six and
+        # leave the top-up unsettled.
+        near = self.entry(650, timedelta(minutes=30))
+        self.write_carry([*self.base, near, self.entry(600, timedelta(minutes=30))])
+        fake = self.fake(self.earlier_fail(750), near)
+        with mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 6):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(self.sleep.call_args_list, [])
+        self.assertEqual(reader._near_expiry_reads, 3)
+        self.assertFalse(self.failed.exists())
+
+    def test_a_short_count_reads_no_pages_near_expiry(self) -> None:
+        # The carry lacks FAIL 750 and 600 is live, near expiry: five of six.
+        # A short count is never kept, so it waits and reads again as before;
+        # only the whole listing's exact top-up reads 600's page.
+        near = self.entry(600, timedelta(minutes=30))
+        self.write_carry([*self.base, near])
+        fake = self.fake(self.earlier_fail(750), near)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
+        self.assertEqual(reader.listing_mode, "full")
+        waits = [c.args[0] for c in self.sleep.call_args_list]
+        self.assertEqual(waits, list(ve.INCREMENTAL_WAITS))
+        self.assertEqual(reader._near_expiry_reads, 1)
+        self.assertEqual(self.by_id(fake), [])
 
     def test_an_exact_count_with_none_near_expiry_reads_nothing_more(self) -> None:
         # 600 expires three hours on, past EARLY_DELETION_LEAD: page 1 alone.

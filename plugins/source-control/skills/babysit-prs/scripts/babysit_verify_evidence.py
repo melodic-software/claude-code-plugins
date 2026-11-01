@@ -152,15 +152,17 @@ newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
 the lowest id those pages hold, less those expired or past `expires_at` by the
 first page's `Date`. GitHub can delete an artifact up to an hour before its
-`expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so whenever a kept
-entry expires within it the pages around the kept entries near expiry are
-read again and decide every id they span, an id they omit by its own read
-(`Reader._near_expiry`), at a few pages a group whatever the repository's
-total and at most `NEAR_EXPIRY_PAGE_CAP` a listing. They are read on an exact
-count too: an entry deleted early can stand in for a FAIL the pages skipped.
-An over-count those pages do not settle goes to the one whole listing, an
-exact count they do not settle fails the listing, and a page or id read still
-failing on a 5xx after `LISTING_WAITS` fails it as transient. Such a listing
+`expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so when a listing
+holds the live count or more and a kept entry expires within it, the pages
+around the kept entries near expiry are read again and decide every id they
+span, an id they omit by its own read (`Reader._near_expiry`), at a few pages
+a group whatever the repository's total and at most `NEAR_EXPIRY_PAGE_CAP` a
+listing. They are read on an exact count too: an entry deleted early can stand
+in for a FAIL the pages skipped. An over-count those pages do not settle goes
+to the one whole listing, an exact count they do not settle fails the
+listing, a count they leave short goes to a whole listing with no wait, and a
+page or id read still failing on a 5xx after `LISTING_WAITS` fails it as
+transient. Such a listing
 could hide a FAIL by leaving it out, so it is kept only when it holds exactly
 the first page's `total_count`, GitHub's live count of the repository's
 artifacts. Across 17 first-page reads on
@@ -444,8 +446,9 @@ class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
     hold the live count: `COUNT_MISSED` (fewer), the one case read again on
     the same base, or `COUNT_OVER` (more, or any count once the pages near
-    expiry were read again), which goes to one whole listing, since no wait
-    removes an entry GitHub no longer counts."""
+    expiry were read again, but a top-up's exact count left short), which
+    goes to one whole listing, since no wait removes an entry GitHub no
+    longer counts."""
 
 
 # Fewer than the live count: the pages skipped an artifact, which another
@@ -1559,16 +1562,17 @@ class Reader:
         copy) included; below it the base's entries stand, less each one
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). A result that holds more than
-        the live count, or any result while a kept entry is near expiry, has
+        the live count, or exactly it while a kept entry is near expiry, has
         the ids around its kept entries near expiry decided by the pages that
         hold them now (`_near_expiry`); an exact count they leave unsettled
         gives None, since an entry deleted early may stand in for a FAIL. The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count: fewer gives `COUNT_MISSED`, which
-        `_current_listing` reads again on the same base after a wait, and more,
-        or any count the pages near expiry left unsettled, gives `COUNT_OVER`,
-        which goes to one whole listing, since no wait removes an entry GitHub
-        no longer counts; either prints one
+        `_current_listing` reads again on the same base after a wait, and
+        more, or any count once the pages near expiry were read (a top-up's
+        exact count left short aside, which another whole listing can
+        restore), gives `COUNT_OVER`, which goes to one whole listing, since
+        no wait removes an entry GitHub no longer counts; either prints one
         `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
         `Date`, or any failed read gives None (`_page_transient` says whether
@@ -1633,7 +1637,7 @@ class Reader:
         regions = 0
         over = len(listing) > total
         limit = server_now + EARLY_DELETION_LEAD
-        near = any(
+        near = len(listing) == total and any(
             a["expires_at"] is not None and _when(a["expires_at"]) <= limit
             for a in kept
         )
@@ -1643,12 +1647,12 @@ class Reader:
             # can hide one there standing in for a FAIL the pages skipped.
             self._over_counted |= over
             reread = self._near_expiry(
-                listing, len(fresh), max(0, len(listing) - total), server_now, deadline
+                listing, len(fresh), len(listing) - total, server_now, deadline
             )
             if reread is None:
                 return None
             listing, regions, settled = reread
-            if not over and not settled:
+            if near and not settled:
                 # Unsettled, an exact count may still lack a FAIL.
                 return None
         if len(listing) == total:
@@ -1670,9 +1674,13 @@ class Reader:
             file=sys.stderr,
             flush=True,
         )
-        # Once the pages near expiry were read on an over-count, no wait can
-        # settle it.
-        return COUNT_OVER if over or len(listing) > total else COUNT_MISSED
+        # Once the pages near expiry were read, no wait on this base settles
+        # the count: the base still holds what they dropped. A top-up's exact
+        # count left short goes to another whole listing, which can restore a
+        # skip outside those pages.
+        if over or len(listing) > total or (near and stage != "top-up"):
+            return COUNT_OVER
+        return COUNT_MISSED
 
     def _near_expiry(
         self,
