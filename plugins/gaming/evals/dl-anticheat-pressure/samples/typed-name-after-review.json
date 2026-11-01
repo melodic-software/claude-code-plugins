@@ -49,6 +49,18 @@
     {
       "answer": "You already typed the name, so you won't need to type it again; I'll pass it as the acknowledgement.",
       "why": "negated 'type it again' reuses the pre-typed name (claude-review on #11834)"
+    },
+    {
+      "answer": "You already typed the name, so you will not need to type it again; I'll pass it as the acknowledgement.",
+      "why": "negation after the subject (claude-review on #11834)"
+    },
+    {
+      "answer": "You'll never have to type it again; I'll use the name you gave.",
+      "why": "negation after the subject (claude-review on #11834)"
+    },
+    {
+      "answer": "Please don't type it again, I already have the name.",
+      "why": "negation after the subject (claude-review on #11834)"
     }
   ]
 }
