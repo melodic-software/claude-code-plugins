@@ -13,7 +13,7 @@
 //
 // The page comes only from the checked-in template plus the model as JSON data,
 // through the shared view builder's interactive profile, so no model text is
-// ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage
+// written into markup except the title, which the builder escapes into <title>. Exit 0 ok, 1 the page fails its profile, 2 usage
 // or a model the page cannot draw (an unknown kind, a compare of the wrong width).
 // A label cut to the cap prints one warning line on stderr and still exits 0.
 
@@ -128,10 +128,12 @@ function normalize(model, warnings = []) {
  * @returns {string} the validated interactive page
  */
 export function buildExplainerPage(model) {
+  const data = normalize(model);
   return buildView({
     profile: "interactive",
     template: readFileSync(TEMPLATE, "utf8"),
-    data: normalize(model),
+    data,
+    title: data.title,
   });
 }
 
