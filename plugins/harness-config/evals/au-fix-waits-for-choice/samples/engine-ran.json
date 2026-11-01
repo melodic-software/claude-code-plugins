@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/harness-config-audit",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh\" --table --out .work/harness-config-audit/findings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the documented call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh --json --out /tmp/f.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unquoted, --json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq . .claude/settings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand audit with jq"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/check-structure.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "structure script only"
+    }
+  ]
+}
