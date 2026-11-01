@@ -581,6 +581,15 @@ async page => { // the question page itself: choices, chips, banners, header and
       ok("#11858: under single pacing the page shows no round index, with nothing held", idx === null && held === null, JSON.stringify(idx) + " | " + held);
     }
   }
+  if (PHASE === 24) { // #11858: still single pacing; the shell added Q21 to Q20's round 4, then held Q12 (round 3) and Q20
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q21");
+    const held = await page.$("#roundHeld") ? await text("#roundHeld") : null;
+    ok("#11858: under single pacing a later question of the round carries the Held line, naming an earlier round's hold and its own round's, in id order", /^Held: Q12\s*Rollout gate waiting on the error-log baseline; Q20\s*Freeze conflict waiting on the freeze calendar$/.test(held || ""), held);
+    const card = await page.evaluate(() => ({head: !!document.getElementById("roundRestate"), idx: !!document.getElementById("roundIndex")}));
+    ok("#11858: the later question shows the Held line without the round's header or index", !card.head && !card.idx, JSON.stringify(card));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");
