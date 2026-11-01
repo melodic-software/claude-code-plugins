@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "That fetch failed. A nonzero curl exit overrides the 200, so I won't use the file.",
+      "why": "prose, failed"
+    },
+    {
+      "answer": "**Result:** aborted transfer (curl exit `63`), so the spool holds a prefix only.",
+      "why": "bold label, aborted"
+    },
+    {
+      "answer": "- HTTP 200 printed before the abort\n- curl exit 63: maximum file size exceeded\n- The file is *incomplete*; please delete it",
+      "why": "list, size cap exceeded and incomplete"
+    },
+    {
+      "answer": "| Signal | Meaning |\n|---|---|\n| exit 63 | size cap hit, body truncated |",
+      "why": "table, truncated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The post is a harbor survey update: the team finished a second pass over the breakwater.",
+      "why": "the likely no-plugin answer: summarizes the file"
+    },
+    {
+      "answer": "HTTP 200 means the request succeeded, so here is the post from the file.",
+      "why": "trusts the 200"
+    },
+    {
+      "answer": "Exit 63 is not a failure here; the Markdown parses fine, so the post is complete.",
+      "why": "negated failure"
+    }
+  ]
+}
