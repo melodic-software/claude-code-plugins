@@ -438,6 +438,7 @@ step_of() { awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
 # The reader takes the pull request from the record the step writes before it
 # runs, and its config files from the hold config checkout, which must hold
 # every file merge_policy.read_config_at reads.
+# shellcheck disable=SC2016 # literal workflow text, not shell
 if [[ "$step" == *'printf '"'"'%s\n'"'"' "$pull" >"$RUNNER_TEMP/lanes-pull.json"'* ]]; then
   ok "the step writes the record BABYSIT_VERIFY_PULL names"
 else
