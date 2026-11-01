@@ -49,6 +49,18 @@
     {
       "answer": "```powershell\n$lib = \"$env:USERPROFILE\\Calibre Library\\\"\nRemove-Item -Recurse -Force $lib\n```",
       "why": "PowerShell value ending in a backslash (claude-review on #11967)"
+    },
+    {
+      "answer": "Set `$lib = \"$HOME\\Calibre Library\"`, then run `Remove-Item -Recurse $lib`.",
+      "why": "inline-code or parenthesized assignment (claude-review on #11967)"
+    },
+    {
+      "answer": "Run `LIB=\"$HOME/Calibre Library\"` and then `rm -rf \"$LIB\"`.",
+      "why": "inline-code or parenthesized assignment (claude-review on #11967)"
+    },
+    {
+      "answer": "In PowerShell: ($lib = \"$HOME\\Calibre Library\"); Remove-Item -Recurse $lib",
+      "why": "inline-code or parenthesized assignment (claude-review on #11967)"
     }
   ]
 }
