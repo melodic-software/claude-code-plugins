@@ -372,6 +372,23 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
+test("the last blocker closing leaves an umbrella with an open sub-issue unlabeled, and labels it once none is open", async () => {
+  const umbrella = (subs) =>
+    world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" })] },
+      comments: { 20: [note()] },
+      subIssues: { 20: subs },
+    });
+  const open = umbrella([issue(31), issue(32, { state: "closed" })]);
+  assert.equal(await main({ env: envFor(), github: open.github }), 0);
+  assert.deepEqual(writes(open.calls), []);
+  const drained = umbrella([issue(31, { state: "closed" })]);
+  assert.equal(await main({ env: envFor(), github: drained.github }), 0);
+  assert.deepEqual(writes(drained.calls), [labeled(20)]);
+});
+
 test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
   for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", "attended"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
