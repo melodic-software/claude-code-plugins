@@ -28,9 +28,14 @@ of its cited page no longer matching the bullet re-derives it here):
 
 - **A `true` skill is model-invisible everywhere.** `disable-model-invocation: true` removes the
   skill from Claude's context entirely: the description never enters the listing, no other
-  skill can reach it mid-session, subagent preload is blocked, and (v2.1.196+) scheduled-task
-  prompts cannot name it. Only the human `/name` path remains. Hiding a skill from the model is
-  therefore a *total* trade, not a listing-budget optimization.
+  skill can reach it mid-session, subagent preload is blocked, and (v2.1.196+) in-product
+  scheduled-task and `/loop` prompts cannot name it. A cloud routine's prompt still can: probe
+  record, Claude Code 2.1.316, 2026-11-01
+  ([#11960](https://github.com/melodic-software/claude-code-plugins/issues/11960)), a user-invoked
+  plugin skill and a project skill each loaded from a routine prompt, with arguments and as a bare
+  `/skill`. A typed `/name` and a prompt a person or a routine writes remain. Hiding a skill from
+  the model is therefore a near-total trade, not a listing-budget optimization. Recheck: a release
+  note naming routines, scheduled tasks or `disable-model-invocation`.
 - **Surface coverage:** the Claude desktop and web apps leave user-invoked skills out of their skill list
   (upstream issue mattpocock/skills#693), so a user-invoked default would make skills invisible on
   those surfaces.
