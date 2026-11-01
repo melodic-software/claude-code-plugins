@@ -26,9 +26,12 @@ samples instead:
                                                      min 0, max 0, arm both,
                                                      for one of the plugin's
                                                      skills
-    Runs `<command>` [through Bash]                  tool_used on Bash with the
-                                                     command's words in order,
-                                                     when the case grants Bash
+    Runs `<command>` [through Bash]                  tool_used on Bash for the
+                                                     command run as one (at the
+                                                     start or after a separator,
+                                                     maybe via an interpreter),
+                                                     not echoed or read, when
+                                                     the case grants Bash
     Does not run `<command>` [itself]                the same, min 0, max 0,
                                                      arm both
     Names|Prints|Reports [the line] `<literal>`,
@@ -49,7 +52,10 @@ pass and reject. A slash command loads the skill without a Skill call, so a
 slash-invoked case gets none, and neither does a case whose expectations say
 the skill must not trigger or be invoked: the converter cannot tell which way
 such a case points, and run-validity.py marks a run INVALID when a required
-Skill call is missing.
+Skill call is missing. Only `expected_output` and the expectations left to an
+`llm` judge are read for that wording; a mapped must-not-fire grader names its
+skill, and one on the case's own skill settles the direction, so that case
+gets neither the grader nor a note.
 
 Every case's `allowed_tools` is Read, Glob, Grep and Skill, plus the tools its
 skill needs to run, read from the skill's SKILL.md: Bash when the body holds a
@@ -230,10 +236,12 @@ NAMES_SKILL = re.compile(
 )
 FILE_CREATED = re.compile(
     r"^(?:Writes|Creates) (?:(?:the|a|an) [\w -]+? )?(?:at|to|under) "
-    r"`?([\w.][\w./-]*)`?\.?$"
+    r"`?([\w.](?:[\w./-]*[\w/])?)`?\.?$"
 )
 # A token holding a placeholder or a quote is not a literal the run can echo.
 NOT_LITERAL = re.compile(r"[<>…\"\\]|\.\.\.")
+# Must-fail replies for a regex grader; the first that cannot match is used.
+STOCK_REPLIES = ("The reply names nothing in particular.", "Done.", "0", "-")
 # Tools that let a run create a file; Edit only changes one.
 CREATES_FILES = frozenset(["Write", "Bash"])
 
@@ -416,12 +424,22 @@ def own_skill(ref, plugin, skills):
     return name if name in skills else None
 
 
+# Where a command can start inside a Bash call's JSON `command` value: its
+# start, or after a separator, then an optional interpreter and an optional
+# quoted or absolute directory before the first word. Text after `echo`, `cat`
+# or `grep` is a mention, not a run.
+COMMAND_START = (
+    r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n)\s*)?'
+    r"(?:(?:python3?|bash|sh|node|npx|uv run)\s+)?(?:\\\"|')?(?:[^\s\"'\\]*/)?"
+)
+# Between two words: whitespace, with an optional closing and opening quote.
+COMMAND_GAP = r"(?:\\\"|')?\s+(?:\\\"|')?"
+
+
 def command_match(command):
-    """input_match for a Bash call whose command holds these words in order,
-    with anything between them (a quoted or absolute path, more arguments)."""
-    gap = r'(?:[^"\\]|\\.)*?'
+    """input_match for a Bash call that runs these words as one command."""
     words = [regex_escape(word) for word in command.split()]
-    return '"command"\\s*:\\s*"' + gap + gap.join(words)
+    return COMMAND_START + COMMAND_GAP.join(words) + r"(?![^\s\"'\\;&|)])"
 
 
 def bash(command):
@@ -438,6 +456,7 @@ def command_samples(command, ran):
     absent = [
         {"answer": [], "why": "no Bash call"},
         {"answer": bash("echo unrelated"), "why": "another command"},
+        {"answer": bash("echo '%s'" % command), "why": "the command only echoed"},
         {
             "answer": [{"tool": "Read", "input": {"file_path": command}}],
             "why": "the text in another tool's input",
@@ -450,17 +469,19 @@ def command_samples(command, ran):
     return {"pass": present, "fail": absent} if ran else {"pass": absent, "fail": present}
 
 
-def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
-    """(grader option lines, samples) for an expectation whose whole wording
-    maps to a deterministic check, or None to keep it an llm judgment."""
+def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_files):
+    """(grader option lines, samples, skill it forbids or None) for an
+    expectation whose whole wording maps to a deterministic check, or None to
+    keep it an llm judgment."""
     found = SKILL_INVOKED.match(text)
     if found and not slash_invoked:
         name = own_skill(found.group(1), plugin, skills)
         if name == skill:
             return (
                 ["type: 'tool_used'", "tool: 'Skill'", "input_match: "
-                 + yaml_str(skill_match(plugin, name), text)],
+                 + yaml_str(skill_match(plugin, name), where)],
                 skill_samples(plugin, name),
+                None,
             )
     found = SKILL_NOT_INVOKED.match(text)
     if found:
@@ -469,9 +490,10 @@ def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
             calls = skill_samples(plugin, name)
             return (
                 ["type: 'tool_used'", "tool: 'Skill'", "input_match: "
-                 + yaml_str(skill_match(plugin, name), text), "min: 0", "max: 0",
+                 + yaml_str(skill_match(plugin, name), where), "min: 0", "max: 0",
                  "arm: 'both'"],
                 {"pass": calls["fail"], "fail": calls["pass"]},
+                name,
             )
     for pattern, ran in ((COMMAND_RAN, True), (COMMAND_NOT_RAN, False)):
         found = pattern.match(text)
@@ -483,10 +505,10 @@ def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
         if ran and "Bash" not in tools:
             return None
         lines = ["type: 'tool_used'", "tool: 'Bash'",
-                 "input_match: " + yaml_str(command_match(command), text)]
+                 "input_match: " + yaml_str(command_match(command), where)]
         if not ran:
             lines += ["min: 0", "max: 0", "arm: 'both'"]
-        return lines, command_samples(command, ran)
+        return lines, command_samples(command, ran), None
     found = NAMES_LITERAL.match(text) or NAMES_SKILL.match(text)
     if found:
         token = found.group(1)
@@ -495,18 +517,24 @@ def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
         if found.re is NAMES_SKILL:
             pattern = "\\/?" + regex_escape(token) + "(?![\\w:-])"
             present = ["Use /%s next." % token, "Use %s next." % token]
-            absent = ["Use /%s-other next." % token, "No skill is named here."]
+            absent = ["Use /%s-other next." % token]
         else:
             pattern = regex_escape(token)
             present = ["The answer names %s here." % token]
-            absent = ["The answer names nothing in particular."]
+            absent = []
+        # A must-fail reply that cannot hold the literal; none fits, stay llm.
+        compiled = re.compile(pattern)
+        absent += [r for r in STOCK_REPLIES if not compiled.search(r)][:1]
+        if not absent:
+            return None
         return (
-            ["type: 'regex'", "pattern: " + yaml_str(pattern, text),
+            ["type: 'regex'", "pattern: " + yaml_str(pattern, where),
              "target: 'last_message'"],
             {
                 "pass": [{"answer": a, "why": "names it"} for a in present],
                 "fail": [{"answer": a, "why": "does not name it"} for a in absent],
             },
+            None,
         )
     found = FILE_CREATED.match(text)
     if found and not has_files and CREATES_FILES & set(tools):
@@ -516,7 +544,7 @@ def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
         glob = "**/" + path + ("**" if path.endswith("/") else "")
         made = path + ("SKILL.md" if path.endswith("/") else "")
         return (
-            ["type: 'file_exists'", "path: " + yaml_str(glob, text)],
+            ["type: 'file_exists'", "path: " + yaml_str(glob, where)],
             {
                 "pass": [
                     {"answer": [made], "why": "created, relative path"},
@@ -527,6 +555,7 @@ def deterministic(text, plugin, skill, skills, tools, slash_invoked, has_files):
                     {"answer": ["unrelated/notes.txt"], "why": "another file"},
                 ],
             },
+            None,
         )
     return None
 
@@ -613,20 +642,22 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
 
     slash_invoked = SLASH_COMMAND.match(prompt) is not None
     yaml_lines = ['schema_version: "1.1"', "name: " + yaml_str(name, where), "graders:"]
-    judged = []
+    judged, judged_text, forbidden = [], [], set()
     for grader, text in graders:
         mapped = None
         if criteria:
             mapped = deterministic(
-                text, plugin, skill, skills, tools, slash_invoked, bool(files)
+                text, where, plugin, skill, skills, tools, slash_invoked, bool(files)
             )
         yaml_lines.append("  - name: '%s'" % grader)
         if mapped:
-            options, samples = mapped
+            options, samples, forbids = mapped
             yaml_lines += ["    " + line for line in options]
             files_out["samples/%s.json" % grader] = sample_text(samples)
+            forbidden.add(forbids)
             continue
         judged.append(grader)
+        judged_text.append(text)
         yaml_lines += [
             "    type: 'llm'",
             "    criteria: " + yaml_str(text, where),
@@ -642,12 +673,16 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
             "has expectations but no expected_output, so its llm graders have no "
             "sample answers; add samples/<grader>.json by hand"
         )
-    if not slash_invoked and any(NO_TRIGGER.search(t) for t in [expected] + criteria):
+    # A mapped expectation says which skill it is about, so only the wording
+    # left to the judge can leave the direction unknown.
+    if slash_invoked or skill in forbidden:
+        pass
+    elif any(NO_TRIGGER.search(t) for t in [expected] + judged_text):
         notes.append(
             "its expectations may say the skill must not fire, so it has no Skill "
             "grader; add one by hand once the direction is known"
         )
-    elif not slash_invoked:
+    else:
         pattern = skill_match(plugin, skill)
         yaml_lines += [
             "  - name: 'skill-fired'",

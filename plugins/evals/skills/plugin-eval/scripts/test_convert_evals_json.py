@@ -184,7 +184,9 @@ class ConvertTest(ConverterTestCase):
         for case in ("alpha-slash-start", "beta-stays-quiet"):
             names = [g["name"] for g in self.case_yaml(case)["graders"]]
             self.assertNotIn("skill-fired", names, case)
-        self.assertIn("note beta-stays-quiet: its expectations may say", done.stdout)
+        # Its must-not-fire expectation became a max-0 Skill grader, so the
+        # direction is known and no "add one by hand" note is owed.
+        self.assertNotIn("note beta-stays-quiet: its expectations may say", done.stdout)
         self.assertIn("source keys not carried over: extra_key", done.stdout)
         self.assertIn("note alpha-natural-trigger: lists fixtures", done.stdout)
 
@@ -489,9 +491,7 @@ class DeterministicTest(ConverterTestCase):
             "Invokes /discovery:trace-intent for the why part",
             "Invokes /other:alpha",
             "Invokes the music skill, not sfx",
-            "Runs `scripts/check.py --data-dir` and reports its rows",
             "Runs `/sample:setup apply`",
-            "Runs `scripts/check.py`",
             "Names the browser session `<run id>-login-flow`",
             "Writes the record at docs/upstream/acme.md",
             "Gives a clear, well-reasoned answer",
@@ -505,6 +505,91 @@ class DeterministicTest(ConverterTestCase):
         graders = self.case_yaml("alpha-case")["graders"]
         judged = [g for g in graders if g["name"].startswith("expectation-")]
         self.assertEqual([g["type"] for g in judged], ["llm"] * len(wordings))
+
+    def test_a_qualified_command_stays_llm_even_with_bash_granted(self):
+        self.skill_with_tools("alpha", "Bash")
+        wordings = [
+            "Runs `scripts/check.py --data-dir` and reports its rows",
+            "Does not run `npm install -g ctx7@latest` and explains why",
+        ]
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expected_output": "A short report.", "expectations": wordings}],
+        )
+        self.assertEqual(run(self.plugin).returncode, 0)
+        graders = self.case_yaml("alpha-case")["graders"]
+        judged = [g for g in graders if g["name"].startswith("expectation-")]
+        self.assertEqual([g["type"] for g in judged], ["llm"] * len(wordings))
+
+    def test_a_command_without_a_bash_grant_stays_llm(self):
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expected_output": "A short report.",
+              "expectations": ["Runs `scripts/check.py`"]}],
+        )
+        self.assertEqual(run(self.plugin).returncode, 0)
+        graders = self.case_yaml("alpha-case")["graders"]
+        self.assertEqual(graders[0]["type"], "llm")
+
+    def test_a_command_merely_mentioned_is_not_a_run(self):
+        self.skill_with_tools("alpha", "Bash")
+        graders, _ = self.convert(
+            "alpha",
+            [
+                "Runs `scripts/check.py --data-dir`",
+                "Does not run `npm install -g ctx7@latest` itself",
+            ],
+        )
+
+        def grade(name, command):
+            calls = [{"tool": "Bash", "input": {"command": command}}]
+            return VALIDATE.grade_tool_used(graders[name], calls)[0]
+
+        self.assertFalse(grade("expectation-1", "cat scripts/check.py && echo --data-dir"))
+        self.assertFalse(grade("expectation-1", "grep -n x scripts/check.py --data-dir"))
+        self.assertTrue(grade("expectation-1", 'cd /w && python3 "/w/scripts/check.py" --data-dir /d'))
+        self.assertTrue(grade("expectation-2", "echo 'npm install -g ctx7@latest'"))
+        self.assertFalse(grade("expectation-2", "npm install -g ctx7@latest"))
+        self.assertFalse(grade("expectation-2", "cd /w && npm install -g ctx7@latest"))
+
+    def test_a_path_keeps_out_the_closing_period(self):
+        self.skill_with_tools("alpha", "Write")
+        graders, _ = self.convert("alpha", ["Writes the record at docs/result.md."])
+        self.assertEqual(graders["expectation-1"]["path"], "**/docs/result.md")
+
+    def test_a_literal_inside_the_stock_reply_still_validates(self):
+        for word in ("answer", "names", "nothing", "skill"):
+            with self.subTest(word=word):
+                shutil.rmtree(self.plugin / "evals", ignore_errors=True)
+                graders, _ = self.convert("alpha", ["Names `%s`" % word])
+                self.assertEqual(graders["expectation-1"]["type"], "regex")
+
+    def test_a_sibling_guard_keeps_the_own_skill_grader_and_no_note(self):
+        (self.plugin / "skills" / "beta").mkdir(parents=True)
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Check my README, please.",
+              "expectations": ["Does not invoke /sample:beta"]}],
+        )
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        names = [g["name"] for g in self.case_yaml("alpha-case")["graders"]]
+        self.assertEqual(names, ["expectation-1", "skill-fired"])
+        self.assertNotIn("may say the skill must not fire", done.stdout)
+
+    def test_a_refused_mapped_literal_names_its_case(self):
+        self.source(
+            "alpha",
+            [{"id": 1, "name": "case", "prompt": "Hi",
+              "expectations": ["Names `a\x01b`"]}],
+        )
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 1, done.stdout)
+        self.assertIn(
+            "skills/alpha/evals/evals.json case 1 holds a control", done.stderr
+        )
 
     def test_a_slash_prompt_keeps_an_own_skill_invocation_llm(self):
         graders, _ = self.convert(
