@@ -16,7 +16,7 @@ Both extremes fail characteristically: skipping the plan on multi-surface work p
 
 ## The shape of a useful plan
 
-A plan is an ordered list of **verifiable end-states**, not activities. "Refactor the parser" is an activity. It cannot fail, so it cannot inform. "Parser accepts input class X; existing test suite passes unmodified" is a state. Reality can contradict it, which is the point of writing it down.
+A plan is an ordered list of **verifiable end-states**, not activities. "Refactor the parser" is an activity. It cannot fail, so it cannot inform. "Parser accepts input class X; existing test suite passes unmodified" is a state. Reality can contradict it, which is the entire point of writing it down.
 
 Record three fields per step:
 
@@ -80,7 +80,7 @@ The failure this prevents is uniform rigor: agonizing over trivially reversible 
 
 TRIGGER: before editing anything plural, such as a shared utility, base type, public contract, build or config file, common test fixture, or serialization format. The first move is not the edit; it is the census. Search out every consumer and count them, because the edit site is the one place a shared-surface bug never shows up.
 
-This census picks the change **strategy**; how much of each consumer to read before editing is the execution chapter's read-radius rule. One census feeds both, so never enumerate the consumers twice.
+This census picks the change **strategy**; how much of each consumer to actually read before editing is the execution chapter's read-radius rule. One census feeds both, so never enumerate the consumers twice.
 
 Let the count pick the strategy:
 
@@ -101,7 +101,7 @@ When decomposing, tag every step with its **touch-set**: the files, contracts, a
 
 Hunt hidden coupling before declaring independence: two steps that look disjoint but both touch the same fixture, formatting configuration, generated file, or global registration are sequential in disguise. Treating them as independent produces the merge-conflict-with-yourself failure, step B silently clobbering step A's work.
 
-A decomposition that comes out mostly sequential is diagnostic, not merely unlucky: heavy chaining usually means the contract-defining step is buried mid-plan. Pull it forward and the tail often falls apart into parallel-safe pieces. Whether anything runs in parallel is the orchestration chapter's concern. Decomposition's job is only to make the independence boundaries explicit.
+A decomposition that comes out mostly sequential is diagnostic, not merely unlucky: heavy chaining usually means the contract-defining step is buried mid-plan. Pull it forward and the tail often falls apart into parallel-safe pieces. Whether anything actually runs in parallel is the orchestration chapter's concern. Decomposition's job is only to make the independence boundaries explicit.
 
 ## Update the plan when reality disagrees
 

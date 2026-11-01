@@ -140,6 +140,6 @@ Run every item, not just the first that applies:
 
 1. **Stale references**: comments, docs, and names describing the old behavior. Update them in the same change, because they become active misinformation the moment the code moves.
 2. **Scope arithmetic**: if the request implied N similar sites and you touched k, account for all N. Each remainder is done, explicitly out of scope (stated to the user), or the task is not finished. There is no fourth category.
-3. **Adversarial pass confirmed**: check that the attack pass above ran, rather than remaining an intention.
+3. **Adversarial pass confirmed**: check that the attack pass above actually ran, rather than remaining an intention.
 
 Then run the debris sweep over scaffolding, orphans, and workspace leftovers, per the execution chapter, section "Leave no debris".

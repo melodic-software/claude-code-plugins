@@ -50,7 +50,7 @@ You are debugging: an observed failure with no confirmed cause. Treat it as a se
 ## Reading code vs running code
 
 - RULE: run code when the question is "what actually happens": which branch executes, a runtime value, what the environment resolves to (assumption bugs); read code when the question is "what could possibly happen": all callers, every writer of a value, whether an invariant can hold (logic bugs); if your live hypotheses are assumption-shaped, reading harder cannot resolve them.
-- RULE: after reading the same function three times while the bug still looks "impossible," stop reading and observe execution. The impossibility means your mental model diverges from reality somewhere, and more reading re-runs the same flawed model.
+- RULE: after reading the same function three times while the bug still looks "impossible," stop reading and observe execution. The impossibility means your mental model diverges from reality somewhere, and more reading just re-runs the same flawed model.
 - RULE: when one observation costs a multi-minute rebuild or redeploy, static analysis of all writers and readers of the suspect state may be cheaper than one probe. Choose by cost per bit of information, not by habit.
 
 ## Instrumentation discipline
@@ -77,7 +77,7 @@ Claim it only when you hold both:
 
 **Trigger:** your top hypothesis is falsified, or the "guilty" code checks out correct.
 
-- Do not widen the search diffusely. First re-verify the evidence itself: is the reproduction exercising the code path you think it is? Re-run the boring-hypothesis check from "Generate competing hypotheses, then rank", because a surprising share of "impossible" bugs are instrumentation of the wrong thing.
+- Do not widen the search diffusely. First re-verify the evidence itself: is the reproduction actually exercising the code path you think it is? Re-run the boring-hypothesis check from "Generate competing hypotheses, then rank", because a surprising share of "impossible" bugs are instrumentation of the wrong thing.
 - Then move one level up the data's history: the layer that crashed is often merely the first layer that *validated*. The corruption happened upstream, in whatever produced its input.
 - Re-examine what you marked "obviously fine" and skipped. The false assumption is nearly always inside the region you exempted from scrutiny, precisely because you exempted it.
 

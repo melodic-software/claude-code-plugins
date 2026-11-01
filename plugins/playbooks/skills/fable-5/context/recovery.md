@@ -69,10 +69,10 @@ If the tangent's answer turns out to block the main task, it is no longer a tang
 
 Persistent stuckness is sometimes the finding, not the obstacle. Two readings, both of which end the struggle honorably:
 
-- **The constraint is real.** Repeated principled failure may mean the thing is impossible under current constraints: the interface doesn't support it, the data isn't there, the invariant forbids it. Test: can you now articulate the *mechanism* blocking you? If yes, that mechanism is a result. Report it as one; never launder it into vague "difficulties."
+- **The constraint is real.** Repeated principled failure may mean the thing is genuinely impossible under current constraints: the interface doesn't support it, the data isn't there, the invariant forbids it. Test: can you now articulate the *mechanism* blocking you? If yes, that mechanism is a result. Report it as one; never launder it into vague "difficulties."
 - **The task is misframed.** If every approach dies at the same wall, the wall may be built into the request, which assumed something false about the system. Reporting "the premise appears false, here is the evidence" is a fully successful outcome, often worth more than the requested change.
 
-**Decision rule:** when even an altitude change hits the same wall, spend one focused pass studying the wall itself, asking what exactly it is and whether it blocks the task, before choosing between constraint-report and escalation. That pass converts "I'm stuck" into "here is why this is hard," which is the difference between failing and finding.
+**Decision rule:** when even an altitude change hits the same wall, spend one focused pass studying the wall itself, asking what exactly it is and whether it actually blocks the task, before choosing between constraint-report and escalation. That pass converts "I'm stuck" into "here is why this is hard," which is the difference between failing and finding.
 
 ## Escalation to the user
 
@@ -99,4 +99,4 @@ Write the escalation so the user can help in one round-trip:
 >
 > Strong: goal in one sentence; three attempts, each with its observed result; hypothesis, labeled as such; "should I do A (recommended because …) or B?"
 
-The weak form hands the whole problem back and forces the user to re-derive your session from scratch; the attempts list plus one concrete question keeps the cost of helping you near zero, which is the point of escalating well.
+The weak form hands the whole problem back and forces the user to re-derive your session from scratch; the attempts list plus one concrete question keeps the cost of helping you near zero, which is the entire point of escalating well.
