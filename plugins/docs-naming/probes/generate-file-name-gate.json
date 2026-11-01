@@ -1,0 +1,124 @@
+{
+  "skill": "docs-naming:generate-file-name-gate",
+  "plugin": "docs-naming",
+  "skill_dir": "plugins/docs-naming/skills/generate-file-name-gate",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors: docs-naming:audit-file-names (read-only inventory of off-rule names and the rename plan with references); docs-naming:realign-file-names (applying an existing FN- rename plan one accepted file at a time); docs-naming:setup (user-invoked only; verifying or writing the docs-naming configuration: casing regex, tiers, layers); naming:name-it-better (inventing candidate names for something whose name is still undecided); docs-hygiene:rename-references (sweeping stale references after a single rename the user already decided or made); docs-hygiene:audit-noise (noise in markdown content such as stale citations, ghost refs and residue, not file names). generate-file-name-gate owns producing the enforcement artifact: a dependency-free bash checker with its tests, and optionally the path-scoped rule file, from the resolved configuration.",
+  "competitors": [
+    "docs-naming:audit-file-names",
+    "docs-naming:realign-file-names",
+    "docs-naming:setup",
+    "naming:name-it-better",
+    "docs-hygiene:rename-references",
+    "docs-hygiene:audit-noise"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Now that the naming config is in place, give me a script CI can run that fails when a doc's filename breaks our convention."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you drop a standalone checker for markdown filenames into tools/ci, with tests, so it works without your plugin installed?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Generate the doc naming checker under .github/scripts plus the .claude/rules file that goes with it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Regenerate the docs filename gate with --force; we changed the casing regex and the old copy is stale."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We keep merging docs with CamelCase names. I want a bash check in the pipeline that blocks that, built from our docs-naming settings."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Put an automated guard in place so new files under docs/ can't land with the wrong case."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write me a filename lint script for the handbook folder, plus a test suite, that we own outright."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make our kebab-case doc naming convention something pull requests actually get blocked on."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Output the naming check and its tests into ci/checks/. Don't wire it into the workflow, I'll do that part."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which files in docs/ break our filename convention right now? Just list them with what each should be called."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Apply FN-3c9e21ab from the rename plan."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Change the casing regex in our docs-naming config to allow underscores."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I renamed setup-guide.md to install.md; find links still pointing at the old file."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Strip the conversational leftovers and stale ticket references out of CONTRIBUTING.md."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is docs-naming configured here, and which layer is the casing rule coming from?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What would lowercasing the whole docs folder touch? Plan it, don't move anything."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This script is called check.sh, which says nothing. Suggest better names for it."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Go ahead and carry out the renames the audit proposed, one at a time."
+    }
+  ]
+}

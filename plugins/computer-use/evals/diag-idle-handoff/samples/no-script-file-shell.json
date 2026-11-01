@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -Command \"Get-ItemProperty 'HKCU:\\Control Panel\\Desktop' | Select-Object ScreenSaveActive, ScreenSaveTimeOut, ScreenSaverIsSecure\"",
+            "description": "Set screensaver timeout check"
+          }
+        }
+      ],
+      "why": "registry read whose description says set"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /q SCHEME_CURRENT SUB_VIDEO VIDEOIDLE",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg query"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /requests",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg requests"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls C:/Windows/system32/Mystify.scr",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "names the .scr, not a script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > fix.ps1 <<'EOF'\nSet-ItemProperty 'HKCU:\\Control Panel\\Desktop' ScreenSaveActive 0\nEOF",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "heredoc writes a ps1"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "regedit /s no-screensaver.reg",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "applies a reg file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -File keep-awake.ps1",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "runs a ps1"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'Windows Registry Editor Version 5.00' > power.reg",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "redirect writes a reg file"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: setup-tools-absent
+graders:
+  - name: tools-fail
+    type: regex
+    pattern: '\b(?:tools?|computer[- ]use|MCP|list_granted_applications)\b[^\n]{0,80}\bFAIL(?:ED|S)?\b|\bFAIL(?:ED|S)?\b[^\n]{0,80}\b(?:tools?|computer[- ]use|MCP|list_granted_applications)\b'
+    flags: 'i'
+    target: last_message
+  - name: verdict-blocked
+    type: regex
+    pattern: '\bblocked\b'
+    flags: 'i'
+    target: last_message
+  - name: names-enable-mcp
+    type: regex
+    pattern: '\b(?:enable|enabled|enabling)\b[^\n]{0,60}\bcomputer-use\b|\bcomputer-use\b[^\n]{0,60}\b(?:MCP|server)\b[^\n]{0,40}\b(?:enable|enabled|enabling)\b|/mcp\b'
+    flags: 'i'
+    target: last_message
+  - name: no-closing-question
+    type: regex
+    pattern: '\b(?:would you like|do you want|want me to|shall I|should I|let me know if)\b|\?[ \t*_]*(?![\s\S])'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-ask-user
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -425,23 +425,27 @@ pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing su
   "$SKILL" \
   "64cb5a334e5874682e1f67df8f8871ddb9474518dc21679dc7728f19dae42dcd"
 
-# The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
-# the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
-# reattach-slice.test.sh holds it there). It is a twin of the full rules in Step 1.5, the
-# Action Router and Step 3, so it is digested and each line is pinned once inside it: an
-# unpinned twin could be inverted while the originals stand.
+# The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
+# confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
+# compaction's re-attach still reaches (#5332; reattach-slice.test.sh holds it there). It is a
+# twin of the full rules in Step 1.5, the Action Router, Step 3 and Step 4, so it is digested
+# and each line is pinned once inside it: an unpinned twin could be inverted while the
+# originals stand.
 # The `lock` gate line now says `lock` confirms the problem with one question; it adds a
 # question and keeps the halt, so neither the confirmation nor STOP-on-gap is loosened.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
-pin_section "SKILL.md Gates section is unchanged (the early twin of the three gates)" \
+# The Gates block gains early twins of the Step 3 confirmation gate and the Step 4 --brief cross-check (#9864); each restates a halt its full rule holds (the --brief twin names the brief=unconfirmed exit and its fresh-Confirm clear, as Step 4 does), and the three earlier gate lines are byte-identical
+pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
   "## Gates" \
   "## Action Router" \
-  "778c930474c42f0ea28d68825df583964fb9733566cd135ce5d3d8b90dc1cc9c"
+  "51a7dec1194745926cd9e191ef719c090e1625f724e61f4c1fa5df39a985de2b"
 for gate_line in \
   "**The user's decisions are never synthesized.**" \
   "**A gap during \`lock\` synthesis halts the run.**" \
-  "**The register gate runs before the contract locks.**"; do
+  "**The register gate runs before the contract locks.**" \
+  "**The confirmation gate holds the contract until the user confirms.**" \
+  "**The Brief is cross-checked once it exists.**"; do
   pin_once "Gates names: $gate_line" "$SKILL" "$gate_line"
   within "Gates holds: $gate_line" "$SKILL" "$gate_line" "## Gates" "## Action Router"
 done
@@ -721,9 +725,10 @@ pin_file "context/coverage-prompt.md is unchanged (the coverage prompt exempts i
 # Step 4; they shape criteria text and resolve no register row.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Only the acceptance_criteria_format ladder moved out, into the shared context/authoring-formats.md (#10119), which ears.md now points at; the EARS tag vocabulary and bullet shapes are unchanged.
+# The resolving section names the ladder step-2 resolver command with --root (#11597) and has it run before any root-file or README read; a non-zero exit stays the ladder step-6 free-text degrade, and the EARS tags and bullet shapes are byte-identical
 pin_file "context/ears.md is unchanged (the EARS tags and the format resolution ladder)" \
   "$EARS" \
-  "903332451df15c686d46259080f54f82824287b1efe4199a42716e5e95609c6f"
+  "9b0ef001c95777aaec490eb8b4b5d5a28b7662ae0da00107db7c01f4b5ce481d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.

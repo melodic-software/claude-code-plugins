@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/audit-notes.md",
+            "content": "# report"
+          }
+        }
+      ],
+      "why": "a file the contract does not cover"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/servers/tickets/node/src/server.ts",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "edits the audited file"
+    }
+  ]
+}
