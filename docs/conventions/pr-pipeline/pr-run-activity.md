@@ -869,9 +869,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    else `unexpected-path-staged`), the credential scan and the blob caps, and escalates
    `unresolved-conflict` when a conflicted path still in the tree holds conflict markers, or
    `workflow-staged` when the tree's `.github/workflows/` differs from the head's unless it is
-   exactly the base's, no head workflow is dropped, and the PR's own diff against every merge base
-   touches no workflow. The base-side changes the merge brings pass through untouched. It lists
-   the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
+   exactly the base's and the PR's own diff against every merge base touches no workflow. The
+   base-side changes the merge brings, a workflow the base deleted or renamed included, pass
+   through untouched. It lists the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
    refuses before any write when more than `max-blobs` blobs neither parent holds would be
    uploaded, re-reads the holds and the draft state, uploads only those blobs, builds the tree on
    the head's tree and fails unless it hashes to the merge tree, creates
@@ -963,8 +963,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
-   (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
-   only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
+   (routed to a failing status and the `needs-session` queue) while any review thread is
+   unresolved, and skips `not-applicable` only when none is. While the PR carries `needs-session`
+   and the lanes App's address-feedback lane-stopped comment names this head with a reason routed
+   to it, an unresolved thread skips `awaiting-session` instead, so the stop stands without a
+   second escalation. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
    unresolved thread, so such a head reaches this step once: its lane-stopped check then ends the
    head, which a reply job's skip does not release. A failed reply job with no escalation reason
    (its lane token, a script error) stops as `feedback-publish-failed`, which `pr-unblock.yml`

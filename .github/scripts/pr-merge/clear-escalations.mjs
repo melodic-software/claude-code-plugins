@@ -271,8 +271,9 @@ const REFUSAL_CLEARED = "refusal-cleared";
 //   a reason with two or more items reads as unknown codes and stays.
 // - verdict: every babysit_verify_evidence.py refusal off NEEDS_HUMAN that
 //   answers: FAIL, EARLIER_FAIL and SPEC_CHANGED, which a push or a new
-//   judgment clears, and REPEATED_FAIL and TOO_OLD, which never clear but hold
-//   for the lanes with no label (owner rule 2026-10-27). Not untrusted-spec (a
+//   judgment clears, REPEATED_FAIL, which never clears, and TOO_OLD, which a
+//   fresh pass at the head clears; each holds for the lanes with no label
+//   (owner rule 2026-10-27). Not untrusted-spec (a
 //   person's), missing or unreadable (no answer), or ineligible (always
 //   paired with a link answer, which verifyHold reads first).
 // - link: none; an issue link is a person's.

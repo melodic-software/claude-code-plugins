@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | missing; a missing annotation is never FAIL |",
+      "why": "never FAIL is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | FAIL | |",
+      "why": "fail cell"
+    },
+    {
+      "answer": "get_refund_status: readOnlyHint missing -> FAIL",
+      "why": "prose fail"
+    }
+  ]
+}
