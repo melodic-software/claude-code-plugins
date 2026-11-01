@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { answerBucket, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, stableStringify } from "./review-precision.mjs";
+import { answerBucket, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, reviewsOf, stableStringify } from "./review-precision.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./review-precision.mjs", import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), "review-precision-"));
@@ -21,15 +21,8 @@ const sha = (c) => c.repeat(40);
 const [A, B, C, D, E, F, H, I] = ["a", "b", "c", "d", "e", "f", "8", "9"].map(sha);
 const CR = "claude-review";
 const SR = "claude-security-review";
-const notice = (lane, head, at, findings, inline) => ({
-  lane,
-  run: 0,
-  completedAt: at,
-  text:
-    findings === undefined
-      ? `claude-lane-review-complete lane=${lane} sha=${head} skip=no-change through=${head}`
-      : `claude-lane-review-complete lane=${lane} sha=${head} findings=${findings} inline=${inline} scope=whole`,
-});
+// A lane's reviewed-head record; with no counts it stands for a skipped head, which records none.
+const review = (lane, head, at, findings, inline) => ({ lane, sha: head, at, findings, inline });
 let nextId = 3000;
 const thread = (path, head, root, ...replies) => ({
   path,
@@ -45,7 +38,7 @@ function fixture() {
   nextId = 3000;
   const t4root = 3006;
   return {
-    schema: 1,
+    schema: 2,
     repo: "example/repo",
     window: { since: "2026-10-27T00:00:00Z", until: "2026-10-29T00:00:00Z" },
     earliest_supported: "2026-10-24T00:00:00Z",
@@ -57,13 +50,13 @@ function fixture() {
         headRefName: "feat/one",
         createdAt: T("08"),
         mergedAt: T("13"),
-        notices: [
-          notice(CR, A, T("10"), 2, 1),
-          notice(SR, A, T("10", "05"), 1, 1),
-          notice(CR, B, T("11"), 1, 1),
-          notice(SR, B, T("11", "05"), 1, 1),
-          notice(CR, C, T("12"), 0, 0),
-          notice(SR, C, T("12", "05")),
+        reviews: [
+          review(CR, A, T("10"), 2, 1),
+          review(SR, A, T("10", "05"), 1, 1),
+          review(CR, B, T("11"), 1, 1),
+          review(SR, B, T("11", "05"), 1, 1),
+          review(CR, C, T("12"), 0, 0),
+          review(SR, C, T("12", "05")),
         ],
         threads: [
           // 3000-3001: the table shape, VALID, fixed.
@@ -88,7 +81,7 @@ function fixture() {
         headRefName: "feat/two",
         createdAt: T("08"),
         mergedAt: T("14"),
-        notices: [notice(CR, D, T("10"), 1, 1), notice(SR, D, T("10", "05"), 1, 1), notice(CR, E, T("11"), 2, 2), notice(SR, E, T("11", "05"), 0, 0), notice(CR, F, T("12"), 0, 0)],
+        reviews: [review(CR, D, T("10"), 1, 1), review(SR, D, T("10", "05"), 1, 1), review(CR, E, T("11"), 2, 2), review(SR, E, T("11", "05"), 0, 0), review(CR, F, T("12"), 0, 0)],
         threads: [
           // 3009-3010: prose UNCERTAIN.
           thread("p.md", D, lane(CR, "**The `docs` link at line 5 is broken**", T("10")), human(T("10", "20"), "UNCERTAIN: it depends on the renderer.")),
@@ -107,7 +100,7 @@ function fixture() {
         headRefName: "feat/three",
         createdAt: T("08"),
         mergedAt: T("15"),
-        notices: [notice(CR, H, T("10"), 1, 1), notice(SR, H, T("10", "05"), 1, 1), notice(CR, I, "2026-10-29T02:00:00Z", 0, 0)],
+        reviews: [review(CR, H, T("10"), 1, 1), review(SR, H, T("10", "05"), 1, 1), review(CR, I, "2026-10-29T02:00:00Z", 0, 0)],
         threads: [
           // 3019-3020: answered only after `until`: unanswered.
           thread("r.sh", H, lane(CR, "**Unchecked exit status**", T("10")), human("2026-10-29T03:00:00Z", "VALID, fixed in 1234567.")),
@@ -117,7 +110,7 @@ function fixture() {
         comments: [],
       },
       // Merged outside the window: left out.
-      { number: 90, headRefName: "old", createdAt: T("01"), mergedAt: "2026-10-26T12:00:00Z", notices: [notice(CR, A, T("02"), 5, 5)], threads: [], comments: [] },
+      { number: 90, headRefName: "old", createdAt: T("01"), mergedAt: "2026-10-26T12:00:00Z", reviews: [review(CR, A, T("02"), 5, 5)], threads: [], comments: [] },
     ],
   };
 }
@@ -164,6 +157,7 @@ test("per-lane counts, outcomes and precision over the fixture", () => {
     labeled: 5,
     precision: 0.4,
     defer_unlinked: 0,
+    resolved_unanswered: 0,
     inline_mismatch: 0,
     heads_reviewed: 7,
   });
@@ -174,6 +168,7 @@ test("per-lane counts, outcomes and precision over the fixture", () => {
     labeled: 1,
     precision: 1,
     defer_unlinked: 1,
+    resolved_unanswered: 0,
     inline_mismatch: 0,
     heads_reviewed: 5,
   });
@@ -213,7 +208,7 @@ test("a summary-only finding takes its answer from the lane's issue-comment tabl
   assert.equal(compute(snap).prs.find((pr) => pr.number === 101).lanes[CR].outcomes.unanswered, 1);
 });
 
-test("a comment or notice at or after until is ignored", () => {
+test("a comment or review at or after until is ignored", () => {
   const pr103 = compute(fixture()).prs.find((pr) => pr.number === 103);
   assert.equal(pr103.lanes[CR].outcomes.unanswered, 1);
   assert.equal(pr103.lanes[CR].heads_reviewed, 1);
@@ -228,17 +223,43 @@ test("both round counts", () => {
   assert.deepEqual(result.rounds, {
     cap: 3,
     cap_source: "docs/conventions/pr-pipeline.yaml loop.review-rounds",
-    lane_review_rounds: { [CR]: { prs: 2, never_clean: 1, over_cap: 0 }, [SR]: { prs: 1, never_clean: 2, over_cap: 0 } },
+    lane_review_rounds: { [CR]: { prs: 2, never_clean: 1, unreviewed: 0, over_cap: 0 }, [SR]: { prs: 1, never_clean: 2, unreviewed: 0, over_cap: 0 } },
     fix_rounds: { prs: 1, over_cap: 0 },
   });
   const snap = fixture();
   snap.rounds_cap.value = 2;
   assert.equal(compute(snap).rounds.lane_review_rounds[CR].over_cap, 2);
   // A clean head followed by new findings does not end the count.
-  snap.prs[1].notices = [notice(CR, D, T("10"), 1, 1), notice(CR, E, T("11"), 0, 0), notice(CR, F, T("12"), 1, 0), notice(CR, A, T("13"), 0, 0)];
+  snap.prs[1].reviews = [review(CR, D, T("10"), 1, 1), review(CR, E, T("11"), 0, 0), review(CR, F, T("12"), 1, 0), review(CR, A, T("13"), 0, 0)];
   assert.equal(compute(snap).prs.find((pr) => pr.number === 102).lane_review_rounds[CR], 4);
-  snap.prs[1].notices.pop();
+  snap.prs[1].reviews.pop();
   assert.equal(compute(snap).prs.find((pr) => pr.number === 102).lane_review_rounds[CR], null);
+  // A PR no lane reviewed is unreviewed, not never clean.
+  snap.prs.push({ number: 104, createdAt: T("08"), mergedAt: T("16"), reviews: [], threads: [], comments: [] });
+  const rounds104 = compute(snap).rounds.lane_review_rounds[CR];
+  assert.deepEqual([rounds104.unreviewed, rounds104.never_clean], [1, 2]);
+});
+
+test("an unanswered finding on a resolved thread stays unanswered and is counted apart", () => {
+  const snap = fixture();
+  snap.prs[2].threads[0].resolved = true;
+  const cr = compute(snap).lanes[CR];
+  assert.deepEqual([cr.outcomes.unanswered, cr.resolved_unanswered], [1, 1]);
+});
+
+test("a lane comment's versions give one review per reviewed head", () => {
+  const body = (lane, head, n, k) => `<!-- claude-lane-reviewed-head lane=${lane} sha=${head} -->\n**${lane}** reviewed \`${head}\`: read 2 of 2 changed file(s); ${n} finding(s), ${k} as inline comments.\n\n## Review`;
+  // Never edited: the body is the one version.
+  assert.deepEqual(reviewsOf({ createdAt: T("10"), body: body(CR, A, 2, 1), userContentEdits: { totalCount: 0, nodes: [] } }), [{ lane: CR, sha: A, at: T("10"), findings: 2, inline: 1 }]);
+  // Edited: each edit holds a full version, the newest first; the body repeats the newest.
+  const edited = { createdAt: T("10"), body: body(SR, B, 0, 0), userContentEdits: { totalCount: 2, nodes: [{ editedAt: T("11"), diff: body(SR, B, 0, 0) }, { editedAt: T("10"), diff: body(SR, A, 1, 1) }] } };
+  assert.deepEqual(reviewsOf(edited), [
+    { lane: SR, sha: B, at: T("11"), findings: 0, inline: 0 },
+    { lane: SR, sha: A, at: T("10"), findings: 1, inline: 1 },
+  ]);
+  // A comment without the marker or the counts line records nothing.
+  assert.deepEqual(reviewsOf({ createdAt: T("10"), body: "LGTM", userContentEdits: { totalCount: 0, nodes: [] } }), []);
+  assert.deepEqual(reviewsOf({ createdAt: T("10"), body: `<!-- claude-lane-reviewed-head lane=${CR} sha=${A} -->\nskipped`, userContentEdits: { totalCount: 0, nodes: [] } }), []);
 });
 
 // Reverse every array and every object's key order: input order must not reach the output.
@@ -253,7 +274,7 @@ test("compute is deterministic: twice, and over a permuted copy, the same bytes"
   assert.equal(stableStringify(compute(fixture())), once);
   const reordered = fixture();
   for (const pr of reordered.prs) {
-    pr.notices.reverse();
+    pr.reviews.reverse();
     pr.comments.reverse();
     pr.threads = pr.threads.reverse().map((t) => ({ ...t, comments: [...t.comments] }));
   }

@@ -11,34 +11,34 @@
 //
 // D is a UTC date (YYYY-MM-DD) or ISO time. The window is [since, until); the default is the
 // 7 complete UTC days ending at today 00:00Z. Fetch reads with the operator's gh: one paged
-// GraphQL query for merged PRs with their review threads and comments, then REST for each lane's
-// runs, its status job and that job's notices. compute() is a pure function of the snapshot: the
-// same snapshot gives the same bytes. Fetch stops at the first rate-limit error and says so.
+// GraphQL query for merged PRs with their review threads, comments and each comment's edit
+// history, from which each lane's reviewed heads are read. compute() is a pure function of the
+// snapshot: the same snapshot gives the same bytes. Fetch stops at the first rate-limit error
+// and says so.
 // Exit 0 done, 1 a read failed, 2 usage, 3 rate limited.
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// The lanes, their workflow, and the status job whose check run carries the completion notice
-// (.github/scripts/pr-merge/clear-escalations.mjs LANE_RECORDS).
-export const LANES = Object.freeze({
-  "claude-review": { file: "pr-review-hosted.yml", job: "pr-review / claude-review-status" },
-  "claude-security-review": { file: "pr-review-security-hosted.yml", job: "pr-review-security / security-review" },
-});
-// The current lane format (the reviewed-head comment, the `claude-lane:` footer and the
-// `findings=N inline=K` notice) is ci-workflows pr-review-cli (ci-workflows 8778094736, #862, and
-// its notice title, 83b739f625, #865, both 2026-10-23). This repository's security lane moved to
-// it in 5f8c010cab (#9307) and its code lane in 0aca16f268 (#9348), both 2026-10-23, so the first
-// full UTC day both lanes ran it is 2026-10-24.
+export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
+// The current lane format (the reviewed-head comment with its counts line, and the
+// `claude-lane:` footer) is ci-workflows pr-review-cli (ci-workflows 8778094736, #862, and
+// 83b739f625, #865, both 2026-10-23). This repository's security lane moved to it in 5f8c010cab
+// (#9307) and its code lane in 0aca16f268 (#9348), both 2026-10-23, so the first full UTC day
+// both lanes ran it is 2026-10-24.
 export const EARLIEST_SUPPORTED = "2026-10-24T00:00:00Z";
 // The round cap: docs/conventions/pr-pipeline.yaml `loop.review-rounds`, read at fetch time.
 const CAP_SOURCE = "docs/conventions/pr-pipeline.yaml loop.review-rounds";
 const CAP_DEFAULT = 3;
 // pr-unblock's round record (.github/scripts/pr-unblock/gate-source.mjs ROUND_MARKER).
 const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
-const NOTICE =
-  /^claude-lane-review-complete lane=([\w-]+) sha=([0-9a-f]{40}) (?:findings=(\d{1,6}) inline=(\d{1,6}) scope=(?:whole|incremental since=[0-9a-f]{40})(?: account=fallback)?|skip=[\w-]+.*)$/;
+// Each lane keeps one summary comment per PR, edited in place on every reviewed head; every
+// version opens with the reviewed-head marker and its counts line, so the comment's edit history
+// is the lane's review record: `<!-- claude-lane-reviewed-head lane=L sha=S -->` and
+// "**L** reviewed `S`: read ...; N finding(s), K as inline comments."
+const REVIEWED_HEAD = /<!-- claude-lane-reviewed-head lane=([\w-]+) sha=([0-9a-f]{40}) -->/;
+const COUNTS = /\b(\d{1,6}) finding\(s\), (\d{1,6}) as inline comments\b/;
 // A lane comment's last non-blank line (babysit_review_evidence.py LANE_TAG_RE).
 const FOOTER = /^\s*`?claude-lane: ([\w-]+)`?\s*$/;
 // The D5 labels (plugins/source-control/reference/review-discipline.md), uppercase and whole.
@@ -136,7 +136,7 @@ function summaryRows(body) {
 function footerLane(body) {
   const lines = String(body).split(/\r?\n/).filter((line) => line.trim() !== "");
   const tag = lines.length ? FOOTER.exec(lines.at(-1)) : null;
-  return tag && tag[1] in LANES ? tag[1] : null;
+  return tag && LANES.includes(tag[1]) ? tag[1] : null;
 }
 
 export function normalizeFirstLine(body) {
@@ -157,7 +157,9 @@ const byTime = (a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : String(a.key) < S
 const emptyOutcomes = () => Object.fromEntries(BUCKETS.map((bucket) => [bucket, 0]));
 
 function laneRounds(reviews) {
-  // Heads in order, up to and including the first clean one after the last head with findings.
+  // Heads in order, up to and including the first clean one after the last head with findings;
+  // 0 when the lane reviewed no head, null when it never came clean before the merge.
+  if (!reviews.length) return 0;
   const lastDirty = reviews.findLastIndex((r) => r.findings > 0);
   const clean = reviews.findIndex((r, i) => i > lastDirty && r.findings === 0);
   return clean < 0 ? null : new Set(reviews.slice(0, clean + 1).map((r) => r.sha)).size;
@@ -165,12 +167,10 @@ function laneRounds(reviews) {
 
 function computePr(pr, until) {
   const reviews = {};
-  for (const lane of Object.keys(LANES)) reviews[lane] = [];
-  for (const notice of pr.notices ?? []) {
-    if (!(notice.completedAt < until)) continue;
-    const m = NOTICE.exec(notice.text);
-    if (!m || !(m[1] in LANES) || m[3] === undefined) continue;
-    reviews[m[1]].push({ sha: m[2], at: notice.completedAt, key: m[2], findings: Number(m[3]), inline: Number(m[4]) });
+  for (const lane of LANES) reviews[lane] = [];
+  for (const review of pr.reviews ?? []) {
+    if (!(review.at < until) || !LANES.includes(review.lane) || !Number.isInteger(review.findings)) continue;
+    reviews[review.lane].push({ sha: review.sha, at: review.at, key: review.sha, findings: review.findings, inline: review.inline });
   }
   for (const lane of Object.keys(reviews)) {
     const seen = new Map();
@@ -192,7 +192,7 @@ function computePr(pr, until) {
     const lane = footerLane(root.body);
     if (!lane) continue;
     const replies = comments.slice(1).filter((c) => footerLane(c.body) === null);
-    findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), answers: replies.map((c) => c.body) });
+    findings.push({ lane, sha: root.commit ?? null, at: root.createdAt, key: root.id, id: String(root.id), path: thread.path ?? "", first: normalizeFirstLine(root.body), resolved: thread.resolved === true, answers: replies.map((c) => c.body) });
   }
 
   // Summary-only findings: N-K per review, answered by the lane's finding table rows in order.
@@ -234,8 +234,8 @@ function computePr(pr, until) {
   };
 
   const lanes = {};
-  for (const lane of Object.keys(LANES)) {
-    lanes[lane] = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0 };
+  for (const lane of LANES) {
+    lanes[lane] = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, resolved_unanswered: 0 };
   }
   for (const f of findings) {
     const stats = lanes[f.lane];
@@ -248,6 +248,7 @@ function computePr(pr, until) {
     const outcome = labeled ?? (f.answers.length ? answerBucket(f.answers[0], pr.number) : { bucket: "unanswered" });
     stats.outcomes[outcome.bucket]++;
     if (outcome.deferUnlinked) stats.defer_unlinked++;
+    if (outcome.bucket === "unanswered" && f.resolved) stats.resolved_unanswered++;
   }
   for (const [lane, list] of Object.entries(reviews)) {
     const inline = list.filter((r) => findings.filter((f) => f.lane === lane && !f.summary && f.sha === r.sha).length !== r.inline);
@@ -279,18 +280,19 @@ export function compute(snapshot) {
     .sort((a, b) => a.number - b.number)
     .map((pr) => computePr(pr, until));
   const lanes = {};
-  for (const lane of Object.keys(LANES)) {
-    const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, inline_mismatch: 0, heads_reviewed: 0 };
+  for (const lane of LANES) {
+    const total = { findings: 0, reposts: 0, outcomes: emptyOutcomes(), defer_unlinked: 0, resolved_unanswered: 0, inline_mismatch: 0, heads_reviewed: 0 };
     for (const pr of prs) {
       const one = pr.lanes[lane];
-      for (const key of ["findings", "reposts", "defer_unlinked", "inline_mismatch", "heads_reviewed"]) total[key] += one[key];
+      for (const key of ["findings", "reposts", "defer_unlinked", "resolved_unanswered", "inline_mismatch", "heads_reviewed"]) total[key] += one[key];
       for (const bucket of BUCKETS) total.outcomes[bucket] += one.outcomes[bucket];
     }
     lanes[lane] = finish(total);
   }
   const roundStats = (values) => ({
-    prs: values.filter((v) => v !== null).length,
+    prs: values.filter((v) => v !== null && v > 0).length,
     never_clean: values.filter((v) => v === null).length,
+    unreviewed: values.filter((v) => v === 0).length,
     over_cap: values.filter((v) => v !== null && v > cap).length,
   });
   return {
@@ -302,7 +304,7 @@ export function compute(snapshot) {
     rounds: {
       cap,
       cap_source: snapshot.rounds_cap?.source ?? CAP_SOURCE,
-      lane_review_rounds: Object.fromEntries(Object.keys(LANES).map((lane) => [lane, roundStats(prs.map((pr) => pr.lane_review_rounds[lane]))])),
+      lane_review_rounds: Object.fromEntries(LANES.map((lane) => [lane, roundStats(prs.map((pr) => pr.lane_review_rounds[lane]))])),
       fix_rounds: { prs: prs.filter((pr) => pr.fix_rounds !== null).length, over_cap: prs.filter((pr) => pr.fix_rounds > cap).length },
     },
     prs,
@@ -328,10 +330,14 @@ export function renderMarkdown(result) {
     const o = s.outcomes;
     out.push(`| ${lane} | ${s.findings} | ${s.reposts} | ${o["valid-fixed"]} | ${o["valid-follow-up"]} | ${o.intentional} | ${o.incorrect} | ${o.uncertain} | ${pct(s.precision)} (${s.labeled}) | ${o["answered-unlabeled"]} | ${o.unanswered} |`);
   }
+  out.push("");
+  for (const [lane, s] of Object.entries(result.lanes)) {
+    out.push(`- ${lane}: ${s.resolved_unanswered} unanswered on a resolved thread, ${s.defer_unlinked} defers citing no newer item, ${s.inline_mismatch} heads whose inline count differs from the lane's`);
+  }
   const r = result.rounds;
   out.push("", `Rounds to pass, against the cap of ${r.cap} (${r.cap_source}):`, "");
   for (const [lane, s] of Object.entries(r.lane_review_rounds)) {
-    out.push(`- ${lane} lane_review_rounds: ${s.prs} PRs reached a clean head, ${s.over_cap} over the cap, ${s.never_clean} never clean before merge`);
+    out.push(`- ${lane} lane_review_rounds: ${s.prs} PRs reached a clean head, ${s.over_cap} over the cap, ${s.never_clean} never clean before merge, ${s.unreviewed} unreviewed`);
   }
   out.push(`- fix_rounds: ${r.fix_rounds.prs} PRs with a pr-unblock round, ${r.fix_rounds.over_cap} over the cap`);
   if (result.truncated.length) out.push("", `PARTIAL: ${result.truncated.join("; ")}`);
@@ -360,22 +366,39 @@ const PR_QUERY = `query($owner:String!, $name:String!, $endCursor:String) {
     pullRequests(states:MERGED, first:10, orderBy:{field:UPDATED_AT, direction:DESC}, after:$endCursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        number headRefName createdAt mergedAt updatedAt
+        number createdAt mergedAt updatedAt
         reviewThreads(first:100) {
           pageInfo { hasNextPage }
           nodes {
-            path line originalLine
+            path line originalLine isResolved
             comments(first:50) {
               pageInfo { hasNextPage }
               nodes { databaseId createdAt author { login } body originalCommit { oid } replyTo { databaseId } }
             }
           }
         }
-        comments(first:100) { pageInfo { hasNextPage } nodes { createdAt author { login } body } }
+        comments(first:100) {
+          pageInfo { hasNextPage }
+          nodes { createdAt author { login } body userContentEdits(first:100) { totalCount nodes { editedAt diff } } }
+        }
       }
     }
   }
 }`;
+
+// The lane reviews one comment records: its body when never edited, else each edit's full text
+// (the newest edit is the current body). One entry per version that carries the marker and counts.
+export function reviewsOf(comment) {
+  const edits = comment.userContentEdits?.nodes ?? [];
+  const versions = edits.length ? edits.map((e) => ({ at: e.editedAt, text: e.diff ?? "" })) : [{ at: comment.createdAt, text: comment.body ?? "" }];
+  const out = [];
+  for (const { at, text } of versions) {
+    const head = REVIEWED_HEAD.exec(text);
+    const counts = COUNTS.exec(text);
+    if (head && counts) out.push({ lane: head[1], sha: head[2], at, findings: Number(counts[1]), inline: Number(counts[2]) });
+  }
+  return out;
+}
 
 function fetchPrs(repo, since, until, truncated) {
   const [owner, name] = repo.split("/");
@@ -389,9 +412,14 @@ function fetchPrs(repo, since, until, truncated) {
       if (!(pr.mergedAt >= since && pr.mergedAt < until)) continue;
       if (pr.reviewThreads.pageInfo.hasNextPage) truncated.push(`PR ${pr.number}: more than 100 review threads`);
       if (pr.comments.pageInfo.hasNextPage) truncated.push(`PR ${pr.number}: more than 100 comments`);
+      const reviews = [];
+      for (const c of pr.comments.nodes) {
+        const found = reviewsOf(c);
+        if (found.length && c.userContentEdits.totalCount > c.userContentEdits.nodes.length) truncated.push(`PR ${pr.number}: a lane comment with more than 100 edits`);
+        reviews.push(...found.filter((r) => r.at < until));
+      }
       prs.push({
         number: pr.number,
-        headRefName: pr.headRefName,
         createdAt: pr.createdAt,
         mergedAt: pr.mergedAt,
         threads: pr.reviewThreads.nodes.map((t) => {
@@ -400,13 +428,14 @@ function fetchPrs(repo, since, until, truncated) {
             path: t.path,
             line: t.line ?? null,
             originalLine: t.originalLine ?? null,
+            resolved: t.isResolved === true,
             comments: t.comments.nodes
               .filter((c) => c.createdAt < until)
               .map((c) => ({ id: c.databaseId, author: c.author?.login ?? null, createdAt: c.createdAt, body: c.body, commit: c.originalCommit?.oid ?? null, replyTo: c.replyTo?.databaseId ?? null })),
           };
         }),
         comments: pr.comments.nodes.filter((c) => c.createdAt < until).map((c) => ({ author: c.author?.login ?? null, createdAt: c.createdAt, body: c.body })),
-        notices: [],
+        reviews: reviews.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : a.lane < b.lane ? -1 : a.lane > b.lane ? 1 : a.sha < b.sha ? -1 : 1)),
       });
     }
     const last = page.nodes.at(-1);
@@ -417,64 +446,6 @@ function fetchPrs(repo, since, until, truncated) {
 }
 
 const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
-
-// One lane's pull_request runs created in [from, to), split until each slice is under the
-// endpoint's 1,000-result search cap (an hour that still reaches it is reported as truncated).
-// Pointer: https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
-// As of: 2026-11-01. Recheck trigger: that section changes the cap or the `created` syntax.
-function fetchRuns(repo, file, from, to, truncated) {
-  const range = `${iso(from)}..${iso(to - 1000)}`;
-  const pages = ghJson(["api", "--paginate", "--slurp", `repos/${repo}/actions/workflows/${file}/runs?event=pull_request&per_page=100&created=${range}`]);
-  calls += Math.max(0, pages.length - 1);
-  const total = pages[0]?.total_count ?? 0;
-  if (total >= 1000) {
-    if (to - from > 3_600_000) {
-      const mid = from + Math.max(3_600_000, Math.floor((to - from) / 7_200_000) * 3_600_000);
-      return [...fetchRuns(repo, file, from, mid, truncated), ...fetchRuns(repo, file, mid, to, truncated)];
-    }
-    truncated.push(`${file}: more than 1000 runs in ${range}`);
-  }
-  return pages.flatMap((page) => page.workflow_runs ?? []);
-}
-
-function fetchNotices(repo, prs, since, until, truncated) {
-  const floor = Math.max(Date.parse(EARLIEST_SUPPORTED), Math.min(...prs.map((pr) => Date.parse(pr.createdAt))));
-  const end = Date.parse(until);
-  for (const [lane, { file, job }] of Object.entries(LANES)) {
-    const runs = [];
-    for (let day = floor - (floor % 86_400_000); day < end; day += 86_400_000) {
-      runs.push(...fetchRuns(repo, file, Math.max(day, floor), Math.min(day + 86_400_000, end), truncated));
-    }
-    // Completed runs per PR and head, newest first. A head can run more than once (a re-run, or
-    // a later skip=no-change), so runs are read until one carries a review record.
-    const heads = new Map();
-    for (const run of runs) {
-      if (run.status !== "completed") continue;
-      const pr = prs.find((p) => p.headRefName === run.head_branch && run.created_at >= p.createdAt && run.created_at <= p.mergedAt);
-      if (!pr) continue;
-      const key = `${pr.number} ${run.head_sha}`;
-      if (!heads.has(key)) heads.set(key, { pr, runs: [] });
-      heads.get(key).runs.push(run);
-    }
-    const multi = [...heads.values()].filter((h) => h.runs.length > 1).length;
-    console.error(`review-precision: ${lane}: ${runs.length} runs listed, ${heads.size} PR heads to read (${multi} with more than one run), ${calls} gh calls so far`);
-    for (const { pr, runs: list } of [...heads.values()].sort((a, b) => a.runs[0].id - b.runs[0].id)) {
-      for (const run of list.sort((a, b) => b.id - a.id)) {
-        const jobs = ghJson(["api", `repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`]).jobs ?? [];
-        const status = jobs.filter((j) => j.name === job).sort((a, b) => b.id - a.id)[0];
-        if (!status?.completed_at || !(status.completed_at < until)) continue;
-        const notes = ghJson(["api", `repos/${repo}/check-runs/${status.id}/annotations?per_page=100`]);
-        if (notes.length >= 100) truncated.push(`PR ${pr.number}: ${lane} run ${run.id} has 100+ annotations`);
-        const records = notes
-          .map((note) => (note.annotation_level === "notice" ? String(note.message ?? "") : ""))
-          .filter((text) => text.startsWith("claude-lane-review-complete "));
-        for (const text of records) pr.notices.push({ lane, run: run.id, completedAt: status.completed_at, text });
-        if (records.some((text) => / findings=\d/.test(text))) break;
-      }
-    }
-    console.error(`review-precision: ${lane}: done, ${calls} gh calls so far`);
-  }
-}
 
 function fetchCap(repo) {
   try {
@@ -492,10 +463,8 @@ export function fetchSnapshot({ repo, since, until }) {
   const rounds_cap = fetchCap(repo);
   const prs = fetchPrs(repo, since, until, truncated);
   console.error(`review-precision: ${prs.length} merged PRs in the window`);
-  if (prs.length) fetchNotices(repo, prs, since, until, truncated);
-  for (const pr of prs) pr.notices.sort((a, b) => a.run - b.run || (a.text < b.text ? -1 : 1));
   prs.sort((a, b) => a.number - b.number);
-  return { schema: 1, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, truncated, prs };
+  return { schema: 2, repo, window: { since, until }, earliest_supported: EARLIEST_SUPPORTED, rounds_cap, truncated, prs };
 }
 
 // ---------------------------------------------------------------- CLI
@@ -528,7 +497,7 @@ export function parseArgs(argv, now = Date.now()) {
   opts.since = opts.since ? toIso(opts.since, "--since") : iso(Date.parse(opts.until) - 7 * 86_400_000);
   if (!(opts.since < opts.until)) throw new UsageError("--since must be before --until");
   if (opts.since < EARLIEST_SUPPORTED) {
-    throw new UsageError(`windows before ${EARLIEST_SUPPORTED} are not supported: the lanes did not post the current notice and footer format`);
+    throw new UsageError(`windows before ${EARLIEST_SUPPORTED} are not supported: the lanes did not post the current reviewed-head comment and footer format`);
   }
   if (Date.parse(opts.until) > now) console.error(`review-precision: --until ${opts.until} is in the future; the window is not closed, so a rerun can differ`);
   if (opts.repo && !/^[\w.-]+\/[\w.-]+$/.test(opts.repo)) throw new UsageError("--repo is owner/name");
