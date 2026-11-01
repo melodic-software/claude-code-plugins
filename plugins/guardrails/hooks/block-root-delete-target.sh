@@ -61,6 +61,12 @@
 # is established. A decoder sink asks no path question: it is refused
 # outright.
 #
+# GIT CLEAN IS NOT JUDGED HERE. block-dangerous-git owns a forced `git clean`
+# and blocks it outside the exceptions that guard documents. This guard has no
+# `git clean` arm, so one guard decides the command; the name appears below
+# only in the refusal messages that tell the agent not to retry a delete with
+# it.
+#
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
 # remove what the find's start points hold, so each start point is judged as

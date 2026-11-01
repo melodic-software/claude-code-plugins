@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
-# state install.sh wrote (or, under --no-pr, opens it on `pr create`), the issues in issues/<n>.json,
-# and the REST reads the create phase makes, and never reaches a network or the real gh: any command it does not serve
+# state install.sh wrote (or, under --no-pr, opens it on `pr create`), any extra pull requests in
+# extra-prs, the issues in issues/<n>.json, and the REST reads the create phase makes, and never
+# reaches a network or the real gh: any command it does not serve
 # exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`
-# and the resolve-thread mutation only append a line to calls.jsonl in the forge state. `pr update-branch` is refused on
+# and the resolve-thread mutation only append a line to calls.jsonl in the forge state; every other call that
+# exits 0 appends a "read" line, so a grader can tell a served call from one the real gh failed.
+# `pr update-branch` is refused on
 # purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
@@ -11,6 +14,8 @@ set -uo pipefail
 forge="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 state="$forge/state"
 origin="$forge/eval-fixture/app.git"
+extra="$forge/extra-prs"
+[[ -f "$extra" ]] || extra=/dev/null
 # shellcheck source=/dev/null
 source "$state"
 
@@ -58,13 +63,28 @@ emit() {
 }
 
 # The pull request a positional names: its number, #number, URL, or head branch; none means the
-# current branch.
+# current branch. An extra pull request it names becomes the PR_* the later steps read.
 pr_matches() {
-  [[ -f "$forge/created" ]] || return 1
-  local sel="${1:-$(git branch --show-current 2>/dev/null)}"
+  local sel="${1:-$(git branch --show-current 2>/dev/null)}" n h t
   sel="${sel#\#}"
   sel="${sel##*/pull/}"
-  [[ "$sel" == "$PR_NUMBER" || "$sel" == "$PR_HEAD" ]]
+  [[ -f "$forge/created" && ("$sel" == "$PR_NUMBER" || "$sel" == "$PR_HEAD") ]] && return 0
+  while IFS=$'\t' read -r n h t; do
+    if [[ "$sel" == "$n" || "$sel" == "$h" ]]; then
+      PR_NUMBER="$n" PR_HEAD="$h" PR_TITLE="$t"
+      return 0
+    fi
+  done <"$extra"
+  return 1
+}
+
+# The extra pull requests' documents; with a head branch, only that branch's.
+extra_docs() {
+  local n h t
+  while IFS=$'\t' read -r n h t; do
+    [[ -z "$1" || "$1" == "$h" ]] || continue
+    PR_NUMBER="$n" PR_HEAD="$h" PR_TITLE="$t" pr_doc
+  done <"$extra"
 }
 
 pr_doc() {
@@ -91,9 +111,13 @@ pr_doc() {
 record() {
   local what="$1"
   shift
+  recorded=1
   jq -nc --arg c "$what" --arg pr "$PR_NUMBER" '{command: $c, pr: ($pr | tonumber), args: $ARGS.positional}' \
     --args -- "$@" >>"$forge/calls.jsonl"
 }
+
+recorded=0 argv=("$@")
+trap 'rc=$?; ((rc != 0 || recorded)) || record read "${argv[@]+"${argv[@]}"}" 2>/dev/null; exit "$rc"' EXIT
 
 cmd="${1:-}" sub="${2:-}"
 case "$cmd $sub" in
@@ -113,7 +137,11 @@ case "$cmd $sub" in
   "pr list")
     shift 2
     parse "$@"
-    if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then doc="[$(pr_doc)]"; else doc="[]"; fi
+    doc=$(
+      if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then pr_doc; fi
+      extra_docs "$head"
+    )
+    doc=$(jq -sc . <<<"$doc")
     if [[ -n "$json" ]]; then
       json_list="$json"
       json=""
@@ -292,7 +320,11 @@ case "$cmd $sub" in
   "search prs")
     shift 2
     parse "$@"
-    doc="[$(pr_doc | jq -c '. + {repository: {name: "app", nameWithOwner: "eval-fixture/app"}, state: "open"}')]"
+    doc=$(
+      pr_doc
+      extra_docs ""
+    )
+    doc=$(jq -sc 'map(. + {repository: {name: "app", nameWithOwner: "eval-fixture/app"}, state: "open"})' <<<"$doc")
     if [[ -n "$json" ]]; then
       json_list="$json"
       json=""

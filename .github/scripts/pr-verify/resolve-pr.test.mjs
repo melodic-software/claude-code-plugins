@@ -994,7 +994,8 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
     };
     const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", String(issues.length));
-    assert.deepEqual(queries, [], "no relink read");
+    // Read once, for the body-edit rule, which finds no edit since the FAIL.
+    assert.deepEqual(queries, ["/graphql"], "one relink read");
   }
 });
 
@@ -1041,6 +1042,59 @@ test("after a trusted relink, another PR's FAIL or one named with the new issues
     setup.runs[78] = verifyRun(78);
     assert.equal(await reason(setup), "already-judged", name);
   }
+});
+
+// A body fix: this PR's FAIL at the head, named with the issue it still links
+// (or plainly, when it links none), and a person edited the body since. The
+// rule is the owner's: a trusted person's body edit after a FAIL is judged at
+// the same head, never a bot's.
+const BODY_EDIT = { editedAt: "2026-10-20T07:00:00Z", editor: PERSON };
+const bodyFixed = (relink, overrides = {}) => ({
+  artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)],
+  runs: { 77: verifyRun(77, { created_at: FAILED_AT }) },
+  relink,
+  ...overrides,
+});
+
+test("a FAIL is judged again at the same head after only a trusted person edited the body", async () => {
+  for (const [label, setup] of [
+    ["named with the PR's issues", bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }))],
+    ["named plainly, the PR linking none", bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }), { artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], issues: [] })],
+  ]) {
+    const resolved = await resolve(setup);
+    assert.equal(resolved.proceed, true, label);
+    assert.equal(resolved.reason, "body-edited", label);
+    // Its pass may supersede the FAIL, so it keeps a FAIL's retention.
+    assert.equal(resolved.relinkSinceHead, true, label);
+  }
+});
+
+test("a bot's or another actor's act, a connect alone, or an unreadable edit history keeps the FAIL", async () => {
+  // The paired case: the same window with only a person's edit re-opens.
+  assert.equal(await reason(bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }))), "body-edited");
+  const outsider = { __typename: "User", login: "outsider", databaseId: 999 };
+  for (const [label, relink] of [
+    ["the App's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: LANES_APP }] })],
+    ["another person's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: outsider }] })],
+    ["a ghost's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: null }] })],
+    ["a person's edit and the App's connect", relinkAnswer({ edits: [BODY_EDIT], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: LANES_APP }] })],
+    ["a person's connect alone", relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] })],
+    ["an edit before the FAIL", relinkAnswer({ edits: [{ ...BODY_EDIT, editedAt: "2026-10-20T05:00:00Z" }] })],
+    ["edits cut short", relinkAnswer({ edits: [BODY_EDIT], editsTotal: 101 })],
+    ["a failed read", undefined],
+  ]) {
+    assert.equal(await reason(bodyFixed(relink)), "already-judged", label);
+  }
+});
+
+test("the window opens at this PR's last FAIL at the head, so a judgment after the edit is not repeated", async () => {
+  // The edit was judged by the second FAIL, created after it.
+  const setup = bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }));
+  setup.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail-i7`, 78));
+  setup.runs[78] = verifyRun(78, { created_at: "2026-10-20T09:00:00Z" });
+  assert.equal(await reason(setup), "already-judged");
+  setup.relink = relinkAnswer({ edits: [{ ...BODY_EDIT, editedAt: "2026-10-20T10:00:00Z" }, BODY_EDIT] });
+  assert.equal(await reason(setup), "body-edited");
 });
 
 test("an unjudged head reads its linked issues once", async () => {
@@ -1594,11 +1648,12 @@ test("each path through the resolver makes a pinned number of API calls", async 
     // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
     // the head's checks runs, the spec, the relink read.
     ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 9],
-    // As above, but the PR links no issue now, so the relink is never read.
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
+    // As above, but the PR links no issue now: the relink read serves only
+    // the body-edit rule.
+    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 9],
     // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
-    // the FAIL's run and compare, the head's checks runs.
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
+    // the FAIL's run and compare, the head's checks runs, the relink read.
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 12],
     // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
     ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
     // As above, then the FAIL name with issues.

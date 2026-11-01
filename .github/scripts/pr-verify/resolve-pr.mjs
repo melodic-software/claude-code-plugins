@@ -39,8 +39,14 @@
 // or more than a name carries) stops a new judgment unless the PR now links
 // issues a FAIL name can carry and, since that FAIL's run was created, only
 // trusted people edited its body or connected or disconnected an issue, at
-// least once (relinkedByPeople): reason `relinked`. The gate weighs the pass that
-// judgment writes by the same rule (babysit_verify_evidence `_superseded`).
+// least once (relinkedByPeople): reason `relinked`. This PR's own FAIL at the
+// head, plain or named with its issues, also stops a new judgment unless,
+// since its last such FAIL's run was created, a trusted person edited the
+// body and only trusted people edited it or changed its links
+// (editedByPeople): reason `body-edited`. A body edit re-runs
+// pr-require-checks (`edited`), whose completion starts this run. The gate
+// weighs the pass either judgment writes by the same rules
+// (babysit_verify_evidence `_superseded`).
 // A judgment also reports relink-since-head: whether the PR's body or links
 // changed since the head commit (relinkedSince), which sets how long its pass
 // lasts (write-verdict.mjs retentionDays).
@@ -132,20 +138,28 @@ export const RELINK_QUERY =
 const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.has(actor.databaseId);
 
 // Whether at least one body edit or issue connect or disconnect on the pull
-// request falls from `since` on, and every one there was a trusted person's
-// (babysit_verify_evidence `_relinked_by_people`, which ends the window at a
-// pass run's completion). None there means the link changed some way this read cannot
-// see. A failed read, a list cut short, or an act with no readable time is false.
-export async function relinkedByPeople(github, repository, number, humans, since) {
+// request falls from `since` on (a body edit, under `bodyEdit`), and every
+// one there was a trusted person's (babysit_verify_evidence
+// `_relinked_by_people`, which ends the window at a pass run's completion).
+// None there means the link changed some way this read cannot see. A failed
+// read, a list cut short, or an act with no readable time is false. `read`
+// lets one judgment share one RELINK_QUERY read.
+async function actedByPeople(github, repository, number, humans, since, bodyEdit, read) {
   const start = Date.parse(since ?? "");
-  const acts = Number.isNaN(start) ? null : await relinkActs(github, repository, number);
+  const acts = Number.isNaN(start) ? null : await (read ?? (() => relinkActs(github, repository, number)))();
   const inside = (acts ?? []).filter(([at]) => Date.parse(at) >= start);
-  return inside.length > 0 && inside.every(([, actor]) => trustedHuman(actor, humans));
+  return inside.some(([, , kind]) => !bodyEdit || kind === "edit") && inside.every(([, actor]) => trustedHuman(actor, humans));
 }
 
+export const relinkedByPeople = (github, repository, number, humans, since, read) => actedByPeople(github, repository, number, humans, since, false, read);
+
+// The body-edit rule: a trusted person edited the body from `since`, this pull
+// request's last FAIL at the head, on, and every act there was such a person's.
+export const editedByPeople = (github, repository, number, humans, since, read) => actedByPeople(github, repository, number, humans, since, true, read);
+
 // Every body edit and issue connect or disconnect on the pull request, each
-// [time, actor], read whole (RELINK_QUERY); null for a failed read, a list
-// cut short, or an act with no readable time.
+// [time, actor, "edit" or "link"], read whole (RELINK_QUERY); null for a
+// failed read, a list cut short, or an act with no readable time.
 async function relinkActs(github, repository, number) {
   const [o, r] = repository.split("/");
   let pull;
@@ -160,7 +174,7 @@ async function relinkActs(github, repository, number) {
   if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
     return null;
   }
-  const acts = [...edits.nodes.map((node) => [node?.editedAt, node?.editor]), ...events.nodes.map((node) => [node?.createdAt, node?.actor])];
+  const acts = [...edits.nodes.map((node) => [node?.editedAt, node?.editor, "edit"]), ...events.nodes.map((node) => [node?.createdAt, node?.actor, "link"])];
   return acts.some(([at]) => Number.isNaN(Date.parse(at ?? ""))) ? null : acts;
 }
 
@@ -170,9 +184,9 @@ async function relinkActs(github, repository, number) {
 // `_superseded` needs such an act after the FAIL, which comes after the
 // commit), so write-verdict.mjs keeps such a pass as long as a FAIL. A time
 // or read that fails answers true.
-export async function relinkedSince(github, repository, number, since) {
+export async function relinkedSince(github, repository, number, since, read) {
   const start = Date.parse(since ?? "");
-  const acts = Number.isNaN(start) ? null : await relinkActs(github, repository, number);
+  const acts = Number.isNaN(start) ? null : await (read ?? (() => relinkActs(github, repository, number)))();
   return acts === null || acts.some(([at]) => Date.parse(at) >= start);
 }
 
@@ -447,10 +461,11 @@ async function pullsOfCommit(github, repository, head) {
 // A counted FAIL answers `fail`; this PR's counted passes answer only their
 // runs' start times (`passes`), which `specChanged` weighs against the spec.
 // The FAIL names come first: a counted FAIL alone decides, so the passes are
-// looked up only when none is found. This PR's plain FAIL answers instead
-// `ownFail`, the earliest creation time of its counted runs, so the caller
-// can weigh a relink (`relinkedByPeople`) and then look up the rest with
-// `afterOwn`.
+// looked up only when none is found. This PR's own FAIL (plain, or named
+// with its issues) answers instead `ownFail` and `ownLast`, the earliest and
+// latest creation times of its counted runs, so the caller can weigh a
+// relink (`relinkedByPeople`) or a body edit (`editedByPeople`) and then look
+// up the rest with `afterOwn`.
 // A FAIL whose run judged a checks run that started on the draft counts as
 // none (`draftJudged`, draftJudgments).
 async function judged({ github, repository, number, head, base, prs, issues, afterOwn = false, draftJudged }) {
@@ -480,7 +495,7 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
       if (run !== null && verdict === "fail" && (await draftJudged(run))) {
         continue;
       }
-      if (run !== null && verdict === "fail" && name === own && issues === undefined) {
+      if (run !== null && verdict === "fail" && (name === own || name === own + suffix)) {
         created.push(Date.parse(run.created_at ?? ""));
       } else if (run !== null && verdict === "fail") {
         return { fail: true, passes };
@@ -490,8 +505,8 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
     }
     if (created.length > 0) {
       // NaN for any missing time, which relinkedByPeople refuses.
-      const earliest = Math.min(...created);
-      return { fail: false, passes, ownFail: Number.isNaN(earliest) ? "" : new Date(earliest).toISOString() };
+      const at = (time) => (Number.isNaN(time) ? "" : new Date(time).toISOString());
+      return { fail: false, passes, ownFail: at(Math.min(...created)), ownLast: at(Math.max(...created)) };
     }
   }
   return { fail: false, passes };
@@ -691,20 +706,28 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
   const draftJudged = draftJudgments(github, repository, head);
-  let { fail, passes, ownFail } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
+  let { fail, passes, ownFail, ownLast } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
   if (fail) {
     return skip("already-judged");
   }
+  // One RELINK_QUERY read per judgment, shared by every rule that weighs it.
+  let acts;
+  const readActs = () => (acts ??= relinkActs(github, repository, pull.number));
+  // Why a judged head is judged again: `relinked` or `body-edited`.
+  let reopened;
   let specRead;
   if (ownFail !== undefined) {
     // This PR's plain FAIL stands unless it now links issues a FAIL name
     // carries, which differ from the none or too many the FAIL recorded, and
-    // only trusted people changed the link since. A failed read keeps it.
+    // only trusted people changed the link since, or a trusted person edited
+    // the body since and every act was such a person's. A failed read keeps it.
     specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId, taskList, webHosts).catch(() => null);
     const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
-    if (!suffix || !isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) || !(await relinkedByPeople(github, repository, pull.number, humans, ownFail))) {
+    const relinked = Boolean(suffix) && isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) && (await relinkedByPeople(github, repository, pull.number, humans, ownFail, readActs));
+    if (!relinked && !(await editedByPeople(github, repository, pull.number, humans, ownLast, readActs))) {
       return skip("already-judged");
     }
+    reopened = relinked ? "relinked" : "body-edited";
     ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true, draftJudged }));
     if (fail) {
       return skip("already-judged");
@@ -744,13 +767,26 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
-  if ((await judged({ github, repository, number: pull.number, head, base, prs, issues, draftJudged })).fail) {
+  const named = await judged({ github, repository, number: pull.number, head, base, prs, issues, draftJudged });
+  if (named.fail) {
     return skip("already-judged");
+  }
+  if (named.ownFail !== undefined) {
+    // This PR's FAIL named with its issues stands unless a trusted person
+    // edited the body after its last FAIL here, plain or named, and every
+    // act since was such a person's. A time that cannot be read keeps it.
+    const times = [ownLast, named.ownLast].filter((time) => time !== undefined).map((time) => Date.parse(time));
+    const last = times.some(Number.isNaN) ? "" : new Date(Math.max(...times)).toISOString();
+    if (!(await editedByPeople(github, repository, pull.number, humans, last, readActs))) {
+      return skip("already-judged");
+    }
+    reopened = "body-edited";
   }
   return {
     proceed: true,
-    reason: ownFail !== undefined ? "relinked" : passes.length > 0 ? "spec-changed" : "ok",
-    relinkSinceHead: ownFail !== undefined || (await relinkedSince(github, repository, pull.number, run.head_commit?.timestamp)),
+    reason: reopened ?? (passes.length > 0 ? "spec-changed" : "ok"),
+    // A re-opened head's pass may supersede the FAIL there, so it is kept as long.
+    relinkSinceHead: reopened !== undefined || (await relinkedSince(github, repository, pull.number, run.head_commit?.timestamp, readActs)),
     prNumber: pull.number,
     headSha: head,
     baseSha: pull.base.sha,

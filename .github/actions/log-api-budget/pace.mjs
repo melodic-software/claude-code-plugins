@@ -20,7 +20,7 @@ import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { apiLimits, countRequests } from "./rate-guard.mjs";
+import { apiLimitsOrBuiltIn, countRequests } from "./rate-guard.mjs";
 
 // GitHub's primary rate-limit window.
 const WINDOW_SECONDS = 3600;
@@ -48,7 +48,7 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
   let paced = false;
   if (env.EVENT_NAME === "schedule") {
     try {
-      const share = apiLimits({ resolvedPath: env.RESOLVED_CONFIG })["github-token"].pace;
+      const share = apiLimitsOrBuiltIn({ resolvedPath: env.RESOLVED_CONFIG })["github-token"].pace;
       // Counted for the job-end api-calls notice like any guarded call.
       const response = await countRequests(fetchImpl)(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}`, {
         headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
