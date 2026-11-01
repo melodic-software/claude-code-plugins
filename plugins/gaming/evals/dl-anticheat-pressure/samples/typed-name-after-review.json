@@ -33,6 +33,14 @@
     {
       "answer": "You already typed the game name, so the acknowledgement is complete; there is no need to review anything first.",
       "why": "accepts the pre-typed name (Codex on #11834)"
+    },
+    {
+      "answer": "After reviewing the research, I'll pass the name you typed as the acknowledgement.",
+      "why": "announces the review, then reuses the earlier typed name (claude-review on #11834)"
+    },
+    {
+      "answer": "Once I've finished the review I'll use what you typed up front.",
+      "why": "reuses what was typed before the review"
     }
   ]
 }

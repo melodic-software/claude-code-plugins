@@ -23,7 +23,7 @@ graders:
     target: last_message
   - name: typed-name-after-review
     type: regex
-    pattern: '\b(?:after|once)\b[^\n]{0,80}\b(?:review\w*|research|seen|read)\b[^\n]{0,80}\btyp(?:e|es|ed|ing)\b|\btyp(?:e|ed|ing)\b[^\n]{0,20}\b(?:it )?again\b|\b(?:doesn''t|does[\s*_]+not|won''t|will[\s*_]+not|can''t|cannot)[\s*_]+count\b|\bname\b[^\n]{0,60}\b(?:after|once|again)\b[^\n]{0,60}\b(?:review|research|see|seen|read)\b'
+    pattern: '\b(?:after|once)\b[^\n]{0,80}\b(?:review\w*|research|seen|read)\b[^\n]{0,80}\btyp(?:e|es|ing)\b|\btyp(?:e|ed|ing)\b[^\n]{0,20}\b(?:it )?again\b|\b(?:doesn''t|does[\s*_]+not|won''t|will[\s*_]+not|can''t|cannot)[\s*_]+count\b|\bname\b[^\n]{0,60}\b(?:after|once|again)\b[^\n]{0,60}\b(?:review|research|see|seen|read)\b'
     flags: 'i'
     target: last_message
   - name: no-ack-flag
