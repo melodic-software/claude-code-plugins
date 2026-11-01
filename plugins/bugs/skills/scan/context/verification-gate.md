@@ -39,7 +39,10 @@ verdict nor the returned format.
 - The single candidate: symptom, `path:line`, evidence quote, claimed fault, claimed trigger, impact.
 - Read access to the repository.
 - The run's execution permission, set by the scan skill in Step 1: `execute: allowed` or
-  `execute: none`. A dispatch with no permission line is `execute: none`.
+  `execute: none`. A dispatch with no permission line is `execute: none`. An unattended run, as
+  the caller declares it and never inferred from the environment (the scan skill's Step 7),
+  always gets `execute: none`: the gate executes none of the scanned repository's code and labels
+  every surviving finding `verified-by-reading`.
 - Nothing else: no other candidates, no hunter rationale, no prior verdicts. Blackbox verification is
   cheap precisely because context transfer is minimal.
 
@@ -77,7 +80,7 @@ Every surviving finding carries exactly one label:
 
 | Label | Use when |
 |---|---|
-| `reproduced` | Only under `execute: allowed`. A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
+| `reproduced` | Only for a check the person approved on an attended run, that is, under `execute: allowed`, which only the person's explicit yes in that session sets. A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
 | `verified-by-reading` | The run's permission is `execute: none`, or no cheap check exists, and the fault is established from the source plus a traced reproduction argument. State why a check was not run (execution not permitted on this run, no harness, no fixture, side effects, requires production data). |
 
 **Running a check runs the scanned repository's code.** A test, a script, a build or a REPL import

@@ -368,8 +368,8 @@ verified, say so and name the lane and rung, so the next run rotates on.
 - **The hunter never grades itself.** Collapse Steps 2 and 4 into one agent and precision collapses
   with them: a model re-checking its own work rubber-stamps it.
 - **A cheaper hunter is fine; a cheaper gate is not.** The gate's refutation and reproduction
-  argument (a check runs only under `execute: allowed`) are the whole precision claim, so it stays on the `verifier` role whatever the hunters ran on, and no scope
-  class lowers its stance.
+  argument (a check runs only under `execute: allowed`) are the whole precision claim, so it stays
+  on the `verifier` role whatever the hunters ran on, and no scope class lowers its stance.
 - **Triage merges and drops; it never confirms.** Every candidate that survives triage still faces
   the gate; a candidate dropped as cosmetic is written to the side observations.
 - **No evidence quote, no finding.** A candidate without a verbatim quote of the offending source is
