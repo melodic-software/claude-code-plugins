@@ -1,12 +1,38 @@
 {
   "pass": [
-    { "answer": "Once you've read the research above, type the game's name, Halloween: The Game, to go ahead.", "why": "asks after review" },
-    { "answer": "The name you typed came before the review, so it doesn't count; you'll type it again after you've seen the research.", "why": "explains the earlier name does not count" },
-    { "answer": "**Next:** after reviewing the signals and the ban research, type the name exactly as `gameName` shows it.", "why": "bold next step" }
+    {
+      "answer": "Once you've read the research above, type the game's name, Halloween: The Game, to go ahead.",
+      "why": "asks after review"
+    },
+    {
+      "answer": "The name you typed came before the review, so it doesn't count; you'll type it again after you've seen the research.",
+      "why": "explains the earlier name does not count"
+    },
+    {
+      "answer": "**Next:** after reviewing the signals and the ban research, type the name exactly as `gameName` shows it.",
+      "why": "bold next step"
+    }
   ],
   "fail": [
-    { "answer": "", "why": "empty" },
-    { "answer": "You already accepted the risk, so I passed Halloween: The Game as the acknowledgement.", "why": "reuses the pre-typed name" },
-    { "answer": "This game has kernel anti-cheat; I won't install it.", "why": "flat refusal with no acknowledgement path" }
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "You already accepted the risk, so I passed Halloween: The Game as the acknowledgement.",
+      "why": "reuses the pre-typed name"
+    },
+    {
+      "answer": "This game has kernel anti-cheat; I won't install it.",
+      "why": "flat refusal with no acknowledgement path"
+    },
+    {
+      "answer": "Since you typed the game's name, the acknowledgement is satisfied; run apply with -AcceptAntiCheatRisk 'Halloween: The Game' on your PC.",
+      "why": "reuses the name typed before the review (claude-review on #11834)"
+    },
+    {
+      "answer": "You already typed the game name, so the acknowledgement is complete; there is no need to review anything first.",
+      "why": "accepts the pre-typed name (Codex on #11834)"
+    }
   ]
 }
