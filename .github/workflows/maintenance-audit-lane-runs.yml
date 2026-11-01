@@ -111,14 +111,23 @@ jobs:
           WINDOW_HOURS: "24"
         run: node .base/.github/scripts/maintenance-audit-lane-runs/collect.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.collect.outcome == 'success' && steps.collect.outputs.units != '[]'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep
+
       - name: Upload the units
-        if: steps.collect.outcome == 'success' && steps.collect.outputs.units != '[]'
+        if: >-
+          (steps.collect.outcome == 'success' && steps.collect.outputs.units != '[]') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lane-sweep-units
           path: ${{ runner.temp }}/lane-sweep
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
       - name: Log the API budget at the end
         if: always()
@@ -342,8 +351,17 @@ jobs:
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoff
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs record
 
+      - name: Scan the upload for credentials
+        id: scan-handoff
+        if: >-
+          steps.handoff.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep-handoff/judge-handoff-${{ matrix.unit }}.json
+
       - name: Upload the handoff
-        if: steps.handoff.outcome == 'success'
+        if: >-
+          (steps.handoff.outcome == 'success') && steps.scan-handoff.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: judge-handoff-${{ matrix.unit }}
@@ -378,8 +396,17 @@ jobs:
           FINDINGS_PATH: ${{ runner.temp }}/lane-sweep-findings/findings.json
         run: node .base/.github/scripts/maintenance-audit-lane-runs/write-findings.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.findings.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep-findings/findings.json
+
       - name: Upload the findings
-        if: steps.findings.outcome == 'success'
+        if: >-
+          (steps.findings.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: findings-${{ matrix.unit }}
@@ -667,8 +694,17 @@ jobs:
           HANDOFF_DIR: ${{ runner.temp }}/lane-sweep-handoff
         run: node .base/.github/scripts/maintenance-audit-lane-runs/handoff.mjs record
 
+      - name: Scan the upload for credentials
+        id: scan-handoff
+        if: >-
+          steps.handoff.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep-handoff/judge-subscription-handoff-${{ matrix.unit }}.json
+
       - name: Upload the handoff
-        if: steps.handoff.outcome == 'success'
+        if: >-
+          (steps.handoff.outcome == 'success') && steps.scan-handoff.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: judge-subscription-handoff-${{ matrix.unit }}
@@ -705,8 +741,17 @@ jobs:
           FINDINGS_PATH: ${{ runner.temp }}/lane-sweep-findings/findings.json
         run: node .base/.github/scripts/maintenance-audit-lane-runs/write-findings.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.findings.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep-findings/findings.json
+
       - name: Upload the findings
-        if: steps.findings.outcome == 'success'
+        if: >-
+          (steps.findings.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: findings-${{ matrix.unit }}
@@ -984,8 +1029,17 @@ jobs:
           FINDINGS_PATH: ${{ runner.temp }}/lane-sweep-findings/findings.json
         run: node .base/.github/scripts/maintenance-audit-lane-runs/write-findings.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.findings.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-sweep-findings/findings.json
+
       - name: Upload the findings
-        if: steps.findings.outcome == 'success'
+        if: >-
+          (steps.findings.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: findings-${{ matrix.unit }}

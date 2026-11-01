@@ -1265,7 +1265,7 @@ An implementation phase the plan routes `sonnet` as well-scoped drops one tier, 
 `implementation:scoped-implementer` at `medium` effort, the [effort floor](#effort-floor); unrouted
 or complex phases stay on `implementation:implementer` at the strong tier.
 
-The heavy default must be explicit: every agent definition in this repository pins `model`, because an agent that omits it
+Every agent definition in this repository pins `model`, so the heavy default is explicit. An agent that omits it
 falls through the harness's resolution order and, on a machine with no consumer default, runs on
 the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
 set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
@@ -1291,12 +1291,14 @@ per-spawn `model`.
 - **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
   subagents page stops describing it.
 
-There is no per-plugin model surface. We read plugin `userConfig` as typed options with no model
-semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
-configuration (Pointer:
-[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
-As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
-runs on).
+Plugin `userConfig` is no per-plugin model surface. We read its options as typed options with no
+model semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
+configuration. A mod's `agent.spawn` hook can replace a subagent's model at spawn time; no plugin
+in this repository ships one for routing (Pointer:
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+and [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+As of: 2026-11-01. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+runs on, or that section adds or drops a spawn-time model override).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
 needs no edit here. Which model each alias resolves to is read live from the model page, and it
@@ -1311,7 +1313,7 @@ For generic agents in a multi-agent run, the per-role defaults built on these ro
 | Mechanical work an objective failure signal backs | `sonnet` |
 | Bulk mechanical sweeps | `sonnet` |
 
-No row names `haiku`: no role routes to it until it passes this repository's routing eval, and the
+No row names `haiku`, and no role routes to it until it passes this repository's routing eval, and the
 [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns that rule and the effort
 a Haiku role runs at. The release evidence behind it is recorded in
 [docs/upstream/haiku-5-5-launch.md](upstream/haiku-5-5-launch.md).
@@ -1542,8 +1544,8 @@ at `high`; `implementation` `scoped-implementer`, because a plan routes only wel
 it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
 `ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
 work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
-scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
-that it is stuck. A frontmatter pin is what holds a named agent's lane for any dispatch that
+scope, and checking named areas of the development process. No pin goes below `medium`, because in this repository's judgment a low-effort executor stops
+detecting that it is stuck (the upstream pointers are under the [effort floor](#effort-floor)). A frontmatter pin is what holds a named agent's lane for any dispatch that
 passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
 writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
@@ -1658,8 +1660,10 @@ Agent-tool spawn of an unpinned agent where the skill has resolved one.
 - **Recheck trigger:** a docs page starts covering it, or any section above changes how the flag,
   the field, or the per-call `effort` ranks, or which spawns honor the per-call `effort`.
 
-**A skill's pin reaches the subagents it dispatches.** We treat a skill's frontmatter `effort` pin
-as applying to the main turns while that skill is active and to the subagents it dispatches.
+**A skill's pin holds for the current turn and a forked subagent.** We treat a skill's frontmatter
+`effort` pin as applying to the rest of the current turn and, with `context: fork`, to the forked
+subagent, as the field's docs row scopes it. Our older probe saw a wider reach (every main turn while
+the skill was active, and every dispatched subagent); that wider reach is unproven.
 
 - **Pointer:** our probe, two headless sessions on Claude Code 2.1.285. Session
   `ec6654fe-076a-4c3d-970c-363339cb63b3` ran a throwaway plugin skill pinned `effort: high` under
@@ -1667,7 +1671,10 @@ as applying to the main turns while that skill is active and to the subagents it
   `908560cb-3f30-4157-a672-5e00112bba0a` ran without the pin and stayed at `low` throughout. The
   throwaway plugin no longer exists, so the session ids are the artifact. For the skill field, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference);
-  no docs page covers the pin's reach into dispatched subagents.
+  its row scopes the pin to the rest of the current turn and, with `context: fork`, to the forked
+  subagent. No docs page covers a subagent dispatched without `context: fork`.
+- **Status:** the documented scope above is current. The probe's wider reach is UNVERIFIED: both
+  triggers below fired (2.1.316 and the docs row, seen 2026-11-01) and the probe has not been re-run.
 - **As of:** 2026-09-29.
 - **Recheck trigger:** the Claude Code CLI version moves past 2.1.285, or a docs page starts
   covering pin propagation to subagents.
