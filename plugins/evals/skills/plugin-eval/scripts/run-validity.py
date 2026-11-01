@@ -153,6 +153,10 @@ EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's 
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
+# A Glob with no path searches where its pattern points: the guard checks the
+# directory the pattern's literal part names, cut at its first glob character.
+GLOB_TOOL, GLOB_PATTERN = "Glob", "pattern"
+GLOB_CHAR = re.compile(r"[*?\[{]")
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 # A word the shell would expand, or a path packed after another character (/a,/b).
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
@@ -754,11 +758,21 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
+def glob_root(pattern):
+    """The directory a Glob pattern names before its first glob character: the
+    pattern itself when it holds none, else the directory its literal part ends
+    in, so /p/plug* gives /p, an ancestor of /p/plugin. None for a non-string."""
+    if not isinstance(pattern, str):
+        return None
+    match = GLOB_CHAR.search(pattern)
+    return pattern if match is None else os.path.dirname(pattern[: match.start()])
+
+
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
-    the paths it targets: a Bash call's rooted arguments, else the target path or
-    None, the tool's name, the tool_use_id, the (tool, target) pair that names the
-    same call in another run)."""
+    the paths it targets: a Bash call's rooted arguments, else the target path, a
+    path-less Glob's pattern root (glob_root) or None, the tool's name, the
+    tool_use_id, the (tool, target) pair that names the same call in another run)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -780,11 +794,12 @@ def denials(run):
         name, tool_input = call or calls.get(use_id, (None, {}))
         path = next((tool_input[k] for k in TARGET_KEYS if k in tool_input), None)
         target = path if path is not None else next(iter(tool_input.values()), "")
-        paths = (
-            bash_paths(tool_input.get(BASH_COMMAND))
-            if name == BASH_TOOL
-            else (path if isinstance(path, str) else None,)
-        )
+        if name == BASH_TOOL:
+            paths = bash_paths(tool_input.get(BASH_COMMAND))
+        elif path is None and name == GLOB_TOOL:
+            paths = (glob_root(tool_input.get(GLOB_PATTERN)),)
+        else:
+            paths = (path if isinstance(path, str) else None,)
         out.append(
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),

@@ -996,6 +996,10 @@ class RunValidityTest(unittest.TestCase):
                 "/srv/eval-home/.claude/standards",
             ),
             ({"pattern": "~/.claude/standards/*.md"}, "~/.claude/standards/*.md"),
+            (
+                {"pattern": "/srv/eval-home/.claude/standards/*.md"},
+                "/srv/eval-home/.claude/standards/*.md",
+            ),
         ):
             proc = self.denied_glob(tool_input, tool_input)
             self.assertVerdict(proc, "VALID", 0)
@@ -1009,10 +1013,16 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_denial_missing_from_a_run_or_aimed_into_the_plugin_is_a_fail(self):
         inside = {"pattern": "*.md", "path": self.PLUGIN + "/skills"}
+        # A rooted pattern with no path searches where it points; so does one cut
+        # mid-name, whose literal directory is an ancestor of the plugin.
+        pattern_inside = {"pattern": self.PLUGIN + "/skills/*.md"}
+        pattern_above = {"pattern": self.PLUGIN[: -len("evals")] + "ev*/**/SKILL.md"}
         for with_input, without_input in (
             (self.USER_RUNG, None),
             (self.USER_RUNG, {"pattern": "*.md", "path": "/opt/other"}),
             (inside, inside),
+            (pattern_inside, pattern_inside),
+            (pattern_above, pattern_above),
         ):
             proc = self.denied_glob(with_input, without_input)
             self.assertVerdict(proc, "INVALID", 1)
