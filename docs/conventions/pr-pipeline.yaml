@@ -341,7 +341,10 @@ activities:
     # the lane branch with the base's scripts/ code and the branch's scripts/
     # data files, and report-outcome stops a done
     # run whose checks failed or did not run, whatever the outcome file says.
-    checks: ["scripts/check-changelog-fragments.sh --check"]
+    # check-changed-skills.sh --merge-base runs CI's changed-skills gate over
+    # the skills the change touches, with the base's check-skill.sh and each
+    # skill's script tests skipped, so it runs no checkout code.
+    checks: ["scripts/check-changelog-fragments.sh --check", "scripts/check-changed-skills.sh --merge-base"]
     # Runs the diff-scoped lint checks a push would face (markdown,
     # shellcheck, exec bits, changelog fragments, plugin validation) in the
     # run, so the skill fixes what they report before it commits and the PR
@@ -358,7 +361,9 @@ activities:
     # and GITHUB_TOKEN unset, and no Bash process above it holds either:
     # the read runner's run-claude-cli steps set neither token. No script here
     # runs checkout code: run-test-file.sh and check-skill.sh are left out,
-    # and the PR's own CI runs the tests.
+    # and the PR's own CI runs the tests. check-skill.sh runs only inside the
+    # check-changed-skills.sh check above, from the base copy with script
+    # tests and markdownlint skipped.
     # git-mv-rm.sh renames and removes paths inside the checkout.
     # sync-shared-copies.sh regenerates registered shared-library copies
     # inside the checkout: it reads the registry and canonicals there and
@@ -1061,8 +1066,10 @@ merge:
   lane-prs: native
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
-  # to a pull request from one: release-publish-plugins.yml rebuilds
-  # release/plugins, and run 41065454536's push there answered 422.
+  # to a pull request from one, and pr-unblock never runs fix-ci on one
+  # (skip `owned-branch`): release-publish-plugins.yml rebuilds
+  # release/plugins, and pushes there answered 422 (run 41065454536's re-fire,
+  # runs 41308756974 and 41312571464's fix-ci).
   refire-skip-branches: [release/plugins]
   # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
   # head (lane PRs under lane-prs native are not listed). Must be true at a

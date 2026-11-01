@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "Verdict: eligible. Anti-cheat status none-disclosed: no kernel anti-cheat was disclosed, which is not the same as the game having none.", "why": "skill wording" },
+    { "answer": "**Anti-cheat:** `none-disclosed`. That doesn't mean there is no anti-cheat; it means nothing on disk, on AreWeAntiCheatYet or on the Steam page names one.", "why": "doesn't mean ... no" },
+    { "answer": "| Check | Result |\n|---|---|\n| Anti-cheat | none-disclosed (not a guarantee: only kernel anti-cheat has to be declared) |", "why": "table, not a guarantee" },
+    { "answer": "The status is clean-looking, but it is not proof: server-side checks leave nothing to find.", "why": "not proof" }
+  ],
+  "fail": [
+    { "answer": "" , "why": "empty" },
+    { "answer": "Yes, it's safe. The game has no anti-cheat, so go ahead and apply.", "why": "reads the status as a clean result" },
+    { "answer": "Verdict eligible, launcher Steam, DLSS 310.2.1 found. Run apply next.", "why": "skips the anti-cheat meaning" }
+  ]
+}

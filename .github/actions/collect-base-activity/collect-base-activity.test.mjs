@@ -349,6 +349,24 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   }
 });
 
+// check-changed-skills.sh --merge-base runs the checker beside its scripts/
+// copy, never the checkout's.
+test("a listed check's copy carries the base's skill-quality scripts", () => {
+  const scripts = path.join(base, "plugins", "skill-quality", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "check-skill.sh"), "#!/usr/bin/env bash\necho base checker\n", { mode: 0o755 });
+  writeFileSync(path.join(scripts, "metadata-registry.txt"), "category\n");
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    const copy = path.join(checksDir, "plugins", "skill-quality", "scripts");
+    assert.equal(readFileSync(path.join(copy, "check-skill.sh"), "utf8"), "#!/usr/bin/env bash\necho base checker\n");
+    assert.equal(readFileSync(path.join(copy, "metadata-registry.txt"), "utf8"), "category\n");
+  } finally {
+    rmSync(path.join(base, "plugins", "skill-quality"), { recursive: true });
+  }
+});
+
 // A skill that commits runs its checks, fixes and re-runs them before it
 // commits, since the checks read the working tree (#8319 review).
 test("a committing skill with checks is told to commit after the checks and their fixes", () => {
