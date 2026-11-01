@@ -23,7 +23,8 @@
 # hardcoded-path-check's GitHub MCP lane does, with the same scan root. Read
 # over body files, here-doc and here-string bodies, and the posting command's
 # words less any word that only names one of its body files (`<path>`,
-# `--flag=<path>`, `@<path>`, `k=@<path>`), so a `--body-file` operand is not
+# `--flag=<path>`, `@<path>`, `k=@<path>`, a word that is only
+# `$(cat <path>)`, and the curl forms), so a `--body-file` operand is not
 # judged; the wrapper script's own words are never posting words. The whole command is not read
 # for paths: it names the wrapper, the working directory and the body file.
 #
@@ -173,18 +174,16 @@ if ((_bgpc_paths)); then
         # `name@<path>`.
         "$_bgpc_f" | "-"*"=$_bgpc_f" | "@$_bgpc_f" | "-"?"$_bgpc_f" | "-"?"@$_bgpc_f" | \
           [!=[:space:]]*"=@$_bgpc_f" | [!=[:space:]]*"=@$_bgpc_f;"* | \
-          [!=[:space:]]*"=<$_bgpc_f" | [!=[:space:]]*"=<$_bgpc_f;"* | [!@[:space:]]*"@$_bgpc_f")
+          [!=[:space:]]*"=<$_bgpc_f" | [!=[:space:]]*"=<$_bgpc_f;"* | [!@[:space:]]*"@$_bgpc_f" | \
+          "\$(cat $_bgpc_f)" | "\$(<$_bgpc_f)" | "\$(< $_bgpc_f)" | "\`cat $_bgpc_f\`")
+          # The last four: a word that is only `$(cat <path>)` (`--body
+          # "$(cat f)"`), whose file text is judged as a `file` body. A longer
+          # word is read whole, since quoting may post the text as written.
           _bgpc_t=""
           break
           ;;
         *) ;;
         esac
-        # A quoted `$(cat <path>)` or `$(<path>)` inside a body word: cut that
-        # operand only, the file's own text is judged as a `file` body.
-        _bgpc_t="${_bgpc_t//"\$(cat $_bgpc_f)"/}"
-        _bgpc_t="${_bgpc_t//"\$(<$_bgpc_f)"/}"
-        _bgpc_t="${_bgpc_t//"\$(< $_bgpc_f)"/}"
-        _bgpc_t="${_bgpc_t//"\`cat $_bgpc_f\`"/}"
       done
       ;;
     *) ;;
