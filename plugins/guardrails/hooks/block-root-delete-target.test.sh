@@ -3676,6 +3676,11 @@ expect_both 'PS a typographic double quote keeps the expansion reading' 2 \
 expect_both 'PS a quote inside a $( ) subexpression keeps the expansion reading' 2 \
   --tool PowerShell "${RDT_CWD[@]}" \
   --command $'iex "$(\'"\'.Length) #\'\nRemove-Item -Recurse \'$env:SystemDrive\\\'\n" #"'
+# A `${name}` inside a double-quoted string reads its name to the first `}`, so
+# a `"` in it does not close the string as the walk reads it.
+expect_both 'PS a quote inside a ${ } braced name keeps the expansion reading' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" \
+  --command $'iex "${a"}; Remove-Item -Recurse \'$env:SystemDrive\\\'"'
 # Nested text has lost the outer string's escapes, so a quoting form can appear
 # in it that the command itself does not hold; nested text keeps the expansion
 # reading.

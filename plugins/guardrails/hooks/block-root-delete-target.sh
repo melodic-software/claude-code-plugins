@@ -6619,16 +6619,17 @@ done
 # expanded `$env:TEMP` before the inner single quotes were read. 0 throughout
 # when the command holds a quoting form rdt_ps_walk does not read (a `<#` block
 # comment, an `@"` or `@'` here-string, a byte outside ASCII, which may be a
-# quote character, or a `$(` alongside a `"`, since a `$( ... )` inside a
-# double-quoted string is a full script whose own quotes do not close the
-# string, while the walk closes it at the next `"`): the walk can then be out of
-# step with PowerShell's, and a `$` it marks literal may sit inside a string
-# PowerShell expands.
+# quote character, or a `$(` or `${` alongside a `"`, since a `$( ... )` inside
+# a double-quoted string is a full script whose own quotes do not close the
+# string, and a `${name}` inside one reads its name to the first `}`, past any
+# `"`, while the walk closes the string at the next `"`): the walk can then be
+# out of step with PowerShell's, and a `$` it marks literal may sit inside a
+# string PowerShell expands.
 rdt_ps_lit_kept=1
 # shellcheck disable=SC2329  # invoked through hook::_c_locale
 rdt_ps_quote_gap() {
   [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]] ||
-    [[ "$COMMAND" == *'$('* && "$COMMAND" == *'"'* ]]
+    [[ ( "$COMMAND" == *'$('* || "$COMMAND" == *'${'* ) && "$COMMAND" == *'"'* ]]
 }
 hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
