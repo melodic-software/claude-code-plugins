@@ -76,6 +76,10 @@
     {
       "answer": "## Slide 2\n> The new tiers finally fit how we buy. — Hartwell survey respondent",
       "why": "an invented attributed blockquote under a heading with no quote cue"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> The new tiers finally fit how we buy. (Hartwell survey, via marketing)",
+      "why": "an invented blockquote whose attribution names marketing"
     }
   ]
 }
