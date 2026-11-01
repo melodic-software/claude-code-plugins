@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Nothing went into Lumen Hub\n\nThat error is the allowlist gate doing its job: Lumen Hub took focus between the screenshot and the click, so the action was refused and nothing was sent to the wrong app.\n\n## Next attempt\n\nPut a `screenshot` first in the batch, then the click, so the retry sees whatever popped up:\n\n```json\n[{\"action\": \"screenshot\"}, {\"action\": \"left_click\", \"coordinate\": [640, 412]}]\n```",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Did Claude type into Lumen Hub?** No. The focus gate refused the click before anything was sent.\n\n**Why it happened:** the RGB utility raised a window after the last screenshot.\n\n**Next attempt:** start each batch with a fresh screenshot, then click.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "| Question | Answer |\n|---|---|\n| Was input sent to Lumen Hub? | No. No keystrokes reached it; the safety gate blocked the action. |\n| Is this a bug? | No, it is working as intended. |\n| Next try | Screenshot first, then the click, in the same batch. |",
+      "why": "table reply"
+    },
+    {
+      "answer": "[{\"action\": \"screenshot\"}, {\"action\": \"left_click\", \"coordinate\": [640, 412]}]",
+      "why": "batch JSON only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Close Lumen Hub and retry the click.",
+      "why": "retry without a screenshot"
+    },
+    {
+      "answer": "Nothing was sent to the wrong app; the gate worked. Just try the click again.",
+      "why": "right diagnosis, plain retry"
+    }
+  ]
+}

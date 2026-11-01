@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: confirm-touched-feature-calls-refresh
-description: When /testing:run-e2e did not run, confirm itself maps the changed file to its feature through the control skill index's sources globs and calls /app-control:map refresh for that feature only, leaving the control skill's files to map
+description: When /testing:run-e2e did not run, confirm takes the touched features from the affected.json /app-control:drive affected wrote and calls /app-control:map refresh for that feature only, leaving the control skill's files to map
 tags: [confirm, app-control, refresh, invented]
-expected_outcome: The reply maps src/cart/total.ts to the cart/total feature through the index's sources glob and not to checkout, and calls /app-control:map refresh cart/total once, with no refresh for checkout. It edits no control skill file itself.
+expected_outcome: The reply takes cart/total from affected.json, not from the index's sources globs, and calls /app-control:map refresh cart/total once, with no refresh for checkout. It edits no control skill file itself.
 execution:
-  prompt: "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed this conversation. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the cart page through the bundled /run is done and showed the total with tax, which is the PR's acceptance criterion. The app-control plugin is installed: /app-control:map resolves in this session. The repository has the control skill .claude/skills/control-shop/, whose index has two lines: `- Cart total | features/cart/total/README.md | entry points: 1 | sources: src/cart/**` and `- Checkout | features/checkout/README.md | entry points: 1 | sources: src/checkout/**`. This branch changes only src/cart/total.ts. I am here. List every skill call you make from here on, with its exact arguments, then stop."
+  prompt: "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed this conversation. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the cart page through the bundled /run is done and showed the total with tax, which is the PR's acceptance criterion. The app-control plugin is installed: /app-control:drive and /app-control:map resolve in this session. The repository has the control skill .claude/skills/control-shop/ with two features, cart/total and checkout. This branch changes only src/cart/total.ts. The /app-control:drive affected call has already run: its affected.json lists one feature, cart/total, and does not list checkout. I am here. List every skill call you make from here on, with its exact arguments, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 8
   timeout_seconds: 300
@@ -15,4 +15,4 @@ graders:
     arm: both
   - name: refreshes-touched-feature-only
     type: llm
-    criteria: "PASS only if the reply (1) calls /app-control:map refresh with the feature id cart/total (the path-derived id, not the title 'Cart total') as a call this run makes, not only as a suggestion for later, and (2) makes no refresh call for checkout. FAIL if it refreshes checkout or every feature, refreshes with no feature named, edits or writes a file under .claude/skills/control-shop/ itself, or skips the refresh."
+    criteria: "PASS only if the reply (1) calls /app-control:map refresh with the feature id cart/total, the feature affected.json lists, as a call this run makes, not only as a suggestion for later, and (2) makes no refresh call for checkout. FAIL if it refreshes checkout or every feature, refreshes with no feature named, edits or writes a file under .claude/skills/control-shop/ itself, or skips the refresh."

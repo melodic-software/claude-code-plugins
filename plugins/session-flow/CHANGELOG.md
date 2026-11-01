@@ -1,5 +1,31 @@
 # Changelog: session-flow plugin
 
+## [3.1.1] - 2026-11-01
+
+### Fixed
+
+- `orchestrate`'s gotchas no longer tell you to read a depth rejection's error text, since a
+  subagent at the depth limit may get no error; they point at the sub-agents depth section.
+  `reconcile` no longer says every spawned subagent owns a task list, and points at the
+  tools-reference section on task-tracking tools in subagents
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [3.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
 ## [3.0.2] - 2026-10-31
 
 ### Fixed

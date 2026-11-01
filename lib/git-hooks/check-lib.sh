@@ -41,6 +41,10 @@
 #   checks_has_nul <p> [<rev>] 0 when that content's first 8000 bytes hold a NUL
 #   checks_filter_findings     stdin "<path>:<line>: <message>" lines; prints
 #                              those inside a changed range
+#   When git or awk fails inside checks_changed_lines or checks_filter_findings,
+#   the function says so on stderr and returns non-zero, and the script then
+#   exits 1 even when it exits 0 itself: a check that saw only part of the
+#   change must not pass it.
 #   checks_partly_staged <p>   0 when <p> has unstaged changes too
 #   checks_refuse_partly_staged
 #                              a rewriting check calls this first: prints the
@@ -150,12 +154,32 @@ checks_init() {
   top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
   cd "$top" || return 1
   CHECKS_TMP="$(mktemp -d "${TMPDIR:-/tmp}/checks.XXXXXX")" || return 1
-  # shellcheck disable=SC2064 # expand now: the path is fixed at init
-  trap "rm -rf '$CHECKS_TMP'" EXIT
+  trap 'checks_finish $? || exit 1' EXIT
   if [[ "$CHECKS_MODE" == pre-push ]]; then
     checks_push_ranges >"$CHECKS_TMP/push-ranges"
   fi
   return 0
+}
+
+# checks_finish <status>: the EXIT trap checks_init sets, with the status the
+# script exits with. Removes CHECKS_TMP; returns 1 when that status is 0 but a
+# tool the lib ran failed (checks_tool_failed), so the trap exits 1. A script
+# that sets its own EXIT trap calls this from it the same way.
+checks_finish() {
+  local failed=0
+  [[ -e "$CHECKS_TMP/tool-failed" ]] && failed=1
+  rm -rf "$CHECKS_TMP"
+  ((${1:-0} != 0 || !failed))
+}
+
+# checks_tool_failed <tool> <status> <step>: a tool the lib ran while <step>
+# failed, so the change was not fully checked. Says so on stderr and leaves the
+# marker checks_finish reads, a file because a caller in a pipeline runs in a
+# subshell.
+checks_tool_failed() {
+  printf '%s: %s exited %s while %s, so this change was not fully checked; fix that failure, then %s again\n' \
+    "${0##*/}" "$1" "$2" "$3" "$(checks_git_verb)" >&2
+  : >>"$CHECKS_TMP/tool-failed"
 }
 
 checks_is_agent() {
@@ -245,8 +269,13 @@ checks_push_ranges() {
     seen=1
     [[ "$lsha" =~ $zero ]] && continue
     if ! [[ "$rsha" =~ $zero ]]; then
-      printf '%s %s\n' "$rsha" "$lsha"
-      continue
+      if git cat-file -e "$rsha^{commit}" 2>/dev/null; then
+        printf '%s %s\n' "$rsha" "$lsha"
+        continue
+      fi
+      # A remote sha this clone lacks (a push over an unfetched commit)
+      # ranges like a new branch, so git diff never fails on a missing object.
+      printf 'NOTICE: %s is not in this clone, so %s is checked from its merge-base with the default branch; fetch to check against the remote.\n' "$rsha" "$lref" >&2
     fi
     head="$(checks_remote_head "$remote")"
     base=""
@@ -274,10 +303,14 @@ checks_diff() {
     git -c core.quotePath=false diff "$base" --no-color --no-ext-diff "$@"
     ;;
   pre-push)
-    local b l
+    # The status is the first failing range's, not only the last range's.
+    local b l s rc=0
     while read -r b l; do
       git -c core.quotePath=false diff "$b" "$l" --no-color --no-ext-diff "$@"
+      s=$?
+      ((rc)) || rc=$s
     done <"$CHECKS_TMP/push-ranges"
+    return "$rc"
     ;;
   *) return 1 ;;
   esac
@@ -377,6 +410,18 @@ checks_changed_lines() {
         count = (n[2] == "") ? 1 : n[2] + 0
         if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
       }' >>"$raw"
+  # Short ranges would drop findings, so a failed diff or awk fails the hook.
+  # A diff stopped by SIGPIPE (141) means awk stopped first, and awk reports.
+  local -a st=("${PIPESTATUS[@]}")
+  local rc=0
+  if ((st[0] != 0 && st[0] != 141)); then
+    checks_tool_failed git "${st[0]}" 'listing the changed lines'
+    rc=1
+  fi
+  if ((st[1] != 0)); then
+    checks_tool_failed awk "${st[1]}" 'listing the changed lines'
+    rc=1
+  fi
   if [[ "$CHECKS_MODE" == worktree ]]; then
     local f
     while IFS= read -r -d '' f; do
@@ -393,6 +438,7 @@ checks_changed_lines() {
     fi
     ((bin)) || printf '%s\t%s\t%s\n' "$p" "$s" "$e" >>"$out"
   done <"$raw"
+  return "$rc"
 }
 
 # checks_has_nul <path> [<rev>]: 0 when the first 8000 bytes of
@@ -419,15 +465,25 @@ checks_change_has_nul() {
   return 1
 }
 
+# A ranges file it cannot read (checks_changed_lines never ran) fails like a
+# failed awk: with no ranges every finding would drop.
 checks_filter_findings() {
+  local rc
   awk -v ranges="$CHECKS_TMP/ranges" '
-    BEGIN { while ((getline l < ranges) > 0) { split(l, r, "\t"); n++; p[n] = r[1]; s[n] = r[2] + 0; e[n] = r[3] + 0 } }
+    BEGIN {
+      while ((got = (getline l < ranges)) > 0) { split(l, r, "\t"); n++; p[n] = r[1]; s[n] = r[2] + 0; e[n] = r[3] + 0 }
+      if (got < 0) exit 2
+    }
     {
       if (!match($0, /:[0-9]+: /)) next
       path = substr($0, 1, RSTART - 1)
       line = substr($0, RSTART + 1, RLENGTH - 3) + 0
       for (i = 1; i <= n; i++) if (p[i] == path && line >= s[i] && line <= e[i]) { print; break }
     }'
+  rc=$?
+  # 141: a reader closed the pipe once it had what it needed.
+  ((rc == 0 || rc == 141)) || checks_tool_failed awk "$rc" 'filtering the findings to the changed lines'
+  return "$rc"
 }
 
 # checks_refuse_partly_staged: a rewriting check calls this before it rewrites.
