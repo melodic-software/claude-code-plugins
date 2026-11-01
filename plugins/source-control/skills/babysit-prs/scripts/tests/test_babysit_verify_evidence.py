@@ -4076,6 +4076,112 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1050, 900, 800, 700])
 
+    def tail(self, *expiring: tuple[int, int]) -> list[dict[str, Any]]:
+        """The base with four more old artifacts (600 to 300) below it, each
+        `(id, minutes)` among them expiring that many minutes after GitHub's
+        `Date`."""
+        soon = dict(expiring)
+        old = self.base_at - timedelta(hours=3)
+        return [
+            *self.base,
+            *(
+                dated(
+                    "pr-merge-gate-cursor",
+                    3,
+                    i,
+                    old,
+                    expires=LISTED_AT + timedelta(minutes=soon[i])
+                    if i in soon
+                    else None,
+                )
+                for i in (600, 500, 400, 300)
+            ),
+        ]
+
+    def test_a_carried_entry_deleted_before_its_expiry_is_read_again(self) -> None:
+        # GitHub deleted 500 half an hour before its expires_at, as it did on
+        # 2026-11-01; 400 expires 40 minutes on and stands. The base holds both,
+        # so first page and base hold one more than the live count. The pages
+        # around the entries near expiry decide them instead of a full listing.
+        base = self.tail((500, 30), (400, 40))
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 500])
+        reader, evidence = self.judge(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        # Page 1 (1000, 900) reaches the base; page 3 (600, 400) brackets 500
+        # and 400, the entries near expiry.
+        self.assertEqual(fake.pages(), 2)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1000, 900, 800, 700, 600, 400, 300])
+
+    def test_an_early_deletion_out_of_expiry_order_is_read_again(self) -> None:
+        # 400 expires before 500 but GitHub deleted only 400: the pages, not
+        # the expiry order, decide which entry went.
+        base = self.tail((500, 30), (400, 20))
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 400])
+        reader, _ = self.judge(fake)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        # Page 3 (600, 500) does not reach 400; page 4 (300) ends the listing.
+        self.assertEqual(fake.pages(), 3)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1000, 900, 800, 700, 600, 500, 300])
+
+    def test_a_fail_a_forged_carry_drops_beside_an_early_deletion_counts(
+        self,
+    ) -> None:
+        # A forged carry leaves out the FAIL 450 GitHub lists between 500 and
+        # 400, both deleted early: the region's pages bring the FAIL back.
+        base = self.tail((500, 30), (400, 40))
+        self.write_carry(base)
+        fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
+        live = [a for a in base if a["id"] not in (500, 400)]
+        fake = self.fake(fail, base=live)
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual(fake.full_listings(), 0)
+        ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
+        self.assertEqual(ids, [1000, 900, 800, 700, 600, 450, 300])
+
+    def test_a_failed_read_of_the_pages_near_expiry_lists_every_page(self) -> None:
+        # Page 3, the one around 500 and 400, answers a 502 on every read:
+        # past the page's own retries (`LISTING_WAITS`), like any failed
+        # incremental read, every page is listed with no `INCREMENTAL_WAITS`.
+        base = self.tail((500, 30), (400, 40))
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 500])
+
+        def page(args: list[str], **kwargs: Any) -> Any:
+            if any(a.endswith("&page=3") for a in args):
+                failed = subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
+                return failed, {}
+            return fake(args, **kwargs), {"date": DATE}
+
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            reader.evidence(PR, HEAD, pull())
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+        waits = [c.args[0] for c in self.sleep.call_args_list]
+        self.assertEqual(waits, list(ve.LISTING_WAITS))
+
+    def test_a_deletion_far_from_expiry_still_lists_every_page(self) -> None:
+        # 300 expires in 90 days but GitHub no longer lists it, and nothing
+        # in the base is near expiry: no region to read, so every page.
+        base = self.tail()
+        self.write_carry(base)
+        fake = self.fake(base=[a for a in base if a["id"] != 300])
+        reader, _ = self.judge(fake)
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual(fake.full_listings(), 1)
+
     def test_a_count_other_than_githubs_lists_every_page(self) -> None:
         # A forged carry drops an old FAIL (600): the live count holds it, so
         # the merged listing is one short and every page is read.
@@ -4321,6 +4427,7 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
                 "fresh": 4,
                 "kept": 1,
                 "pages": 2,
+                "region_pages": 0,
                 "base_age_seconds": 605,
             },
         )

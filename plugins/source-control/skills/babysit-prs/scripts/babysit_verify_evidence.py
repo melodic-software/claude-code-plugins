@@ -144,8 +144,12 @@ head is on main) is a base: `Reader._incremental` reads only the newest pages,
 newest id first, down past the base's highest id until an artifact created
 `LISTING_OVERLAP` before the base was read, and keeps the base's entries below
 the lowest id those pages hold, less those expired or past `expires_at` by the
-first page's `Date`. Such a listing could hide a FAIL by leaving it out, so it
-is kept only when it holds exactly the first page's `total_count`, GitHub's
+first page's `Date`. GitHub can delete an artifact up to an hour before its
+`expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so when that holds
+more than the live count the pages around the kept entries near expiry are
+read again and decide every id they span (`Reader._near_expiry`), at a few
+pages a group whatever the repository's total. Such a listing could hide a
+FAIL by leaving it out, so it is kept only when it holds exactly the first page's `total_count`, GitHub's
 live count of the repository's artifacts. Across 17 first-page reads on
 2026-10-27 that count moved by exactly the uploads since the last read less
 the artifacts whose `expires_at` had passed by the response's `Date`. Three
@@ -372,6 +376,16 @@ LISTING_OVERLAP = timedelta(hours=2)
 # for the whole listing that day (judgment on that data).
 LISTING_CARRY_MAX_AGE = timedelta(hours=3)
 LISTING_PAGE_SIZE = 100
+# How far ahead of its `expires_at` GitHub may already have deleted a listed
+# artifact. On 2026-11-01 a carried listing held 234 artifacts, all expiring
+# 09:20 to 09:55Z, that three later listings lacked; the 60 of them read by id
+# at 09:37Z each answered 404. A listing at 08:55Z already lacked ones
+# expiring up to 59 minutes later, not in expiry order (an 09:13Z listing
+# still held 8 of them). The 2026-10-27 counts in this module's docstring
+# showed none. The cause is unverified; recheck on a `babysit-listing-miss`
+# line whose `listed` exceeds `total_count`. Twice the largest lead seen
+# (judgment on that data).
+EARLY_DELETION_LEAD = timedelta(hours=2)
 # The waits between incremental reads on one base. A count that misses the
 # live total can stay off for longer than an immediate re-read takes, while a
 # page boundary settles; bounded waits let it settle before the reader pages
@@ -1393,7 +1407,9 @@ class Reader:
         base holds there and they do not (deleted, or an overwrite's old
         copy) included; below it the base's entries stand, less each one
         expired or past its `expires_at` by the first page's `Date` (one with
-        no `expires_at` stands unless expired). The
+        no `expires_at` stands unless expired). A result that holds more than
+        the live count has the ids around its kept entries near expiry
+        decided by the pages that hold them now (`_near_expiry`). The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count: any other count gives `COUNT_MISSED`, and one
         `LISTING_MISS_PREFIX` line on stderr names `stage`, the counts and
@@ -1455,6 +1471,16 @@ class Reader:
             and (a["expires_at"] is None or _when(a["expires_at"]) > server_now)
         ]
         listing = sorted([*fresh.values(), *kept], key=lambda a: -a["id"])
+        regions = 0
+        if len(listing) > total:
+            # GitHub can delete an artifact before its expires_at: read again
+            # the pages around the kept entries near expiry.
+            reread = self._near_expiry(
+                listing, len(fresh), len(listing) - total, server_now, deadline
+            )
+            if reread is None:
+                return None
+            listing, regions = reread
         if len(listing) == total:
             return listing
         # Fewer than the live count: the pages skipped an artifact. More: the
@@ -1466,6 +1492,7 @@ class Reader:
             "fresh": len(fresh),
             "kept": len(kept),
             "pages": page,
+            "region_pages": regions,
             "base_age_seconds": round((server_now - base_at).total_seconds()),
         }
         print(
@@ -1474,6 +1501,82 @@ class Reader:
             flush=True,
         )
         return COUNT_MISSED
+
+    def _near_expiry(
+        self,
+        listing: list[dict[str, Any]],
+        start: int,
+        surplus: int,
+        server_now: datetime,
+        deadline: float,
+    ) -> tuple[list[dict[str, Any]], int] | None:
+        """`listing` with the ids around its entries from `start` on that
+        expire within `EARLY_DELETION_LEAD` of `server_now` decided by the
+        pages that hold them now, and the pages read; None for a failed read.
+
+        Such entries are grouped where they lie within a page of each other.
+        Each group is read from the page its top entry would be on with
+        `surplus` fewer entries above it, a page up at a time (at most
+        `surplus` pages) until a page reaches its top id, then down until a
+        page reaches its bottom id or ends the listing; those pages decide
+        every id from the lowest to the highest they hold. A group it cannot
+        bracket within those pages leaves `listing` as it was."""
+        size = LISTING_PAGE_SIZE
+        limit = server_now + EARLY_DELETION_LEAD
+        near = [
+            i
+            for i in range(start, len(listing))
+            if listing[i]["expires_at"] is not None
+            and server_now < _when(listing[i]["expires_at"]) <= limit
+        ]
+        groups: list[list[int]] = []
+        for i in near:
+            if groups and i - groups[-1][1] <= size:
+                groups[-1][1] = i
+            else:
+                groups.append([i, i])
+        decided: dict[int, dict[str, Any]] = {}
+        spans: list[tuple[int, int]] = []
+        reads = 0
+        for first, last in groups:
+            top, bottom = listing[first]["id"], listing[last]["id"]
+            page = max(0, first - surplus) // size + 1
+            ups = 1 + surplus // size + 1
+            downs = (last - first) // size + 2 + surplus // size + 1
+            seen: dict[int, dict[str, Any]] = {}
+            ended = False
+            while True:
+                read = self._incremental_page(page, deadline)
+                reads += 1
+                if read is None:
+                    return None
+                items = read[0].get("artifacts")
+                if not is_json_array(items) or not all(map(_listed_entry, items)):
+                    return None
+                if not seen and (not items or max(a["id"] for a in items) < top):
+                    if page == 1 or ups == 0:
+                        break
+                    ups -= 1
+                    page -= 1
+                    continue
+                seen.update((a["id"], a) for a in items)
+                if len(items) < size:
+                    ended = True
+                    break
+                if min(a["id"] for a in items) <= bottom or downs == 0:
+                    break
+                downs -= 1
+                page += 1
+            if not seen or (not ended and min(seen) > bottom):
+                return listing, reads
+            spans.append((0 if ended else min(seen), max(seen)))
+            decided.update(seen)
+        merged = {
+            a["id"]: a
+            for a in listing
+            if not any(low <= a["id"] <= high for low, high in spans)
+        } | decided
+        return sorted(merged.values(), key=lambda a: -a["id"]), reads
 
     def _incremental_page(
         self, page: int, deadline: float
