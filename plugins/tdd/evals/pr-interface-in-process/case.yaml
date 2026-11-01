@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pr-interface-in-process
+graders:
+  - name: 'routes-principles'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
+    arm: 'both'
+  - name: 'verdict-no'
+    type: 'regex'
+    pattern: '^[\s>*_#]*(?:(?:short answer|answer|verdict|tl;dr)\s*[:\-—–]?\s*[*_]*\s*)?no\b|^(?![\s>*_#]*(?:(?:short answer|answer|verdict|tl;dr)\s*[:\-—–]?\s*[*_]*\s*)?yes\b)[\s\S]*?\b(?:don[''’]t|do not|wouldn[''’]t|would not|shouldn[''’]t|should not|no need to)\s+(?:\w+\s+){0,2}?(?:extract|introduc|creat|add)\w*\s+(?:an?\s+|the\s+|that\s+)?(?:interface|IDiscountCalculator)\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'uses-real-calculator'
+    type: 'regex'
+    pattern: '\b(?:real|concrete|actual)\s+(?:\w+\s+)?(?:DiscountCalculator|class|implementation|instance|object|calculator)\b|\bnew\s+DiscountCalculator\s*\('
+    flags: 'i'
+    target: 'last_message'

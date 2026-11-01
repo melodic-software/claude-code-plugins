@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: pr-mock-managed-db
+graders:
+  - name: 'routes-principles'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:tdd:)?principles"'
+    arm: 'both'
+  - name: 'db-real'
+    type: 'regex'
+    pattern: '\btestcontainers?\b|(?<!un)managed\s+dependenc|\b(?:use|uses|using|keep|keeps|hit|hits|against|with)\s+(?:a\s+|an\s+|the\s+|your\s+)?real\s+(?:\w+\s+){0,2}?(?:postgres\w*|database|db)\b|\b(?:postgres\w*|database|db)\b[^\n]{0,80}?\b(?:use|keep|run|test|hit)\s+(?:it\s+)?(?:for\s+)?real\b|\b(?:postgres\w*|database|db)\b[^\n|]{0,60}\|[^\n|]*\breal\b|\b(?:postgres\w*|database|db)\b[^\n]{0,20}?(?:[:=→—–-]|->)\s*[*_]*\s*(?:use\s+(?:it\s+|the\s+)?)?real\b'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'bus-mocked'
+    type: 'regex'
+    pattern: '\b(?:mock|fake|stub|spy|replace|test double)\w*\b[^\n]{0,80}?\b(?:rabbitmq|message bus|bus|publisher|UserRegistered)\b|\b(?:rabbitmq|message bus|bus|publisher|UserRegistered)\b[^\n]{0,80}?\b(?:mock|fake|stub|spy|test double|replaced)\w*'
+    flags: 'i'
+    target: 'last_message'

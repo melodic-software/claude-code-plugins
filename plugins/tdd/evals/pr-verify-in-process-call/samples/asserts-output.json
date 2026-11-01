@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Assert on the total that Total(cart) returns: `Assert.Equal(90m, sut.Total(cart));`",
+      "why": "assert on the returned total"
+    },
+    {
+      "answer": "Make it an **output-based** test: feed a cart, compare the decimal you get back.",
+      "why": "names output-based"
+    },
+    {
+      "answer": "| Before | After |\n|---|---|\n| Verify ApplyDiscounts called once | Check the result of Total |",
+      "why": "table row"
+    },
+    {
+      "answer": "- The returned total is what callers care about, so that is what you assert.",
+      "why": "result before assert"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Keep the Verify but loosen it to Times.AtLeastOnce so it is less strict.",
+      "why": "stays on the interaction"
+    },
+    {
+      "answer": "Filter column A to paid and read the status bar.",
+      "why": "answer to a different question"
+    }
+  ]
+}

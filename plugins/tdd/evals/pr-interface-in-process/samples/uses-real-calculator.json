@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Construct OrderService with a real DiscountCalculator and assert on the order total.",
+      "why": "real DiscountCalculator"
+    },
+    {
+      "answer": "Keep the concrete class and pass it in: `var sut = new OrderService(new DiscountCalculator());`",
+      "why": "concrete class and a constructor call"
+    },
+    {
+      "answer": "| Option | Verdict |\n|---|---|\n| Use the actual implementation | Yes |",
+      "why": "table row"
+    },
+    {
+      "answer": "- Test through the **real calculator**; it has no I/O to isolate.",
+      "why": "bold list item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Yes, extract it and use `new Mock<IDiscountCalculator>()` in the OrderService tests.",
+      "why": "mock of the interface"
+    },
+    {
+      "answer": "Filter column A to paid and read the status bar total.",
+      "why": "answer to a different question"
+    }
+  ]
+}

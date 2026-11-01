@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "(a) Yes. The overdraft limit is a business rule.\n\n(b) No. The length check is a technical safeguard with no domain meaning.",
+      "why": "labeled items"
+    },
+    {
+      "answer": "**(a) Yes** — domain rule.\n\n**(b) No** — purely technical.",
+      "why": "bold labels"
+    },
+    {
+      "answer": "| Guard | Test it? | Why |\n|---|---|---|\n| `Account.Withdraw` overdraft | Yes | business rule |\n| `CsvRowParser.Parse` field count | No | technical guard |",
+      "why": "table rows"
+    },
+    {
+      "answer": "### (b) `CsvRowParser.Parse`\n\nSkip it. The check only protects array indexing.",
+      "why": "heading then skip"
+    },
+    {
+      "answer": "a) yes, it encodes what the bank allows.\nb) no, it guards an index, not a rule.",
+      "why": "letter with parenthesis at line start"
+    },
+    {
+      "answer": "For the CsvRowParser guard, a dedicated test is not worth it: no caller can trip it.",
+      "why": "not worth it, named by class"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "(a) Yes, test it.\n\n(b) Yes, test it too: every guard clause is behavior.",
+      "why": "tests every guard"
+    },
+    {
+      "answer": "(b) Yes. There's no harm in a quick test for the length check.",
+      "why": "'no harm' is not a no verdict"
+    },
+    {
+      "answer": "(b) Yes. Don't skip it; malformed input happens.",
+      "why": "negated skip"
+    },
+    {
+      "answer": "(b) Yes. Even though no caller sends a short row today, the guard documents the contract.",
+      "why": "yes verdict first; a later 'no' is not the verdict"
+    },
+    {
+      "answer": "(b) Yes, malformed rows are worth a test.\n\n(a) No, it is just a guard clause.",
+      "why": "b answered first with yes; the no belongs to (a)"
+    },
+    {
+      "answer": "Use SUMIF in the spreadsheet.",
+      "why": "answer to a different question"
+    }
+  ]
+}

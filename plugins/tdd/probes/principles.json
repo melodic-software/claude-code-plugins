@@ -1,0 +1,137 @@
+{
+  "skill": "tdd:principles",
+  "plugin": "tdd",
+  "skill_dir": "plugins/tdd/skills/principles",
+  "ranking_note": "Authored from the before description at origin/main commit a82eec4ded3a5b3d32ce7e2da62206df08331f14, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. principles is the plugin's only skill, so every competitor lives in another plugin: testing:write writes tests, testing:test-value judges whether a test is worth keeping and whether to assert a mock call, testing:audit finds tests that cannot fail, testing:diagnose fixes failing tests, testing:plan finds coverage gaps in a diff, toolchain:check runs the build and tests, and mutation-testing:principles owns mutation-testing knowledge. Plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "testing:write",
+    "testing:test-value",
+    "testing:audit",
+    "testing:diagnose",
+    "testing:plan",
+    "toolchain:check",
+    "mutation-testing:principles"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My unit tests break every time I rename a private method, even though nothing a caller sees has changed. Why are they this fragile, and what principle am I breaking?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is it worth replacing our Postgres repository with a fake in the order service tests, or should those tests hit the database? Explain the trade-off."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're at 92% line coverage and management wants 100%. Is chasing that number a sensible goal for a test suite?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Explain the difference between the mockist and Detroit styles of unit testing, and which one leads to fewer brittle tests."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our controller mixes HTTP parsing with the pricing rules and is miserable to test. How should I split it so the rules can be tested without starting the web host?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "When I'm doing TDD, when should I hard-code the return value just to get to green, and when should I write the real implementation straight away?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What is the difference between a mock, a stub and a fake, and why does the distinction matter when designing tests?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm inheriting a ten-year-old billing module with no tests at all. Before I refactor it, how do I pin down what it does today so I can tell if I changed anything?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "When does a rule that must hold for every input beat a handful of example tests, and how would I come up with good rules like that for a sort function?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should my tests check the value a function returns, the state it leaves behind, or the calls it makes to its collaborators? Which is preferable, and why?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write xUnit tests for the ShippingCostCalculator class in src/Shipping/ShippingCostCalculator.cs and put them in the right test project."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This test fails only on CI with a NullReferenceException in the fixture setup. Figure out why and fix it."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the tests folder for tests that can never fail, such as ones with no assertions or ones that compare a value with itself."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build the solution, run the test suite and the linter on the files I changed, and tell me whether anything breaks."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's the diff for the payments refactor. Which of the changed files need new tests, and where are the gaps?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename the variable orderTotal to grandTotal everywhere it appears in the repo."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run Stryker on the pricing module and tell me which mutants survived and what that says about the suite."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's the pytest flag to re-run only the tests that failed in the previous run?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This test asserts that calc.Add(2, 3) equals calc.Add(2, 3). Is it tautological, and where should its expected value come from instead?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draft a short, friendly email to my landlord asking to renew the lease for another year."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "(a) Yes. The overdraft limit is a business rule.\n\n(b) No.",
+      "why": "labeled items"
+    },
+    {
+      "answer": "**(a) Yes** — domain rule.",
+      "why": "bold label"
+    },
+    {
+      "answer": "| Guard | Test it? |\n|---|---|\n| `Account.Withdraw` overdraft | Yes |",
+      "why": "table row"
+    },
+    {
+      "answer": "a) yes, it encodes what the bank allows.",
+      "why": "letter with parenthesis"
+    },
+    {
+      "answer": "### (a) Overdraft guard\n\nYes: it has domain significance.",
+      "why": "heading then yes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "(a) No. Guard clauses are implementation details; test only the happy path.",
+      "why": "skips the domain rule"
+    },
+    {
+      "answer": "(a) No, it is just a guard clause.\n\n(b) Yes, malformed rows are worth a test.",
+      "why": "inverted verdicts: the yes belongs to (b)"
+    },
+    {
+      "answer": "(a) No. It reads like a rule, but yes, the happy-path test already covers it.",
+      "why": "no verdict first; a later 'yes' is not the verdict"
+    },
+    {
+      "answer": "Use SUMIF in the spreadsheet.",
+      "why": "answer to a different question"
+    }
+  ]
+}
