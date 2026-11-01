@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "not a Write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/runs/k/r1/report.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/audit.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes into the target"
+    }
+  ]
+}

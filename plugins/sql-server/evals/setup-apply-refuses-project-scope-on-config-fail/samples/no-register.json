@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_SKILL_DIR}/scripts/check-setup.mjs\" --config ~/sql-server/config.json --data-dir \"${CLAUDE_PLUGIN_DATA}\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the check only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude mcp add --transport stdio --scope project sql-dev -- node /data/server/src/launch.mjs --config /srv/sql-server/config.json --environment dev",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "registers after a config FAIL"
+    }
+  ]
+}

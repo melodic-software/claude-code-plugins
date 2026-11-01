@@ -7,8 +7,8 @@
   ],
   "fail": [
     {
-      "answer": [{"tool": "Skill", "input": {"skill": "review:audit-enforceability", "args": "findings.md"}}],
-      "why": "a review skill, not the ratchet"
+      "answer": [{"tool": "Skill", "input": {"skill": "corrections:codify", "args": "findings findings.md"}}],
+      "why": "the codify skill, not the ratchet"
     }
   ]
 }

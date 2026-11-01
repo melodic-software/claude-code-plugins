@@ -143,8 +143,9 @@ the reviewer to confirm the description still names that intent, or to restore t
   2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck when a re-measure
   of that repository moves them. Growth of either against `CHECK_SKILL_BASE_REF`, or the merge-base
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
-  is skipped with an INFO. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the
-  rule.
+  is skipped with an INFO. A `SKILL.md` above the 5,000-token router cap also warns; the count
+  is an estimate, whole-file characters divided by 4 and rounded up, and prints as INFO under the
+  cap. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the rule.
 - Settings tokens as conditions (`FAIL:`, blocking where a baseline applies). A sentence with `when`, `if` or `unless`
   before a `${user_config.KEY}` token that is its subject (`is true`, `is on`, `is false`)
   fails unless the same sentence states what an unexpanded token means, e.g. "(unexpanded, empty,

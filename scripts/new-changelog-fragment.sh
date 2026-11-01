@@ -15,6 +15,9 @@
 # <branch-slug> is the current branch, lowercased, with `/` and any other
 # character outside [a-z0-9._-] replaced by `-`; the random suffix keeps two
 # branches with one slug apart, so no pull request number is needed in advance.
+# On a detached HEAD the branch is CHANGELOG_FRAGMENT_BRANCH, which a lane sets
+# to the branch it will push; unset, a detached HEAD is refused. On a branch the
+# variable is ignored.
 #
 # Without --stdin, fill in the body afterwards. With --stdin, the body is read
 # from stdin and written into every fragment, and each fragment must then pass
@@ -23,7 +26,8 @@
 # or for `none` one line saying why no release is needed.
 #
 # Exit: 0 written; 2 usage, an unknown plugin or canonical, no plugin in
-# fragment mode, an invalid --stdin body, or no branch.
+# fragment mode, an invalid --stdin body, or no branch (or a malformed
+# CHANGELOG_FRAGMENT_BRANCH on a detached HEAD).
 set -uo pipefail
 
 self="$(basename "$0")"
@@ -104,8 +108,15 @@ if ((${#plugins[@]} == 0)); then
   exit 2
 fi
 if ! branch="$(git symbolic-ref --quiet --short HEAD)"; then
-  echo "$self: HEAD is not on a branch; the fragment name starts with the branch name." >&2
-  exit 2
+  branch="${CHANGELOG_FRAGMENT_BRANCH:-}"
+  if [[ -z "$branch" ]]; then
+    echo "$self: HEAD is not on a branch; the fragment name starts with the branch name." >&2
+    exit 2
+  fi
+  if [[ ! "$branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]] || ! git check-ref-format "refs/heads/$branch"; then
+    echo "$self: CHANGELOG_FRAGMENT_BRANCH '$branch' is not a branch name." >&2
+    exit 2
+  fi
 fi
 slug="${branch,,}"
 slug="${slug//[^a-z0-9._-]/-}"
