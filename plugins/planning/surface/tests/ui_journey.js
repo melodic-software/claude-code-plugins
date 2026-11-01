@@ -240,7 +240,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Answer again moves focus to the first choice", await page.evaluate(() => document.activeElement.matches('#choices input[type="radio"]')));
 
     // set up the notice checks: a note for Claude to answer, then the summary with a hiding filter and a hidden rail
-    await post({kind: "note", text: "Is the plan on track?"});
+    const r0 = await page.evaluate(() => document.activeElement.value);
+    await post({kind: "note", text: "Is the plan on track?"}); await settle(2000);
+    ok("a state push that rebuilds the choices keeps focus on the same radio", await page.evaluate(v => document.activeElement.matches('#choices input[type="radio"]') && document.activeElement.value === v, r0), await focused());
     await page.selectOption("#filter", "answered"); await page.click("#title"); await page.keyboard.press("w"); await page.keyboard.press("["); await settle(300);
     ok("setup: the summary shows with the Answered filter and the rail hidden", await sel() === "summary" && await page.$eval("#layout", el => el.classList.contains("norail")), await sel());
   }
