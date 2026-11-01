@@ -35,14 +35,15 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
 - **Invocation convention.** Before setting `disable-model-invocation: true`, list every starter
   that is not a person typing `/name`: another skill, a subagent preload, `/loop`, a routine, a
-  Desktop task, a workflow prompt, an event trigger. Any automation starter, present or planned,
-  makes the skill model-invocable, with its unattended safety in body gates and scripts. A skill is
-  user-invoked only when it is starved in the listing and no automation starts it. Why: the rule
-  keys on the starter, not on reach. Another skill, a subagent preload, an in-product scheduled
-  task and `/loop` cannot reach a user-invoked skill, as the invocation-mode rubric above records;
-  a routine can today, but only by undocumented behavior a release can remove, and the rubric
-  records nothing yet for a Desktop task, a workflow prompt or an event trigger. As of 2026-11-01. Recheck: a release note naming `disable-model-invocation`, skill preload,
-  scheduled tasks or routines.
+  Desktop task, a workflow prompt, an event trigger. An automation starter, present or planned, is
+  a reason against `true`. The rubric's
+  [exception classes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#exception-classes-the-only-reasons-to-write-true)
+  decide: write `true` only under one of them, and a `setup` skill stays `true` under class (ii)
+  whatever starts it. Listing starvation alone is not a class: listing cost was rejected as one in
+  [#4659](https://github.com/melodic-software/claude-code-plugins/issues/4659). Why: the rule keys
+  on the starter, not on reach. Which starters can reach a user-invoked skill is the rubric's
+  [first default bullet](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#the-default-and-why),
+  which carries the probe record and its recheck trigger.
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
   and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/argument-hint/README.md);
