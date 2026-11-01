@@ -34,8 +34,7 @@ self-hosted-runner:
 # (https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax),
 # but actionlint 1.7.12, the latest release, rejects it with
 # `unexpected key "cache-mode" for "job" section`; the ignore matches only that
-# message. Every job here that runs or reads PR, issue or lane-branch content
-# sets `cache-mode: read` (callers.test.mjs holds the list).
+# message. intake-triage.yml sets `cache-mode: none` on its model jobs.
 # Remove when actionlint knows the key and the pinned actionlint is bumped.
 # Trade-off: actionlint cannot check the key's value.
 paths:

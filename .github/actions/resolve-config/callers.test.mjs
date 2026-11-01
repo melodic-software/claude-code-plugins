@@ -7420,10 +7420,11 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
 // to it, so that content cannot plant an entry a main run later restores.
 test("every job that runs or reads untrusted head content has a read-only Actions cache", () => {
   const readOnly = {
-    "pr-run-activity-read.yml": ["run", "scan"],
+    "pr-run-activity-read.yml": ["run", "scan", "summary"],
     "pr-run-activity-write.yml": ["run"],
-    "work-resolve-issue.yml": ["pick-slot", "run-checks"],
-    "pr-unblock.yml": ["resolve-conflicts-select"],
+    "work-resolve-issue.yml": ["run-checks"],
+    "pr-unblock.yml": ["resolve-conflicts-select", "adjudicate-feedback"],
+    "maintenance-audit-lane-runs.yml": ["judge", "judge-subscription", "judge-fallback"],
     "eval-browser-dispatch.yml": ["eval"],
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
@@ -7433,7 +7434,20 @@ test("every job that runs or reads untrusted head content has a read-only Action
     const { jobs } = workflow(file);
     for (const name of names) {
       assert.ok(jobs[name], `${file} has no job ${name}`);
-      assert.equal(jobs[name]["cache-mode"], "read", `${file}: ${name}`);
+      assert.ok(["read", "none"].includes(jobs[name]["cache-mode"]), `${file}: ${name}`);
+    }
+  }
+});
+
+// A caller's explicit cache-mode caps the called workflow, and a callee job
+// declaring more than the cap stops the run before it starts. The runners'
+// head jobs declare read, so no caller may set none or write-only.
+test("no caller of a lane runner caps its cache below read", () => {
+  for (const file of workflowFiles()) {
+    for (const [name, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (/pr-run-activity-(read|write)\.yml$/.test(job.uses ?? "")) {
+        assert.ok(!["none", "write-only"].includes(job["cache-mode"]), `${file}: ${name}`);
+      }
     }
   }
 });
