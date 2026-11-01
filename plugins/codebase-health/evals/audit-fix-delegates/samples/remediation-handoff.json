@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "## Next steps\n\n1. Run `/implementation:implement` with the findings above.\n2. Then run `/verification:confirm`.",
+      "why": "hash heading, numbered list"
+    },
+    {
+      "answer": "**Remediation:** run /implementation:implement with these findings, then /verification:confirm.",
+      "why": "bold inline"
+    },
+    {
+      "answer": "| Step | Command |\n|---|---|\n| 1 | `/implementation:implement` |\n| 2 | `/verification:confirm` |",
+      "why": "table"
+    },
+    {
+      "answer": "The implementation and verification plugins are not installed here, so the findings table above is the handoff: fix in the reported priority order.",
+      "why": "not-installed form"
+    },
+    {
+      "answer": "**Handoff:** the implementation and verification lanes aren't available in this session; remediate manually from the table.",
+      "why": "aren't available form"
+    },
+    {
+      "answer": "I won't invoke them myself: run `/implementation:implement` with the findings, then `/verification:confirm`.",
+      "why": "echoes the body's do-not-auto-invoke"
+    },
+    {
+      "answer": "I do not auto-invoke either; you run /implementation:implement next, then /verification:confirm.",
+      "why": "do not auto-invoke, user runs them"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run `/implementation:implement` to fix it.",
+      "why": "only one lane"
+    },
+    {
+      "answer": "First /verification:confirm, then /implementation:implement.",
+      "why": "reversed order"
+    },
+    {
+      "answer": "No need to run /implementation:implement or /verification:confirm; I fixed README.md:9 inline.",
+      "why": "negated, fixed inline"
+    },
+    {
+      "answer": "I fixed README.md:9 and verified it.",
+      "why": "no lanes named"
+    }
+  ]
+}

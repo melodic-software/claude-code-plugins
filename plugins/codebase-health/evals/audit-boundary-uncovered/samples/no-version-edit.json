@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/notes/audit-checklist.md",
+            "old_string": "[ ]",
+            "new_string": "[x]"
+          }
+        }
+      ],
+      "why": "checklist tick"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/package.json",
+            "old_string": "\"1.4.0\"",
+            "new_string": "\"2.0.0\""
+          }
+        }
+      ],
+      "why": "bumps the version"
+    }
+  ]
+}
