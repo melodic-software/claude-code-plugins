@@ -5011,6 +5011,8 @@ jobs:
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/source-control.yaml
+            /.claude/source-control.md
             /.github/scripts/pr-merge/clear-escalations.mjs
             /.github/scripts/pr-merge/enable-auto-merge.mjs
             /.github/scripts/pr-unblock/address-feedback.mjs
@@ -5740,11 +5742,13 @@ jobs:
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
       # dequeue the pull request as well. An unparsable ref, an unreadable
-      # tracker config or an unreadable label list fails closed. For a pull
+      # tracker config or an unreadable or cut label list fails closed. The
+      # labels come live from one GraphQL read, which also answers the link.
+      # For a pull
       # request an automation opened it then applies the trust hold to its
       # linked issue (comment in the body). report-outcome's Hold: line covers
       # the label at PR open and enable-auto-merge at arm time, so this holds a
-      # label added after either: one GraphQL read, a labels read for a Refs
+      # label added after either: that GraphQL read, a labels read for a Refs
       # issue, and one timeline read per linked issue; an unreadable one, or
       # the base's trusted-actor list unreadable, fails closed. Pinned by
       # scripts/ci-hold-merge-group.test.sh, which runs this body.
@@ -5797,14 +5801,29 @@ jobs:
             echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
             exit 1
           }
-          for attempt in 1 2 3; do
-            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
-          jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$labels" >"$RUNNER_TEMP/queued-labels.json"
+          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              gh_read "$@" && return 0
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          # One GraphQL read answers the pull request's live labels and, for
+          # the trust hold below, its author, body and closing issues. A label
+          # list GitHub cut (totalCount above the nodes) fails closed.
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){labels(first:100){totalCount nodes{name}} author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
+            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
+            echo "::error::could not read the labels and issue link of #$pr; re-run this run."
+            exit 1
+          }
+          jq -ec '.data.repository.pullRequest.labels | objects | select(.totalCount == (.nodes | length)) | [.nodes[].name]
+            | if all(.[]; type == "string") then . else error("a label name is not a string") end' <<<"$link" >"$RUNNER_TEMP/queued-labels.json" || {
+            echo "::error::the labels of #$pr could not all be read; a person merges it."
+            exit 1
+          }
           if ! reasons=$(label_holds holds "$module" "$RUNNER_TEMP/queued-labels.json" "$pr") || [ -z "$reasons" ] ||
             ! failing=$(jq -r 'if type == "array" then .[] else error("not a list") end' <<<"$reasons"); then
             echo "::error::merge-holds.mjs at $BASE_SHA could not judge the labels of #$pr; re-run this run."
@@ -5828,22 +5847,8 @@ jobs:
           # must link exactly one issue here, as _linked_issue refuses
           # otherwise, so a link dropped after arming fails; another
           # automation's (Dependabot, standards-sync, a plugin release) that
-          # links none passes. A jq error fails closed.
-          # read3 <gh api args>...: gh_read up to three times, 5 and 10 s apart.
-          read3() {
-            local attempt
-            for attempt in 1 2 3; do
-              gh_read "$@" && return 0
-              [ "$attempt" -lt 3 ] || return 1
-              sleep $((attempt * 5))
-            done
-          }
-          # shellcheck disable=SC2016 # GraphQL variables, not shell
-          link=$(read3 graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){author{__typename ... on Bot{databaseId}} body closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}' \
-            -F o="${GITHUB_REPOSITORY%%/*}" -F r="${GITHUB_REPOSITORY#*/}" -F n="$pr") || {
-            echo "::error::could not read the issue link of #$pr; re-run this run."
-            exit 1
-          }
+          # links none passes. A jq error fails closed. The link is the
+          # GraphQL answer the labels came from.
           author=$(jq -er '.data.repository.pullRequest.author.__typename | strings' <<<"$link") || {
             echo "::error::the author of #$pr could not be read; re-run this run."
             exit 1
@@ -5969,6 +5974,34 @@ jobs:
             echo "lanes=false" >>"$GITHUB_OUTPUT"
             echo "#$pr is not the lanes App's; the carry steps are skipped."
           fi
+      # MAIN'S TIP, LISTED ONCE FOR THE CARRY READERS. carry-run-cache.mjs,
+      # head-ref-map.mjs and listing-carry.mjs each run in their own process
+      # and take a run's carried reads only when its head commit is on main
+      # (head-ref-map.mjs onMain), which otherwise reads the tag named main (a
+      # 404 that no process shares) and main's tip over REST. One
+      # unauthenticated `git ls-remote` of this public repository, run outside
+      # any checkout, lists both refs; the tip is output only when the listing
+      # succeeded, names refs/heads/main once as 40 hex and holds no tag named
+      # main. Anything else outputs nothing, and onMain reads both refs as
+      # before. Each run is still compared with the tip.
+      - name: List main's tip for the carry readers
+        id: main_tip
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
+        continue-on-error: true
+        run: |
+          if ! refs=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" refs/heads/main refs/tags/main); then
+            echo "::notice::could not list main's refs; the carry readers read them over REST."
+            exit 0
+          fi
+          tip=$(awk '$2 == "refs/heads/main" { print $1 }' <<<"$refs")
+          if awk '$2 == "refs/tags/main" || $2 == "refs/tags/main^{}" { found = 1 } END { exit !found }' <<<"$refs"; then
+            echo "::notice::a tag is named main; the carry readers refuse every run."
+          elif [[ $tip =~ ^[0-9a-f]{40}$ ]]; then
+            echo "sha=$tip" >>"$GITHUB_OUTPUT"
+            echo "main's tip: $tip"
+          else
+            echo "::notice::main's tip was not listed as one commit SHA; the carry readers read it over REST."
+          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -5998,6 +6031,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
@@ -6188,7 +6222,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
-          # (pr-merge.yml's enable-auto-merge step passes the same).
+          # (pr-merge.yml's enable-auto-merge step passes the same, but for
+          # the three this job holds, below).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}
@@ -6197,7 +6232,16 @@ jobs:
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
+          PR_MERGE_MAIN_TIP: ${{ steps.main_tip.outputs.sha }}
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # Where the reader takes what this job already holds, each checked
+          # and else read live: the config files at the group's base from the
+          # hold config checkout when its HEAD is that commit, the default
+          # branch from the event, and the pull request from the record this
+          # step read (written below) when it is the same number and head.
+          BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # A pull request's author never changes, so the payload's (a re-run
@@ -6717,7 +6761,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' 'docs/review/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-comment-relay.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns

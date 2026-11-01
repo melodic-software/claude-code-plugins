@@ -1,0 +1,29 @@
+{
+  "pass": [
+    { "answer": "1. `ReadThroughUserCache` (RECOMMENDED)\n2. `CachedUserLookup`\n3. `UserCache`\n\nWhich one do you want? I won't rename anything until you choose.", "why": "asks which one" },
+    { "answer": "RECOMMENDED: `UserCache`. Your call; tell me the pick and I'll hand it to the rename sweep.", "why": "your call" },
+    { "answer": "RECOMMENDED: `UserCache`. Let me know which you'd like to go with and I'll hand it to the rename sweep.", "why": "let me know which" },
+    { "answer": "RECOMMENDED: `UserCache`. Which would you like?", "why": "which would you" },
+    { "answer": "RECOMMENDED: `UserCache`. Pick one and I'll hand it to the rename sweep.", "why": "imperative pick after a sentence" },
+    { "answer": "Choose one, or tell me what to change.", "why": "imperative choose at the start" },
+    { "answer": "Tell me which you want.", "why": "which you want" },
+    { "answer": "1. `UserCache` (RECOMMENDED)\n2. `CachedUserLookup`\n\nWhich do you think fits best?", "why": "which do you think" },
+    { "answer": "RECOMMENDED: `UserCache`. Which sounds better to you?", "why": "which ... to you?" },
+    { "answer": "Which of the three would you rather use?", "why": "which ... would you rather" },
+    { "answer": "I won't rename anything yet: tell me which you’d like.", "why": "typographic apostrophe" },
+    { "answer": "Which of `UserCache`, `UserLookup` do you want?", "why": "comma inside a sentence-initial which question" },
+    { "answer": "RECOMMENDED: `UserCache`. Which, if any, would you like me to apply?", "why": "commas around an aside in a which question" },
+    { "answer": "Before I rename anything, which of the two names would you like?", "why": "which question after a leading clause and comma" },
+    { "answer": "If it helps, which of the two sounds better to you?", "why": "to-you question after a leading clause and comma" }
+  ],
+  "fail": [
+    { "answer": "Renamed `UserStore` to `UserCache` in src/cache/user-store.ts and src/routes/me.ts.", "why": "applied a name, offered no choice" },
+    { "answer": "RECOMMENDED pick: `UserCache`. I've updated the class and its caller.", "why": "the output format's 'pick' with no hand-back" },
+    { "answer": "I prefer `UserCache`, so I'll go with it.", "why": "the agent's own preference, not the user's choice" },
+    { "answer": "Renamed `UserStore`, which you flagged as misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause, applied the name" },
+    { "answer": "Renamed `UserStore`, which you said was misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause with a verb outside the hand-back list, applied the name" },
+    { "answer": "Renamed `UserStore` to `UserCache`, which reads better; do you want the tests updated too?", "why": "relative-clause which joined across ; to an unrelated question" },
+    { "answer": "Renamed `UserStore` to `UserCache`, which reads better; does that look good to you?", "why": "relative-clause which joined across ; to a to-you question" },
+    { "answer": "Renamed `UserStore` to `UserCache`, which reads better, do you want the tests updated too?", "why": "relative-clause which in a comma splice, applied the name" }
+  ]
+}

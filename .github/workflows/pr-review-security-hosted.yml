@@ -347,6 +347,7 @@ jobs:
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**
+        docs/review/**
         .github/workflows/dependabot-fragments.yml
         .github/workflows/eval-browser-dispatch.yml
         .github/workflows/intake-reenter.yml

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import json
 import ntpath
 import os
@@ -960,7 +961,8 @@ def read_config_at(
     (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
     and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
-    holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
+    holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`
+    (`_config_checkout`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
     (rung off, authority unset). Raises `PolicyReadError` when the pipeline
     file cannot be read.
@@ -970,12 +972,18 @@ def read_config_at(
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
     if file_at is None:
         root = next(_clones_holding(base_sha), None)
+        checkout = _config_checkout(base_sha)
 
         def file_at(path: str, sha: str) -> str | None:
             if root is not None:
                 try:
                     return _git_file_at(root, path, sha)
                 except _SymlinkAt:
+                    pass
+            if checkout is not None and sha == base_sha:
+                try:
+                    return _git_file_at(checkout, path, sha)
+                except PolicyReadError:
                     pass
             return _file_at(owner, name, path, sha)
 
@@ -3286,7 +3294,31 @@ def base_tip(owner: str, name: str, base: str) -> str:
     sha = json_object(json_object(answer).get("object")).get("sha")
     if status != 200 or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise PolicyReadError(f"the base branch {base} did not resolve")
+    if _BASE_TIPS is not None:
+        _BASE_TIPS[f"{owner}/{name}@{base}"] = sha
     return sha
+
+
+# Each branch tip `base_tip` read inside `base_tips_remembered`; None outside.
+_BASE_TIPS: dict[str, str] | None = None
+
+
+@contextlib.contextmanager
+def base_tips_remembered() -> Iterator[None]:
+    """Within the block, `remembered_base_tip` answers a tip `base_tip`
+    already read: one judgment's reads of a branch see one tip."""
+    global _BASE_TIPS
+    outer, _BASE_TIPS = _BASE_TIPS, {}
+    try:
+        yield
+    finally:
+        _BASE_TIPS = outer
+
+
+def remembered_base_tip(owner: str, name: str, base: str) -> str:
+    """`base`'s tip as read inside `base_tips_remembered`, else `base_tip`."""
+    known = (_BASE_TIPS or {}).get(f"{owner}/{name}@{base}")
+    return known or base_tip(owner, name, base)
 
 
 def lifts_of(
@@ -5071,10 +5103,16 @@ DEFAULT_BRANCH_SECTION = "default-branch"
 SHARED_DEFAULT_BRANCHES: set[str] = set()
 
 
+# The workflow event's `repository.default_branch`, taken for the run's own
+# repository (`GITHUB_REPOSITORY`) instead of a read.
+DEFAULT_BRANCH_ENV = "BABYSIT_DEFAULT_BRANCH"
+
+
 def _default_branch(repo: str, *, shared: bool = False) -> str:
     """The default branch's name. `shared` takes one another gate process of
     the run read within `run_cache.MAX_AGE`; every read is saved for them, a
-    failed one never."""
+    failed one never. `DEFAULT_BRANCH_ENV` answers for the run's own
+    repository without a read and is not saved."""
     cached = (
         run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
         if shared
@@ -5083,6 +5121,14 @@ def _default_branch(repo: str, *, shared: bool = False) -> str:
     if isinstance(cached, str) and cached:
         SHARED_DEFAULT_BRANCHES.add(repo)
         return cached
+    event = os.environ.get(DEFAULT_BRANCH_ENV, "")
+    if (
+        os.environ.get("GITHUB_REPOSITORY", "").casefold() == repo.casefold()
+        and re.fullmatch(r"[A-Za-z0-9._/-]+", event)
+        and not event.startswith("-")
+        and ".." not in event
+    ):
+        return event
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -5163,15 +5209,47 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}/pulls/{number}")
     pr = json_object(payload) if status == 200 else {}
+    if not _pull_request_shaped(pr):
+        raise PolicyReadError(f"#{number} could not be read (status {status})")
+    record_pull_request_total(repo, number, pr["head"]["sha"], pr.get("commits"))
+    return pr
+
+
+def _pull_request_shaped(pr: dict[str, Any]) -> bool:
+    """Whether `pr` has a base and head SHA that are full commit ids and refs."""
     base, head = json_object(pr.get("base")), json_object(pr.get("head"))
-    if not (
+    return bool(
         SHA_RE.fullmatch(str(base.get("sha")))
         and SHA_RE.fullmatch(str(head.get("sha")))
         and isinstance(base.get("ref"), str)
         and isinstance(head.get("ref"), str)
+    )
+
+
+def cached_pull_request(
+    path: str | None, repo: str, number: int, head: str
+) -> dict[str, Any] | None:
+    """`pull_request`'s record from the file at `path`, which the caller read
+    in this run, when it is `repo`'s #`number` at `head`; None for anything
+    else (no path, an unreadable or other record), so the caller reads live."""
+    if not path:
+        return None
+    try:
+        pr = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not is_json_object(pr) or not _pull_request_shaped(pr):
+        return None
+    full = json_object(json_object(pr["base"]).get("repo")).get("full_name")
+    if (
+        type(pr.get("number")) is not int
+        or pr["number"] != number
+        or pr["head"]["sha"] != head
+        or not isinstance(full, str)
+        or full.casefold() != repo.casefold()
     ):
-        raise PolicyReadError(f"#{number} could not be read (status {status})")
-    record_pull_request_total(repo, number, head.get("sha"), pr.get("commits"))
+        return None
+    record_pull_request_total(repo, number, head, pr.get("commits"))
     return pr
 
 
@@ -5243,6 +5321,26 @@ def _full_history_root(checkout: Path) -> Path | None:
     # A partial clone lacks older blobs, which the read never fetches.
     promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
     if _git(root, "config", "--get-regexp", promisor) is not None:
+        return None
+    return root
+
+
+# A checkout whose HEAD is a base commit, shallow or sparse, that config reads
+# at exactly that commit take files from (ci-status's base-config checkout).
+CONFIG_CHECKOUT_ENV = "BABYSIT_CONFIG_CHECKOUT"
+
+
+def _config_checkout(sha: str) -> Path | None:
+    """The top of `CONFIG_CHECKOUT_ENV`'s checkout when its HEAD is `sha`,
+    else None. A file it cannot answer (a symlink, a blob a sparse partial
+    checkout lacks, which is never fetched) is read through the API."""
+    raw = os.environ.get(CONFIG_CHECKOUT_ENV, "").strip()
+    if not raw or not Path(raw).is_dir():
+        return None
+    root = Path(raw).resolve()
+    top = _git(root, "rev-parse", "--show-toplevel")
+    head = _git(root, "rev-parse", "--verify", "HEAD^{commit}")
+    if not top or Path(top.strip()).resolve() != root or not head or head.strip() != sha:
         return None
     return root
 

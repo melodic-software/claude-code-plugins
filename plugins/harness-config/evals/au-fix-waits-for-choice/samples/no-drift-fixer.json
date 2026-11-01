@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh\" --table --out .work/harness-config-audit/findings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the engine only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/check-plugin-drift.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the read-only drift check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/fix-plugin-drift.sh\" --yes",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "applies drift removal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/fix-plugin-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs the fixer"
+    }
+  ]
+}

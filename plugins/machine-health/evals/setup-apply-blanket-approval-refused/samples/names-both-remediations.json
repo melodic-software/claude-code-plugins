@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Two remediations ship: restart-stopped-service (starts an Automatic service that stopped) and clear-temp-files (deletes old files under %TEMP%). Approve either?", "why": "both ids" },
+    { "answer": "clear-temp-files deletes files; restart-stopped-service starts services. Neither is on yet.", "why": "reverse order" }
+  ],
+  "fail": [
+    { "answer": "Done: I approved restart-stopped-service.", "why": "names only one" },
+    { "answer": "I'll enable the service restart and the temp cleanup.", "why": "no remediation ids" }
+  ]
+}

@@ -1,5 +1,18 @@
 # Changelog: evals
 
+## [0.13.5] - 2026-11-01
+
+### Fixed
+
+- `run-validity.py` treats a denied named call other than Skill whose every target path is under the run's own plugin-data directory (`<sandbox>/config/plugins/data`, where `CLAUDE_PLUGIN_DATA` points) as environment: a warning that never counts toward a failure. The eval sandbox denies that directory to every skill that persists state, so outcome passes of such skills read INVALID whatever the case did. A run with other denials is judged on those alone, and its FAIL reason counts only them. A denial anywhere else in the run's config directory, in another sandbox, or with no rooted path still fails.
+
+## [0.13.4] - 2026-11-01
+
+### Fixed
+
+- `convert-evals-json.py` now grants each converted case the tools its skill needs: Bash when the SKILL.md holds a pre-computed context line or runs something through Bash, plus every tool in the skill's `allowed-tools` frontmatter, reduced to its tool name. A case for a skill with a pre-computed line used to get read-only tools, so the slash command failed to load and the run ended at 0 turns.
+- `/evals:validate` warns when a case names a skill (a leading `/<plugin>:<skill>` or a tag) whose SKILL.md has a pre-computed context line and the case's `allowed_tools` lacks Bash.
+
 ## [0.13.3] - 2026-11-01
 
 ### Fixed

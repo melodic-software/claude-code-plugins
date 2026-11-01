@@ -256,6 +256,103 @@ class ConvertTest(ConverterTestCase):
         names = [g["name"] for g in self.case_yaml("alpha-path-prompt")["graders"]]
         self.assertEqual(names, ["expectation-1", "expectation-2", "skill-fired"])
 
+    def skill_md(self, skill, text):
+        path = self.plugin / "skills" / skill / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def converted_tools(self, skill, skill_text):
+        self.skill_md(skill, skill_text)
+        self.source(skill, [dict(ALPHA_CASES[2])])
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        front, _ = self.prompt_md(skill + "-minimal-form")
+        return front["allowed_tools"]
+
+    def test_a_precomputed_line_grants_bash(self):
+        tools = self.converted_tools(
+            "alpha",
+            "---\ndescription: Check node.\n---\n\n- `node`: !`command -v node`\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_frontmatter_allowed_tools_are_granted_by_name(self):
+        tools = self.converted_tools(
+            "alpha",
+            "---\ndescription: Commit.\nallowed-tools: Bash(git *), Edit\n---\n\n"
+            "Commit the change.\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash", "Edit"])
+
+    def test_a_block_list_and_a_bash_body_do_not_repeat_a_tool(self):
+        tools = self.converted_tools(
+            "alpha",
+            '---\nallowed-tools:\n  - "Bash(command -v node*)"\n  - Read\n---\n\n'
+            "Run `node --version` through Bash.\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_body_wording_alone_grants_bash(self):
+        tools = self.converted_tools(
+            "alpha", "---\ndescription: Check.\n---\n\nRun node --version through Bash.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_negated_bash_wording_grants_nothing(self):
+        for skill, body in (
+            ("negone", "Do not use the Bash tool."),
+            ("negtwo", "Never run this with Bash."),
+            ("negthree", "Don't call it through Bash; read the file."),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Read.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
+    def test_a_negation_in_another_clause_still_grants_bash(self):
+        for skill, body in (
+            (
+                "posone",
+                "Its pre-computed context lines do not run when the file is read, so run "
+                "`command -v node`, `node --version`, `command -v jq` and `jq --version` "
+                "through Bash.",
+            ),
+            (
+                "postwo",
+                "Its pre-computed context lines are not rendered when this skill reads\n"
+                "the file, so run every probe via Bash.",
+            ),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Check.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_a_negation_wrapped_onto_the_previous_line_grants_nothing(self):
+        tools = self.converted_tools(
+            "wrapneg", "---\ndescription: Read.\n---\n\nDo not run the script\nthrough Bash.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
+    def test_an_indented_item_or_blank_line_is_not_joined_to_a_negation(self):
+        for skill, body in (
+            ("nested", "- Do not edit the config\n  - run the check through Bash"),
+            ("spaced", "Do not edit the file\n  \nRun the tests through Bash."),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Check.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_a_plain_skill_keeps_the_base_tools(self):
+        tools = self.converted_tools(
+            "alpha", "---\ndescription: Summarize.\n---\n\nSummarize the doc.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
     def test_dry_run_writes_nothing(self):
         alpha, beta, _ = self.sample_plugin()
         done = run(self.plugin, "--dry-run")

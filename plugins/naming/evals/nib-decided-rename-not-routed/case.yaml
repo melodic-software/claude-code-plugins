@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: nib-decided-rename-not-routed
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: not-routed-to-naming
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:naming:)?name-it-better"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-candidate-generators
+    type: tool_used
+    tool: 'Agent'
+    input_match: '[Cc]andidate|[Ll]ens(?:es)?\b|(?:suggest|Suggest)\w*\s+(?:\w+\s+)?names?'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: lists-stale-files
+    type: regex
+    pattern: '^(?=[\s\S]*profile\.js)(?=[\s\S]*header\.js)(?=[\s\S]*README\.md)'
+    target: last_message

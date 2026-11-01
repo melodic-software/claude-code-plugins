@@ -379,6 +379,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/conventions/instruction-exception-register/**", "gate"],
   ["docs/conventions/untrusted-content/**", "gate"],
   ["docs/standards/**", "gate"],
+  ["docs/review/**", "gate"],
   [".github/workflows/dependabot-fragments.yml", "gate"],
   [".github/workflows/eval-browser-dispatch.yml", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
