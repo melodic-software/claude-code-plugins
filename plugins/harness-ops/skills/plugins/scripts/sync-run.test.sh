@@ -170,9 +170,28 @@ case "$verb" in
   *) ;;
   esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
+  # CLAUDE_STUB_DIRTY_FILE: every update rewrites that settings file.
+  [[ -z "${CLAUDE_STUB_DIRTY_FILE:-}" ]] || printf '{"enabledPlugins":{"%s":true}}\n' "$id" >"$CLAUDE_STUB_DIRTY_FILE"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
   # as it did to a sibling worktree's record, whatever the cwd.
   only="${CLAUDE_STUB_MISFIRE_PATH:-}"
+  # CLAUDE_STUB_KEY_CWD=1: a project/local update moves only the record keyed to
+  # the cwd, and the call is logged with that cwd. A cwd named in
+  # CLAUDE_STUB_INEFFECTIVE_PATHS reports an update and writes nothing, as in a
+  # linked worktree; one named in CLAUDE_STUB_DIRTY_PATHS also rewrites that
+  # path's .claude/settings.json.
+  if [[ -n "${CLAUDE_STUB_KEY_CWD:-}" && "$scope" != "user" ]]; then
+    printf '%s\t%s\n' "$PWD" "$*" >>"$CLAUDE_STUB_LOG.cwd"
+    [[ -n "$only" ]] || only="$PWD"
+    case " ${CLAUDE_STUB_DIRTY_PATHS:-} " in
+    *" $PWD "*) printf '{"enabledPlugins":{"%s":true}}\n' "$id" >"$PWD/.claude/settings.json" ;;
+    *) ;;
+    esac
+    case " ${CLAUDE_STUB_INEFFECTIVE_PATHS:-} " in
+    *" $PWD "*) only="/nonexistent/stub-path" ;;
+    *) ;;
+    esac
+  fi
   old=$(jq -r --arg id "$id" --arg sc "$scope" --arg only "$only" \
     'first(.plugins[$id][]? | select(.scope == $sc and ($only == "" or .projectPath == $only)) | .version) // "0.0.0"' \
     "$CLAUDE_STUB_INSTALLED_JSON")
@@ -1441,11 +1460,10 @@ assert_eq "unverified noop: the id is counted as unverified" "1" \
 # moved on disk: the flag is set and the note names zeta, not the first moved row.
 # beta is updated by the sweep and alpha moved during the run, each with a project
 # record elsewhere, so each creates a new divergence: the split credits the sweep
-# for beta and the concurrent move for alpha.
+# for beta and the concurrent move for alpha. alpha and beta carry no catalog
+# version, so the other path's records are not ones sync forward-updates.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
-catalog_plugin "$case_dir" market1 alpha 0.2.0
-catalog_plugin "$case_dir" market1 beta 0.2.0
 catalog_plugin "$case_dir" market1 zeta 0.2.0
 mkdir -p "$case_dir/self/.claude-plugin" "$case_dir/other"
 write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"zeta","version":"0.1.0"}'
@@ -1879,10 +1897,11 @@ assert_eq "divergence by path: exactly one sub-line is capped" "1" \
 # version: a plain directory (actionable), a linked worktree (.git is a file naming
 # a /worktrees/ entry), and a path that is not present (blocked). beta is pinned
 # only in the worktree, gamma only in the missing path, and delta's pin is a
-# directory holding a submodule-style .git file, which is not a worktree.
+# directory holding a submodule-style .git file, which is not a worktree. No
+# catalog version resolves, so no pin is one sync could forward-update and each
+# stays counted.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
-for name in alpha beta gamma delta epsilon zeta; do catalog_plugin "$case_dir" market1 "$name" 0.2.0; done
 mkdir -p "$case_dir/plain/.git" "$case_dir/wt" "$case_dir/sub" "$case_dir/sep" "$case_dir/current"
 printf 'gitdir: %s/main/.git/worktrees/wt\n' "$case_dir" >"$case_dir/wt/.git"
 printf 'gitdir: ../.git/modules/sub\n' >"$case_dir/sub/.git"
@@ -3040,6 +3059,182 @@ for self_source in directory github; do
       "$(jq -r '.marketplaces[0].in_repo.live_read | length' <<<"$REPORT_DIGEST")"
   fi
 done
+
+# ============================================================================
+# Case: sync forward-updates the project/local records of every other present
+# path, a home included, from that path, and reads each one back. Records at or
+# above the catalog, with no catalog version, or in an absent path take no call.
+# A linked worktree's record that does not move keeps its worktree class.
+# ============================================================================
+paths_fixture() {
+  CASE_NUM=$((CASE_NUM + 1))
+  case_dir=$(new_case_dir)
+  catalog_plugin "$case_dir" market1 alpha 2.0.0
+  catalog_plugin "$case_dir" market1 beta 2.0.0
+  catalog_plugin "$case_dir" market1 delta 1.0.0
+  mkdir -p "$case_dir/repoA/.claude" "$case_dir/plain/.claude" "$case_dir/home/.claude"
+  printf '{"enabledPlugins":{}}\n' >"$case_dir/repoA/.claude/settings.json"
+  printf '{"enabledPlugins":{}}\n' >"$case_dir/plain/.claude/settings.json"
+  fixture_git "$case_dir/repoA" init -q -b main
+  fixture_git "$case_dir/repoA" add -A
+  fixture_git "$case_dir/repoA" commit -q -m fixture
+  fixture_git "$case_dir/repoA" worktree add -q "$case_dir/wt" -b wt
+  local a b p h w g
+  a=$(norm_path "$case_dir/repoA") b=$(norm_path "$case_dir/plain") h=$(norm_path "$case_dir/home")
+  w=$(norm_path "$case_dir/wt") g=$(norm_path "$case_dir/gone")
+  p=$(norm_path "$case_dir/plain")
+  write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$a\", \"installPath\": \"a\", \"version\": \"1.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$h\", \"installPath\": \"a\", \"version\": \"1.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$w\", \"installPath\": \"a\", \"version\": \"1.0.0\"},
+      {\"scope\": \"local\", \"projectPath\": \"$p\", \"installPath\": \"a\", \"version\": \"1.0.0\"}
+    ],
+    \"beta@market1\": [
+      {\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$a\", \"installPath\": \"b\", \"version\": \"1.0.0\"},
+      {\"scope\": \"local\", \"projectPath\": \"$b\", \"installPath\": \"b\", \"version\": \"1.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$g\", \"installPath\": \"b\", \"version\": \"1.0.0\"}
+    ],
+    \"gamma@market1\": [{\"scope\": \"project\", \"projectPath\": \"$a\", \"installPath\": \"c\", \"version\": \"1.0.0\"}],
+    \"delta@market1\": [{\"scope\": \"project\", \"projectPath\": \"$a\", \"installPath\": \"d\", \"version\": \"1.0.0\"}]
+  }
+}"
+  write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+  write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}, {"name": "delta", "source": "delta"}]}'
+  write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+  setup_case "$case_dir"
+}
+cwd_calls() { cut -f1 "$case_dir/claude.log.cwd" 2>/dev/null | sed "s#^$case_dir/##" | sort | tr '\n' ' '; }
+
+paths_fixture
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
+  CLAUDE_STUB_INEFFECTIVE_PATHS="$case_dir/wt" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "other paths: one call per lagging present record, from its own path, home included" \
+  "home plain plain repoA repoA wt " "$(cwd_calls)"
+assert_not_contains "other paths: no call for a record without a catalog version" "$(cat "$case_dir/claude.log")" "gamma@market1"
+assert_not_contains "other paths: no call for a record at the catalog version" "$(cat "$case_dir/claude.log")" "delta@market1"
+assert_eq "other paths: each moved record is read back as updated" "5" \
+  "$(jq -r '.marketplaces[0].other_paths.updated | length' <<<"$out")"
+assert_eq "other paths: the worktree record that did not move is reported, with its label" \
+  "alpha@market1 project update ineffective, uninstall clears it" \
+  "$(jq -r '.marketplaces[0].other_paths.not_moved[] | "\(.id) \(.scope) \(.label)"' <<<"$out")"
+assert_eq "other paths: no failure" "0" "$(jq -r '.marketplaces[0].other_paths.failed | length' <<<"$out")"
+assert_eq "divergences: nothing left for converge" "0" \
+  "$(jq -r '.marketplaces[0].divergences | .actionable_here + .actionable_elsewhere' <<<"$out")"
+assert_eq "divergences: the worktree keeps its class, the absent path stays blocked" "1 1" \
+  "$(jq -r '.marketplaces[0].divergences | "\(.in_worktrees) \(.blocked)"' <<<"$out")"
+assert_eq "user-home records: the record update moved is no longer listed" "0" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+assert_eq "stale project records: the absent path stays in its own section" "1" \
+  "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
+report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
+assert_contains "other paths: the report names the moved records" "$report" "Updated in other paths: 5 record(s)"
+assert_contains "other paths: and the worktree record that did not move" "$report" "did not move"
+
+# Audit predicts the same calls and stops counting what sync could update.
+paths_fixture
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_KEY_CWD=1 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --audit)
+assert_eq "audit: no update call from any path" "" "$(cwd_calls)"
+assert_eq "audit: the forward updates are predicted" "6" \
+  "$(jq -r '.marketplaces[0].other_paths.would_update | length' <<<"$out")"
+assert_eq "audit: a pin sync could update is not counted for converge" "0" \
+  "$(jq -r '.marketplaces[0].divergences | .actionable_here + .actionable_elsewhere' <<<"$out")"
+assert_eq "audit: the worktree and the absent path keep their own counts" "1 1" \
+  "$(jq -r '.marketplaces[0].divergences | "\(.in_worktrees) \(.blocked)"' <<<"$out")"
+assert_eq "audit: a home record sync could update is not listed" "0" \
+  "$(jq -r '.marketplaces[0].user_home_records.total' <<<"$out")"
+
+# A change under .claude/ stops that path: git status in a repository, a hash of
+# the two settings files elsewhere. The untried records stay counted.
+paths_fixture
+EXTRA_ENV=(HOME="$case_dir/home" CLAUDE_STUB_NEW_VERSION=2.0.0 CLAUDE_STUB_KEY_CWD=1
+  CLAUDE_STUB_DIRTY_PATHS="$case_dir/repoA $case_dir/plain" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "guard: one call in each path whose settings changed" "home plain repoA wt " "$(cwd_calls)"
+assert_eq "guard: both stops are failures naming the change" "2" \
+  "$(jq -r '[.marketplaces[0].other_paths.failed[] | select(.reason | test("changed after this call"))] | length' <<<"$out")"
+assert_eq "guard: the untried records are reported as not tried" "2" \
+  "$(jq -r '[.marketplaces[0].other_paths.failed[] | select(.reason | test("not tried"))] | length' <<<"$out")"
+assert_eq "guard: an untried present pin stays counted for converge" "1" \
+  "$(jq -r '.marketplaces[0].divergences.actionable_elsewhere' <<<"$out")"
+report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
+assert_contains "guard: the failure is under Action needed" "$report" "update stopped in"
+
+# The same check in the run's own project: a settings change after Step 2's first
+# call stops further in-repo calls there.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 2.0.0
+catalog_plugin "$case_dir" market1 beta 2.0.0
+mkdir -p "$case_dir/proj/.claude"
+printf '{"enabledPlugins":{}}\n' >"$case_dir/proj/.claude/settings.json"
+proj=$(norm_path "$case_dir/proj")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"a\", \"version\": \"1.0.0\"}],
+    \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"b\", \"version\": \"1.0.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/proj" CLAUDE_STUB_NEW_VERSION=2.0.0
+  CLAUDE_STUB_DIRTY_FILE="$case_dir/proj/.claude/settings.json" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "in-repo guard: one project update call, then the step stops" "1" \
+  "$(grep -c -- '-s project' "$case_dir/claude.log")"
+assert_eq "in-repo guard: the stopping call and the untried record are failures" "changed after this call|not tried" \
+  "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.stopped == true) | .reason
+    | if test("changed after this call") then "changed after this call" else "not tried" end] | join("|")' <<<"$out")"
+report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
+assert_contains "in-repo guard: the stop is under Action needed" "$report" "update stopped in $proj"
+
+# An ignored .claude/settings.local.json in a git work tree: git status cannot see
+# it change, so only the checksum stops the path.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 2.0.0
+catalog_plugin "$case_dir" market1 beta 2.0.0
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+mkdir -p "$case_dir/proj/.claude"
+printf '{"enabledPlugins":{}}\n' >"$case_dir/proj/.claude/settings.json"
+printf '{"enabledPlugins":{}}\n' >"$case_dir/proj/.claude/settings.local.json"
+printf '.claude/settings.local.json\n' >"$case_dir/proj/.gitignore"
+fixture_git "$case_dir/proj" init -q -b main
+fixture_git "$case_dir/proj" add -A
+fixture_git "$case_dir/proj" commit -q -m fixture
+proj=$(norm_path "$case_dir/proj")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"2.0.0\"},
+      {\"scope\": \"local\", \"projectPath\": \"$proj\", \"installPath\": \"a\", \"version\": \"1.0.0\"}],
+    \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"2.0.0\"},
+      {\"scope\": \"local\", \"projectPath\": \"$proj\", \"installPath\": \"b\", \"version\": \"1.0.0\"}]
+  }
+}"
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/proj" CLAUDE_STUB_NEW_VERSION=2.0.0
+  CLAUDE_STUB_DIRTY_FILE="$case_dir/proj/.claude/settings.local.json" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "ignored local settings: git status shows no change under .claude/" "" \
+  "$(git -C "$case_dir/proj" status --porcelain -- .claude/)"
+assert_eq "ignored local settings: one local update call, then the path stops" "1" \
+  "$(grep -c -- '-s local' "$case_dir/claude.log")"
+assert_eq "ignored local settings: the stop and the untried record are failures" "2" \
+  "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.stopped == true)] | length' <<<"$out")"
 
 # ============================================================================
 if ((FAILED > 0)); then

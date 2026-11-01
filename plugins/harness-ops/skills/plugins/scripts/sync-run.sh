@@ -88,8 +88,19 @@
 #    pending_enable, project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
-#    delisted_project, delisted_settings_only, self_updated, self_update,
+#    delisted_project, delisted_settings_only, other_paths, self_updated, self_update,
 #    updated_with_monitors, errors}
+#   `other_paths` is `{updated, failed, not_moved, would_update}` for the
+#   project/local records of every OTHER present path (a user home and a linked
+#   worktree included) whose version is below a readable catalog version: sync
+#   runs `update -s <scope>` from that path and reads each record back.
+#   `updated[]` is `{id, scope, path, old, new}`, `would_update[]` (audit) is
+#   `{id, scope, path, old, catalog}`, `not_moved[]` is `{id, scope, path,
+#   version, catalog, label}` for a linked-worktree or user-home record the call
+#   left behind, and `failed[]` is `{id, scope, path, reason, stopped}` for any
+#   other record left behind, a failed call, and, with `stopped` true, the call
+#   after which the path's `.claude/` settings changed and every record in that
+#   path not tried after it.
 #   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
 #   each install this run performed whose CLI output named userConfig options
 #   the user has not set. `installed_disabled[]` is the ids whose install exited
@@ -115,8 +126,10 @@
 #   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
 #   `user_home_records` is `{total, paths}` for the project/local records whose
-#   projectPath is a user home (`projectPathIsHome`), which `divergences` and
-#   `divergences_here` never count;
+#   projectPath is a user home (`projectPathIsHome`) and that are still below
+#   the catalog version, or have none to compare (under --audit, less the
+#   present ones sync would update), which `divergences` and `divergences_here`
+#   never count;
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ, unreleased_changes}` per stale install, the last
@@ -628,6 +641,9 @@ version_at() {
 # its own error text and is then read as a success.
 CLI_OUT=""
 CLI_RC=0
+# The directory a project/local call runs from when it is not the run's own:
+# `-s project` and `-s local` have no path flag and act on the cwd.
+CLI_CWD=""
 run_cli() {
   local label="$1"
   shift
@@ -636,7 +652,11 @@ run_cli() {
     echo "\$ $label"
     # stdin closed: the CLI's confirmation for a marketplace-declared command
     # must fail, not wait on a prompt whose text is captured into the journal.
-    "$CLAUDE_BIN" "$@" 2>&1 </dev/null
+    if [[ -n "$CLI_CWD" ]]; then
+      (cd "$CLI_CWD" && exec "$CLAUDE_BIN" "$@") 2>&1 </dev/null
+    else
+      "$CLAUDE_BIN" "$@" 2>&1 </dev/null
+    fi
   } | tee -a "$JOURNAL_LOG" >"$sink"
   CLI_RC=${PIPESTATUS[0]}
   CLI_OUT=$(<"$sink")
@@ -1005,6 +1025,16 @@ linked_worktree_paths() {
   json_strings_of "$__var" ${found[@]+"${found[@]}"}
 }
 
+would_pins() {
+  local __var="$1"
+  local ir_w
+  json_array_of ir_w ${IR_WOULD[@]+"${IR_WOULD[@]}"}
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to "$__var" -c -n --argjson ir "$ir_w" --argjson op "$OTHER_PATHS_JSON" \
+    '[($ir[] | {id, scope, current: true}), ($op.would_update[]? | {id, scope, path})]' || printf -v "$__var" '%s' "[]"
+  [[ -n "${!__var}" ]] || printf -v "$__var" '%s' "[]"
+}
+
 divergence_block() {
   local __var="$1"
   local mp="$2"
@@ -1024,16 +1054,36 @@ divergence_block() {
   # (finalize_moves' MOVED_DURING): a new divergence on one of them is not the
   # step's doing, so it is split out of the interval it first appeared in.
   local moved_rows
+  local would
+  would_pins would
   json_array_of moved_rows ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}
-  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked"
+  json_object_file "$RUN_DIR/.divergence-args.$mp.json" moved "$moved_rows" wt "$linked" would "$would"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c \
     --slurpfile p "$pre" --slurpfile m "$mid" --slurpfile q "$post" \
-    --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF"'
-    . as {$moved, $wt}
+    --argjson cap "$DIVERGENCE_PATH_IDS" "$ACTIONABLE_DEF$TRIPLE_DEF"'
+    . as {$moved, $wt, $would}
+    # Under --audit nothing moved, so a pin sync would forward-update (Step 2 or
+    # Step 3a) is read at the catalog version: it is not work for converge. A
+    # linked worktree keeps its own version, since update leaves it behind there.
+    | ($q[0] | if ($would | length) == 0 then . else
+        .catalog_versions as $cv
+        | ([.installed[]? | select(.currentProject == true) | {id, scope, path: .projectPath}]) as $cur
+        | ([$would[] | . as $w
+            | if .current == true then ($cur[] | select(.id == $w.id and .scope == $w.scope))
+              else {id, scope, path} end]) as $wp
+        | .divergences |= map(.id as $id | .scopes |= map(
+            . as $s
+            | if $s.linkedWorktree != true and $s.projectPathIsHome != true
+                 and ($s.projectPath as $pp | $wt | index($pp)) == null
+                 and any($wp[]; .id == $id and .scope == $s.scope and .path == $s.projectPath)
+                 and ($cv[$id] | triple) != null and ($s.version | triple) != null
+                 and ($s.version | triple) < ($cv[$id] | triple)
+              then .version = $cv[$id] else . end))
+      end) as $qq
     # A pin at the project the run stands in is converge-actionable even when that
     # project is itself a linked worktree, so it is never classed `worktree`.
-    | ([$q[0].installed[]? | select(.currentProject == true) | .projectPath]) as $curp
+    | ([$qq.installed[]? | select(.currentProject == true) | .projectPath]) as $curp
     | def act: [.divergences[]? | actionable | .id];
     def pin_class:
       if .projectPathPresent == false then "blocked"
@@ -1073,14 +1123,14 @@ divergence_block() {
       | map({id: $id, scope, version, projectPath: (.projectPath // null),
              class: (if (.projectPath // "") != "" then pin_class else null end)});
     ($moved | map(.id)) as $conc
-    | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($q[0] | act) as $post
+    | ($p[0] | act) as $pre | ($m[0] | act) as $mid | ($qq | act) as $post
     | ($post - $pre) as $new
     | [$new[] | select(. as $i | $conc | index($i))] as $by_conc
     | ($new - $by_conc) as $by_step
-    | ([$q[0].installed[]? | select(.currentProject == true) | .id]) as $here
-    | ([$q[0].divergences[]? | actionable | {id, c: row_class}]) as $rows
+    | ([$qq.installed[]? | select(.currentProject == true) | .id]) as $here
+    | ([$qq.divergences[]? | actionable | {id, c: row_class}]) as $rows
     | ([$rows[] | select(.c == "actionable")]) as $act_rows
-    | ([$q[0].divergences[]? | actionable | diverging_records[]]) as $records
+    | ([$qq.divergences[]? | actionable | diverging_records[]]) as $records
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
@@ -1104,6 +1154,158 @@ divergence_block() {
     "$RUN_DIR/.divergence-args.$mp.json"
 }
 
+# --- Step 3a — forward-update the records of every other present path --------------
+# Step 2 updates the records of the repo the run stands in; this step takes the
+# project/local records of every OTHER path that is present, a user home and a
+# linked worktree included, and runs `claude plugin update <id> -s <scope>` from
+# that path, since the two scopes have no path flag. Forward only: a record is
+# called only when its version and the catalog's both parse and the record is
+# below, so a deliberate pin above the catalog, a catalog that moved backward,
+# and an id with no readable catalog version are never touched.
+#
+# `update` writes no settings file (context/scope-semantics.md), and this step
+# checks that rather than trusting it: before the first call in a path and after
+# each one it takes `git status --porcelain -- .claude/` where the path is in a
+# git work tree, and a checksum of `.claude/settings.json` and
+# `.claude/settings.local.json` in every path (git status cannot see a change to
+# an ignored settings.local.json). A change stops that path: the call is a
+# failure, and every record in that path after it is reported as not tried.
+#
+# Selected from the mid snapshot, so Step 2's own moves are already in it, and
+# read back from the post snapshot by finalize_other_paths.
+# shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+TRIPLE_DEF='def triple:
+    if type == "string" then
+      ((capture("^v?(?<x>[0-9]+)[.](?<y>[0-9]+)[.](?<z>[0-9]+)") // null)
+       | if . == null then null else [.x, .y, .z] | map(tonumber) end)
+    else null end;'
+
+settings_state() {
+  local __var="$1"
+  local dir="$2"
+  local st=""
+  local f
+  local sum
+  if git --no-optional-locks -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    st=$(git --no-optional-locks -C "$dir" status --porcelain -- .claude/ 2>&1)
+  fi
+  for f in settings.json settings.local.json; do
+    sum="absent"
+    [[ -f "$dir/.claude/$f" ]] && sum=$(cksum <"$dir/.claude/$f")
+    st+=$'\n'"$f $sum"
+  done
+  printf -v "$__var" '%s' "$st"
+}
+
+path_row() {
+  # path_row <result> <reason> <stopped>: one row for the current record.
+  jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$path" --arg old "$old" --arg cat "$cat" \
+    --arg label "$label" --arg home "$home" --arg result "$1" --arg reason "$2" --argjson stopped "$3" \
+    '{id: $id, scope: $sc, path: $path, old: $old, catalog: $cat, label: $label,
+      home: ($home == "true"), result: $result, reason: $reason, stopped: $stopped}'
+}
+
+other_paths_step() {
+  local mp="$1"
+  local cands=""
+  local path id scope old cat label home fs reason
+  local before=""
+  local after=""
+  local cur=""
+  local stopped=""
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  if ! jq_to cands -r "$TRIPLE_DEF"'
+    .catalog_versions as $cv
+    | [.installed[]? | select((.scope == "project" or .scope == "local") and .currentProject != true
+         and .projectPathPresent == true and (.projectPath // "") != "")
+       | select(($cv[.id] | triple) as $c | (.version | triple) as $v | $c != null and $v != null and $v < $c)
+       | {projectPath, id, scope, version, cat: $cv[.id], label: (.label // ""),
+          home: (.projectPathIsHome == true | tostring)}]
+    | sort_by(.projectPath, .id, .scope)[]
+    | [.projectPath, .id, .scope, .version, .cat, .label, .home] | join("\u001f")' "$RUN_DIR/mid.$mp.json"; then
+    mp_error "other-paths selection failed, step not run"
+    return 0
+  fi
+  while IFS=$'\x1f' read -r path id scope old cat label home; do
+    path="${path//$'\r'/}" id="${id//$'\r'/}" scope="${scope//$'\r'/}" old="${old//$'\r'/}"
+    cat="${cat//$'\r'/}" label="${label//$'\r'/}" home="${home//$'\r'/}"
+    [[ -n "$id" ]] || continue
+    if [[ "$MODE" == "audit" ]]; then
+      predict_cli "(cd \"$path\" && claude plugin update $id -s $scope)"
+      PATH_ROWS+=("$(path_row would "" false)")
+      continue
+    fi
+    fs="${path//\\//}"
+    if [[ "$path" != "$cur" ]]; then
+      cur="$path"
+      settings_state before "$fs"
+    fi
+    if [[ "$path" == "$stopped" ]]; then
+      PATH_ROWS+=("$(path_row failed "not tried: the .claude/ settings in this path changed after an earlier call" true)")
+      continue
+    fi
+    CLI_CWD="$fs"
+    run_cli "(cd \"$path\" && claude plugin update $id -s $scope --json)" plugin update "$id" -s "$scope" --json
+    CLI_CWD=""
+    settings_state after "$fs"
+    if [[ "$after" != "$before" ]]; then
+      stopped="$path"
+      PATH_ROWS+=("$(path_row failed "the .claude/ settings in this path changed after this call, so the path was stopped" true)")
+      continue
+    fi
+    if ((CLI_RC != 0)); then
+      reason=$(cli_outcome_line "$CLI_OUT")
+      PATH_ROWS+=("$(path_row failed "exit $CLI_RC: $reason" false)")
+      continue
+    fi
+    PATH_ROWS+=("$(path_row called "" false)")
+  done <<<"$cands"
+}
+
+# Each called record read back from the post snapshot by (id, scope, path). A
+# record that moved forward is updated. One left behind in a linked worktree or a
+# user home is `not_moved`: the worktree keeps its divergence class and the home
+# its own report row. Any other record left behind is a failure. A re-entry
+# reuses the first pass's result, which no later step changes.
+finalize_other_paths() {
+  local mp="$1"
+  local file="$RUN_DIR/other-paths.$mp.json"
+  local rows_file="$RUN_DIR/.other-paths-rows.$mp.json"
+  local post="$RUN_DIR/post.$mp.json"
+  local rows
+  local result=""
+  if ((ONLY_INSTALL_MODE == 1)); then
+    [[ -f "$file" ]] && OTHER_PATHS_JSON=$(<"$file")
+    return 0
+  fi
+  json_array_of rows ${PATH_ROWS[@]+"${PATH_ROWS[@]}"}
+  printf '%s\n' "$rows" >"$rows_file"
+  [[ -f "$post" ]] || post="$rows_file"
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to result -c -n --slurpfile rows "$rows_file" --slurpfile post "$post" "$TRIPLE_DEF"'
+    ($post[0] | if type == "object" then . else {} end) as $q
+    | [$rows[0][] | select(.result == "called")
+       | . as $r
+       | . + {new: (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
+                     and .projectPath == $r.path) | .version) // null)}
+       | . + {moved: ((.new | triple) != null and (.old | triple) < (.new | triple))}] as $called
+    | {updated: [$called[] | select(.moved) | {id, scope, path, old, new}],
+       not_moved: [$called[] | select((.moved | not) and (.label != "" or .home))
+                   | {id, scope, path, version: (.new // .old), catalog,
+                      label: (if .label != "" then .label else "user home" end)}],
+       failed: ([$rows[0][] | select(.result == "failed") | {id, scope, path, reason, stopped}]
+                + [$called[] | select((.moved | not) and .label == "" and (.home | not))
+                   | {id, scope, path, stopped: false,
+                      reason: ("the record did not move: still at \(.new // "an unread version"), the catalog reads \(.catalog)")}]),
+       would_update: [$rows[0][] | select(.result == "would") | {id, scope, path, old, catalog}]}' || result=""
+  if [[ -n "$result" ]]; then
+    OTHER_PATHS_JSON="$result"
+  else
+    mp_error "other-paths read-back failed"
+  fi
+  printf '%s\n' "$OTHER_PATHS_JSON" >"$file"
+}
+
 # --- per-marketplace accumulators ----------------------------------------------
 # Script-scope rather than `local`, because the step helpers below append to them
 # and a `local` array is invisible to a function the step calls. The initial
@@ -1113,6 +1315,7 @@ reset_marketplace_state() {
   IR_UPDATED=() IR_FAILED=() IR_WOULD=() IR_LIVE=()
   US_UPDATED=() US_FAILED=() US_WOULD=()
   MOVED_DURING=() NOOP_UNVERIFIED=0
+  PATH_ROWS=() OTHER_PATHS_JSON='{"updated":[],"failed":[],"not_moved":[],"would_update":[]}'
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=() RECOVERED_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
@@ -1426,10 +1629,27 @@ run_marketplace() {
               | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
             else "" end' "$RUN_DIR/pre.$mp.json"
       fi
+      # The same .claude/ check as Step 3a, in the project root: taken before the
+      # first call and after each one, and a change stops the step there.
+      local ir_root=""
+      local ir_before=""
+      local ir_after=""
+      local ir_stopped=0
+      jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
+      ir_root="${ir_root//\\//}"
+      if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
+        settings_state ir_before "$ir_root"
+      fi
       while IFS=$'\t' read -r id scope; do
         id="${id//$'\r'/}"
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
+        if ((ir_stopped == 1)); then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
+            '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
+              reason: "not tried: the .claude/ settings in this path changed after an earlier call"}')")
+          continue
+        fi
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
         if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
           IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
@@ -1443,6 +1663,16 @@ run_marketplace() {
           continue
         fi
         run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
+        if [[ -n "$ir_root" ]]; then
+          settings_state ir_after "$ir_root"
+          if [[ "$ir_after" != "$ir_before" ]]; then
+            ir_stopped=1
+            IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
+              '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
+                reason: "the .claude/ settings in this path changed after this call, so the path was stopped"}')")
+            continue
+          fi
+        fi
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
@@ -1469,6 +1699,8 @@ run_marketplace() {
       emit_marketplace_block "$mp"
       return 0
     fi
+
+    other_paths_step "$mp"
 
     project_ids downgrade-candidates "$RUN_DIR/mid.$mp.json" "$RUN_DIR/downgrades.$mp.txt"
     dg_rc=$?
@@ -1620,6 +1852,7 @@ run_marketplace() {
 
   clock_into T_FN_S
   finalize_moves "$mp"
+  finalize_other_paths "$mp"
 
   local own
   own=$(own_plugin_name)
@@ -2049,10 +2282,14 @@ finalize_moves() {
       if [[ "$cur" == "$old" && "$new" != "$old" ]]; then
         # Name the record that did move: another project's record of the id whose
         # version differs between the pre and post reads.
+        # Against the mid read when there is one: Step 3a moves other paths'
+        # records after it, and those moves are not this call's.
+        local after_step2="$post"
+        [[ -f "$RUN_DIR/mid.$mp.json" ]] && after_step2="$RUN_DIR/mid.$mp.json"
         if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
           # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
           jq_to moved -r -n --arg id "$id" --arg sc "$scope" \
-            --slurpfile pre "$RUN_DIR/pre.$mp.json" --slurpfile post "$post" \
+            --slurpfile pre "$RUN_DIR/pre.$mp.json" --slurpfile post "$after_step2" \
             '[$post[0].installed[]? | select(.id == $id and .scope == $sc and .currentProject != true)
               | . as $r | select(([$pre[0].installed[]? | select(.id == $id and .scope == $sc
                   and .projectPath == $r.projectPath) | .version] | first) != $r.version)
@@ -2137,12 +2374,20 @@ report_extras() {
   # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" \
-    "$ACTIONABLE_DEF"'
+    --argjson audit "$([[ "$MODE" == "audit" ]] && echo true || echo false)" \
+    "$ACTIONABLE_DEF$TRIPLE_DEF"'
     def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
     ([.divergences[]? | actionable | .id]) as $act
+    | .catalog_versions as $cv
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
-    | ([.installed[]? | select(.projectPathIsHome == true)]) as $homes
+    # A home record still below the catalog, or with no version to compare: the
+    # ones Step 3a could not move. Under --audit, the present ones it would move
+    # are left out.
+    | ([.installed[]? | select(.projectPathIsHome == true)
+        | select(($cv[.id] | triple) as $c | (.version | triple) as $v
+                 | ($c == null or $v == null or $v < $c)
+                   and (($audit and .projectPathPresent == true and $c != null and $v != null) | not))]) as $homes
     | {auto_update: .marketplace.autoUpdate,
        user_home_records: {total: ($homes | length),
                            paths: ($homes | map(.projectPath) | unique)},
@@ -2447,7 +2692,7 @@ emit_marketplace_block() {
     div "$div" self_updated "$SELF_UPDATED" self_update "$SELF_UPDATE" \
     extras "$extras" checkout "${checkout:-null}" pull "${pull:-null}" \
     unset_cfg "${unset_cfg:-[]}" installed_disabled "${installed_disabled:-[]}" \
-    monitors "${monitors:-[]}" errors "$errs"
+    monitors "${monitors:-[]}" errors "$errs" other_paths "$OTHER_PATHS_JSON"
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to block -c \
     --arg name "$mp" \
@@ -2479,7 +2724,7 @@ emit_marketplace_block() {
           $us_u, $us_f, $us_w, $wh, $dg, $moved, $noop_unverified, $install_gap, $inst,
           $enable_gap, $en, $pr, $rec, $deferred, $stopped, $normalize, $cache, $reg_rows,
           $div, $self_updated, $self_update, $extras, $checkout, $pull, $unset_cfg,
-          $installed_disabled, $monitors, $errors}
+          $installed_disabled, $monitors, $errors, $other_paths}
     | {pre_refresh_read: dur($t_prr_s; $t_prr_e),
      marketplace_update: dur($t_mu_s; $t_mu_e),
      in_repo_update: dur($t_ir_s; $t_ir_e),
@@ -2517,6 +2762,7 @@ emit_marketplace_block() {
      enable_gap: $enable_gap,
      enabled: $en,
      project_enable_rows: $pr,
+     other_paths: $other_paths,
      pending_enable: $rec,
      normalize: $normalize,
      cache_content: $cache,

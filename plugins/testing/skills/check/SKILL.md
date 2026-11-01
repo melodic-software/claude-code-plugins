@@ -9,9 +9,9 @@ metadata:
 
 ## Purpose
 
-Run the read-only check. Do not run `apply`. Do not install Node.js or jq, and do not download anything.
+Run the read-only check. Do not run `apply`, install Node.js or jq, or download anything.
 
-This skill is the model-invocable check, and `setup` stays manual, because the invocation control is set per skill, not per action. Where that control is defined: [Extend Claude with skills § Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), the `disable-model-invocation` field. As of 2026-10-11. Recheck when that field gains a per-action form or stops applying to the whole skill.
+This skill is the model-invocable check and `setup` stays manual, because invocation control is set per skill, not per action. Where that control is defined: [Extend Claude with skills § Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), the `disable-model-invocation` field. As of 2026-10-11. Recheck when that field gains a per-action form or stops applying to the whole skill.
 
 ## Check
 
@@ -25,4 +25,4 @@ Only when the user explicitly asked for it. A passing check has no successor.
 
 ## Gotchas
 
-This skill does not install. A hook notice is not permission to install.
+A hook notice is not permission to install.

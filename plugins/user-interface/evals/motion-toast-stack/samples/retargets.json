@@ -5,7 +5,7 @@
       "why": "transitions on translate driven by --index; the entry uses @starting-style, not keyframes"
     },
     {
-      "answer": "```css\n.toast {\n  transform: translateY(calc(var(--index) * -100% - var(--index) * 8px));\n  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1), opacity 220ms cubic-bezier(0.32, 0.72, 0, 1);\n}\n```",
+      "answer": "```css\n.toast {\n  transform: translateY(calc(var(--index) * -100% - var(--index) * 8px));\n  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1), opacity 220ms cubic-bezier(0.23, 1, 0.32, 1);\n}\n```",
       "why": "the stack moves by transform transitions that retarget mid-burst"
     }
   ],

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "review_mining_prs: 40"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "encode_policy: strongest-first"
+    }
+  ]
+}

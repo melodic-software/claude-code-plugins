@@ -19,6 +19,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { REST_PATH_WORDS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { upsert } from "../lib/upsert-comment.mjs";
 
 export const MAX_ROWS = 50;
@@ -39,12 +40,11 @@ const LEGS = new Map([
 
 export const marker = ({ lane, activity, runId, rung = "0", leg = "base" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} leg=${leg} -->`;
 
-// GitHub REST path words that may appear in the comment. The model shares
-// RUNNER_TEMP, so any other segment could be planted text (a key split across
-// rows): it renders as *, and the owner/name pair after repos as {repo}.
-const WORDS = new Set(
-  "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit".split(" "),
-);
+// Only GitHub REST path words (REST_PATH_WORDS) may appear in the comment.
+// The model shares RUNNER_TEMP, so any other segment could be planted text (a
+// key split across rows): it renders as *, and the owner/name pair after
+// repos as {repo}.
+const WORDS = REST_PATH_WORDS;
 export function templatePath(path) {
   const parts = path.split("/").slice(1);
   const out = [];
