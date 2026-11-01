@@ -21,6 +21,7 @@
 // `limit-stops-per-head` stops the dispatchers stop re-dispatching the head;
 // the next push makes a new one.
 import { LIMIT_DEFAULTS, clampReset } from "../work-resolve-issue/limits.mjs";
+import { readRecord } from "../lib/lane-outcome.mjs";
 import { laneStop } from "./escalation-routes.mjs";
 
 export { ACTIONS_APP_ID, LANE_STOP, laneStop, retryRung } from "./escalation-routes.mjs";
@@ -33,6 +34,17 @@ const SUMMARY_RECORD = new RegExp(
     "(?: turns=(?:0|[1-9][0-9]{0,5}))?(?: max-turns=(?:0|[1-9][0-9]{0,5}))?" +
     `(?: models=${MODEL}(?:,${MODEL}){0,7})?(?: profile=${NAME})?$`,
 );
+
+// The run's lane-outcome record from output.text, or null when it has none,
+// names another check run, or is a leg that handed off (its class is not the
+// run's). Without one the legacy summary line is read.
+function laneRecord(run) {
+  const record = readRecord(run.output?.text);
+  if (!record || record.handoff === true || run.name !== `${record.lane} / ${record.activity}`) {
+    return summaryRecord(run);
+  }
+  return { failureClass: record.class ?? "", resets: record.resets?.at ?? "" };
+}
 
 // The lane record on the first line of `run`'s output.summary, or null when
 // that line is not one or names another check run.
@@ -58,7 +70,7 @@ export function limitStop(run, limits = LIMIT_DEFAULTS) {
   if (!Number.isFinite(ended) || run.conclusion !== "failure") {
     return null;
   }
-  const summary = summaryRecord(run);
+  const summary = laneRecord(run);
   if (!STOP_CLASSES.has(summary?.failureClass)) {
     return null;
   }
