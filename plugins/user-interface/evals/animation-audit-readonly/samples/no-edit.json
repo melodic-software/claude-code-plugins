@@ -1,33 +1,17 @@
 {
   "pass": [
     {
-      "answer": [],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Two findings in src/notifications.css.\"}]}}",
       "why": "no tool call"
     },
     {
-      "answer": [
-        {
-          "tool": "Read",
-          "input": {
-            "file_path": "src/notifications.css"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"src/notifications.css\"}}]}}",
       "why": "reading is fine"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Edit",
-          "input": {
-            "file_path": "src/notifications.css",
-            "old_string": "ease-in",
-            "new_string": "ease-out"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"src/notifications.css\"}},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Edit\",\"input\":{\"file_path\":\"src/notifications.css\",\"old_string\":\"ease-in\",\"new_string\":\"ease-out\"}}]}}",
       "why": "an edit in a read-only run"
     }
   ]

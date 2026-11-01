@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Row 2: analyzer-pack-rule, not a setting."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Row 2 lands on editorconfig-severity."
+    }
+  ]
+}

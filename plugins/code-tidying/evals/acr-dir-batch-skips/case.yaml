@@ -22,7 +22,7 @@ graders:
     arm: both
   - name: markdown-skipped
     type: regex
-    pattern: '\A(?![\s\S]*?(?:NOTES\.md|markdown)[^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b|[\s\S]*?\b(?:skip\w*|not audited|out of scope|code files only)\b[^\n]*(?:NOTES\.md|markdown))[\s\S]*?^(?![^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b)[^\n]*Priya|^(?:[^\n]*(?:\||\bline\s+\d+\b|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b)[^\n]*Priya|[^\n]*Priya[^\n]*(?:\||\bline\s+\d+\b|\((?:conversational|history|origin)\w*\)|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b))'
+    pattern: '(?<![\s\S])(?![\s\S]*?(?:NOTES\.md|markdown)[^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b|[\s\S]*?\b(?:skip\w*|not audited|out of scope|code files only)\b[^\n]*(?:NOTES\.md|markdown))[\s\S]*?^(?![^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b)[^\n]*Priya|^(?:[^\n]*(?:\||\bline\s+\d+\b|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b)[^\n]*Priya|[^\n]*Priya[^\n]*(?:\||\bline\s+\d+\b|\((?:conversational|history|origin)\w*\)|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b))'
     flags: mi
     match: not_contains
   - name: ignore-marker-respected

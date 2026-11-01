@@ -14,6 +14,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$SCRIPT_DIR/setup-apply.mjs"
 READER="$SCRIPT_DIR/parse-concern-value.sh"
 
@@ -81,7 +87,7 @@ check 'the existing file is untouched without --yes' test "$(cat "$f")" = "$befo
 # Same change with --yes: written, comment kept.
 run "$repo" --yes lever_scope=non-trivial
 check 'with --yes the change is written' test "$CODE" -eq 0
-check 'the written file keeps the comment' test "$(cat "$f")" = $'# team pick\nlever_scope: non-trivial'
+check 'the written file keeps the comment' test "$(settings "$f")" = $'# team pick\nlever_scope: non-trivial'
 
 # Adding the key to a file that holds only comments appends it.
 repo="$(new_repo)"
@@ -90,7 +96,7 @@ mkdir -p "$repo/docs/conventions"
 printf '# owned by the platform team\n' >"$f"
 run "$repo" --yes lever_scope=deterministic
 check 'the key is appended to a comment-only file' \
-  test "$CODE" -eq 0 -a "$(cat "$f")" = $'# owned by the platform team\nlever_scope: deterministic'
+  test "$CODE" -eq 0 -a "$(settings "$f")" = $'# owned by the platform team\nlever_scope: deterministic'
 
 # Invalid value and unknown key: refused, nothing created.
 repo="$(new_repo)"
@@ -114,7 +120,7 @@ printf 'lever_scope: deterministic\nverbosity: high\n' >"$f"
 run "$repo" --check
 if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes lever_scope=non-trivial
-if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$f")" == $'lever_scope: non-trivial\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(settings "$f")" == $'lever_scope: non-trivial\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # Shapes a schema validator rejects although each line looks plausible.
 # --check reports each as WARN. apply overwrites only an out-of-list, empty
@@ -132,7 +138,7 @@ shape_case() { # shape_case <label> <refuse|replace> <warning text> <file conten
   run "$repo" --yes lever_scope=non-trivial
   if [[ "$want" == refuse ]]; then
     if one_line_refusal && [[ "$(cat "$f")" == "$before" ]]; then pass "apply refuses $label in one line and leaves the file"; else fail "apply refuses $label in one line and leaves the file"; fi
-  elif [[ "$CODE" -eq 0 && "$(cat "$f")" == "lever_scope: non-trivial" ]]; then
+  elif [[ "$CODE" -eq 0 && "$(settings "$f")" == "lever_scope: non-trivial" ]]; then
     pass "apply replaces $label with the given value"
   else
     fail "apply replaces $label with the given value"
@@ -190,7 +196,7 @@ printf '"$schema": https://example.test/discipline.schema.json\nlever_scope: det
 run "$repo" --check
 if [[ "$CODE" -eq 0 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pass '--check accepts a $schema URL string'; else fail '--check accepts a $schema URL string'; fi
 run "$repo" --yes lever_scope=non-trivial
-if [[ "$CODE" -eq 0 && "$(cat "$repo/docs/conventions/discipline.yaml")" == $'"$schema": https://example.test/discipline.schema.json\nlever_scope: non-trivial' ]]; then pass 'apply keeps a $schema URL string and writes the key'; else fail 'apply keeps a $schema URL string and writes the key'; fi
+if [[ "$CODE" -eq 0 && "$(settings "$repo/docs/conventions/discipline.yaml")" == $'"$schema": https://example.test/discipline.schema.json\nlever_scope: non-trivial' ]]; then pass 'apply keeps a $schema URL string and writes the key'; else fail 'apply keeps a $schema URL string and writes the key'; fi
 
 # Write-path guards, each a one-line refusal with nothing written outside.
 repo="$(new_repo)"
@@ -207,7 +213,7 @@ mkdir -p "$repo/docs/conventions"
 ln -s "$outside/shared.yaml" "$repo/docs/conventions/discipline.yaml"
 run "$repo" --yes lever_scope=non-trivial
 check 'a symlinked target is refused and its target untouched' \
-  test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'lever_scope: deterministic'
+  test "$CODE" -eq 1 -a "$(settings "$outside/shared.yaml")" = 'lever_scope: deterministic'
 
 repo="$(new_repo)"
 outside="$(mktemp -d "$WORKROOT/outside.XXXXXX")"
@@ -216,7 +222,7 @@ mkdir -p "$repo/docs/conventions"
 ln "$outside/shared.yaml" "$repo/docs/conventions/discipline.yaml"
 run "$repo" --yes lever_scope=non-trivial
 check 'a hard-linked target is refused and the other link is untouched' \
-  test "$CODE" -eq 1 -a "$(cat "$outside/shared.yaml")" = 'lever_scope: deterministic'
+  test "$CODE" -eq 1 -a "$(settings "$outside/shared.yaml")" = 'lever_scope: deterministic'
 
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions/discipline.yaml"
@@ -400,6 +406,20 @@ check '--check with a pair exits 2' test "$CODE" -eq 2
 OUT="$(cd "$WORKROOT" && HOME="$FAKE_HOME" GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" lever_scope=deterministic 2>&1)"
 CODE=$?
 if [[ "$CODE" -eq 2 && "$OUT" == *"git working tree"* ]]; then pass 'outside a git working tree without --root exits 2'; else fail 'outside a git working tree without --root exits 2'; fi
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+repo="$(new_repo)"
+run "$repo" lever_scope=non-trivial
+record="$(grep -v '^# ' "$repo/docs/conventions/discipline.yaml")"
+record_ok=0
+[[ "$CODE" -eq 0 && "$record" == $'written_against: discipline@'"$VERSION"$'\nlever_scope: non-trivial\nprovenance:\n  lever_scope: chosen'* ]] && record_ok=1
+repo="$(new_repo)"
+run "$repo" --default lever_scope
+default_ok=0
+[[ "$CODE" -eq 0 && "$(grep -c '^  lever_scope: default$' "$repo/docs/conventions/discipline.yaml")" -eq 1 ]] && default_ok=1
+check 'the file records written_against and a chosen entry' test "$record_ok" -eq 1
+check '--default records a default entry' test "$default_ok" -eq 1
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2

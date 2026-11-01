@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: make-impossible, handed to /architecture:improve."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 1: instruction."
+    }
+  ]
+}
