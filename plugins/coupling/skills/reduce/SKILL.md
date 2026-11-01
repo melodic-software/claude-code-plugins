@@ -206,7 +206,7 @@ design exploration, and file the rest by invoking `/work-items:track add` via th
 installed, else the repo's own tracker, else present the list to the user. For each confirmed
 duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
 per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
-ledger entry's `outcome`, and offer `/review:audit-enforceability <file>` when that skill is
+ledger entry's `outcome`, and offer `/corrections:codify findings <file>` when that skill is
 available; never invoke it unasked. Close by reporting
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
