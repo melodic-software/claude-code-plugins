@@ -1,5 +1,5 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home (default `docs/conventions`) and its gitignored local overlay. Manages the categorical exclusions (including the eval-fixture tree, which is a config entry by design and never a rule in a script), the per-candidate and corpus fetch budgets, the separation-rule constants, the stamp expiry window, the accuracy dials for nomination passes and judge sampling, and the fix-eligibility gates. Enables the off-by-default trigger-less-stamp check for a repository whose stamp forms are uniform enough to greppably support it. Use when: 'set up attribution', 'configure attribution', 'exclude a path from the attribution audit', 'change the stamp expiry window', 'the attribution audit flags too much', 'turn on the trigger-less stamp check', or after installing the plugin. Writes only the consuming repository's own config, never source."
+description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home and its gitignored local overlay. Run after installing the plugin, or to exclude a path from the audit, change the stamp expiry window, quiet an audit that flags too much, or turn on the trigger-less stamp check."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -204,12 +204,6 @@ wording the check does not recognize, the same conclusion follows. Leave it off 
 - **Gates do not quiet a report.** Raising `fix_precision_bar` changes what may be auto-fixed and
   shows exactly the same findings. If someone asks for a shorter report, the honest lever is
   `excluded_paths` for a class of surface that should not be scanned at all.
-- **Writing a whole config to change one key is a silent decision.** Merge is per-key override,
-  so regenerating the file from the default schema converts every key the user never mentioned
-  into a choice they did not make. Edit in place.
-- **The fixture exclusion belongs in config, and moving it into the script breaks the harness.**
-  An unconditional exclusion would decline the fixtures under the eval harness's own config
-  isolation, leaving the eval author reading prose instead of results.
 
 ## What this skill does NOT do
 
