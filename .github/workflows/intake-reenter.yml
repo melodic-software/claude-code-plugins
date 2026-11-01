@@ -52,7 +52,10 @@ permissions: {}
 jobs:
   reenter:
     # Pull request comments, bot and App-posted comments, closed issues and
-    # issues without a parked status label stop here, before a runner starts;
+    # issues without a parked status label stop here, before a runner starts,
+    # and so does a comment at `status: needs-decision` or `status: confirmed`
+    # without the decision marker, which the script refuses anyway (`contains`,
+    # not `startsWith`: the script trims leading whitespace first);
     # so does any unlabel other than `needs-human`, and a `needs-human` unlabel
     # whose payload already shows `status: confirmed`: a session parking an
     # issue swaps the labels in one edit, and the script refuses any issue
@@ -66,8 +69,9 @@ jobs:
       && ((github.event_name == 'issue_comment'
            && github.event.comment.user.type == 'User'
            && !github.event.comment.performed_via_github_app
-           && (contains(github.event.issue.labels.*.name, 'status: needs-decision')
-               || contains(github.event.issue.labels.*.name, 'status: confirmed')
+           && (((contains(github.event.issue.labels.*.name, 'status: needs-decision')
+                 || contains(github.event.issue.labels.*.name, 'status: confirmed'))
+                && contains(github.event.comment.body, '**Decision recorded.**'))
                || contains(github.event.issue.labels.*.name, 'status: needs-info')))
           || (github.event_name == 'issues'
               && ((github.event.label.name == 'needs-human'

@@ -500,11 +500,12 @@ done
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # Merge of main with the #11857 rounds change: both sides kept (main's out-of-band full restate, this branch's topic groups, index, Held, Origin, single pacing and discussing); the drift check now keeps an unaddressed row's status, so a discussing row stays discussing, and a discussing row goes back to open before a page import; neither resolves a row, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
+# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "44d22bfcb6295486fd50b5ac150159bdc20769995b09d73401de8597e26d99fe"
+  "bede4c77aceddd6a0edb1882a127aca89b3cc93b31af070cda86650c206a8e62"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -640,11 +641,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
 # The product row's When-to-use cell says product is reached by its argument or by an idea-test phrase, and a grill me about a task stays auto; the lock row and STOP-on-gap are byte-identical
 # The empty-argument line says auto never picks product, and the product row says only the product action reaches it, selected by its idea phrases; the lock row and STOP-on-gap are byte-identical
+# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "2227f544c7df588f6306738b057dc423664305863cab2387dfa9d9a96619e5b5"
+  "45562174d2f05a92a005abdf48adea923a4fdc336d3e5f5d68f93c9ef6e0019e"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -718,11 +720,13 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # Continuation wording (#7425): the me-mode lines recommend routing, name Step 5's fallback, drop a stale handoff-and-clear cross-reference and add a pointer record; no row resolves and every defense line is byte-identical
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
+# #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
+# #11858 review: the page-surface Delivery bullet names single pacing's first-question add-round and one add per later question, and the round index leaves out held questions; each changes how a frontier is shown, resolves no row, and the late-commitment next-free-id rule is untouched
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "4de3ea84975dcc8a2dcf60109f84e28f3fb4d75f366e483b235d330b065f2f79"
+  "31df48a3d7f97c8e91e5079e0f5bb8169527c7b31b79e3da35d53de9b9b224cd"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical

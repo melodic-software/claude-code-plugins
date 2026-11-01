@@ -43,8 +43,9 @@ name: pr-review-main
 # lost-run reconciler (maintenance-reconcile-lost-runs.yml); otherwise the
 # next push reviews again.
 #
-# The trigger job runs the trigger gate and reads the PR's files once per
-# run; the key leg takes its result, a boolean, the PR number and two SHAs
+# The trigger job reads the PR's files, then runs the trigger gate only for a
+# lane-source PR, once per run; the key leg takes its result, a boolean, the
+# PR number and two SHAs
 # checked against fixed shapes, only from the same run attempt, and gates
 # itself otherwise. The later legs gate themselves at their own start.
 #
@@ -74,8 +75,8 @@ defaults:
     shell: bash
 
 jobs:
-  # The trigger gate and the PR's file list, read once per run for both of
-  # the review job's lanes. Its outputs are only what the gate computed (a
+  # The PR's file list and, for a lane-source PR, the trigger gate, read once
+  # per run for both of the review job's lanes. Its outputs are only what the gate computed (a
   # boolean, the PR number, two SHAs) and the lane-source boolean, each
   # checked against a fixed shape by the lane; never head-ref or other PR
   # text. A lane uses them only from this run attempt: a lane a person re-runs
@@ -98,7 +99,7 @@ jobs:
     outputs:
       run-attempt: ${{ github.run_attempt }}
       proceed: ${{ steps.gate.outputs.proceed }}
-      review: ${{ steps.select.outputs.review }}
+      review: ${{ steps.select.outputs.review || steps.files.outputs.review }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
       base-sha: ${{ steps.gate.outputs.base-sha }}
@@ -122,11 +123,52 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # The file list first, for the one PR the event names at the run's head,
+      # so a PR that changes no lane source skips the gate's reads. The number
+      # is the event's, not the gate's: it can only skip a review, and the
+      # merge gate holds a lane-source PR with no main-run verdict unbound
+      # (babysit_review_evidence `_main_lane`). With no single PR, or a failed
+      # read, no result leaves this step and the gate runs as before.
+      - name: Read the changed files
+        id: files
+        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULLS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO_ID: ${{ github.repository_id }}
+          FILES: ${{ runner.temp }}/pr-review-main-files.txt
+        run: |
+          pr=$(jq -r --arg sha "$HEAD_SHA" --arg repo "$REPO_ID" \
+            '[.[]? | select(.head.sha == $sha and (.base.repo.id | tostring) == $repo) | .number] | if length == 1 then .[0] else "" end' <<<"$PULLS") || pr=
+          if ! [[ $pr =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "no single pull request in the event; the trigger gate finds it"
+            exit 0
+          fi
+          # Each page the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" \
+            --jq '.[] | .filename, (.previous_filename // empty)' >"$FILES" || {
+            echo "::warning::the file list did not read; the trigger gate runs"
+            exit 0
+          }
+          review=$(python3 -I -c '
+          import sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          paths = [line.rstrip("\n") for line in open(sys.argv[1], encoding="utf-8")]
+          # The files API lists at most 3000; a longer list may hide one.
+          print("true" if len(paths) >= 3000 or any(ev.lane_source(p) for p in paths) else "false")
+          ' "$FILES")
+          { echo "pr-number=$pr"; echo "review=$review"; } >>"$GITHUB_OUTPUT"
+          echo "lane source changed: $review"
+
       # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. Skipped when no lane would review.
+      # on the trusted-actor list. Skipped when no lane would review, or when
+      # the PR changes no lane source.
       - name: Check the trigger
         id: gate
-        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true')
+        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -137,10 +179,11 @@ jobs:
           ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
 
       # Only a pull request that changes a lane source is reviewed here; the
-      # predicate is the merge gate's own, read from main.
+      # predicate is the merge gate's own, read from main. The files read
+      # above stands only for the gate's own PR; any other PR is read again.
       - name: Select a lane-source pull request
         id: select
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && (steps.files.outputs.review != 'true' || steps.files.outputs.pr-number != steps.gate.outputs.pr-number)
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
@@ -332,7 +375,7 @@ jobs:
             proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
           fi
           if [ "$proceed" != true ]; then
-            echo "the trigger gate stops this lane"
+            if [ "$review" = false ]; then echo "no lane source changed"; else echo "the trigger gate stops this lane"; fi
             exit 0
           fi
           if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
@@ -630,7 +673,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -641,7 +684,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
 
       - name: Upload chunk 1's sealed transcript
         if: always() && steps.review-1.outputs.execution-file != ''
@@ -697,7 +740,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -708,7 +751,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.review-2.outputs.execution-file != ''
@@ -764,7 +807,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -775,7 +818,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.review-3.outputs.execution-file != ''
@@ -831,7 +874,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -842,7 +885,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.review-4.outputs.execution-file != ''
@@ -1147,7 +1190,7 @@ jobs:
             proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
           fi
           if [ "$proceed" != true ]; then
-            echo "the trigger gate stops this lane"
+            if [ "$review" = false ]; then echo "no lane source changed"; else echo "the trigger gate stops this lane"; fi
             exit 0
           fi
           if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
@@ -1446,7 +1489,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -1457,7 +1500,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1516,7 +1559,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -1527,7 +1570,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1586,7 +1629,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -1597,7 +1640,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1656,7 +1699,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -1667,7 +1710,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1966,7 +2009,7 @@ jobs:
             proceed=$GATE_PROCEED review=$GATE_REVIEW pr=$GATE_PR head=$GATE_HEAD base=$GATE_BASE
           fi
           if [ "$proceed" != true ]; then
-            echo "the trigger gate stops this lane"
+            if [ "$review" = false ]; then echo "no lane source changed"; else echo "the trigger gate stops this lane"; fi
             exit 0
           fi
           if ! [[ $review =~ ^(true|false)$ && $pr =~ ^[1-9][0-9]{0,9}$ && $head =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]; then
@@ -2264,7 +2307,7 @@ jobs:
 
       - name: Report chunk 1's outcome
         if: (steps.review-1.outcome == 'success' || steps.review-1.outcome == 'failure') && steps.review-1.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-1.outcome }}
           execution-file: ${{ steps.review-1.outputs.execution-file }}
@@ -2275,7 +2318,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2333,7 +2376,7 @@ jobs:
 
       - name: Report chunk 2's outcome
         if: (steps.review-2.outcome == 'success' || steps.review-2.outcome == 'failure') && steps.review-2.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-2.outcome }}
           execution-file: ${{ steps.review-2.outputs.execution-file }}
@@ -2344,7 +2387,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2402,7 +2445,7 @@ jobs:
 
       - name: Report chunk 3's outcome
         if: (steps.review-3.outcome == 'success' || steps.review-3.outcome == 'failure') && steps.review-3.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-3.outcome }}
           execution-file: ${{ steps.review-3.outputs.execution-file }}
@@ -2413,7 +2456,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2471,7 +2514,7 @@ jobs:
 
       - name: Report chunk 4's outcome
         if: (steps.review-4.outcome == 'success' || steps.review-4.outcome == 'failure') && steps.review-4.outputs.handoff != 'true'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.review-4.outcome }}
           execution-file: ${{ steps.review-4.outputs.execution-file }}
@@ -2482,7 +2525,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 

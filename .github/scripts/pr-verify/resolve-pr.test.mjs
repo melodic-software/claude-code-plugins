@@ -17,7 +17,8 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -140,21 +141,42 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     }
     // The pull request's RenamedTitleEvent timeline, oldest first; `renames`
     // may also be a whole answer.
-    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
-      assert.equal(body.variables.number, 41);
+    const renameAnswer = () => {
       if (!Array.isArray(renames)) return renames;
       const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
       return { data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    };
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT") && !body.query.includes("closingIssuesReferences")) {
+      assert.equal(body.variables.number, 41);
+      return renameAnswer();
     }
     // The pull request's body edits and issue connect and disconnect events
     // (RELINK_QUERY); with none given the read fails, which keeps a FAIL.
-    if (apiPath === "/graphql" && body.query.includes("userContentEdits")) {
+    if (apiPath === "/graphql" && body.query.includes("userContentEdits") && !body.query.includes("closingIssuesReferences")) {
       assert.deepEqual(body.variables, { o: "example-org", r: "example-repo", n: 41 });
       if (relink === undefined) throw new Error("POST /graphql failed with status 502");
       return relink;
     }
+    // The spec read, which carries the relink fields and, when asked, the
+    // renames: each as its own query answers it, absent when that answer
+    // has none (a failed relink read gives none).
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      const relinked = relink?.data?.repository?.pullRequest;
+      const renamed = body.query.includes("RENAMED_TITLE_EVENT") ? renameAnswer()?.data?.repository?.pullRequest?.timelineItems : undefined;
+      return {
+        data: {
+          repository: {
+            pullRequest: {
+              createdAt: PR_OPENED,
+              ...edit,
+              body: prBody,
+              closingIssuesReferences: { totalCount: issues.length, nodes: issues },
+              ...(relinked && { userContentEdits: relinked.userContentEdits, links: relinked.timelineItems }),
+              ...(renamed && { renames: renamed }),
+            },
+          },
+        },
+      };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -989,14 +1011,96 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
     const queries = [];
     const github = fake(relinked(relinkAnswer(), { issues }));
     const recording = async (method, apiPath, body) => {
-      if (apiPath === "/graphql" && body.query.includes("userContentEdits")) queries.push(apiPath);
+      if (apiPath === "/graphql" && body.query === RELINK_QUERY) queries.push(apiPath);
       return github(method, apiPath, body);
     };
     const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", String(issues.length));
-    // Read once, for the body-edit rule, which finds no edit since the FAIL.
-    assert.deepEqual(queries, ["/graphql"], "one relink read");
+    // The body-edit rule, which finds no edit since the FAIL, weighs the
+    // relink fields the spec read carries: no relink read of its own.
+    assert.deepEqual(queries, [], "no relink read");
   }
+});
+
+// The spec answer with `drop` taken out of its pull request.
+const without = (github, ...drop) => async (method, apiPath, body) => {
+  const answer = await github(method, apiPath, body);
+  if (apiPath !== "/graphql" || !body.query.includes("closingIssuesReferences")) return answer;
+  const pullRequest = { ...answer.data.repository.pullRequest };
+  for (const field of drop) delete pullRequest[field];
+  return { data: { repository: { pullRequest } } };
+};
+
+test("a spec answer missing a relink field keeps the FAIL, as a failed relink read does", async () => {
+  // The paired case: the same answer whole re-opens the head.
+  const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  assert.equal(await reason(relinked(relink)), "relinked");
+  for (const field of ["userContentEdits", "links"]) {
+    const github = without(fake(relinked(relink)), field);
+    const { reason: got } = await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    assert.equal(got, "already-judged", field);
+  }
+  // And a judgment reports a relink since the head it cannot rule out.
+  const github = without(fake(committed({ relink: relinkAnswer() })), "links");
+  assert.equal((await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE })).relinkSinceHead, true);
+});
+
+test("when the spec read fails beside a FAIL, the relink rules read RELINK_QUERY as before", async () => {
+  const relink = relinkAnswer({ edits: [{ ...BODY_EDIT }] });
+  const github = fake(bodyFixed(relink, { artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], issues: [] }));
+  let failed = false;
+  const queries = [];
+  const flaky = async (method, apiPath, body) => {
+    if (apiPath === "/graphql") queries.push(body.query === RELINK_QUERY ? "relink" : body.query.includes("closingIssuesReferences") ? "spec" : "other");
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences") && !failed) {
+      failed = true;
+      throw new Error("POST /graphql failed with status 502");
+    }
+    return github(method, apiPath, body);
+  };
+  const { reason: got } = await resolvePull({ github: flaky, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  assert.equal(got, "body-edited");
+  assert.deepEqual(queries, ["spec", "relink", "spec"]);
+});
+
+test("a spec answer missing the renames stops the run, as a failed rename read does", async () => {
+  const owner = { pulls: [HUMAN_PR], issues: [] };
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [100] };
+  assert.equal(await reason(owner, opts), "ok");
+  const github = without(fake(owner), "renames");
+  await assert.rejects(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts }), /timelineItems could not be read/);
+  // A lanes App pull request's spec read asks for no renames.
+  const lane = [];
+  const recording = fake({ issues: [] });
+  const asked = async (method, apiPath, body) => {
+    if (apiPath === "/graphql") lane.push(body.query.includes("RENAMED_TITLE_EVENT"));
+    return recording(method, apiPath, body);
+  };
+  await resolvePull({ github: asked, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  assert.ok(lane.length > 0 && !lane.some(Boolean), "no renames for a lanes App pull request");
+});
+
+test("renames past the spec answer's first page are read whole through titleRenamers", async () => {
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [100] };
+  const outsider = { __typename: "User", databaseId: 4242 };
+  const github = fake({ pulls: [HUMAN_PR], issues: [], renames: [] });
+  const reads = [];
+  const paged = async (method, apiPath, body) => {
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences")) {
+      const answer = await github(method, apiPath, body);
+      answer.data.repository.pullRequest.renames = { nodes: [{ actor: { __typename: "User", databaseId: 100 } }], pageInfo: { hasNextPage: true, endCursor: "c1" } };
+      return answer;
+    }
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
+      reads.push(body.variables.after);
+      return { data: { repository: { pullRequest: { timelineItems: { nodes: [{ actor: { __typename: "User", databaseId: 100 } }, { actor: outsider }], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    }
+    return github(method, apiPath, body);
+  };
+  const result = await resolvePull({ github: paged, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts });
+  // The whole list ends with an outsider's rename, so the title is not intent.
+  assert.deepEqual(reads, [null]);
+  assert.equal(result.specKind, "none");
 });
 
 // The head commit, after ORIGINAL and before FAILED_AT.
@@ -1506,6 +1610,36 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
+test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when it proceeds", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const temp = tempDir("pr-verify-temp-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    RUNNER_TEMP: temp,
+  };
+  const kept = path.join(temp, KEPT_JOBS);
+  // A judged head's jobs, as upstream-jobs.mjs would have read them.
+  const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === HOLD_STEP ? "success" : c]), "success"));
+  await main(env, { github: fake({ jobs }) });
+  assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), shapeJobs(RUN, jobs.jobs));
+  assert.deepEqual(keptJobs(env, RUN), shapeJobs(RUN, jobs.jobs));
+  // A head already judged, after its jobs were read, leaves no file.
+  const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
+  await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
+  assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /reason=already-judged/);
+  assert.equal(keptJobs(skipped, RUN), null);
+});
+
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
   const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
@@ -1629,31 +1763,44 @@ test("with no task-list marker, even the trusted split child is not spec", async
 // follow the lookup order: FAIL names first, since a counted FAIL alone
 // decides already-judged, then this PR's passes; a pass whose spec is
 // unchanged decides already-judged before the issue-named FAIL lookups.
-async function calls(setup) {
+async function calls(setup, options = {}) {
   const github = fake(setup);
   const paths = [];
   const recording = async (method, apiPath, body) => {
     paths.push(apiPath === "/graphql" ? `graphql ${body.query.includes("closingIssuesReferences") ? "spec" : "other"}` : apiPath);
     return github(method, apiPath, body);
   };
-  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  // A job log read is an API call too (main's readLog).
+  const readLog =
+    options.readLog &&
+    (async (id) => {
+      paths.push(`log ${id}`);
+      return options.readLog(id);
+    });
+  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options, readLog });
   return { reason, paths };
 }
 
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  // The spec read carries the relink fields, and for a pull request whose
+  // body may be its spec the title renames, so neither is a read of its own;
+  // heldOnly and draftRun share one read of the run's jobs.
   const cases = [
     // run, commit pulls, the run's jobs, three names without issues, the spec, the FAIL name with issues.
     ["an unjudged head", {}, "ok", 8],
+    // As above; the head commit's time is weighed against the relink fields
+    // the spec read carries (9 calls when the relink was a read of its own).
+    ["an unjudged head with its commit time", committed(), "ok", 8],
     // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
-    // the head's checks runs, the spec, the relink read.
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 9],
-    // As above, but the PR links no issue now: the relink read serves only
-    // the body-edit rule.
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 9],
+    // the head's checks runs, the spec (9 with the relink read).
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 8],
+    // As above, but the PR links no issue now: the spec's relink fields serve
+    // only the body-edit rule (9 with the relink read).
+    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
     // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
-    // the FAIL's run and compare, the head's checks runs, the relink read.
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 12],
+    // the FAIL's run and compare, the head's checks runs (12 with the relink read).
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
     // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
     ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
     // As above, then the FAIL name with issues.
@@ -1665,6 +1812,18 @@ test("each path through the resolver makes a pinned number of API calls", async 
     assert.equal(got, expected, label);
     assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
   }
+  // A run red only on a hold: run, commit pulls, the run's jobs once for
+  // heldOnly and draftRun, ci-status's log, three names, the spec, the -i7
+  // name (10 when draftRun read the jobs again).
+  const heldRun = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }, { readLog: async (id) => (id === 9001 ? logOf(PATH_HOLD) : "") });
+  assert.equal(heldRun.reason, "ok");
+  assert.equal(heldRun.paths.length, 9, heldRun.paths.join("\n"));
+  // A trusted person's pull request that links no issue, its body the spec:
+  // run, commit pulls, the run's jobs, three names, the spec with the
+  // renames (8 when the renames were a read of their own).
+  const own = await calls({ pulls: [HUMAN_PR], issues: [] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
+  assert.equal(own.reason, "ok");
+  assert.equal(own.paths.length, 7, own.paths.join("\n"));
 });
 
 test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {

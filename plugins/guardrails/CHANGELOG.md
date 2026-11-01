@@ -3,6 +3,27 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.0] - 2026-11-01
+
+### Added
+
+- The commit-convention gates, `block-convention-violation` and the `commit-msg` hook, enforce an operator's own `subject_pattern` in a repository whose team tracks none. The pattern lives in `docs/conventions/source-control.local.yaml`, which the resolver reads only while git ignores it (a `.gitignore` rule, `.git/info/exclude` or `core.excludesFile`) and only when the team layer supplies no `subject_pattern`. It is never merged with a team pattern: a team pattern always wins, and a broken or non-ERE team value disables enforcement rather than falling back to the personal one. PR titles never read it. A personal file git does not ignore, a tracked one included, is reported and not read. When the personal pattern rejects a subject, the `commit-msg` hook names the personal file to edit instead of asking for a pull request, and `block-convention-violation`'s pattern cache re-resolves when the file appears or changes.
+
+### Changed
+
+- `block-convention-violation` reports a rejected commit subject as not matching "the commit convention" rather than "the team convention", and asks for a subject that matches the printed pattern, since the pattern may be the operator's own and `/source-control:commit` drafts against the team convention only.
+
+### Fixed
+
+- The git hook check now fails, naming the tool and saying the change was not fully checked, when git or awk fails while it lists the changed lines or filters findings to them. A crashed awk run used to leave every finding filtered out and the hook passing.
+- A push over a remote commit this clone has not fetched is checked from its merge-base with the default branch, with a notice saying to fetch, instead of failing on the missing object.
+
+- The reference-verify pre-push check now fails, naming the tool and saying the change was not fully checked, when git or awk fails while it lists the lines a copied file adds, merges them into the changed lines, or narrows a branch that merged the default branch to its own lines. A crash in any of those steps used to leave findings filtered out and the push passing; the check now keeps the wider set of lines instead.
+
+- `block-root-delete-target` no longer refuses a PowerShell delete target whose every `$` is literal (single-quoted or backtick-escaped), such as `Remove-Item -Recurse '$env:TEMP'`, `'$HOME\x'`, `'$(x)'` or `cmd /c rd /s /q '$env:TEMP'`: such a target names a path of that name and is judged as that path. The same target inside an expanding outer string (`pwsh -c "..."`, `iex "..."`, `Start-Process pwsh -ArgumentList "..."`) is still judged as an expansion, because the outer string expands it first ([#7372](https://github.com/melodic-software/claude-code-plugins/issues/7372)).
+
+- `block-root-delete-target` judges a variable that the command assigns a literal as that literal in the forms `$S`, `$S/x`, `${S}` and `${S}/x`, quoted or unquoted. It used to bind only `"$S"` and `"$S/x"`. So `S=/tmp/run; mkdir -p $S/x; rm -rf $S` is judged as a delete of `/tmp/run`, not refused as a bare variable. The assignment can also follow other statements, when each statement before it ends in `;` or a newline. Those statements must hold no `&&`, `||`, `|`, `&`, comment, heredoc, group, subshell, quote, escape, expansion, or compound command such as `if` or `while`. A reassigned, substituted or unassigned variable stays refused, and so do a prefix assignment such as `S=/a true` and a use before the assignment. One case remains: an IFS set before the command runs, for example by a `BASH_ENV` file, can still split an unquoted use.
+
 ## [0.78.0] - 2026-11-01
 
 ### Added

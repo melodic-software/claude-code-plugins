@@ -28,6 +28,11 @@ per-area checks live in [reference/areas.md](reference/areas.md), walked by the
 `go-faster-sweeper` agent, and the evidence rows they cite in
 [reference/catalog/README.md](reference/catalog/README.md).
 
+Delivery metrics (change lead time, failed deployment recovery time) come from
+`/work-items:measure-delivery`, which the sweeper calls for the `pr-review` area when the
+work-items plugin is installed and enabled. Without it the report lists those metrics as `not-checked`
+(`owner-unavailable`), naming the plugin to enable, and the sweep goes on.
+
 ## Step 1: Resolve paths and take the lock
 
 Resolved when this skill loaded:

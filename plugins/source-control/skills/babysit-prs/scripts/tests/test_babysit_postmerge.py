@@ -4363,9 +4363,34 @@ class RoleLabelRead(unittest.TestCase):
         with mock.patch.object(pm, "gh_capture", return_value=proc):
             return pm._role_label("o", "r", **kw)
 
+    def _read_files(self, files: dict[str, str], **kw: Any) -> str:
+        """`_role_label` against a default branch holding only `files`."""
+        missing = completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+
+        def answer(args: list[str]) -> subprocess.CompletedProcess[str]:
+            path = args[-1].removeprefix("repos/o/r/contents/")
+            if path in files:
+                return subprocess.CompletedProcess(["gh"], 0, files[path], "")
+            return missing
+
+        with mock.patch.object(pm, "gh_capture", side_effect=answer):
+            return pm._role_label("o", "r", **kw)
+
     def test_a_mapped_label(self) -> None:
-        proc = completed({"config": {"role_labels": {"human-gated": " human-review "}}})
-        self.assertEqual(self._read(proc, strict=True), "human-review")
+        legacy = {"config": {"role_labels": {"human-gated": " human-review "}}}
+        files = {pm.tracker_binding.LEGACY_PATH: json.dumps(legacy)}
+        self.assertEqual(self._read_files(files, strict=True), "human-review")
+
+    def test_a_label_the_yaml_binding_maps(self) -> None:
+        yaml = "tracker:\n  config:\n    role_labels:\n      human-gated: by-yaml\n"
+        files = {pm.tracker_binding.YAML_PATH: yaml}
+        self.assertEqual(self._read_files(files, strict=True), "by-yaml")
+
+    def test_a_yaml_file_that_does_not_parse_raises_when_strict(self) -> None:
+        files = {pm.tracker_binding.YAML_PATH: "tracker: {provider: github}\n"}
+        with self.assertRaises(pm.PostMergeReadError):
+            self._read_files(files, strict=True)
+        self.assertEqual(self._read_files(files), pm.DEFAULT_ROLE_LABEL)
 
     def test_an_absent_config_is_the_default_even_strict(self) -> None:
         proc = completed(returncode=1, stderr="gh: Not Found (HTTP 404)")

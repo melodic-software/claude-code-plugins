@@ -371,7 +371,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -382,7 +382,7 @@ jobs:
           step-timeout-minutes: 25
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a
@@ -714,7 +714,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -1002,7 +1002,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
