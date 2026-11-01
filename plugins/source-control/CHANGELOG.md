@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.9.0] - 2026-11-01
+
+### Added
+
+- `/source-control:pull-request review-comments --prs <n> [--repo <owner/repo>]` prints the review comments of the last `<n>` pull requests by merge time as JSON lines, widening its read of recently updated merged pull requests until no unread one can be among them. It keeps the PR author's own comments made after the merge, and never a reply.
+
+### Fixed
+
+- `/source-control:babysit-loop` passes `--unattended` to each `/source-control:babysit-prs` call it makes, so a merge-lane cycle records the `/autofix-pr` offer instead of reaching an ask nobody answers. The looped `worker` and `autopilot` lines in `/source-control:babysit-prs` and its autopilot reference pass `--unattended` too ([#11546](https://github.com/melodic-software/claude-code-plugins/issues/11546)).
+
 ## [4.8.3] - 2026-10-31
 
 ### Fixed
