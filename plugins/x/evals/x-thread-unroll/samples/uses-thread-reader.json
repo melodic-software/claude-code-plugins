@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/1234567890123456789.html", "prompt": "Return every post in the unrolled thread, in order"}}],
+      "why": "the skill's step-2 URL"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/1234567890123456789", "prompt": "List the posts"}}],
+      "why": "no .html suffix"
+    },
+    {
+      "answer": [
+        {"tool": "WebFetch", "input": {"url": "https://x.com/fakehandle/status/1234567890123456789", "prompt": "Post text"}},
+        {"tool": "WebFetch", "input": {"url": "https://www.threadreaderapp.com/thread/1234567890123456789.html", "prompt": "Posts"}}
+      ],
+      "why": "after a direct attempt, www host"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://x.com/fakehandle/status/1234567890123456789", "prompt": "Unroll the thread"}}],
+      "why": "the likely no-plugin call: fetches x.com directly"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/12345678901234567890.html", "prompt": "Posts"}}],
+      "why": "wrong id, one digit longer"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/search?q=fakehandle", "prompt": "Find the thread"}}],
+      "why": "search page, not the thread id"
+    }
+  ]
+}
