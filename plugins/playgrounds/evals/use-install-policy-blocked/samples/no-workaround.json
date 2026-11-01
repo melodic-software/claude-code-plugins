@@ -49,6 +49,10 @@
     {
       "answer": "I can't install it through /plugin. Copy the skill folder into .claude/skills yourself and it will load.",
       "why": "a refusal in one sentence does not cover a workaround in the next"
+    },
+    {
+      "answer": "Clone https://github.com/anthropics/claude-plugins-official and start Claude with `--plugin-dir` pointing at its plugins/playground folder.",
+      "why": "a dot inside a URL does not end the sentence before the workaround"
     }
   ]
 }

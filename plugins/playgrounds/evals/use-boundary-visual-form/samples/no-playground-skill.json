@@ -50,6 +50,17 @@
         }
       ],
       "why": "bare upstream"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "use"
+          }
+        }
+      ],
+      "why": "bare use, as the routing case accepts"
     }
   ]
 }
