@@ -142,8 +142,12 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 (wraps `hook::notice_once` + `hook::emit_skip_notice`) for a missing-`jq` gate, or pair
 `hook::notice_once` with `hook::emit_skip_notice` directly for a non-`jq` prerequisite. A raw,
 unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The user
-notice fires once per session; the model notice fires once per agent, because a subagent does not
-share the parent's context and would otherwise never see why the hook skipped. Neither renews. The
+notice fires once per session; the model notice fires once per agent, because a non-fork subagent
+does not share the parent's context and would otherwise never see why the hook skipped. A fork
+inherits only what fired before it spawned
+([subagents: how forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents),
+as of 2026-11-01; recheck when that section changes what a fork inherits), so it gets its own
+notice too. Neither renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
 external binary keeps the same cadence, with the install route in its user notice.

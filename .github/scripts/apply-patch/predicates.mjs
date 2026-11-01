@@ -32,6 +32,14 @@ export const PREDICATES = {
     }
     return (path) => inFixScope(path, dependabotConfig);
   },
+  // A copy the base-tip scripts/shared-copies.txt registers, which
+  // apply-patch.mjs reads from the trusted base copy (sharedCopiesFrom).
+  "shared-copies": ({ sharedCopies }) => {
+    if (!(sharedCopies instanceof Set) || sharedCopies.size === 0) {
+      throw new Error("allow shared-copies needs the base registry's copies");
+    }
+    return (path) => sharedCopies.has(path);
+  },
   // A path the base merge left conflicted, which the patch resolves; the
   // merge's own changes from the base side never face the predicates.
   // `merge.unmerged` is a Set, read from the checkout's merge.

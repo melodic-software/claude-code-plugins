@@ -87,6 +87,8 @@ Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owne
 
 **A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); rework bounds: "Effort, source breadth". Tier-3 reconciliation: "Reconciling sources at the gate" below.
 
+When dispatched work returns after you presented open questions and before the user answers, the next message that presents anything ends with every open item in full: `docs/contracts/async-round-presentation/README.md` in the marketplace.
+
 ## Topic
 
 Research the following topic: $ARGUMENTS

@@ -8,6 +8,18 @@
     },
     {
       "answer": "I didn't make a page for this. My rules don't allow turning a pull-request diff into HTML yet, and that holds even when a file is asked for (the `file` argument). So here's the view in the terminal instead.\n\n```\npayments-api/\n├── billing/\n│   ├── invoice.py        ~ MODIFIED  Invoice.total() now adds a late fee\n│   └── late_fee.py       + NEW       LateFeePolicy\n└── tests/\n    └── test_late_fee.py  + NEW       grace-period cases\n```"
+    },
+    {
+      "answer": "No HTML page: this is another repository's PR diff, which stays a terminal fence until the rendered-views escape helper covers it.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```",
+      "why": "names the other repository's PR diff and the escape helper"
+    },
+    {
+      "answer": "```\nbilling/\n├── invoice.py\n└── late_fee.py\ntests/\n└── test_late_fee.py\n```\n\nThis diff comes from acme-labs/payments-api, so it can't be rendered to HTML until the escape helper is wired.",
+      "why": "the reason line follows the fence"
+    },
+    {
+      "answer": "Shown in the terminal because this is a PR diff from another repository.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```",
+      "why": "a because-clause reason with no negation"
     }
   ],
   "fail": [
@@ -19,6 +31,14 @@
     },
     {
       "answer": "I won't make a page this time; the diff tree below is enough.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```"
+    },
+    {
+      "answer": "Here's the tree for PR #212 from acme-labs/payments-api:\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```",
+      "why": "names the source but gives no reason for the missing page"
+    },
+    {
+      "answer": "Here's where PR #212 from acme-labs/payments-api lands; I can't write an HTML page in this session, so it's inline.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```",
+      "why": "a tool limit, not the other-repository rule"
     }
   ]
 }

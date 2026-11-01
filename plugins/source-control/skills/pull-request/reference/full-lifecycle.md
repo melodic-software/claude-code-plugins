@@ -1,20 +1,19 @@
 # Full lifecycle (`/source-control:pull-request full`)
 
-What `/source-control:pull-request full` does that running prep, create, ready, monitor, and merge
-by hand does not: the phase-to-phase handoff state and the abort points. Read it only when the
-invocation carried `full`; every other action routes through the phase table in
-[`../SKILL.md`](../SKILL.md).
+What `/source-control:pull-request full` adds over running prep, create, ready, monitor, and merge
+by hand: the phase-to-phase handoff state and the abort points. Read it only when the invocation
+carried `full`; every other action routes through the phase table in [`../SKILL.md`](../SKILL.md).
 
-Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as a continuous flow. Phase transitions are automatic. Don't pause between phases except at **decision gates** where the outcome could vary, plus one interactive-only checkpoint at the create boundary.
+Run Phase 1 → Phase 2 → Phase 2.5 → Phase 3 → Phase 4 as one continuous flow, pausing only at **decision gates** where the outcome could vary and at one interactive-only checkpoint at the create boundary.
 
-**Phase 2.5 sits between create and monitor.** Phase 2 opens a draft and, inside `full`, leaves the flip to this step; when the invocation asked for a draft, `full` ends after create instead. Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)), and Phase 3 monitors the CI and review activity that flip starts. Reaching monitor without the flip means monitoring a draft that no reviewer has been asked to read.
+**Phase 2.5 sits between create and monitor.** Inside `full`, Phase 2 opens a draft and leaves the flip to this step; when the invocation asked for a draft, `full` ends after create instead. Phase 2.5 reviews and verifies the merged head and flips it out of draft ([ready-for-review.md](ready-for-review.md)); Phase 3 monitors the CI and review activity the flip starts. Without the flip, monitor watches a draft no reviewer has been asked to read.
 
 **Create→ready checkpoint (`full` only):**
 
 After Phase 2 reports the PR URL, detect session mode:
 
-- **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask the user whether to proceed to Phase 2.5 (ready) and Phase 3 (monitor) in this session. Acceptable responses: proceed (continue to Phase 2.5) / stop (end after create, leaving the draft) / handoff (end; another session/routine will pick up the flip and monitoring). Default on no-response is stop.
-- **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): no prompt; continue to Phase 2.5 without pausing. There is no user to ask.
+- **Interactive** (no autonomous-session marker like `CLAUDE_CODE_REMOTE=true`): ask whether to proceed to Phase 2.5 (ready) and Phase 3 (monitor) in this session. Responses: proceed (continue to Phase 2.5) / stop (end after create, leaving the draft) / handoff (end; another session/routine picks up the flip and monitoring). No response means stop.
+- **Autonomous** (`CLAUDE_CODE_REMOTE=true` or equivalent): continue to Phase 2.5 without a prompt; there is no user to ask.
 
 Standalone `create` (not invoked inside `full`) ends after Phase 2, and after Phase 2.5 when its open state is `ready`; when its session keeps acting on the PR, it arms event delivery first. See [reference/create.md](create.md) §2.6.
 

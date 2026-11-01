@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export is broken\"\nstate: \"open\"\nassignees: []\nlabels: [\"status:needs-info\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\nThe export doesn't work for me sometimes. Please fix.\n<!-- work-item-lease v1 {\"schema_version\":\"1.0\",\"holder\":\"eval\",\"acquired_at\":\"2026-11-01T10:00:00Z\",\"renewed_at\":\"2026-11-01T10:00:00Z\",\"ttl_hours\":1,\"lease_comment_id\":1,\"phase\":\"triage\"} -->\n",
+      "why": "triage lease on the item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export is broken\"\nstate: \"open\"\nassignees: [\"eval\"]\nlabels: [\"status:needs-info\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\nThe export doesn't work for me sometimes. Please fix.\n<!-- work-item-lease v1 {\"schema_version\":\"1.0\",\"holder\":\"eval\",\"acquired_at\":\"2026-11-01T10:00:00Z\",\"renewed_at\":\"2026-11-01T10:00:00Z\",\"ttl_hours\":24,\"lease_comment_id\":1} -->\n",
+      "why": "lease with no phase"
+    },
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export is broken\"\nstate: \"open\"\nassignees: []\nlabels: [\"status:needs-info\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-10-01T08:00:00Z\"\n---\n\nThe export doesn't work for me sometimes. Please fix.\n",
+      "why": "written with no lease"
+    },
+    {
+      "answer": "Triage note: \"phase\":\"triage\" was planned.\n",
+      "why": "phase text outside a lease marker"
+    }
+  ]
+}

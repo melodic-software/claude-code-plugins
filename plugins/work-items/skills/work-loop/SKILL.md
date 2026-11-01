@@ -417,8 +417,8 @@ Hard gates that override any classification:
   Queuing an unratified C3 has write mechanics of its own; a wrong order leaves the item
   unreachable. Read [reference/c3-ratification-queue.md](reference/c3-ratification-queue.md)
   before writing the comment or the labels: it owns their ordering, the at-most-one marker rule
-  and its author check, the role-label convergence, why a body-recorded ratification is never
-  dispatch authority, and this gate's manual check. The dispositions above bind regardless.
+  and its author check, the role-label convergence, and why a body-recorded ratification is never
+  dispatch authority. The dispositions above bind regardless.
 - **Security-surface work.** Any security-surface class routes to the frontier capability tier,
   always (per the convention's tier rules).
 

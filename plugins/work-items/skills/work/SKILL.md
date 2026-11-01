@@ -308,8 +308,17 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 **Auto-selected (<tier-name>):** #42 Fix <thing>
 Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
+I read this item as: <goal; done when>
+
 Proceed with this item? (yes / pick different / skip)
 ```
+
+The `I read this item as:` line restates, in your own words, what the item asks, so the user can
+catch a misread before the claim. Draw the goal from the item's brief (its Summary or Desired
+behavior, or the Outcome section of a decomposed item, its `Goal:` line when present) and the done-when from its
+Acceptance criteria or Done when list, condensed to one line. With no brief, draw both from the
+title and body, and say `done when: not stated` when the item names no check. The line is
+attended-only: an autonomous run prints neither it nor the prompt.
 
 **Autonomous invocation (no interactive user).** When a loop lane (e.g. `/work-items:work-loop`)
 or another unattended context invokes this skill, do not present the prompt and do not block. The

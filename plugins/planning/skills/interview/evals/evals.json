@@ -350,13 +350,13 @@
       "id": 25,
       "name": "out-of-band-return-supersedes-before-the-reply",
       "prompt": "/planning:interview me — I want to add rate limiting to our public REST API.\n\n[the first round is asked as Q1 (limit scope: per API key or per IP), Q2 (response when throttled), Q3 (where counters live — recommended: in-process memory, because the survey found a single API instance), and Q4 (whether internal callers are exempt). A sub-agent is dispatched to confirm the deployment topology; Q5 (counter consistency across instances) is downstream of that lookup and is held. Before the user replies, the sub-agent's return is queued: the production manifest runs the API as three replicas behind a load balancer. In the same turn, the user replies:] Q1 per API key. Q3 go with your recommendation. Haven't thought about the others yet.",
-      "expected_output": "The queued sub-agent return is processed before the reply, against the register as it stood before the reply, while Q3 was still `open`. The return contradicts Q3's recommendation, so the skill restates Q3, names in-process memory as the superseded recommendation, and gives a replacement (a shared store such as Redis) with its own basis in the three-replica manifest. The user's \"go with your recommendation\" answered the superseded recommendation, so it is revalidated against the replacement rather than recorded as settled. Q1 is recorded `answered` as per API key. Q2 and Q4 get one line naming them as still open and unchanged, and only Q3 is re-presented in full. Q5 was downstream of the lookup and is now asked; nothing else waited on the lookup.",
+      "expected_output": "The queued sub-agent return is processed before the reply, against the register as it stood before the reply, while Q3 was still `open`. The return contradicts Q3's recommendation, so the skill restates Q3, names in-process memory as the superseded recommendation, and gives a replacement (a shared store such as Redis) with its own basis in the three-replica manifest. The user's \"go with your recommendation\" answered the superseded recommendation, so it is revalidated against the replacement rather than recorded as settled. Q1 is recorded `answered` as per API key. The response ends with one block restating every open question in full (Q2, Q3, Q4 and Q5), with Q3 marked as changed. Q5 was downstream of the lookup and is now asked; nothing else waited on the lookup.",
       "files": [],
       "expectations": [
         "The queued return is evaluated before the same-turn reply: Q3 is NOT recorded `answered` with in-process memory, and the response does not treat the user's \"go with your recommendation\" as settling Q3",
         "The restated Q3 names in-process memory as superseded and gives the replacement recommendation its own basis drawn from the three-replica manifest",
         "The user's Q3 answer is revalidated against the replacement recommendation, for example by asking whether the recommendation they accepted still stands now that it has changed",
-        "Re-presentation is narrow: Q2 and Q4 appear as a one-line pointer (still open, unchanged), and only Q3 is re-printed in full; the round is not re-printed as a whole",
+        "The response ends with one block restating every open question in full, each with its Context, recommendation with Basis and alternatives, and Q3 is marked as the changed one; Q2 and Q4 are not reduced to a one-line pointer",
         "Q1 is recorded `answered` (per API key) from the reply",
         "Asking Q2 and Q4 was not held for the lookup, and Q5, which was downstream of it, is asked once the return lands"
       ]
@@ -604,6 +604,33 @@
         "Neither the verdict nor the ledger contains the name Dana Reyes or the address dana.reyes@example.com",
         "No PLAN.md Brief, ADR or glossary entry is written",
         "The next step is recommended by name and no other skill is invoked"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "late-return-restates-every-open-question-in-full",
+      "prompt": "/planning:interview me Add a nightly export of order data to the analytics warehouse.\n\n[Session state: terminal lane. Round 1's Q1 to Q3 are `answered`. Round 2 was shown as Q4 (export format; recommended: Parquet, because the warehouse loader reads Parquet), Q5 (how far back the first export reaches; recommended: 90 days, from the retention setting the survey read), Q6 (whether refunds are exported as negative rows or a separate table; recommended: negative rows, from the existing finance report's shape) and Q7 (the export window; recommended: 02:00 UTC, because the survey found no other nightly job). A sub-agent was dispatched to list the scheduled jobs on the production cluster; no question waits on it. Before the user replies, its return lands: a database backup job runs on that cluster from 01:30 to 03:00 UTC every night.]",
+      "expected_output": "The return contradicts Q7's recommendation, so Q7 is restated with 02:00 UTC named as superseded and a replacement window outside the 01:30 to 03:00 UTC backup, with its basis in the sub-agent's job list. The message ends with one block restating every open question in full: Q4, Q5, Q6 and Q7, each with its Context, its recommendation with `Basis:` and its alternatives, and Q7 is marked as the changed one. Q4, Q5 and Q6 are not reduced to a one-line pointer such as \"still open, unchanged\", and no question is recorded as answered, since the user has not replied.",
+      "files": [],
+      "expectations": [
+        "Q7 is restated with 02:00 UTC named as the superseded recommendation and a replacement window outside 01:30 to 03:00 UTC whose basis is the backup job from the sub-agent's return",
+        "The final block of the message restates Q4, Q5, Q6 and Q7, each with its Context, its recommendation with a Basis line, and its alternatives",
+        "Q7 is marked in that block as the question whose recommendation changed",
+        "Q4, Q5 and Q6 are not collapsed into a one-line pointer to the earlier round",
+        "No question is recorded as answered, because the user has not replied"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "held-question-release-restates-every-open-question-in-full",
+      "prompt": "/planning:interview me Add a nightly export of order data to the analytics warehouse.\n\n[Session state: terminal lane. Round 1's Q1 to Q3 are `answered`. Round 2 was shown as Q4 (export format; recommended: Parquet, because the warehouse loader reads Parquet), Q5 (how far back the first export reaches; recommended: 90 days, from the retention setting the survey read), Q6 (whether refunds are exported as negative rows or a separate table; recommended: negative rows, from the existing finance report's shape) and Q7 (the export window; recommended: 03:30 UTC, after the nightly jobs the survey found in the repository's cron file). A sub-agent was dispatched to read the warehouse's ingest quota; Q8 (whether the export is split into batches) waits on that result and was held, so it has no register row. Before the user replies, the return lands: the warehouse accepts at most 2 GB per load, and last month's order data was 5 GB.]",
+      "expected_output": "The return contradicts no recommendation under Q4 to Q7 and answers none of them, but it releases the held Q8, which is now asked with a recommendation to split the export into batches under 2 GB, with its basis in the returned quota and the 5 GB monthly size. The message ends with one block restating every open question in full: Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with `Basis:` and its alternatives. Q4 to Q7 are not reduced to a one-line pointer to the earlier round, and no question is recorded as answered, since the user has not replied.",
+      "files": [],
+      "expectations": [
+        "Q8 is asked with a batching recommendation whose basis is the 2 GB per-load quota from the sub-agent's return",
+        "The final block of the message restates Q4, Q5, Q6, Q7 and Q8, each with its Context, its recommendation with a Basis line, and its alternatives",
+        "Q4 to Q7 are not collapsed into a one-line pointer to the earlier round",
+        "No question is recorded as answered, because the user has not replied"
       ]
     }
   ]

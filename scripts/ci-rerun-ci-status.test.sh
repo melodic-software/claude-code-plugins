@@ -77,14 +77,16 @@ list_step="$(step_of 'Check out the trusted-actors list')"
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' 'ref: refs/heads/main' 'path: .base' 'persist-credentials: false' \
   '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
-  '/.github/actions/check-kill-switch/' '/.github/actions/setup-pinned-node/' '/.node-version' 'sparse-checkout-cone-mode: false'; do
+  '/.github/actions/check-kill-switch/' '/.github/actions/setup-pinned-node/' '/.github/actions/scan-upload/' '/lib/publish-gate.mjs' \
+  '/.node-version' 'sparse-checkout-cone-mode: false'; do
   if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
 done
-# The record goes up between the find and the re-run, and each later step
-# runs only on the find step's outputs. The job ends by logging its readings.
+# The record is scanned, then goes up between the find and the re-run, and
+# each later step runs only on the find step's outputs. The job ends by
+# logging its readings.
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Find the ci-status to re-run| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
-  ok "the job finds, records, re-runs, then logs the API budget"
+if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
+  ok "the job finds, scans, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"
 fi
@@ -93,7 +95,19 @@ for want in "        id: find" "RECORD_FILE: \${{ runner.temp }}/rerun-ci-status
   if [[ "$step" == *"$want"* ]]; then ok "the find step carries '$want'"; else fail "the find step lacks '$want'"; fi
 done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for want in "if: steps.find.outputs.record != ''" 'uses: actions/upload-artifact@' 'name: ${{ steps.find.outputs.record }}' \
+# A failed checkout leaves no scanner: the scan step fails without failing
+# the job, and the record goes up only on the scan's clean output.
+scan_step="$(awk '$0 == "      - name: Scan the upload for credentials" { on = 1; print; next }
+  on && /^      - / { exit }
+  on { print }' <<<"$job")"
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
+for want in $'if: >-\n          steps.find.outputs.record != \'\'\n' 'continue-on-error: true' 'uses: ./.base/.github/actions/scan-upload' \
+  'path: ${{ runner.temp }}/rerun-ci-status-record.json'; do
+  if [[ "$scan_step" == *"$want"* ]]; then ok "the scan step carries '$want'"; else fail "the scan step lacks '$want'"; fi
+done
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
+for want in $'if: >-\n          (steps.find.outputs.record != \'\') && steps.scan-upload.outputs.clean == \'true\'\n' \
+  'uses: actions/upload-artifact@' 'name: ${{ steps.find.outputs.record }}' \
   'path: ${{ runner.temp }}/rerun-ci-status-record.json' 'if-no-files-found: error' 'overwrite: true'; do
   if [[ "$record_step" == *"$want"* ]]; then ok "the record step carries '$want'"; else fail "the record step lacks '$want'"; fi
 done

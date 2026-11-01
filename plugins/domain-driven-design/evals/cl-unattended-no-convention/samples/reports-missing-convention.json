@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "## Missing convention\n\nThe repository has no glossary convention: no glossary, context map or settings file.",
+      "why": "# heading"
+    },
+    {
+      "answer": "**No existing vocabulary convention** was found, so placement is unresolved.",
+      "why": "bold"
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| Glossary convention | not found |",
+      "why": "table"
+    },
+    {
+      "answer": "- The repo lacks a placement convention for domain vocabulary.",
+      "why": "list"
+    },
+    {
+      "answer": "I couldn't find a glossary convention in the repository.",
+      "why": "couldn't find"
+    },
+    {
+      "answer": "The repository doesn't define a vocabulary convention.",
+      "why": "doesn't define"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Created GLOSSARY.md following the default convention.",
+      "why": "claims a convention"
+    },
+    {
+      "answer": "Shipment: one physical consignment handed to a carrier.",
+      "why": "entry only"
+    }
+  ]
+}

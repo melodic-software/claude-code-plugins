@@ -48,5 +48,14 @@ test("a pull request run proves the policy denies the reads before any case runs
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'pull_request' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
-  assert.match(step("Upload the eval results"), /if: always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch'\n/);
+  // Only a dispatched run scans and uploads, and the upload needs the scan's clean output.
+  const scan = step("Scan the upload for credentials");
+  assert.match(scan, /if: >-\n {10}always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch'\n/);
+  assert.match(scan, /\n {8}id: scan-upload\n/);
+  assert.match(scan, /\n {10}path: \$\{\{ runner\.temp \}\}\/eval-results\/\n/);
+  assert.match(
+    step("Upload the eval results"),
+    /if: >-\n {10}\(always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch'\) && steps\.scan-upload\.outputs\.clean == 'true'\n/,
+  );
+  assert.ok(text.indexOf("- name: Scan the upload for credentials") < text.indexOf("- name: Upload the eval results"));
 });

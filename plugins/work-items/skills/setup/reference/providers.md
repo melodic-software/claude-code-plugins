@@ -1,10 +1,12 @@
 # Provider comparison
 
-The full bundled-provider detail behind step 2 of the provider-binding interview in `SKILL.md`.
+The full provider detail behind step 2 of the provider-binding interview in `SKILL.md`.
 Read it when choosing or re-binding a provider; the skill's own list is the summary.
 
 The seam's contract for each is `<plugin-root>/tools/work-item-tracker/CONTRACT.md`, and
-each adapter carries its own README beside it.
+each adapter carries its own README beside it. `github` and `local-markdown` are bundled under
+`adapters/`; `jira`, `gitea`, and `linear` are seeds under `seeds/`, which step 4 copies into the
+consuming repo.
 
 ## `github`: RECOMMENDED
 
@@ -75,7 +77,7 @@ cannot claim on it, and it is not a multi-agent coordination surface.
 
 Requires `config.gitea` (`host`, non-empty `scopes[]` of `owner/repo`, `auth_env`) and `curl`;
 the token is referenced by env-var name only, never stored. Optional `page_size`, `host_suffix`,
-`allow_custom_domain`. See `adapters/gitea/README.md` for its provider notes and recorded
+`allow_custom_domain`. See `seeds/gitea/README.md` for its provider notes and recorded
 deferrals, **including that no live-instance conformance pass has been run**.
 
 ## `linear`
@@ -96,7 +98,7 @@ Requires `config.linear` (`host`, non-empty `scopes[]` of `<workspace>/<TEAMKEY>
 `allow_custom_domain`. All scopes must share one workspace, because an API key reaches exactly
 one.
 
-See `adapters/linear/README.md` for its provider notes, its **documented deviation from
+See `seeds/linear/README.md` for its provider notes, its **documented deviation from
 the lease protocol** (Linear's single assignee field forces comment-ordering
 arbitration), and its recorded deferrals, **including that no live-workspace conformance
 pass has been run**.
@@ -105,7 +107,7 @@ pass has been run**.
 
 Supply the adapter consumer-local at
 `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/adapters/<provider>/`.
-The seam resolves consumer-local adapters ahead of the bundled set, so a repo can add an unshipped
+The seam resolves consumer-local adapters ahead of the bundled pair, so a repo can add an unshipped
 provider, or shadow a bundled one, without forking the plugin. Set `provider` to its name in the
 binding.
 
