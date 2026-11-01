@@ -1,0 +1,131 @@
+{
+  "skill": "gaming:dlss5",
+  "plugin": "gaming",
+  "skill_dir": "plugins/gaming/skills/dlss5",
+  "ranking_note": "Authored from the description at base commit 3a1f7a172c, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling gaming:setup is in this plugin (user-invoked only, disable-model-invocation true); no other installed plugin covers the DLSS 5 mod, so the near-miss negatives (setup phrasings, in-game DLSS settings, the NVIDIA App override, ReShade and Special K, general anti-cheat and driver questions) test quietness, not competitor wins. Positives paraphrase the actions rather than repeat the description's quoted phrases.",
+  "competitors": [
+    "gaming:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I've got Starfield installed under G:\\Games\\Starfield. Can the OptiScaler neural rendering fork go on it, and will it trip anything anti-cheat wise?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take the neural rendering mod back out of my Hogwarts Legacy folder; I want the game exactly as it was before."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Since I put the DLSSNR proxy into Alan Wake 2, something in its exe folder changed. What's different from when the mod went in?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Have the wilsjo2 or Dagherbou DLSSNR forks shipped anything new since last week, or is there a newer Game Ready driver I should know about?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I tweaked the neural rendering overlay in Black Myth: Wukong and hit Save Settings. Keep those values so the next install of the mod uses them."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Get the OptiScaler NR fork running on Indiana Jones and the Great Circle; the exe is in G:\\SteamLibrary\\steamapps\\common\\TheGreatCircle."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My overlay changes in the modded Cyberpunk made the picture worse. Put its OptiScaler.ini back the way it was right after the install."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "With the DLSSNR mod on, Stalker 2 looks oversharpened and a bit waxy. Which overlay settings should I change?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Would dropping the OptiScaler NR dxgi.dll into Marvel Rivals get my account banned?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Steam patched a game I'd modded with OptiScaler NR, and now the mod's status check reports drift. How do I get the mod onto the new build?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up the gaming plugin on this PC: data directory, runtime DLL and the pinned fork builds."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "In Cyberpunk 2077's graphics menu, should I pick DLSS Quality or Balanced at 1440p on a 4070?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How do I use the NVIDIA App's DLSS override to force the latest DLSS model in a game?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install ReShade into Elden Ring with a sharpening shader."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain how DLSS 5's neural rendering differs from DLSS 4's multi frame generation."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is my DLSS 5 setup ready? Check the GPU, the driver and the runtime DLL."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does Valorant use kernel-level anti-cheat, and why do people dislike Vanguard?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Update my NVIDIA driver to the newest Game Ready release."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Install Special K into Final Fantasy XVI so I get proper HDR."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a PowerShell script that lists every DLL in a folder with its file version."
+    }
+  ]
+}

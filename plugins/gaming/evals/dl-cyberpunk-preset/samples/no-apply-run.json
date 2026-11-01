@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb refetch -StaleDays 7" } }], "why": "the mandatory update check" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb apply 'G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64' -Build wilsjo2 -Proxy dxgi.dll -Preset cyberpunk-2077" } }], "why": "apply before the yes" }
+  ]
+}
