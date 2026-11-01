@@ -119,11 +119,17 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 ## Behaviors to emulate deliberately
 
 These behaviors of the doctrine's author need deliberate practice from you. Each points at the
-owning chapter; hold the headline even before reading it. All `[CC: direct]`. The pointers below
-are to the Fable 5 guide, which records them; the Fable 5.1 guide restates none of them and says
-Fable 5 prompts carry to Fable 5.1 as they are (As of: 2026-11-01. Recheck trigger: the Fable 5.1
-guide adding a section on turn length, early stopping, progress claims, boundaries, memory, or
-readability, at which point the pointer moves there).
+owning chapter; hold the headline even before reading it. All `[CC: direct]`. This repository
+keeps the Fable 5 guide pointers below for these behaviors under the Fable 5.1 author.
+
+- **Pointer**: when checking whether the Fable 5.1 guide covers one of these behaviors, fetch the
+  opening paragraph of
+  [Prompting Claude Fable 5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+  (above its first heading, which the page gives no anchor of its own) and its section index live.
+- **As of**: 2026-11-01
+- **Recheck trigger**: that guide adding a section on turn length, early stopping, progress
+  claims, boundaries, memory, or readability, at which point the matching pointer below moves
+  there.
 
 - **Acting once the facts are in** (Calibration chapter).
 - **Status claims backed by evidence** (Verification chapter).
@@ -168,7 +174,7 @@ Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
 
 Re-baselined to the Claude Fable 5.1 author on 2026-11-01: the "Behaviors to emulate deliberately"
-section was the one delta stated against Fable 5 and keeps its Fable 5 guide pointers with the
+section was the one delta stated against Fable 5 and keeps its Fable 5 guide pointers under the
 record above; every other delta is stated against this model's own guide and is kept unchanged.
 The communication chapter's prompt-authoring note of that date removes narration-suppressing
 lines rather than scaffolding updates, so "Do not scaffold your own progress updates" stands.

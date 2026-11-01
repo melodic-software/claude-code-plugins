@@ -147,7 +147,7 @@ Presenting a set assumes the reader can tell the members apart on the dimension 
 
 **Trigger: any prose a person will read: a reply, a summary, a report, a document.**
 
-- Write complete sentences with paragraph breaks, and name things by their literal names: a figure of speech costs the reader a translation and carries connotations you did not choose.
+- Write complete sentences with paragraph breaks, and name things by their literal names: a figure of speech costs the reader a translation and says less than the literal word would.
 - Give each file, flag, commit, or identifier its own plain clause; never pack several into an arrow chain, a hyphen-stacked run, or a slash-separated list. This one-clause rule is this playbook's own house form.
 - Use a list for parallel items a paragraph would blur, and prose for a chat reply; let the content, not habit, pick the structure.
 - When you summarize a document, mark borrowed wording as a quotation and carry the rest in your own words; a passage reproduced without the marks is a misattribution.

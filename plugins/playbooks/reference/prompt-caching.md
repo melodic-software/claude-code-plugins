@@ -174,15 +174,15 @@ across models.
   every earlier copy stays where it was sent. A new instruction or a tool change goes in as a
   mid-conversation system message; the top-level `system` and `tools` fields are frozen at
   session start. Trimming belongs to the server (compaction, context editing); a client-side
-  compaction keeps nothing of the old transcript except its summary. An edit to an earlier turn
-  restarts the cache on every model and, on the models that check the
-  prefix, invalidates every later thinking block.
+  compaction keeps nothing of the old transcript except its summary. We treat any edit to an
+  earlier turn as a cache break and as the loss of every later thinking block; which models
+  enforce the second resolves at the Preserved thinking pointer.
 - **Force a tool only on a model whose row accepts it.** Where the forcing-tool-use table rejects
   `any` and `tool`, name the tool in the prompt under `auto`, use strict tool use for schema-valid
   arguments, or structured outputs for a fixed JSON shape.
-- **Pass thinking blocks back unchanged across a model switch**, and let the API drop what the
-  target cannot read; stripping them yourself risks a 400 and saves nothing, because a dropped
-  block is not billed.
+- **Pass thinking blocks back unchanged across a model switch**, and let the API decide which
+  blocks the target reads; strip none yourself. What a dropped block costs, and whether a stripped
+  one errors, resolve at the preservation pointer.
 - **Budget prior-turn thinking** in token and cost estimates on the models that keep every turn's
   thinking in context.
 - **Sweep model and effort together** before working an older model harder: test the newer model
