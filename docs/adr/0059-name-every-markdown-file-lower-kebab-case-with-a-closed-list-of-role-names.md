@@ -35,7 +35,7 @@ is on the list because a tool, a forge, or a skill looks it up by that exact spe
 | `CLAUDE.md` | Claude Code's memory file, loaded by name ([Claude Code memory docs](https://code.claude.com/docs/en/memory)) |
 | `AGENTS.md` | imported by `CLAUDE.md` (`@AGENTS.md`), and every nested one is a row in the root `AGENTS.md` "Conventions that load on demand" table |
 | `SKILL.md` | the file Claude Code reads as a skill's entry point ([Claude Code skills docs](https://code.claude.com/docs/en/skills)); 367 tracked |
-| `REVIEW.md` | synced by name from `melodic-software/standards` (`.github/workflows/pr-check-managed-files-hosted.yml`) and cited by the root `AGENTS.md` "Code Review Rules" |
+| `REVIEW.md` | synced by name from `melodic-software/standards` (`.github/workflows/pr-check-managed-files-hosted.yml`) and linked from `docs/review/README.md`, the index the root `AGENTS.md` "Code Review Rules" pointer line names |
 | `CONTRACT.md` | the work-items tracker adapter contract, cited by section from the tracker's scripts and tests (`plugins/work-items/tools/work-item-tracker/work-item-tracker.test.sh`), 93 references |
 | `STYLE.md` | the per-style file `/animation:learn-style` writes and names in its file table (`plugins/animation/skills/learn-style/SKILL.md`) |
 | `TODO.md` | the machine-health proposals file, named as a one-time migration source in `plugins/machine-health/skills/audit/catalog/schemas/approvals.schema.json` (`migration`, "Removed in next major version"); leaves the list when that migration does |
