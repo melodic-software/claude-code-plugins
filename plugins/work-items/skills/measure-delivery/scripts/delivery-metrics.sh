@@ -178,10 +178,11 @@ done <"$TMP/merges"
 # Each `This reverts commit <sha>` a deployment's message (or a commit it merged)
 # names, kept only when the deployment's first parent reaches that sha: a
 # squash body that names a commit which only ever existed on its branch
-# reverts nothing on the default branch.
-jq -rn --rawfile raw "$TMP/deploys" --rawfile member_msgs "$TMP/member_msgs" '
+# reverts nothing on the default branch. Only deployments in the window are read.
+jq -rn --rawfile raw "$TMP/deploys" --rawfile member_msgs "$TMP/member_msgs" \
+  --argjson since "$SINCE_EPOCH" '
   (($raw | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
-     | [.[0], (.[5] // "")]))
+     | select((.[3] | tonumber) >= $since) | [.[0], (.[5] // "")]))
    + ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
      | [.[0], (.[1] // "")])))[]
   | .[0] as $d | .[1] | scan("This reverts (?:commit )?([0-9a-f]{40})") | "\($d)\t\(.[0])"
