@@ -3,6 +3,15 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1] - 2026-11-01
+
+### Fixed
+
+- The frame-capture script in `reference/running-code.md` reported `property` as `undefined` for a
+  Web Animations API animation, which has neither a CSS transition's `transitionProperty` nor a CSS
+  animation's `animationName`. It now falls back to the properties the animation's keyframes
+  animate.
+
 ## [0.15.0] - 2026-10-31
 
 ### Added

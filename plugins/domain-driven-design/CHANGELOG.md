@@ -3,6 +3,13 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.11] - 2026-11-01
+
+### Changed
+
+- The config cascade skips the setup writer's top-level `written_against` and `provenance` keys, so
+  neither reaches `values`, a layer's errors or a userConfig name.
+
 ## [0.4.10] - 2026-10-31
 
 ### Fixed

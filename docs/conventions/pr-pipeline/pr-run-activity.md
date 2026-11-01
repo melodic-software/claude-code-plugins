@@ -751,11 +751,14 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    (`fix-docs`, `resolve-issue`) or with `prepare: review-threads` (`address-feedback`, which also gets the
    review-thread tool: [`prepare: review-threads`](#prepare-review-threads)), and fails red on
    any other prepare mode, and on `checks`, `self-checks` or `verify-scripts` outside the
-   no-prepare patch skill. That skill's check and verify-script wrappers are the ones
-   [Skill activities](#skill-activities) describes, staged for `.lane/checks` and `.lane/verify`,
-   which the run job makes read-only after the copy, named there in their `Bash` rules and the
-   preamble, and denied to `Edit`, `Write` and `NotebookEdit`. An issue lane's skill also gets
-   `.lane/git/git-read`, read-only and denied to the file tools, as its one way to git:
+   no-prepare patch skill, `verify-scripts` under `prepare: ci-context` excepted: that skill's Bash
+   is bare, so its wrappers get no rule of their own, and the preamble tells the skill to run those
+   scripts only through them: an instruction, not a rule. That skill's check and verify-script
+   wrappers are the ones [Skill activities](#skill-activities) describes, staged for
+   `.lane/checks` and `.lane/verify`, which the run job makes read-only after the copy, named
+   there in their `Bash` rules and the preamble, and denied to `Edit`, `Write` and
+   `NotebookEdit`. An issue lane's skill also gets `.lane/git/git-read`, read-only and denied to
+   the file tools, as its one way to git:
    `Bash(<workspace>/.lane/git/git-read *)` runs only `git status`, `diff`, `log` and `show`, with
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
@@ -866,9 +869,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    else `unexpected-path-staged`), the credential scan and the blob caps, and escalates
    `unresolved-conflict` when a conflicted path still in the tree holds conflict markers, or
    `workflow-staged` when the tree's `.github/workflows/` differs from the head's unless it is
-   exactly the base's, no head workflow is dropped, and the PR's own diff against every merge base
-   touches no workflow. The base-side changes the merge brings pass through untouched. It lists
-   the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
+   exactly the base's and the PR's own diff against every merge base touches no workflow. The
+   base-side changes the merge brings, a workflow the base deleted or renamed included, pass
+   through untouched. It lists the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
    refuses before any write when more than `max-blobs` blobs neither parent holds would be
    uploaded, re-reads the holds and the draft state, uploads only those blobs, builds the tree on
    the head's tree and fails unless it hashes to the merge tree, creates
@@ -960,8 +963,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
-   (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
-   only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
+   (routed to a failing status and the `needs-session` queue) while any review thread is
+   unresolved, and skips `not-applicable` only when none is. While the PR carries `needs-session`
+   and the lanes App's address-feedback lane-stopped comment names this head with a reason routed
+   to it, an unresolved thread skips `awaiting-session` instead, so the stop stands without a
+   second escalation. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
    unresolved thread, so such a head reaches this step once: its lane-stopped check then ends the
    head, which a reply job's skip does not release. A failed reply job with no escalation reason
    (its lane token, a script error) stops as `feedback-publish-failed`, which `pr-unblock.yml`
@@ -1465,7 +1471,13 @@ its fallback call on the role's OAuth token after the key call hands off
    read-only, denies Edit and Write there and on the staged plugin, and grants the skill Bash,
    Edit, Write and Agent with the web tools denied: the job holds no write token, and the skill
    reruns the failing checks. The launcher's preamble names the file, since run-claude-cli takes
-   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)).
+   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)). Each
+   of the activity's `verify-scripts` is staged as its base copy behind a wrapper under
+   `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run
+   those scripts only through the wrappers. Nothing enforces that: Bash, Edit and Write stay open,
+   so the skill could run the checkout's copy or edit a digest by hand. The controls are review of
+   the patch and apply-patch's `ci-context` patch rules, which refuse workflow, settings and
+   similar paths but admit a test file.
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
