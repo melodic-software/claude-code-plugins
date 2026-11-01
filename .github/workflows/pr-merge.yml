@@ -532,6 +532,9 @@ jobs:
         with:
           path: ${{ runner.temp }}/dispatched.json
 
+      # Kept 30 days: a lane merge is judged on this record only until a check
+      # settles it (the identity's settled marker on its pull request); after
+      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
@@ -1433,6 +1436,39 @@ jobs:
           elif [ "$code" -eq 4 ]; then
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
+
+      # Each lane merge the check above judged verified from a readable read,
+      # with nothing left that could change it, is listed in its report's
+      # `settle`. This posts the agent identity's settled marker on each one's
+      # pull request under the lane token, as the pin comment is posted, since
+      # only the identity's unedited marker counts. Later checks count a
+      # settled merge verified without reading its runs or its
+      # pr-merge-dispatched artifact, so the 30-day retention of that artifact
+      # no longer fails an old merge. A failed post is a warning: the merge is
+      # listed again on the next run's check.
+      - name: Settle verified lane merges
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          report=$RUNNER_TEMP/post-merge.json
+          if ! jq -e '.settle | length > 0' "$report" >/dev/null 2>&1; then
+            exit 0
+          fi
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --settle-from "$report" \
+            </dev/null >"$RUNNER_TEMP/post-merge-settle.json"
+          cat "$RUNNER_TEMP/post-merge-settle.json"
+          jq -r '.warnings[]' "$RUNNER_TEMP/post-merge-settle.json" | while IFS= read -r warning; do
+            echo "::warning::$warning"
+          done
 
       # A whole-review request (babysit_whole_review.py) converts a lane or
       # adopted PR to a draft and marks it ready again; a run that ended
@@ -2817,6 +2853,9 @@ jobs:
         with:
           path: ${{ runner.temp }}/dispatched.json
 
+      # Kept 30 days: a lane merge is judged on this record only until a check
+      # settles it (the identity's settled marker on its pull request); after
+      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
         if: >-
           (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
