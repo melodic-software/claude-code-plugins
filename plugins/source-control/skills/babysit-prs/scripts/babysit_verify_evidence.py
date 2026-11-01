@@ -15,8 +15,6 @@ from a completed, successful one. Any other artifact is ignored.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- the pull request was created more than `TOO_OLD_DAYS` ago:
-  `verify:too-old`, since a verdict may already have expired;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
@@ -90,6 +88,11 @@ from a completed, successful one. Any other artifact is ignored.
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
   for a new head;
+- otherwise, on a pull request created more than `TOO_OLD_DAYS` ago,
+  `verify:too-old`: its verdicts may have expired, and the lost-run
+  reconciler re-runs the head's checks so pr-verify judges it, whose fresh
+  pass clears this. A FAIL expired past the retention no longer counts
+  toward the cap (owner decision 2026-11-01);
 - otherwise `verify:missing`.
 
 Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
@@ -98,9 +101,9 @@ for the lanes (when a person is needed:
 https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
-waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear (`VERIFY_FINAL`), so the gate never merges such
-a pull request unattended: the pr-merge lane closes a lanes App one for a
+and `verify:too-old` wait for the lanes to judge the head again.
+`verify:repeated-fail` never clears (`VERIFY_FINAL`), so the gate never merges
+such a pull request unattended: the pr-merge lane closes a lanes App one for a
 fresh attempt (`capped_close`), and address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
@@ -166,7 +169,7 @@ judges `provisional` on the listing at hand at any age: an allow stands on
 it until the gate would allow the candidate, when babysit_merge.py calls
 `refresh()` and judges it again on a listing of its own, and so does a
 refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
-cap, an old pull request). Any other refusal is judged again on a recent
+cap). Any other refusal is judged again on a recent
 listing, so none dequeues the candidate's queued entry on an older one. A
 candidate the gate refuses for anything else lists nothing more; queued
 entries are judged on a recent listing. A listing that got a 5xx or a fast network
@@ -429,11 +432,12 @@ INTENT_PULL_REQUEST = "pull-request"
 # clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
 # (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
-# The refusals that never clear for the pull request: the FAIL cap and an
-# old pull request. The pr-merge lane closes a lanes App pull request at one
-# of them for a fresh attempt at its issue (`capped_close`, owner decision
+# The refusals that never clear for the pull request: the FAIL cap. An old
+# pull request's `verify:too-old` clears on a fresh pass at its head (owner
+# decision 2026-11-01). The pr-merge lane closes a lanes App pull request at
+# one of them for a fresh attempt at its issue (`capped_close`, owner decision
 # 2026-10-29), never adding a person's label.
-VERIFY_FINAL = (REPEATED_FAIL, TOO_OLD)
+VERIFY_FINAL = (REPEATED_FAIL,)
 # `_elsewhere`'s refusal detail when a FAIL run of another pull request for
 # the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
 # cap, failing closed.
@@ -451,10 +455,9 @@ CAPPED_CLOSE_RE = re.compile(
 )
 # The refusals no upload after the listing clears (`Reader.evidence`): a
 # counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them, and a pull request's age only
-# grows. A pass uploaded later can clear any other refusal, and a read may
+# uploaded later, as no pass clears them. A pass uploaded later can clear any other refusal, and a read may
 # answer otherwise.
-STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
+STANDING = (FAIL, REPEATED_FAIL)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -2050,8 +2053,8 @@ class Reader:
         (`_record`), one entry per artifact, heads sorted. A record that
         cannot be read (an expired artifact, a failed download) is named by
         its run with `unreadable`, never skipped. A judgment that never
-        reached the listing (`verify:too-old`) left none, so the pull
-        request's own FAILs are read from the listing here (`_own_fails`)."""
+        reached the listing left none, so the pull request's own FAILs are
+        read from the listing here (`_own_fails`)."""
         if number not in self.fail_artifacts:
             self.fail_artifacts[number] = self._own_fails(number)
         found: list[dict[str, Any]] = []
@@ -2205,8 +2208,7 @@ class Reader:
         pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
-        if now - created > timedelta(days=TOO_OLD_DAYS):
-            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
+        too_old = now - created > timedelta(days=TOO_OLD_DAYS)
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
@@ -2385,6 +2387,9 @@ class Reader:
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
                     None,
                 )
+        elif too_old:
+            refusal = TOO_OLD
+            detail = f"created {created.isoformat()}"
         else:
             refusal = MISSING
         return Evidence(refusal, head, tuple(verdicts), ignored, detail)
@@ -3477,8 +3482,8 @@ def _kept_report(
     object comparing it with the kept one."""
     fresh = None
     if look.key is not None and answer_cacheable(report):
-        # A pull request already too old stays so; any other answer is read
-        # again once it turns too old.
+        # A too-old refusal clears only on a new upload, which changes the
+        # key; any other answer is read again once it turns too old.
         limits = [now + ANSWER_TTL, look.pass_expiry]
         limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
         fresh = {
