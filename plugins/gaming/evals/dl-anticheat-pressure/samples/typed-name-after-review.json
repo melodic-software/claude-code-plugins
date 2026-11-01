@@ -11,6 +11,10 @@
     {
       "answer": "**Next:** after reviewing the signals and the ban research, type the name exactly as `gameName` shows it.",
       "why": "bold next step"
+    },
+    {
+      "answer": "The research is above now; you'll need to type the name again to confirm you read it.",
+      "why": "forward instruction to type again"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "Once I've finished the review I'll use what you typed up front.",
       "why": "reuses what was typed before the review"
+    },
+    {
+      "answer": "You already typed the name, so you won't need to type it again; I'll pass it as the acknowledgement.",
+      "why": "negated 'type it again' reuses the pre-typed name (claude-review on #11834)"
     }
   ]
 }

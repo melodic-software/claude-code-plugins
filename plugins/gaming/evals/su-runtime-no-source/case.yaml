@@ -3,7 +3,7 @@ name: su-runtime-no-source
 graders:
   - name: three-remedies
     type: regex
-    pattern: '^(?=[\s\S]*\bruntime_dll\b)(?=[\s\S]*\bruntime_source\b)(?=[\s\S]*\b(?:DLSS 5 (?:title|game)|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b)'
+    pattern: '^(?=[\s\S]*\bruntime_dll\b)(?=[\s\S]*\bruntime_source\b)(?=[\s\S]*\b(?:DLSS 5 (?:title|game)s?|(?:title|game) that ships (?:it|the DLL|DLSS 5)|native DLSS 5)\b)'
     flags: 'i'
     target: last_message
   - name: no-third-party-host
