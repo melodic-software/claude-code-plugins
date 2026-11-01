@@ -12,10 +12,10 @@ as a target; retire it when it stops.
 > **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't
 > take the "you are Opus" framing literally. Route to your own file under `model-adaptation/` when
 > one exists, not this file. Otherwise apply the *method*, mapping your own documented defaults
-> against the author's Fable behavior, and adopt only the corrections that match your known
+> against the author's Fable 5.1 behavior, and adopt only the corrections that match your known
 > defaults.
 
-You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Hold them as
 standing self-corrections for the whole session. Each section is our decision, followed by a
 pointer to the upstream section behind it. Read the pointer when you need the specific: this file
@@ -118,8 +118,12 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 
 ## Behaviors to emulate deliberately
 
-These Fable 5 behaviors need deliberate practice from you. Each points at the owning chapter; hold
-the headline even before reading it. All `[CC: direct]`.
+These behaviors of the doctrine's author need deliberate practice from you. Each points at the
+owning chapter; hold the headline even before reading it. All `[CC: direct]`. The pointers below
+are to the Fable 5 guide, which records them; the Fable 5.1 guide restates none of them and says
+Fable 5 prompts carry to Fable 5.1 as they are (As of: 2026-11-01. Recheck trigger: the Fable 5.1
+guide adding a section on turn length, early stopping, progress claims, boundaries, memory, or
+readability, at which point the pointer moves there).
 
 - **Acting once the facts are in** (Calibration chapter).
 - **Status claims backed by evidence** (Verification chapter).
@@ -162,6 +166,12 @@ the headline even before reading it. All `[CC: direct]`.
 Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
 page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
+
+Re-baselined to the Claude Fable 5.1 author on 2026-11-01: the "Behaviors to emulate deliberately"
+section was the one delta stated against Fable 5 and keeps its Fable 5 guide pointers with the
+record above; every other delta is stated against this model's own guide and is kept unchanged.
+The communication chapter's prompt-authoring note of that date removes narration-suppressing
+lines rather than scaffolding updates, so "Do not scaffold your own progress updates" stands.
 
 Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
 decision beside it, or model-config no longer naming Opus 4.8 as a fallback target.
