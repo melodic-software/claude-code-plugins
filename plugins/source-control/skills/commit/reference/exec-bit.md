@@ -1,62 +1,67 @@
 # Exec-bit check: rationale and manual fallback
 
-The mechanic lives in `<skill-dir>/scripts/exec-bit-check.sh`. Run it; this file explains why it
-does what it does, and what to do when it cannot run.
+The mechanic lives in `<skill-dir>/scripts/exec-bit-check.sh`. Run it;
+this file explains why it does what it does, and what to do when it cannot run.
 
 ## Why a script rather than prose
 
-The rule is simple and the failure silent: a long session stops executing a paragraph it read fifty
-turns ago, and nothing looks wrong until the consuming repo's CI rejects a `100644` shebang file.
-Prose decays first, so the procedure is a command, and this file holds only the reasoning.
+The rule is simple and the failure is silent, which is the worst combination for prose: a long
+session stops executing a paragraph it read fifty turns ago, and nothing about the commit looks
+wrong until the consuming repo's CI rejects a `100644` shebang file. Prose is the tier that decays
+first, so the ordered procedure is a command, and the prose here is only the reasoning behind it.
 
 ## What it checks
 
 Every path this change stages at a **new** index entry whose staged blob begins with `#!` while its
 staged mode is `100644`.
 
-- **Newly-added only.** An already-tracked executable file needs no action, and a full-repo sweep
-  is a different job with a different blast radius.
+- **Newly-added only.** An already-tracked file that was already executable needs no action, and a
+  full-repo sweep is a different job with a different blast radius.
 - **New means new *entry*, not the letter `A`.** The same staged file reports as `A <path>` with
   rename/copy detection off and as `R<score> <old> <new>` or `C<score> <src> <dst>` with it on.
   Rename detection is on by default (`diff.renames`) and copy detection turns on with
-  `diff.renames=copies`, so keying on `A` alone would fail open on the consumer's diff
-  configuration. **A rename and a copy are not symmetric here**, so they are judged differently:
+  `diff.renames=copies`, so keying on `A` alone would make the check fail open on the consumer's
+  diff configuration. **A rename and a copy are not symmetric here**, so the two are judged
+  differently:
   - A **rename** destination is the same tracked file at a new path, so it is a candidate **only
-    when its source was `100755`**: that makes it a *dropped* bit rather than a tracked file's own
-    deliberate `100644` moving along. A `core.filemode=false` platform drops the bit on `mv` plus
-    `git add`; a sourced library or template with a shebang and no exec bit is not a defect and is
-    never touched.
+    when its source was `100755`**: that is what makes it a *dropped* bit rather than a tracked
+    file's own deliberate `100644` riding along through a move. Dropping the bit is what a
+    `core.filemode=false` platform produces on `mv` plus `git add`; a sourced library or template
+    with a shebang and no exec bit is not a defect and is never touched.
 
     **The rename arm is the one place the check's answer still depends on `diff.renames`,** and it
-    splits on the *default* setting: `git mv` of a `100644` shebang file reads as `D`+`A` under
-    `diff.renames=false` and **is** reported through the `A` branch, while the same index and HEAD
-    read as `R100` under the default `diff.renames=true` and are **not**. The gate stays because
-    dropping it would flip a deliberately non-executable sourced library to `100755` whenever it
-    moves, and making the `A` branch match would report *less*, risking silence on genuinely new
-    files. So
+    splits on the *default* setting rather than an opt-in one: `git mv` of a `100644` shebang file
+    reads as `D`+`A` under `diff.renames=false` and **is** reported through the `A` branch, while
+    the same index and the same HEAD read as `R100` under the default `diff.renames=true` and are
+    **not**. Only the config differs. The gate stays because dropping it would flip a deliberately
+    non-executable sourced library to `100755` whenever someone moves it, and making the `A` branch
+    match would buy agreement by reporting *less*, at the risk of silencing genuinely new files. So
     **content-determinism is a property of the `A` and `C` classes, not of the whole tool**; do not
     restate it unqualified.
-  - A **copy** destination is a path that did **not** previously exist, so it is newly added
-    whatever the source's mode, and a candidate unconditionally, exactly as an `A` is. Gating it on
-    the source mode would make the answer depend on `diff.renames`: the same staged content would
-    be reported as `A` with copy detection off and missed as `C` with it on.
+  - A **copy** destination is a path that did **not** previously exist, so it is newly added no
+    matter what the source's mode was, squarely inside the newly-added-only scope. It is a
+    candidate unconditionally, exactly as an `A` is. Gating it on the source mode is what made the
+    answer depend on `diff.renames` after all: the same staged content reported as `A` with copy
+    detection off and went unreported as `C` with it on.
 
   The `100644`-plus-shebang filter then does the rest on either arm, so a destination that carried
   its source's `100755` through is dropped too. The rename arm is why the scan reads
   `git diff --cached --raw` rather than `--name-status`: only the raw record carries the source
-  mode. A pathspec matching only the source side breaks the pairing back into `D`/`M`, so a scoped
-  run never reaches a destination the caller did not name.
+  mode. A pathspec that matches only the source side breaks the pairing back into `D`/`M`, so a
+  scoped run can never reach a destination the caller did not name.
 - **Symlinks skipped first.** A symlink stages as mode `120000`. Git tracks the link's own mode,
-  not its target's, so exec-bit semantics do not apply; `git update-index --chmod=+x` fails on a
-  `120000` entry, and following the link to `chmod` its target could reach a file outside the
-  repository. So the staged mode is checked **before** anything probes for a shebang.
-- **The shebang is read from the staged blob**, not the worktree file: the index is what a plain
-  commit records, and `git cat-file blob <sha>` sidesteps every quoting hazard of a worktree path.
+  not its target's, so exec-bit semantics do not apply; `git update-index --chmod=+x` fails outright
+  on a `120000` entry, and following the link to `chmod` its target could reach a file outside the
+  repository entirely. The staged mode is therefore checked **before** anything probes for a
+  shebang.
+- **The shebang is read from the staged blob**, not the worktree file. The index is what a plain
+  commit records, and reading `git cat-file blob <sha>` also sidesteps every quoting hazard a
+  worktree path carries.
 
 ## Why both the worktree bit and the index entry
 
-`git update-index --chmod=+x` overrides the **index entry only**, leaving the worktree file's mode
-untouched. A worktree/index mismatch causes three failures:
+`git update-index --chmod=+x` overrides the **index entry only**; it leaves the worktree file's
+actual mode untouched. A worktree/index mismatch causes three separate failures:
 
 1. `git status` reports a mode-only diff immediately after the commit;
 2. a later `git add <path>` re-reads the still-`0644` worktree mode and reverts the index to
@@ -64,69 +69,76 @@ untouched. A worktree/index mismatch causes three failures:
 3. the pathspec-limited commit form (`git commit -- <path>`, `--only` mode) records the **worktree**
    mode rather than the index, so an index-only fix still ships a non-executable blob.
 
-So the worktree bit is set first, then the index: the order that survives a later `git add`.
+So the worktree bit is set first, then the index. That order is the one that survives a later
+`git add`.
 
-**And the index write is never optional.** Under `core.filemode=false`, the Windows/NTFS default, git
-ignores worktree permission bits and stages everything `100644`, so `chmod +x` alone **never**
-reaches the index and `git update-index --chmod=+x` is the only way to a `100755` entry.
+**And the index write is never optional.** Under `core.filemode=false`, the default on
+Windows/NTFS, git ignores worktree permission bits entirely and stages everything `100644`. On
+such a repository `chmod +x` alone **never** reaches the index, and `git update-index --chmod=+x`
+is the only thing that can produce a `100755` entry.
 `exec-bit-check.test.sh` pins the behavior with `core.filemode` set explicitly, so the case tests
 the same thing on every platform.
 
 ## `--fix` refuses an unscoped run
 
-`--fix` mutates index entries, so it requires an explicit scope: `-- <path>...` (this commit's
-paths) or `--all` as a deliberate whole-index opt-in. Without one it exits 2 and changes nothing.
+`--fix` mutates index entries, so it requires an explicit scope: either `-- <path>...` (this
+commit's paths) or `--all` as a deliberate whole-index opt-in. Without one it exits 2 and changes
+nothing.
 
-The reason is surgical staging. The staged set can hold another concurrent session's work (the
-premise of the pathspec-limited commit form), and silently rewriting its mode entries and
-`chmod`-ing its worktree files is the blanket mutation `git add -A` is banned for.
+The reason is this skill's own surgical-staging discipline. The staged set can hold another
+concurrent session's work, the whole premise of the pathspec-limited commit form, and silently
+rewriting that session's mode entries, plus `chmod`-ing its worktree files, is exactly the blanket
+mutation `git add -A` is banned for. A fixer whose default is "everything staged" would invert the
+skill's default.
 
 `--list` and `--probe` stay unscoped by default: they only read, so a whole-index view is useful
-and harmless.
+and harmless. That asymmetry is deliberate, not an oversight.
 
 ## Repository-root anchoring
 
-Every mode anchors at the repository root first. `git diff --cached --name-status` emits paths
-relative to the **repository root**, but a `git ls-files` pathspec resolves against the
-**current directory**. From a subdirectory every lookup misses and the check reports no offenders even when
-they exist: a fail-open backstop, worse than none.
+Every mode anchors at the repository root before doing anything. `git diff --cached --name-status`
+always emits paths relative to the **repository root**, but a `git ls-files` pathspec resolves
+against the **current directory**. Run from a subdirectory those two disagree, every lookup misses,
+and the check reports no offenders even when they exist, a fail-open backstop, which is worse than
+no backstop at all.
 
 Caller pathspecs are relative to the caller's cwd, so they are re-anchored via
 `git rev-parse --show-prefix` **before** the directory change; otherwise a scoped `--fix` run from a
 subdirectory would silently match nothing. Absolute paths and `:`-prefixed magic pathspecs are
-already unambiguous and left alone.
+already unambiguous and are left alone.
 
-The skill's config-layer probes anchor the same way, for the same reason: from a subdirectory they
-would report both repo-scoped config layers absent and silently drop the team convention and
-`trailer_policy`.
+The skill's config-layer probes anchor the same way, for the same reason: a session
+started in a subdirectory would otherwise report both repo-scoped config layers absent and silently
+drop the team convention and `trailer_policy`.
 
 ## Symlinks: two different cases
 
 - **Staged as a symlink** (mode `120000`): skipped before the shebang probe, as described above.
 - **Staged as a regular file but replaced in the worktree by a symlink**: *refused*, not skipped.
-  `-e` follows a symlink, so an unguarded `chmod +x` would make the link's **target** executable,
-  a file that can sit outside the repository. So the `-L` test runs **before** `-e`, and the path
-  is reported as a failure rather than silently handled.
+  This is a worktree/index disagreement, and it is a real escape: `-e` follows a symlink, so an
+  unguarded `chmod +x` would make the link's **target** executable, a file that can sit entirely
+  outside the repository. The `-L` test therefore runs **before** `-e`, and the path is reported as
+  a failure rather than silently handled.
 
 ## Path output modes
 
-`--list` is newline-delimited. A git pathname may contain a newline, breaking the
-one-record-per-line contract, so such a path is shell-quoted (`%q`) to keep the ambiguity visible.
-`--probe` does the same, since it is injected into skill context as a single line. Use
-**`--list0`** (NUL-delimited) for full unambiguity, since NUL is the one byte a git pathname cannot
-contain. Pair it with `read -r -d ''`.
+`--list` is newline-delimited. A git pathname may legally contain a newline, which would break the
+one-record-per-line contract, so such a path is shell-quoted (`%q`) to keep the ambiguity visible
+rather than silent. `--probe` does the same, since it is injected into skill context as a single
+line. Use **`--list0`** (NUL-delimited) when a caller needs full unambiguity, since NUL is the one byte a
+git pathname cannot contain. Pair it with `read -r -d ''`.
 
 ## Ordering within the commit flow
 
 Run the exec-bit check **after** the format-before-push check, never before. The format check
-re-stages its fixes with `git add`, and (on a `core.filemode=true` repository) that re-add re-reads
-the worktree mode, silently undoing an earlier exec-bit fix. Running the exec-bit check last makes
-it the final mutation for the affected paths.
+re-stages its own fixes with `git add`, and (on a `core.filemode=true` repository) that re-add
+re-reads the worktree mode, silently undoing an exec-bit fix applied earlier. Running the
+exec-bit check last makes it the final mutation for the affected paths.
 
 ## Manual fallback
 
-If the script is unavailable (an unusual install layout, or the skill's guidance followed without
-the plugin), the equivalent inline form is:
+If the script is unavailable, because of an unusual install layout or a consumer running the
+skill's guidance without the plugin, the equivalent inline form is:
 
 ```bash
 for f in <newly-added paths>; do

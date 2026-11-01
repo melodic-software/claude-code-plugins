@@ -16,7 +16,8 @@ Config layer (user-global): !`test -f "$HOME/.claude/source-control.md" && echo 
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined:
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
 
 - Current branch, `git branch --show-current`
 - Staged, `git diff --cached --stat | tail -1`
@@ -24,24 +25,25 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Recent commits, `git log --oneline -5`
 
 **The two pipes are the bound and belong in the command.** The Bash tool returns a command's
-full output into context, so a read-time cap ("read only the summary line") bounds nothing; `head`
-and `tail` truncate before the result exists. These are ordinary body Bash calls, so the
-one-invocation composition of the `## Pre-computed context` block does not apply.
+complete output into context before there is anything to decide about, so a read-time cap ("read
+only the summary line") bounds nothing; `head` and `tail` truncate before the result exists. These
+are ordinary body Bash calls, not pre-compute, so the one-invocation composition that applies to the
+`## Pre-computed context` block does not apply here.
 
 Before the layer probes, classify the config root with `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify`. For `home` or `non-repo`, report team and overlay as not applicable, skip the three probes, and read user-global only ([../../reference/config-resolution.md](../../reference/config-resolution.md), "The three layers").
 
 The team value of the convention keys (`subject_pattern`, `type_list`, `trailer_policy`) comes from
-`docs/conventions/source-control.yaml`. Read it first, when git-tracked
+`docs/conventions/source-control.yaml`. Read it first, when it is git-tracked
 (`git ls-files --error-unmatch -- ":/docs/conventions/source-control.yaml"`), through
 `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$ROOT" <key>`, which prints `yaml`,
 `legacy-md` or `none` for a key; `value` and `list` print the YAML's value. A key the YAML carries is
-authoritative for the team layer; only a key it lacks is read from the legacy markdown layers below,
+authoritative for the team layer. Only a key it lacks is read from the legacy markdown layers below,
 the compatibility read kept for one release. Report which layer supplied each value.
 
-Then resolve the repo-scoped legacy markdown layers (the compatibility read) as separate calls. Each
-uses git's magic pathspec `:/`, which resolves against the top of the working tree, so these work
-from any subdirectory with no root substituted in. **Quote the pathspec**: the leading `:` is
-pathspec magic, and quoting keeps the shell from reinterpreting it.
+Then resolve the repo-scoped legacy markdown layers (the compatibility read) as separate calls. Each uses git's repo-root-relative
+magic pathspec `:/`, which resolves against the top of the working tree, so these are correct from
+any subdirectory and never need the repository root substituted into them. **Quote the pathspec**,
+the leading `:` is pathspec magic, and quoting keeps the shell from reinterpreting it.
 
 1. Legacy team layer, trackedness.
    `git ls-files --error-unmatch -- ":/.claude/source-control.md"`
@@ -50,11 +52,11 @@ pathspec magic, and quoting keeps the shell from reinterpreting it.
 3. Personal overlay, existence.
    `git ls-files --cached --others -- ":/.claude/source-control.local.md"`
 
-Probes 2 and 3 omit `--exclude-standard`, so a gitignored file is still listed: the personal
-overlay is expected to be gitignored, and an untracked team file must be *seen* to be reported as
-untracked.
+Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
+personal overlay is expected to be gitignored, and an untracked team file has to be *seen* before it
+can be reported as untracked.
 
-**Combine probes 1 and 2 in that order**: trackedness first, existence consulted only when
+**Combine probes 1 and 2 in that order**. Trackedness first, existence consulted only when
 trackedness comes back nonzero. They are not independent readings:
 
 | Trackedness (1) | Existence (2) | Team-layer state |
@@ -63,40 +65,43 @@ trackedness comes back nonzero. They are not independent readings:
 | nonzero | non-empty output | `present but UNTRACKED`, deliberately **not** a config layer |
 | nonzero | empty output | `absent` |
 
-A single `--error-unmatch` call exits nonzero for both of the last two rows; probe 2 exists to
-separate them.
+A single `--error-unmatch` call cannot separate the last two rows; it exits nonzero for both. That
+is the whole reason probe 2 exists.
 
-**A nonzero exit from probe 1 is a result, not a failure**; probe 2 resolves which answer it is.
-Only a probe that could not run at all (git unavailable, not a repository) yields an unknown value
-to carry on past. Never fold `present but UNTRACKED` into "unknown": they mean opposite things, and
-treating the untracked case as unknown readmits a file the resolution rules exclude.
+**A nonzero exit from probe 1 is a result, not a failure**. It answers the question, and probe 2
+resolves which answer it is. The unknown-value rule is narrower than that: only a probe that could
+not run at all (git unavailable, not a repository) yields an unknown value to carry on past. Never
+fold `present but UNTRACKED` into "unknown". They mean opposite things, and treating the untracked
+case as unknown is exactly what readmits a file the resolution rules exclude.
 
 Keep the git lines above out of `## Pre-computed context`: the harness composes that block into one
 shell invocation, and a worktree-isolated agent refuses a git-bearing compound command it cannot
 statically verify.
 
-**These are snapshots taken when they run, not substitutes for the checks.** The exec-bit line sees
-only what was staged when the skill loaded, not what step 2 stages, so step 4 re-runs the script.
-The config-layer probes report **presence**, not merged content: read the present layers and merge
-them per key. A team layer reported `present but UNTRACKED` is not a layer: resolution requires the
-team file to be git-tracked, so an untracked or gitignored file at that path must not drive the
+**These are snapshots taken when they run, not substitutes for the checks.** The exec-bit
+line only sees what was already staged when the skill loaded; anything staged in step 2 below is
+invisible to it, so step 4 re-runs the script for real. The config-layer probes report **presence**,
+not merged content. Read the layers that are present and merge them per key. A tracked-team layer
+reported `present but UNTRACKED` is deliberately not a layer: resolution requires the team file to
+be git-tracked, so an untracked or gitignored file at that well-known path must not drive the
 convention.
 
 **Every repo-scoped probe anchors at the repository root**, via the `:/` magic pathspec, never at
 the session's current directory. A session started in a subdirectory would otherwise look for
-`<cwd>/.claude/`, report both repo-scoped layers absent, silently drop the team convention and
-`trailer_policy`, and commit with the wrong subject shape or attribution. Never substitute a
-resolved root path into a probe: a root containing `$(…)`, a backtick, or a double quote is *not*
-made safe by double-quoting the substituted text (the substitution still evaluates, or the quote
-terminates the argument), and `:/` never substitutes the root at all. This matches the
-root-resolution requirement in
-[`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md); the
-probes must not disagree with it. `exec-bit-check.sh` anchors itself the same way.
+`<cwd>/.claude/` and report both repo-scoped layers absent. Silently dropping the team convention
+and `trailer_policy`, and producing a commit with the wrong subject shape or attribution. Never
+substitute a resolved root path into a probe instead: a repository root containing `$(…)`, a
+backtick, or a double quote is *not* made safe by wrapping the substituted text in double quotes
+(the substitution still evaluates, or the quote terminates the argument), and `:/` never
+substitutes the root at all. This matches the root-resolution requirement
+[`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md)
+already states for resolution itself; the probes must not disagree with it. `exec-bit-check.sh`
+anchors itself the same way.
 
 ## Per-commit checklist
 
-Run this list **for every commit**, including the second and tenth of a session, as commands, not
-remembered facts. Steps 3–5 are the ones a long session silently stops performing.
+Run this list **for every commit**, including the second and tenth commit of a session. These are
+commands, not remembered facts. Steps 3–5 are the ones a long session silently stops performing.
 
 1. **Resolve** the convention + `trailer_policy` across all three config layers (once per session
    is enough; re-resolve if a layer changed).
@@ -111,15 +116,16 @@ remembered facts. Steps 3–5 are the ones a long session silently stops perform
 
 ## Purpose
 
-Builds a commit message that honors a subject convention, appends a `Co-authored-by:` trailer, and
-feeds it to `git commit` via stdin, without these failure modes:
+Encapsulates the canonical mechanic for building a commit message that honors a subject convention,
+appending a `Co-authored-by:` trailer, and feeding the result to `git commit` via stdin, without
+these failure modes:
 
 - **PowerShell here-string syntax (`@'...'@`) inside a Bash tool call** produces `unexpected EOF` and
-  triggers fallback to writing the message to `.git/<TEMP>.txt`. Scratch files in `.git/`, git's
-  internal directory, collide with `COMMIT_EDITMSG` and other internals.
+  triggers fallback to writing the message to `.git/<TEMP>.txt`. `.git/` is git's internal directory;
+  scratch files there collide with `COMMIT_EDITMSG` and other internals.
 - **`git commit -m "<multi-line>"`** flattens newlines unpredictably across shells.
-- **`git add -A` / `git add .`** stages secrets, build artifacts and unrelated edits; stage
-  surgically instead.
+- **`git add -A` / `git add .`** stages secrets, build artifacts, unrelated edits, the convention is
+  surgical staging.
 
 ## Subject convention ladder
 
@@ -129,15 +135,15 @@ The subject convention (WHAT shape a subject must take) resolves via a ladder, c
    (`docs/conventions/source-control.yaml`, then the legacy `source-control.md` for a key the YAML
    lacks), and gitignored personal overlay, merged per key by
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
-   Resolve all three layers before using any value; one layer alone is not the effective config.
-   When any layer declares one, the effective `subject_pattern` (and `type_list`, when
+   Resolve all three layers before using any value; a value from one layer alone is not the effective
+   config. When any layer declares one, the effective `subject_pattern` (and `type_list`, when
    Conventional-Commits-shaped) is authoritative. Before pre-checking, expand `subject_pattern`: the
    literal keyword `Conventional Commits` expands to the anchored pattern in step 3 below; anything
-   else is already a single anchored regex, used as-is.
-2. **The consuming project's own `CLAUDE.md`, `AGENTS.md`, rules, or commit-msg hook**: if the
-   merged config declares no `subject_pattern` (absent from every layer, including when layers exist
-   but contribute only other keys) and the project declares (or enforces via lefthook, husky,
-   commitlint, or a plain `.git/hooks/`) a different convention, follow that.
+   else is already a single anchored regex and is used as-is.
+2. **The consuming project's own `CLAUDE.md`, `AGENTS.md`, rules, or commit-msg hook**, if the
+   effective merged config declares no `subject_pattern` (absent from every layer, which includes the
+   case where layers exist but only contribute other keys) but the project declares (or enforces via
+   lefthook, husky, commitlint, or a plain `.git/hooks/`) a different convention, follow that instead.
 3. **Conventional Commits (11-type vocabulary)**, the default when neither of the above is present.
    Every subject must match this anchored pattern:
 
@@ -152,22 +158,23 @@ Compliant examples:
 - `docs: clarify rebase guidance`
 - `refactor(skills)!: rename /simplify to /code-review`
 
-The 11 types, `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`, are the set
+The 11 types. `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`. Come from
 the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional`
-source, and `amannn/action-semantic-pull-request`'s default `types` list all agree on. `security` is
-**not** a Conventional Commits type in any of them; never add it.
+source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact
+set. `security` is **not** a Conventional Commits type in any of them, never add it.
 
-A project's commit-msg git hook is the authoritative gate whichever rung resolved the pattern; this
-skill's pre-check only fast-fails client-side before the hook round-trip. When no layer resolves a
-`subject_pattern` and nothing is inferable from the project's own files, point the user at
-`/source-control:setup` to persist a convention instead of re-inferring one every commit.
+When the project enforces its convention with a commit-msg git hook, that hook is the authoritative
+gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail
+client-side before the hook round-trip. When no layer resolves a `subject_pattern` and nothing is
+inferable from the project's own files, point the user at `/source-control:setup` to persist a
+convention instead of re-inferring one every commit.
 
 ## Task
 
 1. Survey working tree (`git status`, `git diff --cached --stat`) to confirm what's staged.
 2. Stage the intended files, but first check each path against these four pre-existing conditions,
-   *before* this step touches anything. `git add` silently overwrites each state rather than
-   erroring, and in three of the four `git diff --stat` reads empty, so the obvious check misses it.
+   *before* this step touches anything. Each is a state `git add` silently overwrites rather than
+   errors on, and in three of the four `git diff --stat` reads empty, so the obvious check misses it.
    Rationale for each is in [reference/staging-preconditions.md](reference/staging-preconditions.md).
 
    | Condition | Detect with | Action |
@@ -180,8 +187,9 @@ skill's pre-check only fast-fails client-side before the hook round-trip. When n
    Run `git add <path>...` only for paths in none of those four states.
 3. Run the [format-before-push check](reference/format-check.md) against the files just staged for
    this commit (not the full staged set), re-staging any fixes.
-4. Run the exec-bit check **after** step 3: a formatter re-stage reads the worktree file mode, so an
-   exec bit set earlier would be silently undone by that later `git add`.
+4. Run the exec-bit check, **after** step 3, not before: a formatter re-stage in step 3 reads the
+   worktree file mode, so setting the exec bit any earlier would be silently undone by that later
+   `git add`.
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/skills/commit/scripts/exec-bit-check.sh" --fix -- <path>...
@@ -189,15 +197,15 @@ skill's pre-check only fast-fails client-side before the hook round-trip. When n
 
    The script reports and fixes every newly-added file whose staged blob starts with a shebang while
    its staged mode is `100644`, setting the worktree bit and the index entry in the order that
-   survives a later `git add`. **The pathspec is required**: `--fix` refuses an unscoped run
-   (exit 2) rather than sweep mode changes across another session's staged work; pass `--all` only
-   for a deliberate whole-index sweep. Rationale, cross-platform caveats, and the manual fallback
-   are in [reference/exec-bit.md](reference/exec-bit.md).
+   survives a later `git add`. **The pathspec is required**. `--fix` refuses an unscoped run
+   (exit 2) rather than sweeping mode changes across another session's staged work; pass `--all`
+   only to opt into a deliberate whole-index sweep. Rationale, cross-platform caveats, and the
+   manual fallback live in [reference/exec-bit.md](reference/exec-bit.md).
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject
    convention (default: the Conventional Commits pattern above).
 6. Pre-check the subject against the pattern (fast-fail before invoking git).
-7. Write changelog fragments when the repository releases plugins from them, shown by a
-   `fragment-plugins.txt` list in its `scripts/` directory. Pipe the drafted message (subject, blank
+7. Write changelog fragments when the repository releases plugins from them, which it does when
+   a `fragment-plugins.txt` list exists in its `scripts/` directory. Pipe the drafted message (subject, blank
    line, body) to the script from the repository root and `git add` each path it prints, so the
    fragments land in this commit:
 
@@ -213,19 +221,19 @@ skill's pre-check only fast-fails client-side before the hook round-trip. When n
    `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or a `BREAKING CHANGE`
    footer major. The subject and body go under `### Added` (`feat`), `### Fixed` (`fix`) or
    `### Changed` (anything else), and a `none` fragment gets one line saying why no release is
-   needed. A later releasing-type commit on the branch adds its entry to the branch's fragment and
-   raises the bump only upward. On exit 2 for a subject it cannot map, rerun with
-   `--level major|minor|patch|none`. Without the list, or for a plugin the list does not name, it
-   writes nothing, and the repository's own release record (a version bump plus CHANGELOG entry)
-   still applies.
+   needed. A later commit on the branch with a releasing type adds its entry to the branch's fragment and raises the
+   bump only upward. On exit 2 for a subject it cannot map, rerun with
+   `--level major|minor|patch|none`. In a repository without the list, and for a plugin the list
+   does not name, it writes nothing, and the repository's own release record (a version bump plus
+   CHANGELOG entry) still applies.
 8. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` per the trailer
    template below only when the resolved `trailer_policy` calls for one.
 9. Surface the resulting commit SHA + subject to the user.
 
 ## Canonical bash form
 
-Use the **Bash tool**, not the PowerShell tool. Bash heredoc is the canonical form on all platforms
-(Git Bash, Linux, macOS).
+Use the **Bash tool**, not the PowerShell tool. Bash heredoc is the canonical form across all
+platforms (Git Bash, Linux, macOS).
 
 ```bash
 # --trailer line below applies only when the resolved trailer_policy calls for one
@@ -240,9 +248,10 @@ git commit -F - --cleanup=verbatim \
 EOF
 ```
 
-`git commit -F - <message-via-stdin>` with a PowerShell `@'...'@` here-string works in a pure
-PowerShell tool call, but **never mix syntaxes inside one tool invocation**: a `@'...'@` block inside
-a Bash tool call leaves the bash parser unable to terminate the heredoc.
+PowerShell here-string is shown only for reference. `git commit -F - <message-via-stdin>` with
+`@'...'@` would work in a pure PowerShell tool call, but **never mix syntaxes inside one tool
+invocation**. A PowerShell `@'...'@` block inside a Bash tool call leaves the bash parser unable to
+terminate the heredoc.
 
 **Hard rules:**
 
@@ -254,26 +263,28 @@ a Bash tool call leaves the bash parser unable to terminate the heredoc.
 - Never mix Bash heredoc with PowerShell `@'...'@` inside one invocation.
 
 For a dirty shared index (concurrent sessions, pre-existing mixed WIP), the pathspec-limited form
-and its staged-deletion hazards are in [reference/pathspec-commits.md](reference/pathspec-commits.md).
-The default stays the plain index commit.
+and its staged-deletion hazards live in [reference/pathspec-commits.md](reference/pathspec-commits.md).
+Default remains the plain index commit.
 
 **The exec bit does not survive the pathspec form under `core.filemode=false`** (the Windows
 default). `--only` records the working-tree mode, and with filemode off git cannot see the
-`chmod +x`, so a correct `100755` index entry is rebuilt as `100644`; the plain index commit
-preserves `100755`. If this commit includes a newly-added shebang file the exec-bit check
-corrected, commit that path with the **plain index form** (splitting the commit if the rest needs a
-pathspec), and confirm with `git ls-tree HEAD -- <path>` rather than trusting the index. Detail and
-two failed workarounds are in [reference/pathspec-commits.md](reference/pathspec-commits.md).
+`chmod +x`, so a correctly-set `100755` index entry is rebuilt as `100644`. Verified both
+directions: the plain index commit preserves `100755`; the pathspec commit loses it. If this
+commit includes a newly-added shebang file the exec-bit check corrected, commit that path with the
+**plain index form** (splitting the commit if the rest needs a pathspec), and confirm with
+`git ls-tree HEAD -- <path>` rather than trusting the index. Full detail and the two workarounds
+that were tested and failed are in [reference/pathspec-commits.md](reference/pathspec-commits.md).
 
 ## Pre-check
 
 Before invoking `git commit`, regex-match the drafted subject against the active convention's pattern
 (default: the Conventional Commits pattern above).
 
-On mismatch, surface the convention name and the compliant examples, and ask for a compliant
-subject before invoking git. The pre-check is shape-only; the project's `commit-msg` git hook (when
-one exists) is the authoritative gate. The pre-check saves the hook startup on an obviously wrong
-subject and gives a fast, actionable error instead of an opaque hook failure.
+On mismatch, surface the convention name and the compliant examples as actionable guidance, and ask
+for a compliant subject before invoking git. The pre-check is shape-only; the project's `commit-msg`
+git hook (when one exists) is the authoritative gate at commit time. The pre-check exists to save the
+hook-startup floor when the drafted subject is obviously wrong, plus to give the user a fast
+actionable error rather than an opaque hook failure.
 
 ## Trailer resolution
 
@@ -285,12 +296,13 @@ Co-authored-by: Claude <model> <noreply@anthropic.com>
 
 **The `<model>` placeholder is filled from your own knowledge of the running session**: the model
 family and version the harness reports for this session (the value `/usage` shows). If uncertain,
-invoke `/usage` to confirm before committing. No environment variable auto-fills it; the trailer is
-part of the message body sent to `git commit`, not git config.
+invoke `/usage` to confirm before committing. There is no
+environment variable that auto-fills it, the trailer is part of the message body sent to
+`git commit`, not git config.
 
 **An optional context clause**, `Co-authored-by: Claude <model> (<context>) <noreply@anthropic.com>`,
-e.g. `(1M context)`, may be added when the context window is a distinguishing fact about the
-session and known with confidence. It is **not** required; its absence is not a defect.
+e.g. `(1M context)`, may be added when the context window is a genuinely distinguishing fact about
+the session and is known with confidence. It is **not** required, and its absence is not a defect.
 
 ### Which authority wins
 
@@ -303,10 +315,11 @@ Four sources can specify a trailer. Resolve in this order:
 2. **The consuming project's own conventions** (`CLAUDE.md`, `AGENTS.md`, rules), if they specify a
    different attribution trailer, or none, follow those.
 3. **Harness-injected commit guidance.** The Claude Code harness may inject its own commit
-   instruction naming a `Co-Authored-By` trailer. Adopt its **shape** (why the context clause above
-   is optional), but **never copy its literal text**: it can carry a **hardcoded model name that
-   does not match the running session**, and copying it writes a false provenance claim into
-   durable git history. Always fill `<model>` from actual session
+   instruction into the session, naming a `Co-Authored-By` trailer. Adopt its **shape**, this is why
+   the context clause above is optional rather than mandatory, but **never copy its literal text**.
+   That injected guidance can carry a **hardcoded model name that does not match the running
+   session**. Copying it verbatim writes a false provenance claim into durable git history, which is
+   precisely the harm this template exists to avoid. Always fill `<model>` from actual session
    knowledge. A mod can rewrite or blank that guidance before you see it: its `attribution.text`
    hook receives the commit trailer (`kind: commit`) and the PR footer (`kind: pr`) as the engine
    composed them and returns the text the model reads instead. So absent or unusual injected
@@ -318,37 +331,38 @@ Four sources can specify a trailer. Resolve in this order:
    Claude Code 2.1.287. As of: 2026-10-01. Recheck: the row or the type changes.)
 4. **This skill's default**, above.
 
-**Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's documentation uses
-exclusively and GitHub itself writes when appending co-author trailers to a squash-merge message.
-GitHub's attribution is not case-sensitive in practice (a `Co-Authored-By:` trailer resolves its
-co-author in the GraphQL `Commit.authors` connection just the same; the docs do not state case
-sensitivity either way), so this is a consistency choice: branch commits and forge-written squash
-merges agree. Git preserves a trailer key's case verbatim (`git interpret-trailers` does not
-normalize it, and no `trailer.*` config here changes that), so existing history keeps its spelling;
-this skill never rewrites it. A consumer who wants a different spelling sets a `trailer_policy`
-template.
+**Key spelling.** This skill emits `Co-authored-by`, the spelling GitHub's own documentation uses
+exclusively and the one GitHub itself writes when it appends co-author trailers to a squash-merge
+message. GitHub's attribution is not case-sensitive in practice (a commit carrying a
+`Co-Authored-By:` trailer resolves its co-author in the GraphQL `Commit.authors` connection just the
+same; the docs do not state case sensitivity either way), so this is a consistency choice, not a
+correctness one: branch commits and the forge-written squash merges agree. Git preserves a trailer
+key's case verbatim (`git interpret-trailers` does not normalize it, and no `trailer.*` config here
+changes that), so existing history keeps whatever spelling it was written with; this skill never
+rewrites it. A consumer who wants a different spelling expresses it as a `trailer_policy` template.
 
 ## Unrelated uncommitted changes
 
-If the working tree holds unstaged or untracked files outside this commit's scope, classify each
-before staging per `/source-control:pull-request create` (its unrelated-changes classification:
+If the working tree contains unstaged or untracked files that fall outside this commit's scope,
+classify each before staging per `/source-control:pull-request create` (its unrelated-changes classification:
 include / stash / separate-commit / discard). Do not duplicate that classification here; invoke
 `/source-control:pull-request create` to surface it to the user.
 
 ## Staging discipline
 
-Always `git add <specific-files>`, never `git add -A` or `git add .`: those can include secrets,
-build artifacts, or unrelated changes the user did not approve for this commit. Stage multiple files
-by explicit list, not wildcard, and skip the partial-staging split per step 2 above.
+Always `git add <specific-files>`, never `git add -A` or `git add .`. The risk is including secrets,
+build artifacts, or unrelated changes that the user did not approve for this commit. If multiple
+files are intentionally part of the commit, stage them by explicit list, not by wildcard, and skip
+the partial-staging split per step 2 above.
 
 Immediately after staging, run the format-before-push check and then the exec-bit check, in that
-order, to catch what CI would otherwise catch on the push round-trip.
+order. Catch what CI would otherwise catch on the push round-trip.
 
 ## Composition policy
 
-This skill is the single source of truth for the commit mechanic. Other skills compose
-`/source-control:commit` rather than invoking `git commit` directly, which bypasses the pre-check,
-trailer logic, and surgical staging.
+This skill is the single source of truth for the commit mechanic. Other skills should compose
+`/source-control:commit` rather than invoking `git commit` directly. Direct calls bypass the pre-check, trailer
+logic, and surgical-staging discipline this skill exists to enforce.
 
 **"Compose" means one of exactly two things, and a composing skill must name which:**
 
@@ -357,14 +371,16 @@ trailer logic, and surgical staging.
 - **Run the per-commit checklist above yourself**, per commit, as commands. Permitted for a workflow
   skill making many commits in one flow, where re-invocation per commit is disproportionate.
 
-Treating this skill as a convention absorbed once and then remembered is **not** composition. The
-message shape is reinforced every commit; what decays is the ordered per-commit *checks*: the
-formatter run, the exec-bit fix, the subject pre-check. Skipping them gives no visible signal, so a
-session that stopped running them looks identical to one that has not, until CI fails.
+What is **not** composition is treating this skill as a convention absorbed once and thereafter
+remembered. The mechanic that decays is not the shape of the commit message, that is reinforced
+every commit, it is the ordered per-commit *checks*: the formatter run, the exec-bit fix, the
+subject pre-check. Those produce no visible signal when skipped, so a session that has stopped
+running them looks identical to one that has not, until CI says otherwise. That is the observed
+failure this policy exists to prevent, not a hypothetical one.
 
-Step 4 is the cheap re-anchor for the checklist form: it is a command with an exit code rather than
-a paragraph to recall, and the pre-computed probe at the top of this file surfaces its finding
-first.
+Two properties make step 4 the cheap re-anchor for the checklist form: it is a command with an exit
+code rather than a paragraph to recall, and the pre-computed probe at the top of this file surfaces
+its finding before anything else is read.
 
 Workflow skills without explicit commit semantics should report status at phase boundaries and let
 the user or the next workflow stage decide commit timing; a skill with commit semantics in its
@@ -372,10 +388,11 @@ documented contract (e.g. `/source-control:pull-request create`) composes this o
 
 ## Recorded deviations
 
-- **Model invocation stays enabled** (`disable-model-invocation: false`, declared explicitly). The
-  fleet archetype for a `/source-control:commit`-shaped skill is `disable-model-invocation: true`,
-  user-invoked only. This skill deviates because a workflow skill that composes the commit mechanic
-  cannot do so if the model may not load it. Compensating controls: surgical staging (never
+- **Model invocation stays enabled** (`disable-model-invocation: false`, declared explicitly rather
+  than left to the default). The fleet archetype for a `/source-control:commit`-shaped skill is
+  `disable-model-invocation: true`. User-invoked only. This skill deliberately deviates because its
+  composition design requires the model to reach it: a workflow skill that composes the commit
+  mechanic cannot do so if the model may not load it. Compensating controls: surgical staging (never
   `git add -A`), the subject pre-check before any git invocation, no hook bypass, and a
   user-visible SHA + subject report after every commit.
 
@@ -424,9 +441,10 @@ that it is present. The four-part records live in [reference/native-commit.md](r
 ## Spoke paths
 
 The `reference/` files write this skill's directory as `<skill-dir>`, which is
-`${CLAUDE_SKILL_DIR}`. Substitute that path before running a command or writing it into a brief:
-those files arrive through the Read tool as plain bytes, so a `${…}` token would reach the Bash tool
-unsubstituted, and its environment has no `CLAUDE_SKILL_DIR`. Basis: the plugins reference,
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
+it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
+would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
+to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
