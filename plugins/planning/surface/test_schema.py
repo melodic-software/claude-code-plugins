@@ -356,6 +356,7 @@ class TestShippedSchemas(unittest.TestCase):
             ({"op": "archive", "ids": ["Q1"], "why": ""}, 500),
             ({"op": "revise", "id": "Q1", "title": ""}, 500),
             ({"op": "revise", "id": "Q1", "facts": ""}, 20000),
+            ({"op": "revise", "id": "Q1", "context": ""}, 4000),
             ({"op": "note-reply", "text": ""}, 20000),
             ({"op": "group", "id": "g1", "summary": ""}, 20000),
         ):
