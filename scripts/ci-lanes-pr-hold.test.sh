@@ -46,10 +46,13 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}"* ]]; then
-  ok "step runs on pull_request and merge_group"
+# A draft's ci-status passes by design (`Note a draft`), so the step makes no
+# read there; the ready_for_review run judges the holds. A merge group has no
+# pull_request.draft, which is not true, so the queue still runs it.
+if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}"* ]]; then
+  ok "step runs on pull_request and merge_group, and skips on a draft"
 else
-  fail "step lost its pull_request and merge_group condition"
+  fail "step lost its pull_request and merge_group condition, or its draft skip"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"
@@ -67,6 +70,14 @@ if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && f
   ok "step reads the base commit's pr-pipeline.yaml and trusted-actor list from the base checkout"
 else
   fail "step lacks BASE_CONFIG, or the base checkout lacks pr-pipeline.yaml"
+fi
+for file in /.github/scripts/pr-merge/merge-holds.mjs /docs/conventions/pr-pipeline.yaml /.github/standards/trusted-actors/trusted-actors.json; do
+  if grep -qxF "            $file" "$WORKFLOW"; then ok "the base checkout carries $file"; else fail "the base checkout lacks $file"; fi
+done
+if [[ "$step" != *"/contents/"* ]]; then
+  ok "step reads no file through the contents API"
+else
+  fail "step still reads a file through the contents API"
 fi
 if [[ "$step" == *"GROUP_BASE_SHA: \${{ github.event.merge_group.base_sha }}"* && "$step" != *"pull_request.base"* ]]; then
   ok "step takes only the queue's base from the payload; a pull request's base is read live"
@@ -102,17 +113,14 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 [[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
 # The stub logs its arguments. A pull read prints STUB_PULL. A contents read
-# of merge-holds.mjs prints the working tree's module, or answers 404 when
-# STUB_NO_MODULE is set. A discussion read fails its first STUB_FAILS calls,
+# fails: the step reads merge-holds.mjs, pr-pipeline.yaml and the
+# trusted-actor list from the hold config checkout (BASE_CONFIG), never
+# through the API. A discussion read fails its first STUB_FAILS calls,
 # then prints STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON arrays) as the
-# API's page. A contents read of
-# pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
-# set. A files read answers STUB_FILES (a JSON array of [path,
+# API's page. A files read answers STUB_FILES (a JSON array of [path,
 # renamed-from or null, status] arrays, status renamed with a renamed-from
 # path and modified otherwise) as the files API's rows, through the step's
-# own --jq. A contents read of
-# trusted-actors.json prints the working tree's list, or answers 404 when
-# STUB_NO_ACTORS is set. An artifacts read by name prints the run ids
+# own --jq. An artifacts read by name prints the run ids
 # STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
 # the step's own --jq, each artifact's id ten times its run's; a run read
 # prints that id's entry of STUB_RUNS, or answers 404. An artifact archive
@@ -149,20 +157,9 @@ sys.stdout.buffer.write(buffer.getvalue())' "$record"
 "api graphql "*)
   echo '{"data":{}}'
   ;;
-*/contents/.github/scripts/pr-merge/merge-holds.mjs*)
-  [[ -z "${STUB_NO_MODULE:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  cat "$STUB_MODULE"
-  ;;
-*/contents/docs/conventions/pr-pipeline.yaml*)
-  [[ -z "${STUB_NO_CONFIG:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  printf '%s\n' "$STUB_CONFIG"
-  ;;
+*/contents/*) exit 1 ;;
 */pulls/*/files\?*)
   jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] // (if .[1] then "renamed" else "modified" end))}]' <<<"$STUB_FILES" | jq -r "${*: -1}"
-  ;;
-*/contents/.github/standards/trusted-actors/trusted-actors.json*)
-  [[ -z "${STUB_NO_ACTORS:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  cat "$STUB_ACTORS"
   ;;
 */issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
 */pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
@@ -265,13 +262,21 @@ approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
-# The base commit's config, as the base_config checkout holds it: this tree's
-# pr-pipeline.yaml, trusted-actor list and merge-holds.mjs, whose switchHold
-# judges the kill switch. STUB_BASE_CONFIG replaces its path.
-mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/base-config/.github/standards/trusted-actors" "$TMP_ROOT/base-config/.github/scripts/pr-merge"
-cp "$ROOT/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/base-config/docs/conventions/"
-cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/base-config/.github/standards/trusted-actors/"
-cp "$MODULE" "$TMP_ROOT/base-config/.github/scripts/pr-merge/"
+# The hold config, as the base_config checkout holds it, rebuilt for each
+# run: STUB_CONFIG with merge.agent-identity as pr-pipeline.yaml, STUB_ACTORS
+# as the trusted-actor list and STUB_MODULE (this tree's merge-holds.mjs by
+# default), whose switchHold judges the kill switch and whose main judges the
+# holds. STUB_NO_CONFIG, STUB_NO_ACTORS and STUB_NO_MODULE leave that file
+# out. STUB_BASE_CONFIG replaces the whole directory.
+base_config() {
+  local dir="$TMP_ROOT/base-config"
+  rm -rf "$dir"
+  mkdir -p "$dir/docs/conventions" "$dir/.github/standards/trusted-actors" "$dir/.github/scripts/pr-merge"
+  [[ -n "${STUB_NO_CONFIG:-}" ]] ||
+    IDENTITY="$identity" yq '.merge."agent-identity" = strenv(IDENTITY)' <<<"$STUB_CONFIG" >"$dir/docs/conventions/pr-pipeline.yaml"
+  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$dir/.github/standards/trusted-actors/trusted-actors.json"
+  [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
+}
 
 # expect <label> <want-rc> <want-discussion-calls> [want-out]
 # The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
@@ -280,6 +285,7 @@ expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-files.json"
+  [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
   # STUB_KEEP_READS keeps the pr_read answers an earlier step left.
   [[ -n "${STUB_KEEP_READS:-}" ]] || rm -rf "$TMP_ROOT/pr-reads"
   # The broker step's file pages (STUB_PR_FILES, as that step saved them).
@@ -300,7 +306,7 @@ expect() {
   else
     printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
   fi
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
@@ -310,8 +316,8 @@ expect() {
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls discussion call(s) got $calls: '$(sort -u "$TMP_ROOT/log")'"
-  elif [[ "$want_calls" -gt 0 ]] && ! grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/scripts/pr-merge/merge-holds.mjs?ref=${WANT_BASE:-$BASE}" "$TMP_ROOT/log"; then
-    fail "$label: merge-holds.mjs was not read at the base commit: '$(sort -u "$TMP_ROOT/log")'"
+  elif grep -q '/contents/' "$TMP_ROOT/log"; then
+    fail "$label: the hold config was read through the contents API, not the base_config checkout: '$(grep '/contents/' "$TMP_ROOT/log")'"
   elif [[ -n "${4:-}" && "$out" != *"$4"* ]]; then
     fail "$label: output lacks '$4': '$out'"
   else
@@ -386,14 +392,15 @@ EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER=''
 # The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
 # judge it fails closed before any further read.
 STUB_PULL="$(pull 'Closes #1')"
-held_module="$TMP_ROOT/base-config/.github/scripts/pr-merge/merge-holds.mjs"
 for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
   'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
-  if [[ -z "$stub" ]]; then rm -f "$held_module"; else printf '%s\n' "$stub" >"$held_module"; fi
-  expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
+  printf '%s\n' "$stub" >"$TMP_ROOT/held.mjs"
+  none=1
+  [[ -z "$stub" ]] || none=
+  STUB_NO_MODULE="$none" STUB_MODULE="$TMP_ROOT/held.mjs" \
+    expect "a base module that cannot judge the kill switch fails closed (${stub:-no module})" 1 0 \
     "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #7; re-run this run."
 done
-cp "$MODULE" "$held_module"
 # shellcheck disable=SC2016 # a literal workflow expression, not shell
 if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
   grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then
@@ -751,7 +758,7 @@ STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
 expect "an approval lifts no body hold" 1 3 "its body holds it"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_ACTORS=1
-expect "an unreadable trusted-actor list fails closed" 1 0 "::error::could not read .github/standards/trusted-actors/trusted-actors.json at $BASE"
+expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
 unset STUB_NO_ACTORS
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
@@ -773,7 +780,7 @@ STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_CONFIG=1
-expect "an unreadable config fails closed" 1 0 "::error::could not read docs/conventions/pr-pipeline.yaml at $BASE"
+expect "an unreadable config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
 unset STUB_NO_CONFIG
 
 # verifier runs: run <id> [path] [event] [branch] [status] [conclusion]
@@ -817,7 +824,7 @@ expect "a push to an armed lanes App pull request passes" 0 3 "no hold path"
 if [[ "$(disarms)" -eq 0 ]]; then ok "a push sends no disarm"; else fail "a push sent a disarm"; fi
 STUB_PULL="$(pull 'Closes #1')"
 
-export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
+export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 1 ]]; then
@@ -995,10 +1002,14 @@ else
   fail "a person's pull request made $(lookups) lookups, $(readers) reader runs and $(maps) map reads"
 fi
 STUB_PULL="$(pull 'Closes #1')"
-printf 'console.log("#7: no body hold, no member veto and no hold path.");\n' >"$TMP_ROOT/old.mjs"
+# Each stand-in module answers the kill switch (switchHold) and prints its
+# verdict lines only when run as main, as merge-holds.mjs does.
+stub_module() { printf 'export const switchHold = () => null;\nif (process.argv.length > 3) {\n%s\n}\n' "$2" >"$1"; }
+stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");'
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
 expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
-printf 'console.log("#7: no body hold, no member veto and no hold path.");\nconsole.log("#7: no verifier hold: pr-verify passed this head.");\n' >"$TMP_ROOT/older.mjs"
+stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
 expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
 unset STUB_MODULE
@@ -1016,7 +1027,7 @@ export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
 export STUB_ISSUE='[]' REF="$QUEUE" GROUP_BASE_SHA=main
 expect "a queue base that is not a commit SHA fails closed without a call" 1 0 "::error::the base commit 'main' is not a commit SHA"
-unset EVENT REF PR_NUMBER GROUP_BASE_SHA WANT_BASE
+unset EVENT REF PR_NUMBER GROUP_BASE_SHA
 
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_FAILS=1
@@ -1024,12 +1035,12 @@ expect "a transient discussion read failure is retried" 0 4
 export STUB_FAILS=3
 expect "an unreadable discussion fails closed" 1 3 "::error::could not read the issues/7/comments of #7"
 unset STUB_FAILS
-printf 'process.exitCode = 0;\n' >"$TMP_ROOT/silent.mjs"
+stub_module "$TMP_ROOT/silent.mjs" 'process.exitCode = 0;'
 export STUB_MODULE="$TMP_ROOT/silent.mjs"
 expect "a module that exits 0 without its verdict fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verdict"
 unset STUB_MODULE
 export STUB_NO_MODULE=1
-expect "a base with no merge-holds.mjs fails closed" 1 0 "::error::could not read .github/scripts/pr-merge/merge-holds.mjs at $BASE"
+expect "a base with no merge-holds.mjs fails closed" 1 0 "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch"
 unset STUB_NO_MODULE
 STUB_PULL="$(STUB_BASE_SHA=main pull 'Closes #1')"
 expect "a live base that is not a commit SHA fails closed without a call" 1 0 "::error::the base commit 'main' is not a commit SHA"

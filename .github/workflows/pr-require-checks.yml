@@ -4892,7 +4892,10 @@ jobs:
       # required check, and the merge-group run does not fully close it: the
       # changed-file gates that read only github.base_ref decline there. No
       # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. This step says why it is
+      # ci-status on its head is not a draft run's. The hold steps that read
+      # GitHub (cost hold, human-gated, hold-lift, human-merge, pr-unblock,
+      # lanes hold) skip on a draft too, so a held draft is green as well;
+      # the ready_for_review run judges every hold. This step says why it is
       # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
@@ -4944,7 +4947,8 @@ jobs:
       # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
       # review-lanes step holds; all are read there, never at the head,
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # whose refsIssue the cost step runs and whose holds the lanes-hold step
+      # runs, and clear-escalations.mjs with every
       # module and data file it loads, whose recheckStaleHold the hold-lift
       # step runs. A re-run replays the event, whose base.sha stays stale, so
       # a pull request into the default branch reads that branch's tip as it
@@ -5094,7 +5098,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5414,7 +5418,7 @@ jobs:
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5654,7 +5658,7 @@ jobs:
       # event list or trusted-actor list fails closed. Pinned by
       # scripts/ci-hold-human-merge.test.sh, which runs this body.
       - name: Fail a human-merge hold a listed person has not lifted
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -6025,8 +6029,10 @@ jobs:
       # body links one. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
-      # its own hold: in the queue at the group's base commit, and on a pull
-      # request event at the live base commit of a pull request into main. A
+      # its own hold: from the hold config checkout (base_config), with
+      # pr-pipeline.yaml and the trusted-actor list, in the queue at the
+      # group's base commit and on a pull request event at the default
+      # branch's tip at run time, for a pull request into main. A
       # pull request into any other branch is never armed and is not read, so
       # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
       # (the pull request named in the group's ref, as the step above reads
@@ -6118,7 +6124,7 @@ jobs:
       # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
       - name: Fail a head a pr-unblock lane stopped
         id: pr_unblock_status
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -6178,7 +6184,7 @@ jobs:
           done <<<"$failing"
           exit 1
       - name: Fail a lanes App pull request its body or a member holds
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -6307,21 +6313,25 @@ jobs:
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
-          module=.github/scripts/pr-merge/merge-holds.mjs
-          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          # The module, pr-pipeline.yaml and the trusted-actor list come from
+          # the hold config checkout, as the checks above read them: no
+          # contents read. A file missing there fails closed.
+          for file in .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml .github/standards/trusted-actors/trusted-actors.json; do
+            if [ ! -s "$BASE_CONFIG/$file" ] || ! cp "$BASE_CONFIG/$file" "$RUNNER_TEMP/${file##*/}"; then
+              echo "::error::could not read $file in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              exit 1
+            fi
+          done
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
           config=docs/conventions/pr-pipeline.yaml
-          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
           yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
-            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.denied-paths from $config in the hold config."
             exit 1
           }
-          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
-          # hold paths off (merge-holds.mjs pathHoldsOf).
+          # merge.diff-check.path-holds in the hold config: absent or false
+          # turns the hold paths off (merge-holds.mjs pathHoldsOf).
           PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
-            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.path-holds from $config in the hold config."
             exit 1
           }
           export PATH_HOLDS
@@ -6346,9 +6356,6 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
-          actors=.github/standards/trusted-actors/trusted-actors.json
-          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
             raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
