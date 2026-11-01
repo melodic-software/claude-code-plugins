@@ -415,6 +415,31 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("its trace ends in an error", proc.stdout)
         self.assertIn("check session started: PASS", proc.stdout)
 
+    def test_a_zero_turn_run_whose_trace_holds_a_forked_session_passes(self):
+        trace = self.dir / "forked.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(tracePath=str(trace), turns=0)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "check session started: PASS (every run ran and no trace shows a sandbox"
+            " failure; 1 run at 0 turns ran in a forked session its trace holds)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: 0 turns, and its trace holds"
+            " 1 assistant message (%s)" % trace,
+            proc.stdout,
+        )
+
     def test_a_mention_of_the_sandbox_failure_outside_a_failed_bash_result_passes(self):
         text = "Sandbox is required but failed to initialize"
         trace = self.dir / "mentions.jsonl"
@@ -939,6 +964,65 @@ class RunValidityTest(unittest.TestCase):
         proc = self.denied_second_run("without", 1, missing=(1, "without", 0))
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+
+    USER_RUNG = {"pattern": "**/*.md", "path": "~/.claude/standards"}
+
+    def denied_glob(self, with_input, without_input, tool="Glob"):
+        """The clean result, measurable-criterion's one run per arm each denied a
+        call to tool with the given input (None: that arm's run is not denied)."""
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": self.PLUGIN}]
+        for arm, tool_input in (("with", with_input), ("without", without_input)):
+            if tool_input is None:
+                continue
+            trace = self.dir / ("denied-%s.jsonl" % arm)
+            trace.write_text(
+                '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+                '{"type":"result","is_error":false,"permission_denials":['
+                '{"tool_name":"%s","tool_use_id":"g1","tool_input":%s}]}\n'
+                % (tool, json.dumps(tool_input)),
+                encoding="utf-8",
+            )
+            data["cases"][1]["arms"][arm][0]["tracePath"] = str(trace)
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(result, "--runs", "1")
+
+    def test_a_denial_in_every_run_of_both_arms_is_a_warning(self):
+        for tool_input, target in (
+            (self.USER_RUNG, "~/.claude/standards"),
+            (
+                {"pattern": "*.md", "path": "/srv/eval-home/.claude/standards"},
+                "/srv/eval-home/.claude/standards",
+            ),
+            ({"pattern": "~/.claude/standards/*.md"}, "~/.claude/standards/*.md"),
+        ):
+            proc = self.denied_glob(tool_input, tool_input)
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check permission denials: WARN (2 denials in 2 runs", proc.stdout
+            )
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: Glob %s (" % target,
+                proc.stdout,
+            )
+
+    def test_a_denial_missing_from_a_run_or_aimed_into_the_plugin_is_a_fail(self):
+        inside = {"pattern": "*.md", "path": self.PLUGIN + "/skills"}
+        for with_input, without_input in (
+            (self.USER_RUNG, None),
+            (self.USER_RUNG, {"pattern": "*.md", "path": "/opt/other"}),
+            (inside, inside),
+        ):
+            proc = self.denied_glob(with_input, without_input)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn("check permission denials: FAIL", proc.stdout)
+
+    def test_a_skill_denial_in_every_run_of_both_arms_is_a_fail(self):
+        skill = {"skill": "evals:methodology"}
+        proc = self.denied_glob(skill, skill, tool="Skill")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: FAIL", proc.stdout)
 
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
