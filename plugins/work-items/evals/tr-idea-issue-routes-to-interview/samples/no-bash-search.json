@@ -1,0 +1,98 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item 'local-markdown:local/markdown#1'"
+          }
+        }
+      ],
+      "why": "reads the item through the seam"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh comment 'local-markdown:local/markdown#1' --body 'Run /planning:interview to find out what this is for.'"
+          }
+        }
+      ],
+      "why": "prose 'find out' in a comment"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn plugin ."
+          }
+        }
+      ],
+      "why": "greps the checkout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -20"
+          }
+        }
+      ],
+      "why": "reads history"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find . -name '*.js'"
+          }
+        }
+      ],
+      "why": "finds files"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat src/export.js"
+          }
+        }
+      ],
+      "why": "reads the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\ngrep -rn plugin ."
+          }
+        }
+      ],
+      "why": "greps on a second line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls src"
+          }
+        }
+      ],
+      "why": "lists the source"
+    }
+  ]
+}
