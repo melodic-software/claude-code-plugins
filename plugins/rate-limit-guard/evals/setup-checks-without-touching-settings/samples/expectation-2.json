@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Reports node, the module's state in this session, the snapshot file's freshness against the reader contract's staleness rule, the StopFailure hook and all eight options with their effective values; edits nothing and prints no statusline wiring to add.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}
