@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export sometimes hangs\"\nstate: \"open\"\nassignees: []\nlabels: [\"needs-reporter-info\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-01-05T08:00:00Z\"\n---\n\nReported by dana-r. The export hangs now and then; no steps given.\n",
+      "why": "as scaffolded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export sometimes hangs\"\nstate: \"open\"\nassignees: []\nlabels: []\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-01-05T08:00:00Z\"\n---\n\nReported by dana-r. The export hangs now and then; no steps given.\n",
+      "why": "label removed"
+    },
+    {
+      "answer": "---\nid: \"local-markdown:local/markdown#1\"\nnumber: 1\ntitle: \"Export sometimes hangs\"\nstate: \"open\"\nassignees: []\nlabels: [\"needs-reporter-info\", \"wontfix\"]\ntype: null\nparent: null\nurl: \"file://.work-items/1.md\"\ncreated_at: \"2026-01-05T08:00:00Z\"\n---\n\nReported by dana-r. The export hangs now and then; no steps given.\n",
+      "why": "label added"
+    },
+    {
+      "answer": "",
+      "why": "deleted"
+    }
+  ]
+}

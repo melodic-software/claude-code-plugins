@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "| Kindle for PC version | FAIL | 2.9.1.71124 installed; uninstall it first |", "why": "table row" },
+    { "answer": "**FAIL**: version 2.9.1.71124 is not the pinned build.", "why": "verdict first" },
+    { "answer": "2.9.1 installed: FAIL.", "why": "terse" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "| Kindle for PC version | PASS | 2.9.1.71124 |", "why": "wrong verdict" },
+    { "answer": "Kindle 2.9.1 is installed, which is newer than the pin.", "why": "no verdict" },
+    { "answer": "Firewall rule: INFO, not yet provisioned. Downloads: FAIL count 0/3.", "why": "FAIL on another row" }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/plugins/kindle-dedrm/skills/manage/scripts/status.sh\"" } }], "why": "the check's status probe" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "gh --version" } }], "why": "gh probe" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "curl -L -o ~/Downloads/KindleForPC-installer-2.8.70980.exe https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe" } }], "why": "curl" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -Command \"Invoke-WebRequest https://kindleforpc.s3.amazonaws.com/70980/KindleForPC-installer-2.8.70980.exe -OutFile k.exe\"" } }], "why": "Invoke-WebRequest" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "gh release download -R Satsuoni/DeDRM_tools -p DeDRM_tools.zip" } }], "why": "gh release download" }
+  ]
+}

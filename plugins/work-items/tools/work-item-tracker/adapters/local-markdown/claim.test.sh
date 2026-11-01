@@ -37,6 +37,19 @@ ITEM3_FILE="$(jq -r '.url' <<<"$ITEM3" | sed 's#^file://##')"
 BEFORE="$(cat "$ITEM3_FILE")"
 WIT_STORAGE_DIR="$STORE" assert_usage_error "$S" "$(jq -r '.id' <<<"$ITEM3")" --ttl-hours 169
 assert_eq "a refused over-cap claim leaves the item file unchanged" "$BEFORE" "$(cat "$ITEM3_FILE")"
+
+# --phase writes the field into the stored lease; no --phase stores none (an
+# implementation claim); an unknown phase is refused before the item file is written.
+ITEM4="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "triage claim")"
+ITEM4_FILE="$(jq -r '.url' <<<"$ITEM4" | sed 's#^file://##')"
+WIT_STORAGE_DIR="$STORE" bash "$S" "$(jq -r '.id' <<<"$ITEM4")" --ttl-hours 24 --phase triage >/dev/null
+assert_contains "claim --phase triage stores the phase in the lease" \
+  "$(grep -F 'work-item-lease' "$ITEM4_FILE")" '"phase":"triage"'
+assert_not_contains "a claim with no --phase stores no phase field" "$STORED" '"phase"'
+BEFORE="$(cat "$ITEM3_FILE")"
+WIT_STORAGE_DIR="$STORE" assert_usage_error "$S" "$(jq -r '.id' <<<"$ITEM3")" --ttl-hours 24 --phase review
+WIT_STORAGE_DIR="$STORE" assert_usage_error "$S" "$(jq -r '.id' <<<"$ITEM3")" --ttl-hours 24 --phase ""
+assert_eq "a refused phase leaves the item file unchanged" "$BEFORE" "$(cat "$ITEM3_FILE")"
 rm -rf "$STORE"
 
 [[ $FAILED -eq 0 ]] || exit 1

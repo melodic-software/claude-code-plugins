@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "gaming:dlss5" } }], "why": "namespaced skill call" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "dlss5", "args": "assess" } }], "why": "bare name with args" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call: a text-only referral to /gaming:dlss5 fails" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "gaming:setup" } }], "why": "same-plugin sibling" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "gaming:setup", "args": "then gaming:dlss5" } }], "why": "target named only in args" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "gaming:dlss5-extra" } }], "why": "prefix collision" }
+  ]
+}

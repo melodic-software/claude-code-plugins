@@ -22,8 +22,9 @@
 // `adoption` section, PRs of the base's trusted actors, whose ci-status or
 // pr-test-platforms run failed past the lost-run reconciler's re-run
 // (fix-ci-dispatch.mjs) and pr-refine.yml's fix-docs once per ready PR that
-// changes Markdown (fix-docs-dispatch.mjs), and their run ids join the same
-// record.
+// changes Markdown (fix-docs-dispatch.mjs), and sync-shared-copies for lanes
+// App PRs pr-merge refused as shared-copy-sources-changed at their head
+// (dispatchSharedCopies), and their run ids join the same record.
 // resolve-conflicts and review-dependency read the one open-PR listing, and
 // resolve-conflicts and fix-ci the one pr-unblock.yml run listing; a
 // rate-limited run listing defers that pass, not fails it. A head whose check
@@ -291,6 +292,127 @@ export async function dispatchConflicting({
   return { dispatched, failed };
 }
 
+// sync-shared-copies: a lanes App pull request into the base, not a draft,
+// carrying the human-gated label that pr-merge's shared-copy-sources-changed
+// refusal at its current head put on (gate-source.mjs sharedCopyGate, through
+// prHold), gets one pr-unblock.yml dispatch per head. Its
+// pr-unblock / sync-shared-copies check runs from the GitHub Actions app
+// handle the head as resolve-conflicts's do (limit-stop.mjs, failuresRetry):
+// a failed select job's failure retries until limit-stops-per-head failures
+// stand on it; a head handled for good is recorded, so the next run reads
+// nothing for it. A run of the activity for the PR not done yet holds it.
+export const SHARED_COPY_DEFAULTS = Object.freeze({
+  activity: "sync-shared-copies",
+  checkName: "pr-unblock / sync-shared-copies",
+  // Judgment: no model runs, so the cap only spreads the pushes out.
+  maxDispatch: 3,
+});
+
+export async function dispatchSharedCopies({
+  api,
+  runId,
+  log,
+  listed,
+  record = emptyRecord(),
+  gateLabel,
+  appSenderId,
+  base = DEFAULTS.base,
+  workflow = DEFAULTS.workflow,
+  appId = DEFAULTS.appId,
+  maxDispatch = SHARED_COPY_DEFAULTS.maxDispatch,
+  limits,
+  now = Date.now(),
+}) {
+  const { activity, checkName } = SHARED_COPY_DEFAULTS;
+  const dispatched = [];
+  let failed = 0;
+  if (gateLabel === null || !Number.isSafeInteger(appSenderId)) {
+    return { dispatched, failed };
+  }
+  const candidates = listed
+    .filter(
+      (node) =>
+        node.isDraft === false &&
+        node.isCrossRepository === false &&
+        node.baseRefName === base &&
+        node.author?.databaseId === appSenderId &&
+        (node.labels?.nodes ?? []).some((label) => label?.name === gateLabel) &&
+        !isHandled(record, checkName, node.headRefOid),
+    )
+    .sort((a, b) => a.number - b.number);
+  let active = null;
+  let sent = 0;
+  for (const node of candidates) {
+    if (sent >= maxDispatch) {
+      log(`defer #${node.number}: ${maxDispatch} ${activity} dispatches this run; left for a later run`);
+      continue;
+    }
+    try {
+      const { laneEscalated, why } = await prHold({
+        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
+        holdLabels: ["do-not-merge"],
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
+      });
+      if (!laneEscalated) {
+        log(`skip #${node.number}: no shared-copy refusal at head ${node.headRefOid} to answer${why ? ` (${why})` : ""}`);
+        continue;
+      }
+      const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      if (permanentlyHandles(existing, options)) {
+        const capped = cappedAt(existing, options);
+        if (capped > 0) {
+          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${checkName} failed or was skipped while held ${capped} time(s), the most one head gets; no ${activity} until a new push`);
+        }
+        markHandled(record, checkName, node.headRefOid);
+      }
+      if (anyHandles(existing, { now, ...options })) {
+        log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
+        continue;
+      }
+      active ??= (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
+      const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+      if (inFlight) {
+        log(`skip #${node.number}: ${workflow} run ${inFlight.id} for ${activity} is not done yet`);
+        continue;
+      }
+    } catch (error) {
+      if (serverFailure(error) || error.rateLimited) {
+        log(`::warning::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}; skipped, a later run retries`);
+        continue;
+      }
+      failed += 1;
+      log(`::error::#${node.number}: could not read its refusal, check runs or runs for ${node.headRefOid}: ${error.message}`);
+      continue;
+    }
+    sent += 1;
+    try {
+      const { workflowRunId } = await api.dispatchWorkflow({
+        workflow,
+        ref: `refs/heads/${base}`,
+        inputs: { "pr-number": String(node.number), activity, "dispatcher-run-id": String(runId) },
+      });
+      const id = String(workflowRunId);
+      if (!RUN_ID.test(id)) {
+        failed += 1;
+        log(`::error::#${node.number}: ${activity} dispatch returned no valid workflow_run_id`);
+        continue;
+      }
+      dispatched.push({ number: node.number, workflowRunId: id });
+      log(`dispatched ${activity} #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
+    } catch (error) {
+      failed += 1;
+      log(`::error::#${node.number}: ${activity} dispatch failed: ${error.message}`);
+    }
+  }
+  return { dispatched, failed };
+}
+
 // The Dependabot fields feed dependency-dispatch.mjs's classification.
 const PULL_FIELDS =
   "number isDraft isCrossRepository mergeable baseRefName headRefOid headRefName state title body author { login ... on Bot { databaseId } } labels(first: 100) { nodes { name } } changedFiles commits { totalCount }";
@@ -539,6 +661,15 @@ export async function loadBaseAdoption(env) {
   return adoptionFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base config's merge.refire-skip-branches, the same way: head branches a
+// workflow owns and rebuilds, which never get fix-ci.
+export async function loadBaseOwnedBranches(env) {
+  const { ownedBranchesFromBase } = await import(
+    new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
+  );
+  return ownedBranchesFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
+}
+
 // Each run id is also appended to RUN_IDS_FILE as soon as its dispatch
 // returns, so a run cancelled mid-step still records what it sent.
 function wrapRunIds(base, env) {
@@ -580,6 +711,7 @@ export async function main(
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
+    loadOwnedBranches = loadBaseOwnedBranches,
     // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
     // workflow names it in VERIFY_EVIDENCE_SCRIPT.
     verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
@@ -602,7 +734,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, verifyCapped, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -610,9 +742,10 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, verifyCapped, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, loadOwnedBranches, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
+  const ownedBranches = await loadOwnedBranches(env);
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
@@ -669,6 +802,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       restarts: limits["fix-ci-restarts"] ?? 1,
       maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
+      ownedBranches,
       holdLabels,
       gateLabel,
       verifyCapped,
@@ -687,8 +821,9 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
     ...gate,
   });
-  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];
-  const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed;
+  const copies = await dispatchSharedCopies({ api: client, runId: env.GITHUB_RUN_ID, log, listed, record, limits, now, ...gate });
+  const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched, ...copies.dispatched];
+  const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed + copies.failed;
   if (dispatched.length > 0) {
     const ids = dispatched.map((run) => run.workflowRunId).join(" ");
     appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);

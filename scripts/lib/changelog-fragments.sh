@@ -214,6 +214,7 @@ changelog_fragments::validate() {
   fi
   problems="$(changelog_fragments::body "$path" | awk -v known="$CF_SECTIONS" '
     BEGIN { n = split(known, k, " "); for (i = 1; i <= n; i++) ok[k[i]] = 1 }
+    { all = all $0 "\n" }
     /^###[ \t]/ {
       cur = $0; sub(/^###[ \t]+/, "", cur); sub(/[ \t]+$/, "", cur)
       if (!(cur in ok)) print "unknown section \"### " cur "\" (use " known ")"
@@ -226,6 +227,12 @@ changelog_fragments::validate() {
     END {
       if (sections == 0) print "no ### section"
       for (i = 1; i <= sections; i++) if (!(order[i] in filled)) print "section \"### " order[i] "\" is empty"
+      # An unclosed <!--, even inside a code span, hides every CHANGELOG line after it from the parity checks.
+      while ((q = index(all, "<!--")) > 0) {
+        all = substr(all, q + 4)
+        if ((c = index(all, "-->")) == 0) { print "<!-- is never closed with -->"; break }
+        all = substr(all, c + 3)
+      }
     }
   ')"
   if [[ -n "$problems" ]]; then

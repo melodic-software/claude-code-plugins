@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Reply yes to install with these settings.", "why": "yes" },
+    { "answer": "Confirm and I'll run apply.", "why": "confirm" },
+    { "answer": "Shall I proceed?", "why": "proceed" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Installed. Launch the game on DX12 and look for DLSS-NR cost lines in OptiScaler.log.", "why": "already applied, no gate" }
+  ]
+}

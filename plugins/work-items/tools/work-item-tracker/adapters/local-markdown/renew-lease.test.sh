@@ -84,6 +84,20 @@ assert_eq "the failed renewal left the stored lease untouched" \
   "$LEASE_BEFORE" "$(wit_active_lease_json "$LIVE_FILE")"
 rm -rf "$SHIM"
 
+# A claim's phase survives renewal: renew-lease edits the stored lease in place.
+PHASE_JSON="$(bash "$TRACKER" create-item --title "triage renew keeps phase")"
+PHASE_ID="$(jq -r '.id' <<<"$PHASE_JSON")"
+PHASE_FILE="$(jq -r '.url' <<<"$PHASE_JSON" | sed 's#^file://##')"
+PHASE_CID="$(bash "$TRACKER" claim "$PHASE_ID" --ttl-hours 24 --phase triage | jq -r '.lease_comment_id')"
+assert_eq "claim --phase triage stores the phase" "triage" "$(jq -r '.phase' <<<"$(wit_active_lease_json "$PHASE_FILE")")"
+sleep 1
+PHASE_OUT="$(bash "$TRACKER" renew-lease "$PHASE_ID" --lease-comment-id "$PHASE_CID")"
+assert_eq "renew-lease on the triage lease succeeds (0)" "0" "$?"
+PHASE_LEASE="$(wit_active_lease_json "$PHASE_FILE")"
+assert_eq "renew-lease keeps the phase" "triage" "$(jq -r '.phase' <<<"$PHASE_LEASE")"
+assert_eq "the kept-phase lease carries the renewed_at it reported" \
+  "$(jq -r '.renewed_at' <<<"$PHASE_OUT")" "$(jq -r '.renewed_at' <<<"$PHASE_LEASE")"
+
 # Remove the store the items actually landed in as well as the one this suite
 # asked for; on a host that translates the path they are not the same directory.
 # The guard is not optional: LIVE_FILE comes from the created item's reported

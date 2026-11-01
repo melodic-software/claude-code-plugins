@@ -5,8 +5,8 @@ comment **for this lane instance**. `SKILL.md`'s "Telemetry and durable loop sta
 comment lives and what goes in it; this file owns how the singleton is maintained and how a creation
 race converges.
 
-The upsert is a script in this plugin rather than a call into `harness-ops` because an installed
-plugin cannot invoke a sibling plugin's scripts.
+The upsert is a script in this plugin, not a call into `harness-ops`, because an installed plugin
+cannot invoke a sibling plugin's scripts.
 
 Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane
 type: a marker naming only the lane makes two concurrent instances resolve one comment and
@@ -35,7 +35,7 @@ operator-supplied text that ends up in a `jq` program and an API path, so it is 
 hostname fallback passes the same check.
 
 **Only this lane's own comments count.** The sentinel is public and the instance id predictable, so
-anyone who can comment on the tracking issue can post a lookalike. The lookup therefore matches a
+anyone who can comment on the tracking issue can post a lookalike. The lookup matches a
 comment only when it opens with the sentinel **and** was written by the script's write identity; a
 foreign sentinel comment is never adopted, edited, or tombstoned, however low its id. The script
 resolves that identity before any lookup:
@@ -49,8 +49,7 @@ resolves that identity before any lookup:
    missing.
 
 Anything else, or a login outside `[A-Za-z0-9-]` plus an optional `[bot]`, exits 5 with nothing
-read or written: an unresolved identity fails closed rather than falling back to matching any
-author. Changing the identity (a user token swapped for an App token, or another account) leaves
+read or written: an unresolved identity fails closed instead of matching any author. Changing the identity (a user token swapped for an App token, or another account) leaves
 the old comment and its durable state behind: the lane starts unclaimed under the new identity, and
 the operator retires the old comment.
 
@@ -67,8 +66,8 @@ literal `@`, or carries under 16 bytes below the sentinel: the mechanical form o
 rule owned by `/harness-ops:lanes` ("Never pass a body as an `@path` string"). The lookup reads every
 comment page; a failed lookup writes nothing. The write's own exit status is checked. Then the
 comment is read back and **byte-compared with the body sent** (CR and trailing newlines stripped
-from both sides, nothing else), so a write that reported success but stored something else, an
-earlier body, a concurrent overwrite, a mangled store or a deleted comment, is caught rather than
+from both sides, nothing else), so a write that reported success but stored something else (an
+earlier body, a concurrent overwrite, a mangled store or a deleted comment) is caught, not
 accepted because it still looks like telemetry.
 
 **Exit codes.**
@@ -89,8 +88,8 @@ it in the cycle's own summary. A failed duplicate tombstone after a verified wri
 stderr only and retried next cycle.
 
 **Creation race reconcile (in the script).** Two sessions racing the first-ever upsert can both
-see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
-duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
+see an empty lookup and both POST, forking the singleton. The upsert converges duplicates on every
+cycle that sees them: the LOWEST comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
 sentinel comment is edited to a one-line tombstone, only once the canonical write verifies, so
 it never matches a lookup again. This covers a racer that died between its POST and its own
@@ -127,7 +126,7 @@ generated once per session, `heartbeat_at` is rewritten every cycle, alongside `
 - No block at all → the marker is unclaimed. **Claim it before any work**: upsert a cycle-0 block
   carrying my nonce and heartbeat, immediately re-read, and run the creation-race reconcile above.
   If the canonical (lowest-id) comment for my marker then carries a different nonce, another
-  session claimed the instance first. Take the live-collision branch below. Claiming first bounds
+  session claimed the instance first: take the live-collision branch below. Claiming first bounds
   the race to the claim itself: two same-id sessions starting together each stop before either has
   performed work or overwritten the other's first durable state.
 - Nonce matches mine → ordinary continuation.

@@ -13,6 +13,14 @@
     },
     {
       "answer": "Rendering the recommended form: a call tree.\n\n```\nPostalCarrier.quote\n└── RateTable.price\n```"
+    },
+    {
+      "answer": "Which form do you want? What should it focus on?\n\n1. **Call tree** (recommended): `PostalCarrier.quote` into `RateTable`.\n2. **Types and signatures**: the classes and method signatures only.\n3. **File tree**: the three modules.",
+      "why": "two questions, where the case asks for one"
+    },
+    {
+      "answer": "Which view do you want?\n\n1. Call tree (recommended)\n2. Types and signatures\n\nOr should I just pick one for you?",
+      "why": "a second question after the menu"
     }
   ]
 }

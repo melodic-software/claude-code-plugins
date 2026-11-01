@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "5. Re-enable the firewall block: `pwsh -File firewall.ps1 -Action enable` from an elevated prompt.", "why": "skill step wording" },
+    { "answer": "Once Kindle is fully quit, turn the firewall rule back on.", "why": "back on paraphrase" },
+    { "answer": "Then run `Enable-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)'`.", "why": "raw cmdlet" },
+    { "answer": "Keep the block **re-enabled** before you open Kindle again.", "why": "bold, noun first" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Disable the firewall rule, open Kindle for PC, sync, then run the keyfinder.", "why": "never re-enabled" },
+    { "answer": "Open Kindle, download the three books, and import them into Calibre.", "why": "baseline: no firewall at all" }
+  ]
+}

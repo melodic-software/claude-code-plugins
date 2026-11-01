@@ -78,8 +78,8 @@ cb_setup
 # Re-home the binding into a run-private dir: the overlay lands BESIDE it under a fixed
 # name, so two runs sharing $TMPDIR would clobber each other's overlay.
 BINDING_DIR="$(mktemp -d)"
-cp "$WORK_ITEM_TRACKER_BINDING" "$BINDING_DIR/.work-item-tracker.json"
-export WORK_ITEM_TRACKER_BINDING="$BINDING_DIR/.work-item-tracker.json"
+cp "$WORK_ITEM_TRACKER_BINDING" "$BINDING_DIR/binding.json"
+export WORK_ITEM_TRACKER_BINDING="$BINDING_DIR/binding.json"
 trap 'cb_teardown; rm -rf "$BINDING_DIR"' EXIT
 
 repo_args=()
@@ -138,7 +138,7 @@ assert_eq "missing binding → exit 3" "3" "$?"
 # --- binding overlay (CONTRACT.md "Setup (binding file)") ---
 # Seam-level overlay behavior through the CLI; merge semantics are unit-tested in
 # lib/binding.test.sh. A non-allowlisted key exits 3; removing the overlay restores the team view.
-OVERLAY_PATH="$BINDING_DIR/.work-item-tracker.local.json"
+OVERLAY_PATH="$(wit_overlay_path "$WORK_ITEM_TRACKER_BINDING")"
 printf '%s\n' '{"config":{"lease_ttl_hours":1}}' >"$OVERLAY_PATH"
 wit_case "allowlisted overlay key merges; verbs still dispatch" 0 capabilities
 printf '%s\n' '{"provider":"someone-elses-provider"}' >"$OVERLAY_PATH"
@@ -205,6 +205,7 @@ wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
 wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
 wit_case_if_unsupported set-fields "$FAKE_ID" --field 1=2
 wit_case_if_unsupported get-field-options --field Size
+wit_case_if_unsupported add-recurrence "$FAKE_ID" --source-link https://example.com/1 --note seen
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi

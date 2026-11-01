@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Exactly 2.8.0.70980 is the only version that passes.", "why": "full pin" },
+    { "answer": "apply installs build 70980 from the pinned installer.", "why": "build number" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "You need an older Kindle, 2.8 or so.", "why": "vague version" },
+    { "answer": "Kindle 2.9.1.71124 is installed.", "why": "only the wrong version" }
+  ]
+}

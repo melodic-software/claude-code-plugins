@@ -23,8 +23,8 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/w/.work-item-tracker.json",
-            "content": "{\"provider\":\"local-markdown\"}"
+            "file_path": "/w/docs/conventions/work-items.yaml",
+            "content": "tracker:\n  provider: local-markdown\n"
           }
         }
       ],

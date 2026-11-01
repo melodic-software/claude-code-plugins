@@ -44,7 +44,7 @@ SKILL.md's "Recommended answers" owns both rules.
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:`, `Flips if:` and `Checked against:` are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
+| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:`, `Origin:`, `Basis:`, `Inference:`, `Flips if:` and `Checked against:` are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
 
