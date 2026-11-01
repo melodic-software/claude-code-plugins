@@ -4,7 +4,9 @@
 // spec-text.json, upstream-jobs.json), with the spec files from the real
 // resolvePull, the context from the real buildTrustedContext and the jobs from
 // the real upstreamJobs, all reading one stub GitHub that serves the fixture's
-// issue and pull request and a pr-require-checks run whose jobs all passed.
+// issue and pull request and a pr-require-checks run whose jobs all passed. The
+// jobs file's wrapped Node suites come from replayedTree, this checkout's tree
+// with the fixture's diff applied.
 // It fills in this checkout's prompt.md the way the "Write the prompt and
 // schema" step does, runs `claude -p` with the argv run-claude-cli builds at the pinned SHA (lane.cjs cliArgs)
 // and the verify-pr model route resolve-config resolves, and scores the
@@ -50,7 +52,7 @@ import { parseArgs } from "node:util";
 import { loadTrustedList } from "../../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { buildTrustedContext } from "../../../actions/select-trusted-text/select-trusted-text.mjs";
 import { resolvePull } from "../resolve-pr.mjs";
-import { upstreamJobs } from "../upstream-jobs.mjs";
+import { jobsFile, upstreamJobs } from "../upstream-jobs.mjs";
 import { buildVerdict, structuredOutput } from "../write-verdict.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -293,7 +295,8 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       repository: { full_name: REPOSITORY },
       head_repository: { full_name: REPOSITORY },
     },
-    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })),
+    // A ready pull request's run: ci-status skipped its draft step (resolve-pr draftRun).
+    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success", ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }) })),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,
@@ -326,7 +329,8 @@ export function stubGitHub(s) {
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
   const gets = [
     [`${R}/actions/runs/${s.runId}`, () => s.run],
-    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=1$/.test(apiPath) ? { total_count: s.jobs.length, jobs: s.jobs } : { total_count: s.jobs.length, jobs: [] })],
+    // upstream-jobs.mjs pages; resolve-pr's draftRun reads one unpaged list.
+    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=(?!1$)\d+$/.test(apiPath) ? { total_count: s.jobs.length, jobs: [] } : { total_count: s.jobs.length, jobs: s.jobs })],
     [`${R}/commits/${s.head}/pulls?`, page([s.pull])],
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],
@@ -378,6 +382,9 @@ export function actorsFrom(trustedActorsPath, laneIdentity) {
   };
 }
 
+// This checkout's HEAD tree, read once per process.
+let baseTree;
+
 // The six data files, written as resolve-pr.mjs, select-trusted-text.mjs,
 // upstream-jobs.mjs and the "Write the diff" step write them. Returns the
 // resolved PR facts.
@@ -405,8 +412,25 @@ export async function writeData({ testCase, index, dataDir, trustedActorsPath, v
   writeFileSync(path.join(dataDir, "context.json"), json(context));
   writeFileSync(path.join(dataDir, "diff.patch"), testCase.diff);
   writeFileSync(path.join(dataDir, "pr.json"), json({ pr: resolved.prNumber, head_sha: resolved.headSha, base_sha: resolved.baseSha }));
-  writeFileSync(path.join(dataDir, "upstream-jobs.json"), json(await upstreamJobs(github, s.repository, s.runId)));
+  baseTree ??= sh("git", ["-C", REPO_ROOT, "ls-tree", "-r", "-z", "--name-only", "HEAD"], { maxBuffer: 256 * 1024 * 1024 });
+  const tree = replayedTree(testCase.diff, baseTree);
+  writeFileSync(path.join(dataDir, "upstream-jobs.json"), json(jobsFile(await upstreamJobs(github, s.repository, s.runId), tree)));
   return resolved;
+}
+
+// The replayed head's tree, NUL-separated as the "Write the diff" step's
+// `git ls-tree -r -z --name-only` lists it: the base tree (this checkout's
+// HEAD) with each file the fixture's diff adds, deletes or renames applied.
+export function replayedTree(diff, baseListing) {
+  const paths = new Set(baseListing.split("\0").filter(Boolean));
+  for (const [, from, to] of diff.matchAll(/^--- (.+)\n\+\+\+ (.+)$/gm)) {
+    if (from !== "/dev/null") paths.delete(from.replace(/^a\//, ""));
+    if (to !== "/dev/null") paths.add(to.replace(/^b\//, ""));
+  }
+  return [...paths]
+    .sort()
+    .map((p) => `${p}\0`)
+    .join("");
 }
 
 // ---- judging and scoring ----

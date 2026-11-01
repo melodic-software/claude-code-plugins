@@ -3,7 +3,7 @@
 This lane's binding of the loop-lane convention's consecutive-no-progress detector. Counter
 semantics are the convention's
 ([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
-§4, "No-progress detector"), held by citation and never restated here: the increment/hold/reset
+§4, "No-progress detector"), held by citation: the increment/hold/reset
 states, the escalate-and-keep-looping rule, the author-matched single open escalation, the
 no-self-reset rule, and the resumption comment. `SKILL.md`'s cycle-shape step 6 owns when the counter is updated; this file owns
 what the merge lane counts.
@@ -27,7 +27,7 @@ with no progress ([cycle-shape.md](cycle-shape.md) step 1).
 
 **This lane's held-cycle bar is `rate_limit_latch`, not the pause window.** The inlined rate-limit
 guard floor starts no new mutating work while the latch is set, and the latch outlives the pause
-until a fresh healthy snapshot clears it. So a latched cycle is **held** however many PRs the
+until a fresh healthy snapshot clears it, so a latched cycle is **held** however many PRs the
 snapshot carries, and stays held after the pause has lifted. A lane obeying the guard is never
 escalated for obeying it, and a latch no healthy snapshot ever clears cannot trip the threshold by
 itself.

@@ -1,0 +1,120 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -a docs README.md"
+          }
+        }
+      ],
+      "why": "searches the workspace"
+    },
+    {
+      "answer": [],
+      "why": "uses the given item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/o/r/issues/31\ngrep -F CSV README.md"
+          }
+        }
+      ],
+      "why": "reads the item through the API, then searches on its own line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X GET search/issues -f q='repo:o/r is:issue CSV'"
+          }
+        }
+      ],
+      "why": "searches through the API with an explicit GET and a field"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api graphql -f query='{ repository(owner:\"o\",name:\"r\"){ issue(number:31){ title labels(first:5){nodes{name}} } } }'"
+          }
+        }
+      ],
+      "why": "reads the item through a GraphQL query"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue edit 31 --add-label \"type: bug\""
+          }
+        }
+      ],
+      "why": "labels the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue comment 31 --body \"Triage: reproduce first\""
+          }
+        }
+      ],
+      "why": "comments on the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X POST repos/o/r/issues/31/labels -f labels[]=bug"
+          }
+        }
+      ],
+      "why": "labels through the API"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs README.md\ngh issue edit 31 --add-label bug"
+          }
+        }
+      ],
+      "why": "labels the item on a later line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/o/r/issues/31/labels -f 'labels[]=bug'"
+          }
+        }
+      ],
+      "why": "labels through the API with an implied POST"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api graphql -f query='mutation { addLabelsToLabelable(input: {labelableId: \"I_1\", labelIds: [\"L_1\"]}) { clientMutationId } }'"
+          }
+        }
+      ],
+      "why": "labels through a GraphQL mutation"
+    }
+  ]
+}

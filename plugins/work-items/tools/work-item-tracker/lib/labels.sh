@@ -18,6 +18,11 @@ readonly WIT_DEFAULT_RECURRING_MAINTENANCE_LABEL="recurring"
 # shellcheck disable=SC2034
 readonly WIT_DEFAULT_CONTAINER_LABEL="work-map"
 
+# `/planning:wayfind` owns every item carrying a label with this prefix (its map
+# items), so the frontier never surfaces one. Fixed prefix, no binding key.
+# shellcheck disable=SC2034
+readonly WIT_WAYFIND_LABEL_PREFIX="wayfind:"
+
 # Human-floor work classes: human-gated even beside the autonomous-eligible label
 # (reference/work-class-labels.md). Fixed strings; the work-class axis has no binding key.
 #
@@ -34,10 +39,12 @@ readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: signal")
 
-# An item waiting on an owner decision or on information is not workable by an
-# autonomous lane, whatever else it carries. Fixed strings, no binding key.
+# An item waiting on an owner decision, on information or on a spec is not
+# workable by an autonomous lane, whatever else it carries. Fixed strings, no
+# binding key. needs-spec is a bare Meta label, not a status: value.
 # shellcheck disable=SC2034
 readonly WIT_HUMAN_FLOOR_STATUS_LABELS=(
   "status: needs-decision"
   "status: needs-info"
+  "needs-spec"
 )

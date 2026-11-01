@@ -26,7 +26,8 @@ actions below:
   reference. The core inlines no provider commands.
 - **Role-label resolution is an action-entry invariant.** `add`, `due`, `recheck`, and `audit`
   query, create, or filter items by a canonical role. Resolve each role from
-  `.work-item-tracker.json` `config.role_labels` at action entry and use the resolved strings in
+  `config.role_labels` of the binding the seam resolves (the `tracker` mapping of
+  `<home>/work-items.yaml`, else the legacy repo-root JSON binding) at action entry and use the resolved strings in
   every query. An absent file or entry falls back to the documented default without a warning (a
   conforming binding omits entries that keep their default); a present malformed, empty, or
   non-string value is a hard stop.

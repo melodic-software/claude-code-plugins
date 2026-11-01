@@ -25,7 +25,7 @@ training-data recall.
 
 One row per plugin component type, per the current [Add components to a plugin](https://code.claude.com/docs/en/plugins/components) page.
 We cite the [Skills](https://code.claude.com/docs/en/skills) page for both skills and legacy
-`commands/`. Statusline gets no row: we treat it as a settings key a plugin's `settings.json` may
+`commands/`. Statusline gets no row because we treat it as a settings key a plugin's `settings.json` may
 set, not a component. Channels get a row for the `channels` manifest field, not a file location.
 For workflows we cite the [Workflows](https://code.claude.com/docs/en/workflows) page. The manifest
 (`.claude-plugin/plugin.json`) is the container these components are declared in, not a component,
@@ -75,7 +75,7 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | Sandbox environments | <https://code.claude.com/docs/en/sandbox-environments> | 2026-08-06 |
 | Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-08-06 |
 | Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
-| Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows | <https://code.claude.com/docs/en/agents> | 2026-08-10 |
+| Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows, projects | <https://code.claude.com/docs/en/agents> | 2026-11-01 |
 | Orchestrate agent teams: status and the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` switch | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
 | Cross-session messaging: `ListAgents`/`SendMessage`, `crossSessionInbound`, and the version floors | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
 | Manage sessions: resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |
@@ -193,5 +193,5 @@ contract: `marketplace.json` →
 `plugin.json` →
 [`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)
 (published on SchemaStore, sourced from the same plugin system these pages document).
-`plugin.json` files carry no `$schema` key: claude.ai's marketplace sync strips it with a warning,
+`plugin.json` files carry no `$schema` key. claude.ai's marketplace sync strips it with a warning,
 and Claude Code ignores it at load time.

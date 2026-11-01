@@ -11,11 +11,16 @@ git config user.email eval@example.invalid
 
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 store=".work-items"
-mkdir -p "$store"
+mkdir -p "$store" docs/conventions
 
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
+cat >docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+YAML
 
 item() {
   # item <number> <title> <assignees-json> <labels-json> <parent-json> <body>

@@ -130,23 +130,29 @@ operator's chosen order. The default, in this kind order and oldest first within
 ## Row claim (before any mutation)
 
 **Read the full view; claim each row before mutating it.** Building the attention view reads
-every row, that read is unrestricted. Mutation (comments, labels, triage) requires holding the
-seam claim first, the same assignee + lease protocol `/work-items:work` uses:
+every row, that read is unrestricted. Mutation (comments, labels, body edits) requires holding the
+seam claim first, the same assignee + lease protocol `/work-items:work` uses, with the triage
+phase, since this lane's writes are judgment, not implementation:
 
 ```bash
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
-"$TRACKER" claim "<id>"
+"$TRACKER" claim "<id>" --phase triage
 ```
 
 `<id>` MUST be fully-qualified (`claim` rejects a bare number). Exit `0` → claim held for this row;
 record the claim object's `lease_comment_id`, which the release after disposition needs.
-Exit `7` → another attended session won: **skip that row** and advance to the next candidate (do
-NOT retry the same item in this pass). Claim identity is the authenticated session user, never the
-bot.
+Exit `7` → another session holds the item: **skip that row**, tell the operator
+`#<n> skipped: claimed by another session`, and advance to the next candidate (do NOT retry the
+same item in this pass). Exit `2` from a provider whose `claim` takes no `--phase` (linear): claim
+once more without it. Claim identity is the authenticated session user, never the bot.
+
+**`[intake]` rows take no claim here.** `/work-items:triage` claims and releases each item it
+writes to ("Claim before the first write"), and `claim` backs off from an earlier live lease of
+the same login, so a row this lane claimed first would make triage skip it.
 
 **Binding.** `claim` and session-start `reclaim` are seam coordination verbs, if
-`.work-item-tracker.json` does not resolve, surface the same actionable choice as
+the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, surface the same actionable choice as
 `/work-items:work` before the first coordination verb (session-start reclaim, then row `claim`):
 **(1) setup was never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed
 for provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row
@@ -161,8 +167,8 @@ each `number` to a fully-qualified id, `"$TRACKER" reclaim "<id>"` on each. Exit
 coordination lock, not an execution assignment: hand it back as soon as the row is done, since
 `claim` backs off from any earlier live lease, the same login's included (the seam's
 `CONTRACT.md` "Lease protocol", claim step 4), and a lease left to run out its TTL keeps every
-worker lane off the flipped item. Once the row's answer is written, ratification recorded, or
-triage disposition applied:
+worker lane off the flipped item. Once the row's answer is written or ratification recorded
+(triage hands back the `[intake]` rows it claims itself):
 
 - **When the human blocker is removed:** perform the single-edit role-label flip **while this
   session still holds the claim**, then clear `@me` from assignees via the bound adapter's assignee
@@ -171,7 +177,7 @@ triage disposition applied:
   assignee before the flip: a released row still reads as `[escalated]`/`[ratify]` in another
   attended session's view until the label lands. A brief frontier delay after the flip is
   acceptable.
-- **When disposition leaves the item human-gated** (decline, parked intake, an answered
+- **When disposition leaves the item human-gated** (decline, an answered
   escalation on a human-floor work class that was not reclassified): clear `@me` via the
   same adapter assignee edit once disposition comments are written, still while holding the claim
   through those writes, then `release` the same way.

@@ -132,11 +132,18 @@ assert_eq "api user: serves the fixture login" "eval-fixture" "$out"
 
 out=$(run_gh "$THREADED" search prs --author eval-fixture --json number,title --jq '.[] | "\(.number) \(.title)"' 2>&1)
 assert_eq "search prs: serves the fixture pull request" "7 feat: x" "$out"
+assert_eq "search prs: the served call is recorded as a read" "read search prs" \
+  "$(tail -n 1 "$CALLS" | jq -r '"\(.command) \(.args[0]) \(.args[1])"')"
 
 out=$(run_gh "$THREADED" pr review 7 --approve --body ok 2>&1)
 assert_exit "pr review: exit 0" 0 "$?"
 assert_eq "pr review: the call is recorded" \
   '{"command":"pr review","pr":7,"args":["7","--approve","--body","ok"]}' "$(tail -n 1 "$CALLS")"
+
+out=$(printf 'skipped\n' | run_gh "$THREADED" pr comment 7 --body-file - 2>&1)
+assert_exit "pr comment: exit 0" 0 "$?"
+assert_eq "pr comment: the call is recorded" \
+  '{"command":"pr comment","pr":7,"args":["7","--body-file","-"]}' "$(tail -n 1 "$CALLS")"
 
 # The eval sandbox holds .git read-only and a fetch opens FETCH_HEAD for writing before it reads anything.
 READONLY="$TEST_TMPDIR/readonly"
@@ -158,10 +165,11 @@ assert_eq "--no-pr: pr list is empty before create" "0" "$(run_gh "$CREATE" pr l
 printf 'Refs: #5\n\n## Summary\n\nx\n' >"$TEST_TMPDIR/body.md"
 out=$(run_gh "$CREATE" pr create --draft --head feat/x --title "feat: y" --body-file "$TEST_TMPDIR/body.md" 2>&1)
 assert_eq "pr create: prints the new PR's URL" "https://github.com/eval-fixture/app/pull/7" "$out"
+# Before the pr view below: that read is recorded too, as the last line.
+assert_eq "pr create: the call is recorded" '"pr create"' "$(tail -n 1 "$CREATE_FORGE/calls.jsonl" | jq -c .command)"
 assert_eq "pr create: the body file is kept for a grader" "$(cat "$TEST_TMPDIR/body.md")" "$(cat "$CREATE_FORGE/pr-body.md")"
 assert_eq "pr create: the PR then reads as an open draft with the given title" "true feat: y" \
   "$(run_gh "$CREATE" pr view 7 --json isDraft,title --jq '"\(.isDraft) \(.title)"')"
-assert_eq "pr create: the call is recorded" '"pr create"' "$(jq -c .command "$CREATE_FORGE/calls.jsonl")"
 run_gh "$CREATE" pr create --head feat/x --title again >/dev/null 2>&1
 assert_exit "pr create: a second create for the branch is refused" 1 "$?"
 out=$(run_gh "$CREATE" pr ready 7)
@@ -182,6 +190,37 @@ run_gh "$CREATE" api "repos/eval-fixture/app/contents/docs/conventions/source-co
 assert_exit "api contents: a missing file is a 404, exit 1" 1 "$?"
 run_gh "$CREATE" api --method POST repos/eval-fixture/app/pulls -f title=x >/dev/null 2>&1
 assert_exit "api: a write method is refused" 1 "$?"
+
+# --dir and --extra-pr: a forge installed into a checkout below the launch directory, serving two PRs.
+MULTI="$TEST_TMPDIR/multi"
+mkdir -p "$MULTI/app"
+(
+  cd "$MULTI/app" || exit 1
+  git init -q -b main
+  git config user.name eval
+  git config user.email eval@example.invalid
+  echo a >f
+  git add f
+  git commit -q -m seed
+  for b in one two; do
+    git checkout -q -b "fix/$b" main
+    echo "$b" >f
+    git commit -q -am "$b"
+  done
+  git checkout -q main
+  cd "$MULTI" || exit 1
+  bash "$SCRIPT_DIR/fixtures/gh-forge/install.sh" 61 fix/one main "fix: one" --open --extra-pr 62 fix/two "fix: two" --dir app
+) >/dev/null 2>&1
+assert_exit "install.sh --dir app --extra-pr: exit 0" 0 "$?"
+assert_eq "pr list: the first and the extra pull request are served" "61 fix/one,62 fix/two" \
+  "$(run_gh "$MULTI/app" pr list --json number,headRefName --jq 'map("\(.number) \(.headRefName)") | join(",")')"
+assert_eq "pr view: the extra pull request by number, open like the first" "fix: two false" \
+  "$(run_gh "$MULTI/app" pr view 62 --json title,isDraft --jq '"\(.title) \(.isDraft)"')"
+run_gh "$MULTI/app" pr merge 62 --squash >/dev/null 2>&1
+assert_eq "pr merge: the extra pull request's number is recorded" 62 \
+  "$(tail -n 1 "$MULTI/app/.git/eval-forge/calls.jsonl" | jq .pr)"
+(cd "$MULTI/app" && git fetch origin fix/two) >/dev/null 2>&1
+assert_exit "git fetch origin with the stand-in off PATH: the alias runs the helper" 0 "$?"
 
 for cmd in "pr close 7" "repo list" "api repos/eval-fixture/other" "auth switch" "run download 1" "gist create"; do
   # shellcheck disable=SC2086 # word splitting of the command words is intended
