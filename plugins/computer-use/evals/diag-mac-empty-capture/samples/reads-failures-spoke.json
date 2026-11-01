@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/computer-use/skills/diagnose/reference/failure-diagnostics.md"
+          }
+        }
+      ],
+      "why": "reads the spoke"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/computer-use/skills/diagnose/reference/screenshots-and-zoom.md"
+          }
+        }
+      ],
+      "why": "wrong spoke"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/computer-use/skills/diagnose/SKILL.md"
+          }
+        }
+      ],
+      "why": "hub only"
+    }
+  ]
+}

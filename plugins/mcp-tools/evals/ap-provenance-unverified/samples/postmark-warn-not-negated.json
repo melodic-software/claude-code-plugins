@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (unverified) | |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "postmark is not a WARN on P3.",
+      "why": "negated verdict"
+    }
+  ]
+}

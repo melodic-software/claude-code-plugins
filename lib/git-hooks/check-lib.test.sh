@@ -123,6 +123,48 @@ printf 'loose\0bin\n' >"$B/loose.dat"
 expect "worktree ranges: an untracked binary file is dropped" no \
   "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
 
+# --- a failing tool fails the hook ------------------------------------------------
+# A tool that crashes while the lib reads the changed lines or filters findings
+# leaves the ranges short, so findings would drop and the hook pass. The shims
+# fail only the calls whose arguments hold SHIM_FAIL, so each site is proved on
+# its own; the snippet's own `exit 0` must still end as 1.
+SHIMS="$WORK/shims"
+mkdir "$SHIMS"
+for t in awk git; do
+  # shellcheck disable=SC2016 # $* and $SHIM_FAIL expand when the shim runs
+  printf '#!/bin/sh\ncase " $* " in\n*"$SHIM_FAIL"*) echo "%s: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+    "$t" "$(command -v "$t")" >"$SHIMS/$t"
+  chmod +x "$SHIMS/$t"
+done
+in_repo_failing() { # <repo> <event> <marker> <snippet> [args...] -> "<rc>|<last stderr line>"
+  local repo="$1" event="$2" marker="$3" snippet="$4" err rc
+  shift 4
+  err="$(PATH="$SHIMS:$PATH" SHIM_FAIL="$marker" in_repo "$repo" "$event" "$snippet" "$@" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "${err##*$'\n'}"
+}
+new_repo; F="$REPO"
+printf 'one\ntwo\n' >"$F/a.txt"
+git -C "$F" add a.txt
+expect "a failing awk in checks_changed_lines fails the hook" \
+  "1|checks: awk exited 2 while listing the changed lines, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit '/^\+\+\+ /' 'checks_changed_lines; exit 0')"
+expect "a failing git diff in checks_changed_lines fails the hook" \
+  "1|checks: git exited 2 while listing the changed lines, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit '-U0' 'checks_changed_lines; exit 0')"
+expect "a failing awk in checks_filter_findings fails the hook" \
+  "1|checks: awk exited 2 while filtering the findings to the changed lines, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'getline l < ranges' 'checks_changed_lines; printf "a.txt:1: x\n" | checks_filter_findings >/dev/null; exit 0')"
+expect "checks_filter_findings with no ranges file fails the hook" \
+  "1|checks: awk exited 2 while filtering the findings to the changed lines, so this change was not fully checked; fix that failure, then commit again" \
+  "$(in_repo_failing "$F" pre-commit 'no-such-marker' 'printf "a.txt:1: x\n" | checks_filter_findings >/dev/null; exit 0')"
+expect "a failing tool also makes the function return non-zero" "1" \
+  "$(PATH="$SHIMS:$PATH" SHIM_FAIL='/^\+\+\+ /' in_repo "$F" pre-commit 'checks_changed_lines; echo $?' 2>/dev/null)"
+expect "a failing tool keeps a hook's own non-zero exit" "3" \
+  "$(PATH="$SHIMS:$PATH" SHIM_FAIL='/^\+\+\+ /' in_repo "$F" pre-commit 'checks_changed_lines; exit 3' 2>/dev/null; echo $?)"
+expect "tools that all succeed pass through the shims unchanged" $'a.txt:1: x\n0' \
+  "$(PATH="$SHIMS:$PATH" SHIM_FAIL='no-such-marker' in_repo "$F" pre-commit 'checks_changed_lines; printf "a.txt:1: x\nb:1: y\n" | checks_filter_findings' 2>/dev/null; echo $?)"
+
 # --- missing tool and skip-propagation ------------------------------------------
 new_repo; H="$REPO"
 cat >"$H/.git/hooks/pre-commit" <<EOF
@@ -191,6 +233,11 @@ expect "pre-push: a new branch starts at its merge-base with <remote>/HEAD" "$ba
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url)"
 expect "pre-push: the range's changed lines" $'f.txt\t2\t2' \
   "$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$zero" | in_repo "$P" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+# A remote sha this clone never fetched ranges from the merge-base, with a notice.
+unfetched=1234567890abcdef1234567890abcdef12345678
+out="$(printf 'refs/heads/topic %s refs/heads/topic %s\n' "$topic_sha" "$unfetched" | in_repo "$P" pre-push 'checks_changed_lines; echo "rc=$?"; cat "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/ranges"' origin url 2>&1)"
+expect "pre-push: an unfetched remote sha ranges from the merge-base, with a notice" \
+  "NOTICE: $unfetched is not in this clone, so refs/heads/topic is checked from its merge-base with the default branch; fetch to check against the remote."$'\n'"rc=0"$'\n'"$base_sha $topic_sha"$'\n'$'f.txt\t2\t2' "$out"
 # The pushed commit's blob decides, not the index or the work tree.
 printf 'pushed\0bin\n' >"$P/p.dat"
 git -C "$P" add p.dat
@@ -280,6 +327,9 @@ expect "pre-push reader: a path deleted at the tip returns non-zero and no conte
   "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text del.txt; echo "|$?"' origin url)"
 expect "pre-push reader: a symlink at the tip is not a regular file" no \
   "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_regular_file link && echo yes || echo no' origin url)"
+expect "pre-push: a failing git diff on an earlier pushed range fails the hook" \
+  "1|checks: git exited 2 while listing the changed lines, so this change was not fully checked; fix that failure, then push again" \
+  "$(printf '%s\n' "$push_two" | in_repo_failing "$Q" pre-push "$qone --no-color --no-ext-diff -U0" 'checks_changed_lines; exit 0' origin url)"
 expect "pre-push reader: a path no pushed range touches is not readable" "|1" \
   "$(printf '%s\n' "$push_one" | in_repo "$Q" pre-push 'checks_file_text h.txt; echo "|$?"' origin url)"
 expect "pre-push reader: a <rev> argument reads that commit, as --tip does" $'one\nother ref' \

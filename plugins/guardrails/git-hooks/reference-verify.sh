@@ -312,8 +312,9 @@ else
   top="$PWD"
   tip_tree="$CHECKS_TMP/tip"
   mkdir -p "$CHECKS_TMP/no-hooks"
-  # shellcheck disable=SC2064 # expand now: both paths are fixed here
-  trap "rm -rf '$CHECKS_TMP'; git -C '$top' worktree prune 2>/dev/null" EXIT
+  # The lib's EXIT trap, then the prune: a lib tool failure still fails the hook.
+  # shellcheck disable=SC2064 # expand now: the path is fixed here
+  trap "checks_finish \$?; s=\$?; git -C '$top' worktree prune 2>/dev/null; ((s == 0)) || exit 1" EXIT
   mv "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/all-ranges"
   remote="${CHECKS_ARGS%% *}"
   [[ -n "$remote" ]] || remote=origin

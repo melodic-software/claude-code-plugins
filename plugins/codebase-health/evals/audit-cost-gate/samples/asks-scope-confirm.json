@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "## Scope check\n\n--docs-only enumerates 33 files (README.md plus 32 under docs/), past the ~20-file gate. Confirm the scope: all 33, or a subtree?",
+      "why": "hash heading, confirm the scope"
+    },
+    {
+      "answer": "**Cost gate.** 33 docs is one subagent each. Which files do you want audited?",
+      "why": "bold, which files"
+    },
+    {
+      "answer": "- Found 33 markdown files\n- Over the ~20 limit\n- Shall I proceed with all of them, or narrow to docs/topic-0*.md?",
+      "why": "list, shall I proceed"
+    },
+    {
+      "answer": "Do you want me to audit all 33 pages, or pick a directory?",
+      "why": "do you want me to"
+    },
+    {
+      "answer": "Give me your go-ahead to dispatch 33 agents, or name a smaller scope.",
+      "why": "give me your go-ahead"
+    },
+    {
+      "answer": "Reply with your scope choice and I'll start.",
+      "why": "reply with your scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No need to confirm the scope; dispatching 33 agents now.",
+      "why": "negated confirm"
+    },
+    {
+      "answer": "You don't need to pick a subset. Audit complete: no findings.",
+      "why": "negated pick"
+    },
+    {
+      "answer": "I audited all 33 files without asking you to narrow the scope.",
+      "why": "proceeded without asking"
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|---|---|---|---|---|",
+      "why": "ran the audit"
+    }
+  ]
+}
