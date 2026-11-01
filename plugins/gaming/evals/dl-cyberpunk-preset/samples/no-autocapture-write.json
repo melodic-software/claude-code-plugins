@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/notes.md", "content": "[DlssNr]\nEnabled=true\nAutoCapture=false\nLogToFile=true" } }], "why": "false, followed by another true key" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/OptiScaler.ini", "content": "[DlssNr]\nEnabled=true\nAutoCapture=true" } }], "why": "ini with it on" },
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/presets/cyberpunk-2077.json", "content": "{\"ini\": [{\"key\": \"AutoCapture\", \"value\": \"true\"}]}" } }], "why": "preset entry with it on" }
+  ]
+}

@@ -2,13 +2,13 @@
 
 A stack is a chain of pull requests in one repository: the bottom layer targets the trunk (usually
 the default branch) and each layer above targets the branch of the layer below. Only a native stack,
-one GitHub records as a stack, behaves as one. A PR that merely targets another PR's branch is not a
+one GitHub records as a stack, behaves as one. A PR that only targets another PR's branch is not a
 stack layer: merging it lands that PR alone, into that branch.
 
 ## When to stack
 
-Stack only pull requests that genuinely depend on each other: the upper one cannot build, test or
-be reviewed without the lower one's change. Independent changes go in separate PRs off the trunk.
+Stack only pull requests that depend on each other: the upper one cannot build, test or be
+reviewed without the lower one's change. Independent changes go in separate PRs off the trunk.
 
 A stack saves the trunk merge into the next PR, not CI time. Every layer runs its own checks and
 review lanes, and each restack re-runs them on every layer above the change. The PR-pipeline lanes
@@ -52,7 +52,7 @@ short, and fix a lower layer before the upper layers collect review.
 - Merge with the extension's merge command or the async merge API ([merge.md](merge.md) §4.2). The
   synchronous REST merge endpoint does not support stacks.
 - The trunk's rules govern every layer, and GitHub evaluates them when the merge runs, not when it
-  is requested. A stack merge cannot bypass them.
+  is requested; a stack merge cannot bypass them.
 - After a partial merge, expect the layers above to re-run their checks and review lanes on their
   new head before they are ready again.
 - Treat a stack as merging until every one of its PRs reads `MERGED`; on a trunk with a merge

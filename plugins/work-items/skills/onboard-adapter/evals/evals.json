@@ -58,12 +58,12 @@
       "id": 5,
       "name": "routes-a-bundled-provider-to-setup",
       "prompt": "/work-items:onboard-adapter\n\nI want to use Jira with work-items.",
-      "expected_output": "Jira is already bundled, so this is a binding job, not a generation job. Routes to /work-items:setup to bind the provider in .work-item-tracker.json rather than generating a second, competing jira adapter into the consumer's repo.",
+      "expected_output": "Jira already ships with the plugin as a seed, so this is a binding job, not a generation job. Routes to /work-items:setup, which binds the provider and copies the jira seed into the consumer's repo, rather than generating a second, competing jira adapter.",
       "expectations": [
-        "Recognizes jira as an already-bundled adapter (alongside github and local-markdown)",
-        "Routes to /work-items:setup for the binding instead of generating",
-        "Does not generate a shadowing consumer-local adapter for a bundled provider without an explicit reason to shadow it",
-        "Explains the difference between binding a provider and onboarding an unbundled one"
+        "Recognizes jira as a provider the plugin already ships (a seed beside the bundled github and local-markdown)",
+        "Routes to /work-items:setup for the binding and seed copy instead of generating",
+        "Does not generate a consumer-local adapter for a shipped provider without an explicit reason to replace it",
+        "Explains the difference between binding a shipped provider and onboarding one the plugin does not ship"
       ]
     }
   ]

@@ -271,6 +271,33 @@ check(
   policyOf(buildView({ profile: "interactive", template, data: { ...sample, title: "x; connect-src http://127.0.0.1:1" } })) === policyOf(page),
 );
 
+// ---------------------------------------------------- page title (rule 5)
+const titleOf = (html) => /<title>([^<]*)<\/title>/.exec(html)?.[1];
+const hostileTitle = "Fix </title><script>alert(1)</script> & <b>it</b>";
+const escapedTitle = "Fix &lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt; &amp; &lt;b&gt;it&lt;/b&gt;";
+const titled = buildView({ profile: "interactive", template, data: sample, title: hostileTitle });
+check("a page built with a hostile title validates", validateView(titled).ok, validateView(titled).failures);
+check("the title element holds the title as escaped text", titleOf(titled) === escapedTitle, titleOf(titled));
+check("a hostile title adds no script element", (titled.match(/<script/gi) ?? []).length === 2);
+check("a hostile title adds no title element", (titled.match(/<title/gi) ?? []).length === 1 && (titled.match(/<\/title/gi) ?? []).length === 1);
+check("a page built without a title keeps the template's", titleOf(page) === titleOf(template) && titleOf(page) !== undefined);
+check("a blank title keeps the template's", titleOf(buildView({ profile: "interactive", template, data: sample, title: " \n\t " })) === titleOf(template));
+const longTitle = titleOf(buildView({ profile: "interactive", template, data: sample, title: `  a\n\tb  ${"x".repeat(200)}` }));
+check(
+  "a title's whitespace collapses and a long title is cut to 80 characters",
+  [...longTitle].length === 80 && longTitle.startsWith("a b xxx") && longTitle.endsWith("…"),
+  longTitle,
+);
+check("a title drops bidi overrides and zero-width marks", titleOf(buildView({ profile: "interactive", template, data: sample, title: "a‮b​c" })) === "abc");
+check("a title that is not a string is refused", (failuresOf(() => buildView({ profile: "interactive", template, data: sample, title: 7 })) ?? []).includes("title"));
+const untitled = template.replace(/<title>[^<]*<\/title>/, "");
+check(
+  "a title for a template with no title element is refused",
+  (failuresOf(() => buildView({ profile: "interactive", template: untitled, data: sample, title: "t" })) ?? []).includes("title-element"),
+);
+check("a template with no title element still builds without a title", failuresOf(() => buildView({ profile: "interactive", template: untitled, data: sample })) === null);
+check("a template with no title element builds with a blank title", failuresOf(() => buildView({ profile: "interactive", template: untitled, data: sample, title: " " })) === null);
+
 const unmarked = page.replace(/<!-- rv-gen:view-builder-interactive sha256:[0-9a-f]{64} -->/, "");
 check("a page without the interactive marker falls back to the report profile and fails", !validateView(unmarked).ok);
 
@@ -292,6 +319,14 @@ check("--check on an unreadable path exits 2", missingCheck.status === 2, missin
 check("the report page carries no script", !/<script/i.test(report));
 check("hostile text is escaped in the report", report.includes("&lt;/script&gt;&lt;script&gt;") && !report.includes("<img"));
 check("prototype keys are not read as data", !report.includes("polluted"));
+const titledReport = buildView({ profile: "report", template: reportTemplate, data: hostileData, title: hostileTitle });
+check("a report built with a hostile title validates", validateView(titledReport).ok, validateView(titledReport).failures);
+check("a report's title element holds the title as escaped text", titleOf(titledReport) === escapedTitle, titleOf(titledReport));
+check("a report title adds no script element", !/<script/i.test(titledReport));
+check(
+  "a title naming a slot stays text in a report",
+  titleOf(buildView({ profile: "report", template: reportTemplate, data: hostileData, title: "{{title}}" })) === "{{title}}",
+);
 const reportRejects = {
   "a slot inside a tag": reportTemplate.replace("<section>", '<section title="{{title}}">'),
   "a slot inside style": reportTemplate.replace("margin: 0", "margin: {{title}}"),

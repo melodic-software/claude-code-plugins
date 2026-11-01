@@ -2,15 +2,10 @@
   "skill": "plugin-quality:audit",
   "plugin": "plugin-quality",
   "skill_dir": "plugins/plugin-quality/skills/audit",
-  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the plugin-quality setup and report skills (same-plugin near-misses) plus the skills the audit description names or borders on: static skill QA (skill-quality:check), MCP tool audits (mcp-tools:audit), PR code review (review:code-review), the installed-plugin landscape report (harness-ops:audit-plugin-landscape), and bug write-ups (bugs:write).",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitors only: plugin-quality:setup (prerequisite and sink checks for the audit, not an audit of a component) and plugin-quality:report (the return contract a dispatched agent reports in). audit owns the post-use behavioral audit of a plugin component, ending in a maintainer work item.",
   "competitors": [
     "plugin-quality:setup",
-    "plugin-quality:report",
-    "skill-quality:check",
-    "mcp-tools:audit",
-    "review:code-review",
-    "harness-ops:audit-plugin-landscape",
-    "bugs:write"
+    "plugin-quality:report"
   ],
   "queries": [
     {

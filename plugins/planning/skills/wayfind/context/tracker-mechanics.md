@@ -26,31 +26,23 @@ maps and decompose containers on ONE marker: a repo that remaps the label would 
 strand wayfind maps on the old string, where the seam's frontier exclusion no longer
 matches them and `/work-items:work-loop` would surface a map as a claimable item.
 
+SKILL.md's pre-computed context already holds the result. To re-run it, from the repository root:
+
 ```shell
-# Same key + same type rule as the seam's lib/binding.sh: absent/empty → shipped default;
-# a PRESENT non-string value is a configuration error, never a silent fallback.
-ROOT=$(git rev-parse --show-toplevel)
-t=$(jq -r '.config.container_label | type' "$ROOT/.work-item-tracker.json" 2>/dev/null || echo null)
-case "$t" in
-  string) CONTAINER_LABEL=$(jq -r '.config.container_label' "$ROOT/.work-item-tracker.json" 2>/dev/null) ;;
-  null)   CONTAINER_LABEL= ;;   # no binding, no key, or jq missing
-  *)      echo "ERROR: config.container_label must be a string (got $t). Fix .work-item-tracker.json" >&2
-          # Real stop — works sourced or standalone; never proceed with a coerced label.
-          return 1 2>/dev/null || exit 1
-          ;;
-esac
-CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
-# The label is copied into single-quoted action arguments, so refuse a quote or control character.
-case "$CONTAINER_LABEL" in
-  *"'"* | *[[:cntrl:]]*) echo "ERROR: config.container_label holds a quote or control character" >&2
-                         return 1 2>/dev/null || exit 1 ;;
-esac
+bash "<plugin-root>/skills/wayfind/scripts/container-label.sh"
 ```
 
+`<plugin-root>` is this plugin's root directory. The script reads
+`tracker.config.container_label` from `<home>/work-items.yaml`, `<home>` being the convention home
+the pointer region binds (`docs/conventions` when the repository binds none). It reads the file the
+way the seam's binding reader does, with this plugin's copies of the convention-home resolver and
+the YAML subset parser. An absent or empty key prints the shipped default `work-map`. It prints one
+`ERROR:` line and exits 1 for a broken pointer, a file the parser rejects, a non-string value (a
+mapping or a sequence) or a label holding a quote or control character, since the label is copied
+into single-quoted action arguments.
+
 `<container-label>` below is that value; prose that says `work-map` means the shipped default.
-Wayfind reads the binding file directly, so the type check above repeats the seam's rule on this
-path rather than assuming the seam already ran. On the ERROR branch, stop and report instead of
-creating anything.
+On an `ERROR:` line, stop and report instead of creating anything.
 
 ## Find open maps
 

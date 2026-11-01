@@ -279,4 +279,191 @@ assert_overlay_rejected "object-valued gitea auth_env rejected" '{"config":{"git
 
 rm -f "$OVERLAY"
 
+# --- convention home: the `tracker` mapping of <home>/work-items.yaml ---
+
+# yaml_repo <name>: a git repository with the default home, echoed.
+yaml_repo() {
+  local dir="$TEST_TMPDIR/$1"
+  mkdir -p "$dir/docs/conventions" "$dir/deep"
+  git init -q "$dir"
+  printf '%s\n' "$dir"
+}
+
+YAML_BINDING='ai_disclaimer: false
+tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: 12
+    role_labels:
+      human-gated: hold'
+
+YREPO="$(yaml_repo yaml-repo)"
+write_binding "$YREPO/docs/conventions/work-items.yaml" "$YAML_BINDING"
+write_binding "$YREPO/.work-item-tracker.json" '{"schema_version":"1.0","provider":"local-markdown","config":{"lease_ttl_hours":1,"storage_dir":"x"}}'
+OUT="$(cd "$YREPO/deep" && unset WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR && wit_find_binding)"
+assert_eq "YAML binding in the default home wins over the legacy JSON" "$YREPO/docs/conventions/work-items.yaml" "$OUT"
+if wit_read_binding "$OUT" 2>"$TEST_TMPDIR/yaml.err"; then
+  pass "YAML binding accepted"
+  assert_eq "YAML provider exported" "github" "$WIT_PROVIDER"
+  assert_eq "YAML lease_ttl_hours exported" "12" "$WIT_LEASE_TTL_HOURS"
+  assert_eq "YAML role label remap exported" "hold" "$WIT_HUMAN_GATED_LABEL"
+else
+  fail "YAML binding accepted" "success" "failure"
+fi
+assert_not_contains "YAML binding prints no legacy notice" "$(<"$TEST_TMPDIR/yaml.err")" "notice"
+
+# Scalars stay strings and sequences become arrays: a jira resolution id is a
+# digit string the adapter requires as a string.
+write_binding "$TEST_TMPDIR/ids.yaml" 'tracker:
+  config:
+    jira:
+      resolutions:
+        completed: ["10000"]
+        wont_do:
+          - 10001'
+assert_eq "YAML scalars stay strings inside arrays" '{"completed":["10000"],"wont_do":["10001"]}' \
+  "$(wit_yaml_binding_json "$TEST_TMPDIR/ids.yaml" | jq -c '.config.jira.resolutions')"
+
+# An empty flow sequence stays [], as the legacy JSON writes it, where the parser
+# alone prints nothing: jira tells a present empty done_category_keys (a config
+# error) from an absent one (the default) by presence, and requires both resolutions
+# keys. A `[]` inside a quoted scalar or a comment is text, and a key with no value
+# reads as absent.
+write_binding "$TEST_TMPDIR/empty.yaml" 'tracker:
+  config:
+    jira:
+      site: a.atlassian.net # not a list: []
+      blocked_by_link_type: "[]"
+      auth_email:
+      done_category_keys: []
+      resolutions:
+        completed: ["10000"]
+        wont_do: [ ]  # none yet'
+assert_eq "an empty YAML flow sequence stays [], as in the legacy JSON" \
+  '{"site":"a.atlassian.net","blocked_by_link_type":"[]","done_category_keys":[],"resolutions":{"completed":["10000"],"wont_do":[]}}' \
+  "$(wit_yaml_binding_json "$TEST_TMPDIR/empty.yaml" | jq -c '.config.jira')"
+printf 'tracker:\r\n  config:\r\n    jira:\r\n      done_category_keys: []\r\n' >"$TEST_TMPDIR/crlf.yaml"
+assert_eq "an empty flow sequence on a CRLF line stays []" '[]' \
+  "$(wit_yaml_binding_json "$TEST_TMPDIR/crlf.yaml" | jq -c '.config.jira.done_category_keys')"
+write_binding "$TEST_TMPDIR/dup.yaml" 'tracker:
+  config:
+    jira:
+      done_category_keys: []
+      done_category_keys: ["done"]'
+ERR="$(wit_yaml_binding_json "$TEST_TMPDIR/dup.yaml" 2>&1 >/dev/null)"
+assert_contains "a parse error after an empty flow sequence names the file's own line" "$ERR" "$TEST_TMPDIR/dup.yaml: line 5"
+
+# The pointer region binds a home other than the default.
+PREPO="$(yaml_repo pointer-repo)"
+mkdir -p "$PREPO/team/conf"
+# shellcheck disable=SC2016 # the backticks are the pointer grammar, not a command substitution
+printf '%s\n' '<!-- BEGIN GENERATED: convention-home -->' 'Conventions live in `team/conf`.' '<!-- END GENERATED: convention-home -->' >"$PREPO/AGENTS.md"
+write_binding "$PREPO/team/conf/work-items.yaml" "$YAML_BINDING"
+OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$PREPO" wit_find_binding)"
+assert_eq "YAML binding read from the home the pointer region binds" "$PREPO/team/conf/work-items.yaml" "$OUT"
+
+# A relative storage_dir in a YAML binding roots at the project root, not the home.
+write_binding "$PREPO/team/conf/work-items.yaml" 'tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items'
+OUT="$(CLAUDE_PROJECT_DIR="$PREPO" && export CLAUDE_PROJECT_DIR && wit_read_binding "$PREPO/team/conf/work-items.yaml" && printf '%s\n' "$WIT_STORAGE_DIR")"
+assert_eq "YAML relative storage_dir roots at the project root" "$PREPO/.work-items" "$OUT"
+
+# --- YAML plus the personal overlay work-items.local.yaml ---
+
+YOVERLAY="$YREPO/docs/conventions/work-items.local.yaml"
+write_binding "$YOVERLAY" 'tracker:
+  config:
+    lease_ttl_hours: 2'
+if wit_read_binding "$YREPO/docs/conventions/work-items.yaml" 2>/dev/null; then
+  assert_eq "YAML overlay lease_ttl_hours wins" "2" "$WIT_LEASE_TTL_HOURS"
+  assert_eq "team YAML provider survives the overlay" "github" "$WIT_PROVIDER"
+else
+  fail "YAML plus overlay accepted" "success" "failure"
+fi
+write_binding "$YOVERLAY" 'tracker:
+  config:
+    lease_ttl_hours: later'
+ERR="$(wit_read_binding "$YREPO/docs/conventions/work-items.yaml" 2>&1 >/dev/null)"
+assert_contains "an invalid overlay value names the overlay file" "$ERR" "$YOVERLAY: invalid tracker.config.lease_ttl_hours: later"
+write_binding "$YOVERLAY" 'tracker:
+  provider: local-markdown'
+assert_fails "YAML overlay provider override rejected" "failure" "success" \
+  wit_read_binding "$YREPO/docs/conventions/work-items.yaml"
+write_binding "$YOVERLAY" 'ai_disclaimer: true'
+assert_succeeds "YAML overlay with no tracker key is inert" "success" "failure" \
+  wit_read_binding "$YREPO/docs/conventions/work-items.yaml"
+rm -f "$YOVERLAY"
+
+# --- legacy JSON fallback, with a one-line notice, when the YAML has no binding ---
+
+JREPO="$(yaml_repo json-fallback-repo)"
+write_binding "$JREPO/docs/conventions/work-items.yaml" 'ai_disclaimer: false'
+write_binding "$JREPO/.work-item-tracker.json" "$VALID"
+OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$JREPO" wit_find_binding)"
+assert_eq "legacy JSON read when the YAML has no tracker key" "$JREPO/.work-item-tracker.json" "$OUT"
+ERR="$(unset WORK_ITEM_TRACKER_BINDING && wit_read_binding "$OUT" 2>&1 >/dev/null)"
+assert_contains "legacy JSON read prints a notice" "$ERR" "notice: read the legacy binding $JREPO/.work-item-tracker.json"
+assert_eq "the notice is one line" "1" "$(printf '%s\n' "$ERR" | wc -l | tr -d ' ')"
+
+# --- neither: no YAML binding and no legacy JSON → no binding (the caller stops) ---
+
+NREPO="$(yaml_repo neither-repo)"
+write_binding "$NREPO/docs/conventions/work-items.yaml" 'ai_disclaimer: false'
+if (unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$NREPO" wit_find_binding >/dev/null); then
+  fail "neither YAML nor JSON binding → discovery fails" "failure" "success"
+else
+  pass "neither YAML nor JSON binding → discovery fails"
+fi
+
+# --- no home applies: a root outside a git work tree reads only the legacy JSON ---
+
+LOOSE="$TEST_TMPDIR/loose-folder"
+mkdir -p "$LOOSE/docs/conventions"
+write_binding "$LOOSE/docs/conventions/work-items.yaml" "$YAML_BINDING"
+if (unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_find_binding >/dev/null); then
+  fail "a non-git root never reads <home>/work-items.yaml" "failure" "success"
+else
+  pass "a non-git root never reads <home>/work-items.yaml"
+fi
+write_binding "$LOOSE/.work-item-tracker.json" "$VALID"
+OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_find_binding)"
+assert_eq "a non-git root binds through the legacy JSON only" "$LOOSE/.work-item-tracker.json" "$OUT"
+
+# --- invalid YAML: the error names the file, the key and the value ---
+
+IREPO="$(yaml_repo invalid-repo)"
+IYAML="$IREPO/docs/conventions/work-items.yaml"
+write_binding "$IYAML" 'tracker:
+  schema_version: "1.0"
+  provider: github
+  config:
+    lease_ttl_hours: soon'
+OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$IREPO" wit_find_binding)"
+assert_eq "an invalid YAML binding is still the binding (no JSON fallback)" "$IYAML" "$OUT"
+ERR="$(wit_read_binding "$IYAML" 2>&1 >/dev/null)"
+assert_eq "invalid YAML value rejected" "1" "$?"
+assert_contains "invalid YAML error names the file" "$ERR" "$IYAML"
+assert_contains "invalid YAML error names the key" "$ERR" "tracker.config.lease_ttl_hours"
+assert_contains "invalid YAML error names the value" "$ERR" "soon"
+
+write_binding "$IYAML" 'tracker:
+  schema_version: "1.0"
+  provider: github
+  owner: someone
+  config:
+    lease_ttl_hours: 24'
+ERR="$(wit_read_binding "$IYAML" 2>&1 >/dev/null)"
+assert_contains "a key outside the schema is named" "$ERR" "tracker.owner"
+
+write_binding "$IYAML" 'tracker:
+  provider: github
+  provider: jira'
+ERR="$(wit_read_binding "$IYAML" 2>&1 >/dev/null)"
+assert_contains "a YAML parse error names the file and line" "$ERR" "$IYAML: line 3"
+
 [[ $FAILED -eq 0 ]] || exit 1

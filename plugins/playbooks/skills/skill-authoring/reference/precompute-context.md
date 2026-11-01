@@ -198,7 +198,7 @@ correct under exactly one setting: without `pipefail` a failed filter stage rend
 label claiming the opposite, and with `pipefail` a healthy at-cap render gains a spurious
 `(unavailable)` line.
 
-The repeated guard has a price worth naming. Once the guard passes, the fallback is unreachable,
+The repeated guard has a price. Once the guard passes, the fallback is unreachable,
 so a failure after the guard also renders empty: a filter binary off PATH, or a second `git`
 invocation that fails after the guard's copy succeeded. The label carries that weight instead, and
 must never assert a bare `empty = none`.
@@ -215,7 +215,7 @@ must never assert a bare `empty = none`.
 `shell:` defaults to `bash`; on Windows without Git Bash the PowerShell tool runs injected
 commands instead (see the docs). Write injection commands portably, or declare `shell:`
 explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host, and pick a
-`|| echo` fallback that is valid in the shell that will actually run it.
+`|| echo` fallback that is valid in the shell that will run it.
 
 ## Mechanics not to get wrong (pointers, not copies)
 

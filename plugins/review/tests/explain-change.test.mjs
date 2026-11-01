@@ -1022,14 +1022,21 @@ describe("builder", () => {
   test("the page passes the interactive profile", () => {
     assert.deepEqual(validateView(page), { ok: true, failures: [] });
   });
-  test("data lives only in the JSON data block, with < escaped", () => {
+  test("data lives only in the JSON data block, with < escaped, and the escaped title", () => {
     assert.ok(dataBlock);
     assert.ok(!dataBlock[1].includes("<"));
-    const outside = page.replace(dataBlock[0], "");
+    const outside = page.replace(dataBlock[0], "").replace(/<title>[^<]*<\/title>/, "");
     for (const needle of ["alert(1)", "onerror", "onmouseover", "onfocus", "autofocus", "<form", "&lt;already", "x()"]) {
       assert.ok(!outside.includes(needle), needle);
     }
     assert.deepEqual(JSON.parse(dataBlock[1]), shapeDigest(hostile));
+  });
+  test("the page title is the digest's title as escaped text", () => {
+    const titles = [...page.matchAll(/<title>([^<]*)<\/title>/g)].map((m) => m[1]);
+    assert.deepEqual(titles, ["&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"]);
+    assert.equal((page.match(/<script/gi) ?? []).length, 2);
+    assert.match(buildDigest({ title: "Fix the cache key & expiry" }), /<title>Fix the cache key &amp; expiry<\/title>/);
+    assert.match(buildDigest({}), /<title>Change digest<\/title>/);
   });
   test("fields the template does not bind never reach the page", () => {
     assert.ok(!page.includes("iframe"));

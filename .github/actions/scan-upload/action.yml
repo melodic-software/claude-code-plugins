@@ -1,0 +1,29 @@
+name: Scan an upload for credentials
+description: >
+  Run lib/publish-gate.mjs scanLeak over every file an actions/upload-artifact
+  step is about to send, with the same `path` input. A credential, a hidden
+  assignment, a link, a compressed file or a glob fails the step and sets no
+  `clean` output; the upload's `if:` must require clean == 'true', so a hit
+  withholds the upload even when the upload runs always(). Nothing printed
+  carries a matched value or a file name. Needs node 18 or later on PATH and
+  lib/publish-gate.mjs three directories above this action.
+
+inputs:
+  path:
+    description: The upload step's `path` input, verbatim.
+    required: true
+
+outputs:
+  clean:
+    description: "`true` only when every file was judged clean."
+    value: ${{ steps.scan.outputs.clean }}
+
+runs:
+  using: composite
+  steps:
+    - name: Scan the files
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATHS: ${{ inputs.path }}
+      run: node "$GITHUB_ACTION_PATH/scan-upload.mjs"

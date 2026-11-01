@@ -1,5 +1,6 @@
 ---
-type: tool_used
-tool: Bash
-input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bgh\s+(?:pr|search|api)\s|source-control-babysit-|pr_queue_snapshot|pr_review_threads|fetch-all-pr-comments|babysit-readiness-gate)'
+type: regex
+pattern: '"command":"read","pr":[0-9]+,"args":\[(?!"api","user"[,\]]|"pr","list"[,\]])'
+target: { source: file, path: .git/eval-forge/calls.jsonl }
+arm: with-only
 ---

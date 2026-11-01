@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "PreserveDeps: yes, PreserveSecrets: yes, AheadCount: 0.",
+      "why": "dry-run labels"
+    },
+    {
+      "answer": "Your .env and node_modules/ are kept by default.",
+      "why": "kept"
+    },
+    {
+      "answer": "It preserves secrets like .env and runtime dependencies.",
+      "why": "preserves"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The reset will remove dist/ and scratch/ and revert src/app.js.",
+      "why": "says nothing about what survives"
+    },
+    {
+      "answer": "This will delete .env and node_modules too.",
+      "why": "wrong"
+    }
+  ]
+}

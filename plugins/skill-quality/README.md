@@ -98,7 +98,7 @@ the reviewer to confirm the description still names that intent, or to restore t
   editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
   provenance rests on reviewing the diff and on the skill's own content tests.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
-  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
+  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a plugin suite case lists the skill's directory name in a one-line `tags: [...]`, or a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
 - Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)

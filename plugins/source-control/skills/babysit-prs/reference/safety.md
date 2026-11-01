@@ -98,7 +98,9 @@ value and its unset fallback.
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
 - Never update the branch of a PR carrying the tracker's standards-sync role label
-  (`standards-sync` unless `.work-item-tracker.json` `config.role_labels` maps it): the sync App
+  (`standards-sync` unless the tracker binding's `config.role_labels` maps it, as
+  `scripts/babysit_tracker_binding.py` reads it on the default branch: the `tracker` mapping of
+  `docs/conventions/work-items.yaml`, else the legacy JSON binding at the root): the sync App
   is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
@@ -1081,8 +1083,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
    options from the operator's managed and user settings, never from arguments or the
    environment), and eligibility. The cells are the effective rung's, never the pull request's
-   work class: rung C2 needs `C2-auto-merge`, rung C3 every C3 cell
-   (`promotion-unqualified:<rung>` otherwise); an unreadable or untrusted resolver refuses as
+   work class: rung `merge` (`C2`) needs `C2-auto-merge`, rung `merge-reviewed` (`C3`) every C3
+   cell (`promotion-unqualified:<rung>` otherwise, naming the rung by its code); an unreadable or untrusted resolver refuses as
    `promotion-unqualified:<reason>`. A settings file, or a binding, probe root, evidence source or
    checker it names, that the lane user can write, or replace through any directory above it,
    refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
@@ -1119,8 +1121,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
    write-access human wrote it and no non-human, or anyone through an App, retitled it
    (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
-   or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
-   maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
+   or one applied the tracker's admission label (`agent-ready` unless the tracker binding
+   maps the `autonomous-eligible` role, read at the base branch through
+   `scripts/babysit_tracker_binding.py`) in person with no body edit or
    title change after (`title-edited-after-label`). Either suffices, so a human's issue a
    non-human edited or renamed is vouched for again once a person re-applies the label after the
    edit. An issue the lanes App both filed and

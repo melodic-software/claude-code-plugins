@@ -31,6 +31,7 @@ import {
   readChecks,
   readIssueStop,
   readOutcome,
+  readOverCap,
   readScanRefusal,
   SCAN_REFUSALS,
   readTurnCap,
@@ -2268,6 +2269,37 @@ test("lane.json's max-turns class is the turn-cap record; any other class is non
   ]) {
     withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readTurnCap(dir), expected, JSON.stringify(lane)));
   }
+});
+
+// run-claude-cli counts a run that finished past its cap a success (empty
+// class), so lane.json's turns over its max-turns is the only sign of it.
+test("lane.json's turns over its max-turns is the over-cap record; anything else is none", () => {
+  for (const [lane, expected] of [
+    [{ branch: "", class: "", "max-turns": "75", turns: "140" }, { turns: 140, cap: 75 }],
+    [{ branch: "", class: "", "max-turns": "75", turns: "75" }, null],
+    [{ branch: "", class: "", "max-turns": "75", turns: "" }, null],
+    [{ branch: "", class: "", "max-turns": "", turns: "140" }, null],
+    [{ branch: "", class: "", "max-turns": "75", turns: "140; rm" }, null],
+    [{ branch: "", class: "", "max-turns": "75" }, null],
+  ]) {
+    withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readOverCap(dir), expected, JSON.stringify(lane)));
+  }
+  withDir({ "lane.json": "{" }, (dir) => assert.equal(readOverCap(dir), null));
+});
+
+test("a done run past its turn cap still opens its PR, and the Summary says so", () => {
+  const plan = decideDone({ overCap: { turns: 140, cap: 75 } });
+  assert.equal(plan.action, "open-pr");
+  assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+  const line = "The run went past its turn budget (turns=140 max-turns=75): the work may be too big for one run.";
+  assert.ok(plan.body.split("\n").includes(line), plan.body);
+  assert.ok(plan.body.indexOf(line) > plan.body.indexOf("## Summary") && plan.body.indexOf(line) < plan.body.indexOf("## Fix"), "the line sits in the Summary");
+});
+
+test("a done run within its turn cap opens its PR with no turn-budget line", () => {
+  const plan = decideDone();
+  assert.equal(plan.action, "open-pr");
+  assert.doesNotMatch(plan.body, /turn budget|max-turns=/);
 });
 
 // A leg run-claude-cli stopped at its timeout (class timeout) ran out of time

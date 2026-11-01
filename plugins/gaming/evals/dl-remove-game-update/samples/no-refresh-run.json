@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb refetch -StaleDays 7" } }], "why": "the mandatory update check" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb remove 'G:\\SteamLibrary\\steamapps\\common\\RV There Yet\\Ride\\Binaries\\Win64' -ConfirmRefresh 3f9a0c7e12b4" } }], "why": "refresh before the yes" }
+  ]
+}

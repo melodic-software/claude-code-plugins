@@ -1,5 +1,65 @@
 # Changelog for the PR pipeline convention
 
+## [8.30.1] - 2026-11-01
+
+### Fixed
+
+- The README's verifier-verdict section states the pr-merge gate's one exception to a refusal standing on the run's saved listing: a candidate's `verify:missing` there reads the head's two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no listing, so a pass uploaded after that listing is seen in the same run. Its allow is judged again on a listing of the gate's own, and a failed read or no pass that counts leaves `verify:missing`.
+
+## [8.30.0] - 2026-11-01
+
+### Added
+
+- **A Claude Code CLI release procedure for the write lanes' shell deny set.** The README's new "Claude Code CLI releases" section says the lanes run the latest CLI and that a host sweeps each new CLI release and each claude-code-action bump with a live `dontAsk` run against a planted environment variable, adding any command that prints it to `shell_denied`. The comment above `shell_denied` names the last swept version (2.1.316, no command found).
+
+- pr-unblock's `sync-shared-copies` activity answers pr-merge's `shared-copy-sources-changed:` refusal on a lanes App pull request with no model and no person. `pr-unblock-dispatch.yml` sends one run per refused head; `sync-shared-copies-select` merges the pinned default branch tip and runs `.github/scripts/pr-unblock/sync-shared-copies.sh`, which runs the base's sync script, `scripts/lib` and registry only, refusing `shared-copy-tooling-changed` when the head changes any of them and `shared-copy-path-unregistered` when the run writes a path the base-tip `scripts/shared-copies.txt` lists as no copy, and escalating a merge that is not clean as `shared-copy-merge-conflicted` for a session; `apply-shared-copies` pushes one merge commit under patch-rules.json's `shared-copies` row, which admits only registered copies, or the merge alone when it already holds current copies. Both registry readers strip an inline `#` comment as the canonical sync script does.
+- `gate-source.mjs` reads pr-merge's `shared-copy-sources-changed:` escalation at the current head as a gate the `sync-shared-copies` activity alone works past, through `laneEscalationAllows`, after the same review-lane, signed-commits and credential holds `gateSource` reads, so `lane-hold.mjs` and `gate-recheck.mjs` both accept it.
+- escalation-routes.json routes the `shared-copy-*` reasons to `sync-shared-copies`.
+
+- The `skip-reason` enum gains `owned-branch`. pr-unblock's fix-ci select job posts it on a pull request whose head branch `merge.refire-skip-branches` lists, and the fix-ci dispatcher never dispatches such a pull request. The workflow that owns the branch rebuilds it, and the rebuild is the branch's fix: on release PR #11840, `release-publish-plugins.yml` moved `release/plugins` after fix-ci read it, so every fix-ci push answered 422.
+
+### Changed
+
+- `merge.rung` takes names for what each rung needs before the merge authority merges: `off`, `merge` and `merge-reviewed`. `C2` and `C3` stay accepted as aliases for `merge` and `merge-reviewed`, and each conditional rung requirement applies to both spellings. The example and this repository's config use `merge`, and the README names the rung first with its code in parentheses ([#7469](https://github.com/melodic-software/claude-code-plugins/issues/7469)).
+
+### Fixed
+
+- `intake-reenter` now sends back to intake a `status: confirmed` issue that a person confirmed before any admission when a listed human posts a `**Decision recorded.**` comment on it. Before, only an issue admission had parked there re-entered, so a decision on a hand-confirmed issue changed nothing. An issue with `agent-ready` or another `status:` label still stays where it is.
+
+- pr-verify no longer judges a `pr-require-checks` run that started while the pull request was a draft. A pull request opened as a draft and marked ready seconds later gets two runs at one head. Before, pr-verify judged the draft run, whose suites all skipped, uploaded a FAIL for "no tests ran", and then skipped the ready run as already judged. pr-verify no longer treats a FAIL judged from such a run as judging the head, so the ready run's judgment goes ahead, and the pr-merge lane's verdict gate no longer counts that FAIL either. Only a listed conclusion of ci-status's `Note a draft` step decides. When the jobs API lists that step empty or with no conclusion, the run is not judged: it fails before the judgment and the lost-run reconciler re-runs it.
+
+- The `verify-scripts` docs no longer say that code a read-runner script runs can read the job's GitHub token from an ancestor's `/proc/<pid>/environ`. The read runner's run-claude-cli steps set neither `GH_TOKEN` nor `GITHUB_TOKEN`, and the write runner's settings clear both ([#7919](https://github.com/melodic-software/claude-code-plugins/issues/7919)).
+
+- pr-verify now judges a pull request again at the same head after a trusted person fixes its body. Before, a FAIL at a head (for example one for a missing "Remaining on #N" section) blocked every new judgment there, so a body fix was judged only after an update-branch pushed a new head. Now this pull request's own FAIL at the head, plain or named with its issues, gives way when, since its last such FAIL's run was created, a person on the trusted-actor list edited the body and every body edit and issue link change since was such a person's. The resolver then proceeds with the reason `body-edited`. The body edit itself starts the judgment: `pr-require-checks` already runs on `pull_request` `edited`, and pr-verify runs when it completes. A Bot's edit, a link change alone, or an edit history that cannot be read whole keeps the FAIL, and the judgment still reads the edit history in one GraphQL query.
+
+- A pr-verify pass that supersedes a FAIL at the same head now resolves that FAIL's fail-note threads on a lanes App pull request. Before, a pass-only round resolved only fail-note threads from an earlier head, so after a trusted body edit or relink let a pass at the same head supersede the FAIL in the merge gate, the FAIL's own threads stayed open and held the merge. `post-verify-notes` now starts the pass-only round for any open fail-note thread. The dispatch job reads the merge gate's own judgment, `babysit_verify_evidence.py` `supersededAtHead`, in the FAIL-cap read it already makes, and sends the new `pr-unblock.yml` input `verify-superseded-head` only when that read at the head says the FAIL there was superseded. `address-feedback-select` then also lists the same-head threads and names the head in `run.json`'s `superseded_head`, and `publish-feedback` resolves them only under that name. A failed or unreadable read, an older reader without the field, or a FAIL not superseded keeps the threads open. Because those threads can now be resolved, `post-verify-notes` no longer counts a note in a resolved thread as already posted: a later FAIL at the same head posts its notes again, so its round has an open thread to work.
+
+- `feedback-not-converging` no longer leaves a lanes App pull request open on a failing status. When the lanes App's address-feedback lane-stopped comment names that reason at the current head, the pr-merge lane closes the pull request and re-admits its issue for a fresh attempt, as the verify cap does (`capped-close --reason feedback-not-converging`). The reason is read from that comment, never from a status description ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+- The lane-stopped comment for `feedback-not-converging` on a lanes App pull request now says pr-merge closes it, and that adding `do-not-merge` first keeps it open ([#11023](https://github.com/melodic-software/claude-code-plugins/issues/11023)).
+
+- pr-verify no longer calls a Node test unrun when CI ran it through its sibling `.test.sh` in `test-bash`. A `.test.mjs`, `.test.js` or `.test.cjs` with such a wrapper runs only there, so `test-node` skips by design, and the verifier read that skip as the test never running. `upstream-jobs.json` now carries `wrapped_node_suites`: each Node suite in the judged head's tree that has a sibling `.test.sh`, with its wrapper, derived from the head's tree by the rule `scripts/plan-test-lanes.sh` applies. The prompt tells the verifier to judge those suites by the `test-bash` jobs.
+
+- The `models` profile notes in the README no longer say an unset `effort` always lands on the
+  model's default: the run takes the next level in the effort resolution order. They point at
+  that order and at the subagent model order for `subagent-model`, with an as-of date and recheck
+  trigger ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+- The verdict reader's whole artifact listing refuses `verify:unreadable` after the first when its top-up holds more artifacts than GitHub's live count, or does not read, instead of paging two more. A listing that fails once it began a whole listing is noted beside the saved listing, so later readers in the same pr-merge, ci-status or dispatcher job refuse without paging again.
+- The carried files (gate cursor, artifact listing, head-ref map, run cache, lane records) come from the trusted pr-merge run with the highest id, not the first one the API lists. The API orders runs by `created_at`, and on 2026-11-01 runs created between 08:00Z and 09:00Z were stamped an hour ahead. Until 10:00Z, those runs' hour-old listings were carried above later ones, and every run read that stale listing and paged two whole listings.
+
+- `apply-patch.mjs` puts GitHub's answer in the error when a REST call fails: the JSON body's `message` and `errors`, or the body text. The token and any credential-shaped text are redacted, control characters are dropped, and the text is capped at 500 characters. A failed ref update used to log only `returned 422`.
+
+- A work-resolve-issue run now runs CI's changed-skills gate before its pull request opens: `resolve-issue` lists `scripts/check-changed-skills.sh --merge-base` in its `checks`, so the skill runs it, fixes what it reports and runs it again, and the run-checks job stops a run that still fails it. The new mode diffs the checkout against origin's default branch (else `HEAD`), counts untracked files, and runs the base copy of skill-quality's `check-skill.sh` with each skill's script tests and markdownlint skipped, so it runs no checkout code. Lane pull requests that added or changed a skill used to open red on `changed-skills`.
+
+- The verdict reader's carried listing first re-reads the pages around entries near expiry when it holds more than GitHub's live count. That re-read has a page cap and an id-read cap, and drops an omitted entry only on a 404. The over-count then takes at most one whole listing a job.
+- The merge queue's cold-read headroom check (`cold_cost` in pr-require-checks.yml) now counts those reads, up to 58 more requests a cold read: 1,681 at 7,522 artifacts and 264 FAILs.
+
+## [8.29.1] - 2026-11-01
+
+### Fixed
+
+- **resolve-conflicts no longer stops `workflow-staged` when main deleted or renamed a workflow the pull request still has.** `apply-patch.mjs` admits a merge whose `.github/workflows/` entries are exactly the base's when the pull request's own diff against every merge base touches no workflow; a head workflow the base dropped goes with the base's change. A sandbox probe showed the lanes App token, which has no Workflows permission, can push such a merge through the Git Data API.
+
 ## [8.29.0] - 2026-11-01
 
 ### Changed

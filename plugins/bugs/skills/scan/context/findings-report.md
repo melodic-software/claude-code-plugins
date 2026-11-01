@@ -41,7 +41,8 @@ One `##` section per verified finding. The five fields are `/bugs:write`'s. The 
 [`skills/write/context/template.md`](../../write/context/template.md) and the
 severity rubric is the "Severity rubric" section of
 [`skills/write/SKILL.md`](../../write/SKILL.md); neither is restated here. Scan
-adds three lines: the evidence label, the lens id, and the scope tag.
+adds three lines: the evidence label, the lens id, and the scope tag, plus a proposed-check line
+when the gate proposed a check that did not run.
 
 ````markdown
 ## Finding <n>: <title, present tense, one line>
@@ -51,6 +52,7 @@ adds three lines: the evidence label, the lens id, and the scope tag.
 **Evidence**: reproduced | verified-by-reading
 **Lens**: <lens id, e.g. lens-2 boundary/edge-case>
 **Scope**: in-lane | out-of-lane (via `<scoped path>`)
+**Proposed check**: `<exact command>`, not run: <unattended | declined | unanswered | could not run>
 
 ### Steps to reproduce
 
@@ -83,8 +85,10 @@ Rules:
 
 - A finding without a verbatim evidence quote does not go in the report. There is no "needs
   confirmation" tier for scan findings. The gate already decided.
-- `reproduced` findings state the command that was run and what it showed. `verified-by-reading`
-  findings state why no cheap check existed.
+- `reproduced` findings state the command the person approved and what it showed.
+  `verified-by-reading` findings state why no check ran: no cheap check existed, the run was
+  unattended, or the person declined it. A proposed check that did not run is listed with its
+  command, so a person can run it later.
 - No patch, no diff, no "change line X to Y". The fix location is a pointer; the fixer decides.
 
 ## Refuted candidates (retained tail)
