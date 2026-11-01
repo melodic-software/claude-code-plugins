@@ -1,5 +1,5 @@
 ---
-description: "Routing case, no slash command: a natural report of the allowed-applications focus error must invoke the diagnose skill (SKILL.md lines 2 and 41), and the reply must say the gate worked so nothing reached the wrong app and that the retry leads with a screenshot (SKILL.md lines 41 and 80-81; reference/failure-diagnostics.md lines 120-135). Hard because the user frames it as possible wrong-app typing and a plain retry or an allowlist change looks like the fix."
+description: "Routing case, no slash command: a natural report of the allowed-applications focus error must invoke the diagnose skill (SKILL.md lines 2 and 41), and the reply must say the gate worked so nothing reached the wrong app and that the retry leads with a screenshot (SKILL.md lines 41 and 80-81; reference/failure-diagnostics.md lines 122-137). Hard because the user frames it as possible wrong-app typing and a plain retry or an allowlist change looks like the fix."
 tags: [computer-use, diagnose, outcome, routing]
 max_turns: 10
 timeout_seconds: 300

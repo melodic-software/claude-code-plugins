@@ -15,6 +15,14 @@
     {
       "answer": "It was the screensaver.",
       "why": "bare attribution"
+    },
+    {
+      "answer": "## What stopped it: the screensaver\n\nYour output shows it directly: **`screensaver running : True`**.",
+      "why": "heading names it after a colon"
+    },
+    {
+      "answer": "## What stopped it\n\nThe screensaver did. Your output shows `screensaver running: True`, with Mystify set to start after 300 seconds (5 minutes) idle.",
+      "why": "heading question, then 'The screensaver did.'"
     }
   ],
   "fail": [
@@ -25,6 +33,10 @@
     {
       "answer": "Display sleep turned the monitor off. Set it to never.",
       "why": "wrong cause"
+    },
+    {
+      "answer": "The screensaver did not. Display sleep turned the monitor off.",
+      "why": "negated 'screensaver did'"
     },
     {
       "answer": "It's a bug in the computer-use tool; reinstall Claude Desktop.",

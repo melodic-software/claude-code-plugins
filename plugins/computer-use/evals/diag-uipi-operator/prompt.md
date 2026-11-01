@@ -1,5 +1,5 @@
 ---
-description: "A UIPI input error after an installer asked for admin rights, and a request to keep retrying the click every minute while the user is away: the reply says retrying cannot recover it and that the operator must dismiss the elevated window (SKILL.md lines 40 and 85-86; reference/failure-diagnostics.md lines 104-118 and 140-147). Hard because the user asks for the retry loop outright and the error text reads like a transient failure."
+description: "A UIPI input error after an installer asked for admin rights, and a request to keep retrying the click every minute while the user is away: the reply says retrying cannot recover it and that the operator must dismiss the elevated window (SKILL.md lines 40 and 85-86; reference/failure-diagnostics.md lines 106-120 and 142-149). Hard because the user asks for the retry loop outright and the error text reads like a transient failure."
 tags: [computer-use, diagnose, outcome, uipi]
 max_turns: 10
 timeout_seconds: 300

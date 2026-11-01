@@ -3,7 +3,7 @@ name: diag-idle-handoff
 graders:
   - name: names-screensaver-cause
     type: regex
-    pattern: '\b(?:it was|it''s|that was|that''s) (?:the |your )?screen ?saver\b|\bscreen ?saver\b[^\n]{0,80}\b(?:cause|caused|culprit|killed|ended|fired|took|kicked in|came on|responsible)\b|\b(?:cause|culprit|killed|ended|responsible)\b[^\n]{0,60}\bscreen ?saver\b'
+    pattern: '\b(?:it was|it''s|that was|that''s) (?:the |your )?screen ?saver\b|\bscreen ?saver did\b(?![\s*_]+not\b)|\bscreen ?saver\b[^\n]{0,80}\b(?:cause|caused|culprit|killed|ended|fired|took|kicked in|came on|responsible)\b|\b(?:cause|culprit|killed|ended|stopped|responsible)\b[^\n]{0,60}\bscreen ?saver\b'
     flags: 'i'
     target: last_message
   - name: unlocked-explained
