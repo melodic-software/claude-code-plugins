@@ -161,9 +161,9 @@ expect() {
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls labels call(s) got $calls"
-  elif grep -vE 'issues/18/labels' "$TMP_ROOT/log" | grep -q '/labels'; then
+  elif grep -q '/labels' < <(grep -vE 'issues/18/labels' "$TMP_ROOT/log"); then
     fail "$label: the pull request's labels were read over REST: '$(sort -u "$TMP_ROOT/log")'"
-  elif [[ "$want_pr" != - ]] && grep graphql "$TMP_ROOT/log" | grep -vq -- "-F n=$want_pr\$"; then
+  elif [[ "$want_pr" != - ]] && grep -vq -- "-F n=$want_pr\$" < <(grep graphql "$TMP_ROOT/log"); then
     fail "$label: the GraphQL read is not for #$want_pr: '$(sort -u "$TMP_ROOT/log")'"
   elif grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the tracker config was read through the API: '$(sort -u "$TMP_ROOT/log")'"
