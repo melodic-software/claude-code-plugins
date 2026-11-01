@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "REJECT, Already enforced: pre-commit and CI."
+    },
+    {
+      "answer": "ruff already runs at commit time and in CI."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "PASS: add the hook.",
+      "why": "passes it"
+    }
+  ]
+}

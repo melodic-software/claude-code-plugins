@@ -1,5 +1,5 @@
 ---
-description: "Mid-session save-point for /clear-and-resume: a durable handoff file (default) or a copy-paste resume prompt. Use when: 'handoff', 'save state', 'checkpoint this', 'pause', 'come back later', the session is heavy, a context-measuring mechanism says to fork, or responses are visibly drifting or looping. Never on an estimate of the remaining window. To delegate the continuation to a background agent, use /session-flow:continue-in-background."
+description: "Write a mid-session save-point for /clear-and-resume: a durable handoff file or a copy-paste resume prompt. Use when: 'handoff', 'checkpoint this', the session is heavy, or responses drift or loop. Background continuation: /session-flow:continue-in-background."
 argument-hint: "[file|prompt] [--unattended] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false

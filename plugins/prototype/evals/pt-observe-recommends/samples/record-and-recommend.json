@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Ran both variants on the same four rows.\n- str.split(','): accepted every row; row 7 came back as ['7', '\"Smith', ' Jane\"', '3'], four fields. Timing (unqualified): 0.02 ms.\n- csv module: accepted every row; row 7 came back as ['7', 'Smith, Jane', '3']. Timing (unqualified): 0.05 ms.\nRecommendation: keep the csv module. On 7,\"Smith, Jane\",3 split broke the quoted name into two fields; csv kept it whole. The timings are single unqualified runs and rank nothing.",
+      "why": "both variants, labeled timing, evidence-backed csv recommendation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "str.split(',') took 0.02 ms and the csv module took 0.05 ms, so split is faster. Recommendation: use str.split.",
+      "why": "unlabeled timing, no behavior, recommends split"
+    },
+    {
+      "answer": "Ran both. split returned four fields for row 7 and csv returned three. csv took 0.05 ms, split 0.02 ms. Recommendation: the csv module.",
+      "why": "timing not labeled unqualified"
+    }
+  ]
+}

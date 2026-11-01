@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: uh-dirty-tree-refused
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'names-dirty-file'
+    type: 'regex'
+    pattern: 'app\.py'
+    target: 'last_message'
+  - name: 'refuses-dirty'
+    type: 'regex'
+    pattern: 'dirty|uncommitted|not clean|clean working tree|modif(?:y|ied|ication)'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'no-state-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.claude/unhobble/'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-strip'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '\bgit\s+(?:rm|commit)\b|instruction-files\.sh(?:\\\")?\s+strip'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-instruction-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'

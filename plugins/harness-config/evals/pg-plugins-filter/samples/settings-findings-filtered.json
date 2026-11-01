@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| P3 | warning | plugins/quay-tools/settings.json | self-grant is inert |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "P2: Bash(.../release.sh:*) hardcodes a home path.",
+      "why": "settings finding shown under the plugins filter"
+    }
+  ]
+}

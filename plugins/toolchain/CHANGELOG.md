@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1] - 2026-11-01
+
+### Changed
+
+- `ratchet` names `/corrections:codify` as the source of a proposal's ratchet offer and as the skill that proposes rungs, in place of `/review:audit-enforceability`; its trigger probe and eval sample name `corrections:codify` as the competing skill.
+
 ## [0.19.0] - 2026-10-31
 
 ### Added

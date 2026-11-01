@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "merge summary status=incomplete"
+    },
+    {
+      "answer": "This is a partial picture."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is the complete effective set.",
+      "why": "claims complete"
+    }
+  ]
+}
