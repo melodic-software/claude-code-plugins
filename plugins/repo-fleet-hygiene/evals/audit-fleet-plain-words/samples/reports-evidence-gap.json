@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Repo | Verdict |\n|---|---|\n| fleet/alpha | BLOCKED (evidence gap) |\n| fleet/beta | BLOCKED (evidence gap) |",
+      "why": "rollup table"
+    },
+    {
+      "answer": "**Fleet verdict:** blocked, because GitHub evidence is unavailable for both repos (their remotes are local paths).",
+      "why": "GitHub evidence unavailable"
+    },
+    {
+      "answer": "- Both repositories: `github-identity-unavailable` (UNKNOWN)",
+      "why": "finding kind"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Both repos are clean. feature/invoice-totals is merged and safe to delete.",
+      "why": "calls ancestry merged with no evidence gap"
+    },
+    {
+      "answer": "I was blocked from deleting anything, so nothing changed.",
+      "why": "lowercase blocked in another sense"
+    }
+  ]
+}

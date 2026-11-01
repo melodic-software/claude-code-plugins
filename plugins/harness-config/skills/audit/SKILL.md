@@ -18,25 +18,21 @@ Claude Code version: !`claude --version 2>/dev/null || echo "unknown"`
 ## Purpose
 
 Periodic audit of Claude Code configuration files against current official documentation and the
-consuming project's own conventions. Answers: "Are our settings correct, secure, complete, and up to
-date?"
+consuming project's own conventions: are our settings correct, secure, complete, and up to date?
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained. Where a phase names an adjacent capability, such as a Claude Code
-issue-tracking skill or a hook plugin's coverage manifest, treat it as optional: if your setup
-provides it, use it; otherwise follow the inline guidance here, which stands on its own.
-Project-specific conventions (required permission patterns beyond the baseline, documented reasons for
-disabled servers, launcher-script wrappers) come from the consuming repo's own `CLAUDE.md` (or the
-`AGENTS.md` a session reads natively, whether in place of a `CLAUDE.md` or alongside one) and
-`.claude/rules/`. Read them when present;
-this skill does not assume them.
+Where a phase names an adjacent capability, such as a Claude Code issue-tracking skill or a hook
+plugin's coverage manifest, treat it as optional: use it when your setup provides it, otherwise
+follow the inline guidance here. Project-specific conventions (required permission patterns beyond
+the baseline, documented reasons for disabled servers, launcher-script wrappers) come from the
+consuming repo's own `CLAUDE.md` (or the `AGENTS.md` a session reads natively, whether in place of a
+`CLAUDE.md` or alongside one) and `.claude/rules/`. Read them when present; never assume them.
 
-Two adjacent skills cover neighboring questions: the sibling `audit-automation-gaps` skill asks whether the
-configured automation SET is the right set (landscape gaps); the `audit` skill in the `harness-memory`
-plugin audits the instruction layer (CLAUDE.md / a natively read AGENTS.md / rules / auto-memory).
-This skill asks whether the
-configuration FILES are correct against upstream truth.
+Neighboring questions belong elsewhere: the sibling `audit-automation-gaps` skill asks whether the
+configured automation SET is the right set (landscape gaps); the `audit` skill in the
+`harness-memory` plugin audits the instruction layer (CLAUDE.md / a natively read AGENTS.md / rules
+/ auto-memory). This skill asks whether the configuration FILES are correct against upstream truth.
 
 ## Arguments
 
@@ -419,8 +415,8 @@ Category B (Phase 2) checks that the project's `.claude/settings.json` contains 
 deny/ask patterns: secret-file Read denies, destructive-git Bash denies, and a `git push` ask-gate. The
 concrete list is in [reference/required-permissions.md](reference/required-permissions.md), which the
 engine reads directly, so the list is never transcribed anywhere else. Projects with a stricter
-posture declare their additional required patterns in their own rules files. When the consuming repo
-documents such a list, include it in the Category B check.
+posture declare additional required patterns in their own rules files; include any such list in the
+Category B check.
 
 A hook plugin can declare which baseline patterns its guards block in `hooks/coverage.json`. The
 engine takes narrowing 3 from that manifest mechanically: the pattern drops to `info` with the plugin,
