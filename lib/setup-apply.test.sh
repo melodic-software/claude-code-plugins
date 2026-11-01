@@ -862,6 +862,17 @@ assert_eq "a stale default already carried, run again: exits 0" "0" "$?"
 assert_eq "a stale default already carried, run again: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'workers=')"
 assert_eq "a stale default already carried, run again: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
 assert_eq "a stale default already carried, run again: the new default stays" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
+# Both files hold the same stale default: the run updates the settings file to
+# the new default, so the retired value compares equal and the first run
+# removes the retired file.
+R="$(new_root mig-stale-both)"
+printf 'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n' >"$(yaml_of "$R")"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "the same stale default in both files: exits 0" "0" "$?"
+assert_eq "the same stale default in both files: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'not carried')"
+assert_eq "the same stale default in both files: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
+assert_eq "the same stale default in both files: the new default is written" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
 R="$(new_root mig-empty)"
 old_yaml "$R" $'mode:\nworkers: 3\n'
 out="$(mrun --root "$R" --yes)"
