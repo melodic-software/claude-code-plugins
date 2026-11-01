@@ -62,7 +62,10 @@ session reports in one of them, look there.
   the procedure it returns, including any script it tells you to run. Never reach another plugin
   any other way: no reading its files, data folder or environment variables, and no running its
   scripts on your own. A missing skill, a refused call or output you cannot read makes that area
-  `not-checked` with `owner-unavailable`, and the sweep continues.
+  `not-checked` with `owner-unavailable`, and the sweep continues. The exception is an area whose
+  `areas.md` entry records the owner's outcome as its own finding (`pr-review`): keep that area's
+  other findings and record the owner's outcome as the entry says, `no-data` for output you cannot
+  read.
 - **Heartbeat after every add**: `"$PY" "$ROOT/scripts/findings.py" lock heartbeat --data "$DATA"
   --session "$SESSION"`. Finish within your turn budget; the lock goes stale after 60 minutes.
 - **Accuracy is never traded.** A finding that runs fewer checks names a `guard_metric`. One that

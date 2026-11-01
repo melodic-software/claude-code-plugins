@@ -17,7 +17,8 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, DRAFT_STEP, failureAnnotation, HOLD_STEP, main, packReads, RELINK_QUERY, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { KEPT_JOBS, keptJobs, shapeJobs } from "./upstream-jobs.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -98,10 +99,29 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs } = {}) {
+// ci-status's steps that tell a draft's run from a ready one, as GET
+// /actions/runs/{id}/jobs?filter=latest returned them for #11832's two runs at
+// head 8d7ef05b: `Note a draft` ran in run 41273054889, started while the pull
+// request was a draft, and skipped in run 41273113342, started after it was
+// marked ready (pr-require-checks.yml: `if: github.event.pull_request.draft == true`).
+const ciStatusJobs = (draftStep) => ({
+  total_count: 1,
+  jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: draftStep }, { name: "Aggregate lane results", conclusion: "success" }] }],
+});
+const DRAFT_JOBS = ciStatusJobs("success");
+const READY_JOBS = ciStatusJobs("skipped");
+
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [], renames = [], relink, jobs = READY_JOBS, jobsOf = {}, upstreamRuns, upstreamTotal } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100` && jobs) return jobs;
+    const jobsOfRun = /\/actions\/runs\/(\d+)\/jobs\?filter=latest&per_page=100$/.exec(apiPath);
+    if (jobsOfRun && jobsOf[jobsOfRun[1]]) return jobsOf[jobsOfRun[1]];
+    // The head's pr-require-checks pull_request runs; with none given the read fails.
+    if (apiPath === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
+      if (upstreamRuns === undefined) throw new Error(`GET ${apiPath} failed with status 502`);
+      return { total_count: upstreamTotal ?? upstreamRuns.length, workflow_runs: upstreamRuns };
+    }
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
     if (listed && restFails) throw new Error(`GET ${apiPath} failed with status 500`);
     if (listed && listed[1] === HEAD) return pulls.slice((Number(listed[2]) - 1) * 100, Number(listed[2]) * 100);
@@ -121,21 +141,42 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     }
     // The pull request's RenamedTitleEvent timeline, oldest first; `renames`
     // may also be a whole answer.
-    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
-      assert.equal(body.variables.number, 41);
+    const renameAnswer = () => {
       if (!Array.isArray(renames)) return renames;
       const nodes = renames.map((actor) => ({ __typename: "RenamedTitleEvent", actor }));
       return { data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    };
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT") && !body.query.includes("closingIssuesReferences")) {
+      assert.equal(body.variables.number, 41);
+      return renameAnswer();
     }
     // The pull request's body edits and issue connect and disconnect events
     // (RELINK_QUERY); with none given the read fails, which keeps a FAIL.
-    if (apiPath === "/graphql" && body.query.includes("userContentEdits")) {
+    if (apiPath === "/graphql" && body.query.includes("userContentEdits") && !body.query.includes("closingIssuesReferences")) {
       assert.deepEqual(body.variables, { o: "example-org", r: "example-repo", n: 41 });
       if (relink === undefined) throw new Error("POST /graphql failed with status 502");
       return relink;
     }
+    // The spec read, which carries the relink fields and, when asked, the
+    // renames: each as its own query answers it, absent when that answer
+    // has none (a failed relink read gives none).
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      const relinked = relink?.data?.repository?.pullRequest;
+      const renamed = body.query.includes("RENAMED_TITLE_EVENT") ? renameAnswer()?.data?.repository?.pullRequest?.timelineItems : undefined;
+      return {
+        data: {
+          repository: {
+            pullRequest: {
+              createdAt: PR_OPENED,
+              ...edit,
+              body: prBody,
+              closingIssuesReferences: { totalCount: issues.length, nodes: issues },
+              ...(relinked && { userContentEdits: relinked.userContentEdits, links: relinked.timelineItems }),
+              ...(renamed && { renames: renamed }),
+            },
+          },
+        },
+      };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -728,6 +769,84 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
   }
 });
 
+// draftRun reads a draft's run from ci-status's DRAFT_STEP, which must run on
+// a draft's event and on nothing else.
+test("ci-status's draft step runs exactly when the run's pull request was a draft", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  const job = /^ {2}ci-status:\n((?: {4}.*\n|\n)*)/m.exec(workflow)?.[1] ?? "";
+  const step = new RegExp(`^ {6}- name: ${DRAFT_STEP}\\n((?: {8}.*\\n|\\n)*)`, "m").exec(job)?.[1] ?? "";
+  assert.match(step, /^ {8}if: github\.event\.pull_request\.draft == true$/m);
+});
+
+test("a run that started while its pull request was a draft is not judged, though the pull request is ready now", async () => {
+  const draft = await resolve({ jobs: DRAFT_JOBS });
+  assert.equal(draft.proceed, false);
+  assert.equal(draft.reason, "draft-run");
+  assert.equal(await reason({ jobs: READY_JOBS }), "ok");
+});
+
+// The jobs API can list a finished job's steps empty or cut short
+// (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
+// conclusion of the draft step decides: `success` a draft's run, `skipped`
+// not. Anything else is unreadable: no judgment, and a FAIL stays counted.
+const ciStatusWith = (steps) => ({ total_count: 1, jobs: [{ id: 9001, name: "ci-status", conclusion: "success", steps }] });
+const UNREADABLE_DRAFT_STATE = {
+  "an empty step list": ciStatusWith([]),
+  "the draft step listed with no conclusion": ciStatusWith([{ name: "Note a draft", conclusion: null }]),
+  "the draft step not listed": ciStatusWith([{ name: "Aggregate lane results", conclusion: "success" }]),
+  "no ci-status job": { total_count: 1, jobs: [{ id: 9002, name: "lint-repo", conclusion: "success", steps: [] }] },
+};
+
+test("a run whose draft step is not listed with a conclusion is not judged, and a skipped one is", async () => {
+  for (const [label, jobs] of Object.entries(UNREADABLE_DRAFT_STATE)) {
+    await assert.rejects(resolve({ jobs }), /draft state/, label);
+  }
+  assert.equal(await reason({ jobs: READY_JOBS }), "ok");
+});
+
+// #11832 at head 8d7ef05b: opened as a draft, marked ready seconds later.
+// Checks run 41273054889 (created 04:25:39) started on the draft and skipped
+// every suite; pr-verify run 41273103059 (created 04:26:22, once the pull
+// request read as ready) judged it and uploaded a FAIL for "no suite ran";
+// checks run 41273113342 (created 04:26:33) started on the ready pull request.
+const DRAFT_CHECKS = 41273054889;
+const DRAFT_FAIL_RUN = 41273103059;
+const draftRace = (beforeFail = DRAFT_JOBS, overrides = {}) => ({
+  artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, DRAFT_FAIL_RUN)],
+  runs: { [DRAFT_FAIL_RUN]: verifyRun(DRAFT_FAIL_RUN, { created_at: "2026-11-01T04:26:22Z", run_started_at: "2026-11-01T04:26:22Z" }) },
+  upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" })],
+  jobsOf: { [DRAFT_CHECKS]: beforeFail },
+  ...overrides,
+});
+
+test("a FAIL judged from a run that started on the draft does not stop the ready run's judgment", async () => {
+  const ready = await resolve(draftRace());
+  assert.equal(ready.proceed, true);
+  assert.equal(ready.reason, "ok");
+});
+
+test("a FAIL counts when a run it could have judged started on a ready pull request, or the head's runs cannot be read", async () => {
+  const cases = {
+    "the run before the FAIL was a ready one": draftRace(READY_JOBS),
+    "a ready run beside the draft one before the FAIL": draftRace(DRAFT_JOBS, {
+      upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" }), upstream({ id: 41273000001, created_at: "2026-11-01T04:25:00Z" })],
+      jobsOf: { [DRAFT_CHECKS]: DRAFT_JOBS, 41273000001: READY_JOBS },
+    }),
+    "the draft run's jobs cannot be read": draftRace(null),
+    "the jobs list is cut short": draftRace({ ...DRAFT_JOBS, total_count: 2 }),
+    ...Object.fromEntries(Object.entries(UNREADABLE_DRAFT_STATE).map(([label, jobs]) => [`the earlier run with ${label}`, draftRace(jobs)])),
+    "the head's runs cannot be read": draftRace(DRAFT_JOBS, { upstreamRuns: undefined }),
+    "the head's runs are cut short": draftRace(DRAFT_JOBS, { upstreamTotal: 3 }),
+    "a checks run with no creation time": draftRace(DRAFT_JOBS, {
+      upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" }), upstream({ id: 41273000002 })],
+    }),
+    "no run started before the FAIL's judgment": draftRace(DRAFT_JOBS, { upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" })] }),
+  };
+  for (const [label, setup] of Object.entries(cases)) {
+    assert.equal(await reason(setup), "already-judged", label);
+  }
+});
+
 test("verdicts are looked up by exact name, never by listing every artifact", async () => {
   const paths = [];
   const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
@@ -892,13 +1011,96 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
     const queries = [];
     const github = fake(relinked(relinkAnswer(), { issues }));
     const recording = async (method, apiPath, body) => {
-      if (apiPath === "/graphql" && body.query.includes("userContentEdits")) queries.push(apiPath);
+      if (apiPath === "/graphql" && body.query === RELINK_QUERY) queries.push(apiPath);
       return github(method, apiPath, body);
     };
     const { reason: got } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
     assert.equal(got, "already-judged", String(issues.length));
+    // The body-edit rule, which finds no edit since the FAIL, weighs the
+    // relink fields the spec read carries: no relink read of its own.
     assert.deepEqual(queries, [], "no relink read");
   }
+});
+
+// The spec answer with `drop` taken out of its pull request.
+const without = (github, ...drop) => async (method, apiPath, body) => {
+  const answer = await github(method, apiPath, body);
+  if (apiPath !== "/graphql" || !body.query.includes("closingIssuesReferences")) return answer;
+  const pullRequest = { ...answer.data.repository.pullRequest };
+  for (const field of drop) delete pullRequest[field];
+  return { data: { repository: { pullRequest } } };
+};
+
+test("a spec answer missing a relink field keeps the FAIL, as a failed relink read does", async () => {
+  // The paired case: the same answer whole re-opens the head.
+  const relink = relinkAnswer({ edits: [{ editedAt: "2026-10-20T07:00:00Z", editor: PERSON }], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  assert.equal(await reason(relinked(relink)), "relinked");
+  for (const field of ["userContentEdits", "links"]) {
+    const github = without(fake(relinked(relink)), field);
+    const { reason: got } = await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+    assert.equal(got, "already-judged", field);
+  }
+  // And a judgment reports a relink since the head it cannot rule out.
+  const github = without(fake(committed({ relink: relinkAnswer() })), "links");
+  assert.equal((await resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE })).relinkSinceHead, true);
+});
+
+test("when the spec read fails beside a FAIL, the relink rules read RELINK_QUERY as before", async () => {
+  const relink = relinkAnswer({ edits: [{ ...BODY_EDIT }] });
+  const github = fake(bodyFixed(relink, { artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], issues: [] }));
+  let failed = false;
+  const queries = [];
+  const flaky = async (method, apiPath, body) => {
+    if (apiPath === "/graphql") queries.push(body.query === RELINK_QUERY ? "relink" : body.query.includes("closingIssuesReferences") ? "spec" : "other");
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences") && !failed) {
+      failed = true;
+      throw new Error("POST /graphql failed with status 502");
+    }
+    return github(method, apiPath, body);
+  };
+  const { reason: got } = await resolvePull({ github: flaky, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  assert.equal(got, "body-edited");
+  assert.deepEqual(queries, ["spec", "relink", "spec"]);
+});
+
+test("a spec answer missing the renames stops the run, as a failed rename read does", async () => {
+  const owner = { pulls: [HUMAN_PR], issues: [] };
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [100] };
+  assert.equal(await reason(owner, opts), "ok");
+  const github = without(fake(owner), "renames");
+  await assert.rejects(resolvePull({ github, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts }), /timelineItems could not be read/);
+  // A lanes App pull request's spec read asks for no renames.
+  const lane = [];
+  const recording = fake({ issues: [] });
+  const asked = async (method, apiPath, body) => {
+    if (apiPath === "/graphql") lane.push(body.query.includes("RENAMED_TITLE_EVENT"));
+    return recording(method, apiPath, body);
+  };
+  await resolvePull({ github: asked, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  assert.ok(lane.length > 0 && !lane.some(Boolean), "no renames for a lanes App pull request");
+});
+
+test("renames past the spec answer's first page are read whole through titleRenamers", async () => {
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [100] };
+  const outsider = { __typename: "User", databaseId: 4242 };
+  const github = fake({ pulls: [HUMAN_PR], issues: [], renames: [] });
+  const reads = [];
+  const paged = async (method, apiPath, body) => {
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences")) {
+      const answer = await github(method, apiPath, body);
+      answer.data.repository.pullRequest.renames = { nodes: [{ actor: { __typename: "User", databaseId: 100 } }], pageInfo: { hasNextPage: true, endCursor: "c1" } };
+      return answer;
+    }
+    if (apiPath === "/graphql" && body.query.includes("RENAMED_TITLE_EVENT")) {
+      reads.push(body.variables.after);
+      return { data: { repository: { pullRequest: { timelineItems: { nodes: [{ actor: { __typename: "User", databaseId: 100 } }, { actor: outsider }], pageInfo: { hasNextPage: false, endCursor: null } } } } } };
+    }
+    return github(method, apiPath, body);
+  };
+  const result = await resolvePull({ github: paged, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...opts });
+  // The whole list ends with an outsider's rename, so the title is not intent.
+  assert.deepEqual(reads, [null]);
+  assert.equal(result.specKind, "none");
 });
 
 // The head commit, after ORIGINAL and before FAILED_AT.
@@ -944,6 +1146,59 @@ test("after a trusted relink, another PR's FAIL or one named with the new issues
     setup.runs[78] = verifyRun(78);
     assert.equal(await reason(setup), "already-judged", name);
   }
+});
+
+// A body fix: this PR's FAIL at the head, named with the issue it still links
+// (or plainly, when it links none), and a person edited the body since. The
+// rule is the owner's: a trusted person's body edit after a FAIL is judged at
+// the same head, never a bot's.
+const BODY_EDIT = { editedAt: "2026-10-20T07:00:00Z", editor: PERSON };
+const bodyFixed = (relink, overrides = {}) => ({
+  artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)],
+  runs: { 77: verifyRun(77, { created_at: FAILED_AT }) },
+  relink,
+  ...overrides,
+});
+
+test("a FAIL is judged again at the same head after only a trusted person edited the body", async () => {
+  for (const [label, setup] of [
+    ["named with the PR's issues", bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }))],
+    ["named plainly, the PR linking none", bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }), { artifacts: [artifact(`pr-verify-41-${HEAD}-fail`, 77)], issues: [] })],
+  ]) {
+    const resolved = await resolve(setup);
+    assert.equal(resolved.proceed, true, label);
+    assert.equal(resolved.reason, "body-edited", label);
+    // Its pass may supersede the FAIL, so it keeps a FAIL's retention.
+    assert.equal(resolved.relinkSinceHead, true, label);
+  }
+});
+
+test("a bot's or another actor's act, a connect alone, or an unreadable edit history keeps the FAIL", async () => {
+  // The paired case: the same window with only a person's edit re-opens.
+  assert.equal(await reason(bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }))), "body-edited");
+  const outsider = { __typename: "User", login: "outsider", databaseId: 999 };
+  for (const [label, relink] of [
+    ["the App's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: LANES_APP }] })],
+    ["another person's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: outsider }] })],
+    ["a ghost's body edit", relinkAnswer({ edits: [{ ...BODY_EDIT, editor: null }] })],
+    ["a person's edit and the App's connect", relinkAnswer({ edits: [BODY_EDIT], events: [{ createdAt: "2026-10-20T08:00:00Z", actor: LANES_APP }] })],
+    ["a person's connect alone", relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] })],
+    ["an edit before the FAIL", relinkAnswer({ edits: [{ ...BODY_EDIT, editedAt: "2026-10-20T05:00:00Z" }] })],
+    ["edits cut short", relinkAnswer({ edits: [BODY_EDIT], editsTotal: 101 })],
+    ["a failed read", undefined],
+  ]) {
+    assert.equal(await reason(bodyFixed(relink)), "already-judged", label);
+  }
+});
+
+test("the window opens at this PR's last FAIL at the head, so a judgment after the edit is not repeated", async () => {
+  // The edit was judged by the second FAIL, created after it.
+  const setup = bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }));
+  setup.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail-i7`, 78));
+  setup.runs[78] = verifyRun(78, { created_at: "2026-10-20T09:00:00Z" });
+  assert.equal(await reason(setup), "already-judged");
+  setup.relink = relinkAnswer({ edits: [{ ...BODY_EDIT, editedAt: "2026-10-20T10:00:00Z" }, BODY_EDIT] });
+  assert.equal(await reason(setup), "body-edited");
 });
 
 test("an unjudged head reads its linked issues once", async () => {
@@ -1355,6 +1610,36 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
+test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when it proceeds", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-");
+  const temp = tempDir("pr-verify-temp-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+    RUNNER_TEMP: temp,
+  };
+  const kept = path.join(temp, KEPT_JOBS);
+  // A judged head's jobs, as upstream-jobs.mjs would have read them.
+  const jobs = heldJobs(ciJob(CI_STEPS.map(([n, c]) => [n, n === HOLD_STEP ? "success" : c]), "success"));
+  await main(env, { github: fake({ jobs }) });
+  assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), shapeJobs(RUN, jobs.jobs));
+  assert.deepEqual(keptJobs(env, RUN), shapeJobs(RUN, jobs.jobs));
+  // A head already judged, after its jobs were read, leaves no file.
+  const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
+  await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
+  assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /reason=already-judged/);
+  assert.equal(keptJobs(skipped, RUN), null);
+});
+
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
   const dir = tempDir("pr-verify-");
   const output = path.join(dir, "out");
@@ -1478,32 +1763,48 @@ test("with no task-list marker, even the trusted split child is not spec", async
 // follow the lookup order: FAIL names first, since a counted FAIL alone
 // decides already-judged, then this PR's passes; a pass whose spec is
 // unchanged decides already-judged before the issue-named FAIL lookups.
-async function calls(setup) {
+async function calls(setup, options = {}) {
   const github = fake(setup);
   const paths = [];
   const recording = async (method, apiPath, body) => {
     paths.push(apiPath === "/graphql" ? `graphql ${body.query.includes("closingIssuesReferences") ? "spec" : "other"}` : apiPath);
     return github(method, apiPath, body);
   };
-  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  // A job log read is an API call too (main's readLog).
+  const readLog =
+    options.readLog &&
+    (async (id) => {
+      paths.push(`log ${id}`);
+      return options.readLog(id);
+    });
+  const { reason } = await resolvePull({ github: recording, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...options, readLog });
   return { reason, paths };
 }
 
 test("each path through the resolver makes a pinned number of API calls", async () => {
   const counted = (name, start = JUDGED_AT) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  // The spec read carries the relink fields, and for a pull request whose
+  // body may be its spec the title renames, so neither is a read of its own;
+  // heldOnly and draftRun share one read of the run's jobs.
   const cases = [
-    // run, commit pulls, three names without issues, the spec, the FAIL name with issues.
-    ["an unjudged head", {}, "ok", 7],
-    // run, commit pulls, the FAIL name, its run and compare, the spec, the relink read.
-    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 7],
-    // As above, but the PR links no issue now, so the relink is never read.
-    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 6],
-    // run, commit pulls, three names, the spec, the -i7 name, the FAIL's run and compare.
-    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 9],
-    // run, commit pulls, three names, the pass's run and compare, the spec.
-    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 8],
+    // run, commit pulls, the run's jobs, three names without issues, the spec, the FAIL name with issues.
+    ["an unjudged head", {}, "ok", 8],
+    // As above; the head commit's time is weighed against the relink fields
+    // the spec read carries (9 calls when the relink was a read of its own).
+    ["an unjudged head with its commit time", committed(), "ok", 8],
+    // run, commit pulls, the run's jobs, the FAIL name, its run and compare,
+    // the head's checks runs, the spec (9 with the relink read).
+    ["a FAIL named without issues", counted(`pr-verify-41-${HEAD}-fail`), "already-judged", 8],
+    // As above, but the PR links no issue now: the spec's relink fields serve
+    // only the body-edit rule (9 with the relink read).
+    ["a FAIL named without issues, no issue linked", { ...counted(`pr-verify-41-${HEAD}-fail`), issues: [] }, "already-judged", 8],
+    // run, commit pulls, the run's jobs, three names, the spec, the -i7 name,
+    // the FAIL's run and compare, the head's checks runs (12 with the relink read).
+    ["a FAIL named with the PR's issues", counted(`pr-verify-41-${HEAD}-fail-i7`), "already-judged", 11],
+    // run, commit pulls, the run's jobs, three names, the pass's run and compare, the spec.
+    ["a pass with the spec unchanged", counted(`pr-verify-41-${HEAD}-pass`), "already-judged", 9],
     // As above, then the FAIL name with issues.
-    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 9],
+    ["a pass the spec changed after", counted(`pr-verify-41-${HEAD}-pass`, "2026-10-19T00:00:00Z"), "spec-changed", 10],
   ];
   const edited = { ...ISSUE, lastEditedAt: "2026-10-20T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } };
   for (const [label, setup, expected, count] of cases) {
@@ -1511,6 +1812,18 @@ test("each path through the resolver makes a pinned number of API calls", async 
     assert.equal(got, expected, label);
     assert.equal(paths.length, count, `${label}:\n${paths.join("\n")}`);
   }
+  // A run red only on a hold: run, commit pulls, the run's jobs once for
+  // heldOnly and draftRun, ci-status's log, three names, the spec, the -i7
+  // name (10 when draftRun read the jobs again).
+  const heldRun = await calls({ run: upstream({ conclusion: "failure" }), jobs: heldJobs() }, { readLog: async (id) => (id === 9001 ? logOf(PATH_HOLD) : "") });
+  assert.equal(heldRun.reason, "ok");
+  assert.equal(heldRun.paths.length, 9, heldRun.paths.join("\n"));
+  // A trusted person's pull request that links no issue, its body the spec:
+  // run, commit pulls, the run's jobs, three names, the spec with the
+  // renames (8 when the renames were a read of their own).
+  const own = await calls({ pulls: [HUMAN_PR], issues: [] }, { verifyAuthors: "lane-or-owner", ownerIds: [100] });
+  assert.equal(own.reason, "ok");
+  assert.equal(own.paths.length, 7, own.paths.join("\n"));
 });
 
 test("FAIL names first and a pass decided before the issue-named lookups give the same reasons as the old order", async () => {

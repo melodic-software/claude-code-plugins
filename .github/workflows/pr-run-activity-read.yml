@@ -1270,6 +1270,20 @@ jobs:
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
+      # The act-turns step's script, copied before the head checkout replaces
+      # .base, with its SHA-256, which that step checks its copy against
+      # before it loads it. The same step runs in pr-run-activity-write.yml.
+      - name: Copy the act-turns script from the base
+        id: act-turns-bin
+        if: always() && steps.go.outputs.run == 'true'
+        env:
+          DEST: ${{ runner.temp }}/act-turns-bin
+        run: |
+          mkdir -p "$DEST"
+          cp .base/.github/scripts/lib/act-turns.mjs "$DEST/"
+          sum=$(sha256sum <"$DEST/act-turns.mjs")
+          echo "sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+
       # merge-base: the base's merge scripts, its version-bump script, the
       # step around them and the context writer, never the head's, each with
       # its SHA-256, which the merge step checks before it runs any; the
@@ -1733,81 +1747,24 @@ jobs:
         env:
           EXECUTION_FILE: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
+          ACT_TURNS_MODULE: ${{ runner.temp }}/act-turns-bin/act-turns.mjs
+          ACT_TURNS_SHA256: ${{ steps.act-turns-bin.outputs.sha256 }}
         with:
           retries: 0
+          # .github/scripts/lib/act-turns.mjs, loaded from the bytes checked
+          # against the base copy's hash. It writes no step summary: the scan
+          # job's summary step shows act-turns.json after the leak scan.
           script: |
-            const fs = require('fs');
-            const { EXECUTION_FILE, REPLY_DIR } = process.env;
-            // Head code could have planted one; only this step's copy is uploaded.
-            fs.rmSync(`${REPLY_DIR}/act-turns.json`, { force: true });
-            let messages = [];
-            try {
-              messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
-            } catch (error) {
-              core.setFailed(`No readable execution file: ${error.code ?? error.name}`);
+            const { createHash } = require('crypto');
+            const { readFileSync } = require('fs');
+            const { ACT_TURNS_MODULE, ACT_TURNS_SHA256, EXECUTION_FILE, REPLY_DIR } = process.env;
+            const source = readFileSync(ACT_TURNS_MODULE);
+            if (!ACT_TURNS_SHA256 || createHash('sha256').update(source).digest('hex') !== ACT_TURNS_SHA256) {
+              core.setFailed('act-turns: the staged script does not match the copy taken from the base');
               return;
             }
-            const result = messages.filter((m) => m.type === 'result').at(-1) ?? {};
-            const textOf = (content) =>
-              typeof content === 'string' ? content : (content ?? []).map((block) => block?.text ?? '').join('\n');
-            const stderr = messages
-              .filter((m) => m.type === 'user')
-              .map((m) => textOf(m.message?.content))
-              .filter((text) => text.includes('<local-command-stderr>'));
-            const models = Object.keys(result.modelUsage ?? {});
-            const diag = {
-              subtype: result.subtype == null ? null : String(result.subtype).slice(0, 100),
-              is_error: result.is_error ?? null,
-              num_turns: result.num_turns ?? null,
-              duration_ms: result.duration_ms ?? null,
-              models: models.slice(0, 10).map((name) => name.slice(0, 100)),
-              // The CLI's own report of a failed slash command expansion: the
-              // first 4, each cut to 2000 characters; local_command_stderr_total
-              // counts them all.
-              local_command_stderr: stderr.slice(0, 4).map((text) => text.slice(0, 2000)),
-              local_command_stderr_total: stderr.length,
-              // The first 20 calls the permission mode denied, each with its tool
-              // name cut to 100 characters and its command, file_path, path or
-              // pattern cut to 300, so a denial can be diagnosed; denied_total
-              // counts them all. Entries drop from the end until denied serializes
-              // to at most 8192 bytes (a JSON-escaped control character is 6 bytes).
-              denied: (() => {
-                const kept = (result.permission_denials ?? []).slice(0, 20).map((d) => {
-                  const i = d?.tool_input ?? {};
-                  const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
-                  return { tool_name: String(d?.tool_name ?? '').slice(0, 100), input: input == null ? null : String(input).slice(0, 300) };
-                });
-                while (Buffer.byteLength(JSON.stringify(kept), 'utf8') > 8192) kept.pop();
-                return kept;
-              })(),
-              denied_total: (result.permission_denials ?? []).length,
-            };
-            // The written file stays within the 32768-byte cap the scan job
-            // carries it under: the oldest stderr entries drop first,
-            // then denials from the end.
-            let turns = `${JSON.stringify(diag, null, 2)}\n`;
-            while (Buffer.byteLength(turns, 'utf8') > 32768 && (diag.local_command_stderr.length > 0 || diag.denied.length > 0)) {
-              if (diag.local_command_stderr.length > 0) diag.local_command_stderr.shift();
-              else diag.denied.pop();
-              turns = `${JSON.stringify(diag, null, 2)}\n`;
-            }
-            fs.mkdirSync(REPLY_DIR, { recursive: true });
-            // The summary step shows it after the leak scan.
-            fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, turns);
-            // JSON escapes newlines, so no field can start a workflow command.
-            core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: models.length }));
-            if (Number.isSafeInteger(diag.num_turns) && diag.num_turns >= 0) {
-              core.setOutput('turns', String(diag.num_turns));
-            }
-            // The CLI's modelUsage keys, the models the run used; the report
-            // job's lane-record.mjs drops a list that fails its shape.
-            core.setOutput('models', models.join(','));
-            if (!(diag.num_turns > 0) || models.length === 0) {
-              core.setFailed(
-                'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
-                  'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
-              );
-            }
+            const { runStep } = await import(`data:text/javascript;base64,${source.toString('base64')}`);
+            await runStep({ core, executionFile: EXECUTION_FILE, replyDir: REPLY_DIR });
 
       # Issue mode: the API error a failed leg ended on, from the execution
       # file's result fields, never model text, for report-outcome's funding
@@ -1855,7 +1812,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -2012,8 +1969,10 @@ jobs:
             || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class
             || steps.act-fallback.outputs.lane-class }}
           LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets || steps.act-fallback.outputs.lane-resets }}
-          # The run's turn cap, so a turn-cap stop names it.
+          # The run's turn cap, so a turn-cap stop names it, and the turns it
+          # took, so a done run past the cap says so in its PR.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
+          LANE_TURNS: ${{ steps.act-turns.outputs.turns }}
           # The branch a resumed run continued, which still holds the work
           # when the run left no change of its own.
           LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
@@ -2032,9 +1991,9 @@ jobs:
             head -c 49152 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
-            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
+            --arg max_turns "$LANE_MAX_TURNS" --arg turns "$LANE_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
-            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume, stale: $stale,
+            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, turns: $turns, resume: $resume, stale: $stale,
               failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's
@@ -2660,6 +2619,44 @@ jobs:
               core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
             }
 
+      # The upload scanner and its gate, from the default branch tip through
+      # the API (as leak-scan loads the gate), into a fresh directory under
+      # RUNNER_TEMP: the gated head's checkout next replaces the workspace,
+      # .base included, so no scan here loads code from it. It runs on every
+      # run, a gate stop included, since the verdict upload follows its scan;
+      # a failure here leaves no scanner, and that scan then withholds the
+      # verdict.
+      - name: Stage the upload scanner
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          retries: 2
+          retry-exempt-status-codes: 400,401,403,404,422,429
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const branch = context.payload.repository?.default_branch;
+            if (typeof branch !== 'string' || branch === '') throw new Error('no default branch');
+            const tip = (await github.rest.repos.getBranch({ ...context.repo, branch })).data?.commit?.sha;
+            if (typeof tip !== 'string' || !/^[0-9a-f]{40}$/.test(tip)) throw new Error('no default branch tip');
+            const dest = path.join(process.env.RUNNER_TEMP, 'scan-gate');
+            fs.mkdirSync(dest);
+            // The scanner may import node: builtins and the gate; the gate only builtins.
+            const files = [
+              ['lib/publish-gate.mjs', []],
+              ['.github/actions/scan-upload/scan-upload.mjs', ['../../../lib/publish-gate.mjs']],
+            ];
+            for (const [file, allowed] of files) {
+              const { data } = await github.rest.repos.getContent({ ...context.repo, path: file, ref: tip });
+              const source = Buffer.from(data.content, 'base64').toString('utf8');
+              const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
+              if (specifiers.some((name) => !name.startsWith('node:') && !allowed.includes(name))) throw new Error(`${file} imports more than it may`);
+              fs.mkdirSync(path.join(dest, path.dirname(file)), { recursive: true });
+              fs.writeFileSync(path.join(dest, file), source, { flag: 'wx', mode: 0o444 });
+            }
+            core.info(`upload scanner from ${tip}`);
+
       # The gated head's objects, fresh: the patch applies onto them; in
       # issue mode the start commit the issue step checked. A merge-base
       # patch is measured from a conflict tree GitHub does not hold, so it is
@@ -3041,7 +3038,14 @@ jobs:
       # Only after every step above succeeded: a run that stopped before head
       # code skipped the scan and still posts its skip; a scan hit leaves no
       # verdict, which the report job reads as a failure.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        env:
+          SCAN_PATHS: ${{ runner.temp }}/verdict/verdict.json
+        run: node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"
+
       - name: Upload the verdict
+        if: steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
@@ -3342,8 +3346,18 @@ jobs:
             '{version: 1, issue: $issue, branch: $branch, tip: $tip, output: ($output | try fromjson catch null)}' \
             >"$OUT_DIR/reuse-summary.json"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.summary-collect.outcome == 'success'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/reuse-summary/reuse-summary.json
+
       - name: Upload the reused branch's summary
-        if: steps.summary-collect.outcome == 'success'
+        if: >-
+          (steps.summary-collect.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

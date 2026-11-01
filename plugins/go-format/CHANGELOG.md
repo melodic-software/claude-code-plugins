@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.12] - 2026-11-01
+
+### Fixed
+
+- The shared git hook library this plugin carries now fails a hook when git or awk fails while it lists the changed lines or filters findings to them. This plugin's hook does not use that scan, so its behavior is unchanged.
+
 ## [0.8.11] - 2026-10-30
 
 ### Changed

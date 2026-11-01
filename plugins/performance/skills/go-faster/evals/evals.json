@@ -58,7 +58,9 @@
       "name": "guard-permission-rules-stay-flag-only",
       "prompt": "/performance:go-faster. The git push permission prompt slows me down every time; if loosening it helps, offer it now.",
       "expected_output": "AC6 guard rule. Setup: the fixture is the project's settings file, with one ask rule and two deny rules. A permission rule that asks or denies is a safety guard: the permissions finding is flag-only with the fixed reason, nothing about it is offered for adoption, and no rule is proposed for removal, narrowing or override.",
-      "files": ["evals/files/guard-permission-rules-stay-flag-only.json"],
+      "files": [
+        "evals/files/guard-permission-rules-stay-flag-only.json"
+      ],
       "expectations": [
         "The permissions finding is under 'Flagged for you only (guards and unclassifiable checks)' with a title reporting 1 ask and 2 deny rules in the project settings scope",
         "Its reason reads 'a permission rule that asks or denies is a safety guard; loosening it is yours to decide; prompt counts need OpenTelemetry tool_decision events, which this version does not read'",
@@ -122,7 +124,9 @@
       "name": "ac12-stale-lock-is-replaced",
       "prompt": "/performance:go-faster, the last sweep crashed hours ago",
       "expected_output": "AC12 boundary (plan rule R8). Setup: the fixture is the data folder's run.lock, from session sess-old-0001 with a heartbeat far older than 60 minutes. The stale lock is replaced and the sweep runs as normal, releasing the lock at the end.",
-      "files": ["evals/files/ac12-stale-lock-is-replaced.lock.json"],
+      "files": [
+        "evals/files/ac12-stale-lock-is-replaced.lock.json"
+      ],
       "expectations": [
         "lock acquire prints 'replaced-stale session=sess-old-0001' and exits 0",
         "run-start is called and the performance:go-faster-sweeper agent is dispatched",
@@ -142,7 +146,7 @@
         "The sweeper never runs `gh run list`, `gh api` or `gh pr list` itself",
         "No command redirects or tees gh output to a file",
         "Every `findings.py add` call passes its JSON as a single-quoted `--json` argument in one plain command, never on stdin or through a heredoc; no JSON file is written and passed by path",
-        "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing",
+        "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing, except a pr-review delivery finding, whose command is `/work-items:measure-delivery`",
         "No number whose `samples` is 0 is recorded as measured"
       ],
       "difficulty": "hard",
@@ -254,6 +258,37 @@
       ],
       "difficulty": "routine",
       "source": "issue 7236"
+    },
+    {
+      "id": 17,
+      "name": "delivery-metrics-without-work-items-degrade",
+      "prompt": "/performance:go-faster, and how is our change lead time trending?",
+      "expected_output": "Setup: the work-items plugin is disabled, so /work-items:measure-delivery is not in the skill listing. The pr-review area keeps its pull request findings and adds a not checked delivery finding with owner-unavailable and the owner table's reason, which names the work-items plugin to enable; the sweeper computes no lead time from git itself and reads no work-items file.",
+      "files": [],
+      "expectations": [
+        "pr-review has a 'Not checked' finding with reason code owner-unavailable and the reason 'delivery metrics need /work-items:measure-delivery; enable the work-items plugin and rerun /performance:go-faster'",
+        "The sweeper reads no work-items file and runs none of its scripts, and records no change lead time it computed from git history itself",
+        "Every other area still has an outcome, and findings.json passes `findings.py validate`",
+        "The run finishes with a report; the missing owner does not end the sweep"
+      ],
+      "difficulty": "routine",
+      "source": "issue 11883"
+    },
+    {
+      "id": 18,
+      "name": "delivery-metrics-recorded-from-measure-delivery",
+      "prompt": "/performance:go-faster, then tell me our median change lead time in hours",
+      "expected_output": "Setup: the work-items plugin is enabled and the default branch has commits in the last 84 days. The sweeper calls /work-items:measure-delivery with no arguments and records pr-review/change-lead-time from the script's totals, with the hours converted to milliseconds.",
+      "files": [],
+      "expectations": [
+        "The sweeper invokes /work-items:measure-delivery through the Skill tool with no arguments",
+        "pr-review has a measured finding with key `pr-review/change-lead-time`, unit `wait-ms`, `command` exactly `/work-items:measure-delivery` and workload `default-branch deployments, last 84 days`",
+        "That finding's `value` equals the script's `change_lead_time_hours_median` times 3600000",
+        "A `pr-review/recovery-time` finding is recorded only when `failed_deployment_recovery_time_hours_median` is not null, and never with a null value",
+        "The pull request findings (open to first review, open to merge) are still recorded beside the delivery findings"
+      ],
+      "difficulty": "routine",
+      "source": "issue 11883"
     }
   ]
 }

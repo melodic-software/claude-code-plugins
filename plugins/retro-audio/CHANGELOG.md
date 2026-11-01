@@ -3,6 +3,12 @@
 All notable changes to the `retro-audio` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.11] - 2026-11-01
+
+### Added
+
+- Frozen trigger-probe sets for the two model-invoked skills (`music` and `sfx`, 20 probes each), for measuring description auto-invocation in a later round.
+
 ## [0.2.10] - 2026-10-30
 
 ### Changed

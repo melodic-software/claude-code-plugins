@@ -1,5 +1,5 @@
 ---
-description: "Live E2E browser automation via Microsoft's @playwright/cli: named sessions, accessibility-ref snapshots, click/fill by ref, screenshots, console and network capture, network mocking, tracing, video, and auth state, with artifacts written to disk so only paths enter context (far fewer tokens than Playwright MCP). Use when: 'playwright', 'E2E test', or any task that needs a real browser driven against a running app: testing a UI flow end to end, capturing a screenshot or video as evidence, reading console errors or network traffic, or mocking a response."
+description: "Live browser automation through Microsoft's @playwright/cli, writing snapshots, screenshots, traces and video to disk so only paths enter context. Use when a task needs a real browser driven against a running app: an 'E2E test' of a UI flow, a screenshot or video as evidence, console errors or network traffic, or a mocked response."
 when_to_use: "live browser testing, UI smoke tests, snapshot the page, auth state persistence, checking or inspecting a saved playwright-cli login or state file, `/playwright:playwright update` (maintainers)"
 argument-hint: "[update] [--check|--apply]"
 user-invocable: true

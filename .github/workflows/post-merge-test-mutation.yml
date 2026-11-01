@@ -361,7 +361,7 @@ jobs:
       - name: Record the lane outcome
         id: lane-record
         if: always() && (steps.audit.outcome == 'success' || steps.audit.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.audit.outcome }}
           execution-file: >-

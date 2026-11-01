@@ -13,6 +13,30 @@
     },
     {
       "answer": "Which form do you want? 1. Call tree (recommended) 2. Sequence diagram\n\n```mermaid\nsequenceDiagram\n  PostalCarrier->>RateTable: price\n```"
+    },
+    {
+      "answer": "Which form do you want?\n\n1. **Call tree** (recommended)\n2. **Types and signatures**\n3. **File tree**\n\n```\nPostalCarrier.quote\n+-- RateTable.services_for\n+-- RateTable.price\n```",
+      "why": "a fenced ASCII call tree after the menu"
+    },
+    {
+      "answer": "Which form do you want? 1. Call tree (recommended) 2. File tree\n\nPostalCarrier.quote\n|-- RateTable.services_for\n`-- RateTable.price",
+      "why": "an unfenced ASCII call tree"
+    },
+    {
+      "answer": "Which form do you want? 1. Call tree (recommended) 2. Types\n\nPostalCarrier.quote\n    RateTable.services_for\n    RateTable.price",
+      "why": "an indented call tree with no box characters"
+    },
+    {
+      "answer": "Which form do you want? 1. Types and signatures (recommended) 2. Call tree\n\nclass RateTable:\n    price(parcel, service) -> int\n    services_for(country) -> list[str]",
+      "why": "unfenced types and signatures"
+    },
+    {
+      "answer": "Which form do you want? 1. File tree (recommended) 2. Call tree\n\nshipping/\n  rates.py\n  carriers/\n    base.py\n    postal.py",
+      "why": "an unfenced file tree"
+    },
+    {
+      "answer": "Which form do you want? 1. Pseudocode (recommended) 2. Call tree\n\n~~~\nfor each service in table.services_for(country):\n    price = table.price(parcel, service)\nreturn min(price)\n~~~",
+      "why": "tilde-fenced pseudocode"
     }
   ]
 }

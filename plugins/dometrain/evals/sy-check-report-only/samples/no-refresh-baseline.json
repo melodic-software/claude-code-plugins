@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "report mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --refresh-baseline \"/opt/p/skills/sync/scripts/update.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "greps for the flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\"; grep -c refresh-baseline /opt/p/skills/sync/context/update.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "flag text in a later command only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/p/skills/sync/scripts/update.sh\" --refresh-baseline",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "refresh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /opt/p/skills/sync && ./scripts/update.sh --refresh-baseline 2>&1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \\\"/opt/p/skills/sync/scripts/update.sh\\\" --refresh-baseline",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "escaped quotes"
+    }
+  ]
+}

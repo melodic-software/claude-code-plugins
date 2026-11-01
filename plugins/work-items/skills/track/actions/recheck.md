@@ -11,7 +11,8 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 ## Workflow
 
 1. **Resolve the recurring-maintenance role label before any tracker read.** Read
-   `.work-item-tracker.json` at action entry and resolve
+   the binding the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the
+   legacy repo-root JSON binding) at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` when the file or entry is
    absent (the documented default, no warning). Stop on a malformed, empty, or non-string
    configured value. Use the resolved string in the search below.

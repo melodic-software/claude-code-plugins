@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "## Auth\n\nSet `FIRECRAWL_API_KEY` as an OS user environment variable.",
+      "why": "heading"
+    },
+    {
+      "answer": "**Auth:** FIRECRAWL_API_KEY env var, not `firecrawl login`.",
+      "why": "bold label"
+    },
+    {
+      "answer": "| Variable | Purpose |\n|---|---|\n| `FIRECRAWL_API_KEY` | API auth |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Authenticate with `firecrawl login`.",
+      "why": "login only"
+    },
+    {
+      "answer": "Set FIRECRAWL_KEY in your shell profile.",
+      "why": "wrong variable name"
+    },
+    {
+      "answer": "Point FIRECRAWL_API_URL at your instance.",
+      "why": "a different variable"
+    }
+  ]
+}

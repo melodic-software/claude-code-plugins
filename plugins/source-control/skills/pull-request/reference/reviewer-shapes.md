@@ -16,11 +16,11 @@ a discovered actor's output looks like.
 **A reviewer with no record here has no shape, and the gate treats it as one.** Gate 5 waits the
 flat cooldown and nothing else: no reviewer-specific signal, no extra timeout.
 
-**A shape recorded as *not observed* is a bounded negative, not a proven absence.** It says the
-sampled reads named in its basis found no instance, which is weak evidence when the sample is
-small or was drawn where the signal could not appear. Widen the sample before relying on one, and
-never let it become a reason to wait for something that may not arrive. The strength of every
-record here is the sample its basis names, so read that before the claim.
+**A shape recorded as *not observed* is a bounded negative, not a proven absence.** The sampled
+reads named in its basis found no instance, which is weak evidence when the sample is small or was
+drawn where the signal could not appear. Widen the sample before relying on one, and never let it
+become a reason to wait for something that may not arrive. Every record is only as strong as the
+sample its basis names, so read that before the claim.
 
 Every record carries the four parts the
 [upstream-drift convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md)
@@ -53,8 +53,7 @@ Basis reads below are GitHub API reads, made with the `gh` CLI, against `melodic
   `commit_id` on that surface does not answer the question: it advances to the newest head while
   the comment's hunk still applies and freezes only once the comment goes outdated, so selecting
   `commit_id == <head sha>` returns prior-round comments whose hunk survived the last push, the
-  stale short-circuit a current-push filter exists to prevent. The other two surfaces carry
-  different fields: a review object has `commit_id` and no `original_commit_id`, and its
+  stale short-circuit a current-push filter exists to prevent. The other two surfaces differ: a review object has `commit_id` and no `original_commit_id`, and its
   `commit_id` stays at the reviewed commit; an issue-level comment carries no commit field at all
   and is scoped by `created_at`.
 - **Basis.** `pulls/3793/comments`, `pulls/3794/comments`, `pulls/3793/reviews`, and
@@ -103,12 +102,11 @@ Basis reads below are GitHub API reads, made with the `gh` CLI, against `melodic
 ### A 👍 on the PR body means the round finished with no findings
 
 - **Claim.** With no suggestions the reviewer reacts 👍 on the **PR body** instead of commenting,
-  which its own note states and which separates cleanly here: across the eleven pull requests in
-  the sampled window where the reviewer ran, all four that carried a 👍 had zero inline comments
-  from it, and all seven with at least one inline comment carried no reaction. So a 👍 with its
-  summary comment present ends the wait for this reviewer. No 👀 reaction appeared anywhere in the
-  window, so the 👀-means-still-reviewing reading has no observation behind it and nothing waits on
-  one.
+  as its own note states, and the two cases separate cleanly here: of the eleven pull requests in
+  the sampled window where the reviewer ran, all four with a 👍 had zero inline comments from it,
+  and all seven with at least one inline comment had no reaction. So a 👍 with its summary comment
+  present ends the wait for this reviewer. No 👀 reaction appeared anywhere in the window, so the
+  👀-means-still-reviewing reading has no observation behind it and nothing waits on one.
 - **Basis.** The "About Codex in GitHub" details block on `pulls/3793/reviews` for the vendor
   statement. For the observation, `issues/<n>/reactions` and `pulls/<n>/comments` across #3780-#3795
   (#3784 is an issue, not a pull request): 👍 with no inline comments on #3781, #3787, #3788, #3790;
@@ -120,8 +118,8 @@ Basis reads below are GitHub API reads, made with the `gh` CLI, against `melodic
 
 ### The reviewer does not run on every pull request
 
-- **Claim.** A round that never started posts nothing at all, not even the summary comment, so
-  absence of every artifact is a distinct state from a finished no-findings round. Treat a missing
+- **Claim.** A round that never started posts nothing, not even the summary comment, so absence of
+  every artifact is a distinct state from a finished no-findings round. Treat a missing
   summary comment as "did not fire" and use the trigger phrase above; treat a summary comment with
   no findings signal as a round still in flight.
 - **Basis.** #3780, #3782, #3791, and #3795 each carried zero comments, zero reviews, and zero
@@ -148,8 +146,8 @@ Basis reads below are GitHub API reads, made with the `gh` CLI, against `melodic
 
 ### How long a round takes
 
-- **Claim.** The finished comment states the round's own duration, so read the wait off the comment
-  rather than assuming one. Rounds here reported 39 seconds and 3 minutes 42 seconds.
+- **Claim.** The finished comment states the round's own duration: read the wait off it rather
+  than assuming one. Rounds here reported 39 seconds and 3 minutes 42 seconds.
 - **Basis.** The two `claude[bot]` comments on `issues/3793/comments`, timestamped `04:09:05Z` and
   `04:09:30Z`, against a PR opened `04:08:41Z`.
 - **As-of.** 2026-09-06.

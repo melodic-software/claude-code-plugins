@@ -419,15 +419,17 @@ export function checkRow(row) {
   const parents = JSON.stringify(row.commit?.parents);
   if (parents === '["head","base"]') {
     // A merge commit only for a PR, and only of the conflicted paths' resolutions.
-    if (JSON.stringify(row.allow) !== '["merge-result"]' || row.target !== "pr") {
-      fail("commits a merge but does not allow merge-result alone on a pull request");
+    // A clean-patch row takes a patch on a clean merge, of registered copies only.
+    const only = row["clean-patch"] === true ? '["shared-copies"]' : '["merge-result"]';
+    if (JSON.stringify(row.allow) !== only || row.target !== "pr") {
+      fail(`commits a merge but does not allow ${JSON.parse(only)[0]} alone on a pull request`);
     }
     if (!(Number.isInteger(row["max-blobs"]) && row["max-blobs"] > 0)) {
       fail("commits a merge with no max-blobs");
     }
   } else if (parents !== '["head"]') {
     fail("commits with parents this apply-patch does not support");
-  } else if (row.allow?.includes("merge-result") || row["max-blobs"] !== undefined) {
+  } else if (row.allow?.includes("merge-result") || row["max-blobs"] !== undefined || row["clean-patch"] !== undefined) {
     fail("allows merge-result or sets max-blobs but does not commit a merge");
   }
   if (!row.escalations?.some((reason) => reason.endsWith("-invalid"))) {
@@ -547,6 +549,8 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   });
   // A merge row: a clean merge commits with no patch; a conflicted one needs
   // the model's patch, and an empty one leaves the conflicts as git left them.
+  // A clean-patch row takes a clean merge alone: with its producer's patch,
+  // or with none when the producer found nothing to change (empty).
   if (isMerge(row)) {
     if (mergeState !== "clean" && mergeState !== "conflicted") {
       return decide(false, "awaiting-human", reasonFor(row, "invalid"));
@@ -554,7 +558,13 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || patchHeadSha !== headSha) {
       return decide(false, "superseded-sha", "");
     }
-    if (mergeState === "clean") {
+    if (row["clean-patch"] === true && (mergeState !== "clean" || (patchState !== "written" && patchState !== "empty"))) {
+      return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+    }
+    if (row["clean-patch"] === true && patchState === "empty") {
+      return decide(true, "", "");
+    }
+    if (mergeState === "clean" && row["clean-patch"] !== true) {
       return patchState === "" ? decide(true, "", "") : decide(false, "awaiting-human", reasonFor(row, "invalid"));
     }
     if (patchState === "empty") {
@@ -735,12 +745,14 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
   ) {
     throw new Error("a merge row needs the pinned base, the conflict tree, the merge state, the conflicted paths and tree-entries.sh");
   }
+  // A row names a merge reason as is or under its own prefix (shared-copy-).
   const reason = (name, why) => {
-    if (!row.escalations.includes(name)) {
+    const named = row.escalations.find((listed) => listed === name || listed.endsWith(`-${name}`));
+    if (!named) {
       throw new Error(`the ${row.name} row cannot escalate ${name}`);
     }
     log(why);
-    return { outcome: "escalate", escalationReason: name };
+    return { outcome: "escalate", escalationReason: named };
   };
   if (patchHeadSha !== headSha) {
     log("the head moved since the select job; the merge is superseded");
@@ -759,10 +771,12 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (!hasCommit(git, headSha) || !hasCommit(git, merge.baseSha) || git(["cat-file", "-t", merge.conflictTree]).toString("utf8").trim() !== "tree") {
       throw new Error("the head, the base or the conflict tree is not in the checkout");
     }
-    // P: the patch on T0, or T0 itself for a clean merge.
+    // P: the patch on T0, or T0 itself for a clean merge. A clean-patch row's
+    // patch is the one the select step checked: given a file or a SHA-256, it
+    // must apply; given neither, the producer's run was empty.
     let tree = merge.conflictTree;
     let entries = [];
-    if (merge.state === "conflicted") {
+    if (merge.state === "conflicted" || (row["clean-patch"] === true && (patchFile || patchSha256))) {
       const problem = patchProblem(patchFile, patchSha256);
       if (problem) {
         return escalate(problem.kind, problem.why);
@@ -1081,6 +1095,30 @@ export async function push({
   return { outcome: "pushed", commit, branch: headRef };
 }
 
+// What GitHub answered a failed call, for its error: the JSON body's message
+// and errors, else the text, with the token and any credential shape
+// redacted, control characters dropped (it lands in one ::error:: line), and
+// capped. An unreadable body is empty.
+const MAX_ANSWER = 500;
+export async function failedAnswer(response, token) {
+  let text = await response.text().catch(() => "");
+  try {
+    const body = JSON.parse(text);
+    if (body !== null && typeof body === "object") {
+      text = JSON.stringify({ message: body.message, errors: body.errors });
+    }
+  } catch {
+    // Not JSON: the text as it came.
+  }
+  if (token) {
+    text = text.split(token).join("[redacted]");
+  }
+  for (const [, pattern] of CREDENTIAL_SHAPES) {
+    text = text.replace(new RegExp(pattern.source, "g"), "[redacted]");
+  }
+  return text.replace(/[\x00-\x1f\x7f]+/g, " ").trim().slice(0, MAX_ANSWER);
+}
+
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
 // or committer as the App. A read, and a write marked safeToResend, is sent
 // again after a network error or a 5xx (retry-fetch.mjs). A blob, a tree and
@@ -1099,7 +1137,8 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${path} returned ${response.status}`);
+      const answer = await failedAnswer(response, token);
+      throw new Error(`${method} ${path} returned ${response.status}${answer ? `: ${answer}` : ""}`);
     }
     return { data: await response.json(), link: response.headers.get("link") ?? "" };
   }
@@ -1193,6 +1232,23 @@ export function fixedThreadsFrom(file, kept) {
     }
   }
   return (kept?.ids ?? []).filter((id) => valid.has(id));
+}
+
+// The copies the base checkout's scripts/shared-copies.txt registers: the
+// second field of each `<canonical> <copy>` line, with everything from a `#`
+// on stripped as scripts/sync-shared-copies.sh strips it, blanks skipped.
+export function sharedCopiesFrom(baseDir) {
+  if (!baseDir) {
+    throw new Error("BASE_DIR is not set; the shared-copies allow reads the base registry");
+  }
+  const copies = new Set();
+  for (const line of readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8").split("\n")) {
+    const fields = line.split("#")[0].trim().split(/\s+/);
+    if (fields.length === 2) {
+      copies.add(fields[1]);
+    }
+  }
+  return copies;
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
@@ -1309,6 +1365,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
+      sharedCopies: row.allow.includes("shared-copies") ? sharedCopiesFrom(env.BASE_DIR) : undefined,
       merge,
     },
     [target.number]: Number(env[numberKey]),
@@ -1318,8 +1375,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     baseRef: env.BASE_REF ?? "",
     lane: env.LANE,
     activity: env.PATCH_ACTIVITY,
-    // A clean merge has no patch.
-    patchFile: merge?.state === "clean" ? "" : env.PATCH_FILE,
+    // A clean merge has no patch, but for a clean-patch row's checked one.
+    patchFile: merge?.state === "clean" && !(row["clean-patch"] === true && env.PATCH_SHA256) ? "" : env.PATCH_FILE,
     patchSha256: env.PATCH_SHA256 ?? "",
     holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
     requiredLabels: env.REQUIRED_LABELS ? labelList(env, "REQUIRED_LABELS") : [],

@@ -4,7 +4,7 @@
     "lanes": {
       "work-resolve-issue": { "resolve-issue": "read", "apply-issue-patch": "mutate-branch", "report-outcome": "publish-artifact" },
       "pr-refine": { "fix-docs": "read", "apply-patch": "mutate-branch" },
-      "pr-unblock": { "resolve-conflicts": "read", "apply-conflict-patch": "mutate-branch", "address-feedback": "read", "apply-feedback-patch": "mutate-branch", "publish-feedback": "publish-artifact", "review-dependency": "read", "apply-dependency-patch": "mutate-branch", "apply-dependency-verdict": "publish-artifact", "fix-ci": "read", "apply-patch": "mutate-branch", "report-escalation": "publish-artifact" },
+      "pr-unblock": { "resolve-conflicts": "read", "apply-conflict-patch": "mutate-branch", "address-feedback": "read", "apply-feedback-patch": "mutate-branch", "publish-feedback": "publish-artifact", "review-dependency": "read", "apply-dependency-patch": "mutate-branch", "apply-dependency-verdict": "publish-artifact", "fix-ci": "read", "apply-patch": "mutate-branch", "sync-shared-copies": "read", "apply-shared-copies": "mutate-branch", "report-escalation": "publish-artifact" },
       "pr-merge": { "merge-pr": "merge", "enable-auto-merge": "merge" },
       "work-unblock": { "label-unblocked": "mutate-tracker" },
       "intake-triage": { "apply-verdict": "mutate-tracker", "apply-refinement": "mutate-tracker" }

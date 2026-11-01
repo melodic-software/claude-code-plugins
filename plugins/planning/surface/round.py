@@ -3017,6 +3017,23 @@ def record_emoji_markers(d, want):
     save(d, doc)
 
 
+def pacing_value(value):
+    """single (any case) means single; anything else, an unexpanded token included, means round."""
+    return "single" if value.strip().lower() == "single" else "round"
+
+
+def record_question_pacing(d, want):
+    """meta.questionPacing through the normal write path; writes only on a change.
+    want None keeps the recorded value, and a file without one reads as round."""
+    if want is None:
+        return
+    doc = load(d)
+    if doc["meta"].get("questionPacing") == want:
+        return
+    doc["meta"]["questionPacing"] = want
+    save(d, doc)
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         exit_with(
@@ -3027,6 +3044,8 @@ def cmd_ensure_running(d, a):
     with sidecar_lock(d):
         flag = a.emoji_markers
         record_emoji_markers(d, None if flag is None else emoji_flag(flag))
+        pacing = a.pacing
+        record_question_pacing(d, None if pacing is None else pacing_value(pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The
@@ -3452,6 +3471,11 @@ def main(argv=None):
         help="record meta.emojiMarkers in questions.json: true, 1, yes or on mean true, "
         "any other value means false; without the flag the recorded value stays, and a new "
         "file records false",
+    )
+    s.add_argument(
+        "--pacing",
+        help="record meta.questionPacing in questions.json: single means single, any other "
+        "value means round; without the flag the recorded value stays",
     )
     s.set_defaults(fn=cmd_ensure_running)
 

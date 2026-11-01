@@ -406,8 +406,8 @@ mints nothing. `collect-base-activity` fails red on a path outside that name set
 the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
 reviews, linked issues) only from that file, never through the API. Existing skills are not yet
 adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
-known residual. The skill gets the App token as `github_token` in the write file, and the job's
-read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sources user`, so no
+known residual. The skill gets the App token as `github_token` in the write file; the read file
+runs the skill on run-claude-cli, whose steps pass it no GitHub token. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
@@ -438,7 +438,8 @@ starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets nei
 sentence says to leave every change uncommitted for the runner to collect; a
 `prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` and
+`plugins/skill-quality/scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
 pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on
@@ -454,9 +455,9 @@ read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, 
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
-own environment (in the write runner no Bash process holds the token, since the skill's settings
-clear it; under run-claude-cli, code the script runs can still read the job's token from the
-wrapper's or the Bash shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+own environment (no Bash process above it holds the token either: in the write runner the skill's
+settings clear it, and the read runner's run-claude-cli steps set neither `GH_TOKEN` nor
+`GITHUB_TOKEN`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
 `check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
 `.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
@@ -467,10 +468,11 @@ each as its own command, and that the run inspects files with Read, Grep and Glo
 with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
 `git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself, or hand the run a power it may hold. Code a listed script runs can read the token from
-any same-user process's `/proc/<pid>/environ`, so `resolve-issue` lists no script that runs
+itself, or hand the run a power it may hold. `resolve-issue` lists no script that runs
 checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
-each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. Its check
+`scripts/check-changed-skills.sh --merge-base` runs the base copy of `check-skill.sh` over the
+skills the change touches, untracked ones included, with both of those skipped. It lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
 limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
@@ -499,7 +501,11 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 --show-toplevel` from its working directory (exit 2 outside one), writes only new
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
-`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry. The
+issue lane's checkout is detached, so in an issue lane its wrapper exports
+`CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-<n>-<run id>-<attempt>` from the run's own
+ids, and the script names a detached HEAD's fragment after it; a person's run on a branch ignores
+the variable.
 Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
@@ -1856,12 +1862,12 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
 - Environment inheritance, no root needed. claude-code-action puts `CLAUDE_CODE_OAUTH_TOKEN` and
   the token it was given (as `GH_TOKEN` and `GITHUB_TOKEN`) in Claude's environment, so every Bash
   child of Claude inherits them and can read them from its own environment or from
-  `/proc/<ancestor>/environ`. The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
+  `/proc/<ancestor>/environ`. The write file's skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
   strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
   Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
-  `GH_TOKEN` and `GITHUB_TOKEN`, so in the read file a subprocess still holds the job
-  `GITHUB_TOKEN`. The write file's skill step sets both to empty in its settings' `env`, so no Bash
-  process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
+  `GH_TOKEN` and `GITHUB_TOKEN`. The read file runs its skill on run-claude-cli, not this action,
+  and its run-claude-cli steps set neither token. The write file's skill step sets both to empty
+  in its settings' `env`, so no Bash process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
   servers, commit signing among them, get it from their own config `env`. The action installs
   bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
   when it is missing.

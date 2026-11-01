@@ -49,6 +49,18 @@ export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", 
 
 const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
+// The values rate-limits.json ships, which the guard plans to when that file
+// cannot be read, so a checkout that misses it still keeps every floor
+// (rate-guard.test.mjs holds the two equal).
+const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1 };
+export const BUILT_IN_LIMITS = Object.freeze({
+  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2 },
+  "lanes-app": SHARES,
+  graphql: SHARES,
+  "owner-token": SHARES,
+  "content-creation": { ...SHARES, "per-minute": 80, "per-hour": 500 },
+});
+
 // Each field's check: the shares, then the counts. per-minute and per-hour
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
@@ -77,10 +89,22 @@ function readDefaults(path) {
   return defaults;
 }
 
-// limits.api with every unset field filled from rate-limits.json. Throws when
-// that file cannot be read or fails readDefaults' check.
+// apiLimits, falling back to BUILT_IN_LIMITS with a warning when
+// rate-limits.json cannot be read, so no reader plans to nothing.
+export function apiLimitsOrBuiltIn({ resolvedPath = process.env.RESOLVED_CONFIG, defaultsPath = DEFAULTS, log = (line) => console.log(line) } = {}) {
+  try {
+    return apiLimits({ resolvedPath, defaultsPath });
+  } catch (error) {
+    log(`::warning::rate-limits.json could not be read (${error?.code ?? error?.message}); planning to the built-in defaults, the values that file ships`);
+    return apiLimits({ resolvedPath, defaultsPath: null });
+  }
+}
+
+// limits.api with every unset field filled from rate-limits.json, or from
+// BUILT_IN_LIMITS when defaultsPath is null. Throws when that file cannot be
+// read or fails readDefaults' check.
 export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, defaultsPath = DEFAULTS } = {}) {
-  const defaults = readDefaults(defaultsPath);
+  const defaults = defaultsPath === null ? BUILT_IN_LIMITS : readDefaults(defaultsPath);
   let set = {};
   if (resolvedPath) {
     try {
@@ -480,7 +504,7 @@ export function createRateLimitLatch({
   now = () => Date.now(),
   log = (line) => console.log(line),
   fail = failProcess,
-  limits = () => apiLimits(),
+  limits = () => apiLimitsOrBuiltIn({ log }),
   stopFile = STOP_FILE,
 } = {}) {
   const stops = readStops(stopFile, log);
@@ -493,8 +517,8 @@ export function createRateLimitLatch({
       try {
         config = limits();
       } catch {
-        config = null;
-        log("::warning::rate guard: limits.api and its defaults (rate-limits.json) could not be read; the read floor is not checked");
+        config = apiLimits({ defaultsPath: null });
+        log("::warning::rate guard: rate-limits.json could not be read; the guard plans to its built-in defaults, the values that file ships");
       }
     }
     const value = config?.[entryOf(pool, token)]?.[key];

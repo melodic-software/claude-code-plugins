@@ -72,8 +72,9 @@ assert_eq "unknown verb → exit 2" "2" "$?"
 
 # --- binding errors → exit 3 ---
 
-(cd "$TEST_TMPDIR" && WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/nope.json" bash "$DISPATCHER" capabilities >/dev/null 2>&1)
+ERR="$(cd "$TEST_TMPDIR" && WORK_ITEM_TRACKER_BINDING="$TEST_TMPDIR/nope.json" bash "$DISPATCHER" capabilities 2>&1 >/dev/null)"
 assert_eq "missing binding → exit 3" "3" "$?"
+assert_contains "missing binding points at /work-items:setup" "$ERR" "/work-items:setup"
 
 BAD="$TEST_TMPDIR/bad.json"
 printf 'nope\n' >"$BAD"
@@ -176,6 +177,12 @@ ERR="$(run_dispatcher get-field-options --field Size 2>&1 >/dev/null)"
 RC_CAPTURE=$?
 assert_eq "undeclared get-field-options verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the get-field-options verb" "$ERR" "get-field-options"
+
+# An adapter that declares no add-recurrence key exits 6 rather than recording anything.
+ERR="$(run_dispatcher add-recurrence "fake:o/r#1" --source-link https://example.com/1 --note seen 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the add-recurrence verb" "$ERR" "add-recurrence"
 
 # --- capabilities passthrough ---
 
@@ -357,9 +364,9 @@ assert_eq "empty --body-file → exit 2" "2" "$?"
 run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
 assert_eq "--body-file without a value → exit 2" "2" "$?"
 
-# Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
-# names ENG-12, and its last capture group is the ref.
-for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do
+# Every bundled and seed branch grammar needs a delimiter after the ref, so `ENG-12oops`
+# never names ENG-12, and its last capture group is the ref.
+for m in "$SCRIPT_DIR"/adapters/*/capabilities.json "$SCRIPT_DIR"/seeds/*/capabilities.json; do
   p="$(jq -r '.change_link.branch_pattern' "$m")"
   a="$(basename "$(dirname "$m")")"
   case "$a" in jira | linear) ref="ENG-12" ;; *) ref="12" ;; esac

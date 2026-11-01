@@ -10,7 +10,7 @@ TRACKER="$SCRIPT_DIR/../work-item-tracker.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  echo "usage: e2e-probe.sh [--evidence <file>]  (drives the full lifecycle — map, typed items, edge, frontier, claim/lease, renew, close, graduation — against a live GitHub sandbox; target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)"
+  echo "usage: e2e-probe.sh [--evidence <file>]  (drives the full lifecycle — map, items, edge, frontier, claim/lease, renew, close, graduation — against a live GitHub sandbox; target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)"
   exit 0
 fi
 
@@ -71,24 +71,29 @@ MAP_ID="$(jq -r '.id' <<<"$MAP")"
 record "create map" "$MAP"
 assert_contains "map id well-formed" "$MAP_ID" "github:"
 
-# 2. Two typed decision items under the map; item2 blocked by item1.
-ITEM1="$(wit create-item --title "e2e research item $TS" --labels "wayfind: research" --parent "$MAP_ID" --repo "$REPO")"
+# 2. Two work items under the map, item2 blocked by item1, plus an unblocked wayfind
+# map item, which /planning:wayfind drives and the frontier never surfaces.
+ITEM1="$(wit create-item --title "e2e work item $TS" --parent "$MAP_ID" --repo "$REPO")"
 ITEM1_ID="$(jq -r '.id' <<<"$ITEM1")"
-record "create item1 (research)" "$ITEM1"
-ITEM2="$(wit create-item --title "e2e task item $TS" --labels "wayfind: task" --parent "$MAP_ID" --blocked-by "$ITEM1_ID" --repo "$REPO")"
+record "create item1" "$ITEM1"
+ITEM2="$(wit create-item --title "e2e blocked work item $TS" --parent "$MAP_ID" --blocked-by "$ITEM1_ID" --repo "$REPO")"
 ITEM2_ID="$(jq -r '.id' <<<"$ITEM2")"
-record "create item2 (task, blocked by item1)" "$ITEM2"
+record "create item2 (blocked by item1)" "$ITEM2"
 assert_eq "item2 parent is map" "$MAP_ID" "$(jq -r '.parent_id' <<<"$ITEM2")"
 assert_eq "item2 blocked" "1" "$(jq -r '.blocked_by_count' <<<"$ITEM2")"
+WAYFIND="$(wit create-item --title "e2e wayfind research item $TS" --labels "wayfind: research" --parent "$MAP_ID" --repo "$REPO")"
+WAYFIND_ID="$(jq -r '.id' <<<"$WAYFIND")"
+record "create wayfind item (research)" "$WAYFIND"
 
-# 3. Frontier: item1 claimable, item2 blocked, and the map (a container) never
-# surfaces itself as its own frontier item.
+# 3. Frontier: item1 claimable, item2 blocked, and neither the map (a container) nor
+# the wayfind item surfaces as a frontier item.
 FRONTIER="$(wit list-frontier --repo "$REPO")"
 record "frontier before claim" "$FRONTIER"
 IDS="$(jq -c '[.items[].id]' <<<"$FRONTIER")"
 assert_contains "frontier holds item1" "$IDS" "$ITEM1_ID"
 assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
 assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
+assert_not_contains "frontier excludes the wayfind item" "$IDS" "$WAYFIND_ID"
 
 # 3b. Sub-item enumeration keeps BOTH children; the container-scoped frontier applies
 # the global filter.
@@ -105,6 +110,7 @@ PIDS="$(jq -c '[.items[].id]' <<<"$PFRONTIER")"
 assert_contains "scoped frontier holds item1" "$PIDS" "$ITEM1_ID"
 assert_not_contains "scoped frontier hides blocked item2" "$PIDS" "$ITEM2_ID"
 assert_not_contains "scoped frontier excludes the map itself" "$PIDS" "$MAP_ID"
+assert_not_contains "scoped frontier excludes the wayfind item" "$PIDS" "$WAYFIND_ID"
 
 # 4. Claim item1 (assignee + lease comment).
 CLAIM="$(wit claim "$ITEM1_ID" --session-id "e2e-$TS")"
@@ -135,6 +141,7 @@ assert_not_contains "closed item1 out of frontier" "$IDS2" "$ITEM1_ID"
 
 # 8. Close out.
 gh issue close "${ITEM2_ID##*#}" -R "$REPO" --comment "e2e: done" >/dev/null
+gh issue close "${WAYFIND_ID##*#}" -R "$REPO" --comment "e2e: done" >/dev/null
 gh issue close "${MAP_ID##*#}" -R "$REPO" --comment "e2e: map closed" >/dev/null
 
 printf '\ne2e-probe: %d cases, %d failed\n' "$CASE_NUM" "$FAILED"

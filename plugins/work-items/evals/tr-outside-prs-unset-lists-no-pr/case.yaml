@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: tr-outside-prs-unset-lists-no-pr
+description: 'Outside-PR intake is off by default: the workspace has no docs/conventions/work-items.yaml, so triage_outside_prs is unset and resolves false. The attention view lists the unlabeled issue #31 and no pull request, though the listing in the prompt also carries an unlabeled outside-contributor PR #32. A run needs --allow-tools Bash.'
+tags: [triage, attention-view, outside-prs, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run resolves triage_outside_prs to false (unset, layer default) and says so, lists #31 under the unlabeled bucket, and prints no row for a pull request: no line or table cell starts with a [PR] prefix and #32 is not listed as intake. It runs no pull-request listing command.'
+execution:
+  prompt: "/work-items:triage\n\nInteractive session. The adapter's \"List items\" read for this repository returns two open items, both with no labels, no blockers and blocked_by_wont_do_count 0: issue #31 'CSV export drops the last row', opened 2026-10-02 by a reporter; and pull request #32 'Add a cache layer to the export', opened 2026-10-03 by an outside contributor (author_association NONE). Use this listing; there is no other tracker to read. Print the attention-view table only; build no board page."
+  allowed_tools: [Bash, Read, Glob, Grep]
+  max_turns: 15
+  timeout_seconds: 240
+graders:
+  - name: lists-issue
+    type: regex
+    pattern: '#31\b'
+    target: last_message
+    arm: both
+  - name: reports-setting-false
+    type: regex
+    pattern: '\btriage_outside_prs\b[^\n]*?\bfalse\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-pr-rows
+    type: regex
+    pattern: '^[ \t>]*(?:\|[^\n]*(?:\[PR\]|#32\b)|(?:[-*+]|\d+[.)])[ \t]+[^\n]*(?:\[PR\]|#32\b)|`?\[PR\])'
+    flags: 'm'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-pr-listing-call
+    type: tool_used
+    tool: Bash
+    input_match: '\bgh[ \t]+pr[ \t]+list\b|\bgh[ \t]+search[ \t]+prs\b|\bgh[ \t]+api\b[^\n]*?(?:/pulls\b|\bpullRequests\b)'
+    min: 0
+    max: 0
+    arm: both
