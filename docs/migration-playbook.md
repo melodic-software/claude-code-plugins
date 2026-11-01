@@ -354,8 +354,8 @@ path states "no upstream" and names the regeneration trigger instead (e.g. a mod
 ## Evals: warrant policy and consumer-verify recipe
 
 Evals are model-graded behavior cases. A new case is a `claude plugin eval` suite case at
-`plugins/<plugin>/evals/<case>/case.yaml` whose `tags:` list names the skill it covers, checked with
-no model call by `/evals:validate`. Per-skill `plugins/<plugin>/skills/<skill>/evals/evals.json`
+`plugins/<plugin>/evals/<case>/case.yaml` whose one-line `tags: [...]` list holds the directory
+name of the skill it covers, checked with no model call by `/evals:validate`. Per-skill `plugins/<plugin>/skills/<skill>/evals/evals.json`
 files (schema `plugins/skill-quality/reference/evals.schema.json`) are legacy: existing ones stay
 until `plugins/evals/skills/plugin-eval/scripts/convert-evals-json.py` converts them, and no new one
 is added. Evals are **warranted, not mandatory**: a skill ships them only when they earn their keep.
@@ -381,7 +381,7 @@ decays the moment a skill lands.
 
 **The gate honors a recorded skip.** `scripts/check-changed-skills.sh` passes `--require-evals` for
 every skill whose `SKILL.md` is new or modified, and `plugins/skill-quality/scripts/check-skill.sh`
-then hard-FAILs unless a plugin suite case's `tags:` names the skill, the skill still ships a legacy
+then hard-FAILs unless a case in the skill's plugin `evals/` tags its directory name, the skill still ships a legacy
 `evals/evals.json`, or the skill is listed in `scripts/evals-warrant-exemptions.txt`. A skip
 becomes a reviewed, diffable line rather than an implicit absence; anything unlisted still fails
 closed. The file is stale-guarded: a row whose

@@ -244,9 +244,9 @@ judgment (a reviewer reads) or attestation (the author states it).
 - Scripts: `scripts/*.test.sh` pass (mechanical, check 7); no committed cache or build artifacts
   (mechanical, check 13); injected `!` commands portable with a fallback (mechanical, checks 19
   and 20); output names what the script did, including on failure (judgment).
-- Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); check 14 reads
-  only the skill-creator JSON file, and a gate running it with `--require-evals` still needs that
-  file until check 14 reads suite cases (mechanical); fresh-session baseline captured
+- Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); under
+  `--require-evals`, check 14 passes when a suite case lists the skill's directory name in a
+  one-line `tags: [...]` (mechanical); fresh-session baseline captured
   (attestation); models exercised, from `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill
   run under a `model` override or inside a subagent names every target model, or says which are
   untested (attestation).

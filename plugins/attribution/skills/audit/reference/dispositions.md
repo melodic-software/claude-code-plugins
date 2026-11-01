@@ -165,7 +165,7 @@ Convert like this, in order:
 3. **Register it before you call it landed.** `check-orphaned-fixtures.sh --check` fails on a
    fixture file no grader names, and a golden case nothing reads is a case that measures nothing.
    The golden set still sits in this skill's existing `evals/evals.json`, the file that gate reads
-   for it, so add every new file to that file's golden-set case. That file is legacy; new
+   for it, so add every new file to a golden-set case in that file. That file is legacy; new
    behavior cases go in the plugin suite (`plugins/attribution/evals/<case>/case.yaml`), checked
    with `/evals:validate`.
 4. **Re-score the whole set, not the new case.** Precision and recall are properties of the set.
