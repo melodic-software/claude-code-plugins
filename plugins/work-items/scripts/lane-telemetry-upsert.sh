@@ -10,16 +10,16 @@
 #
 # Usage:
 #   lane-telemetry-upsert.sh --lane work-loop|attend-queue --instance <id> \
-#     --repo <owner/name> --issue <n> --body-file <path> [--app-slug <slug>]
+#     --repo <owner/name> --issue <n> --body-file <path> --body-dir <dir> \
+#     [--app-slug <slug>]
 #
 #   --lane        Lane type. Names the marker's lane half.
 #   --instance    Lane-instance id, ^[a-z0-9][a-z0-9-]{0,31}$. Names the WRITER,
 #                 so two instances of one lane never clobber each other. An empty
 #                 value, or a surviving literal ${user_config.…} placeholder,
-#                 means the key is unset and falls back to the sanitized lowercased
-#                 hostname; the fallback is validated by the same gate, so a
-#                 hostname that cannot produce a conforming id stops the lane
-#                 rather than yielding a marker nobody chose.
+#                 means the key is unset and falls back to a random id made once
+#                 and kept in <body-dir>/lane-instance, validated by the same gate.
+#                 Never the hostname: the marker is published in a public comment.
 #   --repo        Target repository, owner/name. Validated before it reaches any
 #                 API URL path, so a traversal value cannot redirect the write.
 #   --issue       Tracking issue number.
@@ -29,6 +29,14 @@
 #                 payload bytes below line 1. The lookup matches on that prefix,
 #                 so a body composed without it would never be found again and
 #                 the next cycle would post a second comment.
+#   --body-dir    Directory the body file must resolve under (default: an
+#                 inherited CLAUDE_PLUGIN_DATA, only when its last path segment
+#                 names work-items). SECURITY: lane prompts drive this script, and
+#                 an unconstrained path would let a prompt-injected
+#                 `--body-file ~/.ssh/id_rsa` be posted as a public comment. A
+#                 symlink leaf or a path resolving outside it is refused before
+#                 any read. The body is then scanned with scanLeak and withheld
+#                 whole on any hit.
 #   --app-slug    The GitHub App whose installation token gh runs under; its
 #                 writes land as <slug>[bot]. An empty value, or a surviving
 #                 literal ${user_config.…} placeholder, means the key is unset
@@ -92,7 +100,7 @@
 #       ^[a-z0-9][a-z0-9-]{0,31}$, which code 4 enforces the shape half of)
 #   6   --repo is not owner/name
 #   7   --issue is not a positive integer
-#   8   prerequisite missing: gh or jq is not on PATH
+#   8   prerequisite missing: gh, jq or node is not on PATH
 #   9   the body file is missing, empty, or opens with a literal `@` — NOTHING written
 #   10  the body is not sentinel-prefixed, or carries under 16 payload bytes
 #       below line 1 — NOTHING written
@@ -109,9 +117,14 @@
 #   15  the write identity is unresolved, or --app-slug is not a slug — NOTHING
 #       written; or a create landed under another login (a wrong --app-slug) —
 #       lane UNREPORTED either way
+#   16  no safe body dir, or the body file is a symlink or resolves outside it -
+#       NOTHING read or written
+#   17  the body matches the leak scan (the message names the rule, never the
+#       match), or the scan could not run - NOTHING written; rotate a real
+#       credential
 #
-# KNOWN LIMITS. Not implemented: the 64 KiB cap, body-file containment, and read
-# retries that the `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
+# KNOWN LIMITS. Not implemented: the 64 KiB cap and read retries that the
+# `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
 # why this mechanism lives here rather than deferring to that wrapper.
 
 set -uo pipefail
@@ -132,12 +145,13 @@ INSTANCE=""
 REPO=""
 ISSUE=""
 BODY_FILE=""
+BODY_DIR=""
 APP_SLUG=""
 while (($#)); do
   case "$1" in
   # Normalize `--opt=value` to `--opt value` for the next pass. Known options only,
   # so an unknown `--bogus=x` still reaches the catch-all intact.
-  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --app-slug=*)
+  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --body-dir=* | --app-slug=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
     ;;
   --lane)
@@ -163,6 +177,11 @@ while (($#)); do
   --body-file)
     require_value "$@"
     BODY_FILE="$2"
+    shift 2
+    ;;
+  --body-dir)
+    require_value "$@"
+    BODY_DIR="$2"
     shift 2
     ;;
   --app-slug)
@@ -209,11 +228,54 @@ case "$APP_SLUG" in
 *) : ;;
 esac
 
-# A default, not a sanitizer: the gate below validates it. Keep the transform
-# byte-for-byte; changing it orphans every comment written under the fallback.
+# --- Body-file containment ---------------------------------------------------
+# Lane prompts drive this script, so a prompt-injected `--body-file ~/.ssh/id_rsa`
+# would otherwise be read and posted verbatim as a public comment. The file must
+# resolve under the safe body dir before anything reads it. Builtins only, so the
+# check runs before the prerequisite check. Same rule as the harness-ops lanes
+# wrapper: reject a symlink leaf, canonicalize the parent with `cd && pwd -P`, and
+# compare with a trailing slash so `/safe` never matches `/safe-evil`.
+if [[ -L "$BODY_FILE" ]]; then
+  err "body file must not be a symlink: $BODY_FILE - nothing read or written"
+  exit 16
+fi
+if [[ ! -f "$BODY_FILE" ]]; then
+  err "body is missing or empty - nothing written; fix the body composition, do not re-run blind"
+  exit 9
+fi
+# An inherited CLAUDE_PLUGIN_DATA counts only when its last segment names this
+# plugin: another plugin's hook can export its own data dir under that name.
+SAFE_DIR="$BODY_DIR"
+if [[ -z "$SAFE_DIR" ]]; then
+  seg="${CLAUDE_PLUGIN_DATA:-}"
+  seg="${seg%[/\\]}"
+  seg="${seg##*[/\\]}"
+  [[ "$seg" == work-items || "$seg" == work-items-* ]] && SAFE_DIR="$CLAUDE_PLUGIN_DATA"
+fi
+if [[ -z "$SAFE_DIR" ]] || ! SAFE_CANON="$(cd "$SAFE_DIR" 2>/dev/null && pwd -P)"; then
+  err "no safe body dir: pass --body-dir DIR (an inherited CLAUDE_PLUGIN_DATA counts only when it names work-items) - nothing read or written"
+  exit 16
+fi
+body_parent="."
+[[ "$BODY_FILE" == */* ]] && body_parent="${BODY_FILE%/*}"
+if ! BODY_CANON="$(cd "${body_parent:-/}" 2>/dev/null && pwd -P)/${BODY_FILE##*/}" ||
+  [[ "$BODY_CANON" != "$SAFE_CANON"/* ]]; then
+  err "body file must resolve under the safe dir ($SAFE_CANON); refusing to read $BODY_FILE - nothing written"
+  exit 16
+fi
+
+# A default, not a sanitizer: the gate below validates it. A random id, made once
+# and kept in the safe body dir, so it is stable across restarts and distinct per
+# machine without publishing the hostname, a username or a path in the marker.
 if [[ -z "$INSTANCE" ]]; then
-  INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-  err "no lane instance supplied; assuming the sanitized hostname '$INSTANCE'"
+  ID_FILE="$SAFE_CANON/lane-instance"
+  INSTANCE="$(head -c 64 "$ID_FILE" 2>/dev/null | tr -d '\r\n')"
+  if [[ -z "$INSTANCE" ]]; then
+    INSTANCE="lane-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+    printf '%s\n' "$INSTANCE" >"$ID_FILE" 2>/dev/null ||
+      err "could not store the lane instance in $ID_FILE; '$INSTANCE' holds for this run only"
+  fi
+  err "no lane instance supplied; using the stored random id '$INSTANCE'"
 fi
 
 # Rejected, never sanitized: this operator text is interpolated into a marker, a
@@ -241,7 +303,7 @@ if [[ ! "$ISSUE" =~ ^[0-9]+$ ]]; then
   exit 7
 fi
 
-for bin in gh jq; do
+for bin in gh jq node; do
   command -v "$bin" >/dev/null 2>&1 || {
     err "$bin not found (required)"
     exit 8
@@ -250,6 +312,20 @@ done
 
 MARKER="work-items:$LANE@$INSTANCE"
 SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
+
+# Read the contained file once, into a private copy that every later step (the
+# gate, the leak scan, the write, the read-back) uses, so the file cannot be
+# swapped between the check and gh's own read of it.
+BODY_COPY="$(mktemp)" || {
+  err "cannot create a private copy of the body - nothing written"
+  exit 9
+}
+trap 'rm -f "$BODY_COPY"' EXIT
+cat "$BODY_FILE" >"$BODY_COPY" 2>/dev/null || {
+  err "cannot read the body file - nothing written"
+  exit 9
+}
+BODY_FILE="$BODY_COPY"
 
 # --- Pre-write body gate -----------------------------------------------------
 if [[ ! -s "$BODY_FILE" ]]; then
@@ -275,6 +351,27 @@ sentinel_ok() {
 if ! sentinel_ok "$BODY_TEXT"; then
   err "body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind"
   exit 10
+fi
+
+# --- Leak scan ---------------------------------------------------------------
+# The comment is public. scanLeak (this plugin's generated copy of
+# lib/publish-gate.mjs) judges the body; a hit withholds all of it, never a masked
+# copy, and the message names only the rule. A plain assignment, which scanLeak
+# only warns on, is withheld too: a telemetry body has no reason to carry one. A
+# scan that cannot run withholds as well.
+LEAK_SCAN='const { pathToFileURL } = await import("node:url");
+const { readFileSync } = await import("node:fs");
+const { scanLeak, WARN_ONLY } = await import(pathToFileURL(process.argv[2]).href);
+const { block, warn } = scanLeak(readFileSync(0));
+process.stdout.write(block ?? (warn ? WARN_ONLY : ""));'
+if ! leak="$(node --input-type=module -e "$LEAK_SCAN" leak-scan \
+  "${BASH_SOURCE[0]%/*}/../lib/publish-gate.mjs" <"$BODY_FILE" 2>/dev/null)"; then
+  err "the leak scan could not run - nothing written"
+  exit 17
+fi
+if [[ -n "$leak" ]]; then
+  err "body withheld: it matches the leak-scan rule '$leak' - nothing written; a real credential must be rotated"
+  exit 17
 fi
 
 # --- Write identity ----------------------------------------------------------

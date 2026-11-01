@@ -151,8 +151,9 @@
 #   0  upserted and verified (or, with --dry-run, resolved)
 #   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
 #      or a body that failed the pre-write gate (over the size cap, under the
-#      size floor, or starting with a literal `@`) — NOTHING was written
-#   4  prerequisite missing (gh or jq), or the repo / safe body dir / write
+#      size floor, starting with a literal `@`, or matching the leak scan, which
+#      names the rule and never the match) — NOTHING was written
+#   4  prerequisite missing (gh, jq or node), or the repo / safe body dir / write
 #      identity unresolved (nothing was written)
 #   5  a gh API call (list / create / update) failed, the comment list was empty
 #      or not a JSON array of objects, or detection could not read it (nothing
@@ -262,7 +263,7 @@ while (($#)); do
 done
 
 # After the parse loop, so `--help` answers on a machine missing either tool.
-for bin in gh jq; do
+for bin in gh jq node; do
   type -P "$bin" >/dev/null 2>&1 || {
     err "$bin not found (required)"
     exit 4
@@ -371,6 +372,28 @@ fi
 
 SENTINEL="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 new_body="$SENTINEL"$'\n'"$body_text"
+
+# --- Leak scan ---------------------------------------------------------------
+# The comment is public, and containment bounds only WHERE a file body comes
+# from, not what it holds; a stdin body is not contained at all. scanLeak (this
+# plugin's generated copy of lib/publish-gate.mjs) judges what would be posted.
+# A hit withholds the whole body, never a masked copy, and names only the rule.
+# A plain assignment, which scanLeak only warns on, is withheld too: a telemetry
+# body has no reason to carry one. A scan that cannot run withholds as well.
+LEAK_SCAN='const { pathToFileURL } = await import("node:url");
+const { readFileSync } = await import("node:fs");
+const { scanLeak, WARN_ONLY } = await import(pathToFileURL(process.argv[2]).href);
+const { block, warn } = scanLeak(readFileSync(0));
+process.stdout.write(block ?? (warn ? WARN_ONLY : ""));'
+leak="$(printf '%s' "$new_body" | node --input-type=module -e "$LEAK_SCAN" leak-scan \
+  "$(dirname "${BASH_SOURCE[0]}")/../../../lib/publish-gate.mjs" 2>/dev/null)" || {
+  err "the leak scan could not run; nothing was written"
+  exit 3
+}
+if [[ -n "$leak" ]]; then
+  err "body withheld: it matches the leak-scan rule '$leak'; nothing was written, and a real credential must be rotated"
+  exit 3
+fi
 
 # --- Resolve owner/repo ------------------------------------------------------
 if [[ -z "$REPO" ]]; then

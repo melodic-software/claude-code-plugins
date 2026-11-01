@@ -599,6 +599,26 @@ out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --repo "$REPO" --issue 502 -
 rc=$?
 assert_eq "a foreign CLAUDE_PLUGIN_DATA is no safe body dir (exits 4)" 4 "$rc"
 
+# A credential-shaped body, from a contained file or from stdin, is withheld
+# whole before any API call and never echoed. The fake token is assembled at run
+# time so no token-shaped literal is tracked.
+FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
+LEAKY="$SAFE_DIR/leaky.txt"
+printf 'lane: triage\nnote: %s\n' "$FAKE_TOKEN" >"$LEAKY"
+: >"$LOG"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$LEAKY" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "a credential-shaped body file is withheld (exit 3)" 3 "$rc"
+assert_contains "the leak refusal names the rule" "$out" "leak-scan rule 'GitHub token'"
+assert_not_contains "the leak refusal never prints the token" "$out" "$FAKE_TOKEN"
+assert_eq "the leak refusal makes no API call" "" "$(cat "$LOG")"
+out="$(printf 'lane: triage\nnote: %s\n' "$FAKE_TOKEN" | bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
+rc=$?
+assert_eq "a credential-shaped stdin body is withheld too (exit 3)" 3 "$rc"
+assert_not_contains "the stdin leak refusal never prints the token" "$out" "$FAKE_TOKEN"
+assert_eq "the stdin leak refusal makes no API call" "" "$(cat "$LOG")"
+rm -f "$LEAKY"
+
 # ============================================================================
 # SECURITY (defense in depth) — an oversized body is refused
 # ============================================================================
