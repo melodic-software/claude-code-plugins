@@ -253,6 +253,8 @@ test("pr-review-comment-relay.yml starts a runner only for a person's comment on
       ...o,
     });
   assert.equal(runs(), true);
+  // The lanes App's own replies (publish-feedback, report-escalation) and any
+  // review bot's comments are Bot accounts: no relay, so no dispatcher loop.
   assert.equal(runs({ "github.event.comment.user.type": "Bot" }), false);
   assert.equal(runs({ "github.event.pull_request.head.repo.full_name": "fork/repo" }), false);
   assert.equal(runs({ "github.event.pull_request.head.ref": "feat/x" }), false);
