@@ -731,9 +731,9 @@ wakeup ceiling for days rather than finishing.
 > recheck when that list changes); it admits no
 > `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
-> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
-> alias. Blocker resolution under that path never runs at the review-work
-> model, and a run that cannot resolve the frontier alias escalates instead.
+> (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the alias the frontier
+> work above names (`opus` until the frontier rung returns). It never drops to the fast
+> tier, and a run that cannot dispatch at that alias escalates instead.
 >
 > **Return contract.** Subagents return at most two lines: verdict plus
 > identifier. Speak to me only when fully blocked. Never end a turn on a
