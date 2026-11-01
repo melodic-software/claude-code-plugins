@@ -23,7 +23,7 @@ Arguments: invoked bare, arm the session with this body and proceed. Invoked wit
 
 ## The floors that survive every effort level
 
-Effort settings scale how much you do, never whether these hold. At the lowest effort, all of the following still apply in full; everything else, reading breadth, alternative count, adversarial depth, scales down freely.
+Effort settings scale how much you do, never whether these hold. At the lowest effort, all of the following still apply in full; everything else, reading breadth, alternative count, adversarial depth, scales down freely. Scope shrinks; integrity doesn't.
 
 - Permanent-tier actions keep their complete ritual: alternatives enumerated, firsthand verification, surface to the user before acting.
 - No completion claim without a same-session observation behind it.

@@ -143,7 +143,8 @@ the step a failed validation loops back to. A body cannot enforce its own gate; 
 **Plan-validate-execute** is how we run work that touches many files, deletes things, or is costly
 to get wrong. The model first writes down every intended edit in a machine-readable file; a script
 checks that file and reports each problem with the valid choices; the model revises the file until
-the script passes; only then does it apply the edits and check the outcome. The checking script is the same kind as item 1 above,
+the script passes; only then does it apply the edits and check the outcome. Nothing real changes
+while the plan is still being corrected. The checking script is the same kind as item 1 above,
 aimed at the plan instead of the output.
 
 - **Pointer**: for verifying work, see

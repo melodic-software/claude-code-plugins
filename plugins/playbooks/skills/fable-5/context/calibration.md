@@ -103,7 +103,7 @@ A session has no single correct effort level; each decision inside it does. Budg
 ## Stop analyzing when analysis cannot change the action
 
 - STOP TRIGGERS, any one of which is sufficient: the next unit of analysis cannot alter what you do next; you are comparing options on dimensions where they do not differ; you are on a third pass over unchanged evidence; the concern is hypothetical with no concrete trigger anywhere in the actual task.
-- SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class.
+- SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class. A comparison you will not act on is decoration.
 
 ## Price optional hardening against what the attacker already holds
 

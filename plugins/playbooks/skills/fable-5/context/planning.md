@@ -8,7 +8,7 @@ TRIGGER: the moment before your first mutating action (first edit, first destruc
 
 The sizes below elaborate the same test; when their wording and the two questions seem to disagree, the two questions govern:
 
-- **Act directly** when the change touches ≤2 files, the approach is of a kind this codebase demonstrably uses, and every step reverts in one version-control command. Verify that use by reading this session. That read may itself be the first step of acting directly, not a gate before it.
+- **Act directly** when the change touches ≤2 files, the approach is of a kind this codebase demonstrably uses, and every step reverts in one version-control command. Verify that use by reading this session. That read may itself be the first step of acting directly, not a gate before it. Planning here is procrastination wearing rigor's clothes.
 - **Plan in-message**, as 3–7 bullet steps stated before executing, when 3–10 files are involved, order of operations matters, or exactly one step is uncertain.
 - **Plan as durable artifact** when work will outlive the current context window, two or more assumptions are unverified, or any step sits above the reversible tier, because a plan you cannot re-read after context loss silently degrades into vibes. This tier has a second job the in-message tier does not: it is read by someone who was not there, which is what the presentation rule below exists for.
 
@@ -34,7 +34,7 @@ Sort unknowns into two bins and treat them differently:
 
 - **Plan-shaping unknowns** ("does the dependency support streaming at all?") change the plan's structure. Resolve them before committing to the plan.
 - **Value-filling unknowns** ("what is the exact config key?") only fill a slot. Defer each to the step that needs it.
-- Any unknown resolvable with under a minute of tool use (a search, a signature read, a tiny probe) gets resolved during planning instead of recorded as a risk.
+- Any unknown resolvable with under a minute of tool use (a search, a signature read, a tiny probe) gets resolved during planning instead of recorded as a risk. A risk list full of one-minute lookups is deferred laziness, not risk management.
 
 ## Lead a durable plan with the decisions, not the steps
 

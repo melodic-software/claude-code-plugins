@@ -8,7 +8,7 @@ Setups drift: skills you stopped using, a CLAUDE.md that quietly grew, hooks tax
 
 ## 105. /checkup is Safe by Default
 
-It surfaces a plan and waits; nothing is modified until you choose. The plan covers what is broken, what is unused, and what it would change. Changes are reversible: settings are one-line toggles, and CLAUDE.md edits stay in the working tree for `git diff` review. Scope is yours, from clean-up-everything through pick-the-groups to report-only.
+It never changes anything behind your back. It surfaces a plan and waits; nothing is modified until you choose. The plan covers what is broken, what is unused, and what it would change. Changes are reversible: settings are one-line toggles, and CLAUDE.md edits stay in the working tree for `git diff` review. Scope is yours, from clean-up-everything through pick-the-groups to report-only.
 
 ## 106. /checkup: The Run
 

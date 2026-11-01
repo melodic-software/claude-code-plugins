@@ -66,6 +66,8 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 
 Boris's reasoning: "It's the best coding model I've ever used, and even though it's bigger & slower than Sonnet, since you have to steer it less and it's better at tool use, it is almost always faster than using a smaller model in the end."
 
+**The math:** Less steering + better tool use = faster overall results, even with a larger model.
+
 ---
 
 ## 3. Plan Mode
