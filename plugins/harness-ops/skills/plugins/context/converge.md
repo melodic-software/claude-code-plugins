@@ -19,17 +19,15 @@ treat it as autonomous and abort. Report why, and that `converge` can be re-run 
 `converge` resolves entries in `fleet-state.sh`'s `divergences[]` with `versionsMatch: false`. The
 filter rule is defined once in
 [scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable); this action is
-one of its consumers, not a second statement of it. It does **not** currently resolve, and cannot even detect, an
-enable-state mismatch (a plugin `true` in one scope's `enabledPlugins` and `false` in another).
-That needs comparing each scope's *raw* `enabledPlugins` map, which `fleet-state.sh` doesn't expose
-today (only the merged effective value, in `enabled`). This is a genuine blind spot, not a deferred
-fix: never claim the report surfaces an enable-state mismatch, and never hand-parse the settings
-files directly to work around the gap. The fix for this blind spot is extending `fleet-state.sh` to
-expose the raw per-scope maps, not something this skill's prompt layer can paper over. The one
-sanctioned settings read is the committed-enable check in Step 2: a read-only look at one
-`enabledPlugins` key in a tracked project settings file, which detects no mismatch. `converge-plan.sh`
-makes that read, so the model never does. It is removed when #7458 moves project pin updates into
-`sync`.
+one of its consumers, not a second statement of it. It does **not** resolve, and cannot detect, an enable-state mismatch
+(a plugin `true` in one scope's `enabledPlugins` and `false` in another). `fleet-state.sh` exposes
+the merged effective value (`enabled`) and, per project/local record in a present path, that path's
+raw `.claude/settings.json` entry (`projectEnabledEntry`), but not the raw local or user maps, so
+never claim the report surfaces a mismatch, and never hand-parse a settings file to work around the
+gap. `projectEnabledEntry` exists because the CLI's plugin list reports a project-level explicit
+`false` and no entry alike (Basis: the
+[decision record, Q3](https://github.com/melodic-software/claude-code-plugins/issues/7458#issuecomment-6547672521);
+as of 2026-10-31; recheck when `claude plugin list --json` gains a field that tells them apart), and Step 2 needs the difference.
 
 ## Step 1: Detect
 
@@ -94,22 +92,21 @@ the removal deletes an enable every clone and worktree reads. `update -s project
 that file (the update exemption in the same file). For each `project`-scope row, in the row's own
 `scopes[].projectPath` (the precondition below applies first):
 
-1. Look in `<projectPath>/.claude/settings.json` for an `enabledPlugins` entry for the id.
-   `converge-plan.sh` does this for each present path, by reading that file's `enabledPlugins` keys
-   once. This is the sanctioned exception to the no-hand-parse rule: read-only, keys of one tracked
-   project settings file only. It writes nothing and reads no other settings file; the model never
-   makes this read itself.
+1. Read the row's `projectEnabledEntry` from the `fleet-state.sh` report: the raw `enabledPlugins`
+   entry for the id in `<projectPath>/.claude/settings.json` (`true`, `false`, `other`, `absent` or
+   `unreadable`). `converge-plan.sh` takes it from the report and reads no settings file; the model
+   never reads the file either.
 2. Run `git -C "<projectPath>" ls-files --error-unmatch .claude/settings.json`. Exit `0` means
    the file is tracked.
 
-When the file is tracked and holds the entry, the default is `update -s project`, even though
+When the file is tracked and holds the entry (`true`, `false` or `other`), the default is `update -s project`, even though
 `user` scope holds the highest version. Offer uninstall only as the non-default option, marked
 with a warning that it removes a committed `enabledPlugins` entry; `converge-plan.sh` emits it as
 the row's `alternative`, command and warning included. When the id is absent from the
-tracked settings, or the file is untracked or missing (a pin that exists only in
-`installed_plugins.json`), uninstall stays the default. A check that cannot be read (unparsable
-file, git error other than "not tracked") decides nothing: treat it as a committed enable and
-default to update. Any `enabledPlugins` entry counts, `true` or `false`, since uninstall deletes
+tracked settings (`absent`), or the file is untracked or missing (a pin that exists only in
+`installed_plugins.json`), uninstall stays the default. A check that cannot be read (`unreadable`,
+a report without the field, a git error other than "not tracked") decides nothing: treat it as a
+committed enable and default to update. Any `enabledPlugins` entry counts, `true` or `false`, since uninstall deletes
 either. `local`-scope rows are exempt, since `-s local` writes `settings.local.json`, which is not
 tracked. The `update` default still takes the catalog-direction check below. When that check
 blocks it, the row is emitted as BLOCKED and uninstall is not offered as a way around it, because
@@ -179,8 +176,10 @@ the strategy and whether or not the path is present:
 ```
 
 A path under a home (`/home/<name>/repos/app`) is an ordinary project and is unaffected. Do not offer
-to remove the record: no `claude plugin` verb removes an install record by path. `sync` counts these
-rows in their own `User-home project records` row and leaves them out of its divergence count.
+to remove the record: no `claude plugin` verb removes an install record by path. `sync`
+forward-updates a lagging home record with `update` under a settings check (the home-path record in
+[scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); its
+`User-home project records` row lists only the records `update` could not move, and its divergence count leaves them out.
 
 ### Linked-worktree rows: no update strategy
 

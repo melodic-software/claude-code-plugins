@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/testing/skills/audit/scripts/cant-fail-scan.sh\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "tests/test_ledger.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /x/skills/audit/scripts/cant-fail-scan.sh --check"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "tests/test_ledger.py"
+          }
+        }
+      ],
+      "why": "read the file by eye, no scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m pytest -q"
+          }
+        }
+      ],
+      "why": "ran the suite, not the scanner"
+    }
+  ]
+}

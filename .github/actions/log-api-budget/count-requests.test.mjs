@@ -30,17 +30,21 @@ const fake = (body = {}) => {
 };
 
 // Runs fn with RUNNER_TEMP at a fresh directory and the given variables set
-// (undefined unsets one), then restores them; lines(name) reads a token's file.
+// (undefined unsets one), then restores them; lines(name) reads a token's file
+// without each line's route, routes(name) only the routes.
 async function withBudget(vars, fn) {
   const dir = tempDir("count-requests-");
   const keys = ["RUNNER_TEMP", "API_BUDGET_TOKEN", "API_BUDGET_OVERRIDE_TOKEN", "GH_TOKEN", "GITHUB_TOKEN", ...Object.keys(vars)];
   const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   for (const key of keys) delete process.env[key];
   Object.assign(process.env, { RUNNER_TEMP: dir }, Object.fromEntries(Object.entries(vars).filter(([, value]) => value !== undefined)));
-  const lines = (name) => {
+  const raw = (name) => {
     const file = join(dir, "api-budget", name);
     return existsSync(file) ? readFileSync(file, "utf8") : "";
   };
+  const lines = Object.assign((name) => raw(name).replace(/ \S+$/gm, ""), {
+    routes: (name) => raw(name).split("\n").filter(Boolean).map((line) => line.split(" ")[6]),
+  });
   try {
     return await fn(lines);
   } finally {
@@ -53,6 +57,15 @@ async function withBudget(vars, fn) {
 }
 
 const quietLatch = () => createRateLimitLatch({ log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null });
+
+test("countRequests records each request's templated route last on its line", () =>
+  withBudget({ API_BUDGET_TOKEN: "github-token" }, async (lines) => {
+    const send = countRequests(fake().fetch);
+    await send(`${API}/repos/melodic-software/claude-code-plugins/issues/12/comments?per_page=100`);
+    await send(new Request(`${API}/graphql`, { method: "POST" }));
+    await send(`${API}/repos/o/r/git/ref/heads/ghp_secret`);
+    assert.deepEqual(lines.routes("github-token"), ["repos/{repo}/issues/{n}/comments", "graphql", "repos/{repo}/git/ref/{x}/{x}"]);
+  }));
 
 test("createGitHub counts each request under API_BUDGET_TOKEN", () =>
   withBudget({ API_BUDGET_TOKEN: "github-token" }, async (lines) => {

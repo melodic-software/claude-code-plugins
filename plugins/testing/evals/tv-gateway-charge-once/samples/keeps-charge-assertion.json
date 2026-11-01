@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Keep it. The payment gateway is an unmanaged, out-of-process dependency: other systems see the charge, so verifying the request was sent exactly once is the behavior. Your teammate's rule applies to internal collaborators, where a call assertion only pins the implementation."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your teammate is right; delete it and assert on the order status instead.",
+      "why": "recommends deleting"
+    },
+    {
+      "answer": "Keep it, coverage tools count it.",
+      "why": "keeps it for the wrong reason"
+    }
+  ]
+}

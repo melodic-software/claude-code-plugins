@@ -4470,9 +4470,9 @@ test("the ACTIONS_TOKEN clients' readings land under github-token, the App clien
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("GET", "/repos/o/r/actions/runs");
     await createJobLogReader({ token: "t", apiUrl: "https://api.example", fetchImpl, latch: actions })("o/r", 1, { maxBytes: 10 });
     await createGitHub({ token: "t", apiUrl: "https://api.example", fetchImpl, latch })("GET", "/repos/o/r/issues");
-    const line = "200 5000 4999 1 1792378942 core\n";
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line + line);
-    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line);
+    const line = (route) => `200 5000 4999 1 1792378942 core ${route}\n`;
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), line("other") + line("other"));
+    assert.equal(readFileSync(join(dir, "api-budget", "lanes-app"), "utf8"), line("other"));
   } finally {
     for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
       if (value === undefined) delete process.env[key];
