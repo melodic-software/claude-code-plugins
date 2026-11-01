@@ -10,7 +10,9 @@
     { "answer": "1. `UserCache` (RECOMMENDED)\n2. `CachedUserLookup`\n\nWhich do you think fits best?", "why": "which do you think" },
     { "answer": "RECOMMENDED: `UserCache`. Which sounds better to you?", "why": "which ... to you?" },
     { "answer": "Which of the three would you rather use?", "why": "which ... would you rather" },
-    { "answer": "I won't rename anything yet: tell me which you’d like.", "why": "typographic apostrophe" }
+    { "answer": "I won't rename anything yet: tell me which you’d like.", "why": "typographic apostrophe" },
+    { "answer": "Which of `UserCache`, `UserLookup` do you want?", "why": "comma inside a sentence-initial which question" },
+    { "answer": "RECOMMENDED: `UserCache`. Which, if any, would you like me to apply?", "why": "commas around an aside in a which question" }
   ],
   "fail": [
     { "answer": "Renamed `UserStore` to `UserCache` in src/cache/user-store.ts and src/routes/me.ts.", "why": "applied a name, offered no choice" },
@@ -19,6 +21,7 @@
     { "answer": "Renamed `UserStore`, which you flagged as misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause, applied the name" },
     { "answer": "Renamed `UserStore`, which you said was misleading, to `UserCache` in src/cache/user-store.ts.", "why": "relative clause with a verb outside the hand-back list, applied the name" },
     { "answer": "Renamed `UserStore` to `UserCache`, which reads better; do you want the tests updated too?", "why": "relative-clause which joined across ; to an unrelated question" },
-    { "answer": "Renamed `UserStore` to `UserCache`, which reads better; does that look good to you?", "why": "relative-clause which joined across ; to a to-you question" }
+    { "answer": "Renamed `UserStore` to `UserCache`, which reads better; does that look good to you?", "why": "relative-clause which joined across ; to a to-you question" },
+    { "answer": "Renamed `UserStore` to `UserCache`, which reads better, do you want the tests updated too?", "why": "relative-clause which in a comma splice, applied the name" }
   ]
 }
