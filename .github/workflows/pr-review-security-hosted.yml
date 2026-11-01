@@ -269,6 +269,7 @@ jobs:
         plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_state.py
+        plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_util.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py
@@ -346,6 +347,7 @@ jobs:
         docs/conventions/instruction-exception-register/**
         docs/conventions/untrusted-content/**
         docs/standards/**
+        docs/review/**
         .github/workflows/dependabot-fragments.yml
         .github/workflows/eval-browser-dispatch.yml
         .github/workflows/intake-reenter.yml
@@ -359,6 +361,7 @@ jobs:
         .github/workflows/pr-refine.yml
         .github/workflows/pr-require-checks.yml
         .github/workflows/pr-review-approved.yml
+        .github/workflows/pr-review-comment-relay.yml
         .github/workflows/pr-review-hosted.yml
         .github/workflows/pr-review-main.yml
         .github/workflows/pr-review-security-hosted.yml

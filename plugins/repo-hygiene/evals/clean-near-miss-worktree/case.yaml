@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: clean-near-miss-worktree
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-clean-skill
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'repo-hygiene:clean'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: names-worktree-remove
+    type: regex
+    pattern: '\bgit worktree remove\b|\bworktree prune\b|/source-control:worktree\b'
+    flags: 'i'
+    target: last_message

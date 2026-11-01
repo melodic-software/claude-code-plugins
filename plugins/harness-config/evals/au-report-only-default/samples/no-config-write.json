@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a plugin-data note"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/harness-config-audit/checklist.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the phase checklist in .work"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/settings.json",
+            "content": "{\"$schema\": \"x\"}"
+          }
+        }
+      ],
+      "why": "rewrites project settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/settings.local.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "rewrites the local file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.mcp.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "rewrites .mcp.json"
+    }
+  ]
+}

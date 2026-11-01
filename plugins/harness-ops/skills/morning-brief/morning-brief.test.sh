@@ -1772,6 +1772,31 @@ assert_contains "lanes: headroom under 80% raises no CHECK" "$LANES" "    turns:
 assert_contains "lanes: three limit stops on one issue are named, keyed by its number" "$LANES" "3 limit stops on one item: Issue X #7"
 assert_contains "lanes: three limit stops on one head are named with the head" "$LANES" "3 limit stops on one head: PR Z @ abcdef1"
 assert_contains "lanes: restarts on a pull request head" "$LANES" "pr-verify.yml  runs=3  failed=3 [rate-limit 3, max-turns 0, auth 0, other 0]  limit-stops=3  restarts=2"
+
+# A leg that hands off leaves its own lane record, a notice with handoff true:
+# the run's class is the class of the leg that ended it, not the handoff's.
+cat >"$TMP/lane-runs-handoff.json" <<'EOF'
+{
+  "pr-review-main.yml": [
+    {"id": 90, "html_url": "http://x/runs/90", "event": "workflow_run", "display_title": "PR H", "head_sha": "feed1234", "status": "completed", "conclusion": "failure", "created_at": "2026-07-18T00:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/lane-annotations-handoff.json" <<'EOF'
+{
+  "90": "pr-review-main concluded: failure class=rate-limit turns=3 credential=REVIEWS_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":3}\npr-review-main concluded: failure class=other turns=5 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"other\",\"credential\":{\"secret\":\"FALLBACK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"FALLBACK\"},\"fallback\":{\"reason\":\"limit-stop\"},\"turns\":5}\npr-review-main concluded: failure class=credit-stop turns=1 credential=REVIEWS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-review-main-claude-review\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"handoff\":true,\"turns\":1}"
+}
+EOF
+LANES_HANDOFF="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/lane-runs-handoff.json" --lane-annotations-json "$TMP/lane-annotations-handoff.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "lanes: a handoff record neither classes the run nor counts a limit stop" "$LANES_HANDOFF" \
+  "pr-review-main.yml  runs=1  failed=1 [rate-limit 0, max-turns 0, auth 0, other 1]  limit-stops=0  restarts=0"
+assert_contains "lanes: turns come from the leg that ended the run" "$LANES_HANDOFF" "turns: max=5"
+# KEY and SPEND read every leg: a key leg that credit-stopped and handed off
+# still names its key.
+assert_contains "lanes: a handed-off key leg's credit stop still names its key" "$LANES_HANDOFF" "KEY: REVIEWS credit-stop (1 of 1)"
+assert_contains "lanes: a handed-off key leg still counts in SPEND" "$LANES_HANDOFF" "SPEND: REVIEWS cost not recorded (n=1)"
 assert_exit "lanes: a fully read brief with lanes exits 0" 0 "$(
   bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" --decisions-json "$TMP/decisions.json" \
     --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
@@ -1795,8 +1820,9 @@ assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "
 # role and the line names the key secret derived from it; run 51 is a healthy
 # key leg. INTAKE: run 60 is a key leg that failed with class=auth (a 403
 # hands nothing off). AUTOMATIONS: pr-verify run 70 carries the key leg's
-# class=rate-limit record and the subscription leg's fallback=credit-stop;
-# run 71 is healthy, in the live shape. PR_UNBLOCK: run 80 is a healthy key
+# record in its older class=rate-limit shape and the subscription leg's
+# fallback=credit-stop; run 71 is healthy, in the live shape. CREDIT: run 72's
+# key leg failed with class=credit-stop and no fallback leg ran. PR_UNBLOCK: run 80 is a healthy key
 # leg and run 81 a no-key fallback, neither a key problem; run 82's
 # subscription token failed with class auth, which is no key problem either,
 # and run 83's records are malformed. ZED: run 90's auth fallback is in a
@@ -1813,7 +1839,8 @@ cat >"$TMP/key-runs.json" <<'EOF'
   ],
   "pr-verify.yml": [
     {"id": 70, "html_url": "http://x/runs/70", "event": "workflow_run", "display_title": "PR M", "head_sha": "n1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
-    {"id": 71, "html_url": "http://x/runs/71", "event": "workflow_run", "display_title": "PR N", "head_sha": "n2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"}
+    {"id": 71, "html_url": "http://x/runs/71", "event": "workflow_run", "display_title": "PR N", "head_sha": "n2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 72, "html_url": "http://x/runs/72", "event": "workflow_run", "display_title": "PR O", "head_sha": "n3", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T12:00:00Z"}
   ],
   "pr-unblock.yml": [
     {"id": 80, "html_url": "http://x/runs/80", "event": "workflow_dispatch", "display_title": "Fix #3", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
@@ -1832,6 +1859,7 @@ cat >"$TMP/key-annotations.json" <<'EOF'
   "60": "Claude intake triage exited with: failure class=auth credential=INTAKE_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"INTAKE_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"INTAKE\"},\"error\":{\"type\":\"permission_error\"}} Last SDK result: {\"is_error\":true}",
   "70": "pr-verify exited with: failure class=rate-limit credential=AUTOMATIONS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"}}\npr-verify completed: credential=AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=4 max-turns=60 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"AUTOMATIONS\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":4,\"maxTurns\":60,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
   "71": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5 max-turns=60 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"maxTurns\":60,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
+  "72": "pr-verify exited with: failure class=credit-stop credential=CREDIT_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"CREDIT_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"CREDIT\"},\"error\":{\"type\":\"billing_error\"}} Last SDK result: {\"is_error\":true}",
   "80": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_API_KEY turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"PR_UNBLOCK\"},\"turns\":6}\nactivity=fix-ci",
   "81": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"no-key\"},\"turns\":6}\nactivity=fix-ci",
   "82": "pr-unblock exited with: failure class=auth credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"}}",
@@ -1851,6 +1879,9 @@ assert_contains "keys: a failing key leg with class=auth is flagged" "$KEYS" \
 assert_contains "keys: pr-verify's class=rate-limit with fallback=credit-stop is a credit stop" "$KEYS" \
   "  KEY: AUTOMATIONS credit-stop (1 of 2) — rotate a spare key into AUTOMATIONS"
 assert_not_contains "keys: a credit stop is not read as auth" "$KEYS" "KEY: AUTOMATIONS auth"
+assert_contains "keys: a key leg that failed with class=credit-stop and no fallback is a credit stop" "$KEYS" \
+  "  KEY: CREDIT credit-stop (1 of 1) — rotate a spare key into CREDIT"
+assert_not_contains "keys: a key leg's credit stop is not read as auth" "$KEYS" "KEY: CREDIT auth"
 assert_not_contains "keys: a healthy key leg and a no-key fallback print no KEY line" "$KEYS" "KEY: PR_UNBLOCK"
 assert_not_contains "keys: a record version this reader does not know is not read" "$KEYS" "KEY: ZED"
 assert_not_contains "keys: malformed records leave the section readable" "$KEYS" "UNREADABLE"
@@ -1859,7 +1890,7 @@ assert_contains "keys: each role in a run is judged by its own records" "$KEYS" 
   "  KEY: TWO_B auth (fallback on 1 of 1 runs read) — replace TWO_B_CLAUDE_API_KEY"
 assert_not_contains "keys: a healthy role beside a failing one is not flagged" "$KEYS" "KEY: TWO_A"
 assert_contains "keys: the model-usage table still renders" "$KEYS" "model usage by activity and profile"
-assert_eq "keys: one line per role and problem" "4" "$(grep -c "^  KEY: " <<<"$KEYS")"
+assert_eq "keys: one line per role and problem" "5" "$(grep -c "^  KEY: " <<<"$KEYS")"
 
 # Live: 200 failed intake-triage runs, newer than pr-unblock's three
 # successes, fill the default read cap. The newest 3 runs of every lane are

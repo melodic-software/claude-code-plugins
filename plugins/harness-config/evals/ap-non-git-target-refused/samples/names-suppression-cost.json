@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "With nothing tracked, no suppression could ever be enacted, so an accepted finding would never persist."
+    },
+    {
+      "answer": "Suppressions live in the tracked team layer, which a non-git directory does not have."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Refused: not a git repository. Run `git init` and retry.",
+      "why": "no cost named"
+    }
+  ]
+}

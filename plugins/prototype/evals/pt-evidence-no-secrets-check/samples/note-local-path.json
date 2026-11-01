@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# Loan renewal\n\nA renewal of a reserved copy is refused.\n\nPrototype was at src/loans (renewal.prototype.py, loans_proto_tui.py).\nnot pushed: no secrets check in this repository\n",
+      "why": "names the local path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# Loan renewal\n\nA renewal of a reserved copy is refused.\n\nnot pushed: no secrets check in this repository\n",
+      "why": "reason without the local path"
+    },
+    {
+      "answer": "# Loan renewal\n\nA renewal of a reserved copy is refused. The rule now lives in src/loans/rules.py.\n\nnot pushed: no secrets check in this repository\n",
+      "why": "names only where the module moved, not where the prototype was"
+    }
+  ]
+}

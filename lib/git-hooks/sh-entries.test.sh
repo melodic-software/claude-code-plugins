@@ -92,7 +92,7 @@ for wrapper in "$TOP"/.lefthook/*/*.sh; do
 done
 
 remote="$TOP/plugins/guardrails/git-hooks/lefthook-remote.yml"
-expect "the lefthook remote runs every script with sh" "3|0" \
+expect "the lefthook remote runs every script with sh" "4|0" \
   "$(grep -cE '^[[:space:]]*runner:[[:space:]]*sh[[:space:]]*$' "$remote")|$(grep -E '^[[:space:]]*runner:' "$remote" | grep -cvE 'runner:[[:space:]]*sh[[:space:]]*$')"
 
 # The path goes in the environment, not argv: install.mjs runs its CLI when

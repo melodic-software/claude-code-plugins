@@ -3,6 +3,46 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-11-01
+
+### Added
+
+- `measure-invocation.sh validate` prints a WARN for each probe competitor whose id is not from the probe file's own plugin. Probe sets should list same-plugin competitors only, so that a rewrite in another plugin cannot move a probe's score. The WARN never fails `validate`.
+
+## [0.32.0] - 2026-11-01
+
+### Added
+
+- `check-skill.sh` check 30 WARNs when a SKILL.md is above the 5,000-token router cap, estimated
+  from the whole file at 4 characters per token, and prints the estimate as INFO otherwise. The
+  WARN never fails the run
+  ([#11955](https://github.com/melodic-software/claude-code-plugins/issues/11955)).
+
+## [0.31.19] - 2026-11-01
+
+### Added
+
+- Frozen description-trigger probes for `check-prerequisites` under `probes/` ([#6591](https://github.com/melodic-software/claude-code-plugins/issues/6591)).
+
+### Changed
+
+- The `check` description drops its quoted trigger list and action reference for one trigger per capability, 1013 to 382 characters, keeping the `/evals:validate` pointer for new eval cases. In held-out trigger probes on Opus, positive queries fired in 24 of 24 runs (20 of 24 before), and negative queries stayed quiet in 21 of 24 runs, the same as before.
+- The `check-prerequisites` description is shorter, 328 to 258 characters. In held-out trigger probes on Opus, positive queries fired in 24 of 24 runs, as before, and negative queries stayed quiet in 18 of 24 runs (19 of 24 before), within the 5-point margin and with no new false-firing query.
+
+## [0.31.18] - 2026-11-01
+
+### Changed
+
+- Check 14 accepts a plugin suite case as a skill's evals: under `--require-evals`, a skill with no `evals/evals.json` passes when a case under its plugin's `evals/` tags it, in its `prompt.md` front matter (where the evals.json converter writes the tag) or in a single-file `case.yaml`. Converting a plugin's evals no longer fails the next change to one of its skills.
+
+- The plugin description calls the `evals.json` schema check and lint legacy, for per-skill files not yet converted, and points new eval cases at the plugin suite format that `/evals:validate` checks.
+- `/skill-quality:check validate-evals` no longer says check 14 fails a skill whose only evals are suite cases; under `--require-evals` it passes when a case in the plugin's `evals/` lists the skill's directory name in a one-line `tags: [...]`. The README's check 14 line says the same.
+- `/skill-quality:check`'s description calls the `validate-evals` target a legacy `evals/evals.json` and points new cases at `/evals:validate`, so the listing no longer steers authors to write the JSON file.
+
+### Fixed
+
+- `measure-invocation.sh emit-plugin-eval` README and `reference/invocation-probes.md` add `Agent` to the probe run line, now `--disallow-tools Read Glob Grep Agent`. After the skill loaded, the agent handed the task to a subagent that outlived the 300-second run timeout, and those timed-out runs made every probe side INVALID.
+
 ## [0.31.17] - 2026-11-01
 
 ### Fixed

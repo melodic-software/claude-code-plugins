@@ -3,6 +3,30 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3] - 2026-11-01
+
+### Fixed
+
+- `/user-interface:design` says where its settings come from when detect cannot run (no shell, as
+  in an eval run, or no `node`): `reference/defaults.yaml`. It reaches plugin files only by the
+  paths it and `concerns.json` name and never searches the plugin's root, which the eval
+  sandbox denies. The animation catalog names both sources of its
+  resolved `animation:` config, detect's `config.values.animation` and the defaults file. Eval
+  runs had searched the plugin root for those values, and the sandbox's denials made both sides
+  invalid ([#11980](https://github.com/melodic-software/claude-code-plugins/issues/11980)).
+
+## [0.15.2] - 2026-11-01
+
+### Changed
+
+- `/user-interface:setup` now cites ADR 0075 beside ADR 0061, since ADR 0075 supersedes ADR 0061's layers and paths for plugin settings.
+
+### Fixed
+
+- `/user-interface:design` now auto-invokes on plain requests to build a component or page, or to choose between building one and adopting a library, and names `/user-interface:write-css` as the neighbor for the CSS alone. Invocation probes for both skills are in `probes/design.json` and `probes/write-css.json`.
+
+- `/user-interface:design` now auto-invokes on questions about one visual value, such as what a nested element's corner radius or a layer's shadow should be, including questions that give every number. `/user-interface:write-css` lists fixing a layout in a stylesheet among its triggers. `probes/design.json` adds shape probes for the new trigger.
+
 ## [0.15.1] - 2026-11-01
 
 ### Changed

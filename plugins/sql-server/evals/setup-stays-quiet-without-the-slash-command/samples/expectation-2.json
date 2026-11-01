@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "The setup skill does not run on its own; it runs only when the user invokes /sql-server:setup.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

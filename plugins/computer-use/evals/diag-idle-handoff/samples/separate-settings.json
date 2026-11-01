@@ -19,6 +19,18 @@
     {
       "answer": "Display and sleep timeouts of 0 do **not** imply the screensaver is off.",
       "why": "reference wording"
+    },
+    {
+      "answer": "`VIDEOIDLE` and `STANDBYIDLE` are the display-off and sleep timers. They're separate from the screensaver, which has its own timer, so never on both does not help.",
+      "why": "neutralized observed reply: separate from the screensaver"
+    },
+    {
+      "answer": "Display sleep is separate from the screensaver.",
+      "why": "separate from the screensaver"
+    },
+    {
+      "answer": "The screensaver, which has its own timeout, ignores the display value.",
+      "why": "screensaver, which has its own timeout"
     }
   ],
   "fail": [
@@ -33,6 +45,14 @@
     {
       "answer": "Display sleep is never, so the screensaver must be off too; look elsewhere.",
       "why": "conflates the settings"
+    },
+    {
+      "answer": "The screensaver has its own icon in the Control Panel.",
+      "why": "its own icon, not a timer"
+    },
+    {
+      "answer": "The screensaver runs Ribbons.scr after the timeout.",
+      "why": "no separation stated"
     }
   ]
 }

@@ -98,7 +98,9 @@ value and its unset fallback.
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
 - Never update the branch of a PR carrying the tracker's standards-sync role label
-  (`standards-sync` unless `.work-item-tracker.json` `config.role_labels` maps it): the sync App
+  (`standards-sync` unless the tracker binding's `config.role_labels` maps it, as
+  `scripts/babysit_tracker_binding.py` reads it on the default branch: the `tracker` mapping of
+  `docs/conventions/work-items.yaml`, else the legacy JSON binding at the root): the sync App
   is its only writer, and a merge commit from the base fails its managed-files guard, so the sync
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
@@ -825,7 +827,7 @@ A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`
 at **any** merge-capable tier, worker and autopilot alike, carries the lane's **partitioned head
 SHA** as its merge authorization, supplied in the invocation brief: the merge gate's
 `--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
-lane's partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor),
+lane's partition class-checked exactly that head's diff (work class C2/C3 within the rung, clear of the C5 hold),
 and this skill's merge gate does not class-check, so a worker push that moves the head off the pin
 is not a cue to re-pin. It is the end of this invocation's merge authority. The pinned gate's
 head-match refusal enforces the boundary deterministically; the invocation reports the new head and
@@ -840,8 +842,8 @@ A lane-pinned invocation (above) merges only through the merge gate's `--unatten
 (§Unattended Merge Path), which refuses `--auto` and disarms an auto-merge it finds armed. Where
 the repository does not configure that path, the gate refuses and the invocation reports the PR
 merge-ready for a human. The lane's partition is the only class check, so the PR is already C2
-(mechanical) or C3 (scoped); a C4 (structural) or C5 PR carries the body hold line and waits for
-the user.
+(mechanical) or C3 (scoped). A C5 (untrusted-provenance) PR the work lane opens carries the body
+hold line the lane writes for untrusted provenance and waits for the user; a C4 (structural) PR is outside every rung and is never handed to this invocation.
 
 The AI review checks are the review lane's `claude-review-status` (matched by that job segment
 under any caller, e.g. `review /` or `pr-review /`) and the security lane's
@@ -974,7 +976,7 @@ that path is this narrow:
   resolution, never what the wrappers permit, which is exactly why the severity refusal above
   still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
-  to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
+  to a PR outside the rung partition (C4 structural, or C5 untrusted-provenance), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.
 
 ## Autopilot Merge Tier: Enabled-Path Mechanics
@@ -1119,8 +1121,9 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
    write-access human wrote it and no non-human, or anyone through an App, retitled it
    (`title-edited-by-non-human`) or edited its body since (`body-edited-by-non-human`; an edit history read short or with a deleted edit refuses too),
-   or one applied the tracker's admission label (`agent-ready` unless `.work-item-tracker.json`
-   maps the `autonomous-eligible` role, read at the base branch) in person with no body edit or
+   or one applied the tracker's admission label (`agent-ready` unless the tracker binding
+   maps the `autonomous-eligible` role, read at the base branch through
+   `scripts/babysit_tracker_binding.py`) in person with no body edit or
    title change after (`title-edited-after-label`). Either suffices, so a human's issue a
    non-human edited or renamed is vouched for again once a person re-applies the label after the
    edit. An issue the lanes App both filed and

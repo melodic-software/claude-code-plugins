@@ -1,0 +1,99 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/audit/scripts/audit-fleet.sh --project-dir \"/ws\" \"fleet\"",
+            "description": "Audit the fleet, then prune and delete nothing"
+          }
+        }
+      ],
+      "why": "the read-only collector; the description words do not count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha branch --merged main && git -C fleet/alpha worktree list --porcelain && git -C fleet/alpha merge-base --is-ancestor feature/invoice-totals main && git -C fleet/alpha stash list"
+          }
+        }
+      ],
+      "why": "read-only git probes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha branch -d feature/invoice-totals"
+          }
+        }
+      ],
+      "why": "deletes a merged branch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"fleet/alpha\" worktree prune"
+          }
+        }
+      ],
+      "why": "prunes the worktree registration"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager -C fleet/alpha branch -a -D spike/new-parser"
+          }
+        }
+      ],
+      "why": "force delete behind other flags"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/beta fetch --prune origin"
+          }
+        }
+      ],
+      "why": "fetch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha push --delete --dry-run origin feature/invoice-totals"
+          }
+        }
+      ],
+      "why": "runs the push preview the skill only names"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -rf wt/alpha-old-spike"
+          }
+        }
+      ],
+      "why": "filesystem deletion"
+    }
+  ]
+}

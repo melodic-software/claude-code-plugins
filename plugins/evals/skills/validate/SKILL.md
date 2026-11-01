@@ -67,7 +67,8 @@ its header carries; this list follows them.
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two paid types, with no
 deterministic grader beside them), a tool in `allowed_tools` that the operator must grant with
-`--allow-tools`, `file_exists` in a case that requests no write tool (so nothing it could match is
+`--allow-tools`, a case naming a skill (leading `/<plugin>:<skill>` or a tag) whose SKILL.md has a
+pre-computed context line while `allowed_tools` lacks Bash, `file_exists` in a case that requests no write tool (so nothing it could match is
 ever created), and a `prompt.md` key the binary loads but the reference page does not list, which
 can change without notice (the script's `UNDOCUMENTED_PROMPT_KEYS`, under its own drift record).
 The judge-only rule is this skill's own pairing heuristic, not a rejection the binary makes; the

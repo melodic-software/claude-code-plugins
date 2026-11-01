@@ -66,6 +66,15 @@ name: pr-feedback-dispatch
 # before (feedback-dispatch.mjs main). The run's head SHA is the PR's, so it
 # waits in that head's concurrency group and reads its dispatch record.
 #
+# A completed pr-review-comment-relay.yml run, which a person's new review
+# comment on a lane branch starts, starts the dispatch job too, so a listed
+# human's reply on a thread the lane escalated leads to an address-feedback
+# round without waiting for the next review (ADR 0088). The relay run is the
+# upstream the record names: the gate and the broker accept it by path, event
+# pull_request_review_comment and a listed human as its actor and re-runner.
+# GitHub runs no such event on a conflicted PR; the review run after
+# resolve-conflicts' push picks that reply up.
+#
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
 # last review lane has finished, so it reads both reviews, and records each
@@ -87,7 +96,7 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge, pr-unblock, pr-review-approved]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch, pr-merge, pr-unblock, pr-review-approved, pr-review-comment-relay]
     types: [completed]
 
 permissions: {}
@@ -284,7 +293,10 @@ jobs:
     # label off. A pr-verify run's re-run by github-actions[bot] (the
     # reconciler applying a verdict the kill switch stopped) dispatches
     # nothing: check-trusted-trigger trusts a dispatcher only at attempt 1 or
-    # re-run by a listed human. A job skipped here starts no runner.
+    # re-run by a listed human. A pr-review-comment-relay.yml run dispatches
+    # only when it succeeded on a lane branch of this repository and a person,
+    # not a bot, started it; feedback-dispatch.mjs checks its actors against
+    # the list. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
@@ -304,7 +316,14 @@ jobs:
       && github.event.workflow_run.event == 'pull_request_target'
       && github.event.workflow_run.repository.full_name == github.repository
       && github.event.workflow_run.head_repository.full_name == github.repository
-      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')) }}
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      || github.event.workflow_run.path == '.github/workflows/pr-review-comment-relay.yml'
+      && github.event.workflow_run.event == 'pull_request_review_comment'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
+      && github.event.workflow_run.actor.type == 'User') }}
     needs: post-verify-notes
     runs-on: ubuntu-24.04
     timeout-minutes: 10

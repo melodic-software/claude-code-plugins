@@ -7,16 +7,13 @@ disable-model-invocation: true
 
 ## Purpose
 
-Verify and provision the first-time DeDRM setup, per the uniform setup contract
-(`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace repository).
-`check` inspects prerequisites and current state read-only; `apply` runs the provisioning walkthrough
-(the router skill's workflow reference), then re-runs `check`. No argument or `check` runs the check;
-`apply` runs the check first, then provisioning; `apply download` runs only the gated
-artifact-download subaction. This plugin has no repo- or consumer-scoped
-configuration and no `userConfig` scalars/toggles. Setup writes no Claude Code user settings, no
-`pluginConfigs`, and nothing into the plugin cache or plugin data directory; it provisions the user's
-machine (installs, firewall rule, ICACLS lock, extracted keys) and every mutation has a compensating
-reversal under `/kindle-dedrm:manage cleanup`.
+Verify and provision the first-time DeDRM setup. No argument or `check` runs the read-only check of
+prerequisites and current state; `apply` runs the check, then the provisioning walkthrough (the router
+skill's workflow reference), then `check` again; `apply download` runs only the gated
+artifact-download subaction. This plugin has no repo- or consumer-scoped configuration and no
+`userConfig` scalars/toggles. Setup provisions the user's machine (installs, firewall rule, ICACLS
+lock, extracted keys), and every mutation has a compensating reversal under
+`/kindle-dedrm:manage cleanup`.
 
 Scope and the hard safety rules are the router skill's: read
 [`${CLAUDE_PLUGIN_ROOT}/skills/manage/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/manage/SKILL.md)
@@ -26,18 +23,16 @@ extracted files off the machine).
 
 ## Interactivity
 
-Much of provisioning is irreducibly interactive. The installer's UAC + EULA, the Amazon sign-in race
-window, the Calibre plugin GUI loads, and the keyfinder VBS are actions on the user's machine the agent
-physically cannot drive. `apply` keeps these as **user-action hand-offs** (hand the user the exact step,
-wait for confirmation at each CHECKPOINT), not interview prompts. There are no configuration decisions
-to interview for. The parts that genuinely automate, artifact download + SHA verification, the firewall
-rule, the ICACLS lock, run non-interactively.
+The installer's UAC + EULA, the Amazon sign-in race window, the Calibre plugin GUI loads, and the
+keyfinder VBS are actions on the user's machine the agent cannot drive. `apply` keeps these as
+**user-action hand-offs** (hand the user the exact step, wait for confirmation at each CHECKPOINT), not
+interview prompts; there are no configuration decisions to interview for. Artifact download + SHA
+verification, the firewall rule, and the ICACLS lock run non-interactively.
 
 ## `check` (read-only)
 
-The status script
-(`${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh`) is the source of truth for current
-state. Run it and read its JSON before reporting. Add the prerequisite probes the pre-flight table in
+The status script below is the source of truth for current state: run it and read its JSON before
+reporting. Add the prerequisite probes the pre-flight table in
 the workflow reference (`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md`)
 requires. Report a PASS/FAIL/INFO table with one remediation per FAIL; modify
 nothing, download nothing, extract nothing.
@@ -59,15 +54,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
 4. **Cached auto-update installer.** `status.sh`'s `cached_installer` present is FAIL: it is the
    auto-update payload that breaks key extraction; remediation is
    `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/lock-updates.sh apply` /
-   `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh delete-cache` (never run it).
+   `${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/sync-finalize.sh` (never run it).
 5. **Calibre plugins and books.** INFO: report `calibre_plugins` (KFX Input, DeDRM, `dedrm.json`
    presence) and the `books` synced/converted counts. Report the key store `dedrm.json` presence-only.
    Never print its contents (it holds extracted keys).
 
 ## `apply` (idempotent)
 
-Run `check`, then provision. `apply` walks the full first-time sequence; `apply download` runs only the
-gated download subaction. Every step's exact command, rationale, and verification live in
+Run `check`, then provision. Every step's exact command, rationale, and verification live in
 [`${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md`](${CLAUDE_PLUGIN_ROOT}/skills/manage/reference/workflow.md).
 **Follow it there; do not restate it here** (that keeps the download flow's pinned-tag fallback and the
 Key_Finder URL empty-match guard authoritative in one place). Pause at every CHECKPOINT for user

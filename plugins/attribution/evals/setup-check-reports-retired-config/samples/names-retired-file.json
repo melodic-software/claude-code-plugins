@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "| Retired conventions | FAIL | `.claude/provenance.json` (attribution-r001), a retired config file: migrate it with `/attribution:setup apply` |",
+      "why": "table row, FAIL before the file"
+    },
+    {
+      "answer": "Retired conventions: FAIL\n- attribution-r001 `.claude/provenance.json`: migrate. The detectors never read it, so its stamp_expiry_days of 45 is not applied.",
+      "why": "status line, then the file and migrate on the next line"
+    },
+    {
+      "answer": "`.claude/provenance.json` is a leftover from the provenance plugin; run `/attribution:setup apply` to carry its keys into docs/conventions/attribution.yaml.",
+      "why": "leftover after the file"
+    },
+    {
+      "answer": "The old file .claude/provenance.json still sets stamp_expiry_days: 45, which the detectors never read.",
+      "why": "never read after the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Retired conventions: PASS. No leftover config files; `.claude/provenance.json` is absent.",
+      "why": "negated leftover, reports PASS"
+    },
+    {
+      "answer": "`.claude/provenance.json` was not found, so nothing is retired.",
+      "why": "bare 'retired' after a not-found"
+    },
+    {
+      "answer": "`.claude/provenance.json`: nothing to migrate.",
+      "why": "nothing to migrate"
+    },
+    {
+      "answer": "Effective config: stamp_expiry_days 90 from docs/conventions/attribution.yaml. Retired conventions: PASS.",
+      "why": "retired file not named"
+    }
+  ]
+}

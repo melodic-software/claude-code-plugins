@@ -1,0 +1,124 @@
+{
+  "skill": "harness-config:audit-prompting-postures",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-prompting-postures",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice C (#11563); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-instructions, unhobble, audit-automation-gaps, audit-pass, draft-auto-mode-rules, audit; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit-instructions",
+    "harness-config:unhobble",
+    "harness-config:audit-automation-gaps",
+    "harness-config:audit-pass",
+    "harness-config:draft-auto-mode-rules",
+    "harness-config:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "our release skill can delete tags and branches. does it tell claude to ask before doing that? check what guidance it's lacking"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "look at agents/researcher.md and tell me if it's missing anything about when to hand work off to subagents"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "CLAUDE.md never says when the agent should stop and check in with me. what else is absent compared to Anthropic's prompting guidance?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "review the skills in plugins/deploy for guardrails they should have but don't. report only"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Read through our agent definitions and tell me what each one should cover, given what it's for, but currently leaves out. Use Anthropic's prompt-writing advice as the yardstick."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "does the migrate-db skill need a confirm step before destructive actions? it drops tables"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "which of our subagent prompts have no rules at all about what they must not touch?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "the orchestrator skill fans out workers but never says when that's appropriate. find gaps like that across our skills"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "is my CLAUDE.md missing a stopping rule for long autonomous runs, or any other posture it should spell out?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "posture audit on .claude/agents please"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "our CLAUDE.md says hooks run before permission checks. is that still true? flag statements that are wrong"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "two rules files contradict each other about commit message style. which one wins?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "set aside our standing instructions for a week and log where the model trips up without them"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "should the 'confirm before rm' line in CLAUDE.md become a hook rather than text?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "check our settings files and hooks for drift against the current Claude Code docs"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the whole set of audits over this repo and pick up where the last pass stopped."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "my skill's allowed-tools grant isn't taking effect. why?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "write auto mode rules so destructive git commands always need my approval"
+    }
+  ]
+}

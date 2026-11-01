@@ -104,6 +104,9 @@
 //             as a new issue (once: a re-run finds its own comment) and
 //             removes agent-ready, with no label, since a
 //             retry stops again. No outcome file is read.
+//   stale    the read runner stopped on stale workflow files before any model
+//             turn (DIMENSION_SKIP workflow-stale): re-fires the issue at once
+//             on main's files (refireStale). No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -138,7 +141,10 @@
 //                       the issue dimensions skipped the run, or
 //                       outside-author when the admit job stopped it on the
 //                       issue's author (work-resolve-issue.yml report-skip),
-//                       else empty
+//                       or workflow-stale when a resolve-issue call stopped on
+//                       stale workflow files (resolve-issue-stale), else empty
+//   GITHUB_WORKFLOW_SHA workflow-stale: the commit the run's workflow files
+//                       come from
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -165,6 +171,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
@@ -290,11 +297,40 @@ export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-i
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
 // The lane name its stop-reason markers carry.
 const LANE = "work-resolve-issue";
-const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=(ISSUE_LANE_CLAUDE_API_KEY|ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN|FALLBACK_CLAUDE_CODE_OAUTH_TOKEN))?(?: fallback=(credit-stop|no-key))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
+
+// The secret NAME a run's leg used and why it fell back, from lane.json, which
+// the run could rewrite. Only the names run-claude-cli records for role
+// issue-lane and the reasons the collect step writes pass, so a rewritten
+// lane.json cannot carry any other value (an encoded token) into the marker.
+const CREDENTIALS = new Set(["ISSUE_LANE_CLAUDE_API_KEY", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"]);
+const FALLBACKS = new Set(["credit-stop", "no-key"]);
+export function readLaneCredential(dir) {
+  let lane;
+  try {
+    lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+  } catch {
+    return {};
+  }
+  return {
+    ...(CREDENTIALS.has(lane?.credential) && { credential: lane.credential }),
+    ...(FALLBACKS.has(lane?.fallback) && { fallback: lane.fallback }),
+  };
+}
+
+// The plan with ` credential=<NAME> fallback=<reason>` (each when valid)
+// closing its outcome marker line; a line already tagged is left as it is.
+export function withCredential(plan, { credential, fallback } = {}) {
+  const tag = `${CREDENTIALS.has(credential) ? ` credential=${credential}` : ""}${FALLBACKS.has(fallback) ? ` fallback=${fallback}` : ""}`;
+  if (!tag || typeof plan?.comment !== "string") {
+    return plan;
+  }
+  return { ...plan, comment: plan.comment.replace(/^(<!-- work-resolve-issue outcome=(?:(?! credential=| fallback=)[^\n])*?) -->/m, `$1${tag} -->`) };
+}
 
 // The marker a limited run leaves on its issue; work-unblock reads it back.
 export const limitedMarker = ({ resets, runId, onResumed = false }) =>
@@ -309,7 +345,7 @@ export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
 // sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
-// {outcome, resets, run, onResumed, pr?, security?} from a comment body that opens with the lane's
+// {outcome, resets, run, onResumed, pr?, security?, credential?, fallback?} from a comment body that opens with the lane's
 // marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
 // unreadable; onResumed is true for `branch=resumed`; security is true on an
 // intake marker a pushbackSecurity stop left.
@@ -324,6 +360,8 @@ export function parseOutcomeMarker(body) {
     resets: Number.isFinite(resets) ? resets : null,
     run: match[6] ?? "",
     onResumed: match[7] === "resumed",
+    ...(match[8] && { credential: match[8] }),
+    ...(match[9] && { fallback: match[9] }),
     ...(match[5] && { pr: match[5] }),
     ...(match[2] && { security: true }),
   };
@@ -748,6 +786,120 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
     lines.push("", `Run: ${runUrl}`);
   }
   return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
+}
+
+// The read runner's stop on stale workflow files (pr-run-activity-read.yml
+// `Stop on stale workflow files`), which work-resolve-issue.yml's
+// resolve-issue-stale job reads from the jobs listing and report-outcome
+// passes on like a dimension skip.
+export const WORKFLOW_STALE = "workflow-stale";
+
+// The lane's caller and the write runner, in work-unblock's re-fire key
+// order: the broker refuses a run whose copy of either differs from main's.
+export const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
+// work-unblock's re-fire record, which its sweep reads back: the key is
+// main's blob SHAs of LANE_WORKFLOWS, and `breaker` marks a kill-switch trip.
+export const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
+export const refireComment = (key, cause, actor = "work-unblock") =>
+  `<!-- work-unblock refired ${key} -->\n${cause} ${actor} removed and added \`agent-ready\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
+const STALE_CAUSE =
+  "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn.";
+// The labels the issue lane never starts or restarts on, which work-unblock
+// reads too: a person decides each but `attended`, which waits on a step the
+// owner takes present; only a person removes OUTSIDE_ACTOR_LABEL.
+export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", UNTRUSTED_PROVENANCE, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
+const BLOB = /^[0-9a-f]{40}$/;
+
+// A run that stopped on stale workflow files ran no model and is no fault in
+// the issue, so it is re-fired at once on main's files, the way work-unblock's
+// sweep re-fires it: its re-fire record, then agent-ready removed and added
+// back by the App, which starts a fresh run (admission accepts the App's
+// agent-ready). Nothing is done when the run's files match main's (the
+// stale claim does not hold), the issue is closed, agent-ready is off, was
+// last removed, or was last added by neither a listed human nor the App, or a
+// hold is on, or a person removes agent-ready before the write lands; and none
+// past limits.limit-stops-per-issue re-fire records since a listed human last
+// added agent-ready or a run last reported. Past that bound the hourly sweep
+// still re-fires a stale stop once per new version of the two lane workflow
+// files on main, so the re-fires are bounded by how often main changes them.
+// Returns what it did.
+export async function refireStale(github, repo, issueNumber, { workflowSha, bot, humans, limits }) {
+  if (!BLOB.test(workflowSha ?? "")) {
+    return "skipped: the run names no workflow commit";
+  }
+  const shas = async (ref) => {
+    const out = [];
+    for (const path of LANE_WORKFLOWS) {
+      const sha = (await github("GET", `${repo}/contents/${path}?ref=${ref}`))?.sha;
+      if (!BLOB.test(String(sha))) {
+        throw new Error(`${path} at ${ref} has no blob SHA`);
+      }
+      out.push(sha);
+    }
+    return out.join("-");
+  };
+  const key = await shas("main");
+  if ((await shas(workflowSha)) === key) {
+    return "skipped: the run's lane workflow files are main's";
+  }
+  const base = `${repo}/issues/${issueNumber}`;
+  const issue = await github("GET", base);
+  const labels = (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name).toLowerCase());
+  if (issue?.state !== "open" || !labels.includes("agent-ready")) {
+    return "skipped: the issue is closed or agent-ready is off";
+  }
+  const hold = labels.find((label) => LANE_HOLDS.has(label));
+  if (hold) {
+    return `skipped: held by ${hold}`;
+  }
+  const events = (await paginate(github, `${base}/events`)).filter(
+    (event) => (event?.event === "labeled" || event?.event === "unlabeled") && String(event.label?.name).toLowerCase() === "agent-ready",
+  );
+  if (events.at(-1)?.event !== "labeled") {
+    return "skipped: agent-ready was last removed";
+  }
+  // The App's re-add admits on its own, so it repeats only a label admission
+  // would take: a listed human's or the App's own (work-unblock's rule).
+  if (!trustedLabeler(events, events.at(-1).label.name, { bot, humans })) {
+    return "skipped: agent-ready was last added by neither a listed human nor the lanes App";
+  }
+  const comments = (await paginate(github, `${base}/comments`)).filter((comment) => comment?.user?.login === bot);
+  const at = (comment) => Date.parse(comment.created_at);
+  const from = Math.max(
+    Number.NEGATIVE_INFINITY,
+    ...events.filter((event) => event.event === "labeled" && humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at)),
+    ...comments.filter((comment) => parseOutcomeMarker(comment.body) !== null).map(at),
+  );
+  const records = comments.filter((comment) => {
+    const record = REFIRED.exec(String(comment.body ?? ""));
+    return record !== null && record[2] === undefined && at(comment) > from;
+  });
+  // A record no App agent-ready add follows is one whose label move did not
+  // finish: finish it without posting another (work-unblock's `relabeled`).
+  const pending = records.some(
+    (comment) => !events.some((event) => event.event === "labeled" && event.actor?.login === bot && Date.parse(event.created_at) >= at(comment)),
+  );
+  if (!pending && records.length >= limits["limit-stops-per-issue"]) {
+    return `skipped: ${records.length} re-fires since a person last added agent-ready or a run last reported (limits.limit-stops-per-issue); work-unblock's sweep takes it`;
+  }
+  if (!pending) {
+    await github("POST", `${base}/comments`, { body: refireComment(key, STALE_CAUSE, "The run's report-outcome") });
+  }
+  // A 404 is a person's removal since the read: it stands, and the record no
+  // App re-add follows ends nothing (work-unblock lists only agent-ready issues).
+  try {
+    await github("DELETE", `${base}/labels/agent-ready`);
+  } catch (error) {
+    if (/ answered 404$/.test(error?.message ?? "")) {
+      return "skipped: agent-ready was removed before the re-fire";
+    }
+    throw error;
+  }
+  // The label is off now; one failed re-add would leave the issue out of the
+  // lane, so it is tried twice and then fails the job.
+  const add = () => github("POST", `${base}/labels`, { labels: ["agent-ready"] });
+  await add().catch(add);
+  return `re-fired on workflow files ${key}`;
 }
 
 // A run the usage limit stopped: one marker comment, agent-ready kept, no
@@ -1838,7 +1990,7 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
-async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
+async function finishStop(github, repo, plan, { bot, humans, runId, limits, lane = {} }) {
   const waited = plan.action === "wait" ? await openPull(github, repo, plan.pr, { bot, humans }) : "";
   if (plan.action === "wait" && waited !== "open") {
     const why = !plan.pr
@@ -1866,6 +2018,8 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
     const counted = { ...(await read()), outcome: plan.exit };
     plan = capRetries(plan, countRestarts(counted), limits);
   }
+  // Every plan above is final here, rebuilt or not, so each takes the run's tags.
+  plan = withCredential(plan, lane);
   if (KEPT.has(plan.action)) {
     const posted = history.comments.some((comment) => {
       const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
@@ -1904,7 +2058,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
-    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR) {
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR && dimensionSkip !== WORKFLOW_STALE) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
     }
     const escalation = env.ESCALATION_REASON ?? "";
@@ -1921,7 +2075,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
-    // A dimension skip or an outside-author stop left no outcome to read: no model ran.
+    // A dimension skip, an outside-author stop or a stale stop left no outcome to read: no model ran.
+    if (dimensionSkip === WORKFLOW_STALE) {
+      const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
+      const done = await refireStale(github, repo, issueNumber, {
+        workflowSha: env.GITHUB_WORKFLOW_SHA,
+        bot: env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]",
+        humans: readHumansOrNone(env.TRUSTED_ACTORS),
+        limits: readLimits(resolved),
+      });
+      console.log(`report-outcome: issue #${issueNumber} stopped on stale workflow files; ${done}`);
+      return 0;
+    }
     if (dimensionSkip === OUTSIDE_AUTHOR) {
       // A re-run finds the lanes App's own comment and posts none; the marker
       // from anyone else does not count, since the outside author can write it.
@@ -2105,6 +2270,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           unmarked,
           collectRefused: env.COLLECT_REFUSED === "true",
         });
+    const lane = readLaneCredential(dir);
+    plan = withCredential(plan, lane);
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing.
@@ -2220,7 +2387,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       }
     }
-    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits });
+    await finishStop(github, repo, plan, { bot, humans: listedHumans(), runId, limits, lane });
     return 0;
   } catch (error) {
     console.log(`::error title=report-outcome::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

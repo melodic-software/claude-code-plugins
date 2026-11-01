@@ -21,7 +21,7 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 
 ## 78. Opus 4.8: Strongest Coding Model Yet
 
-Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, toggle `/fast`) and effort control on claude.ai.
+Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) finish. Also shipped: Fast mode for Opus 4.8 (research preview, toggle `/fast`) and effort control on claude.ai.
 
 - **Pointer**: the speedup, supported models and rates have changed since launch and are not restated
   here; for what fast mode is and how to toggle it, fetch

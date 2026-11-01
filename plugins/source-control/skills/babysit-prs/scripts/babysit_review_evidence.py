@@ -61,7 +61,7 @@ LANES: dict[str, tuple[str, str]] = {
 # marker or a `critical-findings:` count; `readonly_workflow` clears the
 # workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
-# the standards index, the instruction exception register, the
+# the standards index, the per-concern review rules in docs/review/, the instruction exception register, the
 # untrusted-content contract, at docs/contracts/ and at the docs/conventions/
 # stubs installed plugin versions still read), the lane's input directory
 # .claude-lane/ (the code lane falls back to a context file there), and
@@ -78,6 +78,7 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
+    "docs/review/",
     "docs/contracts/instruction-exception-register/",
     "docs/contracts/untrusted-content/",
     "docs/conventions/instruction-exception-register/",

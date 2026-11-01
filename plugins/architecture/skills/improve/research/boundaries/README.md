@@ -76,7 +76,7 @@ lens writes:
   - Action: the architecture test that asserts the rule, naming the existing architecture-test
     configuration when the repository has one.
 - `## By dimension`: one `### architecture` heading holding every row with its rank unchanged.
-  `/review:audit-enforceability` maps that dimension to the `structure` class and the
+  `/corrections:codify findings` maps that dimension to the `structure` class and the
   `architecture-test` rung, so the row needs no rule id.
 - `## Surfaces`: `Ran: [architecture:improve boundaries]`.
 

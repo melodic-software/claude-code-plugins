@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha status --porcelain && git -C fleet/beta log --oneline -3 && git -C fleet/beta stash list",
+            "description": "Check state before you pull or switch"
+          }
+        }
+      ],
+      "why": "read-only probes; description words do not count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/skills/sync/scripts/sync-fleet.sh --project-dir \"/ws\" \"fleet\""
+          }
+        }
+      ],
+      "why": "the script itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha switch main"
+          }
+        }
+      ],
+      "why": "switches by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"fleet/beta\" pull --ff-only"
+          }
+        }
+      ],
+      "why": "pulls by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager -C fleet/alpha checkout main"
+          }
+        }
+      ],
+      "why": "checkout behind a global flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C fleet/alpha stash push -m park"
+          }
+        }
+      ],
+      "why": "stashes by hand"
+    }
+  ]
+}

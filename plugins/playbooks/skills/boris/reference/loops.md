@@ -26,6 +26,6 @@ The guide frames these as a progression: each step hands off one more piece of t
 A loop is only as good as the system around it.
 
 - **Output quality.** Keep the codebase clean, since Claude follows existing patterns; give it a way to verify its own work by encoding "good" as skills; keep docs reachable; use a second agent for review, because fresh context is less biased. When a result misses the bar, encode the fix so every future iteration improves rather than patching the instance.
-- **Token usage.** Pick the right primitive and model, define clear stop criteria, pilot before a large run, use scripts for deterministic work, match the interval to how often the watched thing actually changes, and review spend with `/usage`, a bare `/goal`, and `/workflows`.
+- **Token usage.** Pick the right primitive and model, define clear stop criteria, pilot before a large run, use scripts for deterministic work, match the interval to how often the watched thing changes, and review spend with `/usage`, a bare `/goal`, and `/workflows`.
 
 **Which loop when.** Turn-based when exploring or deciding; goal-based when you know what done looks like; time-based when the work happens on a schedule outside your project; proactive when the work is recurring and well defined. To start, pick one task where you are the bottleneck, hand off exactly one piece, run it, and watch where it stalls or over-reaches.

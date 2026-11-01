@@ -3,6 +3,8 @@
 The rules for whether a piece of interface should move and, if it should, with which ingredients.
 The project's design system, motion tokens and conventions override everything in this file, and
 the values in the resolved `animation:` config fill only what the project leaves undefined.
+That config is `config.values.animation` in the output of `scripts/detect.mjs --config`; when
+detect cannot run, it is the `animation:` block of `reference/defaults.yaml`.
 
 Animation in a product interface is feedback, not decoration. The best UI animations go unnoticed:
 they make the interface feel fast, connected, and physical, then get out of the way. Default to

@@ -248,3 +248,26 @@ test("onMain reads the tag named main and main's tip once per process", async ()
   // Still refused with a client that would answer 404: the refusal holds.
   assert.equal(await onMain({ repo: REPO, actions, sha: sha(7) }), false);
 });
+
+// A tip the job listed with `git ls-remote` (PR_MERGE_MAIN_TIP) replaces both
+// ref reads; each run is still compared with it, and a commit off main is
+// still refused. A value that is not 40 hex is ignored and the refs are read.
+test("onMain takes main's tip from PR_MERGE_MAIN_TIP without a ref read", async () => {
+  const calls = [];
+  const actions = async (method, url) => {
+    calls.push(url);
+    return mainCall(url, { offMain: [sha(9)] });
+  };
+  const env = { PR_MERGE_MAIN_TIP: "f".repeat(40) };
+  forgetMainTip();
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(7), env }), true);
+  assert.equal(await onMain({ repo: REPO, actions, sha: sha(9), env }), false);
+  assert.deepEqual(calls.filter((u) => u.includes("/git/ref/")), []);
+  assert.deepEqual(calls, [`/repos/${REPO}/compare/${sha(7)}...${"f".repeat(40)}`, `/repos/${REPO}/compare/${sha(9)}...${"f".repeat(40)}`]);
+  for (const bad of ["", "F".repeat(40), "f".repeat(39), `${"f".repeat(40)}\n`]) {
+    calls.length = 0;
+    forgetMainTip();
+    assert.equal(await onMain({ repo: REPO, actions, sha: sha(7), env: { PR_MERGE_MAIN_TIP: bad } }), true);
+    assert.equal(calls.filter((u) => u.includes("/git/ref/")).length, 2, JSON.stringify(bad));
+  }
+});

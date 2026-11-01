@@ -9,4 +9,4 @@ expected_outcome: "The reply marks tool availability as FAIL, gives the verdict 
 
 /computer-use:setup
 
-I want to leave a 45-minute unattended data-entry run going on this machine tonight. Is computer use ready?
+I want to leave a 45-minute unattended data-entry run going on this machine tonight. Is computer use ready? This session has no shell or Bash tool, so don't try to run commands; check what you can from here.

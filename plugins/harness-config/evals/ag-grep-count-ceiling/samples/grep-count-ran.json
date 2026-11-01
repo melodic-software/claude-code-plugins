@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline --grep=secret -i | wc -l",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "counted"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -i --grep 'secret|leak' -E",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline | wc -l",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "denominator only"
+    }
+  ]
+}

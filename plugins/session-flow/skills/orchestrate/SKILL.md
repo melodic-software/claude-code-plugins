@@ -1,5 +1,5 @@
 ---
-description: "Seven standing imperatives that arm the current session for an orchestration-heavy task (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions), optionally exported as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
+description: "Arm the session for orchestration-heavy work with seven standing imperatives (delegate and fan out, spec every spawn, fresh-context verify, and more), optionally exported as a worker brief. Use when: 'orchestrate', 'prime this session', or before heavy delegation."
 argument-hint: "[<task>|handoff [compact]|worker [compact]|coordinator [<area>]]"
 user-invocable: true
 disable-model-invocation: false

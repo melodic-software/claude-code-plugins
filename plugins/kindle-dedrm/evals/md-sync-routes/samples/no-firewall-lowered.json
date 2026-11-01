@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/plugins/kindle-dedrm/skills/manage/scripts/status.sh\"" } }], "why": "the mandatory first-step probe" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "bash \"/plugins/kindle-dedrm/skills/manage/scripts/sync-prep.sh\" --dry-run" } }], "why": "the skill's dry-run preview" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/kindle-dedrm/skills/manage/scripts/firewall.ps1\" -Action check" } }], "why": "read-only check" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/kindle-dedrm/skills/manage/scripts/firewall.ps1\" -Action disable" } }], "why": "wrapper disable" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "powershell.exe -NoProfile -Command \"Disable-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)'\"" } }], "why": "raw cmdlet through interop" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "powershell.exe -Command \"Set-NetFirewallRule -DisplayName 'Block Kindle for PC (lock 2.8.0)' -Enabled False\"" } }], "why": "Set-NetFirewallRule" }
+  ]
+}

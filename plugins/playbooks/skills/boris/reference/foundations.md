@@ -297,7 +297,7 @@ Use voice dictation! You speak 3x faster than you type. Prompts get way more det
 
 Enable the Slack MCP, paste a Slack bug thread into Claude, say "fix." Zero context switching.
 
-Or just say "Go fix the failing CI tests." Don't micromanage how.
+Or say "Go fix the failing CI tests." Don't micromanage how.
 
 **Pro tip:** Point Claude at docker logs to troubleshoot distributed systems. It is surprisingly capable at this.
 

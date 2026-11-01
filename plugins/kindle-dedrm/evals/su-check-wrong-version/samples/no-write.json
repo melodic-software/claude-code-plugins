@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/plugins/kindle-dedrm/skills/manage/reference/workflow.md" } }], "why": "a read is not a write" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/uninstall-kindle.ps1", "content": "winget uninstall --id Amazon.Kindle" } }], "why": "writes an uninstall script from check" }
+  ]
+}

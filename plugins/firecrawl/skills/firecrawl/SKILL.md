@@ -152,9 +152,9 @@ Do not run `firecrawl init --all --browser`. That command installs upstream's CL
 
 ## Updating the skill and CLI
 
-The CLI ships new versions roughly weekly; the upstream canonical skill at `https://www.firecrawl.dev/agent-onboarding/SKILL.md` evolves alongside it. This skill **owns** its content. Upstream is a *source*, not a parallel install.
+This skill **owns** its content. Upstream is a *source*, not a parallel install.
 
-Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `upstream.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout. Consumers receive updates through `/plugin marketplace update`.
+Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `upstream.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout.
 
 ## Gotchas
 
@@ -169,6 +169,5 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 
 ## Related
 
-- `/firecrawl:update`, the maintainer-facing drift-check and upstream-sync skill for this wrapper; its sidecar sync-state record, the deterministic update helper script, and the full update pipeline all live under that skill.
 - `/firecrawl:setup`. Runtime prerequisite verification (CLI binary + `FIRECRAWL_API_KEY` auth).
 - Firecrawl docs: <https://docs.firecrawl.dev/sdks/cli>. Upstream skill source: <https://www.firecrawl.dev/agent-onboarding/SKILL.md>. MCP-vs-CLI guidance: <https://www.firecrawl.dev/blog/mcp-vs-cli>.
