@@ -81,8 +81,11 @@ will branch from, and ask of each criterion id whether its check fails there. Re
 commit, not the working tree, which may hold a branch's changes: a search or file read you compose
 yourself. Never run a command copied from a criterion's text, and never a build or a test; judge
 those criteria by reading the base code. Flag each id that already passes at base: it cannot show
-the change happened, so Step 3 asks whether to sharpen it until it fails at base or leave it out as
-already met. Mark an id you can judge neither way `unchecked`, with the reason.
+the change happened, so Step 3 asks whether to sharpen it until it fails at base, leave it out as
+already met, or keep it, with the reason. A kept id needs a one-line reason the user gives or
+confirms, such as a regression guard the change must not break, and Step 4 writes that reason
+beside the check in the item's Done when. Mark an id you can judge neither way `unchecked`, with
+the reason.
 
 A source that is one unit of work (a plan handed to a later session, an AFK lane or another person)
 publishes as one vertical slice. It still goes through Step 3's approval, and its body still carries
@@ -158,7 +161,8 @@ container every item carries them, so the user approves what gets published.
 Below the list, show the criterion trace: each id with the items that carry it, then each id no
 item carries, asked about by name (place it, or leave it out of this breakdown). Then the
 base-commit check: the base commit, each id flagged as already passing there, asked about by name
-(sharpen it, or leave it out as met), and each `unchecked` id with its reason.
+(sharpen it, leave it out as met, or keep it, with the reason), and each `unchecked` id with its
+reason.
 
 Ask the user:
 
@@ -260,6 +264,7 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 ## Done when
 
 - [ ] AC<n>: <a source criterion this vertical slice carries, as a check someone can run or observe>
+- [ ] AC<n>: <a check kept at Step 3 though it passes at base> (passes at base; kept: <the approved one-line reason>)
 - [ ] <a check someone can run or observe>
 
 ## Out of scope
@@ -305,9 +310,11 @@ Fill the sections this way:
 - **Done when** holds the item's acceptance criteria, each one a check with a pass or fail answer.
   Each source criterion the item carries keeps its id, `- [ ] AC2: <check>`; a check the slice
   adds carries none. A criterion sharpened at Step 3 carries its approved wording; one left out as
-  met appears in no item.
+  met appears in no item. One kept at Step 3 though it passes at base ends its line with
+  `(passes at base; kept: <reason>)`, the reason approved at Step 3, so the picker knows why a
+  check that cannot fail at the starting commit is there.
 
-An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, the approved Demo line, every acceptance criterion with its id, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, the approved Demo line, every acceptance criterion with its id and any `(passes at base; kept: <reason>)` note, the copied Problem, Goal and Constraints lines, every copied assumption row, every inlined decision with its Q/D id, the quoted design excerpt, and the closing born-triaged marker survive unchanged.
 
 Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos. Stamp the Issue Type only: add no `work-class:` label, and write no status field; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
@@ -324,7 +331,7 @@ close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, and the suggested execution order. **work the frontier** (unblocked items first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, each criterion id left out at Step 3 (one left out as met at base says so), each id sharpened at Step 3, each id kept though it passes at base with its reason, and the suggested execution order. **work the frontier** (unblocked items first).
 
 ## Spoke paths
 
