@@ -248,6 +248,19 @@ work_priority_order:
 
 The work skill's "Selection Priority" section says how it is read.
 
+`bug_path.mode` also lives only in the repository file. With `full`, the
+default, `/work-items:work` runs a bug item through to a fix and a draft pull
+request. With `investigate`, it stops after the root cause: it opens no branch,
+writes no fix and opens no pull request. Instead it posts one marker comment on
+the item with the outcome, the reproduction evidence, the ranked causes and the
+access that was missing. The work skill's "Investigate mode" section says how
+it is read.
+
+```yaml
+bug_path:
+  mode: investigate
+```
+
 `delivery_deploy_signal` also lives only in the repository file. It sets what
 `/work-items:measure-delivery` counts as a deployment, and its one value, the
 default, is `merge-to-default-branch`: each commit on the default branch's
