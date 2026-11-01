@@ -142,10 +142,11 @@ schema does not declare, a document the parser rejects (named by file and line),
 value (named by file, key and value; the overlay when it set the value) is exit `3`.
 
 - **Legacy fallback (migration).** While the migration runs, when `<home>/work-items.yaml` has
-  no `tracker` key (or the repository declined a home), the seam still reads
-  `.work-item-tracker.json` at the repo root and prints a one-line `notice:` on stderr naming
-  it. A repo root where no home applies (it is `$HOME`, an ancestor of `$HOME`, or not inside
-  a git work tree: ADR 0075 fix 5) reads no `work-items.yaml` at all, not even under
+  no `tracker` key (or the repository declined a home), the seam still reads the legacy
+  repo-root JSON binding (`WIT_LEGACY_BINDING` in `lib/binding.sh`) and prints a one-line
+  `notice:` on stderr naming it, which asks for it to move under `tracker:`. A repo
+  root where no home applies (it is `$HOME`, an ancestor of `$HOME`, or not inside a git work
+  tree: ADR 0075 fix 5) reads no `work-items.yaml` at all, not even under
   `docs/conventions`; only the legacy JSON file binds it. The JSON file has the same keys as
   the `tracker` mapping:
 
@@ -177,8 +178,8 @@ value (named by file, key and value; the overlay when it set the value) is exit 
   `WORK_ITEM_TRACKER_BINDING=<path>` (tests, conformance).
 - **Personal overlay**: an optional gitignored overlay beside the team binding,
   `<home>/work-items.local.yaml` (its `tracker` mapping) beside a YAML binding or
-  `.work-item-tracker.local.json` beside the legacy file, merges **per-key over an allowlist,
-  deny-by-default**. An overlay with no `tracker` key changes nothing. Overlayable keys:
+  the legacy JSON overlay beside the legacy file (`wit_overlay_path` in `lib/binding.sh`),
+  merges **per-key over an allowlist, deny-by-default**. An overlay with no `tracker` key changes nothing. Overlayable keys:
   `config.lease_ttl_hours`, `config.lease_ttl_minutes` (TTL travels inside each lease
   record, so a per-user value is coherent), the auth-identity keys of every credentialed
   adapter, namely `config.jira.auth_email`, `config.jira.auth_env`, `config.linear.auth_env`, and
@@ -197,11 +198,11 @@ value (named by file, key and value; the overlay when it set the value) is exit 
   provider override is structurally foreclosed: leases, labels, and frontier state live
   provider-side, so a personal binding would fracture the team's coordination surface.
   There is deliberately no user-global (`~/.claude/...`) layer for the same reason. The
-  overlay's gitignore line (`.work-item-tracker.local.json`) is appended, announced, by
-  `/work-items:setup apply`, because the root-level overlay is outside the marketplace's
-  `.claude/**/*.local.*` convention line.
+  legacy overlay's gitignore line is appended, announced, by `/work-items:setup apply`,
+  because that root-level overlay is outside the marketplace's `.claude/**/*.local.*`
+  convention line.
 - Optional `docs` (either layer): a free-form self-describing pointer naming what the file
-  is and where its contract lives, so the root dotfile explains itself to a teammate who
+  is and where its contract lives, so the binding file explains itself to a teammate who
   finds it. `/work-items:setup` writes it by default; the seam never reads it.
 - Owner/repo are NEVER recorded in the binding. They are derived at runtime from the working
   directory's git remote (`gh api repos/{owner}/{repo}`). Verbs that need a repo
@@ -446,7 +447,7 @@ Two independent resolutions, deliberately opposite:
   (`seeds/README.md`). Versioning is the manifest's `schema_version` and the handshake below,
   with no header in the copied files.
 
-The binding (`.work-item-tracker.json`) and any consumer-local adapters live in the consuming repo
+The binding (`<home>/work-items.yaml`) and any consumer-local adapters live in the consuming repo
 (the repo root above); the bundled engine and adapters live in the plugin (`${CLAUDE_PLUGIN_ROOT}`),
 which is read-only and replaced on plugin update. No seam state is written there.
 

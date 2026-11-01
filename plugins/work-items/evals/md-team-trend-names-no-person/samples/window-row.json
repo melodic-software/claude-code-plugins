@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Period | Deployments | Lead time (h) | Change fail rate |\n|---|---|---|---|\n| 2026-W41 | 2 | 0 | 0% |\n| Window | 5 | 0 | 20% |",
+      "why": "table with a Window row"
+    },
+    {
+      "answer": "| Week | Deploys |\n|---|---|\n| W42 | 1 |\n| **Window** | 5 |",
+      "why": "bold Window row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Over the window the team deployed 5 times with a 20% change fail rate.",
+      "why": "prose only, no table"
+    },
+    {
+      "answer": "| Week | Deploys |\n|---|---|\n| W42 | 1 |",
+      "why": "no Window row"
+    }
+  ]
+}

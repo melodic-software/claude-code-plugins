@@ -1,0 +1,124 @@
+{
+  "skill": "firecrawl:firecrawl",
+  "plugin": "firecrawl",
+  "skill_dir": "plugins/firecrawl/skills/firecrawl",
+  "ranking_note": "Authored from the before description at commit b9ae6bbaed, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Siblings firecrawl:setup and firecrawl:update are user-invoked only (disable-model-invocation: true), so they cannot compete and are not listed. The competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test that the skill stays quiet, not competitor wins.",
+  "competitors": [
+    "x:read",
+    "playwright:playwright",
+    "discovery:read-docs",
+    "context7:lookup",
+    "discovery:research",
+    "knowledge:docpage-digest"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I tried pulling https://pricing.harbortail.example/plans with WebFetch and got a 403 back; the response headers mention Cloudflare. Get me the page contents some other way."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The changelog at https://app.novaquill.example/releases is a single-page React app, so fetching it only returns an empty shell. Render it and save the release notes to a file."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull down every page under https://docs.brightmoor.example/guides/ and save each one as markdown in a local folder so I can grep through them."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we download anything, list all the URLs that exist on https://www.ledgerpine.example so I can pick which sections matter."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have a vendor agreement at ./inbound/vendor-agreement.docx and a spec sheet at ./inbound/specs.pdf. Convert both to plain text files I can diff."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look up recent articles on WebAssembly garbage collection support across browsers and save the raw results to disk; I want the original pages, not your summary."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The store locator on https://shop.tallowmere.example only shows results after you pick a region from a dropdown and click Search. Drive that interaction and capture the list of stores."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Every request I send to https://listings.copperfen.example comes back 429 Too Many Requests with a PerimeterX challenge in the body. Grab the listing page for me anyway."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find the primary sources on the Orchard Valley Rail bond issue, meaning the original filings and press releases, and keep the pages themselves rather than a write-up."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The price list on https://partners.wrenfield.example is only visible after you sign in and open the Downloads tab. Log in with the test account and save that table to a file."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read https://blog.example.com/posts/version-3-2 and tell me what changed in that release."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "In a couple of sentences, is SQLite a reasonable choice for a write-heavy web app? I don't need sources, just your take."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does this post say? https://x.com/example_dev/status/1849203311402"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start our dev server on http://localhost:5173 and run an end-to-end test that signs up a new user and checks the dashboard loads."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How do I configure retry backoff in the Axios library for version 1.x? Show me the current API."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What does the official Claude Code hooks documentation say in its PreToolUse section about exit code 2?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research whether Redis or Valkey handles cluster failover faster and give me a cited comparison drawing on several sources."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Digest https://docs.example.com/platform/rate-limits into our knowledge base with verified section notes."
+    }
+  ]
+}

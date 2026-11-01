@@ -152,7 +152,7 @@ writes to ("Claim before the first write"), and `claim` backs off from an earlie
 the same login, so a row this lane claimed first would make triage skip it.
 
 **Binding.** `claim` and session-start `reclaim` are seam coordination verbs, if
-`.work-item-tracker.json` does not resolve, surface the same actionable choice as
+the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, surface the same actionable choice as
 `/work-items:work` before the first coordination verb (session-start reclaim, then row `claim`):
 **(1) setup was never run** → run `/work-items:setup`; **(2) deliberate gh-native mode** → proceed
 for provider-mechanic reads only, accepting that concurrent attended sessions have no race-safe row

@@ -1061,8 +1061,10 @@ merge:
   lane-prs: native
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
-  # to a pull request from one: release-publish-plugins.yml rebuilds
-  # release/plugins, and run 41065454536's push there answered 422.
+  # to a pull request from one, and pr-unblock never runs fix-ci on one
+  # (skip `owned-branch`): release-publish-plugins.yml rebuilds
+  # release/plugins, and pushes there answered 422 (run 41065454536's re-fire,
+  # runs 41308756974 and 41312571464's fix-ci).
   refire-skip-branches: [release/plugins]
   # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
   # head (lane PRs under lane-prs native are not listed). Must be true at a

@@ -95,8 +95,10 @@ removes its layer in either style. Pass them to `build_edl.py` as
    with the brief in [reference/independent-review.md](reference/independent-review.md): the video,
    the quality-control sheets and the acceptance rules, and none of your reasoning about why it is fine. Fix what
    it finds and repeat 6-8. Nothing is posted on the producer's word.
-9. **Post.** [reference/posting.md](reference/posting.md): locally, `gh pr comment --attach` with a
-   `gh` that has `--attach`; in CI, a non-zipped Actions artifact plus a comment linking it.
+9. **Post.** [reference/posting.md](reference/posting.md): verification evidence goes through
+   `/source-control:pull-request evidence` when it resolves. A demo a person asked for, or
+   evidence when that step does not resolve, goes locally through `gh pr comment --attach` with a
+   `gh` that has `--attach`, and in CI as a non-zipped Actions artifact plus a comment linking it.
 
 ## Next
 

@@ -153,15 +153,23 @@ wit_find_binding() {
 # error, never a merge (CONTRACT.md "Setup (binding file)").
 readonly WIT_OVERLAY_ALLOWED_PATHS='[["config","lease_ttl_hours"],["config","lease_ttl_minutes"],["config","jira","auth_email"],["config","jira","auth_env"],["config","linear","auth_env"],["config","gitea","auth_env"],["docs"]]'
 
-# wit_find_overlay <binding-path>: echo the overlay path beside whatever binding
-# resolved (work-items.local.yaml beside a YAML binding, else
-# .work-item-tracker.local.json), or fail when none exists.
-wit_find_overlay() {
+# wit_overlay_path <binding-path>: echo where the overlay sits beside that binding
+# (work-items.local.yaml beside a YAML binding, else .work-item-tracker.local.json),
+# whether or not it exists.
+wit_overlay_path() {
   local dir name=".work-item-tracker.local.json"
   [[ "$1" == *.yaml ]] && name="work-items.local.yaml"
   dir="$(cd "$(dirname "$1")" && pwd)" || return 1
-  [[ -f "$dir/$name" ]] || return 1
   printf '%s\n' "$dir/$name"
+}
+
+# wit_find_overlay <binding-path>: echo the overlay path beside whatever binding
+# resolved, or fail when none exists.
+wit_find_overlay() {
+  local overlay
+  overlay="$(wit_overlay_path "$1")" || return 1
+  [[ -f "$overlay" ]] || return 1
+  printf '%s\n' "$overlay"
 }
 
 # wit_binding_layer_json <path>: one layer as a JSON value: the `tracker` mapping of

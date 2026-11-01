@@ -669,6 +669,18 @@ EOF
 expect_exit "Superseded-By-Plan casing -> 1" 1 --ledger "$superseded_case"
 expect_stdout "Superseded-By-Plan casing is counted" "superseded=1" --ledger "$superseded_case"
 
+# 43b. `discussing` (the user asked to talk the question through) blocks like
+#      `open` and counts in `open=`, in any casing.
+discussing_only="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | Discussing | round 1 | What format? |
+EOF
+)"
+expect_exit "answered + discussing -> 1" 1 --ledger "$discussing_only"
+expect_stdout "a discussing row counts as open" "open=1 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=0" --ledger "$discussing_only"
+expect_stdout "a discussing row grades status=open" "status=open" --ledger "$discussing_only"
+
 # 44. A clean register reports the field at zero, right after `answered=`.
 expect_stdout "clean verdict places superseded after answered" "answered=1 superseded=0 brief=" --ledger "$clean"
 

@@ -965,7 +965,9 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), `stop-resolved` (an address-feedback or fix-ci select job found
 no stop standing on its head, whether or not one ever did), `awaiting-session` (an address-feedback
 select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
-again), or, for an issue run under
+again), `owned-branch` (a fix-ci select job on a pull request whose head branch
+`merge.refire-skip-branches` lists: the workflow that owns the branch rebuilds it, so a fix-ci push
+would race the rebuild), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
