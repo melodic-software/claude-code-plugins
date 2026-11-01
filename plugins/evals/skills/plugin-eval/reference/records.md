@@ -30,27 +30,38 @@ re-read the page.
 - Docker credential store: the refusal hit all 60 runs of one pass at Claude Code 2.1.289 under
   WSL2, observed 2026-10-04. Docker Desktop's WSL integration links `contexts` and `features.json`
   into `/mnt/c`. The `~/.docker/bin` exemption on macOS is from the 2.1.293 changelog entry. Docs
-  lag: neither the plugin-evals page nor the sandboxing page covers the refusal as of 2026-10-10,
-  and the current refusal wording is not captured here: it needs a macOS or WSL2 host. Recheck:
-  re-run one `Bash`-granting case on a host with such a link.
+  lag: neither the plugin-evals page nor the sandboxing page covers the refusal as of 2026-10-10.
+  The refusal on 2.1.316 under WSL2, 2026-11-01, is recorded on
+  [#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378): it names the link
+  under `contexts` in the store under `$HOME`. Recheck: re-run one `Bash`-granting case on a host
+  with such a link after a release note touches sandbox credential exclusion.
 - Link swap (`scripts/docker-links.py`): it swaps every link the preflight's `find` lists, and the
   store itself when that is a link, rather than only the links the CLI is thought to check, since
   which names the CLI exempts was read from one 2.1.314 binary and failed independent
   verification. Pointer: <https://code.claude.com/docs/en/changelog>, the release notes on sandbox
   credential exclusion. As of 2026-10-30. Recheck: a docs page documents the check or its exempt
   names, or a release note touches them. The fixture suite (`test_docker_links.py`) proves the
-  swap and restore on a temporary `HOME`; no host run on WSL2 has been recorded yet.
+  swap and restore on a temporary `HOME`. Host run on 2.1.316 under WSL2, 2026-11-01, against
+  Docker Desktop's own `~/.docker`: one `Bash`-granting case scored 1/1 with Bash returning no
+  error, both links (`contexts`, `features.json`) listed the same before and after, and no
+  manifest was left. `features.json` was a dangling link, which the swap removed and restored
+  ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
 
-- Read-only `.git` and session tmp directory under `--allow-tools Bash`: a `claude plugin eval` run
-  saw the scratch repo's `.git` as read-only on Claude Code 2.1.310 and 2.1.314, Linux/WSL2,
-  2026-10-24 and 2026-10-29 (`git fetch` failed writing `.git/FETCH_HEAD` with "Read-only file
-  system"). On 2.1.314 the session tmp directory was read-only too: the shell's cwd-tracking write
-  failed, so a Bash call could report exit 1 though its command succeeded. A fresh clone and an
-  out-of-repo copy failed the same way. Claude Code 2.1.302 completed a merge on 2026-10-18. The
-  cause within the CLI is not bisected (UNVERIFIED). Evidence:
-  [#10277](https://github.com/melodic-software/claude-code-plugins/issues/10277),
-  [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: re-run the
-  source-control pull-request-ready cases on the next CLI release.
+- Read-only run root under `/tmp` with `--allow-tools Bash`: on Claude Code 2.1.316, Linux/WSL2,
+  a run whose sandbox sat under the default `/tmp` saw the scratch repo's `.git` as read-only
+  (`git merge` failed on `.git/ORIG_HEAD.lock`, "Read-only file system"), and the shell's
+  cwd-tracking write into the session tmp failed, so a Bash call could report exit 1 though its
+  command succeeded. Runs on 2.1.310 and 2.1.314 showed the same signature (`git fetch` failed on
+  `.git/FETCH_HEAD`); their `TMPDIR` was not recorded. The kept
+  run's `config/settings.json` names the cause: `sandbox.filesystem.allowWrite` lists the run's
+  `home` and `tmp` directories, and `denyWrite` lists `//tmp`, which covers both and wins, so the
+  whole root, workspace included, is read-only (the workspace part is inferred from the settings,
+  not observed). The same two source-control pull-request-ready cases, run with `TMPDIR` outside
+  `/tmp`, showed no read-only write and both reached `gh pr ready`. Why 2.1.302 completed a merge
+  on 2026-10-18 is unknown. Evidence, 2026-11-01, 2.1.316:
+  [#12070](https://github.com/melodic-software/claude-code-plugins/issues/12070); earlier runs:
+  [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: a release
+  note touching `plugin eval` sandbox paths or `TMPDIR`.
 
 ## Worktrees
 

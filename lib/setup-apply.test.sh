@@ -766,6 +766,153 @@ assert_eq "an indented document: the provenance keys are appended at its base in
   "0:"$'  mode: slow\n  workers: 3\n  written_against: fixture@1.1.0\n  provenance:\n    mode: chosen (default safe)\n    workers: chosen (default 4)' \
   "$?:$(cat "$(yaml_of "$R")")"
 
+# --- States: init, migrate, configure -----------------------------------------
+# Entry points naming a retirements.yaml record, which sits where the writer
+# looks by default, <schema dir>/../retirements.yaml. Expected lines follow the
+# library's "States" rules: a migrate carries each value with its provenance
+# entry, the new location wins, and the retired file is removed only when every
+# value in it is in the settings file.
+printf '%s\n' '---' 'id: fixture-r001' 'retired: 2026-11-01' 'plugin_version: 1.1.0' 'kind: file' 'path: .claude/fixture.yaml' \
+  'action: migrate' 'successor: "carried into docs/conventions/fixture.yaml by setup apply"' 'note: "retired settings location"' \
+  '---' 'id: fixture-r002' 'retired: 2026-11-01' 'plugin_version: 1.1.0' 'kind: file' 'path: .claude/fixture.json' \
+  "content_match: '\"mode\"'" 'action: migrate' 'successor: "carried into docs/conventions/fixture.yaml by setup apply"' \
+  'note: "retired settings location"' >"$PROV/retirements.yaml"
+for pair in migrate:fixture-r001 migrate-json:fixture-r002; do
+  cat >"$PROV/${pair%%:*}.mjs" <<JS
+import { run } from "file://$SCRIPT_DIR/setup-apply.mjs";
+run({ plugin: "fixture", schema: "$PROV/schemas/fixture.schema.json", reader: "$SCRIPT_DIR/parse-concern-value.sh", provenance: true, retired: "${pair#*:}" });
+JS
+done
+mrun() { HOME="$FAKE_HOME" node "$PROV/migrate.mjs" "$@" 2>&1; }
+jrun() { HOME="$FAKE_HOME" node "$PROV/migrate-json.mjs" "$@" 2>&1; }
+old_yaml() { mkdir -p "$1/.claude" && printf '%s' "$2" >"$1/.claude/fixture.yaml"; }
+
+R="$(new_root state-init)"
+out="$(mrun --root "$R" --state)"
+assert_eq "--state with neither file: prints init and the settings path" "0:init docs/conventions/fixture.yaml" "$?:$out"
+assert_eq "--state with neither file: writes nothing" "0" "$(exists "$(yaml_of "$R")")"
+out="$(mrun --root "$R" --yes)"
+assert_eq "init with nothing to write: exits 2" "2" "$?"
+R="$(new_root state-configure)"
+printf 'mode: slow\n' >"$(yaml_of "$R")"
+out="$(mrun --root "$R" --state)"
+assert_eq "--state with the settings file: prints configure and its path" "0:configure docs/conventions/fixture.yaml" "$?:$out"
+R="$(new_root state-migrate)"
+old_yaml "$R" $'mode: slow\n'
+out="$(mrun --root "$R" --state)"
+assert_eq "--state with the retired file: prints migrate and its path" "0:migrate .claude/fixture.yaml" "$?:$out"
+assert_eq "--state with the retired file: writes nothing" "0:mode: slow" "$(exists "$(yaml_of "$R")"):$(cat "$R/.claude/fixture.yaml")"
+R="$(new_root state-unmatched)"
+mkdir -p "$R/.claude"
+printf '{"other": 1}\n' >"$R/.claude/fixture.json"
+out="$(jrun --root "$R" --state)"
+assert_eq "--state with a retired path whose content_match fails: prints init" "init docs/conventions/fixture.yaml" "$out"
+out="$(mrun --root "$R" --state mode=slow)"
+assert_eq "--state with a <key>=<value>: exits 2" "2" "$?"
+
+# A migrate carries every value and its provenance entry, then removes the
+# retired file; a second run in a committed fixture changes nothing.
+R="$(git_root mig-all)"
+mkdir -p "$R/docs/conventions"
+region_text docs/conventions >"$R/AGENTS.md"
+old_yaml "$R" $'written_against: fixture@1.0.0\nmode: slow\nworkers: 4\nprovenance:\n  mode: chosen (default fast)\n  workers: default\n'
+out="$(mrun --root "$R" label=team)"
+assert_eq "a migrate without --yes: exits 3" "3" "$?"
+assert_contains "a migrate without --yes: the plan names each value" "$out" "would carry workers=4 from .claude/fixture.yaml into docs/conventions/fixture.yaml"
+assert_eq "a migrate without --yes: writes nothing" "0:1" "$(exists "$(yaml_of "$R")"):$(exists "$R/.claude/fixture.yaml")"
+out="$(mrun --root "$R" --yes label=team)"
+assert_eq "a migrate with --yes: exits 0" "0" "$?"
+assert_eq "a migrate: every value is carried with its provenance entry" \
+  "$HEADER"$'\nwritten_against: fixture@1.1.0\nlabel: team\nmode: slow\nworkers: 4\nprovenance:\n  mode: chosen (default safe)\n  workers: default\n  label: chosen' \
+  "$(cat "$(yaml_of "$R")")"
+assert_eq "a migrate that carries every value: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
+assert_contains "a migrate that carries every value: the removal is announced" "$out" "removed .claude/fixture.yaml"
+assert_contains "a carried chosen value whose default changed: the WARN a write prints" "$out" \
+  "WARN docs/conventions/fixture.yaml: mode=slow was chosen by the team; its plugin default changed from fast to safe; the value is kept"
+assert_eq "after the migrate: --state prints configure" "configure docs/conventions/fixture.yaml" "$(mrun --root "$R" --state)"
+g "$R" add -A
+g "$R" commit -q -m migrated
+out="$(mrun --root "$R" --yes label=team)"
+assert_eq "a second run with the same inputs: exits 0" "0" "$?"
+assert_eq "a second run with the same inputs: no diff in the fixture" "" "$(g "$R" status --porcelain)"
+R="$(new_root mig-bare)"
+old_yaml "$R" $'mode: slow\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a migrate with no key given: exits 0 and carries the value" "0:mode: slow:0" "$?:$(grep -x 'mode: slow' "$(yaml_of "$R")"):$(exists "$R/.claude/fixture.yaml")"
+out="$(mrun --root "$R" --yes)"
+assert_eq "no key given once nothing is left to migrate: exits 2" "2" "$?"
+R="$(new_root mig-stale)"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a carried default value whose default changed: carried at the new default" \
+  "0:$HEADER"$'\nwritten_against: fixture@1.1.0\nworkers: 4\nprovenance:\n  workers: default' "$?:$(cat "$(yaml_of "$R")")"
+assert_contains "a carried default value whose default changed: the change is printed" "$out" \
+  "INFO .claude/fixture.yaml: workers=2 is marked default, written against fixture@1.0.0; it is carried at the plugin default now, 4"
+# A stale default carried while another key keeps the retired file: once that
+# key is removed, a rerun compares the settings file against the value the
+# carry wrote, the new default, so the retired file is removed.
+R="$(new_root mig-stale-rerun)"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nextra: x\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a stale default beside a key that cannot be carried: carried at the new default" "0:workers: 4" "$?:$(grep -x 'workers: 4' "$(yaml_of "$R")")"
+assert_eq "a stale default beside a key that cannot be carried: the retired file is left in place" "1" "$(exists "$R/.claude/fixture.yaml")"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a stale default already carried, run again: exits 0" "0" "$?"
+assert_eq "a stale default already carried, run again: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'workers=')"
+assert_eq "a stale default already carried, run again: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
+assert_eq "a stale default already carried, run again: the new default stays" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
+# Both files hold the same stale default: the run updates the settings file to
+# the new default, so the retired value compares equal and the first run
+# removes the retired file.
+R="$(new_root mig-stale-both)"
+printf 'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n' >"$(yaml_of "$R")"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "the same stale default in both files: exits 0" "0" "$?"
+assert_eq "the same stale default in both files: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'not carried')"
+assert_eq "the same stale default in both files: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
+assert_eq "the same stale default in both files: the new default is written" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
+R="$(new_root mig-empty)"
+old_yaml "$R" $'mode:\nworkers: 3\n'
+out="$(mrun --root "$R" --yes)"
+assert_contains "an empty value in the retired file: it is printed" "$out" "WARN .claude/fixture.yaml: mode is empty; not carried"
+assert_eq "an empty value in the retired file: the retired file is left in place" "1" "$(exists "$R/.claude/fixture.yaml")"
+
+# A value the schema does not allow, or a key outside it, is not carried: it
+# is printed and the retired file is left in place, and a rerun writes nothing.
+R="$(new_root mig-kept)"
+mkdir -p "$R/.claude"
+printf '{"mode": "slow", "workers": 12, "extra": true}\n' >"$R/.claude/fixture.json"
+before="$(od -c "$R/.claude/fixture.json")"
+out="$(jrun --root "$R" --yes)"
+assert_eq "a value that cannot be carried: exits 0" "0" "$?"
+assert_contains "a value that cannot be carried: it is printed" "$out" "WARN .claude/fixture.json: workers=12 is not a whole number from 1 to 8; not carried"
+assert_contains "a key outside the schema: it is printed" "$out" "WARN .claude/fixture.json: extra is not a key of docs/conventions/fixture.yaml"
+assert_contains "a value that cannot be carried: the retired file is named as left in place" "$out" ".claude/fixture.json is left in place"
+assert_eq "a value that cannot be carried: the retired file is untouched" "$before" "$(od -c "$R/.claude/fixture.json")"
+assert_eq "a value that cannot be carried: the others are carried" "mode: slow" "$(grep -x 'mode: slow' "$(yaml_of "$R")")"
+written="$(cat "$(yaml_of "$R")")"
+out="$(jrun --root "$R" --yes)"
+assert_eq "a value that cannot be carried, run again: exits 0 and writes nothing" "0:$written:$before" "$?:$(cat "$(yaml_of "$R")"):$(od -c "$R/.claude/fixture.json")"
+assert_contains "a value that cannot be carried, run again: already configured" "$out" "already configured; nothing written"
+
+# Both locations: the new one wins and the run warns, naming both.
+R="$(new_root mig-both)"
+printf 'mode: fast\n' >"$(yaml_of "$R")"
+old_yaml "$R" $'mode: slow\nworkers: 3\n'
+out="$(mrun --root "$R" --state)"
+assert_contains "both locations: --state prints migrate" "$out" "migrate .claude/fixture.yaml"
+assert_contains "both locations: --state warns, naming both" "$out" "WARN both .claude/fixture.yaml and docs/conventions/fixture.yaml exist"
+out="$(mrun --root "$R" --yes)"
+assert_eq "both locations: exits 0" "0" "$?"
+assert_contains "both locations: the run warns, naming both" "$out" "WARN both .claude/fixture.yaml and docs/conventions/fixture.yaml exist; docs/conventions/fixture.yaml wins"
+assert_contains "both locations: the value the new file sets is not carried" "$out" "WARN .claude/fixture.yaml: mode=slow: docs/conventions/fixture.yaml sets mode=fast; not carried"
+assert_eq "both locations: the new value wins and the other is carried" \
+  $'mode: fast\nworkers: 3\nwritten_against: fixture@1.1.0\nprovenance:\n  mode: chosen (default safe)\n  workers: chosen (default 4)' \
+  "$(cat "$(yaml_of "$R")")"
+assert_eq "both locations: the retired file is left in place" $'mode: slow\nworkers: 3' "$(cat "$R/.claude/fixture.yaml")"
+
 # --- Long whitespace runs: the line scan is linear ----------------------------
 # Each line holds a 200,000-space run; all three together finish within 1 s.
 # The expected keys and values follow from the key and comment rules above:

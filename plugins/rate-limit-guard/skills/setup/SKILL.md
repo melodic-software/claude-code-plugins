@@ -58,12 +58,17 @@ and the StopFailure hook, not an operator-editable surface.
 
 Action routing: no argument or `check` runs the check.
 
-The code is the source of truth for its own behavior. Read `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx`
-and `${CLAUDE_PLUGIN_ROOT}/hooks/record-rate-limit-stop.sh` when a finding depends on what they do,
-rather than reciting this file. The consumer-facing constants (snapshot path, threshold, staleness rule)
+The code is the source of truth for its own behavior. Each `check` step below states what its row
+needs; read `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx` or
+`${CLAUDE_PLUGIN_ROOT}/hooks/record-rate-limit-stop.sh` only for a finding no step covers. The consumer-facing constants (snapshot path, threshold, staleness rule)
 are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
+
+Label every row PASS, FAIL, INFO or UNKNOWN. A check that cannot run here (a command missing or
+refused, a file the session may not read) is UNKNOWN with the reason, never "skipped" or "not run".
+Give each FAIL exactly one remediation line; a FAIL that depends on a condition names it in that
+line.
 
 1. **`node`.** The pre-computed `node` row. FAIL if absent: the `StopFailure` row in
    `hooks/hooks.json` is exec form, `"command": "node"` with `hooks/exec-bash.mjs` in `args`, so
@@ -94,7 +99,8 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      temporary directory and read its message against the table at the pointer below. It reports
      whether mods can load on this build under the settings a fresh process reads, and nothing
      about this session. Label the row "machine-level: mods can load on this build" or
-     "machine-level: mods off (<cause the table gives>)", never as this session's state.
+     "machine-level: mods off (<cause the table gives>)", never as this session's state. The row
+     is INFO, or UNKNOWN when `claude plugin test` cannot run here.
    - Where mods are off, the guard runs reactive-only there: the StopFailure hook still records,
      and the file updates only from other sessions that run the module.
 
@@ -112,7 +118,9 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      operable floor fixes (read the value there, never from here; a number restated in this file
      is a copy nothing keeps in step with the contract) → PASS (proactive mode available).
    - Fresh but `rate_limits` absent → INFO: the sessions writing it see no subscription windows
-     (API-key or enterprise auth); consumers correctly run reactive-only. Not a defect.
+     (API-key or enterprise auth); consumers correctly run reactive-only. Not a defect. The module
+     writes `rate_limits` only when its session sees subscription windows, so this row needs no
+     source read.
    - Absent or stale while step 2 reported mods off, or while `rate_limit_guard_enabled` (step 5)
      is `false` → INFO with that row's wording: no module writes from here. Not a missing
      instrument and not a wiring defect.
@@ -125,7 +133,8 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    `~/.claude/rate-limit-guard/stop-events.jsonl` exists. Absent just means no rate-limit stop has
    been recorded yet.
 5. **Option posture.** Report every option, each as its own row with the value substituted below
-   and what that value does. Never collapse them into one "active" status: a plugin that is
+   and what that value does, even when every value is UNKNOWN. Never collapse them into one
+   "active" or "UNKNOWN" status: a plugin that is
    enabled while its writes or lines are off is the exact state a person is diagnosing when the
    file is stale or the lines are missing.
 

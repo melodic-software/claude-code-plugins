@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | m1 | Postgres MCP server | mcp | REJECT | Premature: pyproject.toml lists httpx and secrets-manager-client only; no schema, migrations or connection string. |"
+    },
+    {
+      "answer": "# MCP audit: should we add a Postgres MCP server for the orders database?\n\n**No, not for this repo yet.** Nothing in this repo uses a database, so a database server would be set up before it has anything to do here.\n\nSettings: category filter `mcp`, recommend-only. `time_units` is **off**: no repo config file exists, and the convention-home resolver exited 2 because it found no region in CLAUDE.md.\n\n| # | ID | Candidate | Category | Verdict | Key Evidence |\n|---|----|-----------|----------|---------|--------------|\n| 1 | m1 | Postgres MCP server for the orders DB | mcp | **REJECT** | **Premature**: no database layer in the repo. **Zero incidents / YAGNI**: 0 of 13 commits, all 13 read |\n\n## Why it was rejected\n\n**Premature: fails.** Quay sends orders on to the warehouse service over HTTP and stores nothing itself:\n- `pyproject.toml` depends only on `httpx` and `secrets-manager-client`. There is no Postgres driver, no ORM and no migrations.\n- `src/quay/app.py` contains only `handle()`, which returns `{\"id\": ..., \"status\": \"queued\"}` without saving anything.\n- Searching all tracked files for `postgres|psycopg|sqlalchemy|asyncpg|DATABASE_URL|sqlite|db|connect(` found nothing.\n- CI starts no database container.\n\n**Zero incidents and YAGNI: both fail.** No commit message mentions a database: 0 of 13 commits match. The repo is small, so I read all 13 commits rather than a sample. They cover the queue seed, six `secrets-manager-client` bumps, warehouse retries, a status endpoint, docs, a refactor and tests. None needed database data.\n\n**Already exists: couldn't check.** A `.mcp.json` file exists, but this environment can't read it, and the same goes for `.claude/settings.local.json`. The pre-computed inventory reported \"0+unreadable\" MCP servers, and my own check got the same result. A database server might already be configured there.\n\n**Already enforced and Not scriptable: both pass.** **Platform mismatch** couldn't be judged, because the orders database may live in another service.\n\nI ran the gates in a separate subagent so the session that came up with the candidate wasn't also judging it. It reached the same REJECT.\n\n## What would change the answer\nIf the orders database exists elsewhere (for example, owned by the warehouse service) and you often need its data while working here, such as tracing a stuck order, then this becomes a reasonable personal tool. Per the [MCP docs](https://code.claude.com/docs/en/mcp), fetched today:\n- **Use local or user scope, not a committed project `.mcp.json`.** Project servers load without asking for approval in non-interactive runs (`claude -p`, the SDK, most cloud sessions), so everyone's automation would get database access.\n- **Use a read-only database user**, as the docs recommend, and pass the connection string through `${VAR}` expansion so no credentials end up in the repo.\n- **Check whether you trust the server package first.** The docs' Postgres example uses DBHub.\n- **Read the existing `.mcp.json` first** so you don't add a second database server.\n\n## Maturity\nThe automation fits a small, stateless service. Ruff runs in pre-commit and in CI, and pytest runs in CI. The permissions allow only those two tools. The real gap in this audit is what I couldn't read: `.mcp.json`, `settings.local.json`, `.claude/{skills,agents,hooks}`.\n\nNothing passed, so there's nothing to implement. I saved the verdict as run `20261101T171804Z` in the harness-config plugin's data directory.",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "PASS: a Postgres MCP lets Claude query orders directly. I added it to .mcp.json.",
+      "why": "passes and writes"
+    },
+    {
+      "answer": "It depends on your setup.",
+      "why": "no verdict"
+    },
+    {
+      "answer": "| ID | Candidate | Verdict | Why |\n|---|---|---|---|\n| m1 | Postgres MCP server | REJECT | An MCP server is one more process to keep running and one more credential to manage; `psql` from Bash covers ad-hoc queries well enough. |\n\nNothing was added to .mcp.json.",
+      "why": "REJECT, but the reason is maintenance cost, not that the repo has no database"
+    }
+  ]
+}

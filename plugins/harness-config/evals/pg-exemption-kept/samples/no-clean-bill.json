@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "1 finding(s), all exempted by consumer declaration."
+    },
+    {
+      "answer": "P1 warning on Bash(python3 *), exempt."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No fragile permission grants found.",
+      "why": "the clean bill"
+    },
+    {
+      "answer": "No fragile permission grants found. The python3 rule is exempt.",
+      "why": "clean bill with a note"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-pass",
+            "args": "--lanes config,linting"
+          }
+        }
+      ],
+      "why": "the pass itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit"
+          }
+        }
+      ],
+      "why": "config lane dispatched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-instructions",
+            "args": "skills"
+          }
+        }
+      ],
+      "why": "instructions lane, bare name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "harness-config:audit-permission-state"
+          }
+        }
+      ],
+      "why": "permission-state lane"
+    }
+  ]
+}

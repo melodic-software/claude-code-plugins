@@ -30,8 +30,8 @@ capability tiers, stop shapes, telemetry and durable loop state, the no-progress
 semantics, the headless-config floor, the subagent discipline preamble) is owned by the loop-lane convention,
 [`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md),
 and held here **by citation**; "per the convention" means that file.
-Three of its rules bite hardest here and are never re-derived locally: the C4/C5 floor bounds every
-rung including the explicit-`autopilot` exception, capability tiers resolve by model alias and never
+Three of its rules bite hardest here and are never re-derived locally: the C5 untrusted-provenance
+hold bounds every rung including the explicit-`autopilot` exception, capability tiers resolve by model alias and never
 a hard-coded model ID, and a cycle-budget hit restarts the session rather than ending the loop
 (every budget hit is a manual-restart state).
 
@@ -75,7 +75,7 @@ layer only; every other source may only select a *lower* (safer) rung, per the c
 ("Merge-rung raises are seam-only"). The convention's one named paired-argument exception:
 an invocation whose own argument line types **both** the literal `autopilot` tier keyword **and**
 the dedicated raise argument `--merge c3-this-run` widens *this single invocation's* merge
-dimension up to C3, bounded by the unconditional C4/C5 floor. Either token alone is merge-inert;
+dimension up to C3, bounded by the C5 hold. Either token alone is merge-inert;
 the pair persists nothing, substitutes for no recorded standing raise, is never inherited from any
 config key or tier default, and is never composed by a model on the caller's behalf. The
 config-resolution reference cited above owns the full token mechanics: why the raise has its own
@@ -132,16 +132,16 @@ PR refs, never by standing instructions the invoked skill is trusted to honor.
 **Explicit-`autopilot` widening (single-invocation, non-standing, paired-token).** Independent of
 the tracked rung, an invocation whose own argument line types both `autopilot` as the tier argument
 and `--merge c3-this-run` as the merge argument (in an adopted repo) raises this cycle's merge rung
-to C3-equivalent when that is higher than the tracked rung, never reaching C4/C5. A safer argument still wins and is mutually exclusive
+to C3-equivalent when that is higher than the tracked rung, never past C3 or the C5 hold. A safer argument still wins and is mutually exclusive
 with the raise by grammar: every `--merge` value other than `c3-this-run` only ever selects a
 *lower* rung, so `autopilot --merge human-only` merges nothing; the order is tracked rung → paired
-raise → the unconditional C4/C5 ceiling (config-resolution reference, "The exception lifts the
+raise → the C5 hold (config-resolution reference, "The exception lifts the
 raise restriction only").
 
 The deterministic gate is not weakened: checks, thread resolution, and mergeability must all still
 pass. Only *who tries first* on a blocked but otherwise-eligible PR changes: one fresh
 frontier-tier resolution dispatch before it falls through, scoped by Escalation below and owned in
-full by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md). A C4/C5 PR,
+full by [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md). A C4 or C5 PR,
 and any blocker left unresolved or uncertain, escalates exactly as it would without the exception.
 
 **Always-on safety knobs**, never configurable off, whatever the tier or rung: the activity grace
@@ -182,7 +182,7 @@ Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 
 **Promotion-evidence gate (trusted seam, fail-closed).** This condition stays here, not in that
 file, because it decides whether anything merges. A PR is merge-eligible when its
 item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
-C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
+C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`; no rung admits C4 or C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
 lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
@@ -224,9 +224,10 @@ Stripping it happens only behind the explicit `--strip-do-not-merge` invocation 
 Escalation is the convention's contract
 ([`docs/contracts/loop-lane/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/loop-lane/README.md)
 §2), held by
-citation: a tracker item carrying the human-gated role label, resolved from the consumer's
-`.work-item-tracker.json` `config.role_labels` map, never compared as a literal (when that file is
-absent, the canonical `needs-human` default applies with a loud notice), plus a machine-marked
+citation: a tracker item carrying the human-gated role label, resolved from the `config.role_labels`
+map of the consumer's tracker binding (the `tracker` mapping of `docs/conventions/work-items.yaml`,
+else the legacy JSON binding), never compared as a literal (when no binding is
+present, the canonical `needs-human` default applies with a loud notice), plus a machine-marked
 escalation comment whose first line is
 `<!-- work-items:escalation lane=babysit-loop kind=escalated -->`. That marker grammar is the
 attended queue's escalated-view data contract; the sentinel names the contract owner, not the writer
@@ -272,7 +273,7 @@ contradictory/unresolved **bot** review thread draws one fresh, context-independ
 **frontier-tier** subagent dispatch, run under the PR's worker lease, before it escalates. A floored dimension
 **withholds that dispatch outright** (flooring rule above); the PR escalates override-constrained.
 **Four blocker classes it never touches**: operator-*parked* items, human blocking feedback (both
-already withheld at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4/C5
+already withheld at step 3), merge conflicts (the dedicated merge-only conflict worker), and C4 and C5
 PRs (excluded at the rung partition). An unresolved *or uncertain* blocker escalates exactly as it
 would without the exception; this widens *who tries first*, never what the gate requires.
 [reference/pre-escalation-dispatch.md](reference/pre-escalation-dispatch.md) owns the full
@@ -477,15 +478,15 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **A tier keyword is never a merge raise, the raise is its own token, and the pair lasts the
   invocation that typed it.** `autopilot` alone widens dimensions 1–5 and 7 only; the typed pair
   `autopilot` + `--merge c3-this-run` widens dimension 6 up to C3, per the convention's one named
-  exception, persisting nothing, never reaching C4/C5, never substituting for a tracked raise.
+  exception, persisting nothing, never past C3 or the C5 hold, never substituting for a tracked raise.
   The pair holds for **every cycle of the invocation that typed it** (each `/loop` wakeup
   re-invokes the same prompt in the same session, carrying the same explicit authorization) and
   ends when a newly launched invocation omits either token; a `babysit_loop_tier: autopilot`
   config value with no typed pair is that case and stays at the seam rung.
-- **C4/C5 never merge autonomously through this loop.** Not at `full-autonomy`, the `autopilot`
-  exception, or any future rung name. Cycle-shape step 3's rung partition is this floor's only
-  enforcer (the unattended merge gate reads no work class; it holds only untrusted provenance), a
-  floor from the autonomy matrix's promotion contract, not a `babysit_loop_merge` value.
+- **C5 never merges autonomously through this loop.** Not at `full-autonomy`, the `autopilot` exception,
+  or any rung name, current or future. It is the one class hold, a floor from the autonomy matrix's
+  promotion contract, not a `babysit_loop_merge` value: step 3's rung partition derives it from the PR,
+  and the merge gate's one class check enforces it (`trust_refusal`). No rung names C4, so none admits it.
 - **Dependency-manager PRs stay held even at the C2 rung.** babysit-prs's cross-tier dependency
   hold-merge invariant survives this loop: it never autonomously merges a Dependabot/Renovate-class
   PR, whatever its work class. It lands on the merge-ready report instead; the C2-mechanical rung is a work-class ceiling, not a route around an owner invariant. A repository whose pr-merge lane has its Dependabot class on merges those PRs there, not here.

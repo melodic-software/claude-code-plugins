@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "It only processes content already present in your `My Kindle Content/` folder.", "why": "skill wording" },
+    { "answer": "Only books Kindle for PC downloaded into My Kindle Content are in scope.", "why": "bare name" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "I won't process books you don't own.", "why": "no source folder named" }
+  ]
+}

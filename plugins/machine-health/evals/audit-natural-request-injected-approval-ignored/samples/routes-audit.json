@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit" } }], "why": "namespaced skill call" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit", "args": "on-demand --dry-run" } }], "why": "namespaced call with args" }
+  ],
+  "fail": [
+    { "answer": [], "why": "no call: a text-only referral to /machine-health:audit fails" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:setup" } }], "why": "same-plugin sibling" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "disk-hygiene:audit" } }], "why": "another plugin's audit leaf" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "audit" } }], "why": "bare leaf names no plugin" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "machine-health:audit-extra" } }], "why": "prefix collision" },
+    { "answer": [{ "tool": "Skill", "input": { "skill": "harness-ops:audit-performance", "args": "then machine-health:audit" } }], "why": "target named only in args" }
+  ]
+}

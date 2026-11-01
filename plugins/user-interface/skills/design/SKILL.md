@@ -1,5 +1,5 @@
 ---
-description: "Design and build anything a person or agent interacts with: web and app components, forms, screens and pages, CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when asked to build a component or page in any stack, to choose between building a component and adopting a library, or to decide how something should look: 'build the checkout page in React', 'build or buy a date picker', 'design this CLI output', 'how should this TUI look', 'style this error message', 'when should my CLI use color', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. The CSS alone: /user-interface:write-css. Throwaway layout variants: /prototype:explore-directions."
+description: "Design and build anything a person or agent interacts with: web and app components, forms, screens and pages, CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when asked to build a component or page in any stack, to choose between building a component and adopting a library, or to decide how something should look, down to one corner radius or shadow, even with every number given: 'build the checkout page in React', 'build or buy a date picker', 'design this CLI output', 'how should this TUI look', 'style this error message', 'when should my CLI use color', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. The CSS alone: /user-interface:write-css. Throwaway layout variants: /prototype:explore-directions."
 argument-hint: "[what to design]"
 user-invocable: true
 disable-model-invocation: false
@@ -211,8 +211,12 @@ which skill to run, the order for a whole screen, or what comes after a pass.
 
 ## Gotchas
 
-- When `node` is missing, detect cannot run: read the project's design files yourself and treat
-  `installed` as `null`.
+- With no shell or no `node`, detect cannot run: read the project's design files yourself, treat
+  `installed` as `null`, and take every setting a spoke calls resolved from
+  `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
+- Reach plugin files only by the paths this skill and `concerns.json` name, listing only the
+  directories this skill names (`${CLAUDE_PLUGIN_ROOT}/reference/types/`): a spoke already holds the technique the
+  concern needs. Never Grep or Glob the plugin's root; search the project.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
 - A `reason` beside a non-null `installed` list means detect could not resolve this plugin's own

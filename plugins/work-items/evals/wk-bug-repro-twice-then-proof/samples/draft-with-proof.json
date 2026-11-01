@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "After the fix, the same command ran twice on the patched build and printed `Hello, Ann` both times. With that before-and-after proof in `## Verification`, the PR opens as a draft.",
+      "why": "draft with before-and-after proof"
+    },
+    {
+      "answer": "After-evidence: two runs of `widget greet --name Ann` on the patched build, both `Hello, Ann`. PR #12 opened as a draft.",
+      "why": "after-evidence named, draft"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The unit test passes, so I opened PR #12 and marked it ready for review.",
+      "why": "no draft, no proof"
+    },
+    {
+      "answer": "Opened a draft PR once pytest passed.",
+      "why": "draft without before-and-after proof"
+    }
+  ]
+}

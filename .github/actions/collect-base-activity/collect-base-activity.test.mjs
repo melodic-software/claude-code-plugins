@@ -349,6 +349,24 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
   }
 });
 
+// check-changed-skills.sh --merge-base runs the checker beside its scripts/
+// copy, never the checkout's.
+test("a listed check's copy carries the base's skill-quality scripts", () => {
+  const scripts = path.join(base, "plugins", "skill-quality", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "check-skill.sh"), "#!/usr/bin/env bash\necho base checker\n", { mode: 0o755 });
+  writeFileSync(path.join(scripts, "metadata-registry.txt"), "category\n");
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    const copy = path.join(checksDir, "plugins", "skill-quality", "scripts");
+    assert.equal(readFileSync(path.join(copy, "check-skill.sh"), "utf8"), "#!/usr/bin/env bash\necho base checker\n");
+    assert.equal(readFileSync(path.join(copy, "metadata-registry.txt"), "utf8"), "category\n");
+  } finally {
+    rmSync(path.join(base, "plugins", "skill-quality"), { recursive: true });
+  }
+});
+
 // A skill that commits runs its checks, fixes and re-runs them before it
 // commits, since the checks read the working tree (#8319 review).
 test("a committing skill with checks is told to commit after the checks and their fixes", () => {
@@ -661,6 +679,45 @@ test("new-changelog-fragment writes a fragment into the checkout from the read-o
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /^\.changes\/alpha\/fix-x-[0-9a-f]{8}\.md\n$/);
   assert.equal(readFileSync(path.join(workspace, run.stdout.trim()), "utf8"), "---\nbump: patch\n---\n\n");
+});
+
+// An issue lane's checkout is detached: the wrapper names the fragment after
+// the lane branch built from the run's ids, and a caller's value cannot steer it.
+test("in an issue lane new-changelog-fragment names a detached checkout's fragment after the lane branch", () => {
+  const files = ["scripts/new-changelog-fragment.sh", "scripts/lib/changelog-fragments.sh", "scripts/lib/read-list.sh"];
+  for (const file of files) {
+    mkdirSync(path.join(base, path.dirname(file)), { recursive: true });
+    writeFileSync(path.join(base, file), readFileSync(new URL(file, REPO)));
+  }
+  const { status, verifyDir, workspace } = withVerify([files[0]], { ISSUE_NUMBER: "77", RUN_ID: "123", RUN_ATTEMPT: "2" });
+  assert.equal(status, 0);
+  const git = (...args) => spawnSync("git", ["-C", workspace, "-c", "commit.gpgsign=false", "-c", "user.name=t", "-c", "user.email=t@example.com", ...args]);
+  git("init", "-q");
+  mkdirSync(path.join(workspace, "plugins", "alpha", ".claude-plugin"), { recursive: true });
+  writeFileSync(path.join(workspace, "plugins", "alpha", ".claude-plugin", "plugin.json"), '{"name":"alpha"}\n');
+  mkdirSync(path.join(workspace, "scripts"), { recursive: true });
+  writeFileSync(path.join(workspace, "scripts", "fragment-plugins.txt"), "alpha\n");
+  git("add", "-A");
+  git("commit", "-qm", "base");
+  assert.equal(git("checkout", "-q", "--detach").status, 0);
+  const run = spawnSync(path.join(verifyDir, "bin", "new-changelog-fragment"), ["alpha", "patch"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, CHANGELOG_FRAGMENT_BRANCH: "steered" },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^\.changes\/alpha\/work-resolve-issue-issue-77-123-2-[0-9a-f]{8}\.md\n$/);
+});
+
+test("an issue lane refuses to stage new-changelog-fragment without a numeric run id and attempt", () => {
+  const script = "scripts/new-changelog-fragment.sh";
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, script), readFileSync(new URL(script, REPO)));
+  for (const ids of [{}, { RUN_ID: "123", RUN_ATTEMPT: "2 x" }]) {
+    const { status, stdout } = withVerify([script], { ISSUE_NUMBER: "77", ...ids });
+    assert.notEqual(status, 0);
+    assert.match(stdout, /the issue number, run id or run attempt is not a number/);
+  }
 });
 
 test("run-test-file runs an in-checkout test file by its runner and prints the exit status", () => {

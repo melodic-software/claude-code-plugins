@@ -54,6 +54,14 @@ test("an install-failed or no-execution run keeps its output record", () => {
   }
 });
 
+// The read runner passes run-claude-cli's lane-class through, so a leg that
+// credit-stopped without handing off reaches here as credit-stop.
+test("a credit stop keeps its output record under its own class, with no reset", () => {
+  const record = laneRecordOutput({ lane: "pr-unblock", activity: "fix-ci", failureClass: "credit-stop", resets: RESETS, turns: "1" });
+  assert.equal(record.line, "lane=pr-unblock activity=fix-ci class=credit-stop turns=1");
+  assert.equal(record.text, '```json\n{"lane":"pr-unblock","activity":"fix-ci","class":"credit-stop","turns":1}\n```');
+});
+
 test("no record, an unknown class, or a malformed name add no output record", () => {
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x" }), null);
   assert.equal(laneRecordOutput({ lane: "pr-unblock", activity: "x", failureClass: "forged class" }), null);

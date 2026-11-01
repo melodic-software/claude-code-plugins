@@ -251,7 +251,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
    review workflows as `run-dispatcher-upstreams`: a run of that dispatcher, started by `workflow_run`,
    vouches with no actor check when its `pr-feedback-dispatched-<upstream id>-<this run's id>`
    artifact names a `pull_request` run of one of those workflows in this repository, started by
-   the lanes App or a listed human, at the PR's current head. A job after pr-unblock's model job
+   the lanes App or a listed human, at the PR's current head. Both also pass
+   `run-dispatcher-relay: .github/workflows/pr-review-comment-relay.yml`: that record may instead
+   name a `pull_request_review_comment` run of the relay that lists the PR in `pull_requests`,
+   started and any re-run by a listed human, never the lanes App, at the PR's current head
+   ([ADR 0088](../../adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+   A job after pr-unblock's model job
    passes that job's `head-sha` as `expected-upstream-head`, and apply-feedback-patch's
    `pushed-commit` output as `pushed-commit`: the review must then be of that head, and the PR
    must be at it or at that pushed commit. Any other head stops the run, a lanes App commit of
@@ -438,7 +443,8 @@ starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets nei
 sentence says to leave every change uncommitted for the runner to collect; a
 `prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` and
+`plugins/skill-quality/scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
 pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on
@@ -469,7 +475,9 @@ with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-lin
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
 itself, or hand the run a power it may hold. `resolve-issue` lists no script that runs
 checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
-each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. Its check
+`scripts/check-changed-skills.sh --merge-base` runs the base copy of `check-skill.sh` over the
+skills the change touches, untracked ones included, with both of those skipped. It lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
 limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
@@ -498,7 +506,11 @@ change reaches the branch through `commit_files` and `delete_files`. `resolve-is
 --show-toplevel` from its working directory (exit 2 outside one), writes only new
 `.changes/<plugin>/<slug>.md` files there, refuses a plugin name outside `[a-z0-9-]` and a linked
 `.changes` or `.changes/<plugin>`, and reads `--carriers-of` through its own copy's
-`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry.
+`sync-shared-copies.sh`, never the checkout's; that script reads the checkout's registry. The
+issue lane's checkout is detached, so in an issue lane its wrapper exports
+`CHANGELOG_FRAGMENT_BRANCH=work-resolve-issue/issue-<n>-<run id>-<attempt>` from the run's own
+ids, and the script names a detached HEAD's fragment after it; a person's run on a branch ignores
+the variable.
 Every activity whose effect is not `read`, and a read skill that hands on a patch, also gets
 `--disallowedTools` rules for the shell commands that can print a file or the environment,
 including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `head`, `tail`,
@@ -2113,9 +2125,19 @@ caller or the write file merges while it waits, the broker would refuse the appl
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
 rule. On a difference it sets `stale=true` and ends green: the `Stop on stale workflow files`
-step runs, `go` is `false`, so no model turn, no outcome marker and no caller job follows, and
-the run counts as no failure. work-unblock's hourly sweep finds that step in the run's job
-listing and re-fires the issue on main's files, once per version of the two files. An issue that
+step runs, `go` is `false`, so no model turn and no outcome marker follows. The caller's
+`resolve-issue-stale` job, on a run that started no skill and reused no branch, finds that step
+in the run's job listing (`handoff-evidence.sh stale`, over every call) and runs `report-outcome`
+with `dimension-skip: workflow-stale`. The broker mints for that report job while each main
+change to the two files is recent (Broker reasons, `workflow-modified`), and
+`report-outcome.mjs` re-fires the issue at once on main's files: it checks the two blobs at the
+run's commit still differ from main's, that the issue is open with `agent-ready` on and no hold,
+posts work-unblock's re-fire record and removes and re-adds `agent-ready` as the App. It stops
+after `limits.limit-stops-per-issue` such records since a listed human last added
+`agent-ready` or a run last reported, so a main that moves faster than the slots drain backs off
+to work-unblock's hourly sweep, which finds the stop step in the job listing (a refused report
+mint included) and re-fires the issue once per version of the two files. A stale stop is no
+outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with

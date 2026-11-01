@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "not an Agent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lane 1",
+            "prompt": "audit"
+          }
+        }
+      ],
+      "why": "dispatched a lane"
+    }
+  ]
+}

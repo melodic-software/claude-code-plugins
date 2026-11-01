@@ -1,6 +1,6 @@
 {
   "name": "toolchain",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "description": "Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, Go, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint` with format-only `--fix` and gated `--code-fix`), `/toolchain:setup` for the per-ecosystem command config, `/toolchain:ratchet` for a CI ceiling on a count, and a turn-end Stop hook that warns when the recorded check or lint result is not a pass.",
   "author": {
     "name": "Melodic Software",

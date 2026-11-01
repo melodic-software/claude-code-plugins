@@ -26,6 +26,8 @@ const ACTIONS_BOT_ID = 41898282;
 // A workflow_dispatch dispatcher must come from a listed human; push and
 // schedule name none.
 const DISPATCHER_EVENTS = new Set(["push", "schedule", "workflow_dispatch"]);
+// The one event a run-dispatcher-relay upstream runs on.
+const RELAY_EVENT = "pull_request_review_comment";
 // The dispatcher dispatches within seconds of starting; a longer run must not
 // keep its window open.
 const WINDOW_MS = 10 * 60 * 1000;
@@ -789,8 +791,11 @@ async function requireRecorded({ github, repository, dispatcherRunId, runId, via
 // run its record names must be one of runDispatcherUpstreams, run on
 // pull_request in this repository, started (and any re-run) by the lanes App
 // or a listed human, at the PR's current head or at expectedUpstreamHead
-// with the PR at it or at pushedCommit (upstreamHeadHolds). Returns this
-// run's own record.
+// with the PR at it or at pushedCommit (upstreamHeadHolds). An upstream of
+// runDispatcherRelay instead must have run on pull_request_review_comment,
+// name the PR among its pull_requests, and be started (and any re-run) by a
+// listed human, never the lanes App: a review comment relayed by path, event
+// and actor (ADR 0088). Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -802,6 +807,7 @@ async function verifyDispatcher({
   dispatcherWorkflow,
   runDispatcherWorkflow,
   runDispatcherUpstreams,
+  runDispatcherRelay = "",
   expectedUpstreamHead,
   pushedCommit,
   lanesAppId,
@@ -868,14 +874,24 @@ async function verifyDispatcher({
     // the lanes App or a listed human.
     const vouches = (user) =>
       Number.isInteger(user?.id) && (user.id === lanesAppId || isListedHuman(user));
+    // A relayed review comment: only a listed human vouches, never the lanes
+    // App, and the run must name the PR.
+    const relayed = runDispatcherRelay !== "" && upstream.path === runDispatcherRelay;
+    const startedBy = relayed
+      ? upstream.event === RELAY_EVENT &&
+        Array.isArray(upstream.pull_requests) &&
+        upstream.pull_requests.some((entry) => entry?.number === pull.number) &&
+        isListedHuman(upstream.actor) &&
+        isListedHuman(upstream.triggering_actor)
+      : runDispatcherUpstreams.includes(upstream.path) &&
+        upstream.event === "pull_request" &&
+        vouches(upstream.actor) &&
+        vouches(upstream.triggering_actor);
     const reviewed =
       String(upstream.id) === found &&
-      runDispatcherUpstreams.includes(upstream.path) &&
-      upstream.event === "pull_request" &&
+      startedBy &&
       upstream.repository?.full_name === repository &&
       upstream.head_repository?.full_name === repository &&
-      vouches(upstream.actor) &&
-      vouches(upstream.triggering_actor) &&
       upstreamHeadHolds({ upstreamSha: upstream.head_sha, pullSha: pull.head.sha, expectedUpstreamHead, pushedCommit });
     if (!reviewed) {
       throw new Stop("untrusted-actor");
@@ -1131,6 +1147,7 @@ export async function evaluateTrigger({
   dispatcherWorkflow = "",
   runDispatcherWorkflow = "",
   runDispatcherUpstreams = [],
+  runDispatcherRelay = "",
   expectedUpstreamHead = "",
   pushedCommit = "",
   lanesAppId = null,
@@ -1216,6 +1233,7 @@ export async function evaluateTrigger({
       dispatcherWorkflow,
       runDispatcherWorkflow,
       runDispatcherUpstreams,
+      runDispatcherRelay,
       expectedUpstreamHead,
       pushedCommit,
       lanesAppId,
@@ -1317,6 +1335,7 @@ export async function main({ env = process.env, github, sleep = defaultSleep, at
       dispatcherWorkflow: env.DISPATCHER_WORKFLOW ?? "",
       runDispatcherWorkflow: env.RUN_DISPATCHER_WORKFLOW ?? "",
       runDispatcherUpstreams: (env.RUN_DISPATCHER_UPSTREAMS ?? "").split(/\s+/).filter(Boolean),
+      runDispatcherRelay: env.RUN_DISPATCHER_RELAY ?? "",
       expectedUpstreamHead: env.EXPECTED_UPSTREAM_HEAD ?? "",
       pushedCommit: env.PUSHED_COMMIT ?? "",
       lanesAppId: /^[1-9][0-9]{0,14}$/.test(env.LANES_APP_ID ?? "") ? Number(env.LANES_APP_ID) : null,

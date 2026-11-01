@@ -1,12 +1,12 @@
 {
   "pass": [
-    {"answer": [{"tool": "Bash", "input": {"command": "gh pr view --json number,url,author,headRefName"}}], "why": "resolving the current branch's PR"},
-    {"answer": [{"tool": "Bash", "input": {"command": "python3 \"/plugins/source-control/skills/babysit-prs/scripts/pr_queue_snapshot.py\" --owners eval-fixture"}}], "why": "the engine's snapshot"},
-    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/source-control/scripts/source-control-babysit-merge\" eval-fixture/app#214 --allowed-owners eval-fixture --self-logins @me --state-dir /state"}}], "why": "the read-only merge gate"}
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\",\"--json\",\"number,url,author,headRefName\"]}\n", "why": "the stand-in served the current branch's PR"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"api\",\"user\",\"--jq\",\".login\"]}\n{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"list\",\"--state\",\"open\",\"--author\",\"@me\",\"--limit\",\"200\",\"--json\",\"number\",\"--jq\",\"length\"]}\n{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\",\"214\",\"--json\",\"mergeStateStatus\"]}\n", "why": "a read after the skill's pre-computed rows"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"repo\",\"view\",\"--json\",\"owner\",\"--jq\",\".owner.login\"]}\n", "why": "the readiness gate's owner lookup"}
   ],
   "fail": [
-    {"answer": []},
-    {"answer": [{"tool": "Bash", "input": {"command": "git branch --show-current"}}, {"tool": "Bash", "input": {"command": "git status --porcelain"}}], "why": "local git reads only"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git status", "description": "before gh pr view"}}], "why": "gh named only in the description"}
+    {"answer": "", "why": "an empty or missing record: the stand-in served nothing"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"api\",\"user\",\"--jq\",\".login\"]}\n{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"list\",\"--state\",\"open\",\"--author\",\"@me\",\"--limit\",\"200\",\"--json\",\"number\",\"--jq\",\"length\"]}\n", "why": "only the skill's pre-computed rows, written before the model acts"},
+    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\",\"--body\",\"read pr view later\"]}\n", "why": "a review call, not a served read"}
   ]
 }

@@ -70,7 +70,8 @@ Each entry gives:
 - **One GitHub probe.** Before the first of `ci-cd`, `gates`, `pr-review` and `tests`, run
   `gh repo view --json nameWithOwner --jq .nameWithOwner` once, with `GH_CONFIG_DIR` as the rule
   above sets it. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
-  are `not-checked`, `auth-gap`, reason "gh repo view failed: <its first error line>; run
+  are `not-checked` for their GitHub numbers (`pr-review` still makes its delivery call),
+  `auth-gap`, reason "gh repo view failed: <its first error line>; run
   `gh auth status`, and `gh auth login` if it shows no login for this host; this run used
   GH_CONFIG_DIR=<the value used, or unset>, so set the right one in the session that starts the
   run and rerun /performance:go-faster".
@@ -100,12 +101,15 @@ Each entry gives:
 an area entry uses only a call listed here. Check the skill
 is in your skill listing, invoke it with the Skill tool and exactly these arguments, and follow the
 procedure it returns. A missing skill, a refused call, or a result you cannot read makes the area
-`not-checked`, `owner-unavailable`, with the reason in the last column.
+`not-checked`, `owner-unavailable`, with the reason in the last column. The `pr-review` row is the
+exception: a missing skill or a refused call adds one delivery finding beside the pull request
+findings, and the entry's own `no-data` reasons cover the rest.
 
 | Area | Call | Read from what it returns | Stop following it when | `owner-unavailable` reason |
 |---|---|---|---|---|
 | `hooks` | `/harness-ops:observability latency` | per hook event p50 and p95, and which events it flags | never; the `latency` action is read-only | "hook latency needs /harness-ops:observability; enable the harness-ops plugin and rerun /performance:go-faster" |
 | `instructions`, `plugins-startup` | `/context-budget:audit --ledger` | the latest history row's startup token counts | its procedure asks you to take a snapshot, spawn a session, install anything or persist a report: stop, record `owner-unavailable`, reason "the ledger history is not reachable read-only from this run; this area applies only once /context-budget:audit's ledger holds a row, which it records only for a measured lever change" | "startup tokens need /context-budget:audit; enable the context-budget plugin and rerun /performance:go-faster" |
+| `pr-review` | `/work-items:measure-delivery`, with no arguments (its default: the 84 days to now, by week, from the branch `origin/HEAD` names) | the delivery-metrics script's JSON `totals`: `deployments`, `change_lead_time_hours_median`, `failed_deployment_recovery_time_hours_median`, `change_fail_rate`, `deployment_rework_rate` | its procedure asks you to run `git fetch`, to pass any argument or to ask for `--branch`, or it stops on its deploy signal: stop and record the `pr-review` entry's delivery `not-checked` line | "delivery metrics need /work-items:measure-delivery; enable the work-items plugin and rerun /performance:go-faster" |
 | `how-you-work` | `/session-flow:audit-sessions sweep-only` | the `audit-sessions.sweep/v1` JSON envelope and its exit code | its procedure asks you to collect, write a report or take any argument but `sweep-only`: stop, record `owner-unavailable`, reason "this session-flow version has no read-only sweep-only mode; update the session-flow plugin and rerun /performance:go-faster" | "the cross-session baseline needs /session-flow:audit-sessions; enable the session-flow plugin and rerun /performance:go-faster" |
 
 Never invoked, named only as a fix owner or as a step for the user:
@@ -115,6 +119,7 @@ Never invoked, named only as a fix owner or as a step for the user:
 - `/context-budget:audit` with any argument other than `--ledger`: a full audit takes snapshots,
   spawns sessions and offers an install.
 - `/harness-ops:audit-performance`: it writes a report file.
+- `/work-items:measure-delivery` with any argument: go-faster reads only its default window.
 
 **Upstream pointers.** The commands and file lists below depend on these upstream specifics; read
 them live when a command's output, or the files you find, do not match the entry. The
@@ -414,10 +419,13 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## pr-review
 
-- **Source**: merged pull request timestamps and reviews.
+- **Source**: merged pull request timestamps and reviews; the default branch's delivery metrics
+  from git history, through their owner.
 - **Run**: `"$PY" "$ROOT/scripts/findings.py" pr-timing`. It lists the 20 most recent merged pull
-  requests.
-- **Owner**: none.
+  requests. Then the `pr-review` owner call in the table above, `/work-items:measure-delivery`
+  with no arguments. It reads git history only, so it runs even when the GitHub probe failed.
+- **Owner**: none for the pull request numbers; work-items for the delivery numbers, through that
+  call only.
 - **Record**: a measured finding for open to first review from `first_review` (earliest review
   `submittedAt` minus `createdAt`, over PRs with a review), and one for open to merge from
   `open_to_merge` (`mergedAt` minus `createdAt`): median each, unit `wait-ms`, tier E2, workload
@@ -426,9 +434,30 @@ them live when a command's output, or the files you find, do not match the entry
   candidate only: tier E3, unit `count`, `expected_size`
   `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`, `command` its
   `command`, `fix_owner` `/performance:goal`, horizon `later`, route `next-run`.
+- **Record, delivery**: from `totals`, a measured finding for change lead time from
+  `change_lead_time_hours_median`, and one for failed deployment recovery time from
+  `failed_deployment_recovery_time_hours_median` when it is not null: unit `wait-ms`, value the
+  hours times 3600000, tier E2, workload `default-branch deployments, last 84 days`, `command`
+  exactly `/work-items:measure-delivery`, keys `pr-review/change-lead-time` and
+  `pr-review/recovery-time`, horizon `later`, route `next-run`, `fix_owner` `/performance:goal`,
+  and `guard_metric` "change_fail_rate and deployment_rework_rate from
+  /work-items:measure-delivery". Each title names the metric, its hours, `deployments`, and
+  both rates as percentages, and names no person.
 - **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time; this area
   applies once this repository has merged pull requests on GitHub". GitHub probe
-  failed or `pr-timing` exited 1: `auth-gap`, with that reason.
+  failed or `pr-timing` exited 1: `auth-gap`, with that reason. Each delivery case adds its own
+  finding beside these: `/work-items:measure-delivery` missing from your skill listing, or the
+  call refused: `owner-unavailable` with the owner table's reason. `deployments` is 0:
+  `no-data`, reason "no deployments on the default branch in the last 84 days; the delivery
+  numbers apply once the default branch has commits in that window". The script reports that
+  `origin/HEAD` names no default branch: `no-data`, reason "origin/HEAD names no default branch
+  in this clone; run `git remote set-head origin --auto`, then rerun /performance:go-faster".
+  The skill stops on its deploy signal: `no-data`, reason "/work-items:measure-delivery stopped
+  on deploy signal <the value it named>; the delivery numbers apply only where
+  `delivery_deploy_signal` is `merge-to-default-branch`". Its git read fails, or you stop
+  following its procedure for any other reason: `no-data`, reason "/work-items:measure-delivery
+  returned no totals: <its stderr line, or the step you stopped at>; run
+  /work-items:measure-delivery to see why, then rerun /performance:go-faster".
 - **Guard**: a required review or approval is a guard; a finding that would skip or relax one is
   `flag-only`.
 - **Catalog**: [catalog/review-and-tests.md](catalog/review-and-tests.md) and

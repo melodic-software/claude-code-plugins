@@ -1,0 +1,122 @@
+{
+  "skill": "harness-config:audit-instructions",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit-instructions",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice A (#11560); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings that read instruction text or test it: the posture audit (missing text), the bare-baseline experiment, the config audit and the coordinated pass.",
+  "competitors": [
+    "harness-config:audit-prompting-postures",
+    "harness-config:unhobble",
+    "harness-config:audit",
+    "harness-config:audit-pass"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I imported a file into CLAUDE.md with @docs/style.md but Claude never seems to know what's in it. What's wrong?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our CLAUDE.md says one thing about commit messages and a rule file under .claude/rules says the opposite. Which one does Claude actually follow?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "go through AGENTS.md and the rules folder and point out anything that describes Claude Code features in a way that isn't accurate anymore"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I feel like my skill files are way too bossy, full of MUST and NEVER everywhere. Review them and tell me where they overconstrain the model."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "check the text in our agent definitions and hook messages for instructions that contradict each other or are just wrong"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is anything in this repo's CLAUDE.md out of date given how Claude Code works today? Report only, don't edit."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "two of my skills give conflicting directions about when to open a PR, find every conflict like that across the instruction files"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My rules file claims that subagents inherit the parent's CLAUDE.md automatically. Is that statement still correct, and are there other misstatements like it?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go through the guidance we've written for Claude in this repo and point out what's outdated or too rigid."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "nested CLAUDE.md in the api folder and the root one both set a test command, which wins and is either one wrong?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My skill never says when to hand back to the user or when to delegate to a subagent. What posture guidance is it missing per the prompting guide?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Let's delete the whole CLAUDE.md for a week and only bring back the rules the model keeps tripping over."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "review the system prompt in our Python app that calls the Messages API, and help migrate it to the newer model"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "check my settings.json hooks block and .mcp.json for config errors against the docs"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does my CLAUDE.md say anything about when to stop and ask before running destructive commands? Add what's missing to the report."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "a new model just came out, I want to re-baseline whether any of my standing instructions are still needed by running without them"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the full coordinated audit over this repo across every scope and give me one reconciled report."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "the prompt template in our customer support bot keeps getting refusals from Claude, can you audit it?"
+    }
+  ]
+}

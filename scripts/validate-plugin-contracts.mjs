@@ -421,13 +421,15 @@ if (existsSync(aiBriefingBrandOverlay)) {
 // token and bare fleet repo names may not appear anywhere under it. Author
 // metadata in plugin.json is the single allowed occurrence. The normative
 // reference/ docs additionally ban vendor names outright: surface classes
-// replace them; tool-specific detail lives in SKILL.md/README.
+// replace them; tool-specific detail lives in SKILL.md/README. Its changelog
+// fragments are gated too: release copies them into the plugin's CHANGELOG.md.
 const autonomyRoot = join(pluginRoot, "autonomy");
 if (existsSync(autonomyRoot)) {
   const fleetTokens = orgTokens.autonomy;
   const vendorTokens = /github|gitlab|bitbucket|slack|anthropic|claude|openai|copilot|cursor|devin/i;
   const autonomyReference = join(autonomyRoot, "reference") + sep;
-  for (const path of filesIn(autonomyRoot)) {
+  const autonomyFragments = filesUnder(join(root, ".changes", "autonomy"));
+  for (const path of [...filesIn(autonomyRoot), ...autonomyFragments]) {
     let content = read(path);
     if (path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) {
       // Only the author block is exempt; description/keywords/etc. stay gated.

@@ -3,6 +3,50 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.82.0] - 2026-11-01
+
+### Added
+
+- `fix_request_post` (`block` default, `allow`) in `docs/conventions/guardrails.yaml` sets whether `block-fix-request-post` blocks the PR-fix lane fix request for sessions working in that repository. It is read from the session's repository at its local `origin/HEAD`, never the working tree or index, so an edit and `git add` do not lift it. Under `allow` the guard lets the post through, whichever repository it targets. No such ref or file, a missing key, a file that does not parse, or any other value keeps it blocking. The hook's known gaps name what still lifts it: a rewritten local `origin/HEAD`. New schema: `schemas/guardrails.schema.json`.
+
+## [0.81.0] - 2026-11-01
+
+### Added
+
+- A `pre-push-content` git-hook entry runs the `pre-commit-content` secrets and machine-specific path scan at push time, on every pushed ref. It covers commits the commit-time check never judged: commits made before the hooks were installed, commits from a tool or clone without them, and commits rebased or cherry-picked in. Each pushed commit is judged on the lines it adds to its parent, so a token that one commit adds and a later commit of the same push removes still fails the push. A merge is judged on the lines it adds against every parent. Commits a remote-tracking ref already holds are not judged again. Each finding names its commit. The entry honors `checks.guardrails.pre-push-content.declined`, and the lefthook remote runs it as a second sequential `pre-push` job.
+
+### Changed
+
+- `pre-commit-content` now runs its scan from `git-hooks/content-scan.sh`, which `pre-push-content` shares; installs copy that file beside the entry as an asset. What it judges and reports is unchanged.
+- The setup skill's lefthook guidance now says that lefthook gives the pushed refs to every `use_stdin` job while the `pre-push` jobs run one after another, and that under `parallel: true` the jobs read one shared stream.
+
+## [0.80.0] - 2026-11-01
+
+### Added
+
+- `block-cross-domain` denies a call that switches gh's account or removes `GH_TOKEN` from a session whose domain has a `gh_config_dir`, whatever `GH_CONFIG_DIR` the call runs with. Denied: `gh auth switch`, `gh auth login` and `gh auth logout`; `unset GH_TOKEN`, `export -n GH_TOKEN` and `env -u GH_TOKEN` in each spelling; an assignment that empties `GH_TOKEN` (`GH_TOKEN=`, PowerShell's `$env:GH_TOKEN = ''` or `= $null`); and PowerShell's `Remove-Item Env:GH_TOKEN`. A plain `gh` call, `gh auth status` and `gh auth token` included, is still judged by the config-directory rule alone. Sessions in a domain with no `gh_config_dir`, and neutral sessions, are not affected. The deny's telemetry `form` is `auth-deny`.
+
+## [0.79.0] - 2026-11-01
+
+### Added
+
+- The commit-convention gates, `block-convention-violation` and the `commit-msg` hook, enforce an operator's own `subject_pattern` in a repository whose team tracks none. The pattern lives in `docs/conventions/source-control.local.yaml`, which the resolver reads only while git ignores it (a `.gitignore` rule, `.git/info/exclude` or `core.excludesFile`) and only when the team layer supplies no `subject_pattern`. It is never merged with a team pattern: a team pattern always wins, and a broken or non-ERE team value disables enforcement rather than falling back to the personal one. PR titles never read it. A personal file git does not ignore, a tracked one included, is reported and not read. When the personal pattern rejects a subject, the `commit-msg` hook names the personal file to edit instead of asking for a pull request, and `block-convention-violation`'s pattern cache re-resolves when the file appears or changes.
+
+### Changed
+
+- `block-convention-violation` reports a rejected commit subject as not matching "the commit convention" rather than "the team convention", and asks for a subject that matches the printed pattern, since the pattern may be the operator's own and `/source-control:commit` drafts against the team convention only.
+
+### Fixed
+
+- The git hook check now fails, naming the tool and saying the change was not fully checked, when git or awk fails while it lists the changed lines or filters findings to them. A crashed awk run used to leave every finding filtered out and the hook passing.
+- A push over a remote commit this clone has not fetched is checked from its merge-base with the default branch, with a notice saying to fetch, instead of failing on the missing object.
+
+- The reference-verify pre-push check now fails, naming the tool and saying the change was not fully checked, when git or awk fails while it lists the lines a copied file adds, merges them into the changed lines, or narrows a branch that merged the default branch to its own lines. A crash in any of those steps used to leave findings filtered out and the push passing; the check now keeps the wider set of lines instead.
+
+- `block-root-delete-target` no longer refuses a PowerShell delete target whose every `$` is literal (single-quoted or backtick-escaped), such as `Remove-Item -Recurse '$env:TEMP'`, `'$HOME\x'`, `'$(x)'` or `cmd /c rd /s /q '$env:TEMP'`: such a target names a path of that name and is judged as that path. The same target inside an expanding outer string (`pwsh -c "..."`, `iex "..."`, `Start-Process pwsh -ArgumentList "..."`) is still judged as an expansion, because the outer string expands it first ([#7372](https://github.com/melodic-software/claude-code-plugins/issues/7372)).
+
+- `block-root-delete-target` judges a variable that the command assigns a literal as that literal in the forms `$S`, `$S/x`, `${S}` and `${S}/x`, quoted or unquoted. It used to bind only `"$S"` and `"$S/x"`. So `S=/tmp/run; mkdir -p $S/x; rm -rf $S` is judged as a delete of `/tmp/run`, not refused as a bare variable. The assignment can also follow other statements, when each statement before it ends in `;` or a newline. Those statements must hold no `&&`, `||`, `|`, `&`, comment, heredoc, group, subshell, quote, escape, expansion, or compound command such as `if` or `while`. A reassigned, substituted or unassigned variable stays refused, and so do a prefix assignment such as `S=/a true` and a use before the assignment. One case remains: an IFS set before the command runs, for example by a `BASH_ENV` file, can still split an unquoted use.
+
 ## [0.78.0] - 2026-11-01
 
 ### Added

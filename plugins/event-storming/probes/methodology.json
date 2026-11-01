@@ -2,15 +2,9 @@
   "skill": "event-storming:methodology",
   "plugin": "event-storming",
   "skill_dir": "plugins/event-storming/skills/methodology",
-  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are event-storming:simulation (AI agents playing personas to run a workshop, usually on a Miro board, plus evaluating, retro and bounded-context discovery against an existing board), planning:design (types, contracts and module boundaries resolved before a plan; its listing says 'model this domain'), architecture:map-events (async message topology read from committed C# code), architecture:map-context (C4 system context from tracked configuration), domain-driven-design:curate-language (maintaining the ubiquitous-language glossary), prototype:pressure-test (a throwaway app stepping business rules through awkward event sequences) and planning:brainstorm (diverging into candidate approaches before scope is locked). methodology owns EventStorming facilitation knowledge and reference, and choosing and planning a format for a workshop that humans run.",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. The one competitor is event-storming:simulation (AI agents playing personas to run a workshop, usually on a Miro board, plus evaluating, retro and bounded-context discovery against an existing board), the plugin's only sibling skill. methodology owns EventStorming facilitation knowledge and reference, and choosing and planning a format for a workshop that humans run.",
   "competitors": [
-    "event-storming:simulation",
-    "planning:design",
-    "architecture:map-events",
-    "architecture:map-context",
-    "domain-driven-design:curate-language",
-    "prototype:pressure-test",
-    "planning:brainstorm"
+    "event-storming:simulation"
   ],
   "queries": [
     {

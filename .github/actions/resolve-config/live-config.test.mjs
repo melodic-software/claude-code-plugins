@@ -471,10 +471,12 @@ test("live config: resolve-issue still needs the agent-ready label event", () =>
   );
 });
 
-// The run must pass the fragment format check before it reports done.
-test("live config: resolve-issue may run the changelog fragment check", () => {
+// The run must pass the fragment format check and CI's changed-skills gate
+// before it reports done.
+test("live config: resolve-issue runs the changelog fragment and changed-skills checks", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
     "scripts/check-changelog-fragments.sh --check",
+    "scripts/check-changed-skills.sh --merge-base",
   ]);
 });
 

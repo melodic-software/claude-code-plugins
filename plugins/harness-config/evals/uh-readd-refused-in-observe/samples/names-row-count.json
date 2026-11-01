@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Ledger rows: 3."
+    },
+    {
+      "answer": "three stumbles logged so far"
+    },
+    {
+      "answer": "stumbles.md holds 3 rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Ledger rows: 2.",
+      "why": "wrong count"
+    },
+    {
+      "answer": "Restored 1 rule.",
+      "why": "no count"
+    }
+  ]
+}

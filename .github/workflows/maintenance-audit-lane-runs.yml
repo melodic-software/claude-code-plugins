@@ -254,8 +254,8 @@ jobs:
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without findings" carries the red. A handoff skips the
-      # findings steps, and a clean one the outcome step too: judge-subscription
-      # judges the unit and records it instead.
+      # findings steps; the outcome step records the leg as handed off, and
+      # judge-subscription judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -370,8 +370,9 @@ jobs:
           retention-days: 1
 
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -382,7 +383,8 @@ jobs:
           step-timeout-minutes: 25
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a
@@ -599,8 +601,8 @@ jobs:
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without findings" carries the red. With the fallback
       # token set, a limit stop, a credit stop or a 401 or 402 hands off, which
-      # skips the findings steps, and a clean one the outcome step too:
-      # judge-fallback judges the unit and records it instead.
+      # skips the findings steps; the outcome step records the leg as handed
+      # off, and judge-fallback judges the unit.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and that fits in the
       # job's 30. The launcher's --restricted keeps the file tools inside the
@@ -713,8 +715,9 @@ jobs:
           retention-days: 1
 
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -726,7 +729,8 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this leg ran, for the unit's one lane record.
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
       # The structured output is untrusted model text: read from the
@@ -1002,7 +1006,8 @@ jobs:
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -1014,7 +1019,7 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this leg ran, for the unit's one lane record.
+          # Why this leg ran, for its lane record.
           fallback-reason: ${{ matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || '' }}
 
       # The structured output is untrusted model text: read from the

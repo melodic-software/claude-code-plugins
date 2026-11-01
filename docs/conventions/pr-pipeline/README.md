@@ -242,6 +242,17 @@ slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
 
+It also runs on `workflow_run` `completed` of `pr-review-comment-relay`, which a person's new
+review comment on a lane branch starts (`pull_request_review_comment` `created`, no permission,
+no checkout, no secret). It reads the relay run back and dispatches as above, with the relay run
+as the upstream the record names, only when the run succeeded, its actor and re-runner are both
+listed humans (never the lanes App), its `pull_requests` name the PR, and an unresolved thread
+the lane escalated was answered by a listed human (a fix request alone keeps the tick's sweep); only check runs started after the relay run count. The gate and
+the broker accept that upstream by path, event and actor id
+([ADR 0088](../../adr/0088-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+GitHub starts no such run on a conflicted PR; that reply is picked up by the review run after
+`resolve-conflicts` pushes.
+
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
 `pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
@@ -2009,7 +2020,8 @@ at once goes cold together, so the step first lists every artifact page once and
 starts only when the token's core pool then has at least one cold read's worst case under the
 listing's caps (the step's own listing, 3 reads per listed FAIL, 3 incremental reads of at most 13
 pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1`
-pages, each with a top-up of at most 7: 1,623 at 7,522 artifacts and 264 FAILs) times
+pages, each with a top-up of at most 7, at most 24 pages near expiry read again and 34 artifacts read by id:
+1,681 at 7,522 artifacts and 264 FAILs) times
 `max_entries_to_build`, plus the
 read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
 An entry with a carried run cache but no carried listing pays the listing's part
@@ -2639,6 +2651,11 @@ listing there, and later candidates and their queued-entry checks read it instea
 No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
 two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
 would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
+The one exception is a candidate's `verify:missing` on the saved listing: its gate reads the head's
+two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no
+listing, and judges a pass found there with the saved listing, so a pass uploaded after that listing
+is seen in the same run. Its allow is judged again on a listing of its own like any other; a failed
+read, or no pass that counts, leaves `verify:missing`.
 A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
@@ -2650,16 +2667,25 @@ hand-started run of main's pr-merge.yml uploaded, which `.github/scripts/pr-merg
 fetches as the head-ref map is fetched): it reads pages newest id first down past that listing's
 highest id until an artifact created two hours before that listing was read, keeps that listing's
 entries below the lowest id those pages hold, less those expired by the first page's `Date`, and is
-kept only when it holds exactly that page's `total_count`. Any other count, a missing, older or
+kept only when it holds exactly that page's `total_count`. A count above it first reads again the pages
+around kept entries near expiry, up to a page cap, since GitHub can delete an artifact up to an hour
+before its `expires_at` (`EARLY_DELETION_LEAD`, `NEAR_EXPIRY_PAGE_CAP`). Those pages can skip an
+entry at a boundary, so an entry they omit is dropped only when its own read answers 404, up to an
+id-read cap (`NEAR_EXPIRY_ID_READ_CAP`). Any count still other than it, a missing, older or
 malformed base, or any failed read lists every page, so a carried listing that leaves out a FAIL
 lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Carried reads").
 A whole listing is held to the same count: deduplicated by id, added to the whole listings read
 before it and checked by a top-up from the first page, since one can skip an artifact at a page
 boundary while an earlier one expires (#10486); after three whole listings that never hold the
 live count the candidate refuses `verify:unreadable`, and after the first when its top-up holds more
-than the count or does not read, which another whole listing cannot cure. A listing that fails once
+than the count or does not read, or the pages read before it held more, which another whole listing
+cannot cure. A listing that fails once
 it began a whole listing is noted beside the saved listing, and every later reader in the job
-refuses on that note without paging.
+refuses on that note without paging. An over-count is the exception to that note's limits: once the
+one whole listing an over-count takes starts paging, a later reader in the job whose pages
+over-count refuses without another, even when that listing failed transiently or on a caller's
+limit (then with the caller-limit prefix). A refusal before paging leaves that listing to the next
+reader.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
@@ -3162,7 +3188,10 @@ refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by
 work-unblock closes a split parent as completed only when every sub-issue closed with
 `state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
 (`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
-for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+for what the parent blocks. It checks the rule when a sub-issue closes, and on the hourly sweep for
+up to `limits.parent-rescan-per-run` open parents whose sub-issues all show completed and whose
+number is the UTC hour modulo 24, so a parent whose last sub-issue closed outside the sweep window
+still closes. A sub-issue closed as not planned, as a duplicate or with no reason
 leaves the parent open. A split record covers the done-when when its parts number every item and
 match the filed sub-issues; a split by hand when its body has a task list whose open items each
 cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
@@ -3259,8 +3288,9 @@ with its default.
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
 | `readmit-per-run` | 20 | Open `status: ready` issues with neither `agent-ready` nor `admission-deferred` one work-unblock sweep runs intake's admission rules on, oldest updated first; at most 100. Only an issue that reaches the rules counts: a hold or refuse label, an open blocker or sub-issue, a `status: ready` neither a listed human nor the lanes App added, or a standing `agent-ready` removal leaves it out uncounted. |
+| `parent-rescan-per-run` | 5 | Open issues whose every sub-issue is completed and whose number is the UTC hour modulo 24 that one work-unblock sweep reads to close a finished split parent, oldest updated first; at most 100. A parent whose last sub-issue closed outside the sweep window closes on its hour; one that stays open logs why. |
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, the failed or `not-applicable` `fix-ci` runs across base moves, and the broker-allowed `fix-docs` runs that posted no check, one head gets. |
-| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
+| `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. Also the most immediate re-fires `report-outcome` makes of runs that stopped on stale workflow files, since a person last added `agent-ready` or a run last reported; past it, work-unblock's sweep re-fires them. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
 | `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
@@ -3380,7 +3410,11 @@ revisited; any other is left as is with a warning annotation, since re-admitting
 `admission-deferred`, a held one stays deferred, and any other loses it. After the closed issues,
 the sweep runs intake's admission rules on the open `status: ready` issues in no queue (neither
 `agent-ready` nor `admission-deferred`, no hold or refuse label, no open blocker or sub-issue), at
-most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. Restarts, re-fires and relabels re-run issues already admitted and are never
+most `limits.readmit-per-run` of them, oldest updated first, and writes as intake does. A
+born-triaged issue whose filer has not yet set the Size or Uncertainty the rules refuse it for, and
+nothing else, waits with no write and uses none of that cap; a person's mark on such an issue instead
+comments why it is not admitted yet and removes `admission-deferred`, so the sweep admits it once the
+fields land. If the fields never land, the triage sweep sends it to intake. Restarts, re-fires and relabels re-run issues already admitted and are never
 paced. This queued cap replaces the admission window (`limits.admission-window-hours`) and owner
 decisions Q2, Q17 and Q22 of the 2026-10-21 lane-flow interview.
 

@@ -110,7 +110,7 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // (24 by default: a WIP cap of 2), null makes it fail.
 // `queuedIssues` are the numbers check-wip-cap's open agent-ready listing answers,
 // `deferred` what the open admission-deferred listing answers, and `ready`
-// what the open `status: ready` listing answers.
+// then `openIssues` what the sweep's open-issue listing answers.
 // `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
 // admit.mjs's merged-Refs batch read answers for it.
 // `timeline` and `closing` are per issue, `pulls` per pull request number.
@@ -135,6 +135,7 @@ function world({
   queuedIssues = [],
   deferred = [],
   ready = [],
+  openIssues = [],
   searchIncomplete = false,
   fieldValues = {},
   specs = {},
@@ -160,10 +161,10 @@ function world({
         assert.equal(params.get("state"), "open");
         return listed(deferred);
       }
-      if (params.get("labels") === "status: ready") {
-        assert.equal(params.get("state"), "open");
+      // The sweep's one open-issue listing, for the parent rescan and readmitReady.
+      if (!params.has("labels") && params.get("state") === "open") {
         assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
-        return listed(ready);
+        return listed([...ready, ...openIssues]);
       }
       // check-wip-cap's queued read, oldest first.
       if (params.get("labels") === "agent-ready" && params.get("sort") === "created") {
@@ -370,6 +371,23 @@ test("the last blocker closing adds agent-ready", async () => {
   const { github, calls } = oneDependent();
   assert.equal(await main({ env: envFor(), github }), 0);
   assert.deepEqual(writes(calls), [labeled(20)]);
+});
+
+test("the last blocker closing leaves an umbrella with an open sub-issue unlabeled, and labels it once none is open", async () => {
+  const umbrella = (subs) =>
+    world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" })] },
+      comments: { 20: [note()] },
+      subIssues: { 20: subs },
+    });
+  const open = umbrella([issue(31), issue(32, { state: "closed" })]);
+  assert.equal(await main({ env: envFor(), github: open.github }), 0);
+  assert.deepEqual(writes(open.calls), []);
+  const drained = umbrella([issue(31, { state: "closed" })]);
+  assert.equal(await main({ env: envFor(), github: drained.github }), 0);
+  assert.deepEqual(writes(drained.calls), [labeled(20)]);
 });
 
 test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info, needs-human, untrusted-provenance or attended stays unlabeled", async () => {
@@ -2177,6 +2195,22 @@ test("a run whose later leg stopped green on stale workflow files is re-fired", 
   }
 });
 
+// The stale run's report-outcome re-fires it at once; when that report's mint
+// is refused or fails (a main change older than the broker's report window),
+// the run ends red. It still ran no model, so the sweep re-fires it as a stale
+// stop on its next run, not on the failed-mint clock (limits.reset-clamp-min
+// after the run ended, here not yet passed).
+test("a stale run whose report-outcome mint failed is re-fired at once, not as a failed mint", async () => {
+  const reportMint = { name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+  const red = stalledRun({ jobs: [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), reportMint], conclusion: "failure", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: red.github, actions: red.actions }), 0);
+  assert.deepEqual(writes(red.calls), refired(30));
+  // The same failed mint after a model run waits for the clock.
+  const ran = stalledRun({ jobs: [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped"), reportMint], conclusion: "failure", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: ran.github, actions: ran.actions }), 0);
+  assert.deepEqual(writes(ran.calls), []);
+});
+
 // A breaker trip: the token broker refused the run for the lanes kill switch,
 // which only the refused job's log names. Run 40127074215 failed at
 // broker-check's broker ask before any resolve-issue run job; run 40127093047
@@ -3679,7 +3713,7 @@ const admissionFor = (setter = OWNER.id) => async () => ({
   fieldSetters: async () => ({ 15462270: setter, 48625720: setter, 48625721: setter }),
 });
 const MARKED = ["admission-deferred", "status: ready", "work-class: mechanical"];
-const markedIssue = (labels) => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen." });
+const markedIssue = (labels, body = "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen.") => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body });
 // Who added each label: intake's App wrote the decision, a person marked it.
 const labelAdd = (name, actor, at = "2026-10-16T07:00:00Z") => ({ event: "labeled", label: { name }, actor, created_at: at });
 const DECIDED = [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT)];
@@ -3697,14 +3731,15 @@ const markedWorld = ({
   blockers = [issue(10, { state: "closed" })],
   done = {},
   failOn,
+  body,
 } = {}) =>
   world({
     specs,
     done,
     failOn,
     closing: { 25: closing },
-    deferred: [markedIssue(labels)],
-    issues: { 25: markedIssue(labels) },
+    deferred: [markedIssue(labels, body)],
+    issues: { 25: markedIssue(labels, body) },
     blockedBy: { 25: blockers },
     comments: { 25: comments },
     events: { 25: [...decided, ...extraEvents, deferredAdd(by)] },
@@ -4457,6 +4492,98 @@ test("the App's close of a split made by hand counts as done for what it blocks"
   }
 });
 
+// The sweep's parent rescan: an open issue whose sub_issues_summary shows every
+// sub-issue completed, on its hour (its number modulo 24), closes under the
+// same rules as on a sub-issue close, however long ago that close was.
+const RESCAN_AT = Date.parse("2026-10-16T06:00:00Z");
+const LONG_AGO = "2026-09-01T00:00:00Z";
+const rescanParent = (number, body = `- [ ] #${number + 1}\n- [ ] #${number + 2}`) => ({ ...issue(number), body, sub_issues_summary: { total: 2, completed: 2 }, updated_at: LONG_AGO });
+function rescanWorld(parents, extra = {}) {
+  const kids = (n) => [n + 1, n + 2].map((c) => ({ ...issue(c, { state: "closed", at: LONG_AGO }), parent_issue_url: `${API}/repos/${REPO}/issues/${n}` }));
+  return world({
+    openIssues: parents,
+    issues: Object.fromEntries(parents.flatMap((p) => [[p.number, p], ...kids(p.number).map((k) => [k.number, k])])),
+    subIssues: Object.fromEntries(parents.map((p) => [p.number, kids(p.number)])),
+    events: Object.fromEntries(parents.map((p) => [p.number, [linked(p.number + 1), linked(p.number + 2)]])),
+    ...extra,
+  });
+}
+const parentClosed = (n) => [`POST /repos/${REPO}/issues/${n}/comments`, `PATCH /repos/${REPO}/issues/${n} {"state":"closed","state_reason":"completed"}`];
+const OPEN_LISTING = `GET /repos/${REPO}/issues?state=open&sort=updated&direction=asc`;
+
+test("the parent rescan closes a finished split parent whose last sub-issue closed outside the sweep window", async () => {
+  const { github, calls } = rescanWorld([rescanParent(30)]);
+  assert.equal(await sweep({ github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writtenPaths(calls), parentClosed(30));
+  // A record-split parent closes the same way.
+  const recorded = rescanWorld([{ ...rescanParent(30, "- [ ] One\n- [ ] Two"), body: "- [ ] One\n- [ ] Two" }], { comments: { 30: [splitRecordComment()] } });
+  assert.equal(await sweep({ github: recorded.github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writtenPaths(recorded.calls), parentClosed(30));
+});
+
+test("the parent rescan leaves a finished parent outside this hour's rotation unread", async () => {
+  for (const [parents, now] of [
+    [[rescanParent(31)], RESCAN_AT],
+    [[rescanParent(30)], NOW],
+  ]) {
+    const { github, calls } = rescanWorld(parents);
+    assert.equal(await sweep({ github, now }), 0);
+    assert.deepEqual(writes(calls), []);
+    assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/${parents[0].number}`)), calls.join("\n"));
+  }
+});
+
+test("the parent rescan reads at most limits.parent-rescan-per-run parents, in listing order", async () => {
+  const numbers = [30, 54, 78, 102, 126, 150];
+  const all = rescanWorld(numbers.map((n) => rescanParent(n)));
+  assert.equal(await sweep({ github: all.github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writtenPaths(all.calls), numbers.slice(0, 5).flatMap(parentClosed));
+  const two = rescanWorld(numbers.map((n) => rescanParent(n)));
+  assert.equal(await sweep({ github: two.github, now: RESCAN_AT }, withLimits({ "parent-rescan-per-run": 2 })), 0);
+  assert.deepEqual(writtenPaths(two.calls), numbers.slice(0, 2).flatMap(parentClosed));
+  assert.ok(!two.calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/78`)));
+});
+
+test("the parent rescan leaves a refused parent open and logs why", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, calls } = rescanWorld([rescanParent(30, "Split by hand.\n\n- [ ] One item left here.")]);
+  assert.equal(await sweep({ github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writes(calls), []);
+  assert.ok(log.mock.calls.some((call) => call.arguments[0] === "label-unblocked: #30 stays open: it is not a split parent"));
+});
+
+test("with no finished parent in the listing, the rescan makes no read beyond the one open-issue listing", async () => {
+  const waiting = { ...issue(30), sub_issues_summary: { total: 2, completed: 1 } };
+  const none = { ...issue(54), sub_issues_summary: { total: 0, completed: 0 } };
+  const { github, calls } = rescanWorld([waiting, none]);
+  assert.equal(await sweep({ github, now: RESCAN_AT }), 0);
+  assert.equal(calls.filter((call) => call.startsWith(OPEN_LISTING)).length, 1);
+  assert.ok(!calls.some((call) => /\/issues\/(30|54)(\/|$)/.test(call.split(" ")[1])), calls.join("\n"));
+  assert.deepEqual(writes(calls), []);
+});
+
+// A split by hand whose sub-issues all completed by trusted closes still stays
+// open while its body holds an unticked item that cites no sub-issue: its own
+// done-when, which no sub-issue carried (owner Q93).
+test("an unticked done-when item in a hand-split parent's body keeps it open on a sub-issue close and on the rescan", async (t) => {
+  const own = "- [ ] #31\n- [ ] #32\n- [ ] The parent's own done-when line.";
+  const log = t.mock.method(console, "log", () => {});
+  const refused = (n) => log.mock.calls.some((call) => call.arguments[0] === `label-unblocked: #${n} stays open: it is not a split parent`);
+  const closing = handSplitWorld({ parent: { ...issue(30), body: own } });
+  assert.equal(await sweep({ github: closing.github }), 0);
+  assert.deepEqual(writes(closing.calls), []);
+  assert.ok(refused(30));
+  log.mock.resetCalls();
+  const rescanned = rescanWorld([rescanParent(30, own)]);
+  assert.equal(await sweep({ github: rescanned.github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writes(rescanned.calls), []);
+  assert.ok(refused(30));
+  // The control: that line ticked, the rescan closes it.
+  const ticked = rescanWorld([rescanParent(30, own.replace("- [ ] The", "- [x] The"))]);
+  assert.equal(await sweep({ github: ticked.github, now: RESCAN_AT }), 0);
+  assert.deepEqual(writtenPaths(ticked.calls), parentClosed(30));
+});
+
 test("the ACTIONS_TOKEN clients' readings land under github-token, the App client's under API_BUDGET_TOKEN", async () => {
   const dir = tempDir("label-unblocked-budget-");
   const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
@@ -4635,6 +4762,77 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
   assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+// A born-triaged issue (check-born-triaged notBornTriaged) whose filer has not
+// set its Size and Uncertainty yet waits: no label, no comment, no share of
+// readmit-per-run. A set value the rules refuse, or a marker the trust check
+// does not accept, still refuses.
+const BORN = `${readyIssue(26).body}\n\n<!-- work-items:born-triaged -->\n`;
+const UNSET_REASONS = ["Size unset is not one of small, medium", "Uncertainty unset is not one of known, knowable"];
+const parkedFor = (n, status, reasons) => [
+  `POST /repos/${REPO}/issues/${n}/labels {"labels":["${status}"]}`,
+  `DELETE /repos/${REPO}/issues/${n}/labels/status%3A%20ready`,
+  `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
+];
+
+test("a born-triaged status: ready issue whose fields are not set yet waits with no write, and is admitted once they are", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const early = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: [] });
+  assert.equal(await sweep({ github: early.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(early.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #26 waits: born triaged, size and uncertainty not set yet"), lines.join("\n"));
+  const later = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: SMALL_LOW_KNOWN });
+  assert.equal(await sweep({ github: later.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(later.calls), [labeled(26)]);
+});
+
+test("an issue with unset fields is still refused when it is not born triaged, or its marker or author fails the trust check", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const stranger = { id: 4242, login: "drive-by" };
+  const cases = [
+    // No marker: as today.
+    [readyIssue(26), "status: confirmed", UNSET_REASONS],
+    // The marker quoted mid-body, not the body's last line.
+    [readyIssue(26, { body: `<!-- work-items:born-triaged -->\n\n${readyIssue(26).body}` }), "status: confirmed", UNSET_REASONS],
+    // An author who is not listed.
+    [readyIssue(26, { body: BORN, user: stranger }), "status: needs-decision", ["the author is neither a listed human nor the lanes App", ...UNSET_REASONS]],
+  ];
+  for (const [item, status, reasons] of cases) {
+    const { github, calls } = readyWorld({ items: [item], fields: [] });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), parkedFor(26, status, reasons), item.body);
+  }
+});
+
+test("a born-triaged issue with a field set to a refused value is refused, its unset field named too", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const unknown = [fieldRow(48625721, 85127656)];
+  const { github, calls } = readyWorld({ items: [readyIssue(26, { body: BORN })], fields: unknown });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), parkedFor(26, "status: confirmed", ["Size unset is not one of small, medium", "Uncertainty unknown is not one of known, knowable"]));
+});
+
+test("a born-triaged issue waiting on its fields does not use up readmit-per-run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const items = [readyIssue(30, { body: BORN, updated: "2026-10-16T05:00:00Z" }), readyIssue(26, { updated: "2026-10-16T06:00:00Z" })];
+  const { github, calls } = readyWorld({ items, extra: { fieldValues: { 30: [], 26: SMALL_LOW_KNOWN } } });
+  assert.equal(await sweep({ github, admission: admissionFor() }, withConfig({ wip: { "pause-from": "2026-10-01" }, limits: { "readmit-per-run": 1 } })), 0);
+  assert.deepEqual(writes(calls), [labeled(26)]);
+});
+
+// A person's deferral of a born-triaged issue whose fields are not set yet says
+// why and comes off, so the readmit path admits it once they land and the
+// triage sweep still sees it if they never do; it never waits silently.
+test("a person's mark on a born-triaged issue whose fields are not set yet says why and drops the deferral", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ fields: [], body: BORN });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: born triaged, size and uncertainty not set yet.` })}`,
+    `DELETE /repos/${REPO}/issues/25/labels/admission-deferred`,
+  ]);
 });
 
 test("a status: ready issue in no queue refused for a person takes a parked status: confirmed off, after the hold", async (t) => {

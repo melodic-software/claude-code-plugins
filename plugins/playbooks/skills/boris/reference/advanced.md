@@ -80,7 +80,7 @@ Source: https://x.com/trq212/status/2032632602629386348
 
 ## 39. Auto Session Naming After Plan Mode
 
-After plan mode, Claude automatically names your session based on what you're working on. No manual naming needed.
+After plan mode, Claude automatically names your session based on what you're working on.
 
 Pairs with `claude --name`. Use `--name` when you know upfront, and let auto-naming handle it when you start by planning.
 
@@ -88,7 +88,7 @@ Source: https://x.com/trq212/status/2032632602629386348
 
 ## 40. /color: Customize Prompt Color
 
-Change prompt input color via `/color`. With 3-5 sessions open in different terminals, color-coding makes it instantly clear which is which.
+Change prompt input color via `/color`. With 3-5 sessions open in different terminals, color-coding makes it clear which is which.
 
 ```
 > /color

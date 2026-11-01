@@ -368,8 +368,8 @@ jobs:
       # continue-on-error keeps a launcher failure, which run-claude-cli
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without a verdict" carries the red. A handoff skips the
-      # verdict steps, and a clean one the outcome step too: the subscription
-      # job judges and records the run instead.
+      # verdict steps; the outcome step records the leg as handed off, and the
+      # subscription job judges the run.
       # One leg of leg-timeout-minutes and the CLI install fit in
       # timeout-minutes, which the outcome step repeats, and the job's timeout
       # holds one of those for every judge step. The model may share its job
@@ -435,15 +435,13 @@ jobs:
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
           echo "::notice::check-intent-subscription judges on the subscription token"
 
-      # One lane record per run: a clean handoff is recorded by the
-      # subscription job; a handoff the check above refused, on a denial or
-      # a log it cannot read, here: a
-      # credit stop as rate-limit, the class report-lane-outcome knows for
-      # it, and auth as auth.
+      # One lane record per leg, under the leg's own class: a clean handoff
+      # is recorded with handoff true, a notice; a handoff the check above
+      # refused, on a denial or a log it cannot read, as an error.
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -454,7 +452,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
       # key and kept 7 days for the puller; a failed upload never fails the job.
@@ -552,9 +551,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 2's outcome
-        if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.key-leg-2.outcome == 'failure')
+        if: steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -565,7 +564,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
+          handoff: ${{ steps.judge-2.outputs.handoff == 'true' && steps.key-leg-2.outcome != 'failure' }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.judge-2.outputs.execution-file != ''
@@ -651,9 +651,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 3's outcome
-        if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.key-leg-3.outcome == 'failure')
+        if: steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -664,7 +664,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
+          handoff: ${{ steps.judge-3.outputs.handoff == 'true' && steps.key-leg-3.outcome != 'failure' }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.judge-3.outputs.execution-file != ''
@@ -751,9 +752,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 4's outcome
-        if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.key-leg-4.outcome == 'failure')
+        if: steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -764,7 +765,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
+          handoff: ${{ steps.judge-4.outputs.handoff == 'true' && steps.key-leg-4.outcome != 'failure' }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.judge-4.outputs.execution-file != ''
@@ -853,9 +855,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 5's outcome
-        if: (steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure') && (steps.judge-5.outputs.handoff != 'true' || steps.key-leg-5.outcome == 'failure')
+        if: steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -866,7 +868,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-5.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-5.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-5.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
+          handoff: ${{ steps.judge-5.outputs.handoff == 'true' && steps.key-leg-5.outcome != 'failure' }}
 
       - name: Upload chunk 5's sealed transcript
         if: always() && steps.judge-5.outputs.execution-file != ''
@@ -955,9 +958,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 6's outcome
-        if: (steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure') && (steps.judge-6.outputs.handoff != 'true' || steps.key-leg-6.outcome == 'failure')
+        if: steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -968,7 +971,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-6.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-6.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-6.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
+          handoff: ${{ steps.judge-6.outputs.handoff == 'true' && steps.key-leg-6.outcome != 'failure' }}
 
       - name: Upload chunk 6's sealed transcript
         if: always() && steps.judge-6.outputs.execution-file != ''
@@ -1058,9 +1062,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 7's outcome
-        if: (steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure') && (steps.judge-7.outputs.handoff != 'true' || steps.key-leg-7.outcome == 'failure')
+        if: steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -1071,7 +1075,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-7.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-7.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-7.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
+          handoff: ${{ steps.judge-7.outputs.handoff == 'true' && steps.key-leg-7.outcome != 'failure' }}
 
       - name: Upload chunk 7's sealed transcript
         if: always() && steps.judge-7.outputs.execution-file != ''
@@ -1162,9 +1167,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 8's outcome
-        if: (steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure') && (steps.judge-8.outputs.handoff != 'true' || steps.key-leg-8.outcome == 'failure')
+        if: steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -1175,7 +1180,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-8.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-8.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-8.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
+          handoff: ${{ steps.judge-8.outputs.handoff == 'true' && steps.key-leg-8.outcome != 'failure' }}
 
       - name: Upload chunk 8's sealed transcript
         if: always() && steps.judge-8.outputs.execution-file != ''
@@ -1267,9 +1273,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 9's outcome
-        if: (steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure') && (steps.judge-9.outputs.handoff != 'true' || steps.key-leg-9.outcome == 'failure')
+        if: steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -1280,7 +1286,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-9.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-9.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-9.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
+          handoff: ${{ steps.judge-9.outputs.handoff == 'true' && steps.key-leg-9.outcome != 'failure' }}
 
       - name: Upload chunk 9's sealed transcript
         if: always() && steps.judge-9.outputs.execution-file != ''
@@ -1373,9 +1380,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 10's outcome
-        if: (steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure') && (steps.judge-10.outputs.handoff != 'true' || steps.key-leg-10.outcome == 'failure')
+        if: steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -1386,7 +1393,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-10.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-10.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-10.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
+          handoff: ${{ steps.judge-10.outputs.handoff == 'true' && steps.key-leg-10.outcome != 'failure' }}
 
       - name: Upload chunk 10's sealed transcript
         if: always() && steps.judge-10.outputs.execution-file != ''
@@ -1480,9 +1488,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 11's outcome
-        if: (steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure') && (steps.judge-11.outputs.handoff != 'true' || steps.key-leg-11.outcome == 'failure')
+        if: steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -1493,7 +1501,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-11.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-11.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-11.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
+          handoff: ${{ steps.judge-11.outputs.handoff == 'true' && steps.key-leg-11.outcome != 'failure' }}
 
       - name: Upload chunk 11's sealed transcript
         if: always() && steps.judge-11.outputs.execution-file != ''
@@ -1588,9 +1597,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report chunk 12's outcome
-        if: (steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure') && (steps.judge-12.outputs.handoff != 'true' || steps.key-leg-12.outcome == 'failure')
+        if: steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -1601,7 +1610,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-12.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-12.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-12.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
+          handoff: ${{ steps.judge-12.outputs.handoff == 'true' && steps.key-leg-12.outcome != 'failure' }}
 
       - name: Upload chunk 12's sealed transcript
         if: always() && steps.judge-12.outputs.execution-file != ''
@@ -1762,9 +1772,9 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       - name: Report the spec judgment's outcome
-        if: (steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure') && (steps.judge-spec.outputs.handoff != 'true' || steps.key-leg-spec.outcome == 'failure')
+        if: steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
@@ -1775,7 +1785,8 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.judge-spec.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge-spec.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-spec.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
+          handoff: ${{ steps.judge-spec.outputs.handoff == 'true' && steps.key-leg-spec.outcome != 'failure' }}
 
       - name: Upload the spec judgment's sealed transcript
         if: always() && steps.judge-spec.outputs.execution-file != ''
@@ -2187,8 +2198,8 @@ jobs:
       # reports by failing this step, from ending the job before the outcome
       # step; "Fail without a verdict" carries the red. With the fallback
       # token set, a limit stop, a credit stop or a 401 or 402 hands off,
-      # which skips the verdict steps, and a clean one the outcome step too:
-      # the fallback job judges and records the run instead. One leg of
+      # which skips the verdict steps; the outcome step records the leg as
+      # handed off, and the fallback job judges the run. One leg of
       # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
       # the outcome step repeats, and the job's timeout holds one of those for
       # every judge step. The model may share its job with the upload: it has
@@ -2251,13 +2262,12 @@ jobs:
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
-      # One lane record per run: a clean handoff is recorded by the fallback
-      # job; a handoff the check above refused, on a denial or a log it
-      # cannot read, here.
+      # One lane record per leg: this one, marked handoff when the leg handed
+      # off cleanly; the fallback job records its own leg.
       - name: Report the judgment's outcome
-        if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
+        if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -2269,7 +2279,8 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this job ran, for the run's one lane record.
+          handoff: ${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}
+          # Why this job ran, for its lane record.
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
@@ -2365,9 +2376,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 2's outcome
-        if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.sub-leg-2.outcome == 'failure')
+        if: steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -2379,6 +2390,7 @@ jobs:
           credential: ${{ steps.judge-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
+          handoff: ${{ steps.judge-2.outputs.handoff == 'true' && steps.sub-leg-2.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 2's sealed transcript
@@ -2462,9 +2474,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 3's outcome
-        if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.sub-leg-3.outcome == 'failure')
+        if: steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -2476,6 +2488,7 @@ jobs:
           credential: ${{ steps.judge-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
+          handoff: ${{ steps.judge-3.outputs.handoff == 'true' && steps.sub-leg-3.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 3's sealed transcript
@@ -2560,9 +2573,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 4's outcome
-        if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.sub-leg-4.outcome == 'failure')
+        if: steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -2574,6 +2587,7 @@ jobs:
           credential: ${{ steps.judge-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
+          handoff: ${{ steps.judge-4.outputs.handoff == 'true' && steps.sub-leg-4.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 4's sealed transcript
@@ -2660,9 +2674,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 5's outcome
-        if: (steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure') && (steps.judge-5.outputs.handoff != 'true' || steps.sub-leg-5.outcome == 'failure')
+        if: steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -2674,6 +2688,7 @@ jobs:
           credential: ${{ steps.judge-5.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-5.outputs.lane-class }}
+          handoff: ${{ steps.judge-5.outputs.handoff == 'true' && steps.sub-leg-5.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 5's sealed transcript
@@ -2760,9 +2775,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 6's outcome
-        if: (steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure') && (steps.judge-6.outputs.handoff != 'true' || steps.sub-leg-6.outcome == 'failure')
+        if: steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -2774,6 +2789,7 @@ jobs:
           credential: ${{ steps.judge-6.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-6.outputs.lane-class }}
+          handoff: ${{ steps.judge-6.outputs.handoff == 'true' && steps.sub-leg-6.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 6's sealed transcript
@@ -2861,9 +2877,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 7's outcome
-        if: (steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure') && (steps.judge-7.outputs.handoff != 'true' || steps.sub-leg-7.outcome == 'failure')
+        if: steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -2875,6 +2891,7 @@ jobs:
           credential: ${{ steps.judge-7.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-7.outputs.lane-class }}
+          handoff: ${{ steps.judge-7.outputs.handoff == 'true' && steps.sub-leg-7.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 7's sealed transcript
@@ -2963,9 +2980,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 8's outcome
-        if: (steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure') && (steps.judge-8.outputs.handoff != 'true' || steps.sub-leg-8.outcome == 'failure')
+        if: steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -2977,6 +2994,7 @@ jobs:
           credential: ${{ steps.judge-8.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-8.outputs.lane-class }}
+          handoff: ${{ steps.judge-8.outputs.handoff == 'true' && steps.sub-leg-8.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 8's sealed transcript
@@ -3066,9 +3084,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 9's outcome
-        if: (steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure') && (steps.judge-9.outputs.handoff != 'true' || steps.sub-leg-9.outcome == 'failure')
+        if: steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -3080,6 +3098,7 @@ jobs:
           credential: ${{ steps.judge-9.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-9.outputs.lane-class }}
+          handoff: ${{ steps.judge-9.outputs.handoff == 'true' && steps.sub-leg-9.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 9's sealed transcript
@@ -3170,9 +3189,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 10's outcome
-        if: (steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure') && (steps.judge-10.outputs.handoff != 'true' || steps.sub-leg-10.outcome == 'failure')
+        if: steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -3184,6 +3203,7 @@ jobs:
           credential: ${{ steps.judge-10.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-10.outputs.lane-class }}
+          handoff: ${{ steps.judge-10.outputs.handoff == 'true' && steps.sub-leg-10.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 10's sealed transcript
@@ -3275,9 +3295,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 11's outcome
-        if: (steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure') && (steps.judge-11.outputs.handoff != 'true' || steps.sub-leg-11.outcome == 'failure')
+        if: steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -3289,6 +3309,7 @@ jobs:
           credential: ${{ steps.judge-11.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-11.outputs.lane-class }}
+          handoff: ${{ steps.judge-11.outputs.handoff == 'true' && steps.sub-leg-11.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 11's sealed transcript
@@ -3381,9 +3402,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report chunk 12's outcome
-        if: (steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure') && (steps.judge-12.outputs.handoff != 'true' || steps.sub-leg-12.outcome == 'failure')
+        if: steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -3395,6 +3416,7 @@ jobs:
           credential: ${{ steps.judge-12.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-12.outputs.lane-class }}
+          handoff: ${{ steps.judge-12.outputs.handoff == 'true' && steps.sub-leg-12.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload chunk 12's sealed transcript
@@ -3553,9 +3575,9 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       - name: Report the spec judgment's outcome
-        if: (steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure') && (steps.judge-spec.outputs.handoff != 'true' || steps.sub-leg-spec.outcome == 'failure')
+        if: steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
@@ -3567,6 +3589,7 @@ jobs:
           credential: ${{ steps.judge-spec.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge-spec.outputs.lane-class }}
+          handoff: ${{ steps.judge-spec.outputs.handoff == 'true' && steps.sub-leg-spec.outcome != 'failure' }}
           fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
 
       - name: Upload the spec judgment's sealed transcript
@@ -4018,7 +4041,7 @@ jobs:
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -4030,7 +4053,7 @@ jobs:
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           known-failure-class: ${{ steps.judge.outputs.lane-class }}
-          # Why this job ran, for the run's one lane record.
+          # Why this job ran, for its lane record.
           fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
 
       # The leg's transcript, failed legs included, sealed to the transcript
@@ -4115,7 +4138,7 @@ jobs:
       - name: Report chunk 2's outcome
         if: steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-2.outcome }}
           execution-file: ${{ steps.judge-2.outputs.execution-file }}
@@ -4198,7 +4221,7 @@ jobs:
       - name: Report chunk 3's outcome
         if: steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-3.outcome }}
           execution-file: ${{ steps.judge-3.outputs.execution-file }}
@@ -4281,7 +4304,7 @@ jobs:
       - name: Report chunk 4's outcome
         if: steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-4.outcome }}
           execution-file: ${{ steps.judge-4.outputs.execution-file }}
@@ -4365,7 +4388,7 @@ jobs:
       - name: Report chunk 5's outcome
         if: steps.judge-5.outcome == 'success' || steps.judge-5.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-5.outcome }}
           execution-file: ${{ steps.judge-5.outputs.execution-file }}
@@ -4448,7 +4471,7 @@ jobs:
       - name: Report chunk 6's outcome
         if: steps.judge-6.outcome == 'success' || steps.judge-6.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-6.outcome }}
           execution-file: ${{ steps.judge-6.outputs.execution-file }}
@@ -4531,7 +4554,7 @@ jobs:
       - name: Report chunk 7's outcome
         if: steps.judge-7.outcome == 'success' || steps.judge-7.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-7.outcome }}
           execution-file: ${{ steps.judge-7.outputs.execution-file }}
@@ -4614,7 +4637,7 @@ jobs:
       - name: Report chunk 8's outcome
         if: steps.judge-8.outcome == 'success' || steps.judge-8.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-8.outcome }}
           execution-file: ${{ steps.judge-8.outputs.execution-file }}
@@ -4697,7 +4720,7 @@ jobs:
       - name: Report chunk 9's outcome
         if: steps.judge-9.outcome == 'success' || steps.judge-9.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-9.outcome }}
           execution-file: ${{ steps.judge-9.outputs.execution-file }}
@@ -4780,7 +4803,7 @@ jobs:
       - name: Report chunk 10's outcome
         if: steps.judge-10.outcome == 'success' || steps.judge-10.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-10.outcome }}
           execution-file: ${{ steps.judge-10.outputs.execution-file }}
@@ -4863,7 +4886,7 @@ jobs:
       - name: Report chunk 11's outcome
         if: steps.judge-11.outcome == 'success' || steps.judge-11.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-11.outcome }}
           execution-file: ${{ steps.judge-11.outputs.execution-file }}
@@ -4946,7 +4969,7 @@ jobs:
       - name: Report chunk 12's outcome
         if: steps.judge-12.outcome == 'success' || steps.judge-12.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-12.outcome }}
           execution-file: ${{ steps.judge-12.outputs.execution-file }}
@@ -5093,7 +5116,7 @@ jobs:
       - name: Report the spec judgment's outcome
         if: steps.judge-spec.outcome == 'success' || steps.judge-spec.outcome == 'failure'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
         with:
           outcome: ${{ steps.judge-spec.outcome }}
           execution-file: ${{ steps.judge-spec.outputs.execution-file }}
