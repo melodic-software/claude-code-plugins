@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { answerBucket, authorKind, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, reviewsOf, stableStringify } from "./review-precision.mjs";
+import { AUTHOR_KINDS, answerBucket, authorKind, bucketOf, compute, normalizeFirstLine, parseArgs, renderMarkdown, reviewsOf, stableStringify } from "./review-precision.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./review-precision.mjs", import.meta.url));
 const TMP = mkdtempSync(join(tmpdir(), "review-precision-"));
@@ -150,11 +150,11 @@ test("first lines normalize past case, backticks and line numbers", () => {
 
 test("per-lane counts, outcomes and precision over the fixture", () => {
   const result = compute(fixture());
-  const { by_author: crBy, ...cr } = result.lanes[CR];
-  const { by_author: srBy, ...sr } = result.lanes[SR];
-  // A snapshot that records no author kind puts every answered outcome under unknown.
+  const { by_author_kind: crBy, ...cr } = result.lanes[CR];
+  const { by_author_kind: srBy, ...sr } = result.lanes[SR];
+  // A snapshot that records no author type puts every answered outcome under unknown.
   assert.deepEqual(crBy.unknown, { outcomes: { "valid-fixed": 2, "valid-follow-up": 0, intentional: 1, incorrect: 1, uncertain: 1, "answered-unlabeled": 0 }, labeled: 5, precision: 0.4 });
-  assert.deepEqual([crBy.person.labeled, crBy.agent.labeled, crBy.bot.labeled, srBy.unknown.labeled], [0, 0, 0, 1]);
+  assert.deepEqual([crBy["user-unmarked"].labeled, crBy["user-marked"].labeled, crBy.bot.labeled, srBy.unknown.labeled], [0, 0, 0, 1]);
   assert.deepEqual(cr, {
     findings: 7,
     reposts: 1,
@@ -180,55 +180,69 @@ test("per-lane counts, outcomes and precision over the fixture", () => {
   assert.deepEqual(result.prs.map((pr) => pr.number), [101, 102, 103]);
 });
 
-test("an answer's author kind: a Bot, a User carrying the D5 marker or Claude Code's line, else a person", () => {
+test("an answer's author kind: a Bot, a User with a D5 marker line, any other User, else unknown", () => {
   assert.equal(authorKind("Bot", "VALID"), "bot");
-  assert.equal(authorKind("User", "| # | Finding | Classification |\n\n<!-- d5 finding=1 label=VALID lane=claude[bot] -->"), "agent");
-  assert.equal(authorKind("User", "VALID, fixed.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"), "agent");
-  assert.equal(authorKind("User", "VALID, fixed. The `<!-- d5 finding=` marker is optional here."), "person");
-  assert.equal(authorKind("User", "VALID: the PR body's Generated with [Claude Code] line is optional."), "person");
+  assert.equal(authorKind("User", "| # | Finding | Classification |\n\n<!-- d5 finding=1 label=VALID lane=claude[bot] -->"), "user-marked");
+  // Claude Code's attribution line is no marker: only the D5 marker line sets user-marked.
+  assert.equal(authorKind("User", "VALID, fixed.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"), "user-unmarked");
+  assert.equal(authorKind("User", "VALID, fixed. The `<!-- d5 finding=` marker is optional here."), "user-unmarked");
   assert.equal(authorKind("Mannequin", "VALID"), "unknown");
+  assert.equal(authorKind(null, "VALID"), "unknown");
   assert.equal(authorKind(undefined, "VALID"), "unknown");
+  assert.ok(!AUTHOR_KINDS.includes("person"));
 });
 
-// The fixture with each answer's kind recorded as fetch records it: the PR 101 table reply and the
-// PR 102 clock reply carry the D5 marker, so an agent answered them; the lanes App is a Bot.
-function fixtureWithKinds() {
+// The fixture with each comment's raw author type recorded as fetch records it. The PR 101 table
+// reply and the PR 102 clock reply carry the D5 marker, and PR 101's summary-only finding is
+// answered by a D5 summary table with its marker on its own line below the table, so a User with
+// the marker answered those three; the lanes App is a Bot; the other User answers carry no marker.
+function fixtureWithTypes() {
   const snap = fixture();
   const marker = "\n\n<!-- d5 finding=1 label=VALID lane=github-actions[bot] -->";
   snap.prs[0].threads[0].comments[1].body += marker;
   snap.prs[1].threads[3].comments[1].body += marker;
+  snap.prs[0].comments[0].body =
+    "| # | Finding | Classification | Evidence |\n|---|---|---|---|\n| 1 | The description omits the default | INTENTIONAL | The owner's decision. |\n\n<!-- d5 finding=1 label=INTENTIONAL lane=github-actions[bot] -->";
   for (const pr of snap.prs) {
     for (const c of [...pr.threads.flatMap((t) => t.comments), ...pr.comments]) {
-      c.author_kind = authorKind(String(c.author).endsWith("[bot]") ? "Bot" : "User", c.body);
+      c.author_type = String(c.author).endsWith("[bot]") ? "Bot" : "User";
     }
   }
   return snap;
 }
 
-test("person-, agent- and bot-labeled answers on one lane give separate counts and precision", () => {
-  const result = compute(fixtureWithKinds());
-  const cr = result.lanes[CR].by_author;
+function withoutTypes(snap) {
+  for (const pr of snap.prs) for (const c of [...pr.threads.flatMap((t) => t.comments), ...pr.comments]) delete c.author_type;
+  return snap;
+}
+
+test("Bot, user-marked and user-unmarked answers on one lane give separate counts and precision", () => {
+  const result = compute(fixtureWithTypes());
+  const cr = result.lanes[CR].by_author_kind;
   const row = (k) => [k.outcomes["valid-fixed"], k.outcomes.intentional, k.outcomes.incorrect, k.outcomes.uncertain, k.labeled, k.precision];
-  assert.deepEqual(row(cr.agent), [2, 0, 0, 0, 2, 1]);
-  assert.deepEqual(row(cr.person), [0, 1, 0, 1, 2, 0]);
+  assert.deepEqual(row(cr["user-marked"]), [2, 1, 0, 0, 3, 0.6667]);
+  assert.deepEqual(row(cr["user-unmarked"]), [0, 0, 0, 1, 1, 0]);
   assert.deepEqual(row(cr.bot), [0, 0, 1, 0, 1, 0]);
   assert.deepEqual(row(cr.unknown), [0, 0, 0, 0, 0, null]);
-  const sr = result.lanes[SR].by_author.person;
+  const sr = result.lanes[SR].by_author_kind["user-unmarked"];
   assert.deepEqual([sr.outcomes["valid-follow-up"], sr.outcomes["answered-unlabeled"], sr.labeled, sr.precision], [1, 2, 1, 1]);
-  // The split leaves the combined figures as they were, and the kinds sum to them.
-  const { by_author: _a, ...combined } = result.lanes[CR];
-  const { by_author: _b, ...unsplit } = compute(fixture()).lanes[CR];
-  assert.deepEqual(combined, unsplit);
+  // The split leaves the combined figures equal to the result with author types removed, which
+  // puts every answered outcome under unknown, and the kinds sum to the combined figures.
+  const untyped = compute(withoutTypes(fixtureWithTypes()));
   for (const lane of [CR, SR]) {
-    const s = result.lanes[lane];
-    for (const bucket of Object.keys(s.by_author.person.outcomes)) {
-      assert.equal(Object.values(s.by_author).reduce((sum, k) => sum + k.outcomes[bucket], 0), s.outcomes[bucket], `${lane} ${bucket}`);
+    const { by_author_kind: split, ...combined } = result.lanes[lane];
+    const { by_author_kind: none, ...unsplit } = untyped.lanes[lane];
+    assert.deepEqual(combined, unsplit, lane);
+    assert.equal(none.unknown.labeled, unsplit.labeled, lane);
+    for (const bucket of Object.keys(split.unknown.outcomes)) {
+      assert.equal(Object.values(split).reduce((sum, k) => sum + k.outcomes[bucket], 0), combined.outcomes[bucket], `${lane} ${bucket}`);
     }
   }
   const md = renderMarkdown(result);
   assert.match(md, /upper bound/);
-  assert.match(md, /\| claude-review \| agent \| 2 \| 0 \| 0 \| 0 \| 0 \| 100\.0% \(2\) \| 0 \|/);
-  assert.match(md, /\| claude-review \| person \| 0 \| 0 \| 1 \| 0 \| 1 \| 0\.0% \(2\) \| 0 \|/);
+  assert.match(md, /2026-11-01/);
+  assert.match(md, /\| claude-review \| user-marked \| 2 \| 0 \| 1 \| 0 \| 0 \| 66\.7% \(3\) \| 0 \|/);
+  assert.match(md, /\| claude-review \| user-unmarked \| 0 \| 0 \| 0 \| 0 \| 1 \| 0\.0% \(1\) \| 0 \|/);
   assert.doesNotMatch(md, /\| claude-review \| unknown \|/);
 });
 

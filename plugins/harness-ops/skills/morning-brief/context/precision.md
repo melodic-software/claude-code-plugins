@@ -35,17 +35,26 @@ error names. Fetch is GraphQL only, ten merged PRs per call; stderr counts the P
   `resolved_unanswered`; resolution is the thread's state when fetched.
 - **Precision** is the two VALID buckets over the labeled answers. Report it beside the
   `answered-unlabeled` and `unanswered` counts, never alone: a lane that finds less scores higher.
-- **Who answered.** `by_author` splits each lane's answered outcomes and precision by the kind of
-  account that wrote the answer the outcome came from, beside the combined figures: `bot` (a
-  GitHub App, the lanes App included), `agent` (a person's account whose answer carries the D5
-  `<!-- d5 finding=` marker line or a line opening with Claude Code's `Generated with [Claude Code]`),
-  `person` (any other person's account) and `unknown` (a deleted account, any other account type,
-  or no recorded kind, as in a snapshot saved before the split). An agent that drops both signs counts as `person`. Unanswered findings have no answerer
-  and appear only in the combined figures.
-- **Agent-labeled precision is an upper bound.** The `agent` and `bot` rows record how the
+- **Who answered.** `by_author_kind` splits each lane's answered outcomes and precision by the
+  kind of account that wrote the answer the outcome came from, beside the combined figures. The
+  snapshot records each comment's raw `author_type` (the GraphQL author `__typename`, or null when
+  there is no author), and compute derives the kind from it and the answer's full body. The four
+  kinds:
+  - `bot`: a GitHub App, the lanes App included.
+  - `user-marked`: a user account whose answer has a line opening with the D5 marker
+    `<!-- d5 finding=`.
+  - `user-unmarked`: any other user account's answer. This is a person, or an agent answer posted
+    before the marker existed, or an agent that dropped it; it is not "a person".
+  - `unknown`: a deleted account, any other account type, or no recorded type, as in a snapshot
+    saved before the split.
+
+  Unanswered findings have no answerer and appear only in the combined figures.
+- **Agent-labeled precision is an upper bound.** The `bot` and `user-marked` rows record how the
   answering agent labeled a finding under the review discipline, not an independent judgment of
-  the reviewer; the `person` row is the closest to one. How much the agent rows are inflated is
-  not measured.
+  the reviewer. How much they are inflated is not measured.
+- **The marker cutoff.** The D5 marker first landed in aae9ecdbe3 (#11812) on 2026-11-01. Any
+  window before that date shows zero `user-marked` answers by construction, and its
+  `user-unmarked` row holds agent answers posted under a person's login beside the person's own.
 - **Reposts** are counted apart: the same lane raised the same path and first line on an earlier
   head, or the answer cites an earlier finding of that lane.
 - **Rounds.** `lane_review_rounds` counts a lane's reviewed heads up to its first clean head after
