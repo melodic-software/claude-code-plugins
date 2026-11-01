@@ -24,7 +24,7 @@ mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label spoke-plugin-root || return 1
   dir="${!1}"
-  mkdir -p "$dir/$SKILL/context" "$dir/$SKILL/reference/sub" "$dir/$SKILL/references"
+  mkdir -p "$dir/$SKILL/context" "$dir/$SKILL/reference/sub" "$dir/$SKILL/references" "$dir/$SKILL/actions"
   # shellcheck disable=SC2016  # the token is literal fixture text
   {
     printf 'run ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/a.sh\n' >"$dir/$SKILL/context/old.md"
@@ -83,12 +83,31 @@ run_case "a spoke under references/ fails" 1 \
   "$SKILL/references/r.md: contains"
 
 # shellcheck disable=SC2016
+run_case "a spoke under actions/ fails" 1 \
+  "printf 'x \${CLAUDE_PLUGIN_ROOT}/y\n' >$SKILL/actions/act.md" \
+  "$SKILL/actions/act.md: contains"
+
+# shellcheck disable=SC2016
+run_case "a skill-dir token in a reference spoke fails" 1 \
+  "printf 'run \${CLAUDE_SKILL_DIR}/scripts/a.sh\n' >$SKILL/reference/r.md" \
+  "$SKILL/reference/r.md: contains"
+
+# shellcheck disable=SC2016
+run_case "an actions/ spoke baselined at its combined count passes" 0 \
+  "printf 'run \${CLAUDE_PLUGIN_ROOT}/a and \${CLAUDE_SKILL_DIR}/b\n' >$SKILL/actions/act.md && printf '%s/actions/act.md 2  # pending: fix\n' $SKILL >>scripts/spoke-plugin-root-baseline.txt"
+
+# shellcheck disable=SC2016
+run_case "a skill-dir hit added to a baselined spoke counts toward its total" 1 \
+  "printf 'run \${CLAUDE_SKILL_DIR}/b.sh\n' >>$SKILL/context/old.md" \
+  "$SKILL/context/old.md: has 2 occurrence(s)" "allows 1"
+
+# shellcheck disable=SC2016
 run_case "a token outside the spoke directories is not an offender" 0 \
   "mkdir -p $SKILL/scripts && printf 'x \${CLAUDE_PLUGIN_ROOT}/y\n' >$SKILL/scripts/a.sh"
 
 run_case "a baselined spoke that lost its token fails as stale" 1 \
   "printf 'run <skill-dir>/scripts/a.sh\n' >$SKILL/context/old.md" \
-  "$SKILL/context/old.md: scripts/spoke-plugin-root-baseline.txt lists it, but it no longer contains the token"
+  "$SKILL/context/old.md: scripts/spoke-plugin-root-baseline.txt lists it, but it no longer contains either token"
 
 run_case "a baseline entry naming a missing file fails as stale" 1 \
   "rm $SKILL/context/old.md" \

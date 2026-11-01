@@ -148,7 +148,9 @@ bound breach (this skill's autonomy contract).
 ## Phase 4. Per-resource ingestion (batched)
 
 For each `in-corpus` row, in map order, in self-limited batches (batch size stated up front,
-default 5. Self-imposed, because **no platform spend-ceiling mechanism exists**):
+default 5. Self-imposed: **this skill bounds its own spend and relies on no platform ceiling**; what
+the CLI offers is [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags)'s
+to state, as of 2026-11-01, recheck when that table changes a spend or budget flag):
 
 1. **Fetch + snapshot** to `resources/<res-slug>/source.<ext>` under `docpage-digest`'s slug and
    immutability rules (res-slug from the canonical URL; snapshots are UTF-8 text, the extractor

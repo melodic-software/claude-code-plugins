@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (unverified) | unscoped name for a vendor |",
+      "why": "row"
+    },
+    {
+      "answer": "postmark: P3 WARN, the publisher is not Postmark.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | PASS | |",
+      "why": "pass"
+    },
+    {
+      "answer": "| postmark | P1 Floating version | PASS | exact |",
+      "why": "other criterion"
+    }
+  ]
+}

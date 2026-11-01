@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "computer-use:diagnose"
+          }
+        }
+      ],
+      "why": "namespaced skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "diagnose",
+            "args": "allowed applications error"
+          }
+        }
+      ],
+      "why": "bare name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: a text-only referral to /computer-use:diagnose fails"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "computer-use:setup"
+          }
+        }
+      ],
+      "why": "same-plugin sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "testing:diagnose"
+          }
+        }
+      ],
+      "why": "another plugin's diagnose skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "computer-use:setup",
+            "args": "then computer-use:diagnose"
+          }
+        }
+      ],
+      "why": "target named only in args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "computer-use:diagnose-extra"
+          }
+        }
+      ],
+      "why": "prefix collision"
+    }
+  ]
+}

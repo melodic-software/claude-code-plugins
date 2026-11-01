@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# The screensaver ended the run\n\nThe screensaver is the culprit. It is configured to fire after 300 seconds (5 minutes) and it was running when you checked. With `ScreenSaverIsSecure = 0` it takes the screen without locking, which is why LogonUI says unlocked while capture is dead.\n\n## Why busy didn't help\n\nClaude's synthesized clicks and typing do not reset the Windows idle timer, so the machine counted the whole job as idle. Display sleep set to never says nothing about the screensaver; they are three separate settings.\n\n## What to change\n\nThat is a system setting, so I won't change it for you. Raise or disable the screensaver for the duration of the job; that's your call.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Cause:** the screensaver. **ScreenSaveTimeOut is 300**, so it came on five minutes after the last real mouse or keyboard input, and it was running when you probed.\n\n**Why it looked unlocked:** the screensaver is not a lock. With ScreenSaverIsSecure at 0 it covers the screen without locking, so capture fails and clicks are refused while LogonUI reports nothing.\n\n**Why Claude's work didn't count:** input from computer use never resets the OS idle timer.\n\n**Display sleep at never:** a different setting; screensaver, display sleep and lock are configured independently.\n\n**Fix:** turning the screensaver off is your decision. Raise or disable it for the length of the job.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "| Finding | Detail |\n|---|---|\n| Cause | Screensaver (Mystify) fired after 5 minutes of idle and was running |\n| Why it looked unlocked | ScreenSaverIsSecure = 0: screensaver without lock |\n| Why busy didn't matter | Synthesized input doesn't reset the idle timer |\n| Display/sleep = never | Separate settings; they don't control the screensaver |\n| Remediation | Operator's call: raise or disable the screensaver timeout for the run. I'm not changing it. |",
+      "why": "table reply"
+    },
+    {
+      "answer": "**Display-off and sleep don't control it.** `VIDEOIDLE` and `STANDBYIDLE` are power-plan settings. The screensaver has its own idle timer, so setting those two to never doesn't stop it.",
+      "why": "own-timer wording"
+    },
+    {
+      "answer": "Display and sleep timeouts of 0 do **not** imply the screensaver is off.",
+      "why": "reference wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The screensaver is the cause; it fired after 300 seconds.",
+      "why": "cause only"
+    },
+    {
+      "answer": "Display sleep is never, so the screensaver must be off too; look elsewhere.",
+      "why": "conflates the settings"
+    }
+  ]
+}

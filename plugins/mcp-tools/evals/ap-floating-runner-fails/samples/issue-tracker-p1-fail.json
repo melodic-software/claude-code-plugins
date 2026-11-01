@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Server | Criterion | Result | Details |\n|---|---|---|---|\n| issue-tracker | P1 Floating version | FAIL | `@latest` through npx |",
+      "why": "findings row"
+    },
+    {
+      "answer": "issue-tracker fails P1: npx resolves @acme/issues-mcp@latest on every start.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| issue-tracker | P1 Floating version | PASS | exact |",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "| file | issue-tracker | yes | stdio | npx | @acme/issues-mcp@latest | floating-tag | @acme | no | - |",
+      "why": "inventory row, no verdict"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

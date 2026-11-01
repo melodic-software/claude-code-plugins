@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Computer use check\n\n| Check | Result | Detail |\n|---|---|---|\n| Surface | INFO | Not determinable from this session |\n| Tool availability | FAIL | The computer-use tools are not reachable in this session |\n| Timeouts | INFO | Not probed: tools unavailable |\n\n## Verdict: blocked\n\nNext action: enable the `computer-use` MCP server in `/mcp`, then rerun this check.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Tools:** FAIL. No computer-use MCP tools are available here, so `list_granted_applications` could not run.\n\n**Timeouts:** not probed; the screensaver and sleep probes need the tools and a Windows host.\n\n**Verdict: blocked.** Single next action: turn on the computer-use MCP server (enable it in /mcp) and run the check again.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "- Surface: INFO, unknown\n- computer-use tools: FAIL (not reachable)\n- Session timeouts: INFO, not probed\n- Verdict: **blocked**\n- Next: enable the computer-use MCP server for this project.",
+      "why": "list reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Verdict: blocked. Install Claude Desktop and raise the screensaver timeout.",
+      "why": "wrong next action"
+    },
+    {
+      "answer": "Verdict: blocked. Ask your administrator.",
+      "why": "no action named"
+    }
+  ]
+}

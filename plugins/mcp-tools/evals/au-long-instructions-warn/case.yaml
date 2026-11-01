@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: au-long-instructions-warn
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: c4-instructions-warn
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC4\b|\binstructions\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+  - name: c4-not-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC4\b|\bserver\s+`?instructions`?))(?=[^\n]*(?:\|\s*\**FAIL\**\s*\||(?:→|->|:|=|\bis\b|\bas\b)\s*\**FAIL\b))'
+    flags: 'i'
+    match: 'not_contains'
+  - name: c18-integer-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+  - name: c18-fail-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC18\b|requiresUserInteraction))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?FAIL)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: c4-warn-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*(?:\bC4\b|\binstructions\b))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?WARN)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1
