@@ -494,11 +494,12 @@ done
 # The round-close sentence words the closing probe "something else", never "anything else" (#11191); it changes how the probe is phrased, resolves no row, and the no-silent-resolve line is byte-identical
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
 # Review fixes on the #7475 question shape: the terminology matrix is the interview's first item and is not repeated at the top of a round, a user-stated claim cites its round, the page puts facts in context, and Withheld replaces five parts; each adds or clarifies a requirement, resolves no row, and the no-silent-resolve rule is unchanged
+# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "4f2aaa25e1c94b0575a5fd5480816ba7b861fae88a93b5834e2e2892bc797b6e"
+  "564de96c226257dc41ed5c949313fea118499f2f575ebe728e08b6bb811c9db4"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -528,11 +529,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
 # Adds the read-back of an answer that departs from the recommendation, or arrives dictated or unclear (#11187); its row stays open until the user confirms, so it resolves no row on the user's behalf, and the gap and blocker bindings are unchanged
 # Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
+# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "83310a75a7a3041b1f15df32b3edafbf7f6bfdd988197b51dfb99b2953430880"
+  "fcd6bc75e1faced60a0c10925501c43777d1d3685ca24497f4a07e129c8f182f"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -771,8 +773,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
 # Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
 # Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold
+# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "68cb522d7950419009b3e7a1718c7c8100f509bc498b437fbbb1d573180410c0"
+  "c6aa3fa28b7b0ef824fc10eec0c33f780735f6a865c5156986ef103190148e7a"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
@@ -801,9 +804,10 @@ pin_case_digest "case 8 still asks decisions and only looks up facts" \
 pin_case_digest "case 12 still refuses to read drift as consent" \
   "open-question-survives-an-unrelated-reply" \
   "e45fe64a00cf78e6dd089837e81c52d8a0947ccf924be6472c6f47eeadcd5942"
+# Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_case_digest "case 25 still refuses to settle a row on a superseded recommendation" \
   "out-of-band-return-supersedes-before-the-reply" \
-  "60964b5db1076b8be673e75b7a0bd5c247b6e87fa62c5da0b34531deca7d22f0"
+  "186a511bef86bbc7fe9679359c350c39111c3eab0c8761eb8f98196882f40b9f"
 pin_case_digest "case 1 still resolves codebase-answerable questions without asking, and only those" \
   "relentless-me-mode-frontier-rounds" \
   "5e38782253a410890320cddc3c5c44d71ab64666bb596bc954167f1447059bdd"
@@ -886,7 +890,7 @@ pin "loop.md binds \`lock\`'s surfaced gap into the register" "$LOOP" \
 #      a sub-agent return, a background notification, a team report — falls outside it and
 #      goes un-restated. These pins are the out-of-band rule's own defense: the trigger,
 #      relevance vs arrival, the superseded-recommendation outcome, the environment-resolve
-#      outcome, the narrow re-presentation, the hold-refusal, the floor, the same-turn
+#      outcome, the full restate, the hold-refusal, the floor, the same-turn
 #      queued-output-first order, and the SKILL.md pointer. Drop any one and the rule
 #      reads as advisory.
 pin "loop.md fires the out-of-band check on non-user content" "$LOOP" \
@@ -897,8 +901,8 @@ pin "loop.md names a contradicted recommendation as superseded" "$LOOP" \
   "naming the superseded recommendation as superseded"
 pin "loop.md resolves an environment-answered open row" "$LOOP" \
   "Resolve it and STATE the answer"
-pin "loop.md restates only the moved row, never the whole round" "$LOOP" \
-  "**Re-present narrowly.**"
+pin "loop.md restates every open row in full after out-of-band output" "$LOOP" \
+  "**Restate every open row in full.**"
 pin "loop.md refuses to hold the round for a pending dispatch" "$LOOP" \
   "**This does not hold the round.**"
 pin "loop.md floors the out-of-band restate on the next user reply" "$LOOP" \

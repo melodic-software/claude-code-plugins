@@ -4,6 +4,15 @@ Notable changes to the recommendation-basis contract (SemVer). Changing the grou
 label's values, or the re-emit shape is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [3.0.0] - 2026-11-01
+
+Major: the re-emit section defers to the async-round-presentation contract when the changed
+recommendation comes from dispatched work that returned while open items wait on the user. That
+message ends with every open item in full, the moved one marked, in place of the one-line list of
+unchanged recommendations. The re-emit shape for any other evidence is unchanged. The
+`/planning:interview` out-of-band drift rule carries the change; the plugin-shipped copies still
+state the one-line form and have not yet been updated.
+
 ## [2.0.1] - 2026-10-10
 
 Patch: the conforming-surfaces table folds the `/discipline:do-your-research-deep` row into
