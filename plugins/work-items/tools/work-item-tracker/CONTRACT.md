@@ -204,8 +204,23 @@ work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <fi
 work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
 work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
+work-item-tracker.sh add-recurrence <id> --source-link <url> --note <text>
 work-item-tracker.sh capabilities
 ```
+
+`add-recurrence` records that a signal was seen again on an item, keyed by the signal's source
+link, so a lane that sees one signal twice records it once. `--source-link` is an `http` or
+`https` URL with no whitespace, and `--note` is non-empty text; anything else exits `2`. The
+adapter writes one recurrence marker, `<!-- work-item-recurrence v1 {"source_link", "note",
+"recorded_at"} -->`, with every `>` in the JSON written as its unicode escape (backslash, then `u003e`) so a link or note cannot end
+the comment early. **No-op rule:** when the item already carries a marker whose `source_link`
+equals `--source-link` exactly, the verb writes nothing and exits `0` with `recorded: false`;
+otherwise it writes the marker and reports `recorded: true`. An item that does not exist exits
+`5`. GitHub posts the marker as the first line of an issue comment, the note below it, and counts
+an existing marker only from the authors a lease comment counts from ("Lease protocol"), since
+anyone can comment on a public repository. local-markdown appends the marker line to the item
+file. The check and the write are two calls with no compare-and-set, so two concurrent calls
+with one link can both write. An adapter that declares no `add-recurrence` key exits `6`.
 
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
 `--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
@@ -500,6 +515,7 @@ Per-verb result objects:
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
+| `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar
