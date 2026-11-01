@@ -247,7 +247,9 @@ It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-
 `pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file. A PR a person opened gets no
+that head, and only the comments that head does not hold yet, by file; a note in a resolved thread
+does not count, so a FAIL after a pass that superseded an earlier one at the same head opens a thread
+again. A PR a person opened gets no
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
@@ -271,10 +273,15 @@ push gives a head the verifier judges again.
 When the run uploaded a `pass` or `pass-notes` verdict instead, on an open PR still at that head
 `post-verify-notes` removes `pr-verify-failed` from a PR a person opened, if it is there, and
 dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads the review threads, and when an
-unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
+unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
+check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
+`_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
+`address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
+those at the passing head only with `verify-superseded-head` at it (then naming it in
+`superseded_head`); a failed or missing read leaves those open. No model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
 `pass-only`, which the dispatcher's release reads pass over. A pass-only round goes only to lanes
@@ -1474,10 +1481,20 @@ the rules that only tighten in
   With the registry listed, a canonical the pull request carries (its canonical or a copy touched,
   or a copy newly registered) that the base changed is refused as `shared-copy-sources-changed:`
   instead of updated: an update leaves the copies the pull request generated from its own
-  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. No lane
-  acts on that refusal, so the wrapper escalates it: one `<!-- babysit-merge-shared-copy-escalation -->`
-  comment naming the canonicals, the head and the fix, then the human-gated role label, both
-  unchanged by a rerun at the same head; the `head-moved` clear removes the label once the head moves. Any
+  canonical, so the fix is merging the base and running `scripts/sync-shared-copies.sh`. The wrapper
+  escalates it: one `<!-- babysit-merge-shared-copy-escalation -->` comment naming the canonicals,
+  the head and the fix, then the human-gated role label, both unchanged by a rerun at the same head;
+  the `head-moved` clear removes the label once the head moves. On a lanes App pull request,
+  pr-unblock's `sync-shared-copies` activity answers it with no model and no person: the dispatcher
+  sends one run per refused head, a base-code job merges the default branch tip and runs the base's
+  sync script, refusing a head that changes the script, its registry or `scripts/lib`
+  (`shared-copy-tooling-changed`) and any write the base-tip registry lists as no copy
+  (`shared-copy-path-unregistered`) and a merge that is not clean, which resolve-conflicts cannot
+  take while the label holds it (`shared-copy-merge-conflicted`, queued for a session), and
+  `apply-shared-copies` pushes one merge commit under
+  patch-rules.json's `shared-copies` row, which admits only registered copies; when the merge
+  already holds current copies, the commit is the merge alone. The new head moves
+  past the refusal, so the next pr-merge sweep clears the label. Any
   doubt, an update the API refused with a 4xx (its status and message recorded as `updateError`),
   or a Dependabot head enqueues as before. An update with no answer (a timeout, no status, a server
   error) may have landed, so it holds the old head instead. Empty or absent updates nothing.
@@ -2262,7 +2279,10 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
 judgment was started by, each with its name and conclusion, read with the job's own token: the
 verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+eval itself. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
+sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
+(`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
+label or body-edit re-run skips `select-tests` and every suite, so its list is no
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
@@ -2629,7 +2649,10 @@ lists every page too (the rule and its basis: `babysit_verify_evidence.py`, "Car
 A whole listing is held to the same count: deduplicated by id, added to the whole listings read
 before it and checked by a top-up from the first page, since one can skip an artifact at a page
 boundary while an earlier one expires (#10486); after three whole listings that never hold the
-live count the candidate refuses `verify:unreadable`.
+live count the candidate refuses `verify:unreadable`, and after the first when its top-up holds more
+than the count or does not read, which another whole listing cannot cure. A listing that fails once
+it began a whole listing is noted beside the saved listing, and every later reader in the job
+refuses on that note without paging.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
@@ -3044,10 +3067,16 @@ Each profile under `models.profiles` names:
   `resolve-config` resolves any value outside `haiku`, `sonnet` and `opus` to `opus`, so a
   config that skipped the schema check still never runs `default` or the frontier tier.
 - `effort` (optional): `low`, `medium`, `high`, `xhigh` or `max`, passed as `--effort`. Unset
-  passes none, so the model's default effort applies.
+  passes none, so the run takes whatever level the effort resolution order reaches next, the
+  model's default when nothing else sets one
+  ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+  as of 2026-11-01; recheck when that section changes the order).
 - `subagent-model` (optional, default `inherit`): `opus` or `sonnet`, set as
   `CLAUDE_CODE_SUBAGENT_MODEL` through the run's `settings` env; `inherit` sets nothing, and any
-  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win.
+  other value resolves as `model` does. A spawn's own `model` and an agent definition's still win
+  ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of
+  2026-11-01; recheck when that section changes the order or adds an override such as a mod's
+  `agent.spawn` hook).
 - `max-turns`: the turn budget, passed as `--max-turns`.
 - `escalate-to` (optional): the profile one model rung up. A run resolved at `model-rung` 1
   (resolve-config's `model-rung` input) takes it in place of this one; at most one rung, so the

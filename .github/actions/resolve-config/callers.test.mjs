@@ -646,9 +646,11 @@ test("pr-unblock.yml: report-stop-status runs when report-escalation does, or af
     "apply-dependency-verdict",
     "fix-ci-context",
     "apply-patch",
+    "sync-shared-copies-select",
+    "apply-shared-copies",
   ];
-  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context"];
-  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch"];
+  const HEADS = ["resolve-conflicts-select", "address-feedback-select", "review-dependency-select", "fix-ci-context", "sync-shared-copies-select"];
+  const EMITTERS = ["apply-conflict-patch", "publish-feedback", "apply-dependency-verdict", "apply-patch", "apply-shared-copies"];
   const RESOLVERS = ["address-feedback-select", "fix-ci-context"];
   const context = ({ from = "", reason = "", headFrom = "resolve-conflicts-select", sha = head, rungUp = "", rungUpResult = "skipped", rungUpReason = "", rungUpSkip = "", landed = "", skip = "", resolved = "", resolvedResult = "success" } = {}) => ({
     ...Object.fromEntries(SOURCES.map((id) => [`needs.${id}.outputs.escalation-reason`, id === from ? reason : ""])),
@@ -820,7 +822,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch", "sync-shared-copies-select", "apply-shared-copies"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -2876,7 +2878,9 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   assert.equal(atStep(scan.if, { ...stopped, "needs.run.outputs.go": "true" }), true);
   // The verdict steps keep the default success(): they run when no step before
   // them failed, so a skipped scan still posts the skip and a hit posts nothing.
-  for (const name of ["Write the verdict", "Upload the verdict"]) assert.equal(step(name).if, undefined, name);
+  // The upload also needs its own scan's clean output.
+  for (const name of ["Write the verdict", "Scan the upload for credentials"]) assert.equal(step(name).if, undefined, name);
+  assert.equal(step("Upload the verdict").if, "steps.scan-upload.outputs.clean == 'true'");
   for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
     assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
@@ -5378,7 +5382,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(proceed("skipped", "", ""), "", "a kill-switch stop");
   assert.equal(proceed("success", "true", "", "true"), "", "a pass-only round proceeds to no model");
   const upload = select.steps.find((s) => s.id === "upload");
-  assert.equal(upload.if, "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
+  assert.equal(upload.if, "(steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true') && steps.scan-upload.outputs.clean == 'true'");
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 
@@ -6167,6 +6171,7 @@ test("pr-run-activity-write.yml: apply-patch under the merge-base row merges the
   const prepare = steps.find((s) => s.id === "prepare");
   const applyMode = { "steps.lane-token.outputs.token": "t", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": "merge-base" };
   assert.equal(evaluate(prepare.if, applyMode), true);
+  assert.equal(evaluate(prepare.if, { ...applyMode, "inputs.patch-prepare": "shared-copies" }), true);
   assert.equal(evaluate(prepare.if, { ...applyMode, "inputs.patch-prepare": "ci-context" }), false);
   const values = { ...applyMode, "inputs.patch-merge-base-sha": "p".repeat(40), "inputs.patch-merge-state": "conflicted", "inputs.patch-conflict-tree": "t".repeat(40), "steps.trusted-base.outputs.commit": "d".repeat(40) };
   assert.equal(evaluate(prepare.env.BASE_SHA, values), "p".repeat(40), "the pinned base, never the tip now");
@@ -6177,9 +6182,9 @@ test("pr-run-activity-write.yml: apply-patch under the merge-base row merges the
   assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "apply-patch", "inputs.issue-number": "", "inputs.patch-prepare": "merge-base" }), 0);
   assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "apply-patch", "inputs.issue-number": "", "inputs.patch-prepare": "ci-context" }), 1);
   const script = steps.find((s) => s.id === "act-script");
-  assert.equal(script.env.MERGE_STATE, "${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.merge-state || '' }}");
-  assert.equal(script.env.CONFLICT_TREE, "${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.conflict-tree || '' }}");
-  assert.equal(script.env.TREE_ENTRIES_SHA256, "${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}");
+  assert.equal(script.env.MERGE_STATE, "${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.prepare.outputs.merge-state || '' }}");
+  assert.equal(script.env.CONFLICT_TREE, "${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.prepare.outputs.conflict-tree || '' }}");
+  assert.equal(script.env.TREE_ENTRIES_SHA256, "${{ (inputs.patch-prepare == 'merge-base' || inputs.patch-prepare == 'shared-copies') && steps.merge-bin.outputs.tree-entries-sha256 || '' }}");
   assert.equal(steps.find((s) => s.id === "patch-select").env.MERGE_STATE, "${{ inputs.patch-merge-state }}");
 });
 
@@ -6213,6 +6218,28 @@ test("pr-run-activity-write.yml: the first step admits every resolve-conflicts e
   assert.equal(run("", { ...merge, PATCH_CONFLICT_TREE: "" }), 1);
   assert.equal(run("", { ...merge, PATCH_PREPARE: "ci-context" }), 1, "merge inputs beside another row");
   assert.equal(run("", { PATCH_PREPARE: "merge-base" }), 1, "the merge row with no inputs");
+  // shared-copies takes the same inputs, on a clean merge alone.
+  assert.equal(run("", { ...merge, PATCH_PREPARE: "shared-copies", PATCH_MERGE_STATE: "clean" }), 0);
+  assert.equal(run("", { ...merge, PATCH_PREPARE: "shared-copies" }), 1, "a conflicted merge under shared-copies");
+  assert.equal(run("", { PATCH_PREPARE: "shared-copies" }), 1, "the shared-copies row with no inputs");
+});
+
+// Every reason the sync-shared-copies select and push jobs give reaches the
+// write runner's report-escalation call as an admitted escalation-reason
+// input, and each is routed to that activity (escalation-routes.json).
+test("pr-run-activity-write.yml: the first step admits every sync-shared-copies escalation reason", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
+  const routes = JSON.parse(read("../../scripts/pr-unblock/escalation-routes.json"));
+  const rules = JSON.parse(read("./patch-rules.json"));
+  const reasons = ["shared-copy-tooling-changed", "shared-copy-path-unregistered", "shared-copy-merge-conflicted", ...rules["shared-copies"].escalations];
+  for (const reason of reasons) {
+    const status = spawnSync("bash", ["-c", step.run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_SENDER_ID: "1", DEFAULT_BRANCH: "main", ESCALATION_REASON: reason },
+    }).status;
+    assert.equal(status, 0, reason);
+    assert.equal(routes[reason]?.activity, "sync-shared-copies", reason);
+  }
 });
 
 // --- pr-unblock fix-ci: trusted handoff, unreported rounds, refused collections ---
@@ -7380,6 +7407,7 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
     "pr-unblock.yml:apply-feedback-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch -> pr-run-activity-write.yml",
     "pr-unblock.yml:apply-patch-rung-up -> pr-run-activity-write.yml",
+    "pr-unblock.yml:apply-shared-copies -> pr-run-activity-write.yml",
     "pr-unblock.yml:publish-feedback -> pr-run-activity-write.yml",
     "pr-unblock.yml:report-escalation -> pr-run-activity-write.yml",
     "work-resolve-issue.yml:apply-issue-patch -> pr-run-activity-write.yml",
@@ -7418,6 +7446,124 @@ test("work-resolve-issue.yml: every resolve without pinned dimensions passes adm
     }
   }
   assert.ok(unpinned.includes("pick-slot") && unpinned.includes("run-checks"), `unpinned resolves: ${unpinned}`);
+});
+
+// A checkout with no path: replaces the workspace, .base included, so an
+// action loaded from ./.base/ after it is head code.
+test("no job loads an action from ./.base/ after a checkout that replaced it", () => {
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      let replaced = null;
+      for (const step of job.steps ?? []) {
+        const uses = String(step.uses ?? "");
+        if (uses.startsWith("actions/checkout@")) {
+          if (step.with?.path === ".base") replaced = null;
+          else if (!step.with?.path) replaced = step.name;
+        }
+        if (replaced !== null && uses.startsWith("./.base/")) assert.fail(`${file} ${id}: ${step.name} loads ${uses} after ${replaced}`);
+      }
+    }
+  }
+});
+
+test("the read runner's scan job and the write runner's run job scan uploads with a scanner staged in RUNNER_TEMP before the head checkout", () => {
+  const run = 'node "$RUNNER_TEMP/scan-gate/.github/actions/scan-upload/scan-upload.mjs"';
+  const jobs = [
+    [workflow("pr-run-activity-read.yml").jobs.scan, "Check out the gated head"],
+    [workflow("pr-run-activity-write.yml").jobs.run, "Check out the PR head"],
+  ];
+  for (const [job, head] of jobs) {
+    const index = (find) => job.steps.findIndex(find);
+    const stage = index((s) => s.name === "Stage the upload scanner");
+    assert.ok(stage >= 0 && stage < index((s) => s.name === head), "staged before the head checkout");
+    assert.equal(job.steps[stage].if, undefined, "staged on every run");
+    const scans = job.steps.filter((s) => /^scan-upload/.test(s.id ?? ""));
+    assert.ok(scans.length > 0);
+    for (const scan of scans) {
+      assert.equal(scan.uses, undefined, scan.id);
+      assert.equal(scan.run, run, scan.id);
+    }
+  }
+});
+
+// sync-shared-copies-select decides from base code alone: it proceeds once
+// the sync ran on the clean merge (a written patch, or an empty run whose
+// merge alone the push job commits), names each stop's skip reason, and
+// leaves both empty when it stopped before deciding (a kill switch, or a
+// failed step).
+test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty sync and names each skip", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const { outputs } = jobs["sync-shared-copies-select"];
+  const STEPS = [
+    "steps.head.outputs.applicable",
+    "steps.slot.outputs.applies",
+    "steps.slot.outputs.skip-reason",
+    "steps.hold.outputs.held",
+    "steps.hold.outputs.lane-escalated",
+    "steps.behind.outputs.behind",
+    "steps.prepare.outputs.merge-state",
+    "steps.sync.outputs.state",
+    "steps.sync.outputs.refused",
+  ];
+  const ctx = (values = {}) => ({ ...Object.fromEntries(STEPS.map((name) => [name, ""])), ...values });
+  const gated = { "steps.head.outputs.applicable": "true", "steps.slot.outputs.applies": "true", "steps.hold.outputs.held": "false", "steps.hold.outputs.lane-escalated": "true", "steps.behind.outputs.behind": "true" };
+  const decide = (values) => [evaluate(outputs.proceed, ctx(values)), evaluate(outputs["skip-reason"], ctx(values))];
+  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "written" }), ["true", ""]);
+  // Both sides regenerated disjoint canonical edits: the refused head still
+  // needs the merge, which the push job commits alone.
+  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "empty" }), ["true", ""]);
+  assert.equal(outputs["patch-state"], "${{ steps.sync.outputs.state }}");
+  const push = jobs["apply-shared-copies"].with;
+  assert.equal(push["patch-state"], "${{ needs.sync-shared-copies-select.outputs.patch-state }}", "the push job takes the select job's state, written or empty");
+  assert.equal(push["patch-attempt"], "${{ needs.sync-shared-copies-select.outputs.patch-attempt }}");
+  assert.equal(outputs["patch-attempt"], "${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}", "an empty run downloads no patch");
+  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.refused": "shared-copy-tooling-changed" }), ["false", ""], "a refusal posts its stop's skip");
+  // resolve-conflicts is held by the same label, so a merge that is not clean
+  // escalates for a session instead of posting not-applicable on the head.
+  const escalation = (values) => evaluate(outputs["escalation-reason"], ctx(values));
+  for (const state of ["conflicted", "escalate"]) {
+    assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": state }), ["false", ""], `a ${state} merge posts its stop's skip`);
+    assert.equal(escalation({ ...gated, "steps.prepare.outputs.merge-state": state }), "shared-copy-merge-conflicted", state);
+  }
+  assert.equal(escalation({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.refused": "shared-copy-tooling-changed" }), "shared-copy-tooling-changed");
+  for (const values of [{ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "written" }, { ...gated, "steps.behind.outputs.behind": "false" }, {}]) {
+    assert.equal(escalation(values), "", JSON.stringify(values));
+  }
+  assert.deepEqual(decide({ ...gated, "steps.behind.outputs.behind": "false" }), ["false", "not-applicable"]);
+  assert.deepEqual(decide({ ...gated, "steps.hold.outputs.lane-escalated": "false" }), ["false", "not-applicable"], "no shared-copy refusal to answer");
+  assert.deepEqual(decide({ ...gated, "steps.hold.outputs.held": "true", "steps.hold.outputs.lane-escalated": "false" }), ["false", "awaiting-human"]);
+  assert.deepEqual(decide({ ...gated, "steps.slot.outputs.applies": "false", "steps.slot.outputs.skip-reason": "not-applicable" }), ["false", "not-applicable"]);
+  assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
+  assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
+  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
+});
+
+// The not-run job posts the activity's check on every head the select job
+// read: neutral with a reason when it decided, failure when it failed, which
+// dispatch.mjs counts toward limit-stops-per-head.
+test("pr-unblock.yml: sync-shared-copies-not-run posts every decided outcome neutral and a failed select as failure", () => {
+  const job = workflow("pr-unblock.yml").jobs["sync-shared-copies-not-run"];
+  const post = job.steps.find((step) => step.name === "Post the sync-shared-copies check run");
+  const head = "c".repeat(40);
+  const ctx = ({ result = "success", proceed = "false", skip = "", reason = "", sha = head } = {}) => ({
+    "inputs.activity": "sync-shared-copies",
+    "needs.sync-shared-copies-select.result": result,
+    "needs.sync-shared-copies-select.outputs.proceed": proceed,
+    "needs.sync-shared-copies-select.outputs.skip-reason": skip,
+    "needs.sync-shared-copies-select.outputs.head-sha": sha,
+    "steps.stop.outputs.skip": stopSkip(reason),
+  });
+  const posted = (values) => [evaluate(post.with["run-result"], ctx(values)), evaluate(post.with["not-run-reason"], ctx(values))];
+  assert.equal(evaluate(job.if, ctx({ proceed: "true" })), true);
+  assert.deepEqual(posted({ proceed: "true" }), ["skipped", "no-model-turn"]);
+  assert.deepEqual(posted({ skip: "awaiting-human" }), ["skipped", "awaiting-human"]);
+  assert.deepEqual(posted({ skip: "not-applicable" }), ["skipped", "not-applicable"]);
+  assert.deepEqual(posted({ reason: "shared-copy-tooling-changed" }), ["skipped", "lane-stopped"]);
+  assert.deepEqual(posted({ reason: "shared-copy-merge-conflicted" }), ["skipped", "lane-stopped"]);
+  assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "" })), true, "a failed select posts");
+  assert.deepEqual(posted({ result: "failure", proceed: "" }), ["failure", ""]);
+  assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop posts nothing");
+  assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "", sha: "" })), false, "no head read, nothing to post on");
 });
 
 // A job that runs on a main-scoped event and checks out, runs or feeds a model

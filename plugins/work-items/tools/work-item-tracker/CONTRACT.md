@@ -190,7 +190,7 @@ user-global layer.
 ```text
 work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id>
-work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
+work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
 work-item-tracker.sh release <id> --lease-comment-id <n> [--holder <h>]
 work-item-tracker.sh reclaim <id>
@@ -204,8 +204,23 @@ work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <fi
 work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
 work-item-tracker.sh status-storage [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
+work-item-tracker.sh add-recurrence <id> --source-link <url> --note <text>
 work-item-tracker.sh capabilities
 ```
+
+`add-recurrence` records that a signal was seen again on an item, keyed by the signal's source
+link, so a lane that sees one signal twice records it once. `--source-link` is an `http` or
+`https` URL with no whitespace, and `--note` is non-empty text; anything else exits `2`. The
+adapter writes one recurrence marker, `<!-- work-item-recurrence v1 {"source_link", "note",
+"recorded_at"} -->`, with every `>` in the JSON written as its unicode escape (backslash, then `u003e`) so a link or note cannot end
+the comment early. **No-op rule:** when the item already carries a marker whose `source_link`
+equals `--source-link` exactly, the verb writes nothing and exits `0` with `recorded: false`;
+otherwise it writes the marker and reports `recorded: true`. An item that does not exist exits
+`5`. GitHub posts the marker as the first line of an issue comment, the note below it, and counts
+an existing marker only from the authors a lease comment counts from ("Lease protocol"), since
+anyone can comment on a public repository. local-markdown appends the marker line to the item
+file. The check and the write are two calls with no compare-and-set, so two concurrent calls
+with one link can both write. An adapter that declares no `add-recurrence` key exits `6`.
 
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
 `--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
@@ -300,11 +315,13 @@ ceiling stays truncated after the filter, because a labeled item may sit past th
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
 blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
-"Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
-excluded, as are items carrying a **human-floor work class**: `work-class: structural` (C4)
+"Containers and state") AND no label starting `wayfind:` (a wayfind map item belongs to
+`/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
+`needs-human` are additionally excluded, as are items carrying a **human-floor work class**:
+`work-class: structural` (C4)
 or `work-class: untrusted-provenance` (C5), whose admission disposition is human-gated
-regardless of any other signal, and items labeled `status: needs-decision` or
-`status: needs-info`, which wait on a person. The floor wins over the autonomous-eligible role label: an
+regardless of any other signal, and items labeled `status: needs-decision`,
+`status: needs-info` or `needs-spec`, which wait on a person. The floor wins over the autonomous-eligible role label: an
 item carrying both is contradictory, and resolving it against the floor is what keeps a
 worker from claiming and then escalating it once per lane pass. `work-class: scoped` (C3) is
 deliberately not floored here: its disposition turns on bug-fix-vs-feature shape and
@@ -500,6 +517,7 @@ Per-verb result objects:
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
+| `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar
@@ -549,7 +567,7 @@ Arbitration is the same in both modes (step 4), so a local claim made while a la
 backs off, and a lane run that finds a live local lease backs off without starting its model.
 
 ```text
-<!-- work-item-lease v1 {"schema_version":"1.0","holder":"<gh login>","acquired_at":"<ISO>","renewed_at":"<ISO>","ttl_hours":24,"session_id":"<opt>"} -->
+<!-- work-item-lease v1 {"schema_version":"1.0","holder":"<gh login>","acquired_at":"<ISO>","renewed_at":"<ISO>","ttl_hours":24,"session_id":"<opt>","phase":"<opt>"} -->
 ```
 
 - Created at claim; **edited in place** at renew (`renewed_at` bump); superseded at
@@ -569,6 +587,12 @@ backs off, and a lane run that finds a live local lease backs off without starti
   TTL-based handoff. Recovery from an expired lease is a fresh claim/reclaim, not a renew.
 - `session_id` is diagnostic metadata only, optional and collision-prone; a
   missing/duplicate `session_id` still counts as a competing lease.
+- `phase` names the work the lease is for: `triage`, `discovery` or `implementation`. The github
+  and local-markdown `claim` write it from `--phase <kind>` and refuse any other value (exit 2)
+  before any write. A lease with no `phase` field is an implementation claim. `renew-lease`, and
+  the github `reclaim`, keep the field, since they edit the lease JSON in place. It is metadata only:
+  arbitration and liveness ignore it, so a triage lease blocks an implementation claim like any
+  other live lease. The claim and renew result objects do not carry it; read it from the lease.
 - The **lease handle** (`lease_comment_id`, emitted by `claim`/`renew-lease`) is
   provider-specific: the GitHub adapter uses the lease comment's own id (external,
   not stored in the JSON); the local-markdown adapter has no external ids, so it
@@ -653,8 +677,11 @@ surface as frontier items. `planning:wayfind` maps share this contract and resol
 same binding key (its `tracker-mechanics` doc carries the read), so one remap governs both
 container producers. Read one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
-`list-frontier --parent <container>`. Aside from that exclusion the frontier is
-label-agnostic and simply never surfaces items that are assigned or blocked.
+`list-frontier --parent <container>`. The frontier also excludes, unconditionally, any item
+carrying a label that starts `wayfind:`: those are a wayfind map's own items, which
+`/planning:wayfind` drives, so a `--parent` frontier over a wayfind map holds only its
+children without such a label. Aside from those exclusions the frontier is label-agnostic
+and simply never surfaces items that are assigned or blocked.
 
 ### Multi-provider topology: the role-split model (recorded decision, not yet built)
 

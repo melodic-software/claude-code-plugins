@@ -44,7 +44,9 @@ failed read, a list cut short or no such run keeps the FAIL.
   linked issues than each FAIL does (a relink), else at least one body edit
   from the last FAIL's creation (a body fix judged at the same head).
   A superseded FAIL still counts toward `max_fails`, and the passes then
-  decide as below. Any record, time or read that fails keeps `verify:fail`;
+  decide as below; the report's `supersededAtHead` names it, for pr-unblock
+  to resolve that FAIL's fail-note threads. Any record, time or read that
+  fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json):
@@ -128,8 +130,12 @@ while it pages, and return one twice when an upload moves it down a page
 (#10486). So a whole listing is deduplicated by id, added to the whole
 listings read before it, and checked by a top-up read from the first page
 (`Reader._complete_listing`); after `LISTING_READS` whole listings that never
-hold the live count it refuses `verify:unreadable`. The refresh before an
-allow reads the same way.
+hold the live count it refuses `verify:unreadable`, and after the first when
+its top-up holds more than the count or does not read, which reading again
+cannot cure. The refresh before an allow reads the same way. A listing from
+the API that fails once it began a whole listing is noted beside `LISTING_ENV`'s file
+(`FAILED_LISTING_SUFFIX`), and every later Reader of the job refuses on it
+without paging.
 
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
@@ -338,8 +344,9 @@ DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
 CALLER_ENV = "BABYSIT_VERIFY_CALLER"
 DEADLINE_MARGIN_SECONDS = 15.0
 # The start of a `verify:unreadable` detail when the listing does not fit in
-# what the caller's limit leaves: pr-unblock verify-cap.mjs skips the round
-# on it, for that run only, as on `SIBLING_UNREADABLE`.
+# what the caller's limit leaves, before paging or after the limit runs out:
+# pr-unblock verify-cap.mjs skips the round on it, for that run only, as on
+# `SIBLING_UNREADABLE`, and no `FAILED_LISTING_SUFFIX` note is written.
 DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
 # The least a whole listing's timeout takes, gh's per-call default it
 # replaced, unless the cap or a caller's limit leaves less.
@@ -395,10 +402,29 @@ LISTING_MISS_PREFIX = "babysit-listing-miss"
 
 class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
-    hold the live count, the one case read again on the same base."""
+    hold the live count: `COUNT_MISSED` (fewer), the one case read again on
+    the same base, or `COUNT_OVER` (more), which goes straight to one whole
+    listing, since no wait removes an entry GitHub no longer counts."""
 
 
+# Fewer than the live count: the pages skipped an artifact, which another
+# whole listing can restore.
 COUNT_MISSED = _CountMissed()
+# More than the live count: the base holds artifacts GitHub no longer counts.
+# A whole listing only adds ids to the union, so another cannot cure it: on
+# 2026-11-01 08:00-09:00Z GitHub's count dropped artifacts up to an hour before
+# the `expires_at` it listed, and every whole listing's top-up held 1 to 25
+# more than the count (ci-status run 41287360293).
+COUNT_OVER = _CountMissed()
+# Beside `LISTING_ENV`'s file, a listing from the API that failed in this job
+# after it began a whole listing, with its reason, unless it failed for want of
+# a caller's time (`DEADLINE_UNREADABLE`) or on a 5xx or network error that
+# outlasted its waits (`_Transient`), either of which a later Reader may not
+# meet: the job's later Readers, in this process or another, refuse
+# on it without paging again (pr-merge's merge job built one Reader per
+# candidate, each paging three whole listings, 825 to 1,015 calls a run on
+# 2026-11-01).
+FAILED_LISTING_SUFFIX = ".failed"
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -449,6 +475,13 @@ NEEDS_HUMAN = (UNTRUSTED_SPEC,)
 # one of them for a fresh attempt at its issue (`capped_close`, owner decision
 # 2026-10-29), never adding a person's label.
 VERIFY_FINAL = (REPEATED_FAIL,)
+# `capped_close`'s reasons: a `VERIFY_FINAL` refusal, or review rounds the
+# pr-unblock lane stopped as not converging (escalation-routes.json), whose
+# lane-stopped comment (report-escalation.sh) opens with the marker below.
+CLOSE_VERIFY = "verify"
+NOT_CONVERGING = "feedback-not-converging"
+CLOSE_REASONS = (CLOSE_VERIFY, NOT_CONVERGING)
+LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->"
 # `_elsewhere`'s refusal detail when a FAIL run of another pull request for
 # the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
 # cap, failing closed.
@@ -947,6 +980,9 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
+    # A counted FAIL at the head that `_superseded` gave way; False when the
+    # cap or a failed read decided first.
+    superseded_at_head: bool = False
 
     @property
     def needs_human(self) -> bool:
@@ -967,6 +1003,7 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
+            "supersededAtHead": self.superseded_at_head,
         }
 
 
@@ -1148,6 +1185,12 @@ class Reader:
     _listing_error: str | None = None
     # When the whole listings of one `_complete_listing` must end.
     _read_deadline: float | None = None
+    # A whole listing was paged, so a failure neither for want of a caller's
+    # time nor transient is noted for the job.
+    _whole_paged: bool = False
+    # The last `_incremental_page` that read nothing failed on a 5xx, a
+    # network error or a body cut short, after its waits.
+    _page_transient: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -1220,6 +1263,10 @@ class Reader:
             self._base = saved
             self._saved = True
             return self._artifacts
+        failed = self._failed_listing()
+        if failed is not None:
+            self._listing_error = failed
+            raise _Unreadable(failed)
         fetched_at = _wall_clock()
         base = self._incremental_base()
         listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
@@ -1245,6 +1292,8 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
+                if self._whole_paged and not isinstance(exc, _Transient):
+                    self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
         self._artifacts, self._fetched_at = listing, fetched_at
         self._base = (fetched_at, listing)
@@ -1318,11 +1367,16 @@ class Reader:
         A whole listing can skip an artifact at a page boundary when an
         earlier one expires while it pages, and the next read returns it.
         Raises `_Unreadable` when `LISTING_READS` reads never hold the live
-        count, so no judgment allows on a listing that may lack a FAIL, and
+        count, or at once when a top-up holds more than it (`COUNT_OVER`) or
+        does not read, which no further whole listing can cure, so no
+        judgment allows on a listing that may lack a FAIL, and
         before any read when the live count (`_live_count`) is too long to
         list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
         bounds the count read too, and every refusal for want of its time
-        starts with `DEADLINE_UNREADABLE`."""
+        starts with `DEADLINE_UNREADABLE`: one before paging, and one after
+        it when the caller's limit cut the whole listings' timeout and too
+        little of it is left for another wait (`LISTING_WAITS`)."""
+        self._whole_paged = False
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
         if callers and cap <= 0:
@@ -1338,10 +1392,34 @@ class Reader:
                 f"for a whole listing and its top-up at {LISTING_PAGE_SECONDS:.0f} s "
                 f"a page, past {bound}, so none is started"
             )
+        full = listing_timeout(total, LISTING_TIMEOUT_SECONDS)
+        try:
+            return self._whole_listings(budget)
+        except (_Unreadable, RuntimeError) as exc:
+            error, deadline = str(exc), self._read_deadline
+            if (
+                full is not None
+                and budget < full
+                and deadline is not None
+                and deadline - _listing_clock() <= max(LISTING_WAITS)
+                and not error.startswith(DEADLINE_UNREADABLE)
+            ):
+                raise _Unreadable(
+                    f"{DEADLINE_UNREADABLE}: {error} (out of {bound})"
+                ) from exc
+            raise
+
+    def _whole_listings(self, budget: float) -> list[dict[str, Any]]:
+        """`_complete_listing`'s whole listings and their top-ups, all inside
+        `budget`."""
         union: dict[int, dict[str, Any]] = {}
         deadline: float | None = None
-        for _ in range(LISTING_READS):
+        listing: list[dict[str, Any]] | _CountMissed | None = None
+        reads = 0
+        while reads < LISTING_READS:
+            reads += 1
             read_at = _wall_clock()
+            self._whole_paged = True
             payload = self._read_listing(deadline, budget)
             deadline = self._read_deadline
             for item in flatten_paginated_items(
@@ -1356,8 +1434,21 @@ class Reader:
             )
             if isinstance(listing, list):
                 return listing
-        raise _Unreadable(
-            f"repository artifacts: {LISTING_READS} whole listings never held "
+            if listing is not COUNT_MISSED:
+                # Only a skip (`COUNT_MISSED`) can be restored by reading again.
+                break
+        if listing is COUNT_OVER:
+            cause = "held more artifacts than"
+        elif listing is None:
+            cause = "could not be checked against"
+        else:
+            cause = "never held"
+        noun = "listing" if reads == 1 else "listings"
+        # A top-up page lost to a 5xx or network error is transient: not
+        # noted for the job (`_note_failed_listing`).
+        transient = listing is None and self._page_transient
+        raise (_Transient if transient else _Unreadable)(
+            f"repository artifacts: {reads} whole {noun} {cause} "
             "GitHub's live artifact count"
         )
 
@@ -1368,8 +1459,9 @@ class Reader:
         stage: str = "incremental",
     ) -> list[dict[str, Any]] | _CountMissed | None:
         """Every repository artifact, as the base (`_incremental_base`) and
-        the newest pages read now show them; `COUNT_MISSED` when the pages
-        read but the result does not hold the live count, else None.
+        the newest pages read now show them; when the pages read but the
+        result does not hold the live count, `COUNT_MISSED` for fewer and
+        `COUNT_OVER` for more; else None.
 
         The listing comes newest id first. Pages are read from the first
         until one holds an artifact at or below the base's highest id that
@@ -1382,12 +1474,17 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
-        GitHub's live count: any other count gives `COUNT_MISSED`, and one
-        `LISTING_MISS_PREFIX` line on stderr names `stage`, the counts and
+        GitHub's live count: fewer gives `COUNT_MISSED`, which
+        `_current_listing` reads again on the same base after a wait, and more
+        gives `COUNT_OVER`, which goes straight to one whole listing, since no
+        wait removes an entry GitHub no longer counts; either prints one
+        `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
-        `Date`, or any failed read gives None.
+        `Date`, or any failed read gives None (`_page_transient` says whether
+        the failed read was a 5xx or network error).
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
+        self._page_transient = False
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1460,7 +1557,7 @@ class Reader:
             file=sys.stderr,
             flush=True,
         )
-        return COUNT_MISSED
+        return COUNT_OVER if len(listing) > total else COUNT_MISSED
 
     def _incremental_page(
         self, page: int, deadline: float
@@ -1468,7 +1565,9 @@ class Reader:
         """One incremental page's body and headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
         (`_transient`) or its body is cut short; None for any other failure,
-        or once the waits or the time run out."""
+        or once the waits or the time run out, with `_page_transient` set
+        when the last read was one of those."""
+        self._page_transient = False
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
@@ -1484,18 +1583,52 @@ class Reader:
                     env_overrides=self._env(),
                 )
             except (RuntimeError, ValueError, OSError):
+                self._page_transient = False
                 return None
             if proc.returncode == 0:
                 try:
-                    return json_object(json.loads(proc.stdout)), headers
+                    body = json_object(json.loads(proc.stdout))
                 except ValueError:
                     pass  # A body cut short: read again.
+                else:
+                    self._page_transient = False
+                    return body, headers
             elif not _transient((proc.stderr or "").strip()):
+                self._page_transient = False
                 return None
+            self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
                 return None
             _listing_sleep(wait)
         return None
+
+    def _failed_path(self) -> Path | None:
+        """Where a failed whole listing is noted beside `listing_path`, for
+        the job's later Readers (`FAILED_LISTING_SUFFIX`)."""
+        if not self.listing_path:
+            return None
+        return Path(f"{self.listing_path}{FAILED_LISTING_SUFFIX}")
+
+    def _failed_listing(self) -> str | None:
+        """Why an earlier Reader of this job could not list, if one noted it."""
+        path = self._failed_path()
+        if path is None:
+            return None
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        return text or "repository artifacts: an earlier listing in this job failed"
+
+    def _note_failed_listing(self, error: str) -> None:
+        """Best effort: a failed write leaves the next Reader to list. A
+        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
+        noted: a later caller may have the time."""
+        path = self._failed_path()
+        if path is not None and not error.startswith(DEADLINE_UNREADABLE):
+            with contextlib.suppress(OSError):
+                note = f"{error} (an earlier listing in this job)"
+                path.write_text(note, encoding="utf-8")
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
@@ -2348,10 +2481,11 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
+        head_superseded = False
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-        elif head in failed and not superseded(head):
+        elif head in failed and not (head_superseded := superseded(head)):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             _, elsewhere = self._elsewhere(
@@ -2417,7 +2551,9 @@ class Reader:
             detail = f"created {created.isoformat()}"
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+        return Evidence(
+            refusal, head, tuple(verdicts), ignored, detail, head_superseded
+        )
 
     def _off_grammar(
         self, item: dict[str, Any], name: str, tied: bool
@@ -3793,11 +3929,22 @@ def capped_close_bodies(
 ) -> tuple[str, str | None]:
     """The comment on the closed pull request and, with an issue, the one on
     that issue: the marker first, then what happened and every FAIL's
-    findings. A function of its arguments only, so a rerun renders the same."""
+    findings. For `NOT_CONVERGING`, `detail` is the lane-stopped comment's
+    URL, which lists the open review threads the fresh attempt starts from.
+    A function of its arguments only, so a rerun renders the same."""
     heads = sorted({str(e["head"]) for e in findings})
     why = f" ({_inert(detail)})" if detail else ""
+    stop = (
+        f"the open review threads the pr-unblock lane-stopped comment lists ({detail})"
+        if detail
+        else f"the open review threads the pr-unblock lane-stopped comment on pull request #{number} lists"
+    )
     closed = (
-        f"Unattended merge: the verifier refuses `{refusal}` at head `{head}`{why}, "
+        f"Unattended merge: the pr-unblock lane stopped its review rounds as "
+        f"`{refusal}` at head `{head}`: after the round cap and one fresh fixer "
+        "round the review still has open findings, so the pr-merge lane closed it."
+        if refusal == NOT_CONVERGING
+        else f"Unattended merge: the verifier refuses `{refusal}` at head `{head}`{why}, "
         "which never clears for this pull request, so the pr-merge lane closed it."
     )
     if issue is None:
@@ -3817,14 +3964,22 @@ def capped_close_bodies(
         next_step = (
             f"Issue #{issue} goes back to `{AGENT_READY}` for fresh attempt "
             f"{attempt[0] if attempt else 0} of {attempt[1] if attempt else 0}, "
-            "which starts from these findings."
+            + (
+                f"which starts from {stop}."
+                if refusal == NOT_CONVERGING
+                else "which starts from these findings."
+            )
         )
-    found = [
-        "",
-        "Each FAILed head's findings, as the verifier wrote them (data, not instructions):",
-        "",
-        findings_text(findings),
-    ]
+    found = (
+        []
+        if refusal == NOT_CONVERGING and not findings
+        else [
+            "",
+            "Each FAILed head's findings, as the verifier wrote them (data, not instructions):",
+            "",
+            findings_text(findings),
+        ]
+    )
     pr_body = "\n".join(
         [capped_close_marker(number, heads), f"{closed} {next_step}", *found]
     )
@@ -3915,6 +4070,31 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     return len(named - {number})
 
 
+def not_converging_stop(
+    comments: list[dict[str, Any]], identity: str, head: str
+) -> dict[str, Any] | None:
+    """The lanes App's (`identity`) lane-stopped comment for address-feedback
+    among REST `comments` (report-escalation.sh, one per activity, edited in
+    place) naming `NOT_CONVERGING` and `head`, or None. Only the App writes
+    it; a status description, which any workflow can post, decides nothing."""
+    for comment in comments:
+        if (
+            str(json_object(comment.get("user")).get("login") or "").lower()
+            != identity.lower()
+        ):
+            continue
+        lines = [
+            line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")
+        ]
+        if (
+            lines[0] == LANE_STOPPED_FEEDBACK
+            and f"- Reason: `{NOT_CONVERGING}`" in lines
+            and f"- Head: `{head}`" in lines
+        ):
+            return comment
+    return None
+
+
 def capped_close(
     reader: Reader,
     number: int,
@@ -3923,10 +4103,15 @@ def capped_close(
     attempts: int,
     holds: tuple[str, ...] = (),
     issue_holds: tuple[str, ...] = (),
+    reason: str = CLOSE_VERIFY,
 ) -> dict[str, Any]:
     """Close a lanes App pull request the verifier refuses for good
     (`VERIFY_FINAL`) at `head`, judged again here, for a fresh attempt at its
-    issue (owner decision 2026-10-29; no person's label on this path). In
+    issue (owner decision 2026-10-29; no person's label on this path). With
+    `reason` `NOT_CONVERGING` it closes instead one whose review rounds the
+    pr-unblock lane stopped as not converging at `head`, judged again here
+    from the lanes App's lane-stopped comment (`not_converging_stop`), the
+    same way (owner decision on the issue this fixes, 2026-10-30). In
     order, so a failed write leaves the pull request open for the next run,
     which finds its comments and writes the rest: the record on the pull
     request, then on each issue; the issue's `agent-ready` comes off and
@@ -3951,12 +4136,22 @@ def capped_close(
     write or a failed issue read, `PostMergeReadError` on a failed comments
     read."""
     identity = reader.agent_identity or ""
-    evidence = reader.evidence(number, head)
-    if evidence.refusal not in VERIFY_FINAL:
-        return {
-            "closed": False,
-            "reason": f"the verifier answers {evidence.refusal} at {head}",
-        }
+    refusal: str | None
+    detail: str | None
+    if reason == NOT_CONVERGING:
+        # Judged below from the pull request's comments, not the verifier;
+        # `detail` becomes the stop comment's URL.
+        refusal, detail = NOT_CONVERGING, None
+    elif reason == CLOSE_VERIFY:
+        evidence = reader.evidence(number, head)
+        if evidence.refusal not in VERIFY_FINAL:
+            return {
+                "closed": False,
+                "reason": f"the verifier answers {evidence.refusal} at {head}",
+            }
+        refusal, detail = evidence.refusal, evidence.detail
+    else:
+        raise ValueError(f"unknown close reason {reason}")
     pr = merge_policy.pull_request(reader.repo, number)
     labels = {
         str(json_object(item).get("name") or "").lower()
@@ -3975,15 +4170,15 @@ def capped_close(
         }
     if held := sorted(labels & {h.lower() for h in holds}):
         return {"closed": False, "reason": f"it carries {', '.join(held)}"}
-    if (refusal := reader.link_refusal(number)) is not None:
-        return {"closed": False, "reason": refusal}
+    if (refused := reader.link_refusal(number)) is not None:
+        return {"closed": False, "reason": refused}
     try:
         live = reader._closing_issues(number)
     except _Unreadable as exc:
         raise RuntimeError(f"issue link: {exc}") from exc
     for node in live.values():
-        if (refusal := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
-            return {"closed": False, "reason": refusal}
+        if (refused := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
+            return {"closed": False, "reason": refused}
     issues = sorted(n for n in live if type(n) is int)
     try:
         findings = reader.fail_findings(number)
@@ -3993,6 +4188,14 @@ def capped_close(
     pr_comments = postmerge._paginated(
         f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
     )
+    if refusal == NOT_CONVERGING:
+        if (stop := not_converging_stop(pr_comments, identity, head)) is None:
+            return {
+                "closed": False,
+                "reason": f"no lanes App {NOT_CONVERGING} stop at {head}",
+            }
+        # The stop comment lists the open review threads it was closed for.
+        detail = str(stop.get("html_url") or "") or None
     # A pull request is closed at the cap once: one reopened after its
     # record is a person's, and stays open.
     if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
@@ -4068,8 +4271,8 @@ def capped_close(
     pr_body, _ = capped_close_bodies(
         number,
         head,
-        str(evidence.refusal),
-        evidence.detail,
+        str(refusal),
+        detail,
         findings,
         first[0] if first else None,
         first[2] if first else None,
@@ -4091,8 +4294,8 @@ def capped_close(
         _, issue_body = capped_close_bodies(
             number,
             head,
-            str(evidence.refusal),
-            evidence.detail,
+            str(refusal),
+            detail,
             findings,
             issue,
             attempt,
@@ -4150,7 +4353,7 @@ def capped_close(
     )
     return {
         "closed": True,
-        "refusal": evidence.refusal,
+        "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
         "parked": [i for i, _, _, parked, _ in plan if parked],
         "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
@@ -4191,6 +4394,7 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
             attempts=config.verify_cap_attempts,
             holds=holds,
             issue_holds=issue_holds,
+            reason=args.reason,
         )
     except (
         RuntimeError,
@@ -4256,7 +4460,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     report's check (empty when unknown): changed check code reads the report
     again or refuses it (`merge_policy.check_code_unchanged`).
 
-    `capped-close --repo R --base-sha <sha> [--hold-label L ...] <number>
+    `capped-close --repo R --base-sha <sha> [--hold-label L ...]
+    [--reason verify|feedback-not-converging] <number>
     <head>`: `capped_close` for enable-auto-merge.mjs (`_capped_close_main`),
     its writes under GH_TOKEN, the lanes App token.
 
@@ -4294,6 +4499,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     close.add_argument("--branch", default="main")
     close.add_argument("--base-sha", required=True)
     close.add_argument("--hold-label", action="append", default=[])
+    close.add_argument("--reason", choices=CLOSE_REASONS, default=CLOSE_VERIFY)
     close.add_argument("number", type=int)
     close.add_argument("head")
     settle = sub.add_parser("settle", allow_abbrev=False)

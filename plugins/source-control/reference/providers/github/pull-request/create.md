@@ -100,8 +100,8 @@ directory**, or from `GH_REPO`. Out of tree, run the call from the worktree
 ## Body overrides the template
 
 A body passed with `gh pr create --body-file` (or `--body`) fully overrides
-`.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751). `gh pr create` has no option that uploads a
-file.
+`.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751). Create passes no `--attach` (gh 2.99.0 and
+later): captures go to the PR through the pull-request skill's `evidence` action.
 
 ## Open the draft PR
 

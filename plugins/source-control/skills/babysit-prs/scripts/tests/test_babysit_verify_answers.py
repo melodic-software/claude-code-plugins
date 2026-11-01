@@ -60,6 +60,7 @@ MISSING = {
     "earlierFails": [],
     "ignored": 0,
     "detail": None,
+    "supersededAtHead": False,
     "ineligible": None,
 }
 ALLOW = MISSING | {

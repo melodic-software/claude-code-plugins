@@ -1,5 +1,5 @@
 ---
-description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator JSON eval format."
+description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, its validity verdict, and reading the with-versus-without delta. Use when: planning how a headless `claude -p` session launches eval runs, an eval run's delta, arm scores or validity verdict is in question, including whether it can be shared (load this before answering), 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator JSON eval format."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -297,9 +297,8 @@ Read in this order. Stopping early at any step is the finding.
    for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial), how a Bash denial's paths are read, gating an A/B pass, and the 0-turn
-   `context: fork` run the gate does not fail are in
-   [reading-results.md, Denials](reference/reading-results.md#denials).
+   probe's denial), Bash denial paths, A/B gating, the 0-turn `context: fork` run the gate passes,
+   and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still

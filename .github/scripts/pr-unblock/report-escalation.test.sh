@@ -128,6 +128,7 @@ activity_of() {
     feedback-*) echo address-feedback ;;
     dependency-*) echo review-dependency ;;
     ci-fix-*) echo fix-ci ;;
+    shared-copy-*) echo sync-shared-copies ;;
     *) echo resolve-conflicts ;;
   esac
 }
@@ -158,12 +159,15 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   feedback-protected-path ci-fix-protected-path ci-fix-weaken-required ci-fix-escalated
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
+  shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
+  shared-copy-patch-protected-path shared-copy-merge-conflicted
   feedback-untaken-threads feedback-unadjudicated)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial
   feedback-incomplete feedback-stood-open feedback-publish-failed
   dependency-invalid
-  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry)
+  ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-not-applied ci-fix-weaken-retry
+  shared-copy-workflow-staged shared-copy-patch-invalid shared-copy-patch-not-applied)
 ROUTES="$SCRIPT_DIR/escalation-routes.json"
 check "the routing table holds exactly these reasons" \
   "$(printf '%s\n' "${HOLD_REASONS[@]}" "${SESSION_REASONS[@]}" "${FAIL_REASONS[@]}" | sort)" "$(jq -r 'keys[]' "$ROUTES" | sort)"
@@ -535,6 +539,25 @@ check "not-converging: a resolved thread is not named" 0 "$(grep -c 'src/b.js' "
 has "not-converging: a write-access fix request grants a round" 'PR-fix lane: please fix this finding' "$STUB/bodies"
 check "not-converging: no label" 0 "$(grep -c '/labels' "$STUB/requests" || true)"
 check "not-converging: no remove-the-label resume step" 0 "$(grep -c 'remove the' "$STUB/bodies" || true)"
+has "not-converging, another author's PR: a person resolves the threads, then dispatches" 'a person resolves the threads or gets the checks green' "$STUB/bodies"
+check "not-converging, another author's PR: no close named" 0 "$(grep -c 'pr-merge lane closes' "$STUB/bodies" || true)"
+
+# On a pull request the lanes App opened (GraphQL names an App without the
+# [bot] suffix), the pr-merge lane closes it and re-admits its issue, so the
+# comment says so and how to keep it open; the retry text is gone.
+setup '[]' '[]'
+cat >"$STUB/threads.json" <<'EOF'
+[{"data":{"repository":{"pullRequest":{"author":{"login":"melodic-automation-lanes"},"reviewThreads":{"nodes":[
+{"isResolved":false,"path":"src/a.js","line":5,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r1"}]}}
+],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}}]
+EOF
+run feedback-not-converging
+check "not-converging, lanes App PR: exit 0" 0 "$RC"
+has "not-converging, lanes App PR: says pr-merge closes it and re-admits the issue" 'The pr-merge lane closes this pull request on its next run and re-admits its issue for a fresh attempt.' "$STUB/bodies"
+has "not-converging, lanes App PR: add the human-gated label first to keep it open" 'To keep it open for one more round, first add `needs-human`' "$STUB/bodies"
+has "not-converging, lanes App PR: do-not-merge also stops the rounds" 'it also stops the lane'"'"'s rounds' "$STUB/bodies"
+check "not-converging, lanes App PR: no retry-on-this-head text" 0 "$(grep -c 'a person resolves the threads or gets the checks green' "$STUB/bodies" || true)"
+check "not-converging, lanes App PR: the round grant is named once" 1 "$(grep -c 'PR-fix lane: please fix this finding' "$STUB/bodies" || true)"
 
 # Every page of review threads is read: on a PR whose first page holds only
 # resolved threads, an open thread on a later page is still named.

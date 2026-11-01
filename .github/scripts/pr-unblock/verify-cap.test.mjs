@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { carrySteps, DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { carrySteps, DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, SUPERSEDED_AT_HEAD, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader, verifyReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -114,6 +114,26 @@ test("a read that fails, does not parse or answers for another head runs the rou
     assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
     assert.match(lines.join("\n"), /^::warning::#42: /m);
   }
+});
+
+// feedback-dispatch.mjs resolves a same-head FAIL's notes on the reader's own
+// `supersededAtHead` (Evidence.report), from a read at the head only: a
+// missing field (an older reader), any other value, a failed read or an
+// answer for another head is not superseded.
+test("the reader's supersededAtHead reaches the caller only as true from a read at the head", async () => {
+  const read = (done) => verifyReader({ GITHUB_REPOSITORY: REPO }, { spawn: () => done, log: () => {} })({ number: 42, head: HEAD, base: BASE });
+  assert.deepEqual(await read(answer({ refusal: null, supersededAtHead: true })), { cap: null, supersededAtHead: true });
+  assert.deepEqual(await read(answer({ refusal: "verify:spec-changed", supersededAtHead: true })), { cap: null, supersededAtHead: true });
+  for (const done of [
+    answer({ refusal: "verify:fail", supersededAtHead: false }),
+    answer({ refusal: null }),
+    answer({ refusal: null, supersededAtHead: "true" }),
+    answer({ refusal: null, supersededAtHead: true, head: "c".repeat(40) }),
+    { status: 1, stdout: "", stderr: "gh: rate limited" },
+  ]) {
+    assert.deepEqual(await read(done), { cap: null, supersededAtHead: false }, JSON.stringify(done));
+  }
+  assert.deepEqual(await read(answer({ refusal: "verify:repeated-fail", detail: CAPPED, supersededAtHead: false })), { cap: `verify:repeated-fail: ${CAPPED}`, supersededAtHead: false });
 });
 
 test("without a base commit the reader takes its own cap default", async () => {
@@ -346,13 +366,14 @@ test("with no carry file named, no carry is fetched", async () => {
   assert.equal(fetched, 0);
 });
 
-test("the sibling and caller-limit details, the FAIL refusal, the listing-miss prefix and the no-wait switch are the reader's", async () => {
+test("the sibling and caller-limit details, the FAIL refusal, the listing-miss prefix, the no-wait switch and the superseded field are the reader's", async () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
   assert.ok(source.includes(`DEADLINE_UNREADABLE = "${DEADLINE_UNREADABLE}"`));
   assert.ok(source.includes(`FAIL = "${FAIL}"`));
   assert.ok(source.includes(`LISTING_MISS_PREFIX = "${LISTING_MISS_PREFIX}"`));
   assert.ok(source.includes(`NO_INCREMENTAL_WAITS_ENV = "${Object.keys(NO_INCREMENTAL_WAITS)[0]}"`));
+  assert.ok(source.includes(`"${SUPERSEDED_AT_HEAD}": self.superseded_at_head,`));
 });
 
 // babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its

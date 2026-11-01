@@ -19,7 +19,7 @@ graders:
     arm: both
   - name: rejects-bad-token
     type: regex
-    pattern: '--apply-fixes`?\W{0,4}(?:\s+(?:is|was)(?:\s+not|n''t)\s+(?:an?\s+|one of the\s+|in the\s+|part of the\s+|among the\s+)?(?:accepted|recogni[sz]ed|supported|valid)|\s+(?:is|was|falls)\s+outside\s+the\s+accepted|\s*[(:,-]?\s*(?:unknown|unrecogni[sz]ed|unsupported|invalid|not accepted|not in the accepted)\b(?!\s+(?!(?:argument|token|flag|option|set|to|for|here)s?\b)[a-z]))|\b(?:unknown|unrecogni[sz]ed|unsupported|invalid|unexpected)\s+(?:argument|token|flag|option)s?\W{0,6}--apply-fixes'
+    pattern: '--apply-fixes`?\W{0,4}(?:\s+(?:is|was)(?:\s+not|n''t)\s+(?:an?\s+|one of the\s+|in the\s+|part of the\s+|among the\s+)?(?:accepted|recogni[sz]ed|supported|valid)|\s+(?:is|was)(?:\s+not|n''t)\s+an?\s+(?:argument|option|flag|token)\s+(?:this|the)\s+(?:skill|audit|command)\s+accepts|\s+(?:is|was|falls)\s+outside\s+the\s+accepted|\s*[(:,-]?\s*(?:unknown|unrecogni[sz]ed|unsupported|invalid|not accepted|not in the accepted)\b(?!\s+(?!(?:argument|token|flag|option|set|to|for|here)s?\b)[a-z]))|\b(?:unknown|unrecogni[sz]ed|unsupported|invalid|unexpected)\s+(?:argument|token|flag|option)s?\W{0,6}--apply-fixes'
     flags: 'i'
     arm: both
   - name: names-accepted-set

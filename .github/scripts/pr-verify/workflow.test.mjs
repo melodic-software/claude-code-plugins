@@ -126,8 +126,17 @@ test("the upload is each job's only artifact step and follows the written verdic
       job,
     );
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
-    assert.ok(index("Upload the verdict", job) > index("Write the verdict", job), job);
-    assert.match(uploads[0].block, /if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}/, job);
+    // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
+    assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
+    assert.equal(index("Upload the verdict", job), index("Scan the upload for credentials", job) + 1, job);
+    const scan = step("Scan the upload for credentials", job);
+    assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
+    assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-verify-verdict\/verdict\.json$/m, job);
+    assert.match(
+      uploads[0].block,
+      /^ {8}if: >-\n {10}\(!cancelled\(\) && steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m,
+      job,
+    );
     // The verdict step names the retention (write-verdict.mjs retentionDays).
     assert.equal(input(uploads[0].block, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
@@ -503,6 +512,12 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
     assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
     assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
+    // The head's tree, written by the diff step from its blobless fetch, outside the data directory.
+    const diff = step("Write the diff", job);
+    assert.equal(input(listing, "HEAD_PATHS_FILE"), "${{ runner.temp }}/pr-verify-head-paths", job);
+    assert.equal(input(diff, "HEAD_PATHS_FILE"), input(listing, "HEAD_PATHS_FILE"), job);
+    assert.ok(diff.includes('git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"\n'), job);
+    assert.ok(index("Write the diff", job) < index("List the upstream run's jobs", job), job);
     assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
     assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
     assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);

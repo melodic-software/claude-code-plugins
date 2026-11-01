@@ -40,12 +40,14 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-# Every pull_request run, contract-only and draft included, and after a
-# failed earlier step, so the hold is never hidden.
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' }}"* ]]; then
-  ok "step runs on every pull_request run that is not cancelled"
+# Every pull_request run, contract-only included, and after a failed earlier
+# step, so the hold is never hidden. A draft's ci-status passes by design
+# (`Note a draft`), so the step makes no read there; the ready_for_review run
+# judges the label.
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}"* ]]; then
+  ok "step runs on every pull_request run that is not cancelled or a draft"
 else
-  fail "step lost its pull_request condition"
+  fail "step lost its pull_request condition or its draft skip"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"

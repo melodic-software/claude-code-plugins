@@ -86,6 +86,26 @@ assert_eq "default frontier excludes the container (work-map)" "github:o/r#1" "$
 IDS="$(frontier_ids true <<<"$CONTAINERS")"
 assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS"
 
+# A wayfind map item (any `wayfind:` label) belongs to /planning:wayfind, so neither
+# frontier surfaces it; a label that only contains the text elsewhere still does.
+WAYFIND='{
+  "schema_version": "1.0",
+  "items": [
+    {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready"],"blocked_by_count":0},
+    {"id":"github:o/r#12","state":"open","assignees":[],"labels":["agent-ready","wayfind: research"],"blocked_by_count":0},
+    {"id":"github:o/r#13","state":"open","assignees":[],"labels":["wayfind: task"],"blocked_by_count":0},
+    {"id":"github:o/r#14","state":"open","assignees":[],"labels":["area: wayfind:"],"blocked_by_count":0}
+  ]
+}'
+IDS="$(frontier_ids false <<<"$WAYFIND")"
+assert_eq "default frontier excludes wayfind: items" "github:o/r#1,github:o/r#14" "$IDS"
+IDS="$(frontier_ids true <<<"$WAYFIND")"
+assert_eq "autonomous frontier excludes wayfind: items even when agent-ready" \
+  "github:o/r#1,github:o/r#14" "$IDS"
+# A hand-edited local-markdown item can carry a non-string label; the prefix check skips it.
+COUNT="$(frontier_count false <<<'{"schema_version":"1.0","items":[{"id":"local:a#1","state":"open","labels":[1],"blocked_by_count":0}]}')"
+assert_eq "a non-string label does not fail the wayfind check" "1" "$COUNT"
+
 # A non-default container label passed explicitly is honored (parity with the
 # human-gated remap path); the shipped default must not exclude once remapped.
 REMAP_CONTAINER='{
@@ -139,13 +159,14 @@ assert_eq "default frontier still surfaces a provenance: signal item" \
 STATUS='{"schema_version":"1.0","items":[
   {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
   {"id":"github:o/r#9","state":"open","assignees":[],"labels":["agent-ready","status: needs-decision"],"blocked_by_count":0},
-  {"id":"github:o/r#10","state":"open","assignees":[],"labels":["agent-ready","status: needs-info"],"blocked_by_count":0}]}'
+  {"id":"github:o/r#10","state":"open","assignees":[],"labels":["agent-ready","status: needs-info"],"blocked_by_count":0},
+  {"id":"github:o/r#11","state":"open","assignees":[],"labels":["needs-spec"],"blocked_by_count":0}]}'
 IDS="$(frontier_ids true <<<"$STATUS")"
-assert_eq "autonomous frontier drops status: needs-decision and needs-info even when agent-ready" \
+assert_eq "autonomous frontier drops status: needs-decision and needs-info even when agent-ready, and a parked needs-spec item" \
   "github:o/r#1" "$IDS"
 IDS="$(frontier_ids false <<<"$STATUS")"
-assert_eq "default frontier still surfaces status: needs-decision and needs-info items" \
-  "github:o/r#1,github:o/r#9,github:o/r#10" "$IDS"
+assert_eq "default frontier still surfaces status: needs-decision, needs-info and needs-spec items" \
+  "github:o/r#1,github:o/r#9,github:o/r#10,github:o/r#11" "$IDS"
 
 # C3 scoped is deliberately NOT in the floor (the admission gate owns it), so it
 # must survive this filter.

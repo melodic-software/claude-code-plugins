@@ -385,8 +385,14 @@ test("the action emits each named token, the call count as an api-calls notice t
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
-    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n)/.exec(CI);
-    assert.ok(block, "ci-status emits its notices in one block");
+    // ci-status is the workflow's last job, and its notices come from its last
+    // step, which runs on failure too, so every earlier step's reads are in them.
+    const job = CI.slice(CI.indexOf("\n  ci-status:\n"));
+    assert.equal(job.match(/api_budget_emit github-token;/g)?.length, 1, "ci-status emits its notices once");
+    const last = job.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
+    assert.match(last, /^Log the API budget at the end\n {8}if: always\(\)\n/, "ci-status ends with the log step");
+    const block = /\n {10}(\[ -z "\$\{API_BUDGET_SH:-\}" \] \|\| \{[^\n]*api_budget_emit github-token;[^\n]*\}\n?)$/.exec(last);
+    assert.ok(block, "the log step emits its notices in one block");
     const out = execFileSync("bash", ["-c", block[1]], {
       encoding: "utf8",
       env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },

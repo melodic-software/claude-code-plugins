@@ -363,7 +363,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_trace_that_ends_in_an_error_is_invalid(self):
         trace = self.dir / "errored.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"result","subtype":"error_during_execution","is_error":true}\n',
             encoding="utf-8",
         )
@@ -402,7 +402,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_zero_turn_run_whose_trace_ends_in_an_error_is_reported_once(self):
         trace = self.dir / "errored.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"result","subtype":"error_during_execution","is_error":true}\n',
             encoding="utf-8",
         )
@@ -418,7 +418,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_zero_turn_run_whose_trace_holds_a_forked_session_passes(self):
         trace = self.dir / "forked.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n'
             '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
             encoding="utf-8",
@@ -444,7 +444,7 @@ class RunValidityTest(unittest.TestCase):
         text = "Sandbox is required but failed to initialize"
         trace = self.dir / "mentions.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps(
                 {"type": "assistant", "message": {"content": [
                     {"type": "text", "text": "The gate looks for '%s'." % text},
@@ -479,7 +479,7 @@ class RunValidityTest(unittest.TestCase):
                 for i, (err, text) in enumerate(results)]
         trace = self.dir / name
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps({"type": "assistant", "message": {"content": uses}}) + "\n"
             + json.dumps({"type": "user", "message": {"content": outs}}) + "\n"
             + '{"type":"result","subtype":"success","is_error":false,"num_turns":4}\n',
@@ -530,7 +530,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_trace_showing_the_sandbox_failing_to_start_is_invalid(self):
         trace = self.dir / "no-sandbox.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1",'
             '"name":"Bash","input":{"command":"ls"}}]}}\n'
             '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1",'
@@ -560,7 +560,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
         trace = self.dir / "denied.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Grep","input":{"pattern":"x"}}]}}\n'
             '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,'
             '"content":[{"type":"text","text":"Path is denied by your permission settings."}]}]}}\n',
@@ -621,7 +621,7 @@ class RunValidityTest(unittest.TestCase):
         lines.append({"type": "result", "is_error": False, "permission_denials": entries})
         trace = self.dir / "denied-probe.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + "".join(json.dumps(line) + "\n" for line in lines),
             encoding="utf-8",
         )
@@ -699,7 +699,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_denial_names_the_path_it_was_aimed_at(self):
         trace = self.dir / "denied-paths.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"result","is_error":false,"permission_denials":['
             '{"tool_name":"Grep","tool_use_id":"g1","tool_input":'
             '{"pattern":"GRADER_TYPES","path":"/p/validate-cases.py"}},'
@@ -749,7 +749,7 @@ class RunValidityTest(unittest.TestCase):
             tool_input["path"] = path
         trace = self.dir / "denied-root.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"result","is_error":false,"permission_denials":['
             '{"tool_name":"%s","tool_use_id":"g1","tool_input":%s}]}\n'
             % (tool, json.dumps(tool_input)),
@@ -982,7 +982,7 @@ class RunValidityTest(unittest.TestCase):
                 continue
             trace = self.dir / ("denied-%s.jsonl" % arm)
             trace.write_text(
-                '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+                '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
                 '{"type":"result","is_error":false,"permission_denials":['
                 '{"tool_name":"%s","tool_use_id":"g1","tool_input":%s}]}\n'
                 % (tool, json.dumps(tool_input)),
@@ -1042,7 +1042,7 @@ class RunValidityTest(unittest.TestCase):
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             '{"type":"user","message":{"content":[{"type":"text","text":"a Read is refused with'
             ' File is in a directory that is denied by your permission settings"}]}}\n',
             encoding="utf-8",
@@ -1137,6 +1137,113 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
 
+    def probe_with_tools(self, tools, tags="tags: [invocation-probe, train]"):
+        """Case noise-before-gain, its prompt.md carrying tags, whose with-arm run's
+        init line lists tools: the session's callable tools as the trace records them."""
+        result = self.clean()
+        case = result["cases"][2]
+        (self.dir / "suite" / case["dir"] / "prompt.md").write_text(
+            "---\ndescription: d\n%s\n---\n\nQ\n" % tags, encoding="utf-8"
+        )
+        trace = self.dir / "tools.jsonl"
+        trace.write_text(
+            json.dumps({"type": "system", "subtype": "init",
+                        "model": "claude-opus-5-5", "tools": tools})
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        data["cases"][2]["arms"]["with"][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1")
+
+    def test_a_probe_run_that_could_search_or_dispatch_warns_with_the_run_line(self):
+        # The tool list a probe run's init line recorded on Claude Code 2.1.316
+        # when the run left out the emitted README's --disallow-tools.
+        proc = self.probe_with_tools(
+            ["Task", "Glob", "Grep", "Read", "Skill", "TaskStop", "ToolSearch"]
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check probe tools: WARN (1 run of invocation-probe cases", proc.stdout)
+        self.assertIn("--disallow-tools Read Glob Grep Agent", proc.stdout)
+        self.assertIn(
+            "  Task, Glob, Grep, Read: 1 run, first case noise-before-gain, with-arm run 1\n",
+            proc.stdout,
+        )
+
+    def test_a_probe_run_with_only_skill_passes_probe_tools(self):
+        # The init tools a `--disallowed-tools Agent Read Glob Grep` session
+        # recorded on Claude Code 2.1.316, plus Skill.
+        proc = self.probe_with_tools(["Bash", "Skill", "TaskStop", "ToolSearch"])
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check probe tools: PASS", proc.stdout)
+
+    def probe_unread(self, arms, missing_trace):
+        """Case noise-before-gain tagged invocation-probe, whose runs in arms have
+        either no trace file or an init line with no tools list."""
+        result = self.clean()
+        case = result["cases"][2]
+        (self.dir / "suite" / case["dir"] / "prompt.md").write_text(
+            "---\ndescription: d\ntags: [invocation-probe, train]\n---\n\nQ\n",
+            encoding="utf-8",
+        )
+        trace = self.dir / "no-tools.jsonl"
+        if not missing_trace:
+            trace.write_text(
+                json.dumps({"type": "system", "subtype": "init",
+                            "model": "claude-opus-5-5"})
+                + "\n"
+                + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+                + "\n",
+                encoding="utf-8",
+            )
+        path = self.write(result)
+        data = load(path)
+        for arm in arms:
+            data["cases"][2]["arms"][arm][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1"), trace
+
+    def test_a_probe_run_with_no_trace_warns_and_names_it(self):
+        proc, trace = self.probe_unread(["with"], missing_trace=True)
+        self.assertIn(
+            "check probe tools: WARN (1 probe run with no readable init tools list)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case noise-before-gain, with-arm run 1: no init tools list (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn("permission denials, probe tools and the trace model are", proc.stdout)
+
+    def test_probe_runs_with_no_init_tools_list_are_unchecked_and_invalid(self):
+        proc, _ = self.probe_unread(["with", "without"], missing_trace=False)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check probe tools: UNCHECKED (no invocation-probe run's init tools list"
+            " could be read)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "probe tools unchecked in 2 runs with no readable init tools list",
+            proc.stdout.splitlines()[-1],
+        )
+
+    def test_one_probe_run_with_no_init_tools_list_warns(self):
+        proc, _ = self.probe_unread(["with"], missing_trace=False)
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check probe tools: WARN (1 probe run with no readable", proc.stdout)
+        self.assertIn("probe tools unread in 1 run", proc.stdout.splitlines()[-1])
+
+    def test_a_case_outside_the_probes_may_search(self):
+        proc = self.probe_with_tools(
+            ["Task", "Glob", "Grep", "Read", "Skill"], tags="tags: [knowledge]"
+        )
+        self.assertIn("check probe tools: PASS", proc.stdout)
+
     def capped_probe(
         self,
         tool="Skill",
@@ -1156,7 +1263,7 @@ class RunValidityTest(unittest.TestCase):
         call = {"skill": "evals:methodology"} if tool == "Skill" else {"file_path": "x"}
         trace = self.dir / "capped.jsonl"
         trace.write_text(
-            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps({"type": "assistant", "message": {"content": [
                 {"type": "tool_use", "id": "c1", "name": tool, "input": call}]}})
             + "\n"

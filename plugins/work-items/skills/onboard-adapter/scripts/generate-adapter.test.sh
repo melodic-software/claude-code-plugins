@@ -40,7 +40,7 @@ BASE_SPEC='{
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
     "set-fields": false, "get-field-options": false,
-    "change-link": true, "capabilities": true
+    "change-link": true, "add-recurrence": false, "capabilities": true
   },
   "features": { "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true },
   "limits": { "sub_items_per_parent": 0, "sub_item_depth": 0, "dependencies_per_type": 0, "list_items_max": 1000 },

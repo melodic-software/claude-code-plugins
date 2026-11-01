@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_stale_reporter_info_days=14 (repository)\n\nClose candidates (stale reporter info):\n- #1 Export sometimes hangs: no reporter reply since the triage note of 2026-01-06.\n\nThis is a lane run, so nothing was closed; only the operator's yes closes a candidate.",
+      "why": "lists the candidate and closes nothing"
+    },
+    {
+      "answer": "#1 is a close-candidate: dana-r has no write access and has not replied in over 14 days. Lanes never close it.",
+      "why": "hyphenated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No untriaged intake. Nothing to do.",
+      "why": "candidate not listed"
+    },
+    {
+      "answer": "Closed #1 as not planned: the reporter never replied.",
+      "why": "closes instead of listing"
+    },
+    {
+      "answer": "Settings: triage_stale_reporter_info_days=14 (repository)\n\nNo close candidates.",
+      "why": "setting read, #1 filtered out"
+    },
+    {
+      "answer": "Close candidates: none",
+      "why": "empty list"
+    }
+  ]
+}

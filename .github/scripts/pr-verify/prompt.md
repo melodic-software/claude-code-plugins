@@ -49,9 +49,12 @@ DIFF_PARTSCHUNK_NOTE
   job is a defect only when its suite covers the changed files. When `select-tests` itself is
   `skipped`, the run was a label or body-edit re-run that ran no suite: the list is then no
   evidence either way, and its skips are no defect. `ci-status` sums the others and
-  fails on holds a person lifts; it is not test evidence. Job names come from the pull request's
-  own `.github/workflows/pr-require-checks.yml`, so a diff that changes that file changes what
-  the list means.
+  fails on holds a person lifts; it is not test evidence. Its `wrapped_node_suites` lists each
+  Node suite (`suite`) in the judged head's tree that has a sibling `.test.sh` (`wrapper`): CI
+  runs such a suite only through its wrapper, in a `test-bash` job, never in `test-node`, so its
+  evidence is the `test-bash` jobs' conclusions. Job names come from the pull request's own
+  `.github/workflows/pr-require-checks.yml`, and the wrapper rule from its
+  `scripts/plan-test-lanes.sh`, so a diff that changes either file changes what the list means.
 
 Judge in this order:
 
