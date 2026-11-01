@@ -548,13 +548,23 @@ git_test_config "$d" branch -q -m lanework # no origin/main, origin/master, main
 add_skill "$d" p1 alpha SKILL.md
 out="$(run_lane "$t" "$d" --merge-base 2>&1)"
 rc=$?
-if ((rc == 0)) && grep -q "diffing against HEAD" <<<"$out" &&
-  grep -q "args=--require-evals alpha .* base=$(base_sha "$d")$" "$d/checklog" 2>/dev/null; then
-  ok "--merge-base falls back to HEAD, with a warning, when no default branch resolves"
+if ((rc == 2)) && grep -q "in a full checkout" <<<"$out" && [[ ! -s "$d/checklog" ]]; then
+  ok "--merge-base fails closed when no default branch resolves in a full checkout"
 else
-  fail "expected the HEAD fallback, rc=$rc, got: $out / $(cat "$d/checklog" 2>/dev/null)"
+  fail "expected exit 2 with no check run, rc=$rc, got: $out / $(cat "$d/checklog" 2>/dev/null)"
 fi
-rm -rf "$t" "$d"
+s="$TMP_ROOT/shallow-lane"
+git clone -q --depth 1 "file://$d" "$s" # holds only origin/lanework
+add_skill "$s" p1 alpha SKILL.md
+out="$(run_lane "$t" "$s" --merge-base 2>&1)"
+rc=$?
+if ((rc == 0)) && grep -q "diffing against HEAD" <<<"$out" &&
+  grep -q "args=--require-evals alpha .* base=$(base_sha "$s")$" "$s/checklog" 2>/dev/null; then
+  ok "--merge-base falls back to HEAD, with a warning, in a shallow checkout with no default branch"
+else
+  fail "expected the HEAD fallback, rc=$rc, got: $out / $(cat "$s/checklog" 2>/dev/null)"
+fi
+rm -rf "$t" "$d" "$s"
 
 mk_lane_pair t d
 if out="$(run_lane "$t" "$d" --merge-base HEAD 2>&1)"; then

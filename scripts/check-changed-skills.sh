@@ -38,9 +38,10 @@
 #   scripts/check-changed-skills.sh --merge-base
 #
 # The lane form, for a run that checks a tree it must not execute: the base is
-# origin's default branch (changed_files::resolve_base), else HEAD with a
-# warning, since a shallow checkout of one commit holds no remote ref and its
-# HEAD is the base the work started from. The checked tree is CHECK_DATA_ROOT
+# origin's default branch (changed_files::resolve_base), else, in a shallow
+# checkout only, HEAD with a warning, since a shallow checkout of one commit
+# holds no remote ref and its HEAD is the base the work started from; a full
+# checkout with no base ref fails. The checked tree is CHECK_DATA_ROOT
 # (default: the tree holding this script), read only as data; the checker is
 # always this tree's copy, CHECK_SKILL_BIN is ignored, untracked files count as
 # changed, each skill's scripts/*.test.sh is skipped
@@ -75,6 +76,12 @@ CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if ((lane)); then
   # shellcheck disable=SC2310  # the non-zero return IS the handled case
   if ! changed_files::resolve_base BASE; then
+    # Only a shallow checkout's HEAD is the base the work started from; in a
+    # full history a missing base ref would pass every committed change.
+    if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" != true ]]; then
+      printf 'Error: no origin/main, origin/master, main or master in a full checkout.\n' >&2
+      exit 2
+    fi
     printf 'Warning: no origin/main, origin/master, main or master; diffing against HEAD.\n' >&2
     BASE=HEAD
   fi
