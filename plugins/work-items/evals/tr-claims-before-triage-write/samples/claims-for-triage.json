@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\" --phase triage --ttl-hours 1"
+          }
+        }
+      ],
+      "why": "claim with the triage phase"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "TRACKER=/p/tools/work-item-tracker/work-item-tracker.sh; \"$TRACKER\" claim 'local-markdown:local/markdown#1' --phase 'triage'"
+          }
+        }
+      ],
+      "why": "claim via variable, quoted phase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\""
+          }
+        }
+      ],
+      "why": "claim with no phase"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\" --phase implementation"
+          }
+        }
+      ],
+      "why": "wrong phase"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh get-item \"local-markdown:local/markdown#1\""
+          }
+        }
+      ],
+      "why": "no claim"
+    }
+  ]
+}

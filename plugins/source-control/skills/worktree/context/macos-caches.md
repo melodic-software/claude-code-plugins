@@ -3,8 +3,8 @@
 Read from [cleanup.md](cleanup.md) Step 5, only on a macOS host where `command -v xcrun` resolves.
 Removing worktrees leaves Xcode's per-project build output and the simulators of runtimes Xcode no
 longer has. Both can be rebuilt or recreated, and both are often larger than the worktrees were.
-This step measures them, lists what could be freed, and deletes an item only when the user says
-yes to that item.
+This step measures them, lists what could be freed, and deletes an item only on the user's yes to
+that item.
 
 ## 1. Measure
 
@@ -79,5 +79,4 @@ heredoc, `eval` or an unquoted word, where the shell would expand `$(...)` or a 
 
 List each deleted item with its size, each kept item, and each failure with its error text. Then
 take a second `df -Pk "$HOME"` reading and add the change since step 1 to the Step 5 report as a
-separate line,
-so the worktree figure and the cache figure stay apart.
+separate line, so the worktree and cache figures stay apart.

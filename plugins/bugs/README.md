@@ -52,7 +52,7 @@ No diff, no failing test, no stack trace, no comment marker. It reads resting co
 looks for what is wrong in it.
 
 ```text
-/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run]
+/bugs:scan [<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended]
 ```
 
 | Flag | Effect |
@@ -62,14 +62,18 @@ looks for what is wrong in it.
 | `--lane <name>` | Hunt the named lane's globs |
 | `--track` | File the verified findings as raw intake through the `work-items` seam |
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
+| `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
-or as a daily routine. Three properties matter before you rely on it:
+or as a daily routine. Four properties matter before you rely on it:
 
 - **Recall and precision are separated.** Per-lens hunter subagents are told to be generous;
   a separate fresh-context gate is then told to *refute* every candidate they produced. Only
   survivors reach the report, each labeled `reproduced` or `verified-by-reading`, and refuted
   candidates stay in the report with the argument that killed them.
+- **Your repository's code runs only when you approve it.** Hunters and gates only read. A gate
+  may propose a check, such as a test; an interactive run asks you before each one, and a run
+  passed `--unattended` runs none and labels every finding `verified-by-reading`.
 - **A bare run is read-only toward your repository and stays within a budget**. It stops at
   three verified findings or a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.

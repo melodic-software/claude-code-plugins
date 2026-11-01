@@ -130,8 +130,12 @@ while it pages, and return one twice when an upload moves it down a page
 (#10486). So a whole listing is deduplicated by id, added to the whole
 listings read before it, and checked by a top-up read from the first page
 (`Reader._complete_listing`); after `LISTING_READS` whole listings that never
-hold the live count it refuses `verify:unreadable`. The refresh before an
-allow reads the same way.
+hold the live count it refuses `verify:unreadable`, and after the first when
+its top-up holds more than the count or does not read, which reading again
+cannot cure. The refresh before an allow reads the same way. A listing from
+the API that fails once it began a whole listing is noted beside `LISTING_ENV`'s file
+(`FAILED_LISTING_SUFFIX`), and every later Reader of the job refuses on it
+without paging.
 
 Carried reads. What an earlier run read is used only where it counts a FAIL
 (a carried record counts the FAIL when it shows origin; any other answer from
@@ -340,8 +344,9 @@ DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
 CALLER_ENV = "BABYSIT_VERIFY_CALLER"
 DEADLINE_MARGIN_SECONDS = 15.0
 # The start of a `verify:unreadable` detail when the listing does not fit in
-# what the caller's limit leaves: pr-unblock verify-cap.mjs skips the round
-# on it, for that run only, as on `SIBLING_UNREADABLE`.
+# what the caller's limit leaves, before paging or after the limit runs out:
+# pr-unblock verify-cap.mjs skips the round on it, for that run only, as on
+# `SIBLING_UNREADABLE`, and no `FAILED_LISTING_SUFFIX` note is written.
 DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
 # The least a whole listing's timeout takes, gh's per-call default it
 # replaced, unless the cap or a caller's limit leaves less.
@@ -397,10 +402,29 @@ LISTING_MISS_PREFIX = "babysit-listing-miss"
 
 class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
-    hold the live count, the one case read again on the same base."""
+    hold the live count: `COUNT_MISSED` (fewer), the one case read again on
+    the same base, or `COUNT_OVER` (more), which goes straight to one whole
+    listing, since no wait removes an entry GitHub no longer counts."""
 
 
+# Fewer than the live count: the pages skipped an artifact, which another
+# whole listing can restore.
 COUNT_MISSED = _CountMissed()
+# More than the live count: the base holds artifacts GitHub no longer counts.
+# A whole listing only adds ids to the union, so another cannot cure it: on
+# 2026-11-01 08:00-09:00Z GitHub's count dropped artifacts up to an hour before
+# the `expires_at` it listed, and every whole listing's top-up held 1 to 25
+# more than the count (ci-status run 41287360293).
+COUNT_OVER = _CountMissed()
+# Beside `LISTING_ENV`'s file, a listing from the API that failed in this job
+# after it began a whole listing, with its reason, unless it failed for want of
+# a caller's time (`DEADLINE_UNREADABLE`) or on a 5xx or network error that
+# outlasted its waits (`_Transient`), either of which a later Reader may not
+# meet: the job's later Readers, in this process or another, refuse
+# on it without paging again (pr-merge's merge job built one Reader per
+# candidate, each paging three whole listings, 825 to 1,015 calls a run on
+# 2026-11-01).
+FAILED_LISTING_SUFFIX = ".failed"
 # The whole listings `Reader._complete_listing` reads before it refuses. Of
 # three whole listings read on 2026-10-27, two skipped live artifacts at page
 # boundaries (1 and 3, a FAIL in each), and each skipped artifact was in every
@@ -1161,6 +1185,12 @@ class Reader:
     _listing_error: str | None = None
     # When the whole listings of one `_complete_listing` must end.
     _read_deadline: float | None = None
+    # A whole listing was paged, so a failure neither for want of a caller's
+    # time nor transient is noted for the job.
+    _whole_paged: bool = False
+    # The last `_incremental_page` that read nothing failed on a 5xx, a
+    # network error or a body cut short, after its waits.
+    _page_transient: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -1233,6 +1263,10 @@ class Reader:
             self._base = saved
             self._saved = True
             return self._artifacts
+        failed = self._failed_listing()
+        if failed is not None:
+            self._listing_error = failed
+            raise _Unreadable(failed)
         fetched_at = _wall_clock()
         base = self._incremental_base()
         listing: list[dict[str, Any]] | _CountMissed | None = COUNT_MISSED
@@ -1258,6 +1292,8 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
+                if self._whole_paged and not isinstance(exc, _Transient):
+                    self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
         self._artifacts, self._fetched_at = listing, fetched_at
         self._base = (fetched_at, listing)
@@ -1331,11 +1367,16 @@ class Reader:
         A whole listing can skip an artifact at a page boundary when an
         earlier one expires while it pages, and the next read returns it.
         Raises `_Unreadable` when `LISTING_READS` reads never hold the live
-        count, so no judgment allows on a listing that may lack a FAIL, and
+        count, or at once when a top-up holds more than it (`COUNT_OVER`) or
+        does not read, which no further whole listing can cure, so no
+        judgment allows on a listing that may lack a FAIL, and
         before any read when the live count (`_live_count`) is too long to
         list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
         bounds the count read too, and every refusal for want of its time
-        starts with `DEADLINE_UNREADABLE`."""
+        starts with `DEADLINE_UNREADABLE`: one before paging, and one after
+        it when the caller's limit cut the whole listings' timeout and too
+        little of it is left for another wait (`LISTING_WAITS`)."""
+        self._whole_paged = False
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
         if callers and cap <= 0:
@@ -1351,10 +1392,34 @@ class Reader:
                 f"for a whole listing and its top-up at {LISTING_PAGE_SECONDS:.0f} s "
                 f"a page, past {bound}, so none is started"
             )
+        full = listing_timeout(total, LISTING_TIMEOUT_SECONDS)
+        try:
+            return self._whole_listings(budget)
+        except (_Unreadable, RuntimeError) as exc:
+            error, deadline = str(exc), self._read_deadline
+            if (
+                full is not None
+                and budget < full
+                and deadline is not None
+                and deadline - _listing_clock() <= max(LISTING_WAITS)
+                and not error.startswith(DEADLINE_UNREADABLE)
+            ):
+                raise _Unreadable(
+                    f"{DEADLINE_UNREADABLE}: {error} (out of {bound})"
+                ) from exc
+            raise
+
+    def _whole_listings(self, budget: float) -> list[dict[str, Any]]:
+        """`_complete_listing`'s whole listings and their top-ups, all inside
+        `budget`."""
         union: dict[int, dict[str, Any]] = {}
         deadline: float | None = None
-        for _ in range(LISTING_READS):
+        listing: list[dict[str, Any]] | _CountMissed | None = None
+        reads = 0
+        while reads < LISTING_READS:
+            reads += 1
             read_at = _wall_clock()
+            self._whole_paged = True
             payload = self._read_listing(deadline, budget)
             deadline = self._read_deadline
             for item in flatten_paginated_items(
@@ -1369,8 +1434,21 @@ class Reader:
             )
             if isinstance(listing, list):
                 return listing
-        raise _Unreadable(
-            f"repository artifacts: {LISTING_READS} whole listings never held "
+            if listing is not COUNT_MISSED:
+                # Only a skip (`COUNT_MISSED`) can be restored by reading again.
+                break
+        if listing is COUNT_OVER:
+            cause = "held more artifacts than"
+        elif listing is None:
+            cause = "could not be checked against"
+        else:
+            cause = "never held"
+        noun = "listing" if reads == 1 else "listings"
+        # A top-up page lost to a 5xx or network error is transient: not
+        # noted for the job (`_note_failed_listing`).
+        transient = listing is None and self._page_transient
+        raise (_Transient if transient else _Unreadable)(
+            f"repository artifacts: {reads} whole {noun} {cause} "
             "GitHub's live artifact count"
         )
 
@@ -1381,8 +1459,9 @@ class Reader:
         stage: str = "incremental",
     ) -> list[dict[str, Any]] | _CountMissed | None:
         """Every repository artifact, as the base (`_incremental_base`) and
-        the newest pages read now show them; `COUNT_MISSED` when the pages
-        read but the result does not hold the live count, else None.
+        the newest pages read now show them; when the pages read but the
+        result does not hold the live count, `COUNT_MISSED` for fewer and
+        `COUNT_OVER` for more; else None.
 
         The listing comes newest id first. Pages are read from the first
         until one holds an artifact at or below the base's highest id that
@@ -1395,12 +1474,17 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
-        GitHub's live count: any other count gives `COUNT_MISSED`, and one
-        `LISTING_MISS_PREFIX` line on stderr names `stage`, the counts and
+        GitHub's live count: fewer gives `COUNT_MISSED`, which
+        `_current_listing` reads again on the same base after a wait, and more
+        gives `COUNT_OVER`, which goes straight to one whole listing, since no
+        wait removes an entry GitHub no longer counts; either prints one
+        `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
-        `Date`, or any failed read gives None.
+        `Date`, or any failed read gives None (`_page_transient` says whether
+        the failed read was a 5xx or network error).
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
+        self._page_transient = False
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1473,7 +1557,7 @@ class Reader:
             file=sys.stderr,
             flush=True,
         )
-        return COUNT_MISSED
+        return COUNT_OVER if len(listing) > total else COUNT_MISSED
 
     def _incremental_page(
         self, page: int, deadline: float
@@ -1481,7 +1565,9 @@ class Reader:
         """One incremental page's body and headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
         (`_transient`) or its body is cut short; None for any other failure,
-        or once the waits or the time run out."""
+        or once the waits or the time run out, with `_page_transient` set
+        when the last read was one of those."""
+        self._page_transient = False
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
@@ -1497,18 +1583,52 @@ class Reader:
                     env_overrides=self._env(),
                 )
             except (RuntimeError, ValueError, OSError):
+                self._page_transient = False
                 return None
             if proc.returncode == 0:
                 try:
-                    return json_object(json.loads(proc.stdout)), headers
+                    body = json_object(json.loads(proc.stdout))
                 except ValueError:
                     pass  # A body cut short: read again.
+                else:
+                    self._page_transient = False
+                    return body, headers
             elif not _transient((proc.stderr or "").strip()):
+                self._page_transient = False
                 return None
+            self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
                 return None
             _listing_sleep(wait)
         return None
+
+    def _failed_path(self) -> Path | None:
+        """Where a failed whole listing is noted beside `listing_path`, for
+        the job's later Readers (`FAILED_LISTING_SUFFIX`)."""
+        if not self.listing_path:
+            return None
+        return Path(f"{self.listing_path}{FAILED_LISTING_SUFFIX}")
+
+    def _failed_listing(self) -> str | None:
+        """Why an earlier Reader of this job could not list, if one noted it."""
+        path = self._failed_path()
+        if path is None:
+            return None
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        return text or "repository artifacts: an earlier listing in this job failed"
+
+    def _note_failed_listing(self, error: str) -> None:
+        """Best effort: a failed write leaves the next Reader to list. A
+        refusal for want of one caller's time (`DEADLINE_UNREADABLE`) is not
+        noted: a later caller may have the time."""
+        path = self._failed_path()
+        if path is not None and not error.startswith(DEADLINE_UNREADABLE):
+            with contextlib.suppress(OSError):
+                note = f"{error} (an earlier listing in this job)"
+                path.write_text(note, encoding="utf-8")
 
     def _save(self, listing: list[dict[str, Any]], fetched_at: datetime) -> None:
         """Best effort: a failed write leaves the next candidate to list."""
