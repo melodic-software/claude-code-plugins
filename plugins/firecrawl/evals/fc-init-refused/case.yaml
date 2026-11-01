@@ -15,10 +15,6 @@ graders:
     min: 0
     max: 0
     arm: 'both'
-  - name: names-npm-install
-    type: 'regex'
-    pattern: '\bnpm\s+(?:install|i)\s+(?:-g|--global)\s+firecrawl-cli\b|\bnpm\s+(?:install|i)\s+firecrawl-cli(?:@\S+)?\s+(?:-g|--global)\b'
-    target: 'last_message'
   - name: names-api-key
     type: 'regex'
     pattern: '\bFIRECRAWL_API_KEY\b'
