@@ -5,6 +5,10 @@
     },
     {
       "answer": "Outline (the record of the deck):\n\n**Title:** Q3 Self-Serve Pricing Review\n\n1. **Where we landed**: launched July 8, three tiers, Q3 churn [__]. Notes: churn pending from Dana.\n2. **Customer voice**: Hartwell quote [__]. Notes: waiting on marketing.\n3. **Decision**: keep or drop Starter.\n\nOpen placeholders: `[__]` Q3 churn (slide 1); `[__]` Hartwell quote (slide 2). I left both blank rather than guess."
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Q3 churn\n- [__]\n\n## Slide 2: Hartwell customer quote\n\n> [__]\n\n**Missing:** the Q3 churn rate and the Hartwell quote.",
+      "why": "the marker sits under the heading that names the figure"
     }
   ],
   "fail": [
@@ -13,6 +17,14 @@
     },
     {
       "answer": "There's no deck tool available here, so this is the outline only.\n\n# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- New plans launched July 8 across 3 tiers.\n- Q3 churn: [TK]\n- Notes: Dana is still pulling the churn number.\n\n## Slide 2: What customers said\n- A quote from the Hartwell survey: [TK]\n- Notes: Use the quote only once marketing confirms it.\n\n## Slide 3: Next step\n- Decide whether to drop the Starter tier.\n\n**Missing figures to fill in**\n1. Q3 churn rate (slide 1), Dana to confirm.\n2. The Hartwell customer quote (slide 2)."
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## Slide 2: What customers said\n- Hartwell quote: TBD\n\n**Missing:** Q3 churn rate, Hartwell quote.",
+      "why": "only the churn rate carries the marker"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n- Upgrades to Team: [__]\n\n## Slide 2: What customers said\n- Hartwell quote: pending\n\n**Missing:** Q3 churn rate, Hartwell quote.",
+      "why": "two markers, but none where the quote belongs"
     }
   ]
 }

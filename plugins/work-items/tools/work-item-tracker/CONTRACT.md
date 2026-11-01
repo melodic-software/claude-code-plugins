@@ -315,8 +315,10 @@ ceiling stays truncated after the filter, because a labeled item may sit past th
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
 blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
-"Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
-excluded, as are items carrying a **human-floor work class**: `work-class: structural` (C4)
+"Containers and state") AND no label starting `wayfind:` (a wayfind map item belongs to
+`/planning:wayfind`, never to `/work-items:work`). With `--autonomous`, items labeled
+`needs-human` are additionally excluded, as are items carrying a **human-floor work class**:
+`work-class: structural` (C4)
 or `work-class: untrusted-provenance` (C5), whose admission disposition is human-gated
 regardless of any other signal, and items labeled `status: needs-decision` or
 `status: needs-info`, which wait on a person. The floor wins over the autonomous-eligible role label: an
@@ -669,8 +671,11 @@ surface as frontier items. `planning:wayfind` maps share this contract and resol
 same binding key (its `tracker-mechanics` doc carries the read), so one remap governs both
 container producers. Read one container's children with
 `list-sub-items <container>`; read the workable frontier within one container with
-`list-frontier --parent <container>`. Aside from that exclusion the frontier is
-label-agnostic and simply never surfaces items that are assigned or blocked.
+`list-frontier --parent <container>`. The frontier also excludes, unconditionally, any item
+carrying a label that starts `wayfind:`: those are a wayfind map's own items, which
+`/planning:wayfind` drives, so a `--parent` frontier over a wayfind map holds only its
+children without such a label. Aside from those exclusions the frontier is label-agnostic
+and simply never surfaces items that are assigned or blocked.
 
 ### Multi-provider topology: the role-split model (recorded decision, not yet built)
 
