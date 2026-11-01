@@ -8,6 +8,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/sync-shared-copies.sh"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
+# Keep the developer's own git configuration, and any inherited repository
+# location, out of every fixture.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 FAILED=0
