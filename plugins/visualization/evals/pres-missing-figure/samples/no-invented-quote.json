@@ -92,6 +92,14 @@
     {
       "answer": "## Slide 2: Customer voice\n> The new tiers finally fit how we buy. (Hartwell survey, via marketing)",
       "why": "an invented blockquote whose attribution names marketing"
+    },
+    {
+      "answer": "## Slide 2: What customers said\n1. Top theme: pricing clarity\n2. \"I finally understand what I'm paying for.\"",
+      "why": "an invented quote below a numbered theme inside the quote section"
+    },
+    {
+      "answer": "## Slide 2: What customers said\n**Top themes**\n- \"I finally understand what I'm paying for.\"",
+      "why": "an invented quote below a bold sub-label inside the quote section"
     }
   ]
 }
