@@ -210,8 +210,9 @@ runs where latency is not the constraint. Availability and prices resolve at the
 
 - **Pointer**: for fast mode, see
   [Decide when to use fast mode](https://code.claude.com/docs/en/fast-mode#decide-when-to-use-fast-mode).
-- **As of**: 2026-10-10
-- **Recheck trigger**: fast mode leaves research preview, or the page stops listing this model.
+- **As of**: 2026-11-01
+- **Recheck trigger**: the page's opening stops listing this model as supported, or that section
+  changes which work it suits.
 
 ## API-side, for integrations you author
 

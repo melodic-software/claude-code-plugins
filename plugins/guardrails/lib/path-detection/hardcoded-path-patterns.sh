@@ -1,9 +1,9 @@
 # shellcheck shell=bash
 # Shared hardcoded-path detection patterns for the hardcoded-path-check hook.
 #
-# This is a library — NOT executable. Pure-function: no env reads, no stdin
-# parsing, no exit calls. Callers handle I/O, exemptions, and exit-code
-# mapping.
+# This is a library — NOT executable. Pure-function apart from
+# hpp::resolve_scan_root: no env reads, no stdin parsing, no exit calls.
+# Callers handle I/O, exemptions, and exit-code mapping.
 #
 # Cross-platform: detects Windows (C:\Users\, drive letters), macOS
 # (/Users/), and Linux (/home/) hardcoded paths plus machine-specific repo
@@ -332,4 +332,45 @@ hpp::scan_text() {
     return 1
   fi
   return 0
+}
+
+# hpp::resolve_scan_root <project root> [toplevel]
+#
+# Set SCAN_ROOT for hpp::scan_text's repo-path branch, from <project root>.
+# The one helper here that reads the environment (HOME, USERPROFILE) and runs
+# git; it needs hook-utils.sh's hook::normalize_path_to loaded.
+#
+# That branch matches the project root as a literal substring and is never
+# OS-suppressed. It is a valid machine-specific marker ONLY when the root sits
+# inside a genuine git checkout whose TOPLEVEL is not the user's home (nor an
+# ancestor of it): a project dir can be a subdirectory of its checkout, and when
+# home is itself a checkout (chezmoi-managed dotfiles) a project dir like
+# $HOME/Desktop would clear a root-only home test and wrongly re-enable the
+# branch, hard-denying every path under it. Empty is the lib's documented seam to
+# skip the branch. Native Windows exposes home as %USERPROFILE%, not $HOME, so
+# fall back to it; a missing home leaves the branch active (fail toward
+# detection, never a false negative). A caller that already asked git for
+# <root>'s toplevel passes the answer as $2, so git runs once, not twice.
+# shellcheck disable=SC2034  # SCAN_ROOT is the caller's result
+hpp::resolve_scan_root() {
+  local root="$1" toplevel tl_norm home_norm
+  SCAN_ROOT=""
+  [[ -n "$root" ]] || return 0
+  if (($# > 1)); then
+    toplevel=$2
+  else
+    toplevel="$(exec git -C "$root" rev-parse --show-toplevel 2>/dev/null)"
+  fi
+  [[ -n "$toplevel" ]] || return 0
+  tl_norm=""
+  hook::normalize_path_to tl_norm "$toplevel"
+  tl_norm="${tl_norm%/}"
+  home_norm=""
+  hook::normalize_path_to home_norm "${HOME:-${USERPROFILE:-}}"
+  home_norm="${home_norm%/}"
+  if [[ -n "$home_norm" && ("$tl_norm" == "$home_norm" || "$home_norm" == "$tl_norm"/*) ]]; then
+    SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
+  else
+    SCAN_ROOT="$root"
+  fi
 }

@@ -23,15 +23,12 @@ and no grader needs calibration. Each answer key was read off the snapshot's fil
 | `rt-haiku-note-site` | Where it happens | `plugins/multi-agent/scripts/resolve-roles.sh`, `role_json` |
 | `rt-resolver-callers` | Trace callers | `route.sh`, `setup.sh` and `list-pointers.sh` under `plugins/multi-agent/skills/` |
 | `rt-call-matches-callers` | Trace callers | `grade_tool_used`, `grade_tool_order` |
-| `rt-python-only-syntax` | Locate code | `plugins/evals/skills/validate/scripts/validate-cases.py`, `python_only_tokens` |
+| `rt-python-only-syntax` | Locate code | `validate-cases.py` in the evals plugin's validate skill, `python_only_tokens` |
 | `rt-fetch-host-gate` | Where it happens | `plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs`, `decide`, `FETCH_HOSTS` |
 | `rt-frontier-guard` | Where it happens | `plugins/multi-agent/scripts/resolve-roles.sh`, `role_json`, fallback `opus` |
 
-Check the cases without a model call:
-
-```bash
-python3 plugins/evals/skills/validate/scripts/validate-cases.py plugins/multi-agent/evals/routing/retrieval
-```
+Check the cases before a paid run with
+`/evals:validate plugins/multi-agent/evals/routing/retrieval`.
 
 ## Arms
 

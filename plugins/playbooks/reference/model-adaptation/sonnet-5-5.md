@@ -14,8 +14,8 @@ would only repeat the guide's advice, the chapter says nothing and points: read 
 
 Do not load `sonnet-5.md` beside this chapter. Meta-rule 3 loads one chapter per session, and the
 Sonnet 5 rules this playbook keeps for you are listed once, in "What carries from the Sonnet 5
-chapter". The exception is a fallback: if the session moves to Sonnet 5, meta-rule 3 re-resolves
-and `sonnet-5.md` replaces this file (see "Safeguards and fallback").
+chapter". The exception is a fallback: if the session falls back to another model, meta-rule 3
+re-resolves and that model's chapter replaces this file (see "Safeguards and fallback").
 
 Each entry carries a Claude-Code-applicability tag, as in the sibling chapters:
 
@@ -266,8 +266,9 @@ limitations at the pointer; for which models fast mode supports, read the fast m
   the
   tier,
   [Capability tiers](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#3-capability-tiers).
-- **As of**: 2026-10-01
-- **Recheck trigger**: any pointed section moving, or fast mode leaving research preview.
+- **As of**: 2026-10-01; 2026-11-01 for fast mode.
+- **Recheck trigger**: any pointed section moving, or the supported-model list in the fast mode
+  page's opening changing.
 
 ## Disagreements between pages
 
