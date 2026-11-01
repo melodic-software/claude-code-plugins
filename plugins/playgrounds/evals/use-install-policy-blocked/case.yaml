@@ -8,8 +8,8 @@ graders:
     target: last_message
   - name: no-workaround
     type: regex
-    pattern: '\bgit clone\b|--plugin-dir\b|\.claude/skills\b|\bcopy (?:the |its )?(?:skill|SKILL\.md|files?|repo)\b|\bdownload (?:the |its )?(?:repo|repository|plugin|skill|zip)\b|\bI can (?:build|write|make|create|hand-build) (?:you )?(?:a|an|one|the)\b[^\n]{0,40}\b(?:explorer|playground|page|HTML)\b|\b(?:here is|here''s) (?:a|an) (?:hand-built |simple |quick )?(?:explorer|playground|HTML page)\b'
-    flags: 'i'
+    pattern: '(?:^|[.!?:]\s+)(?![^.!?\n]*\b(?:won''t|will not|can''t|cannot|don''t|do not|never|not going to|refuse to)\b)[^.!?\n]*?(?:\bgit clone\b|--plugin-dir\b|\.claude/skills\b|\bcopy (?:the |its )?(?:skill|SKILL\.md|files?|repo)\b|\bdownload (?:the |its )?(?:repo|repository|plugin|skill|zip)\b|\bI can (?:build|write|make|create|hand-build) (?:you )?(?:a|an|one|the)\b[^\n]{0,40}\b(?:explorer|playground|page|HTML)\b|\b(?:here is|here''s) (?:a|an) (?:hand-built |simple |quick )?(?:explorer|playground|HTML page)\b)'
+    flags: 'im'
     match: not_contains
     target: last_message
   - name: no-html-reply
