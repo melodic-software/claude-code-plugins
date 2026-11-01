@@ -51,7 +51,9 @@ Its one value, and the default, is `merge-to-default-branch`:
   deployment when its message has `This reverts commit <sha>` naming the deployment or a commit
   it merged, or, with no such line, when its subject is `Revert "<subject>"` for an earlier
   deployment's subject. A merge counts the messages of the commits it merges, so a revert that
-  lands through a merge commit is seen. A revert landing after `--until` still marks a
+  lands through a merge commit is seen, by either form. A `This reverts commit` line counts only
+  when it names a commit already on the default branch, so a squash body listing a revert of a
+  commit that only existed on its branch is not a revert. A revert landing after `--until` still marks a
   deployment in the window as failed.
 
 The signal reads only git history, so no tracker or forge call is made and any host works.

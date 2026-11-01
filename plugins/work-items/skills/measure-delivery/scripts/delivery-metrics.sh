@@ -175,10 +175,32 @@ while read -r sha ct first rest; do
   fi
 done <"$TMP/merges"
 
+# Each `This reverts commit <sha>` a deployment's message (or a commit it merged)
+# names, kept only when the deployment's first parent reaches that sha: a
+# squash body that names a commit which only ever existed on its branch
+# reverts nothing on the default branch.
+jq -rn --rawfile raw "$TMP/deploys" --rawfile member_msgs "$TMP/member_msgs" '
+  (($raw | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
+     | [.[0], (.[5] // "")]))
+   + ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")
+     | [.[0], (.[1] // "")])))[]
+  | .[0] as $d | .[1] | scan("This reverts (?:commit )?([0-9a-f]{40})") | "\($d)\t\(.[0])"
+' >"$TMP/named" || {
+  err "could not read the revert lines"
+  exit 3
+}
+: >"$TMP/reachable"
+while IFS=$'\t' read -r deploy named; do
+  if git -C "$REPO" merge-base --is-ancestor "$named" "$deploy^1" 2>/dev/null; then
+    printf '%s\t%s\n' "$deploy" "$named" >>"$TMP/reachable"
+  fi
+done < <(sort -u "$TMP/named")
+
 jq -n \
   --rawfile raw "$TMP/deploys" \
   --rawfile members "$TMP/members" \
   --rawfile member_msgs "$TMP/member_msgs" \
+  --rawfile reachable "$TMP/reachable" \
   --argjson since "$SINCE_EPOCH" \
   --argjson until "$UNTIL_EPOCH" \
   --arg bucket "$BUCKET" \
@@ -216,17 +238,26 @@ def stats: {
 | (reduce $mem[] as $m ({}; .[$m.deploy] += [$m.at])) as $member_at
 | (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
     ({}; .[$m[0]] += "\n" + ($m[1] // ""))) as $member_text
+| (reduce ($member_msgs | split("\u001e") | map(ltrimstr("\n") | select(length > 0) | split("\u001f")))[] as $m
+    ({}; .[$m[0]] += [($m[1] // "") | split("\n")[0]])) as $member_subjects
+| (reduce ($reachable | split("\n") | map(select(length > 0)))[] as $p ({}; .[$p] = true)) as $reach
 | ($scope | map(. as $r
-    | ([.body + "\n" + ($member_text[.sha] // "") | scan("This reverts (?:commit )?([0-9a-f]{40})") | .[0]]
-       | unique | map(select(($owner[.] // "") != $r.sha))) as $named
+    # The latest earlier deployment, not this one, whose subject is $s.
+    | def subject_target($s): $scope | map(select(.subject == $s and .ct <= $r.ct and .sha != $r.sha))
+        | max_by(.ct) | .sha | select(. != null);
+    ([.body + "\n" + ($member_text[.sha] // "") | scan("This reverts (?:commit )?([0-9a-f]{40})") | .[0]]
+       | unique | map(select(($owner[.] // "") != $r.sha and $reach[$r.sha + "\t" + .] == true))) as $named
     | ($named | map($owner[.] // empty) | unique) as $by_sha
     | ([.subject | capture("^Revert \"(?<s>.*)\"") | .s] | first) as $reverted_subject
+    # A merged commit titled `Revert "<subject>"` counts when it names an earlier deployment.
+    | ([($member_subjects[.sha] // [])[] | capture("^Revert \"(?<s>.*)\"") | .s] | unique
+       | map(subject_target(.)) | unique) as $member_targets
     | (if ($named | length) > 0 then $by_sha
-       elif $reverted_subject == null then []
-       else [$scope | map(select(.subject == $reverted_subject and .ct <= $r.ct and .sha != $r.sha))
-             | max_by(.ct) | .sha | select(. != null)]
+       elif $reverted_subject != null then [subject_target($reverted_subject)]
+       else $member_targets
        end) as $targets
-    | . + {targets: $targets, rework: (($named | length) > 0 or $reverted_subject != null)})) as $graded
+    | . + {targets: $targets,
+           rework: (($named | length) > 0 or $reverted_subject != null or ($member_targets | length) > 0)})) as $graded
 | ($graded | map(select(.ct < $until)) | map(. as $d
     | ([$graded[] | select(.ct >= $d.ct and any(.targets[]; . == $d.sha)) | .ct] | min) as $fixed_at
     | {ct,

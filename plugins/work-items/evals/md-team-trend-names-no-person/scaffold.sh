@@ -29,4 +29,4 @@ land "Avery Quill" avery@example.invalid 2026-10-20T10:00:00Z feat-c c.txt "feat
 
 export GIT_AUTHOR_NAME="Bryn Marlow" GIT_AUTHOR_EMAIL=bryn@example.invalid
 export GIT_AUTHOR_DATE=2026-10-21T10:00:00Z GIT_COMMITTER_DATE=2026-10-21T10:00:00Z
-git revert -q --no-edit HEAD -m 1
+git revert --no-edit -m 1 HEAD >/dev/null

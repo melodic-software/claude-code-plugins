@@ -55,11 +55,11 @@ at() {
     exit 1
   }
 }
-# change <author-hours> <committer-hours> <file> <subject>: commit one new file.
+# change <author-hours> <committer-hours> <file> <subject> [<commit args>...]: commit one new file.
 change() {
   printf '%s\n' "$3" >"$R/$3"
   g add -- "$3"
-  at "$1" "$2" commit -q -m "$4"
+  at "$1" "$2" commit -q -m "$4" "${@:5}"
 }
 sha() { g rev-parse "$1"; }
 
@@ -99,6 +99,23 @@ g checkout -q -b revert-f
 at 673 673 revert --no-edit "$F"
 g checkout -q main
 at 677 677 merge -q --no-ff --no-edit revert-f
+
+# Week 2026-02-16: G (lead 0) is reverted by a subject-only `Revert "feat: g"`
+# commit on a branch (authored at 1010) that lands through a merge at 1012
+# (lead 2): recovery 4. S, a squash-style commit at 1020 (lead 0), names in its
+# body a commit that only ever existed on an unmerged branch, so it reverts
+# nothing on main: fail rate 1/3, rework 1/3.
+change 1008 1008 g.txt "feat: g"
+g checkout -q -b revert-g
+g rm -q -- g.txt
+at 1010 1010 commit -q -m 'Revert "feat: g"'
+g checkout -q main
+at 1012 1012 merge -q --no-ff --no-edit revert-g
+g checkout -q -b wip
+change 1014 1014 wip.txt "wip"
+WIP="$(sha HEAD)"
+g checkout -q main
+change 1020 1020 s.txt "feat: s" -m "* Revert \"wip\"" -m "This reverts commit $WIP."
 
 run() { bash "$S" --repo "$R" --branch main --since 2026-01-05 --until 2026-01-18 "$@"; }
 
@@ -149,6 +166,11 @@ OUT="$(bash "$S" --repo "$R" --branch main --since 2026-02-02 --until 2026-02-08
 expect "revert landed through a merge commit" \
   '.totals | [.deployments, .change_lead_time_hours_median, .change_fail_rate, .failed_deployment_recovery_time_hours_median, .deployment_rework_rate]' \
   '[2,2,0.5,5,0.5]'
+
+OUT="$(bash "$S" --repo "$R" --branch main --since 2026-02-16 --until 2026-02-22)" || fail "merged subject-revert window exited non-zero"
+expect "subject-only revert landed through a merge; squash naming a branch-only commit" \
+  '.totals | [.deployments, .change_lead_time_hours_median, .failed_deployments, .failed_deployment_recovery_time_hours_median, .rework_deployments]' \
+  '[3,0,1,4,1]'
 
 OUT="$(bash "$S" --repo "$R" --branch main --since 2026-03-02 --until 2026-03-08)" || fail "empty window exited non-zero"
 expect "empty window: nothing to measure is null" \
