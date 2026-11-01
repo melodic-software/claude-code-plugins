@@ -219,7 +219,8 @@ async page => {
           const style = getComputedStyle(el), curve = a.effect.getTiming().easing;
           return {
             target: el.dataset.test ?? el.tagName.toLowerCase(),
-            property: a.transitionProperty ?? a.animationName,
+            property: a.transitionProperty ?? a.animationName
+              ?? [...new Set(kf.flatMap(k => Object.keys(values(k))))].join(', '),
             from, to: values(kf.at(-1)),
             value: Object.fromEntries(Object.keys(from).map(n => [n, style[n]])),
             duration: timing.duration,
@@ -251,8 +252,8 @@ async page => {
   resume the clock.
 - Read `getComputedStyle`, never `element.style`: a library writes inline style each frame, and a
   tool that pins a frame can override it.
-- **What a frame holds.** Each animation on the target: its element, its property (or keyframes
-  name), its from and to values, its value at the frame, its duration and easing, and `progress`,
+- **What a frame holds.** Each animation on the target: its element, its property (the
+  transition's property or the keyframes name, else the properties its keyframes animate), its from and to values, its value at the frame, its duration and easing, and `progress`,
   the share of its duration elapsed, before easing. A finished animation leaves the list unless it
   fills forwards. Animations outside the target are not reported, and in an interaction capture
   they keep running.

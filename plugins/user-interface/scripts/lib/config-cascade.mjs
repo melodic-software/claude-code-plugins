@@ -21,7 +21,9 @@
 // maxItems.
 //
 // A key is a schema leaf: any node that is not an object with `properties`, or a path named in
-// `teamOnly`. Each layer's leaves are checked one by one; a leaf whose value fails the schema is
+// `teamOnly`. The setup writer's top-level `written_against` and `provenance` records are not keys,
+// declared or not: every layer skips them, so they reach neither `values` nor a userConfig name.
+// Each layer's leaves are checked one by one; a leaf whose value fails the schema is
 // dropped from that layer with an error naming layer, file and key, and a lower layer's value is
 // then never used (ADR 0075, the invalid-value rule): a valid higher layer still wins, otherwise the
 // key takes its default. The personal overlay is the one exception, because it refines the team
@@ -74,6 +76,8 @@ const show = (value) => clip(JSON.stringify(value) ?? String(value));
 const put = (object, key, value) => Object.defineProperty(object, key, { value, enumerable: true, writable: true, configurable: true });
 const isMapping = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+const WRITER_KEYS = new Set(["written_against", "provenance"]);
+const isWriterKey = (parts, key) => !parts.length && WRITER_KEYS.has(key);
 const newLayer = (name, path, state, errors = [], error_keys = errors.map(() => null)) => ({ name, path, state, errors, error_keys });
 /** Records an error on `layer`, tagged with the dotted key it names, or null for a file-level one. */
 const record = (layer, message, key = null) => {
@@ -161,6 +165,7 @@ function leaves(data, schema, { teamOnly, allowTeamOnly, fail }) {
   const out = [];
   const walk = (object, node, parts) => {
     for (const key of Object.keys(object)) {
+      if (isWriterKey(parts, key)) continue;
       const path = [...parts, key];
       const dotted = path.join(".");
       const sub = child(node, key);
@@ -188,6 +193,7 @@ function flatNames(schema, teamOnly) {
   const names = new Map();
   const walk = (node, parts) => {
     for (const key of Object.keys(isMapping(node.properties) ? node.properties : {})) {
+      if (isWriterKey(parts, key)) continue;
       const path = [...parts, key];
       const dotted = path.join(".");
       const sub = node.properties[key];

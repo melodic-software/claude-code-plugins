@@ -319,7 +319,7 @@ JSON
   mkdir -p "$tmp/runner"
   env "${api[@]}" "RUNNER_TEMP=$tmp/runner" "HYGIENE_OUTPUT_DIR=$tmp/out" GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS=markdown \
     GITHUB_REPOSITORY=o/r CHECK_RUN_ID=1 GH_TOKEN=t CHECK_RESULTS=$'markdown=failure\n' bash "$self" >/dev/null
-  [[ "$(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)" == request ]] ||
+  [[ "$(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)" == "request {x}" ]] ||
     fail "the annotation read must count one request, got: $(cat "$tmp/runner/api-budget/github-token" 2>/dev/null)"
 
   # Two failed composite gates share the one set: the API does not say which
