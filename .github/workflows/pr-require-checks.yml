@@ -6190,7 +6190,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
-          # (pr-merge.yml's enable-auto-merge step passes the same).
+          # (pr-merge.yml's enable-auto-merge step passes the same, but for
+          # the three this job holds, below).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}

@@ -9884,6 +9884,27 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertEqual((config.rung, config.loop_merge), ("C2", "c2-mechanical"))
         self.assertEqual(gh.calls, [["api", endpoint]])
 
+    def test_a_shallow_sparse_partial_clone_reads_only_its_sparse_files(self) -> None:
+        # As actions/checkout makes base-config: depth 1, no blobs fetched
+        # but the sparse paths'. A file outside them reads through the API.
+        sha = self.commit(
+            {policy.CONFIG_PATH: PIPELINE, policy.SOURCE_CONTROL_PATH: SOURCE_CONTROL}
+        )
+        self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
+        clone = self.checkout.parent / "sparse"
+        self.git(
+            self.checkout.parent, "clone", "-q", "--depth", "1", "--filter=blob:none",
+            "--sparse", f"file://{self.checkout}", str(clone),
+        )  # fmt: skip
+        self.git(clone, "sparse-checkout", "set", "--no-cone", f"/{policy.CONFIG_PATH}")
+        gh = GhFake().install(self)
+        endpoint = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"
+        gh.rest[endpoint] = file_payload(SOURCE_CONTROL)
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(clone)}):
+            config = policy.read_config_at(REPO, sha)
+        self.assertEqual((config.rung, config.loop_merge), ("C2", "c2-mechanical"))
+        self.assertEqual(gh.calls, [["api", endpoint]])
+
     def test_a_directory_inside_another_checkout_is_not_taken(self) -> None:
         sha = self.commit({policy.CONFIG_PATH: PIPELINE})
         inner = self.checkout / "docs"
