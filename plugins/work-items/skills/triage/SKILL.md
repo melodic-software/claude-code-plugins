@@ -146,8 +146,12 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    local-markdown and linear do): leave both the lease and the assignee. Clearing the assignee
    under a live lease lists the item on the frontier while every `claim` on it fails with exit `7`;
    instead the lease runs out its TTL, after which local-markdown's `list-items` reports the item
-   unassigned and linear's `reclaim` frees it. Exit `7` means the lease is no longer this run's;
-   leave it and the assignee.
+   unassigned. Linear's `list-items` does not project an expired lease, so there the item returns
+   only through `reclaim`, and not on the first one: `reclaim` counts any non-lease comment newer
+   than the lease's `renewed_at` as activity and renews the lease in place, and this run's outcome
+   comment is such a comment. The first `reclaim` after the TTL renews the lease in this run's
+   name; the next `reclaim` after a further quiet TTL frees it. Exit `7` means the lease is no
+   longer this run's; leave it and the assignee.
 
 When `.work-item-tracker.json` does not resolve, give the choice
 [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Provider-neutral over the
