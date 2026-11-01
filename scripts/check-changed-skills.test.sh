@@ -601,5 +601,44 @@ else
 fi
 rm -rf "$t" "$d"
 
+# The real checker over a tracked skill whose test script and the checkout's
+# markdownlint would each leave a marker: the lane form runs neither, and the
+# positional form, as the control, does run the test.
+add_evil() { # <repo>
+  mkdir -p "$1/plugins/p1/skills/alpha/scripts" "$1/node_modules/.bin"
+  printf '#!/usr/bin/env bash\ntouch "%s/test-ran"\n' "$1" >"$1/plugins/p1/skills/alpha/scripts/evil.test.sh"
+  printf '#!/usr/bin/env bash\ntouch "%s/lint-ran"\n' "$1" >"$1/node_modules/.bin/markdownlint-cli2"
+  chmod +x "$1/plugins/p1/skills/alpha/scripts/evil.test.sh" "$1/node_modules/.bin/markdownlint-cli2"
+}
+mk_lane_pair t d
+stage_checker "$t"
+add_evil "$d"
+commit_all "$d" evil >/dev/null
+git_test_config "$d" update-ref refs/remotes/origin/main "$(base_sha "$d")"
+add_skill "$d" p1 alpha SKILL.md
+out="$(run_lane "$t" "$d" --merge-base 2>&1)"
+if [[ ! -e "$d/test-ran" && ! -e "$d/lint-ran" && ! -e "$d/decoy-ran" ]] && grep -q 'script tests skipped' <<<"$out"; then
+  ok "the lane form runs none of the checkout's test scripts, markdownlint or checker"
+else
+  fail "the lane form ran checkout code: $(ls "$d"), got: $out"
+fi
+rm -rf "$t" "$d"
+
+mk_repo r
+stage_checker "$r"
+add_skill "$r" p1 alpha
+add_evil "$r"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+add_skill "$r" p1 alpha SKILL.md
+(cd "$r" && env -u CHECK_SKILL_SKIP_SCRIPT_TESTS CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
+  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1
+if [[ -e "$r/test-ran" ]]; then
+  ok "control: the positional form runs the changed skill's test script"
+else
+  fail "control: the positional form should run the skill's test script"
+fi
+rm -rf "$r"
+
 rm -f "$STUB"
 test_harness::report
