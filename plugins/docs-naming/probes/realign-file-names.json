@@ -1,0 +1,124 @@
+{
+  "skill": "docs-naming:realign-file-names",
+  "plugin": "docs-naming",
+  "skill_dir": "plugins/docs-naming/skills/realign-file-names",
+  "ranking_note": "Authored from the before descriptions at commit 0ad858ec054897c381bfed3e652d4236535a69a3, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors: docs-naming:generate-file-name-gate (emitting a standalone CI checker and tests that enforce the rule going forward); docs-naming:audit-file-names (read-only inventory of off-rule names and the rename plan with references); docs-naming:setup (user-invoked only; verifying or writing the docs-naming configuration: casing regex, tiers, layers); naming:name-it-better (inventing candidate names for something whose name is still undecided); docs-hygiene:rename-references (sweeping stale references after a single rename the user already decided or made); docs-hygiene:audit-noise (noise in markdown content such as stale citations, ghost refs and residue, not file names). realign-file-names owns executing an existing audit plan: one git mv per accepted FN- finding, tier-limited reference rewrites, generated-record rebuilds and a straggler sweep, never a blanket approval and never a commit.",
+  "competitors": [
+    "docs-naming:generate-file-name-gate",
+    "docs-naming:audit-file-names",
+    "docs-naming:setup",
+    "naming:name-it-better",
+    "docs-hygiene:rename-references",
+    "docs-hygiene:audit-noise"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Apply FN-1a2b3c4d."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The audit plan looks good. Let's start moving files, one at a time, and I'll approve each."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go ahead with FN-09fe33c1 and FN-5d2a7b80, I've reviewed both."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Carry out the moves from the docs-naming findings and update the links each one needs."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Yes to the first proposed rename in the plan: git mv it and fix what cites it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Work through the filename plan from yesterday's audit, asking me before each move."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go with finding FN-c4e81a02 and rebuild any generated index it affects."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I accept FN-2b7d9e13. Next."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Now perform the doc filename changes the audit proposed, but leave committing to me."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Plan a lowercase rename of the docs folder, but don't move anything yet."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Generate the filename gate and its test suite for our CI."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename the 'deploy' skill to 'release' everywhere it's mentioned."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up docs-naming for this repo with the default kebab-case rule."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This file is named misc-notes.md and I hate it; what should it be called instead?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which docs would collide if we lowercased every filename? Report only."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I already did git mv on intro.md myself; check for stragglers that still cite the old path."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Declutter the preambles and stale citations in our skill docs."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Change the docs-naming config to add a frozen tier for ADRs."
+    }
+  ]
+}
