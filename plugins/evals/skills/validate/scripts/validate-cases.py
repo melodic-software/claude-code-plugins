@@ -23,6 +23,12 @@ grader with no samples is a WARN, and so is an llm or baseline grader that has
 samples, since judging them needs a paid calibration run this script never
 makes.
 
+A case whose prompt starts with `/<plugin>:<skill>`, or whose tags name a
+skill, is a WARN when that skill's SKILL.md (`<eval-dir>/../skills/<skill>/`)
+holds a pre-computed context line (!`command`) and the case's `allowed_tools`
+lacks Bash: the line needs Bash, so the slash command fails to load and the run
+ends at 0 turns.
+
 Output is one finding per line, `<FAIL|WARN> <case>/<file>: <message>`, sorted by
 case then file. A finding about the suite as a whole carries the eval dir in
 place of `<case>/<file>`. `--json` prints the same findings as a JSON array of
@@ -191,6 +197,13 @@ READ_ONLY_TOOLS = frozenset(
 # - As of: 2026-10-10
 # - Recheck trigger: a release note removes or restores a tool a case can list.
 REMOVED_TOOLS = frozenset(["TaskOutput"])
+
+# A skill's pre-computed context line (!`command`) runs through Bash when the
+# skill loads. A case that names the skill, by a leading /plugin:skill command
+# or a tag, and lacks Bash fails to load it and ends at 0 turns.
+PRECOMPUTED = re.compile(r"!`[^`\n]+`")
+SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w.-]+)(?=[\s:,.;]|$)")
+SKILL_NAME = re.compile(r"^[\w-][\w.-]*$")
 
 # (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
@@ -797,6 +810,42 @@ def check_tools(fields, case, findings):
             )
         )
     return bool(gated)
+
+
+def skills_named(prompt, tags):
+    """Skill names a case points at: its leading slash command, then its tags."""
+    names = []
+    match = SLASH_SKILL.match(prompt)
+    if match:
+        names.append(match.group(1))
+    if isinstance(tags, list):
+        names += [str(tag) for tag in tags]
+    return [name for name in dict.fromkeys(names) if SKILL_NAME.match(name)]
+
+
+def check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings):
+    """WARN when a named skill's pre-computed context line has no Bash grant."""
+    value, path = fields.get("allowed_tools", ([], home))
+    if isinstance(value, list) and "Bash" in [str(tool) for tool in value]:
+        return
+    for skill in skills_named(prompt, tags):
+        skill_md = os.path.join(plugin_root, "skills", skill, "SKILL.md")
+        try:
+            text = read_text(skill_md)
+        except (OSError, ValueError):
+            continue
+        if PRECOMPUTED.search(text):
+            findings.append(
+                Finding(
+                    "WARN",
+                    case,
+                    path,
+                    "skills/%s/SKILL.md has a pre-computed context line, which "
+                    "needs Bash; without it in allowed_tools the slash command "
+                    "fails to load and the run ends at 0 turns" % skill,
+                )
+            )
+            return
 
 
 def check_grader(case, path, options, findings):
@@ -1441,9 +1490,10 @@ def check_samples(case, graders, samples, findings):
         )
 
 
-def analyze_case(case_dir, case, findings):
+def analyze_case(case_dir, case, findings, plugin_root=None):
     """Validate one case, appending its findings."""
     fields = {}
+    tags = None
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
     prompt_path = os.path.join(case_dir, "prompt.md")
@@ -1536,12 +1586,16 @@ def analyze_case(case_dir, case, findings):
                 for key in ("runs",) + EXECUTION_KEYS:
                     if key in prompt_fm:
                         fields[key] = (prompt_fm[key], "prompt.md")
+                tags = prompt_fm.get("tags")
 
     if not unread:
         prompt_file = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
         check_identity(identity, prompt, prompt_file, case, findings)
     check_bounds(fields, case, findings)
     can_write = check_tools(fields, case, findings)
+    if plugin_root is not None:
+        home = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
+        check_skill_bash(plugin_root, fields, prompt, tags, case, home, findings)
 
     graders = collect_graders(case_dir, case, yaml_data, findings)
     if not graders:
@@ -1622,7 +1676,7 @@ def validate(eval_dir):
 
     for case_dir in cases:
         case = os.path.relpath(case_dir, eval_dir).replace(os.sep, "/")
-        analyze_case(case_dir, case, findings)
+        analyze_case(case_dir, case, findings, os.path.dirname(eval_dir))
 
     findings.sort(key=Finding.sort_key)
     return findings

@@ -894,6 +894,42 @@ class WarnTier(ValidatorTestCase):
         self.assertNotIn("only files created during the run", result.stdout)
 
 
+class SkillBashGrant(ValidatorTestCase):
+    def skill(self, name, body):
+        write(Path(self._tmp) / "skills" / name / "SKILL.md", body)
+
+    def bash_case(self, tools, prompt_line="/sample:setup check", tags="[other]"):
+        self.case(
+            "setup-check",
+            prompt="---\ntags: %s\nallowed_tools: [%s]\n---\n\n%s\n"
+            % (tags, tools, prompt_line),
+            graders={"names-conftest": REGEX_GRADER},
+        )
+        return self.validate_without_node()
+
+    def test_slash_skill_with_a_precomputed_line_warns_without_bash(self):
+        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        result = self.bash_case("Read, Glob, Grep, Skill")
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn(
+            "WARN setup-check/prompt.md: skills/setup/SKILL.md has a pre-computed "
+            "context line, which needs Bash",
+            result.stdout,
+        )
+        self.assertIn("the run ends at 0 turns", result.stdout)
+
+    def test_a_tag_names_the_skill_too(self):
+        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        result = self.bash_case("Read", prompt_line="Is node there?", tags="[setup]")
+        self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
+
+    def test_no_warning_with_bash_or_without_a_precomputed_line(self):
+        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        self.assertNotIn("pre-computed", self.bash_case("Read, Skill, Bash").stdout)
+        self.skill("setup", "---\ndescription: x\n---\n\nRead the doc.\n")
+        self.assertNotIn("pre-computed", self.bash_case("Read, Skill").stdout)
+
+
 class OutputContract(ValidatorTestCase):
     def test_json_carries_one_object_per_finding(self):
         self.case("no-grader", prompt=CLEAN_PROMPT)

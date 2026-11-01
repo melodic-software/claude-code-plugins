@@ -256,6 +256,48 @@ class ConvertTest(ConverterTestCase):
         names = [g["name"] for g in self.case_yaml("alpha-path-prompt")["graders"]]
         self.assertEqual(names, ["expectation-1", "expectation-2", "skill-fired"])
 
+    def skill_md(self, skill, text):
+        path = self.plugin / "skills" / skill / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def converted_tools(self, skill, skill_text):
+        self.skill_md(skill, skill_text)
+        self.source(skill, [dict(ALPHA_CASES[2])])
+        done = run(self.plugin)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        front, _ = self.prompt_md(skill + "-minimal-form")
+        return front["allowed_tools"]
+
+    def test_a_precomputed_line_grants_bash(self):
+        tools = self.converted_tools(
+            "alpha",
+            "---\ndescription: Check node.\n---\n\n- `node`: !`command -v node`\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_frontmatter_allowed_tools_are_granted_by_name(self):
+        tools = self.converted_tools(
+            "alpha",
+            "---\ndescription: Commit.\nallowed-tools: Bash(git *), Edit\n---\n\n"
+            "Commit the change.\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash", "Edit"])
+
+    def test_a_block_list_and_a_bash_body_do_not_repeat_a_tool(self):
+        tools = self.converted_tools(
+            "alpha",
+            '---\nallowed-tools:\n  - "Bash(command -v node*)"\n  - Read\n---\n\n'
+            "Run `node --version` through Bash.\n",
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_a_plain_skill_keeps_the_base_tools(self):
+        tools = self.converted_tools(
+            "alpha", "---\ndescription: Summarize.\n---\n\nSummarize the doc.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
     def test_dry_run_writes_nothing(self):
         alpha, beta, _ = self.sample_plugin()
         done = run(self.plugin, "--dry-run")
