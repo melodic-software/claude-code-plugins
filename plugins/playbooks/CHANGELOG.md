@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.1] - 2026-10-31
+
+### Changed
+
+- The skill criteria reference puts a skill's eval cases in its plugin's `evals/` directory as `case.yaml` cases, written by `/evals:design` and checked by `/evals:validate`, in place of `evals/evals.json` and `/skill-quality:check validate-evals`.
+
 ## [0.25.0] - 2026-10-31
 
 ### Added

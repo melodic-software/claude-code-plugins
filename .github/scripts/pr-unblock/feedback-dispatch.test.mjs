@@ -94,6 +94,7 @@ function fakeApi({
   labelEvents = [],
   reviewComments = [],
   reviews = [],
+  timeline = [],
 } = {}) {
   const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
@@ -126,6 +127,8 @@ function fakeApi({
       return reviewComments;
     },
     listReviews: async () => reviews,
+    listTimeline: async () => timeline,
+    listRequestHistory: async () => ({ deletions: [], reviewEdits: {} }),
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -1251,7 +1254,7 @@ test("on a gated head only a workable thread dispatches; an untaken one does not
   assert.deepEqual(api.calls.dispatch, []);
 });
 
-test("the API client reads each thread's review and its commit", async () => {
+test("the API client reads each thread's id, its review, the review's commit and when it was submitted", async () => {
   const bodies = [];
   const fetch = async (url, init) => {
     bodies.push(JSON.parse(init.body));
@@ -1259,7 +1262,8 @@ test("the API client reads each thread's review and its commit", async () => {
   };
   const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
   await api.listReviewThreads(42);
-  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} \}/);
+  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} submittedAt \}/);
+  assert.match(bodies[0].query, /nodes \{\s+id isResolved/);
 });
 
 // The record one run leaves for the next at the same head. `counting` wraps
@@ -2335,7 +2339,7 @@ const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
   };
   return api;
 };
-async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped, reviewerIds = [] } = {}) {
   const lines = [];
   const result = await dispatchFeedback({
     api,
@@ -2344,6 +2348,7 @@ async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyC
     upstream: api.upstream,
     appSenderId: APP_ID,
     trustedHumans: new Set([KYLE.databaseId]),
+    reviewerIds,
     resolveSlot: async () => resolvedLane(),
     adoption,
     passOnly,
@@ -2751,4 +2756,61 @@ test("a fix request's round is not one sent for pr-verify's FAIL", async (t) => 
     { api, resolveSlot: async () => resolvedLane(), verifyCapped, log: () => {} },
   );
   assert.deepEqual(asked, [[]]);
+});
+
+// #8284: on an owner PR only a thread the select job keeps starts a round, and
+// the select job keeps a listed bot's thread no trusted person directed only
+// when a trusted person's `@codex` request is behind the bot's review.
+const CODEX_REVIEWED = "2026-10-28T08:00:00Z";
+const codexThread = () => ({
+  id: "PRRT_9",
+  isResolved: false,
+  comments: {
+    nodes: [{ author: CODEX, body: "finding", createdAt: CODEX_REVIEWED, lastEditedAt: null, editor: null, pullRequestReview: { author: CODEX, commit: { oid: HEAD }, submittedAt: CODEX_REVIEWED } }],
+    pageInfo: { hasNextPage: false },
+  },
+});
+const codexAsk = (id, created = "2026-10-28T07:00:00Z") => ({ user: { id, login: id === KYLE.databaseId ? "kyle-sexton" : "stranger" }, created_at: created, updated_at: created, body: "@codex review" });
+const codexOwner = (asks, { openedAt, timeline = [] } = {}) =>
+  ownerApi({
+    pulls: ownerPull({ created_at: openedAt }),
+    timeline,
+    threads: [codexThread()],
+    comments: [marker("claude-review"), marker("claude-security-review"), ...asks],
+    reviews: [{ user: { id: CODEX.databaseId }, commit_id: HEAD, submitted_at: CODEX_REVIEWED, body: 'Reviews are triggered when you comment "@codex review".' }],
+  });
+
+test("an owner PR's Codex thread dispatches when a trusted person asked Codex for the review", async () => {
+  const api = codexOwner([codexAsk(KYLE.databaseId)]);
+  const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("an owner PR's automatic Codex review, on the owner's opening or ready flip, dispatches", async () => {
+  for (const [label, triggers] of [
+    ["opened by the owner", { openedAt: "2026-10-28T06:00:00Z" }],
+    ["readied by the owner", { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: KYLE.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
+  ]) {
+    const api = codexOwner([], triggers);
+    const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+    assert.equal(result?.number, 42, `${label}\n${lines.join("\n")}`);
+  }
+});
+
+test("an owner PR's Codex thread answering an untrusted or missing @codex request starts no round, with the reason logged", async () => {
+  for (const [label, asks, reason, triggers] of [
+    ["a stranger's request", [codexAsk(STRANGER.databaseId)], /^skip thread PRRT_9: codex-request-untrusted \(.*account 4242/],
+    ["a stranger's request beside a trusted one", [codexAsk(KYLE.databaseId), codexAsk(STRANGER.databaseId, "2026-10-28T07:30:00Z")], /^skip thread PRRT_9: codex-request-untrusted/],
+    ["no request and no readable opening time", [], /^skip thread PRRT_9: codex-request-not-found/],
+    ["a request after the review", [codexAsk(KYLE.databaseId, "2026-10-28T09:00:00Z")], /^skip thread PRRT_9: codex-request-not-found/],
+    ["an automatic review after a stranger's ready flip", [], /^skip thread PRRT_9: codex-request-untrusted \(the ready-for-review event .*account 4242/, { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: STRANGER.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
+  ]) {
+    const api = codexOwner(asks, triggers);
+    const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+    assert.equal(result, null, label);
+    assert.ok(lines.some((line) => reason.test(line)), `${label}\n${lines.join("\n")}`);
+    assert.match(lines.at(-1), /has no thread the lane works/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
 });

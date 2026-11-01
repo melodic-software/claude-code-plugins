@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Live test: the MCP stdio handshake. Build, spawn `node dist/index.js`, write one JSON-RPC `initialize` request to stdin, read one line from stdout and check `result.protocolVersion`, `result.serverInfo.name` and `result.capabilities.tools`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run `npm test` again and check your client's config file path.",
+      "why": "no handshake"
+    },
+    {
+      "answer": "Send an initialize request over HTTP to port 3000.",
+      "why": "initialize but not over stdio"
+    }
+  ]
+}

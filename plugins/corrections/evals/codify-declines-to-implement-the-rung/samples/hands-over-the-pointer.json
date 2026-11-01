@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "See https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is the analyzer."
+    }
+  ]
+}

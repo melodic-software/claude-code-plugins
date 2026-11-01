@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- The live breakdown marks the Skills row in the warning color when it holds 1% or more of the context window, the skill listing's default budget. The pane names the fix under the row: run `/skill-doctor`, or check `skillListingBudgetFraction`. The band colors the Skills entry in its legend, and the pane row carries the fix. The threshold is fixed, and no other category gets a warning.
+
+## [0.14.1] - 2026-10-31
+
+### Changed
+
+- The README's Hook section no longer says an upstream report tracks the hook `if` tool-name gap, and its recheck trigger is now only a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write tool calls. The settings checkpoint row stays unconditioned ([#8985](https://github.com/melodic-software/claude-code-plugins/issues/8985)).
+
 ## [0.14.0] - 2026-10-31
 
 ### Added

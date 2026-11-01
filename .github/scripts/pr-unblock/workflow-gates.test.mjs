@@ -265,6 +265,8 @@ test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a
       "github.event.workflow_run.conclusion": "success",
       "github.event.workflow_run.repository.full_name": repo,
       "github.event.workflow_run.head_repository.full_name": repo,
+      // Not gated on a lanes App branch: a person's PR needs its ci-status re-run too.
+      "github.event.workflow_run.head_branch": "feat/x",
       ...overrides,
     });
   assert.equal(runs(), true);
@@ -279,8 +281,71 @@ test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a
   assert.equal(runs({ "github.event.workflow_run.event": "push" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
   assert.equal(runs({ "github.ref": "refs/heads/feat/x" }), false);
-  // Not gated on a lanes App branch: a person's PR needs its ci-status re-run too.
-  assert.doesNotMatch(gate, /head_branch/);
+});
+
+// A pr-unblock run (its status write starts no workflow) and a relayed
+// approval change what ci-status reads, so each re-runs it too.
+test("pr-feedback-dispatch.yml re-runs ci-status after a pr-unblock dispatch on main or a relayed review", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "rerun-ci-status");
+  const repo = "melodic-software/claude-code-plugins";
+  const base = {
+    "github.ref": "refs/heads/main",
+    "github.repository": repo,
+    "github.event.workflow_run.conclusion": "success",
+    "github.event.workflow_run.repository.full_name": repo,
+    "github.event.workflow_run.head_repository.full_name": repo,
+  };
+  const unblock = (o = {}) =>
+    evaluate(gate, {
+      ...base,
+      "github.event.workflow_run.path": ".github/workflows/pr-unblock.yml",
+      "github.event.workflow_run.event": "workflow_dispatch",
+      "github.event.workflow_run.head_branch": "main",
+      ...o,
+    });
+  assert.equal(unblock(), true);
+  assert.equal(unblock({ "github.event.workflow_run.conclusion": "failure" }), true);
+  assert.equal(unblock({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.head_branch": "feat/x" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.event": "pull_request" }), false);
+  assert.equal(unblock({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  const review = (o = {}) =>
+    evaluate(gate, {
+      ...base,
+      "github.event.workflow_run.path": ".github/workflows/pr-review-approved.yml",
+      "github.event.workflow_run.event": "pull_request_review",
+      "github.event.workflow_run.head_branch": "feat/x",
+      ...o,
+    });
+  assert.equal(review(), true);
+  // A review that is not an approval skips the relay's job, so its run is skipped.
+  assert.equal(review({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(review({ "github.event.workflow_run.event": "pull_request" }), false);
+  assert.equal(review({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const upstreams = text.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
+  for (const name of ["pr-unblock", "pr-review-approved"]) assert.ok(upstreams.includes(name), `${name} is a workflow_run upstream`);
+});
+
+// The relay starts a runner only for an approval of a same-repository PR.
+test("pr-review-approved.yml relays only an approval of a same-repository PR, with no permission", () => {
+  const gate = jobIf("pr-review-approved.yml", "relay");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (o = {}) =>
+    evaluate(gate, {
+      "github.repository": repo,
+      "github.event.review.state": "approved",
+      "github.event.pull_request.head.repo.full_name": repo,
+      ...o,
+    });
+  assert.equal(runs(), true);
+  for (const state of ["commented", "changes_requested", "dismissed"]) {
+    assert.equal(runs({ "github.event.review.state": state }), false, state);
+  }
+  assert.equal(runs({ "github.event.pull_request.head.repo.full_name": "fork/repo" }), false);
+  const text = readFileSync(new URL("../../workflows/pr-review-approved.yml", import.meta.url), "utf8");
+  assert.match(text, /\non:\n  pull_request_review:\n    types: \[submitted\]\n\npermissions: \{\}\n/);
 });
 
 const UNBLOCK = "pr-unblock.yml";

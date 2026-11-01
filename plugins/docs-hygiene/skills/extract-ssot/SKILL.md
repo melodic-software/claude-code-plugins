@@ -242,9 +242,9 @@ Per-phase checklist: `context/execution-checklist.md`.
 
 ## Spoke paths
 
-The `actions/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command or writing it into a brief;
-never hand a `${…}` token from those files to the Bash tool.
+The `actions/` and `context/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or
+writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
 
 - **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
   carries, fetch

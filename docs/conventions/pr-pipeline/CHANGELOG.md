@@ -1,5 +1,36 @@
 # Changelog for the PR pipeline convention
 
+## [8.27.4] - 2026-10-31
+
+### Fixed
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` job also re-runs a head's `ci-status` when a `pr-unblock.yml` run completes after setting or clearing a `pr-unblock/*` status on it, and when a person on the trusted-actor list approves it. Before, both changes waited for a hand re-run: the status is written with a `GITHUB_TOKEN`, whose events start no workflow, and no `pull_request` event fires on a review.
+- The new `pr-review-approved.yml` relays an approving review of a same-repository pull request, with no permission, as a `workflow_run` upstream, so the re-run it causes is recorded for pr-verify's trigger gate.
+
+- A thread a `review-threads.reviewer-ids` bot opened, with no trusted person's direction on it, is
+  worked only when a trusted actor asked for that bot's review. Anyone can comment `@codex` on a
+  public repository.
+  - **An explicit request** is a `@codex` comment in an issue comment, a review comment or a review
+    body, posted since the same bot's previous review. It must come from a person on the
+    trusted-actor list. The bot's own text does not count.
+  - **An automatic review** has no `@codex` comment and counts as asked for by whoever triggered it.
+    That is the pull request's author on opening, or the actor of a ready-for-review event. Every
+    such event in the window must be a trusted person's or the lanes App's.
+  - Any untrusted request or event in the window leaves the thread for a person, and so does none
+    that can be read. So do these, since each may have held a request:
+    - an untrusted comment or review edited since the window opened, whatever it says now (review
+      edit times come from GraphQL);
+    - an untrusted comment that was deleted (GraphQL `CommentDeletedEvent`). The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
+  - The select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml`
+    apply the same check. `chatgpt-codex-connector[bot]` stays on `reviewer-ids`, and the
+    trusted-actor list is unchanged.
+
+## [8.27.3] - 2026-10-31
+
+### Fixed
+
+- Both review lanes (`review-code`, `review-security`) run on the `pr-review` profile at `opus`, effort `high`, in place of `sonnet`: they judge work the Opus profiles write, and no objective failure signal is on the head when their model is chosen (`docs/plugin-philosophy.md`, "Model tiers", rules 3 and 4). A test fails when either review route resolves to a model weaker than a route that writes code.
+
 ## [8.27.2] - 2026-10-31
 
 ### Fixed
