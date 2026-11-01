@@ -88,6 +88,12 @@
       "maxLength": 200,
       "description": "A POSIX ERE /source-control:pull-request create uses to parse the work-item reference from the branch name; its last capture group holds the reference, an issue number or a tracker key. At most 200 characters, every repetition bound at most 16, no quantifier on a group that already holds one, no backreference. Unset falls through to the deprecated userConfig value, then the built-in <type>/<N>-<slug> convention."
     },
+    "dossier_branch_prefix": {
+      "type": "string",
+      "minLength": 1,
+      "default": "dossier/",
+      "description": "The prefix of an owning work item's dossier branch, <prefix><key>-<slug>, where <key> is the bound tracker adapter's branch_ref for the item. The branch holds the item's docs, exploration notes and draft plan. One dossier per owning item: a parent or spec container gets its own, and a child item adds its own only when it needs one. Unset means dossier/."
+    },
     "pre_ready": {
       "type": "array",
       "maxItems": 5,
