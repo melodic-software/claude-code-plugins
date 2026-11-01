@@ -292,6 +292,24 @@ class ConvertTest(ConverterTestCase):
         )
         self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
 
+    def test_body_wording_alone_grants_bash(self):
+        tools = self.converted_tools(
+            "alpha", "---\ndescription: Check.\n---\n\nRun node --version through Bash.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_negated_bash_wording_grants_nothing(self):
+        for skill, body in (
+            ("negone", "Do not use the Bash tool."),
+            ("negtwo", "Never run this with Bash."),
+            ("negthree", "Don't call it through Bash; read the file."),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Read.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
     def test_a_plain_skill_keeps_the_base_tools(self):
         tools = self.converted_tools(
             "alpha", "---\ndescription: Summarize.\n---\n\nSummarize the doc.\n"

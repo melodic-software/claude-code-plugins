@@ -114,6 +114,15 @@ ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
 # - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
+# A sentence that tells the skill to stay off Bash grants nothing.
+NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
+
+
+def body_needs_bash(text):
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n", text):
+        if BASH_IN_BODY.search(sentence) and not NEGATION.search(sentence):
+            return True
+    return False
 
 # One tool in an allowed-tools value; a permission pattern in parentheses after
 # the name is consumed with it, so the words inside are not read as tools.
@@ -231,7 +240,7 @@ def skill_tools(plugin_dir, skill):
                 front, text = lines[1:number], "\n".join(lines[number + 1 :])
                 break
     tools = list(ALLOWED_TOOLS)
-    if PRECOMPUTED.search(text) or BASH_IN_BODY.search(text):
+    if PRECOMPUTED.search(text) or body_needs_bash(text):
         tools.append("Bash")
     tools += frontmatter_tools(front)
     return list(dict.fromkeys(tools))
