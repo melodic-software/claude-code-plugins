@@ -1,12 +1,16 @@
 {
   "pass": [
     {
-      "answer": "```css\n.toast {\n  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);\n}\n.toast[data-state=\"closing\"] {\n  transform: translateY(16px);\n  opacity: 0;\n}\n```\n\nI used an ease-out curve so the toast responds the moment it is dismissed.",
-      "why": "every curve ends slow (ease-out), branch (a)"
+      "answer": "```css\n@media (prefers-reduced-motion: no-preference) {\n  .toast[data-state=\"closing\"] {\n    transition: transform 180ms cubic-bezier(0.3, 0, 1, 1), opacity 180ms cubic-bezier(0.3, 0, 1, 1);\n    transform: translateY(16px);\n    opacity: 0;\n  }\n}\n```\n\nDismissing a toast is a permanent exit, so it accelerates away on an accelerate curve. The trade-off: the curve starts slow, so the first frames after the dismiss can read as lag; it stays short to keep that small.",
+      "why": "an accelerate cubic-bezier on the dismissal, with the lag warning"
     },
     {
-      "answer": "```css\n@media (prefers-reduced-motion: no-preference) {\n  .toast[data-state=\"closing\"] {\n    transition: transform 220ms ease-in, opacity 220ms ease-in;\n    transform: translateY(24px);\n    opacity: 0;\n  }\n}\n```\n\nYou asked for it to accelerate as it falls away, so the exit uses `ease-in`. The trade-off: ease-in starts slow, so the first frames after the dismiss barely move and can read as lag.",
-      "why": "honors the explicit request with ease-in and names that it starts slow, branch (b)"
+      "answer": "```css\n:root { --ease-in: cubic-bezier(0.4, 0, 1, 1); }\n.toast[data-state=\"closing\"] {\n  transition: transform 160ms var(--ease-in), opacity 160ms var(--ease-in);\n  transform: translateY(24px);\n  opacity: 0;\n}\n```\n\nYou asked for it to fall away, so the exit uses the accelerate token. It starts slow, which can read as lag right after the click.",
+      "why": "a defined accelerate token, close to the keyword's shape but a custom curve, with the warning"
+    },
+    {
+      "answer": "```css\n.toast[data-state=\"closing\"] {\n  transition: translate 200ms var(--ease-in, cubic-bezier(0.55, 0, 1, 0.45)), opacity 200ms var(--ease-in, cubic-bezier(0.55, 0, 1, 0.45));\n  translate: 0 20px;\n  opacity: 0;\n}\n```\n\nThe exit accelerates as it leaves. Note the slow start: the first frames barely move, which can feel like lag.",
+      "why": "an accelerate curve given as the token's fallback, with the warning"
     }
   ],
   "fail": [
@@ -17,6 +21,22 @@
     {
       "answer": "```css\n.toast[data-state=\"closing\"] {\n  transform: translateY(24px);\n  opacity: 0;\n}\n```\n\nSet the closing state and remove the element once it is hidden.",
       "why": "no transition or animation"
+    },
+    {
+      "answer": "```css\n.toast {\n  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1), opacity 200ms cubic-bezier(0.23, 1, 0.32, 1);\n}\n.toast[data-state=\"closing\"] {\n  transform: translateY(16px);\n  opacity: 0;\n}\n```\n\nI used an ease-out curve so the toast responds the moment it is dismissed.",
+      "why": "an ease-out dismissal: the explicit request for acceleration is not honored on a permanent exit"
+    },
+    {
+      "answer": "```css\n@media (prefers-reduced-motion: no-preference) {\n  .toast[data-state=\"closing\"] {\n    transition: transform 220ms ease-in, opacity 220ms ease-in;\n    transform: translateY(24px);\n    opacity: 0;\n  }\n}\n```\n\nYou asked for it to accelerate as it falls away, so the exit uses `ease-in`. The trade-off: ease-in starts slow, so the first frames after the dismiss barely move and can read as lag.",
+      "why": "near miss: the warning is there, but the curve is the bare ease-in keyword"
+    },
+    {
+      "answer": "```css\n.toast[data-state=\"closing\"] {\n  transition: transform 200ms cubic-bezier(0.77, 0, 0.175, 1), opacity 200ms cubic-bezier(0.77, 0, 0.175, 1);\n  transform: translateY(24px);\n  opacity: 0;\n}\n```\n\nThe exit starts slow and picks up speed. That slow start can read as lag.",
+      "why": "near miss: an ease-in-out shape that settles slowly at the end, not an accelerate curve"
+    },
+    {
+      "answer": "```css\n.toast[data-state=\"closing\"] {\n  transition: transform 180ms cubic-bezier(0.3, 0, 1, 1), opacity 180ms cubic-bezier(0.3, 0, 1, 1);\n  transform: translateY(16px);\n  opacity: 0;\n}\n```\n\nThe toast accelerates away when dismissed.",
+      "why": "near miss: the right accelerate curve, but no lag trade-off named"
     }
   ]
 }

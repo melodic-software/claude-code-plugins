@@ -945,7 +945,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
-   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. A
+   thread holding a `review-threads.reviewer-ids` bot's comment and no such human's direction is
+   kept only when a `human` on that list wrote the `@codex` request behind that bot's review, and
+   no one else wrote one, since the bot's previous review. With no such request, the review is
+   automatic: the pull request's opening and each ready-for-review event since then must be by
+   such a `human` or the lanes App. Otherwise the thread is left alone, logged
+   `codex-request-untrusted` or `codex-request-not-found`. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
    `direction: true` the replies after the escalation, or with no escalation every human comment
    from the first such fix request on,
@@ -2405,6 +2411,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
   `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
+- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at that run's head
+  differs from the tip's, which the broker would refuse as `workflow-modified`. The caller's
+  `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any select job, so
+  nothing runs and the run ends green with no check and no stop, and the next dispatcher finds the
+  head unhandled. A read it cannot make leaves the run to the broker.
 
 ## Bounds
 

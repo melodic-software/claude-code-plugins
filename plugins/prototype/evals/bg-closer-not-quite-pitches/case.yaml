@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: bg-closer-not-quite-pitches
+description: "Head contract (new skill): after rounds of 'closer, but not quite' the skill names that loop as the evidence and pitches the tool in four parts (gap, tool, controls, export) before writing any code."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "The reply names the earlier closer-but-not-quite attempts as the reason to build a tool, then pitches the gap, the tool (a dial-in generator rebuilding the tearing process), the controls (such as tear depth, jaggedness, fiber density, seed) and the export (a saved JSON config the cover imports), and writes no file."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:build-generator The annual report cover needs a torn paper edge along the bottom of the hero photo. I've asked for it twice and each time it's closer but not quite: the tears look too regular and the paper fibers are missing. The site is a Vite + React app. Pitch it before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/report.js"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "roundAmount"
+          }
+        }
+      ],
+      "why": "read-only run"
+    },
+    {
+      "answer": [],
+      "why": "no tool calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/report.js"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "roundAmount"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/round.js",
+            "content": "export {}"
+          }
+        }
+      ],
+      "why": "called Write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/round.js",
+            "content": "export {}"
+          }
+        }
+      ],
+      "why": "only a Write call"
+    }
+  ]
+}

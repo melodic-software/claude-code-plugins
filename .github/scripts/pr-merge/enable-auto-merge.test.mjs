@@ -3635,6 +3635,7 @@ test("an approved hold-path escalation keeps its label while anything else stand
     ],
     "a refusal posted longer than PAIRED_MS before the label": [{ timeline: [note, labelEvent(APP_USER, "2026-10-23T10:01:01Z"), approval] }, "does not pair with enable-auto-merge's refusal"],
     "check-signed-commits' hold": [{ timeline: [note, label, restSaid(actions, "<!-- check-signed-commits hold -->\nA lane commit is unverified.", after), approval] }, "check-signed-commits holds it"],
+    "pr-verify's credential hold": [{ timeline: [note, label, restSaid(actions, "<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`", after), approval] }, "pr-verify holds it for a credential"],
     "a person's comment since the label": [{ timeline: [note, label, restSaid(KYLE, "Wait for the design call.", after), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
     "a person's label event since the label": [{ timeline: [note, label, labelEvent(KYLE, after, { name: "question" }), approval] }, "kyle-sexton spoke or labeled after needs-human went on"],
     "a person's reply on a review thread": [{ threadComments: [{ user: KYLE, created_at: after, updated_at: after }] }, "kyle-sexton spoke or labeled after needs-human went on"],

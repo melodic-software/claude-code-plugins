@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "import edge from '../config/torn-edge.json';",
+      "why": "import"
+    },
+    {
+      "answer": "<path d=\"...\"/> {/* seed 4127 */}",
+      "why": "static export noting seed"
+    },
+    {
+      "answer": "import tornEdge from '../assets/torn-edge.svg';",
+      "why": "imports a static export made from the config"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export default function ReportCover() { return <div className=\"cover-edge\" />; }",
+      "why": "unchanged"
+    },
+    {
+      "answer": "import cover from '../assets/report-cover.svg';",
+      "why": "near miss: imports an unrelated asset"
+    }
+  ]
+}

@@ -44,10 +44,12 @@
 # through git objects (`git show HEAD:path`) and existence probes (stat, `-f`)
 # are not opens, so the trace cannot see them.
 #
-# Three root files are read by almost every suite through its tools, not its
+# Four root files are read by almost every suite through its tools, not its
 # logic: node reads package.json for the module type, the version manager reads
-# .node-version, and git reads .gitignore. A read of one is no gap; a change to
+# .node-version, and git reads .gitignore and .gitattributes. A read of one is no gap; a change to
 # one is the toolchain's to gate, and as a scope it would select every suite.
+# So is .github/npm-fetch.npmrc: npm reads it at startup in any suite that runs
+# npm or npx, through npm_config_globalconfig, and callers.test.mjs gates it.
 #
 # Writes report.md, gaps.tsv and suites.tsv (trace) or report.md (replay,
 # red-replay) under --out, and appends report.md to $GITHUB_STEP_SUMMARY when
@@ -142,7 +144,7 @@ trace_one() {
   # -k: a daemon a suite leaves behind stays traced, and strace outlives a TERM waiting for it.
   timeout -k 10 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
     -o "$out/strace.$key" "${runner[@]}" >"$out/logs/$key.log" 2>&1 || rc=$?
-  reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .gitignore |
+  reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .gitignore -e .gitattributes -e .github/npm-fetch.npmrc |
     awk 'NR == FNR { t[$0] = 1; next } t[$0]' "$out/tracked" - >"$out/reads/$key"
   rm -f "$out/strace.$key"
   printf '%s\t%s\t%s\t%s\n' "$suite" "$rc" "$(($(date +%s) - start))" "$(wc -l <"$out/reads/$key")" >"$out/suites/$key"

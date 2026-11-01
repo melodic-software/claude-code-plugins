@@ -1,3 +1,6 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/*
 """The pr-merge lane's reader of verifier verdicts (`babysit_verify_evidence`).
 
 Expected values come from issue #7702 (Scope, Done when) and the verdict rules

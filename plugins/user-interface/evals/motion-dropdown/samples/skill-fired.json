@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "the write-animation skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "write-animation"
+          }
+        }
+      ],
+      "why": "the write-animation skill fired by its bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-css"
+          }
+        }
+      ],
+      "why": "near miss: the sibling CSS skill instead of write-animation"
+    }
+  ]
+}

@@ -24,7 +24,8 @@
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
 //   every comment is the reviewer bot's or a listed review bot's
-//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
+//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids; a listed
+//   bot's only behind a trusted person's `@codex` request, requestSkip), a trusted
 //   person with write access
 //   asked the lane to fix it (isFixRequest), in a bot's thread or one a
 //   trusted person opened, or a trusted person answered the
@@ -141,7 +142,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -231,8 +232,10 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 
 // threadAuthors' answer for an unresolved thread, read in full, that the select
 // job keeps: it accepts the thread and its review is on a marker-confirmed
-// head (onReviewedHead). `heads` is reviewedHeads of the PR's issue comments.
-function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
+// head (onReviewedHead), unless requestSkip finds no trusted `@codex` request
+// behind a listed bot's review in `mentions` and `reviews` (its reason goes to
+// `log`). `heads` is reviewedHeads of the PR's issue comments.
+function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set(), mentions = [], reviews = [], triggers = null, log = () => {} }) {
   if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
     return null;
   }
@@ -256,7 +259,46 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
       review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
       heads,
     });
-  return kept ? authors : null;
+  if (!kept) {
+    return null;
+  }
+  const skip = requestSkip({
+    authors,
+    comments: nodes.map((node) => ({
+      authorId: node.author?.databaseId,
+      review: node.pullRequestReview && { authorId: node.pullRequestReview.author?.databaseId, submittedAt: node.pullRequestReview.submittedAt },
+    })),
+    reviews,
+    mentions,
+    triggers,
+    reviewerIds,
+    trustedHumans,
+    appId,
+  });
+  if (skip) {
+    log(requestSkipLine(thread.id, skip));
+    return null;
+  }
+  return authors;
+}
+
+// The `@codex` request candidates and review times requestSkip reads, from
+// the PR's issue comments (REST), its threads (THREADS_QUERY) and, only when
+// an unresolved thread holds a listed bot's comment, one read of its reviews.
+async function requestEvidence({ api, number, pull, comments, threads, reviewerIds }) {
+  const listed = threads.some((thread) => thread.isResolved === false && anyListed(thread.comments.nodes.map((node) => node.author?.databaseId), reviewerIds));
+  if (!listed) {
+    return { mentions: [], reviews: [], triggers: null };
+  }
+  const [reviews, triggers] = await Promise.all([api.listReviews(number), readTriggers({ api, pr: number, pull })]);
+  return {
+    triggers,
+    mentions: [
+      ...restMentions({ issueComments: comments, reviews }),
+      ...threads.flatMap((thread) => thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, createdAt: node.createdAt, editedAt: node.lastEditedAt, body: node.body }))),
+    ],
+    reviews: reviews.map((review) => ({ authorId: review.user?.id, submittedAt: review.submitted_at })),
+  };
 }
 
 export const hasWorkableThread = (threads, options) => threads.some((thread) => keptAuthors(thread, options) !== null);
@@ -462,7 +504,8 @@ export async function dispatchFeedback({
     // job will not keep (a reviewer the lane does not act on, a review of an
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
-    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
+    const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log });
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
@@ -1012,13 +1055,13 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
         nodes {
-          isResolved
+          id isResolved
           comments(first: 100) {
             nodes {
               author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
-              pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } }
+              pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } submittedAt }
             }
             pageInfo { hasNextPage }
           }
@@ -1111,6 +1154,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // carrying the human-gated label only.
     listReviewComments: (number, since) => pages(`${repo}/pulls/${number}/comments?since=${encodeURIComponent(since)}&per_page=100`),
     listReviews: (number) => pages(`${repo}/pulls/${number}/reviews?per_page=100`),
+    // The REST issue timeline, for a listed bot's automatic review
+    // (address-feedback.mjs readTriggers).
+    listTimeline: (number) => pages(`${repo}/issues/${number}/timeline?per_page=100`),
+    listRequestHistory: async (number) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr: number })),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;

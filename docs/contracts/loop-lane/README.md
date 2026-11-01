@@ -1165,7 +1165,7 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
   interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
   there is nothing for the cron schedule to discard. `babysit-prs`'s documented
-  `/loop 15m /source-control:babysit-prs worker` line is that shape.
+  `/loop 15m /source-control:babysit-prs worker --unattended` line is that shape.
 
 The two shapes coexist inside one plugin without conflicting because they answer different
 invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,

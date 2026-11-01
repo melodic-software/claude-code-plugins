@@ -190,6 +190,7 @@ test("ci-status's recheck fails when the cleared head was not the head as the Ap
 test("ci-status's recheck fails on a signed-commits hold, another App marker or a person speaking before the removal", async () => {
   for (const [extra, why] of [
     [[commented(ACTIONS_BOT, "<!-- check-signed-commits hold -->\nA lane commit is not verified.", "2026-10-18T11:30:00Z")], "check-signed-commits holds it"],
+    [[commented(ACTIONS_BOT, "<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`", "2026-10-18T11:30:00Z")], "pr-verify holds it for a credential"],
     [[commented(APP, "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nHeld.", "2026-10-18T11:30:00Z")], "a lanes App comment since needs-human went on carries a marker"],
     [[commented(PERSON, "Do not merge this yet.", "2026-10-18T11:30:00Z")], "kyle-sexton commented or reviewed after needs-human went on"],
   ]) {

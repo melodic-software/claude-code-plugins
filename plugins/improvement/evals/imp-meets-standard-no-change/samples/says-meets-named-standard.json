@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "`src/currency.js` meets the standard in docs/standards/javascript.md: strict equality, `const` only, named export. No gap found, so no change and no PR."
+    },
+    {
+      "answer": "Checked src/currency.js against `docs/standards/javascript.md` (equality, declarations, exports): no violations. Nothing to ship.",
+      "why": "'no violations' after the file name"
+    },
+    {
+      "answer": "`src/currency.js` already meets the repo's written standards, so there is nothing to change and no PR.\n\n**Standard checked:** `docs/standards/javascript.md` (const only, named exports, strict equality)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "src/currency.js does not meet docs/standards/javascript.md: it should use a default export. I updated it.",
+      "why": "negated: does not meet"
+    },
+    {
+      "answer": "src/currency.js is not compliant with javascript.md because the template literal hides formatting; I propose a change.",
+      "why": "negated: is not compliant"
+    },
+    {
+      "answer": "src/currency.js meets the standard. Nothing to change.",
+      "why": "does not name the standard checked"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "`src/currency.js` does not meet the repo's written standards yet.\n\n**Standard checked:** `docs/standards/javascript.md`: it still uses a default export."
+    }
+  ]
+}

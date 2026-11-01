@@ -1,6 +1,29 @@
 {
   "requires": [
     {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "plugin",
+        "skill:check",
+        "skill:lint"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, /toolchain:check and /toolchain:lint cannot record their result and the turn-end result gate cannot launch, so no turn-end warning is shown. Build, test and lint runs are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/toolchain:check-prerequisites"
+    },
+    {
       "id": "python3",
       "kind": "cli",
       "need": "optional",

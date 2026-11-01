@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-controls-word-is-scope
+description: "contract-change: under the base contract the whole argument is the scope, so a scope that begins with the word 'controls' gets the normal plan; head parses a leading 'controls' as an action, so this case is expected to fail on head by design: the owner kept the first-word-wins grammar with a `--` escape (Q8, 2026-10-30), so a failure here is the intended change, reported apart from the non-inferiority verdict."
+tags: [explore-directions, contract-change]
+runs: 3
+expected_outcome: "The reply plans layout variants for the thermostat app's controls page (route, host, variant keys, states) before building, and does not treat 'controls' as an action that asks which variant to put on a control panel."
+execution:
+  prompt: "/prototype:explore-directions controls page for the smart-thermostat app (heating schedule, mode, fan speed). There's no app yet. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

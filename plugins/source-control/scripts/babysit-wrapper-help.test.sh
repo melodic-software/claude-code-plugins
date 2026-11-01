@@ -10,6 +10,7 @@
 # fleet it was asked to inspect. So the canary's harmlessness is pinned here.
 # test-scope: plugins/source-control/scripts/* plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit-python.sh plugins/source-control/skills/babysit-prs/scripts/pr_review_threads.py
+# test-scope: .github/actions/log-api-budget/rate-limits.json docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

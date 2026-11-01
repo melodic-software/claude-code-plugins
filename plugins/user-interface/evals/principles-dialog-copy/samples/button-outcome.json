@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "<Dialog title=\"Leave the Design team?\">\n  <p>You'll lose access to its projects.</p>\n  <button onClick={leaveTeam}>Leave team</button>\n  <button onClick={close}>Cancel</button>\n</Dialog>",
+      "why": "the button names the outcome"
+    },
+    {
+      "answer": "Before: `<button onClick={leaveTeam}>OK</button>`\n\nAfter:\n\n```jsx\n<Dialog title=\"Leave Acme?\">\n  <button onClick={close}>Stay</button>\n  <button onClick={leaveTeam}>Leave Acme</button>\n</Dialog>\n```",
+      "why": "the quoted before block keeps OK, but the proposed JSX names the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<Dialog title=\"Leave team?\">\n  <button onClick={leaveTeam}>OK</button>\n  <button onClick={close}>Cancel</button>\n</Dialog>",
+      "why": "the title changed but the button still says OK"
+    },
+    {
+      "answer": "<Dialog title=\"Leave this team?\">\n  <p>You'll lose access to its projects.</p>\n  <button onClick={leaveTeam}>Confirm</button>\n  <button onClick={close}>Cancel</button>\n</Dialog>",
+      "why": "near miss: the please is gone and the title is specific, but the button says Confirm, not the outcome"
+    },
+    {
+      "answer": "Rename the OK button to something like \"Leave team\" so it says what happens.",
+      "why": "the label only in prose, no revised JSX"
+    }
+  ]
+}

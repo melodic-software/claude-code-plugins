@@ -1,6 +1,7 @@
 # test-scope: plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/shared/tests/fixtures/*.json
 # test-scope: plugins/planning/shared/session.py plugins/planning/skills/interview/context/question-shape.md
+# test-scope: plugins/planning/surface/schema/*.schema.json
 """The shared session schemas accept the sample files and refuse the shapes the contract forbids."""
 
 from __future__ import annotations
@@ -79,6 +80,7 @@ class TestValidSamples(unittest.TestCase):
                 "upload-removed",
                 "report-filed",
                 "person-joined",
+                "fault-spike",
             },
         )
 

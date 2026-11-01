@@ -1,6 +1,6 @@
 ---
 description: "Audits a repository's existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) and reports which mechanisms no longer earn their keep; security-class items cap at flag-for-human. Read-only. Use when the user asks whether their CI, hooks or gates are overengineered or still earn their keep. Not for proposing new automation."
-argument-hint: "[layer ...] [unattended]"
+argument-hint: "[--unattended] [layer ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-**Arguments.** `[layer ...] [unattended]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
+**Arguments.** `[--unattended] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
 
 ## Repository context. Gather first
 
@@ -60,7 +60,7 @@ branch identity".
 **Writing the artifact from a delegated run.** Some harnesses refuse a report-shaped filename from a
 delegated executor. The sanctioned route: write the full content with the file-write tool to a
 neutral filename in the artifact's directory, then rename it to the contract filename. An
-`unattended` run takes this route from its first write; an attended run writes the contract filename
+`--unattended` run takes this route from its first write; an attended run writes the contract filename
 directly and switches at the first refusal. The route covers every write of the artifact, each
 per-layer checkpoint included. **Never write the artifact's content through the shell.** Where
 neither route is available, say so and stop.
@@ -74,7 +74,7 @@ Name it as the next step; never start it unasked.
 
 ## Arguments
 
-Parse `$ARGUMENTS`:
+Parse `$ARGUMENTS`, after taking out `--unattended` wherever it appears:
 
 - **Layer scope**: one or more of the **ten enforcement layers** in
   `${CLAUDE_PLUGIN_ROOT}/context/findings-artifact.md`'s vocabulary, `agent-hooks` through
@@ -84,9 +84,10 @@ Parse `$ARGUMENTS`:
   to close a prior finding as gone, so a layer recorded but not walked closes another producer's
   rows, and a layer absent from `scope` was not walked rather than found empty. Layer-scoped passes
   are the supported way to cover a large surface; they compose by stable finding id.
-- **`unattended`** (also `--unattended`): for low-confidence intent (§4), record `OPEN-INTENT`, ask
-  nothing, guess nothing. **Attended is the default**; the caller passes the flag, and the mode is
-  never inferred.
+- **`--unattended`**, anywhere in the arguments: for low-confidence intent (§4), record
+  `OPEN-INTENT`, ask nothing, guess nothing. **Attended is the default**; the caller passes the flag,
+  and the mode is never inferred. The bare word `unattended` is not this flag and not a focus hint:
+  stop and name `--unattended`.
 - Anything else is a free-text focus hint (a path, a mechanism name). It narrows attention, not the
   layer scope; a hint that matches nothing is reported.
 
@@ -96,7 +97,7 @@ Parse `$ARGUMENTS`:
    **`HEAD` is never a branch identity**, and neither is a failed call; "A detached checkout has no
    branch identity" governs what an unresolved identity declines, decided here. With an identity,
    compose the home per `findings-artifact.md` "Where it lives"; any other path writes where
-   `realign` never looks. **Then emit the read-only opening line.** An `unattended` run then probes
+   `realign` never looks. **Then emit the read-only opening line.** An `--unattended` run then probes
    the write path before walking: with the file-write tool, write a neutral file in the artifact's
    directory, rename it to a second neutral name there, and delete exactly that second path (the
    file-write tool's delete where offered, else one shell removal of that path). Never rename onto the

@@ -273,6 +273,7 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 
 | When | Skill | How it composes |
 |---|---|---|
+| Pre-PRD: a product idea not yet tested (should it be built at all) | `/planning:interview product` | Stress-tests the idea one question at a time and ends in a verdict; a holding idea comes here for its PRD |
 | Pre-PRD: problem still rough, no candidate approach chosen | `/planning:brainstorm` | Diverges cheapest→most-ambitious candidates; the resonating direction feeds this PRD |
 | Pre-task: product feature, fuzzy intent | **`/planning:prd`** (this) | Produces the topic's `PRD.md` |
 | Pre-task: any fuzzy task. Including post-PRD constraint discovery | `/planning:interview` | Produces the Brief in `PLAN.md` (reads PRD if present) |
@@ -285,6 +286,7 @@ Review checks structure and convention; `/planning:devils-advocate` (run later a
 ## Next
 
 - PRD locked: /planning:interview for the engineering contract.
+- The product idea itself is not yet tested (who has the problem, why they would switch): /planning:interview product.
 - PRD locked and the Brief already exists: /planning:design.
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.

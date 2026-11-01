@@ -1,13 +1,11 @@
 # Sentence rules: address, load, and ambiguity
 
-The three sentence-level layers of the default set, in one file because they apply to every sentence
-at once. Splitting them by standard would make you open three files per sentence.
+The three sentence-level layers of the default set, in one file because they apply to every
+sentence at once. This is the fallback set: when the consuming project declares its own style
+guide, that guide replaces everything here.
 
-Read this while drafting. It is the fallback set. When the consuming project declares its own style
-guide, that guide replaces everything here, and the skill body says so before you get this far.
-
-Every example below documents one made-up backup tool, `stash`, so the rules can be compared on the
-same material. Its `stash export` command writes an archive; `--since` limits it by date.
+Every example below documents one made-up backup tool, `stash`. Its `stash export` command writes
+an archive; `--since` limits it by date.
 
 ## Address: how the sentence talks to the reader
 
@@ -17,13 +15,13 @@ part of the page you are checking.
 **Page elements.** Check these on every page before reading a single sentence:
 
 - Formatting: commands, flags, and file names in code font (`stash export`); UI labels in bold.
-- Links: the link text is the title of the target page or a few words that describe it, such as
-  "Export flags". "Click here" tells the reader nothing about where it goes. When the reader needs
-  only a sentence of context, write it on the page instead of linking away.
+- Links: the link text is the target page's title or a few words that describe it, such as
+  "Export flags", never "Click here". When the reader needs only a sentence of context, write it
+  on the page instead of linking away.
 - Headings: sentence case, a single h1, and levels that never jump past one. A heading says what
-  the section concludes or does, not only its subject: "Export one table", not "Exporting". Phrase
-  task headings as verb phrases with no subject, and concept headings, such as "Archive layout",
-  as noun phrases.
+  the section concludes or does, not only its subject: "Export one table", not "Exporting". Task
+  headings are verb phrases with no subject; concept headings, such as "Archive layout", are noun
+  phrases.
 - Lists: numbers when order matters, bullets otherwise. A complete sentence comes before every
   list, and every item has the same grammatical form.
 - Series: use the serial comma ("tables, views, and indexes"). Never end a list with "etc."; if
@@ -34,7 +32,7 @@ part of the page you are checking.
 | Rule | Write | Not |
 |---|---|---|
 | An instruction is an imperative. A fact is a plain statement. "Should be done" is neither. | "Run `stash export --since 2026-01-01`." | "The export should be run with a start date." |
-| A sentence that has a condition or goal puts it first, so a reader it does not concern stops there. | "To export a single table, pass `--table`." | "Pass `--table` to export a single table." |
+| A sentence with a condition or goal puts it first, so a reader it does not concern stops there. | "To export a single table, pass `--table`." | "Pass `--table` to export a single table." |
 | A procedure never calls a step "simply", "easy", or "quickly"; the reader is here because it was not. It never says "please" either. | "Run the export." | "Simply kick off the export, please." |
 
 **Sentences that describe.**
@@ -52,9 +50,9 @@ When a sentence still sounds awkward read aloud, rewrite it.
 
 ## Load: how much one sentence carries
 
-These are our house limits, selected from ASD-STE100 Simplified Technical English. The
-specification settles anything this file does not cover. The record in [`sources.md`](sources.md)
-holds the pointer and the recheck trigger.
+Our house limits, selected from ASD-STE100 Simplified Technical English. The specification settles
+anything this file does not cover; the record in [`sources.md`](sources.md) holds the pointer and
+the recheck trigger.
 
 Check from the largest unit down to the smallest. Each row is one check.
 
@@ -68,14 +66,13 @@ Check from the largest unit down to the smallest. Each row is one check.
 | Verb | Each step of a procedure is a command to the reader: never a story about what the reader does, never passive. | "Create the archive folder", not "next, the user creates the archive folder" or "the archive folder must be created". |
 | Verb | One verb per action, kept for the whole document. | Once a page says "export", it never calls the same action "dump". |
 | Word | A word, once used, keeps its first sense and its grammatical role for the whole document. | If "load" means "read from disk", a sentence about system load needs a different word. |
-| Word | Where a form other than an "-ing" word exists, use it. An "-ing" word can act as a noun, an adjective or a verb, so it invites a wrong parse. | "Exporting tables can be slow" can mean the act of exporting or tables that are being exported. |
+| Word | Where a form other than an "-ing" word exists, use it: an "-ing" word can act as a noun, an adjective or a verb, so it invites a wrong parse. | "Exporting tables can be slow" can mean the act of exporting or tables that are being exported. |
 | Word | Keep the articles. | "Export archive" can be an instruction or the name of an archive; "Export the archive" can only be an instruction. |
 
 ## Ambiguity: can this be read two ways?
 
-Our paraphrased selection from Kohl, *The Global English Style Guide*. The readers these rules
-protect are the reader whose first language is not English, the translator, and the agent; all
-three read simple constructions most reliably.
+Our paraphrased selection from Kohl, *The Global English Style Guide*. These rules protect the
+reader whose first language is not English, the translator, and the agent.
 
 Word placement and grouping:
 
@@ -113,12 +110,11 @@ Punctuation and register:
 ### Two punctuation rules that a project may well disable
 
 Kohl's guidelines add two punctuation rules: end a sentence with a period where a semicolon would
-join two, and turn an em dash into a sentence break. Both are here because they are part of the
-standard being paraphrased, and both are the first rules a project with a deliberate house style is
-likely to overrule.
+join two, and turn an em dash into a sentence break. Both are here because the paraphrased
+standard has them, and both are the first rules a project with a deliberate house style is likely
+to overrule.
 
-That is the intended outcome, not a defect. A project that uses em dashes on purpose disables this
-pair the same way it disables any other rule, through its own declared style guide or its prose
-linter's configuration, and the disabled rule stays visible as a decision rather than vanishing.
-Do not apply either rule to a project that has ruled against it, and do not delete them for
-projects that have not.
+That is intended. A project that uses em dashes on purpose disables this pair like any other rule,
+through its own declared style guide or its prose linter's configuration, so the disabled rule
+stays visible as a decision. Do not apply either rule to a project that has ruled against it, and
+do not delete them for projects that have not.

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\n",
+      "why": "list"
+    },
+    {
+      "answer": "Provider scope: northwind, contoso.",
+      "why": "lower case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Provider scope: all providers.",
+      "why": "scope dropped"
+    },
+    {
+      "answer": "Providers: Northwind only.",
+      "why": "one provider missing"
+    }
+  ]
+}

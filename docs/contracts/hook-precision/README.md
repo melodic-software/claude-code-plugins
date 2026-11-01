@@ -101,16 +101,15 @@ Any hook whose matcher includes Write and must see every write (for example the 
 settings checkpoint, matcher `Write|Edit|NotebookEdit`) stays unconditioned. One `Edit(...)` gate
 on that row would drop every Write silently.
 
-- **Claim:** this is an upstream candidate; this marketplace does not patch Claude Code's `if`
-  matcher. A guard row whose matcher includes Write stays unconditioned, or splits into a gated
-  row per tool after its own probe.
+- **Claim:** the gap is in Claude Code's `if` matcher, which this marketplace does not patch. It
+  is recorded here, not reported upstream. A guard row whose matcher includes Write stays
+  unconditioned, or splits into a gated row per tool after its own probe.
 - **Basis:** the dated probe in `plugins/context-budget/README.md` (the paragraph starting "The
   registration carries no `if` filter") and #3680; for permission rules,
   [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
 - **As of:** 2026-10-29.
-- **Recheck:** the tool-name gap: a Claude Code release note saying a hook `if` `Edit(...)` rule
-  matches Write tool calls, or #8985 (its upstream report) closes. Re-probe before adding an `if`
-  gate to the context-budget row.
+- **Recheck:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write tool
+  calls. Re-probe before adding an `if` gate to the context-budget row.
 
 ## What this convention is not
 

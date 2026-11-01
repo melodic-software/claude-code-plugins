@@ -3,6 +3,28 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-10-31
+
+### Added
+
+- Outcome eval cases for `audit`, `check`, `cleanup`, `diagnose`, `plan`, `run-e2e`, `test-value` and `write`, and frozen trigger-probe sets for every model-invoked skill.
+
+### Changed
+
+- Model-invoked skill bodies and their spoke files rewritten to the skill criteria in fewer words, with descriptions unchanged; `write` states more plainly that refactoring waits for a green run and that each `Refactor checkpoint:` line is repeated in the summary, and `check-visual-parity` that a kept mismatch needs a `pixel_tolerance` entry in `docs/conventions/testing.yaml`.
+
+## [2.0.1] - 2026-10-31
+
+### Fixed
+
+- `/testing:cleanup` no longer says `model: opus` keeps its classifier off the session's model, and `/testing:audit` and the test judge point at the upstream model section.
+
+## [2.0.0] - 2026-10-31
+
+### Changed
+
+- `/testing:run-e2e` takes `--unattended` in place of a leading bare `unattended`, accepted anywhere in its arguments; the bare word is scenario text and the run is attended. The run still passes `--unattended` on to `/app-control:drive` and `/app-control:map refresh`. The argument hint lists the action first, shortened to `[worst-case…]` to stay within the 100-character budget, then `--unattended`; the Arguments section gives the full form. `worst-case` is also accepted as the first token, ahead of `app=`, `base=` and `trusted-root=`. The evals pass the flag.
+
 ## [1.7.2] - 2026-10-31
 
 ### Fixed

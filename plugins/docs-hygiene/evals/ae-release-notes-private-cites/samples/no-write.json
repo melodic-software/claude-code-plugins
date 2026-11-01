@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool calls"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-encapsulation"}}, {"tool": "Grep", "input": {"pattern": "skills/release-notes/"}}, {"tool": "Read", "input": {"file_path": "docs/releasing.md"}}], "why": "detect-only run"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "docs/releasing.md"}}], "why": "rewrote the doc without a fix request"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "skills/release-notes/"}}, {"tool": "Write", "input": {"file_path": "docs/releasing.md"}}], "why": "detected, then fixed unasked"}
+  ]
+}

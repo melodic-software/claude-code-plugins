@@ -5,10 +5,17 @@
 # Expected values come from the key contract in plugins/docs-hygiene/reference/config.md:
 # compress_articles takes keep or cut, and the file is
 # docs/conventions/docs-hygiene.yaml at the repository root.
+# test-scope: plugins/docs-hygiene/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$HERE/setup-apply.mjs"
 READER="$HERE/../../../lib/parse-concern-value.sh"
 REL="docs/conventions/docs-hygiene.yaml"
@@ -51,7 +58,7 @@ f="$repo/$REL"
 run "$repo" compress_articles=cut
 expect 'a fresh write exits 0' test "$CODE" -eq 0
 expect 'the written value reads back as cut' test "$(bash "$READER" "$f" compress_articles)" = cut
-expect 'the new file holds one key line and the schema comment' test "$(grep -vc '^#' "$f")" -eq 1
+expect 'the new file holds one key line and the schema comment' test "$(settings "$f" | grep -vc '^#')" -eq 1
 expect 'no other file is created' test "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1
 expect 'no temp file is left behind' test -z "$(find "$repo/docs" -name '.*.tmp')"
 
@@ -71,13 +78,14 @@ expect 'a change to an existing file exits 3 without --yes' test "$CODE" -eq 3
 if [[ "$OUT" == *"-compress_articles: keep"* && "$OUT" == *"+compress_articles: cut"* ]]; then ok 'the refusal prints the diff'; else bad 'the refusal prints the diff'; fi
 expect 'the file is untouched without --yes' test "$(cat "$f")" = $'# chosen by the docs team\ncompress_articles: keep'
 run "$repo" --yes compress_articles=cut
-expect 'with --yes the change is written and the comment kept' test "$CODE" -eq 0 -a "$(cat "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
+expect 'with --yes the change is written and the comment kept' test "$CODE" -eq 0 -a "$(settings "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
 
 # A key given twice on the command line, with the file present: one line, file unchanged.
+before="$(cat "$f")"
 run "$repo" --yes compress_articles=keep compress_articles=cut
 expect 'a key given twice with the file present exits 1' test "$CODE" -eq 1
 if one_line; then ok 'that refusal is one line'; else bad 'that refusal is one line'; fi
-expect 'the file is unchanged after that refusal' test "$(cat "$f")" = $'# chosen by the docs team\ncompress_articles: cut'
+expect 'the file is unchanged after that refusal' test "$(cat "$f")" = "$before"
 
 # Bad input with no file: value outside the list, empty value, unknown key, a key twice.
 repo="$(repo_new)"
@@ -112,7 +120,7 @@ shape() { # shape <label> <refuse|replace> <content>
     expect "apply refuses $label and leaves the file" test "$CODE" -eq 1 -a "$(cat "$file")" = "$before"
     if one_line; then ok "the refusal of $label is one line"; else bad "the refusal of $label is one line"; fi
   else
-    expect "apply replaces $label" test "$CODE" -eq 0 -a "$(cat "$file")" = 'compress_articles: cut'
+    expect "apply replaces $label" test "$CODE" -eq 0 -a "$(settings "$file")" = 'compress_articles: cut'
   fi
 }
 shape 'a duplicate key' refuse $'compress_articles: keep\ncompress_articles: cut\n'
@@ -142,7 +150,7 @@ for extra in 'verbosity: high' 'stray:'; do
   mkdir -p "$repo/docs/conventions"
   printf 'compress_articles: keep\n%s\n' "$extra" >"$repo/$REL"
   run "$repo" --yes compress_articles=cut
-  expect "apply beside '$extra' exits 0 and keeps its line" test "$CODE" -eq 0 -a "$(cat "$repo/$REL")" = "compress_articles: cut"$'\n'"$extra"
+  expect "apply beside '$extra' exits 0 and keeps its line" test "$CODE" -eq 0 -a "$(settings "$repo/$REL")" = "compress_articles: cut"$'\n'"$extra"
   expect "apply beside '$extra' warns once" test "$(grep -c 'WARN.*is not in the schema' <<<"$OUT")" -eq 1
 done
 
@@ -175,7 +183,8 @@ printf '# chosen by the docs team\r\ncompress_articles: keep\r\n' >"$f"
 printf '# chosen by the docs team\r\ncompress_articles: cut\r\n' >"$TMP/crlf-want"
 run "$repo" --yes compress_articles=cut
 expect 'a CRLF file is updated in place with CRLF kept' test "$CODE" -eq 0
-expect 'the CRLF file holds one key line, ending in CRLF' cmp -s "$f" "$TMP/crlf-want"
+expect 'the CRLF file holds one key line, ending in CRLF' cmp -s <(settings "$f") "$TMP/crlf-want"
+expect 'the record the writer adds to a CRLF file ends each line in CRLF' test "$(grep -cv $'\r$' "$f")" -eq 0
 run "$repo" --yes compress_articles=cut
 expect 'the same value on a CRLF file reports already configured' test "$CODE" -eq 0 -a "${OUT#*already configured}" != "$OUT"
 printf '# chosen by the docs team\r\ncompress_articles: keep\n' >"$f"
@@ -263,7 +272,8 @@ if [[ "$OUT" == INFO*absent* ]]; then ok '--check reports the file absent'; else
 mkdir -p "$repo/docs/conventions"
 printf 'compress_articles: keep\n' >"$repo/$REL"
 run "$repo" --check
-expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$OUT" = 'PASS compress_articles: keep'
+expect '--check on a valid file exits 0 and prints the value' test "$CODE" -eq 0 -a "$(grep -v '^INFO .*no provenance recorded' <<<"$OUT")" = 'PASS compress_articles: keep'
+expect '--check on a file with no record prints one INFO line' test "$(grep -c '^INFO .*no provenance recorded' <<<"$OUT")" -eq 1
 expect '--check writes nothing' test "$(cat "$repo/$REL")" = 'compress_articles: keep'
 
 # Usage errors.
@@ -274,6 +284,20 @@ expect '--check with a pair exits 2' test "$CODE" -eq 2
 OUT="$(cd "$TMP" && GIT_CEILING_DIRECTORIES="$TMP" node "$SUT" compress_articles=cut 2>&1)"
 CODE=$?
 expect 'outside a git working tree without --root exits 2' test "$CODE" -eq 2
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$HERE/../../../.claude-plugin/plugin.json")"
+repo="$(repo_new)"
+run "$repo" compress_articles=cut
+record="$(grep -v '^# ' "$repo/docs/conventions/docs-hygiene.yaml")"
+record_ok=0
+[[ "$CODE" -eq 0 && "$record" == $'written_against: docs-hygiene@'"$VERSION"$'\ncompress_articles: cut\nprovenance:\n  compress_articles: chosen'* ]] && record_ok=1
+repo="$(repo_new)"
+run "$repo" --default compress_articles
+default_ok=0
+[[ "$CODE" -eq 0 && "$(grep -c '^  compress_articles: default$' "$repo/docs/conventions/docs-hygiene.yaml")" -eq 1 ]] && default_ok=1
+expect 'the file records written_against and a chosen entry' test "$record_ok" -eq 1
+expect '--default records a default entry' test "$default_ok" -eq 1
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2

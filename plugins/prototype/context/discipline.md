@@ -1,13 +1,15 @@
-# Prototype discipline (both facets)
+# Prototype discipline (every facet)
 
-This file binds `/prototype:pressure-test` and `/prototype:explore-directions`. Each run of either
-exists for a single open question and its code is deleted once the answer is recorded. Which of the
-two to run depends on that question:
+This file binds `/prototype:pressure-test`, `/prototype:explore-directions` and
+`/prototype:build-generator`. Each run exists for a single open question and its code is deleted
+once the answer is recorded (for a generator, once its output is harvested). Which to run depends on
+that question:
 
 | Facet | Kind of question | Example |
 |---|---|---|
 | `logic` (`/prototype:pressure-test`) | A behavioral or feasibility spike: does this work, and which approach holds? | "Can an overdue loan still be renewed?" |
 | `ui` (`/prototype:explore-directions`) | A design prototype: "what should this look like?" | "A table or a card per parcel on the shipments page?" |
+| `generator` (`/prototype:build-generator`, run by a person) | An artifact prompting cannot hit: a tool the person tunes, whose output goes into the project | "A torn-paper edge that looks hand-ripped, not stamped" |
 
 A prototype belongs after product intent is settled and before an implementation plan exists: it
 shows, at low cost, that an approach behaves as intended before anyone designs around it. When
@@ -20,7 +22,7 @@ When the model reaches for a prototype without an explicit request to spike, **S
 scope before writing any throwaway code. Do not detour out of an active workflow without
 checkpointing your current work first (`/session-flow:handoff` when installed).
 
-## Rules (both facets)
+## Rules (every facet)
 
 Grouped by who each rule serves. Each row shows what breaking it looks like in the two running
 examples.
@@ -34,7 +36,7 @@ examples.
 | Whoever comes later | 5 | **Marked as disposable from the start** | A reader who opens `src/loans/renewal.prototype.ts` or the `/shipments` variant folder cannot tell it is not production code, or it sits in a new top-level directory instead of next to the code it would replace, inside the project's existing layout and routing |
 | | 6 | **Delete or absorb when done** | Code is removed before the answer, including more than the winner (see [When done](#when-done)), is written down |
 
-One substrate-scoped exception to rules 3 and 6: when the user, offered `/design` by
+One canvas-scoped exception to rules 3 and 6: when the user, offered `/design` by
 `/prototype:explore-directions`, runs the bundled `design` skill's canvas as an alternative to the
 throwaway HTML mockup, the variants live in a published, persistent Artifact under the user's account.
 That persistence is opted into knowingly at the offer site, not a rule violation; the repo side
@@ -46,6 +48,12 @@ variants and the reviewers' answers live in `/planning:interview`'s shared sessi
 untracked data dir after the session ends. The user opts in knowingly when saying yes to review
 mode, nothing tracked references the session, its data dir or its link, and the durable answer is
 still captured in markdown before the prototype is closed out.
+
+A third exception, to rules 3 and 6, for `/prototype:build-generator`: while the person tunes,
+its generating tool may live in the project and its save button may write the configuration to a
+project file, because production imports that file. Once the person picks a keeper and the output
+is harvested into the project, the tool is deleted; the saved configuration and any export stay,
+since they are the harvested output.
 
 ## When done
 

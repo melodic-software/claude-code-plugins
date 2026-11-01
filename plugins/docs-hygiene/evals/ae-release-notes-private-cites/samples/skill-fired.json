@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-encapsulation"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "release-notes"}}, {"tool": "Skill", "input": {"skill": "audit-encapsulation", "args": "sweep"}}], "why": "bare name with args after a grep"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:rename-references"}}], "why": "the rename sweep sibling"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:extract-ssot"}}], "why": "the duplication sibling"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "audit-encapsulation"}}], "why": "skill name only inside a grep"}
+  ]
+}

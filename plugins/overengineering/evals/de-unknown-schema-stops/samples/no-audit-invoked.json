@@ -6,7 +6,7 @@
   ],
   "fail": [
     {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit"}}], "why": "invoked the audit"},
-    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit", "args": "unattended"}}], "why": "with args"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit", "args": "--unattended"}}], "why": "with args"},
     {"answer": [{"tool": "Skill", "input": {"skill": "audit"}}], "why": "bare name"}
   ]
 }

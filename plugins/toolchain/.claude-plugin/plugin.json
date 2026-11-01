@@ -1,7 +1,7 @@
 {
   "name": "toolchain",
-  "version": "0.18.0",
-  "description": "Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, Go, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint` with format-only `--fix` and gated `--code-fix`), a re-runnable `/toolchain:setup` that reports or writes the tracked per-ecosystem command config those skills resolve first, and `/toolchain:ratchet`, a checked-in CI ceiling on a count.",
+  "version": "0.19.0",
+  "description": "Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, Go, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint` with format-only `--fix` and gated `--code-fix`), `/toolchain:setup` for the per-ecosystem command config, `/toolchain:ratchet` for a CI ceiling on a count, and a turn-end Stop hook that warns when the recorded check or lint result is not a pass.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -15,6 +15,15 @@
     "ecosystem",
     "polyglot",
     "verification",
-    "skill"
-  ]
+    "skill",
+    "hook"
+  ],
+  "userConfig": {
+    "turn_end_result_gate": {
+      "type": "string",
+      "title": "Turn-end result gate",
+      "description": "What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only.",
+      "default": "advisory"
+    }
+  }
 }

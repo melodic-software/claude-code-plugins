@@ -24,6 +24,7 @@
 # toast is never exercised here (notification channels are disabled on the paths
 # that would fire one) — lane-notify.test.sh covers the notifier.
 # test-scope: plugins/autonomy/hooks/*.sh
+# test-scope: plugins/autonomy/hooks/hooks.json
 
 set -uo pipefail
 

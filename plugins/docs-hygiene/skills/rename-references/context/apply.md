@@ -7,9 +7,9 @@
 - [Special cases](#special-cases)
 - [Hand-off summary](#hand-off-summary)
 
-Apply mode performs the complete rename: sweep → triage → user confirmation → Edit → re-sweep → handoff. Primary workflow when the user has decided to rename and wants the audit + edit done in one invocation.
+Apply mode performs the complete rename in one invocation: sweep → triage → user confirmation → Edit → re-sweep → handoff.
 
-Preview mode is the same workflow with the Edit phase replaced by "report planned edits." Use preview when the user wants to see exactly what would change before committing.
+Preview mode is the same workflow with the Edit phase replaced by "report planned edits", for a user who wants to see exactly what would change first.
 
 ## Inputs
 
@@ -37,7 +37,7 @@ undefined.
 
 ### Phase 2: Survey
 
-Identical to audit-mode Phase 2: run all patterns from [patterns.md](patterns.md) in parallel, aggregate into match list, apply auto-exclusions.
+Identical to audit-mode Phase 2: run all patterns from [patterns.md](patterns.md) in parallel through the Grep tool with its regexes, aggregate into match list, apply auto-exclusions. Reading files one by one is not a sweep; Read a file only to confirm a Grep hit in context, or before editing it.
 
 ### Phase 3: Triage
 
@@ -88,7 +88,7 @@ If `old` is a substring of `new` (e.g., `test` to `test e2e`), apply most-specif
 
 **Path renames (Form 3):**
 
-If args were path forms (`a/old.md` to `a/new.md`), the actual file rename is OUT OF SCOPE for this skill. That's `git mv`. This skill only updates *references* to paths in other files. Report clearly so the user runs `git mv` separately if needed.
+If args were path forms (`a/old.md` to `a/new.md`), the actual file rename is OUT OF SCOPE (that's `git mv`). This skill only updates *references* to paths in other files. Report clearly so the user runs `git mv` separately if needed.
 
 **Preview mode:** instead of calling Edit, render the planned diff per file:
 
@@ -106,34 +106,32 @@ Re-run Phase 2 (survey) with the same pattern library and `<old>`.
 
 **"Count" here means the ACTIONABLE count**: the survey result after applying both
 [patterns.md](patterns.md) "Phase 0" precedence and "Phase 0b" container-rename mode. Under a
-container rename the bare-token residue is deliberately left unrenamed (it is ordinary use of
-the word, not a reference), so those lines still match `<old>` forever. Counting them raw
-means the completion check can never reach zero and Outcome B loops indefinitely. Residue does
-not count toward completion; report it in the Phase 7 summary as the same aggregate the audit
-reports.
+container rename the bare-token residue is deliberately left unrenamed (ordinary use of the word,
+not a reference), so those lines match `<old>` forever. Counting them raw means the completion
+check can never reach zero and Outcome B loops indefinitely. Residue does not count toward
+completion; report it in the Phase 7 summary as the same aggregate the audit reports.
 
-**A DELIBERATE SKIP is not actionable either. Track skips and subtract them.** Residue is not
-the only category the sweep leaves matching forever. Every Phase 4 "skip this" / "skip bucket"
-answer leaves a real match in place on purpose, and container mode makes that routine rather
-than rare: it demotes Forms 4–12 to Ambiguous, so an unrelated `context.timeout` reaches the
-user as a per-match prompt and the correct answer is to skip it. Counting a confirmed skip as
-actionable re-presents the same match at Outcome B forever, and the only exits are rewriting a
-known false positive or aborting with a partial result, the identical non-terminating loop the
-residue rule closes, reached through the other door.
+**A DELIBERATE SKIP is not actionable either. Track skips and subtract them.** Every Phase 4
+"skip this" / "skip bucket" answer leaves a real match in place on purpose, and container mode
+makes that routine: it demotes Forms 4–12 to Ambiguous, so an unrelated `context.timeout` reaches
+the user as a per-match prompt and the correct answer is to skip it. Counting a confirmed skip as
+actionable re-presents the same match at Outcome B forever, leaving only two exits, rewriting a
+known false positive or aborting with a partial result: the same non-terminating loop the residue
+rule closes, reached through the other door.
 
 So Phase 4 must RECORD each skip as `(file, line, start, end)`, the same occurrence key
 precedence and dedup use, and Phase 6 subtracts those spans from the actionable count. Two
 constraints on the record:
 
 - **Key it by span, not by file or by form.** Skipping one occurrence is not consent to skip a
-  second one on the same line, and the user answered about a specific reference.
+  second one on the same line; the user answered about a specific reference.
 - **REMAP the stored spans as Phase 5 applies edits. A span recorded pre-edit does not survive
   the edit.** `<old>` and `<new>` are different lengths in the general case, so applying an
   accepted occurrence shifts every LATER occurrence on that same line by
   `len(<new>) - len(<old>)`. On `/plugin configure <old>@<marketplace>; use <old>.timeout` the accepted Form 13
   match moves the skipped Form 12 match's columns, the Phase 6 rescan reports different
   `(start, end)`, the stored span fails to subtract, and the user is prompted for the deliberate
-  skip again, the same non-terminating loop, now defeated by the bookkeeping meant to close it.
+  skip again: the same non-terminating loop, defeated by the bookkeeping meant to close it.
   After each Edit at `(line, start, end)`, add the delta to the `start` and `end` of every stored
   skip span on that line whose `start` is greater than the edited `start`. Spans on other lines
   and earlier spans on the same line are unaffected, because a rename replaces in place and adds
@@ -143,8 +141,7 @@ constraints on the record:
   the library is extended, re-ask rather than carrying the old skip across a changed question.
 
 Report skips in the Phase 7 summary as intentionally preserved. Never fold them into the
-residue aggregate, which is a different thing: residue was never proposed, a skip was proposed
-and declined.
+residue aggregate: residue was never proposed, a skip was proposed and declined.
 
 Three possible outcomes:
 
@@ -161,7 +158,7 @@ Pattern evolution protocol:
 2. Document the pattern in [patterns.md](patterns.md) with all 5 fields (form name, regex, triage default, example, false-positives)
 3. Re-run sweep with extended pattern library (back to Phase 2)
 
-Ask user before automatic re-iteration. They may want to inspect manually first.
+Ask user before automatic re-iteration; they may want to inspect manually first.
 
 ### Phase 7: Hand off
 
@@ -183,13 +180,13 @@ When Phase 6 reports an actionable count of 0:
    ```
 
    Emit the `<R>` line only under container-rename mode, and only when `<R>` is non-zero.
-   It is what keeps completion from reading as a raw-zero sweep when residue was deliberately
+   It keeps completion from reading as a raw-zero sweep when residue was deliberately
    preserved. Omit it entirely for an identifier rename, which has no residue concept.
 
    Emit the `<S>` line whenever `<S>` is non-zero, in either mode, and keep it SEPARATE from
-   `<R>`. They are different facts: residue was never proposed, a skip was proposed and
-   declined. Collapsing them hides that the user made a decision, and a reader checking why a
-   surviving `<old>` was left alone needs to know which of the two it was.
+   `<R>`: residue was never proposed, a skip was proposed and declined. Collapsing them hides
+   that the user made a decision, and a reader checking why a surviving `<old>` was left alone
+   needs to know which of the two it was.
 
 2. Suggest follow-up per `../SKILL.md` "Skill chaining":
 
@@ -205,7 +202,7 @@ The active plan/work-notes document records the rename, so both `<old>` and `<ne
 
 ### Idempotency under partial completion
 
-If Edit phase is interrupted (user cancels mid-flow, tool error), partial edits remain in the working tree. Re-invoke `/docs-hygiene:rename-references <old> to <new>` to resume. The survey will find only remaining matches, and re-applying succeeds because each Edit is targeted.
+If Edit phase is interrupted (user cancels mid-flow, tool error), partial edits remain in the working tree. Re-invoke `/docs-hygiene:rename-references <old> to <new>` to resume: the survey finds only remaining matches, and re-applying succeeds because each Edit is targeted.
 
 ### Concurrent session conflicts
 
@@ -215,7 +212,7 @@ Edit tool's read-before-write guard catches files modified by another session. I
 
 Bare-token Form 2 uses `\b<old>\b`, so `confirm` does NOT match in `confirmation`. Slash-token Form 1 uses `\B/<old>([^\w-]|$)`, so `/confirm` matches but not `path/confirm` (slash is path separator, not skill prefix).
 
-**A word boundary is NOT enough on the trailing side.** `\b` treats a hyphen as a boundary, so `\B/<old>\b` matched `/confirm-changes` as well as `/confirm`, and Form 1 auto-applies. Slash-command and container names are kebab-case, so this fires constantly in practice; the consumed `([^\w-]|$)` terminator is what rules it out. Forms 3, 13, 14 and 15 exclude an adjacent hyphen for exactly the same reason.
+**A word boundary is NOT enough on the trailing side.** `\b` treats a hyphen as a boundary, so `\B/<old>\b` matched `/confirm-changes` as well as `/confirm`, and Form 1 auto-applies. Slash-command and container names are kebab-case, so this fires constantly; the consumed `([^\w-]|$)` terminator rules it out. Forms 3, 13, 14 and 15 exclude an adjacent hyphen for the same reason.
 
 ### Frontmatter multi-line
 
@@ -230,7 +227,7 @@ Without multiline, this would be missed.
 
 ### Empty Certain bucket but full Chain-context
 
-Common pattern when rename is purely conceptual (chain ordering changed but no token rename happened). Verify with user that the rename pair is correct. Chain-context-only matches often signal the user actually wants a semantic refactor, not a text rename.
+Common when the rename is purely conceptual (chain ordering changed but no token rename happened). Verify with user that the rename pair is correct; chain-context-only matches often signal the user wants a semantic refactor, not a text rename.
 
 ## Hand-off summary
 
@@ -249,9 +246,9 @@ Next: run your verification workflow (build + test + lint) to confirm no semanti
 ```
 
 The `<S>` line is not optional formatting. "0 actionable stragglers" is true after a skip and
-still misleading on its own. The run preserved stale occurrences BY REQUEST, and a reader who
-sees only the zero has no way to tell that from a sweep that found nothing. Same reason `<R>`
-exists, different fact: residue was never proposed, a skip was proposed and declined, so the two
-stay on separate lines in both this template and the Phase 7 summary.
+still misleading on its own: the run preserved stale occurrences BY REQUEST, and a reader who
+sees only the zero cannot tell that from a sweep that found nothing. Same reason `<R>` exists,
+different fact: residue was never proposed, a skip was proposed and declined, so the two stay on
+separate lines in both this template and the Phase 7 summary.
 
 User decides whether to commit immediately or continue work first (the consuming repository's own commit policy governs).

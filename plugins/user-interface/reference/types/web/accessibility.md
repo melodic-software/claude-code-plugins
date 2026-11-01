@@ -26,7 +26,10 @@ in both themes, and the focus ring's color (the `--focus-ring` token), are the `
 reduced motion, and how a tooltip delays and warms, are the `motion` concern; how a code-built
 illustration is exposed to assistive tech and a header submenu that keeps its content in the DOM
 are the `marketing-pages` concern; a toast's duration by length and a disabled control's look are
-the `states` concern. Choosing a dialog, menu or popover library is `../../component-libraries.md`.
+the `states` concern. Choosing a dialog, menu or popover library is `../../component-libraries.md`. A
+card that links somewhere is `/user-interface:write-css` recipe `card-with-a-distinct-link`: one
+distinct link inside the card, with a link stretched over the whole surface only on the tile that
+recipe carves out.
 
 **Audit: Important.** A card wrapped whole in one link while it also holds another link or a
 button, or a card whose several links all go to the same place: keyboard and screen-reader users
@@ -517,3 +520,6 @@ flag is a place to look, not a verdict: a form laid out in deliberate columns ca
 still be flagged. The snippet approximates the browser's order (it does not look inside shadow roots
 or iframes), so pressing Tab through the page stays the ground truth: what code cannot prove, such
 as whether the reading order makes sense, goes on the human list as a device check.
+
+To see the path drawn over the live page (numbered stops, lines between them, the backward steps
+marked), a person can build a throwaway overlay with `/prototype:build-generator`.

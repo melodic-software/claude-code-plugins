@@ -1,7 +1,7 @@
 ---
 schema_version: "1.1"
 name: components-vue-combobox
-description: "Hard (the model tends to name one library from memory): Written from MB:plugins/user-interface/reference/component-libraries.md:3-8. For a Vue app the choice turns on stated criteria and the stack's current options, checked at the time of the choice, not a recalled name."
+description: "Hard (the model tends to name one library from memory): Written from MB:plugins/user-interface/reference/component-libraries.md:3-8. For a Vue app the choice turns on stated criteria and the stack's current options, checked at the time of the choice, not a recalled name. Head names a primitives default for React only, so a Vue prompt takes the rule both versions share."
 tags: [web, components, hard]
 runs: 5
 max_turns: 15

@@ -295,6 +295,7 @@ jobs:
         .github/scripts/pr-merge/lane-records.mjs
         .github/scripts/pr-merge/last-report.mjs
         .github/scripts/pr-merge/rate-stop.bash
+        .github/scripts/pr-merge/retry-call.bash
         .github/scripts/pr-merge/refire-refused.mjs
         .github/scripts/pr-merge/rotation.mjs
         .github/scripts/pr-merge/sweep-summary.mjs
@@ -357,6 +358,7 @@ jobs:
         .github/workflows/pr-merge.yml
         .github/workflows/pr-refine.yml
         .github/workflows/pr-require-checks.yml
+        .github/workflows/pr-review-approved.yml
         .github/workflows/pr-review-hosted.yml
         .github/workflows/pr-review-main.yml
         .github/workflows/pr-review-security-hosted.yml

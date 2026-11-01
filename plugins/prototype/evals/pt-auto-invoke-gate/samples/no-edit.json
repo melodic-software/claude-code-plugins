@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/refunds.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edited"
+    }
+  ]
+}

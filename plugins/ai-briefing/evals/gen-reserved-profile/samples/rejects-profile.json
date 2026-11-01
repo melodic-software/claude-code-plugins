@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "`con` is a reserved Windows device name, so it cannot be a profile name. Pick another name, such as `conference`.",
+      "why": "reserved device name"
+    },
+    {
+      "answer": "I can't use the profile name con: it's reserved on Windows. Nothing was collected.",
+      "why": "reserved"
+    },
+    {
+      "answer": "The profile `con` is invalid (reserved name). Rename it, for example to `conf-talks`, and rerun.",
+      "why": "invalid reserved"
+    },
+    {
+      "answer": "Stopping before collection: `--profile con` is not allowed as a profile name.",
+      "why": "not allowed"
+    },
+    {
+      "answer": "con isn't a valid profile name. Choose a different lowercase-kebab name.",
+      "why": "isn't a valid"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No profile named con exists, so I used the default profile and started collecting.",
+      "why": "fell back to default"
+    },
+    {
+      "answer": "I'll create the con profile under .claude/ai-briefing/con/ and run against it.",
+      "why": "builds the path"
+    },
+    {
+      "answer": "## AI briefing (profile con, since 2026-10-20)\n\n### Northwind\n\n- HIGH: Atlas 2 ships.",
+      "why": "ran with con"
+    }
+  ]
+}

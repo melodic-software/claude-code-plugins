@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The unattended merge policy readers.
 
 Every reader fails closed: an unreadable answer is off, refuse or not clear,

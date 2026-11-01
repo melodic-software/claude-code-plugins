@@ -18,8 +18,9 @@ Name what you found before designing, so the user can correct it.
 Take the concern (visual direction, typography and color, animation authoring, animation audit,
 components, design system, accessibility, mockups, CSS authoring, responsive testing, writing) to
 the highest-ranked route
-that is installed and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
-is not used for it; offer one only for a concern the project leaves open.
+that is installed and reachable. A style-imposing tool such as frontend-design is offered only for
+a concern the project leaves undefined, and only on a marketing page or when the user asks for a
+redesign; product UI follows existing patterns.
 
 ## When nothing covers the concern
 
@@ -27,8 +28,9 @@ Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
 `/user-interface:write-css`, which ships with this plugin. The lines below cover design decisions.
 
 - Layout: content first, one primary action per view, a consistent spacing scale.
-- Type: the project's fonts; otherwise the platform's system font stack, a small modular scale, line
-  length near 60-75 characters for body text.
+- Type: the project's fonts; otherwise the platform's system font stack for app UI and a deliberate
+  typeface choice for a marketing or brand surface (the `generic-defaults` concern). Scale, line
+  length and the rest are the `typography` concern.
 - States: design loading, empty, error and success for every view that fetches data.
 - Responsive: start narrow, add columns as width allows, test at phone and desktop widths. When
   people will use it by touch or on a phone, also read `touch-web.md` in this folder.
@@ -36,6 +38,53 @@ Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
   `../component-libraries.md`, keeping one the project already uses.
 - Accessibility: the floor in `principles.md`, with WCAG contrast measured, labels on every input,
   and focus visible.
+
+## Document head
+
+When a project has none of this, ship it first: it's the floor for any app a phone will open.
+
+- **Merge, don't append.** Most projects have half of this already. Add the missing lines to the
+  existing root rules; never create a second global stylesheet or a second viewport tag.
+- **Every value the head takes from the project is read from the project, never invented:** the
+  content's language, the header colors, the production origin, the product's name and its copy.
+  If the project doesn't have it, leave the line out and put it on the human list.
+
+```html
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+```
+
+`viewport-fit=cover` is what makes `env(safe-area-inset-*)` non-zero.
+`interactive-widget=resizes-content` makes the software keyboard shrink the layout viewport on
+Android Chrome, so `100dvh` and bottom-pinned inputs react the way they do on iOS. Neither
+`maximum-scale` nor `user-scalable` appears, ever. Why each matters on a phone is the `touch`
+concern (`touch-web.md`).
+
+Next.js App Router equivalent, in the root layout:
+
+```tsx
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
+```
+
+Check each field against the pointer's field list and the installed version's `Viewport` type
+before relying on it.
+
+- **Pointer**: Next.js, `generateViewport`, "Viewport Fields",
+  <https://nextjs.org/docs/app/api-reference/functions/generate-viewport#viewport-fields>; MDN,
+  viewport `<meta>`, "viewport-fit" and "interactive-widget",
+  <https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/meta/name/viewport#viewport-fit>
+- **As of**: 2026-10-29
+- **Recheck trigger**: Next.js adds, renames or drops a viewport field, or MDN changes either key.
+
+The rest of the head belongs to other concerns, one home each: `<html lang>` with the content's
+real language is the `typography` concern; `theme-color` and the `color-scheme` meta tag, which a
+single-theme app sets to its one scheme, are the `theming` concern; a font preload is the
+`layout-stability` concern; `metadataBase`, the title template and the description are the
+`marketing-pages` concern.
 
 ## Motion and interaction
 
@@ -77,7 +126,7 @@ leads, and the review checklist below checks only what was built.
 
 `corner-shape` is experimental and not supported everywhere; read its status before relying on it.
 
-- **Pointer**: <https://developer.mozilla.org/en-US/docs/Web/CSS/corner-shape>
+- **Pointer**: <https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/corner-shape>
 - **As of**: 2026-10-10
 - **Recheck trigger**: the page drops its experimental flag or marks the property Baseline.
 

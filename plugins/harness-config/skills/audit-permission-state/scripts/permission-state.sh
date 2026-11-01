@@ -37,7 +37,8 @@
 # locations or a claude.ai Owner role. This script writes nothing, anywhere.
 #
 # Prerequisites:
-#   jq   required for correctness — exits 2 at the entry point when absent.
+#   jq   required for correctness: exits 2 at the entry point when absent,
+#        naming the install command for this platform when it finds one.
 #   reg  optional platform integration (Windows managed policy). Absent or
 #        failing: warn visibly, mark that surface `skipped`, keep every other
 #        result.
@@ -90,17 +91,23 @@ case "${1:-}" in
 *) ;;
 esac
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required" >&2
-  exit 2
-fi
-
 # `${BASH_SOURCE[0]%/*}` rather than `dirname`: `cd` and `pwd` are builtins, so
 # plugin-root resolution needs nothing on PATH. A missing external tool here
 # would leave PLUGIN_ROOT empty, the source would fail, and every managed surface
 # would report `absent` — a reader claiming no policy is deployed because it
 # could not load its own library is the worst failure this script can have.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+
+if ! command -v jq >/dev/null 2>&1; then
+  # shellcheck source=../../../lib/jq-install-hint.sh
+  if [[ -r "$PLUGIN_ROOT/lib/jq-install-hint.sh" ]] && source "$PLUGIN_ROOT/lib/jq-install-hint.sh"; then
+    jqhint::missing_message permission-state.sh "${PERMISSION_STATE_OSTYPE-${OSTYPE:-}}" >&2
+  else
+    echo "ERROR: jq required" >&2
+  fi
+  exit 2
+fi
+
 MANAGED_SCOPE_LIB="$PLUGIN_ROOT/lib/managed-scope.sh"
 if [[ ! -r "$MANAGED_SCOPE_LIB" ]]; then
   echo "ERROR: cannot read $MANAGED_SCOPE_LIB — the plugin's shared managed-scope library is missing, so managed policy cannot be located" >&2

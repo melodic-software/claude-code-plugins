@@ -3,6 +3,18 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.17] - 2026-11-01
+
+### Fixed
+
+- `measure-invocation.sh emit-plugin-eval` README and `reference/invocation-probes.md` run the emitted probe cases with `--disallow-tools Read Glob Grep`. In the empty run workspace the agent otherwise searched outside it, and those denied calls made every probe run INVALID.
+
+## [0.31.16] - 2026-10-31
+
+### Changed
+
+- `/skill-quality:check validate-evals` says it reads only the skill-creator file a skill may still carry, and points new evals at `case.yaml` cases in the plugin's `evals/` directory, written by `/evals:design` and checked by `/evals:validate`. The plugin's first eval case, `ve-new-evals-route-to-suite`, covers that pointer.
+
 ## [0.31.15] - 2026-10-30
 
 ### Changed

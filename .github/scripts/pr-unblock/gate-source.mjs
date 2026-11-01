@@ -45,6 +45,9 @@ const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$
 // check-signed-commits' escalation comment opens with this line; its report
 // job posts it with GITHUB_TOKEN, as github-actions[bot].
 export const SIGNED_COMMITS_HOLD = "<!-- check-signed-commits hold -->";
+// The first line of pr-verify's stop on a withheld fail (verify-notes.mjs
+// holdForCredential, stop-reason.mjs reasonMarker).
+export const CREDENTIAL_HOLD = "<!-- stop-reason lane=pr-verify reason=security -->";
 // report-escalation.sh writes the label, then the comment, retrying the
 // comment for up to 15 seconds; a minute covers that (judgment).
 export const PAIRED_MS = 60_000;
@@ -129,19 +132,25 @@ export function openReviewHold(timeline, lifted, reviewLabeled) {
 // added the label.
 export const holdText = (item) => laneHold(item) ?? `${item.label?.name} added by ${item.actor?.login ?? "an unknown account"}`;
 
-// check-signed-commits' escalation comment written or edited since the label
-// was last removed (ever, when it never was): its first line is
-// SIGNED_COMMITS_HOLD and github-actions[bot] wrote it. The marker in anyone
-// else's comment is never read; a trusted person removing the label lifts it.
-export function openSignedCommitsHold(timeline, lifted) {
-  return timeline.find(
+// A github-actions[bot] comment written or edited since the label was last
+// removed (ever, when it never was) whose first line is `marker`. The marker in
+// anyone else's comment is never read; a trusted person removing the label
+// lifts it.
+const openActionsHold = (timeline, lifted, marker) =>
+  timeline.find(
     (item) =>
       item.event === "commented" &&
       isApp(item.user, "github-actions[bot]") &&
-      lines(item.body)[0] === SIGNED_COMMITS_HOLD &&
+      lines(item.body)[0] === marker &&
       !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
   );
-}
+
+// check-signed-commits' escalation comment, as openActionsHold reads it.
+export const openSignedCommitsHold = (timeline, lifted) => openActionsHold(timeline, lifted, SIGNED_COMMITS_HOLD);
+
+// pr-verify's stop on a withheld fail, as openActionsHold reads it: a clean
+// head rotates nothing, so only a person's removal clears the label.
+export const openCredentialHold = (timeline, lifted) => openActionsHold(timeline, lifted, CREDENTIAL_HOLD);
 
 // The lanes App's escalation comments written at or after `since`.
 export function escalationsSince(appComments, since) {
@@ -162,6 +171,7 @@ export function foreignMarker(appComments, since, known) {
 // Where the human-gated `label` on a PR at `head` came from:
 // - "review-hold" when a review lane's hold names `head`, or one is open;
 // - "signed-commits-hold" when check-signed-commits' hold is open;
+// - "credential-hold" when pr-verify's credential hold is open;
 // - "lane-escalation" when the lanes App (`isLanesApp`) added the label last,
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
 //   marker on its comments since is that escalation's or an address-feedback
@@ -189,6 +199,9 @@ export function gateSource({ timeline, label, head, isLanesApp, trusted }) {
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return result("credential-hold", "pr-verify withheld a fail that may hold a credential");
   }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".icon-btn { touch-action: manipulation; }",
+      "why": "set on the controls"
+    },
+    {
+      "answer": "button, a { touch-action:manipulation }",
+      "why": "set on every button and link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".icon-btn { -webkit-tap-highlight-color: transparent; }",
+      "why": "no touch-action"
+    },
+    {
+      "answer": ".icon-btn { touch-action: none; }",
+      "why": "near miss: touch-action none blocks scrolling, not manipulation"
+    }
+  ]
+}

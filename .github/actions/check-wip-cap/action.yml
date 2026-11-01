@@ -1,8 +1,9 @@
 name: Check the WIP cap
 description: >
-  Read the lanes App's open, merged and opened pull requests and the open
-  agent-ready issues in this repository with serial searches on the job's own
-  token, plus one pull request read per open lane PR whose first body line
+  Read the lanes App's open, merged and opened pull requests in this
+  repository with serial searches on the job's own token, then the open
+  agent-ready issues from the repository issues listing, plus one pull request
+  read per open lane PR whose first body line
   names no issue (its head branch then names it); derive the issue lane's WIP cap from the merge rate and the default
   branch's pr-pipeline.yaml `wip` block; count held pull requests apart; count
   queued work against the admission pace; and publish the status. Set
@@ -37,7 +38,7 @@ inputs:
     required: false
     default: full
   github-token:
-    description: A token that can search this repository's pull requests.
+    description: A token that can search this repository's pull requests and list its issues.
     required: false
     default: ${{ github.token }}
 

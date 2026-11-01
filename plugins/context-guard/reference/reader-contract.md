@@ -466,7 +466,7 @@ precedence.
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
 | `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above); set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). The snapshot cannot see that window, and the surface is in the changelog only and not probed, so we never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window. The snapshot cannot see that window, and the surface is not probed, so we never assume a subagent shares the session's trigger. | [sub-agents: Set the auto-compact window for one subagent](https://code.claude.com/docs/en/sub-agents#set-the-auto-compact-window-for-one-subagent) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. `DISABLE_AUTO_COMPACT` leaves the manual `/compact` command available. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
@@ -476,7 +476,8 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-10-15 for the
+- **As of**: 2026-10-10 for the settings `autoCompactWindow` row; 2026-10-31 for the subagent
+  frontmatter `autoCompactWindow` row; 2026-10-15 for the
   `DISABLE_COMPACT` entry and the `DISABLE_AUTO_COMPACT` manual-`/compact` sentence; 2026-08-19
   for the other rows.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,

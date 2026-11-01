@@ -343,7 +343,7 @@ them live when a command's output, or the files you find, do not match the entry
   names and rerun /performance:go-faster". ab.sh exits 1: `no-data`, reason "spawn timing failed:
   <its first stderr line>; an arm lost or gained sample rows, so the run cannot be compared".
   ab.sh prints an OUTLIER line: `no-data`, reason "spawn timing unstable: <the OUTLIER line>;
-  rerun /performance:go-faster unattended while the machine is idle".
+  rerun /performance:go-faster --unattended while the machine is idle".
 - **Guard**: none.
 - **Catalog**: [catalog/windows-machine.md](catalog/windows-machine.md) rows with area
   `bash-windows`; [catalog/measurement.md](catalog/measurement.md) rows with area `all`.

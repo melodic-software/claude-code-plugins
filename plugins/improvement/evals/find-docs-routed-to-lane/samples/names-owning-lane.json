@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Dimension | Size | Evidence |\n|---|---|---|---|---|\n| 1 | Extract the duplicated roundAmount helper from report.js and export.js | Code | S | identical function in src/report.js:3 and src/export.js:4 (rung 3) |\n| 2 | Add tests for report and export | Code | S | no test files (rung 3) |\n\nOut of scope here: README.md names config/ledger.yaml but the code reads config/ledger.json. That is a docs fix; route it to codebase-health or docs-hygiene.\n\ngap: no CI access."
+    },
+    {
+      "answer": "1. **Share one rounding helper** (S). Evidence: roundAmount is copied in report.js and export.js.\n\nDocs drift (the README config path) belongs to the docs-hygiene lane, so it is not ranked here.",
+      "why": "lane named before the docs subject"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. **Share one rounding helper** (S).\n2. **Update README to say ledger.json** (S).",
+      "why": "docs item ranked, no lane"
+    },
+    {
+      "answer": "1. **Share one rounding helper** (S).\n\nThe README path mismatch is minor.",
+      "why": "mentions README, no lane"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

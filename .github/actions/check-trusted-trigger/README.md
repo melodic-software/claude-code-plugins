@@ -185,7 +185,10 @@ condition 1 and the actor and author parts of condition 2).
   `ci-status-rerun-workflow` adds a second recorder for the upstream run only:
   `pr-feedback-dispatch.yml`'s `rerun-ci-status` job, which uploads
   `rerun-ci-status-<run id>-<attempt>-<head_sha>` immediately before it re-runs a ci-status job,
-  naming the attempt that re-run starts. A github-actions[bot] upstream at attempt 2 or later is
+  naming the attempt that re-run starts. Its upstream is a completed review run, a completed
+  `pr-unblock.yml` run whose newest `pr-unblock/*` status on the PR's live head may be newer than
+  ci-status's read, or a completed `pr-review-approved.yml` relay of an approval by a listed
+  human. A repeated stop costs one extra re-run, bounded by the dispatchers' caps. A github-actions[bot] upstream at attempt 2 or later is
   checked as above against `GET /actions/runs/{id}/attempts/{attempt}` and that name (at attempt 2
   the reconciler's name is read first), except that the recording run's `event` must be
   `workflow_run` and its `actor` is not checked, since such a run runs the default branch's file,
@@ -204,7 +207,14 @@ condition 1 and the actor and author parts of condition 2).
   reconciler's attempt 2 whose `reconcile-rerun-<run id>-2-<head_sha>` record passes the
   reconciler re-run check above, unchanged (`reconcilerRecordVouches`, run through
   `reconciler-record.mjs`); another re-runner's re-run of ci-status goes ahead unrecorded and is
-  refused here. This check does not
+  refused here. A `pr-unblock.yml` upstream is recorded only when its `report-stop-status` job
+  succeeded and it is at attempt 1 started by github-actions[bot], or was started by a listed
+  human. Any workflow's `GITHUB_TOKEN` with `actions: write`, a same-repository PR branch's
+  included, can dispatch one, so such a holder can cause one recorded re-run of ci-status at the
+  PR's live head when its newest `pr-unblock/*` status may be newer than ci-status's read: the
+  class this residual already accepts. A relay
+  upstream is recorded only at attempt 1, whose triggering actor is the reviewer, a listed human;
+  a relay re-run re-runs nothing. This check does not
   repeat that one: the record's listing names neither the review run nor its re-runner.
 
   Residuals: whether one run can write another run's artifacts is unverified, as for the

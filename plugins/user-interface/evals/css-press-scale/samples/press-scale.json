@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": ".button:active { transform: scale(0.97); }",
+      "why": "transform scale 0.97"
+    },
+    {
+      "answer": ".pay:active,\n.cancel:active { scale: 0.96; }",
+      "why": "the scale property"
+    },
+    {
+      "answer": ".button:active { transform: scale(97%); }",
+      "why": "a percentage form inside the range"
+    },
+    {
+      "answer": ".pay:active { scale: 96%; }",
+      "why": "the scale property as a percentage"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".button:active { background: #1e40af; }",
+      "why": "no press scale"
+    },
+    {
+      "answer": ".button:active { transform: scale(0.9); }",
+      "why": "near miss: 0.9, under the floor"
+    },
+    {
+      "answer": ".button:active { transform: scale(0.99); }",
+      "why": "near miss: 0.99, over the ceiling"
+    },
+    {
+      "answer": ".button:active { transform: scale(90%); }",
+      "why": "near miss: 90%, under the floor"
+    }
+  ]
+}
