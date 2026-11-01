@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { aged, CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1352,10 +1352,11 @@ const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(C
 
 // `updated` is the issue's updatedAt: the edit time by default, else a time
 // before the pass. PR `number` is the head under check.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1 } = {}) {
+// `created` is the pull request's creation time, `passCreated` the pass run's.
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1, created, passCreated } = {}) {
   const head = sha(number);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
-  const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
+  const judged = { ...verifyRun(PASS_RUN, { conclusion: "success", ...(passCreated && { created: passCreated }) }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
   const name = `pr-verify-${number}-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
   const issue = {
     number: 7,
@@ -1366,7 +1367,7 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     editor: edited ? { __typename: "User", login: "maintainer", databaseId: 100 } : null,
     comments: { totalCount: 0, nodes: [] },
   };
-  const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
+  const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) }, ...(created && { created_at: created }) };
   // The pull requests whose spec was read.
   const specReads = [];
   const prefilterReads = [];
@@ -1390,8 +1391,41 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     }
     return github(method, apiPath, body);
   };
-  return { setup: { pulls: [pr(number)], runs: [checks, judged], github: wrap }, specReads, prefilterReads, passReads };
+  return { setup: { pulls: [{ ...pr(number), ...(created && { created_at: created }) }], runs: [checks, judged], github: wrap }, specReads, prefilterReads, passReads };
 }
+
+// Too old from 2026-10-08 (80 days after 2026-07-20); NOW is 2026-10-19.
+test("a head of a pull request turned too old with no pass made since re-runs its passed checks once", async () => {
+  await withTrustedList(async (env) => {
+    const stale = specChanged({ edited: null, created: "2026-07-20T00:00:00Z", passCreated: "2026-10-01T00:00:00Z" });
+    const { code, reruns, outputs } = await reconcile({ ...stale.setup, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
+    // No pre-filter: the spec was never touched.
+    assert.equal(stale.prefilterReads.length, 0);
+  });
+});
+
+test("a too-old pull request whose pass was made since it turned too old, or a second attempt, re-runs nothing", async () => {
+  await withTrustedList(async (env) => {
+    for (const [label, options] of Object.entries({
+      "fresh pass": { created: "2026-07-20T00:00:00Z", passCreated: "2026-10-09T00:00:00Z" },
+      "attempt 2": { created: "2026-07-20T00:00:00Z", passCreated: "2026-10-01T00:00:00Z", attempt: 2 },
+      "not yet too old": { created: "2026-08-01T00:00:00Z", passCreated: "2026-10-01T00:00:00Z" },
+    })) {
+      const { setup } = specChanged({ edited: null, ...options });
+      assert.deepEqual((await reconcile({ ...setup, env })).reruns, [], label);
+    }
+  });
+});
+
+test("aged reads the pull request's age against resolve-pr's TOO_OLD_DAYS", () => {
+  const now = Date.parse("2026-10-19T00:00:00Z");
+  assert.equal(aged({ created_at: "2026-07-30T23:00:00Z" }, now), true);
+  assert.equal(aged({ created_at: "2026-07-31T01:00:00Z" }, now), false);
+  assert.equal(aged({}, now), false);
+});
 
 async function withTrustedList(fn) {
   const dir = tempDir("reconcile-actors-");

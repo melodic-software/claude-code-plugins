@@ -211,6 +211,21 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
 
+    def test_too_old_is_the_same_age(self) -> None:
+        # resolve-pr judges a head again exactly when the gate would refuse
+        # it `verify:too-old` for want of a pass made since.
+        script = (
+            f"import {{ TOO_OLD_DAYS }} from {json.dumps(RESOLVER.as_uri())};"
+            " console.log(JSON.stringify(TOO_OLD_DAYS));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(proc.stdout), ve.TOO_OLD_DAYS)
+
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
         # A FAIL the gate still counts must not expire before the pull
         # request turns too old (TOO_OLD_DAYS), or verify:earlier-fail and the

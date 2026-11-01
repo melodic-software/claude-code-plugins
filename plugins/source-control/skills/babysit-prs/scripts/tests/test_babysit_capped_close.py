@@ -14,6 +14,7 @@ import pathlib
 import subprocess
 import sys
 import unittest
+from datetime import UTC, datetime
 from typing import Any
 from unittest import mock
 
@@ -27,6 +28,9 @@ HEAD = "a" * 40
 FAILED = ["1" * 40, "2" * 40, "3" * 40]
 PR = 50
 ISSUE = 7
+NOW = datetime(2026, 10, 30, tzinfo=UTC)
+# Too old since 2026-09-19, past `TOO_OLD_GRACE` at NOW.
+CREATED = "2026-07-01T00:00:00Z"
 
 
 class StubReader:
@@ -42,6 +46,7 @@ class StubReader:
     ) -> None:
         self.repo = REPO
         self.agent_identity = BOT
+        self.now = NOW
         self.refusal = refusal
         self.issues = issues
         self.link = link
@@ -100,8 +105,10 @@ class World:
         author: str = BOT,
         state: str = "open",
         head: str = HEAD,
+        created: str = CREATED,
     ) -> None:
         self.pr = {
+            "created_at": created,
             "state": state,
             "head": {"sha": head},
             "user": {"login": author},
@@ -132,6 +139,7 @@ class World:
         attempts: int = 1,
         holds: tuple[str, ...] = (),
         issue_holds: tuple[str, ...] = ("needs-human",),
+        reason: str = ve.CLOSE_VERIFY,
     ) -> dict[str, Any]:
         with (
             mock.patch.object(ve.merge_policy, "pull_request", return_value=self.pr),
@@ -145,6 +153,7 @@ class World:
                 attempts=attempts,
                 holds=holds,
                 issue_holds=issue_holds,
+                reason=reason,
             )
 
     def calls(self) -> list[str]:
@@ -469,6 +478,55 @@ class ClosesForAFreshAttempt(unittest.TestCase):
     def test_too_old_closes_too(self) -> None:
         self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
 
+    def test_too_old_waits_the_grace_for_pr_verify_to_judge_again(self) -> None:
+        # Too old since 2026-10-29T12:00, half a day before NOW.
+        world = World(created="2026-08-10T12:00:00Z")
+        result = world.run(StubReader(refusal=ve.TOO_OLD))
+        self.assertFalse(result["closed"])
+        self.assertIn("pr-verify judges its head again first", result["reason"])
+        self.assertEqual(world.writes, [])
+        # The FAIL cap does not wait.
+        self.assertTrue(World(created="2026-08-10T12:00:00Z").run()["closed"])
+
+    def test_review_rounds_not_converging_close_for_a_fresh_attempt(self) -> None:
+        world = World()
+        world.comments[PR] = [comment(stopped_note())]
+        # The verifier's answer plays no part.
+        result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
+        self.assertEqual(result["closed"], True)
+        self.assertEqual(result["refusal"], ve.NOT_CONVERGING)
+        self.assertEqual(result["restarted"], [ISSUE])
+        self.assertEqual(world.calls()[-1], f"PATCH repos/{REPO}/pulls/{PR}")
+        self.assertIn("review rounds as `feedback-not-converging`", world.body(0))
+        self.assertTrue(world.body(1).startswith(f"<!-- verify-capped-close pr={PR} "))
+
+    def test_not_converging_needs_the_lanes_apps_stop_at_the_head(self) -> None:
+        for why, comments in {
+            "none": [],
+            "another head": [comment(stopped_note(head="b" * 40))],
+            "another reason": [comment(stopped_note(reason="feedback-verifier-open"))],
+            "another account": [comment(stopped_note(), login="github-actions[bot]")],
+        }.items():
+            with self.subTest(why):
+                world = World()
+                world.comments[PR] = comments
+                result = world.run(StubReader(refusal=None), reason=ve.NOT_CONVERGING)
+                self.assertFalse(result["closed"])
+                self.assertEqual(world.writes, [])
+
+
+def stopped_note(reason: str = ve.NOT_CONVERGING, head: str = HEAD) -> str:
+    """report-escalation.sh's fail-route comment for address-feedback."""
+    return "\n".join(
+        [
+            ve.LANE_STOPPED_FEEDBACK,
+            "The pr-unblock lane stopped `address-feedback` on this pull request.",
+            "",
+            f"- Reason: `{reason}`",
+            f"- Head: `{head}`",
+        ]
+    )
+
 
 class LeavesItAlone(unittest.TestCase):
     def test_a_refusal_that_can_clear_is_no_close(self) -> None:
@@ -575,8 +633,21 @@ class TheCommand(unittest.TestCase):
                 "attempts": 2,
                 "holds": ("do-not-merge", "needs-human"),
                 "issue_holds": ("needs-human",),
+                "reason": ve.CLOSE_VERIFY,
             },
         )
+        with (
+            mock.patch.object(ve.merge_policy, "config_at", return_value=config),
+            mock.patch.object(
+                ve.merge_policy, "with_default_branch", return_value=config
+            ),
+            mock.patch.object(ve.postmerge, "_role_label", return_value="needs-human"),
+            mock.patch.object(
+                ve, "capped_close", return_value={"closed": True}
+            ) as close,
+        ):
+            self.main("--reason", ve.NOT_CONVERGING)
+        self.assertEqual(close.call_args.kwargs["reason"], ve.NOT_CONVERGING)
 
     def test_a_failed_read_or_write_exits_one_with_the_error(self) -> None:
         with mock.patch.object(

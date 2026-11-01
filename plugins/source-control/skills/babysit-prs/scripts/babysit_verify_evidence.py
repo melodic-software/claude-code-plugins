@@ -300,6 +300,13 @@ PASSES = ("pass", "pass-notes")
 # and the repository's setting), so a verdict on an older pull request may be
 # gone. 80 leaves ten days of margin (judgment).
 TOO_OLD_DAYS = 80
+# How long after it turns too old a pull request waits before the capped
+# close: the lost-run reconciler (twice an hour, maintenance-reconcile-lost-
+# runs.yml `cron`) re-runs its head's checks so pr-verify judges it again.
+# It re-runs only a first attempt, so a re-judge is not guaranteed and the
+# close stays; a day is 48 reconciler passes, and 81 days is still inside the
+# 90-day artifact retention (judgment).
+TOO_OLD_GRACE = timedelta(days=1)
 # `GET /pulls/{n}/commits` lists at most 250 commits.
 COMMITS_CAP = 250
 # The waits before the second and third listing reads (judgment).
@@ -433,11 +440,20 @@ INTENT_PULL_REQUEST = "pull-request"
 # clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
 # (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
-# The refusals that never clear for the pull request: the FAIL cap and an
-# old pull request. The pr-merge lane closes a lanes App pull request at one
-# of them for a fresh attempt at its issue (`capped_close`, owner decision
-# 2026-10-29), never adding a person's label.
+# The refusals the pr-merge lane closes a lanes App pull request at, for a
+# fresh attempt at its issue (`capped_close`, owner decision 2026-10-29),
+# never adding a person's label: the FAIL cap, which never clears, and an old
+# pull request with no PASS made since it turned too old, which a fresh PASS
+# clears. The reconciler re-runs only a first-attempt checks run, so that
+# re-judge is not guaranteed: the close stays, after `TOO_OLD_GRACE`.
 VERIFY_FINAL = (REPEATED_FAIL, TOO_OLD)
+# `capped_close`'s reasons: a `VERIFY_FINAL` refusal, or review rounds the
+# pr-unblock lane stopped as not converging (escalation-routes.json), whose
+# lane-stopped comment (report-escalation.sh) opens with the marker below.
+CLOSE_VERIFY = "verify"
+NOT_CONVERGING = "feedback-not-converging"
+CLOSE_REASONS = (CLOSE_VERIFY, NOT_CONVERGING)
+LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->"
 # `_elsewhere`'s refusal detail when a FAIL run of another pull request for
 # the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
 # cap, failing closed.
@@ -3697,7 +3713,11 @@ def capped_close_bodies(
     heads = sorted({str(e["head"]) for e in findings})
     why = f" ({_inert(detail)})" if detail else ""
     closed = (
-        f"Unattended merge: the verifier refuses `{refusal}` at head `{head}`{why}, "
+        f"Unattended merge: the pr-unblock lane stopped its review rounds as "
+        f"`{refusal}` at head `{head}`: after the round cap and one fresh fixer "
+        "round the review still has open findings, so the pr-merge lane closed it."
+        if refusal == NOT_CONVERGING
+        else f"Unattended merge: the verifier refuses `{refusal}` at head `{head}`{why}, "
         "which never clears for this pull request, so the pr-merge lane closed it."
     )
     if issue is None:
@@ -3815,6 +3835,29 @@ def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
     return len(named - {number})
 
 
+def not_converging_stop(
+    comments: list[dict[str, Any]], identity: str, head: str
+) -> bool:
+    """Whether REST `comments` hold the lanes App's (`identity`) lane-stopped
+    comment for address-feedback (report-escalation.sh, one per activity,
+    edited in place) naming `NOT_CONVERGING` and `head`. Only the App writes
+    it; a status description, which any workflow can post, decides nothing."""
+    for comment in comments:
+        if (
+            str(json_object(comment.get("user")).get("login") or "").lower()
+            != identity.lower()
+        ):
+            continue
+        lines = [line.rstrip("\r") for line in str(comment.get("body") or "").split("\n")]
+        if (
+            lines[0] == LANE_STOPPED_FEEDBACK
+            and f"- Reason: `{NOT_CONVERGING}`" in lines
+            and f"- Head: `{head}`" in lines
+        ):
+            return True
+    return False
+
+
 def capped_close(
     reader: Reader,
     number: int,
@@ -3823,10 +3866,15 @@ def capped_close(
     attempts: int,
     holds: tuple[str, ...] = (),
     issue_holds: tuple[str, ...] = (),
+    reason: str = CLOSE_VERIFY,
 ) -> dict[str, Any]:
     """Close a lanes App pull request the verifier refuses for good
     (`VERIFY_FINAL`) at `head`, judged again here, for a fresh attempt at its
-    issue (owner decision 2026-10-29; no person's label on this path). In
+    issue (owner decision 2026-10-29; no person's label on this path). With
+    `reason` `NOT_CONVERGING` it closes instead one whose review rounds the
+    pr-unblock lane stopped as not converging at `head`, judged again here
+    from the lanes App's lane-stopped comment (`not_converging_stop`), the
+    same way (owner decision on the issue this fixes, 2026-10-30). In
     order, so a failed write leaves the pull request open for the next run,
     which finds its comments and writes the rest: the record on the pull
     request, then on each issue; the issue's `agent-ready` comes off and
@@ -3851,12 +3899,21 @@ def capped_close(
     write or a failed issue read, `PostMergeReadError` on a failed comments
     read."""
     identity = reader.agent_identity or ""
-    evidence = reader.evidence(number, head)
-    if evidence.refusal not in VERIFY_FINAL:
-        return {
-            "closed": False,
-            "reason": f"the verifier answers {evidence.refusal} at {head}",
-        }
+    refusal: str | None
+    detail: str | None
+    if reason == NOT_CONVERGING:
+        # Judged below from the pull request's comments, not the verifier.
+        refusal, detail = NOT_CONVERGING, None
+    elif reason == CLOSE_VERIFY:
+        evidence = reader.evidence(number, head)
+        if evidence.refusal not in VERIFY_FINAL:
+            return {
+                "closed": False,
+                "reason": f"the verifier answers {evidence.refusal} at {head}",
+            }
+        refusal, detail = evidence.refusal, evidence.detail
+    else:
+        raise ValueError(f"unknown close reason {reason}")
     pr = merge_policy.pull_request(reader.repo, number)
     labels = {
         str(json_object(item).get("name") or "").lower()
@@ -3875,15 +3932,26 @@ def capped_close(
         }
     if held := sorted(labels & {h.lower() for h in holds}):
         return {"closed": False, "reason": f"it carries {', '.join(held)}"}
-    if (refusal := reader.link_refusal(number)) is not None:
-        return {"closed": False, "reason": refusal}
+    if refusal == TOO_OLD:
+        # The lost-run reconciler re-runs the head's passed checks so
+        # pr-verify judges it again (resolve-pr.mjs `too-old`); a fresh PASS
+        # clears the refusal, so the close waits for it.
+        since = postmerge._time(pr.get("created_at")) + timedelta(days=TOO_OLD_DAYS)
+        if (reader.now or datetime.now(UTC)) - since < TOO_OLD_GRACE:
+            return {
+                "closed": False,
+                "reason": "too old since "
+                f"{since.isoformat()}; pr-verify judges its head again first",
+            }
+    if (refused := reader.link_refusal(number)) is not None:
+        return {"closed": False, "reason": refused}
     try:
         live = reader._closing_issues(number)
     except _Unreadable as exc:
         raise RuntimeError(f"issue link: {exc}") from exc
     for node in live.values():
-        if (refusal := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
-            return {"closed": False, "reason": refusal}
+        if (refused := merge_policy.issue_hold_refusal(node, issue_holds)) is not None:
+            return {"closed": False, "reason": refused}
     issues = sorted(n for n in live if type(n) is int)
     try:
         findings = reader.fail_findings(number)
@@ -3893,6 +3961,13 @@ def capped_close(
     pr_comments = postmerge._paginated(
         f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
     )
+    if refusal == NOT_CONVERGING and not not_converging_stop(
+        pr_comments, identity, head
+    ):
+        return {
+            "closed": False,
+            "reason": f"no lanes App {NOT_CONVERGING} stop at {head}",
+        }
     # A pull request is closed at the cap once: one reopened after its
     # record is a person's, and stays open.
     if (pr_record := _capped_record(pr_comments, identity, number)) is not None and any(
@@ -3968,8 +4043,8 @@ def capped_close(
     pr_body, _ = capped_close_bodies(
         number,
         head,
-        str(evidence.refusal),
-        evidence.detail,
+        str(refusal),
+        detail,
         findings,
         first[0] if first else None,
         first[2] if first else None,
@@ -3991,8 +4066,8 @@ def capped_close(
         _, issue_body = capped_close_bodies(
             number,
             head,
-            str(evidence.refusal),
-            evidence.detail,
+            str(refusal),
+            detail,
             findings,
             issue,
             attempt,
@@ -4050,7 +4125,7 @@ def capped_close(
     )
     return {
         "closed": True,
-        "refusal": evidence.refusal,
+        "refusal": refusal,
         "restarted": [i for i, *_, how in plan if how in ("toggle", "add")],
         "parked": [i for i, _, _, parked, _ in plan if parked],
         "unrestarted": [i for i, _, _, parked, how in plan if how == "none"],
@@ -4091,6 +4166,7 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
             attempts=config.verify_cap_attempts,
             holds=holds,
             issue_holds=issue_holds,
+            reason=args.reason,
         )
     except (
         RuntimeError,
@@ -4156,7 +4232,8 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     report's check (empty when unknown): changed check code reads the report
     again or refuses it (`merge_policy.check_code_unchanged`).
 
-    `capped-close --repo R --base-sha <sha> [--hold-label L ...] <number>
+    `capped-close --repo R --base-sha <sha> [--hold-label L ...]
+    [--reason verify|feedback-not-converging] <number>
     <head>`: `capped_close` for enable-auto-merge.mjs (`_capped_close_main`),
     its writes under GH_TOKEN, the lanes App token.
 
@@ -4194,6 +4271,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     close.add_argument("--branch", default="main")
     close.add_argument("--base-sha", required=True)
     close.add_argument("--hold-label", action="append", default=[])
+    close.add_argument("--reason", choices=CLOSE_REASONS, default=CLOSE_VERIFY)
     close.add_argument("number", type=int)
     close.add_argument("head")
     settle = sub.add_parser("settle", allow_abbrev=False)

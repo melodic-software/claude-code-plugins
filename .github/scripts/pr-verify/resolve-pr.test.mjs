@@ -17,7 +17,18 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads, tooOld } from "./resolve-pr.mjs";
+
+// Created 2026-07-20, too old from 2026-10-08 (TOO_OLD_DAYS 80).
+test("tooOld judges a head again only past the age with no pass made since", () => {
+  const created = "2026-07-20T00:00:00Z";
+  const now = Date.parse("2026-10-19T00:00:00Z");
+  assert.equal(tooOld(["2026-10-01T00:00:00Z"], created, now), true);
+  assert.equal(tooOld(["2026-10-01T00:00:00Z", "2026-10-09T00:00:00Z"], created, now), false);
+  assert.equal(tooOld([null], created, now), true);
+  assert.equal(tooOld(["2026-10-01T00:00:00Z"], created, Date.parse("2026-10-07T00:00:00Z")), false);
+  assert.equal(tooOld(["2026-10-01T00:00:00Z"], undefined, now), false);
+});
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";

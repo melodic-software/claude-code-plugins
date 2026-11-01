@@ -571,10 +571,12 @@ async function changedFiles(github, slug, number) {
 // paths, so a person clears it.
 export const FILES_CAPPED_REASON = `it changes more than ${MAX_FILE_PAGES * 100} files, so its hold and cost paths cannot all be checked`;
 
-// The verifier refusals that never clear for the pull request
-// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap and an old pull
-// request. decide closes such a pull request for a fresh attempt at its
-// issue (pythonClose), never adding a person's label.
+// The verifier refusals decide closes a pull request at, for a fresh attempt
+// at its issue (pythonClose), never adding a person's label
+// (babysit_verify_evidence.py VERIFY_FINAL): the FAIL cap, which never
+// clears, and an old pull request with no PASS made since it turned too old,
+// which a fresh PASS clears; capped_close waits TOO_OLD_GRACE for that
+// re-judge before it closes.
 export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail", "verify:too-old"]);
 
 // How verifyHold opens the reason for each answer that refuses: the issue
@@ -1237,13 +1239,15 @@ export function pythonRoom(env, spawn = spawnSync) {
 // closes it, and starts the issue's fresh attempt or parks it. Its writes run
 // under GH_TOKEN, the lanes App token; its Actions reads under
 // BABYSIT_VERIFY_GH_TOKEN, as the verify reads. `holds`: labels that keep the
-// pull request open. Throws when it exits non-zero.
+// pull request open. `reason`: `verify`, or `feedback-not-converging` for a
+// head decide closes on `notConverging`, which capped_close judges again from
+// the same comment. Throws when it exits non-zero.
 export function pythonClose(env, spawn = spawnSync) {
-  return ({ number, headRefOid: head, baseRefOid: base }, holds) => {
+  return ({ number, headRefOid: head, baseRefOid: base }, holds, reason = "verify") => {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "capped-close", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base, "--reason", reason];
     for (const label of holds) {
       args.push("--hold-label", label);
     }
@@ -1340,6 +1344,32 @@ export function rotated(pulls, runNumber) {
   return [...pulls.slice(start), ...pulls.slice(0, start)];
 }
 
+// The address-feedback lane-stopped comment report-escalation.sh posts, one
+// per activity, edited in place, and the reason that closes the pull request.
+export const LANE_STOPPED_FEEDBACK = "<!-- pr-unblock:lane-stopped activity=address-feedback -->";
+export const NOT_CONVERGING = "feedback-not-converging";
+
+// Whether the pr-unblock lane stopped the review rounds of the head as not
+// converging: a failing pr-unblock/address-feedback status stops the head
+// (detail.unblockStops), and the lanes App's (`bot`) lane-stopped comment
+// names NOT_CONVERGING and `head`. The reason is read from that comment, which
+// only the App writes, never from a status description, which any workflow
+// run can post (babysit_verify_evidence.not_converging_stop judges it again).
+export function notConverging(detail, bot, head) {
+  if (!Array.isArray(detail?.unblockStops) || !detail.unblockStops.some((stop) => stop?.context === "pr-unblock/address-feedback")) {
+    return false;
+  }
+  return (detail.comments?.nodes ?? []).some((comment) => {
+    if (comment?.author?.__typename !== "Bot" || comment.author.login !== bot) {
+      return false;
+    }
+    const lines = String(comment.body ?? "")
+      .split("\n")
+      .map((line) => line.replace(/\r$/, ""));
+    return lines[0] === LANE_STOPPED_FEEDBACK && lines.includes(`- Reason: \`${NOT_CONVERGING}\``) && lines.includes(`- Head: \`${head}\``);
+  });
+}
+
 // Why a head's pr-unblock statuses hold it (merge-holds.unblockStops), or
 // null: anything but a read list of stops holds it.
 export function unblockHold(stops) {
@@ -1391,6 +1421,11 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
   // ci-status's merge-queue run fails a head a pr-unblock lane stopped, so it
   // is never queued; a status list that did not read holds it too.
   const stopped = unblockHold(detail.unblockStops);
+  // Review rounds the lane stopped as not converging at this head close for
+  // a fresh attempt at the issue, as the verify cap does (pythonClose).
+  if (stopped !== null && notConverging(detail, bot, pull.headRefOid)) {
+    return { action: "close", reason: `${stopped}; its review rounds are not converging (${NOT_CONVERGING})` };
+  }
   if (stopped !== null) {
     return { action: armed ? "disarm" : "none", reason: stopped, clears: "lane" };
   }
@@ -2133,7 +2168,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
             console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
           }
           close ??= pythonClose(env);
-          const result = await close(pull, ["do-not-merge", humanGated]);
+          const result = await close(pull, ["do-not-merge", humanGated], detail && notConverging(detail, slug, pull.headRefOid) ? NOT_CONVERGING : "verify");
           closed = result?.closed === true;
           console.log(
             closed
