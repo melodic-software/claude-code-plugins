@@ -609,11 +609,15 @@ test("a handoff leaves exactly one lane record, from the job that saw its end", 
   }
 });
 
-test("every ci-workflows action is pinned to one commit", () => {
-  const refs = [...text.matchAll(/uses: melodic-software\/ci-workflows\/[^@\s]+@([0-9a-f]{40}) # \S.*$/gm)].map((m) => m[1]);
-  assert.equal(refs.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+test("every ci-workflows action is pinned to one commit, report-lane-outcome to its own", () => {
+  const all = [...text.matchAll(/uses: melodic-software\/ci-workflows\/([^@\s]+)@([0-9a-f]{40}) # \S.*$/gm)].map((m) => ({ action: m[1], sha: m[2] }));
+  assert.equal(all.length, (text.match(/melodic-software\/ci-workflows\//g) ?? []).length, "every ref is a SHA pin with a comment");
+  const isReport = (r) => r.action.endsWith("/report-lane-outcome");
+  const refs = all.filter((r) => !isReport(r)).map((r) => r.sha);
+  const reportRefs = all.filter(isReport).map((r) => r.sha);
   assert.ok(refs.length >= 6);
   assert.equal(new Set(refs).size, 1, `one pin: ${[...new Set(refs)].join(", ")}`);
+  assert.equal(new Set(reportRefs).size, 1, `one report-lane-outcome pin: ${[...new Set(reportRefs)].join(", ")}`);
 });
 
 test("the resolver reads the trusted-actor list from main in both jobs", () => {

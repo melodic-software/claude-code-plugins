@@ -3,6 +3,23 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.9] - 2026-11-01
+
+### Changed
+
+- The audit, check, check-prerequisites and delta skill bodies drop flavor and repeated clauses;
+  every rule, default, example and gate is unchanged.
+
+### Fixed
+
+- The shared git hook library this plugin carries now fails a hook when git or awk fails while it lists the changed lines or filters findings to them. This plugin's hook does not use that scan, so its behavior is unchanged.
+
+- The surface table and the MS-13 row now say an `omitClaudeMd` agent whose definition comes from
+  managed settings loads no instruction file, as the MS-13 quote already does, and MS-13's recheck
+  trigger covers what such an agent keeps. `migrate`'s verification probe gives its reason for
+  `--model sonnet` and points at the model aliases section
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
 ## [0.28.8] - 2026-10-30
 
 ### Changed

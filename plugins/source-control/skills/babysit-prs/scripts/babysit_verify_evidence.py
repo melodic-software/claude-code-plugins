@@ -194,6 +194,11 @@ it until the gate would allow the candidate, when babysit_merge.py calls
 refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
 cap). Any other refusal is judged again on a recent
 listing, so none dequeues the candidate's queued entry on an older one. A
+`verify:missing` that still stands on the run's saved listing reads the head's
+two pass names by exact name (`Reader._late_pass`), two requests and no
+listing, so a pass uploaded after that listing was read is seen in the same
+run: it is judged with that listing in memory, and an allow stays provisional,
+judged again on the gate's own listing. A
 candidate the gate refuses for anything else lists nothing more; queued
 entries are judged on a recent listing. A listing that got a 5xx or a fast network
 error is read again after each of `LISTING_WAITS`, every read inside one
@@ -436,6 +441,9 @@ def no_incremental_waits() -> bool:
 # The prefix of the stderr line `Reader._incremental` prints for each read
 # that missed the live count, like babysit_gh's `babysit-gh-calls`.
 LISTING_MISS_PREFIX = "babysit-listing-miss"
+# The stderr line `Reader._late_pass` prints when its name reads find a pass
+# the saved listing lacked: how many, and whether the judgment then allows.
+LATE_PASS_PREFIX = "babysit-late-pass"
 
 
 class _CountMissed:
@@ -2601,17 +2609,84 @@ class Reader:
         (babysit_merge.py `refresh()`), takes the listing at hand at any age:
         an allow or a refusal no later upload clears (`STANDING`) stands on
         it, and any other refusal on an older listing is judged again on a
-        recent one."""
+        recent one. A provisional `verify:missing` still on the run's saved
+        listing reads this pull request's pass names (`_late_pass`)."""
         judged = self._judge(number, head, pr, any_age=provisional)
-        if (
-            not provisional
-            or judged.refusal is None
-            or judged.refusal in STANDING
-            or self._fetched_at is None
-            or _recent(self._fetched_at, self.listing_max_age)
-        ):
+        if not provisional:
             return judged
-        return self._judge(number, head, pr, any_age=False)
+        if (
+            judged.refusal is not None
+            and judged.refusal not in STANDING
+            and self._fetched_at is not None
+            and not _recent(self._fetched_at, self.listing_max_age)
+        ):
+            judged = self._judge(number, head, pr, any_age=False)
+        if judged.refusal == MISSING and self._saved:
+            return self._late_pass(number, head, pr, judged)
+        return judged
+
+    def _late_pass(
+        self, number: int, head: str, pr: dict[str, Any] | None, missing: Evidence
+    ) -> Evidence:
+        """The provisional judgment at `head` with any pass uploaded since the
+        run's saved listing was read, else `missing`. Only the exact names
+        write-verdict.mjs `artifactName` writes for a pass at the head are
+        read, `pr-verify-<pr>-<head>-<verdict>` for each of `PASSES`, one
+        `?name=` read each, as resolve-pr.mjs `judged` looks them up; no
+        listing. The writer names no pass with the head-ref digest yet; when
+        it moves to one, such a pass leaves `missing` here until this reads
+        that name too. An unexpired one the saved listing lacks is judged
+        with it, in memory: an allow stands only as a provisional one, so
+        babysit_merge.py `refresh()` judges it again on a listing of the
+        gate's own, which must hold the live count. A refusal on it, a failed
+        or partial read, or no such artifact leaves `missing`, and nothing is
+        noted for the job."""
+        held = {a.get("id") for a in self._artifacts or ()}
+        transient = self._page_transient
+        deadline = _listing_clock() + listing_cap()[0]
+        found: list[dict[str, Any]] = []
+        try:
+            for verdict in PASSES:
+                name = f"pr-verify-{number}-{head}-{verdict}"
+                read = self._api_object(
+                    f"repos/{self.repo}/actions/artifacts"
+                    f"?name={name}&per_page={LISTING_PAGE_SIZE}",
+                    deadline,
+                )
+                if not isinstance(read, tuple):
+                    return missing
+                items = read[0].get("artifacts")
+                if (
+                    not is_json_array(items)
+                    or read[0].get("total_count") != len(items)
+                    or not all(map(_listed_entry, items))
+                ):
+                    return missing
+                found += [
+                    a
+                    for a in items
+                    if a.get("name") == name
+                    and a["expired"] is False
+                    and a["id"] not in held
+                ]
+        finally:
+            self._page_transient = transient
+        if not found:
+            return missing
+        listing = self._artifacts or []
+        self._artifacts = [*found, *listing]
+        try:
+            late = self._judge(number, head, pr, any_age=True)
+        finally:
+            self._artifacts = listing
+        print(
+            f"{LATE_PASS_PREFIX} "
+            + json.dumps(
+                {"pr": number, "found": len(found), "allowed": late.refusal is None}
+            ),
+            file=sys.stderr,
+        )
+        return late if late.refusal is None else missing
 
     def _judge(
         self, number: int, head: str, pr: dict[str, Any] | None, *, any_age: bool

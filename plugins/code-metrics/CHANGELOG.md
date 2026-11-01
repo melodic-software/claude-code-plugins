@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.9] - 2026-11-01
+
+### Changed
+
+- The audit and principles skill bodies drop flavor and repeated clauses; every rule, default, example and gate is unchanged.
+
 ## [0.7.8] - 2026-10-31
 
 ### Changed
