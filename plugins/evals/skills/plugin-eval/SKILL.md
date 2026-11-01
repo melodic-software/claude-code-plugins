@@ -172,8 +172,7 @@ what repeated evidence earns) so the user can run it by hand.
 
 ## Cost
 
-Every run and every judge grader is a real model call on the operator's account; there is no dry
-run.
+Each run and each judge grader is a real model call on the operator's account; there is no dry run.
 
 ```text
 agent runs  = cases x runs x arms          (arms = 2 under the default ablation, 1 under --ablation none)
@@ -288,10 +287,12 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
-   for a plugin file it could not read, so the fact belongs in the hub. A Bash denial's paths are
-   its command's absolute arguments, plus no path when it has an expansion or a relative
-   word other than a flag, or does not parse. Any other denial, in either arm, is a warning only when its case has
-   denial-free runs in that arm and its run scored the same as each; otherwise it is a FAIL. An invocation probe's denial of a named call other than Skill is a warning when it follows the graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the gate prints each probe case's fire counts with and without denials.
+   for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
+   denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
+   `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
+   probe's denial), how a Bash denial's paths are read, gating an A/B pass, and the 0-turn
+   `context: fork` run the gate does not fail are in
+   [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
@@ -329,8 +330,7 @@ Read the noise report's lines this way:
   verdict is trusted. The line saying the file holds no judge votes means agreement is unknown,
   not perfect.
 - `cost`: report it beside the scores, in the same answer as the delta.
-- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each
-  `case drop`.
+- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each `case drop`.
 - `pass count`: the interval method (the `interval_method` setting, the `--interval-method` flag)
   changes only this line, the count of cases at or above the threshold. Every score interval, the
   delta line included, uses the normal method paired over cases whatever the setting, because a
