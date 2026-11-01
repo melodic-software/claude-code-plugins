@@ -62,6 +62,9 @@ deny "heredoc commit message" "cd X && git commit -F - <<'EOF'${NL}subject${NL}E
 deny_write "write to a relative path" 'cd X && make > build.log'
 deny_write "append to a relative path" 'cd X; npm test >> out/test.log 2>&1'
 deny "git writing to a relative path keeps the git reason" 'cd X && git log > out.txt'
+deny "write then git keeps the git reason" 'cd X && make > build.log && git status'
+deny "append then git keeps the git reason" 'cd X; npm test >> out/test.log; git add -A'
+deny "git then a write keeps the git reason" 'cd X && git status && make > build.log'
 deny "cd to a cwd that differs" 'cd /srv/work/repo && git status' --cwd /srv/work/other
 
 # --- allowed ------------------------------------------------------------------

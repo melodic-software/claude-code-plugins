@@ -105,7 +105,9 @@ cdp::segment() {
     (($# == 2)) && [[ "$1" == cd ]] && CDP_DIR="$2"
     return 0
   fi
-  [[ -n "$CDP_DIR" && -z "$CDP_HIT" ]] || return 0
+  # A git hit is final; a redirect hit keeps checking, so a later git segment
+  # upgrades it to the git reason.
+  [[ -n "$CDP_DIR" && "$CDP_HIT" != git ]] || return 0
   local w i
   for w in "$@"; do
     [[ "$w" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && continue
@@ -138,8 +140,8 @@ if [[ -n "$CDP_CWD" ]]; then
   [[ "$CDP_DIR_N" == "$CDP_CWD_N" ]] && exit 0
 fi
 
-# The reason follows the hit: a relative write with no git in its segment gets
-# no git rewrite, which would not apply to it.
+# The reason follows the hit: a relative write in a command with no git segment
+# gets no git rewrite, which would not apply to it.
 # shellcheck disable=SC2016  # the backticks are literal text in the reasons
 if [[ "$CDP_HIT" == git ]]; then
   echo 'BLOCKED: Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a multi-line commit message, Write the message to a file and use `git commit -F <file>`.' >&2
