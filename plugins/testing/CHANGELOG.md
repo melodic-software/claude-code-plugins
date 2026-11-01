@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-31
+
+### Fixed
+
+- `/testing:cleanup` no longer says `model: opus` keeps its classifier off the session's model, and `/testing:audit` and the test judge point at the upstream model section.
+
 ## [2.0.0] - 2026-10-31
 
 ### Changed

@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: codify-findings-no-branch-identity
+description: 'With no branch: key and a detached checkout, no branch identity resolves, so nothing is written and the class table is still reported.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The run says no branch identity resolved, writes no proposal and still reports the class table.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings reports/detector-findings.md'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: says-no-branch-identity
+    type: 'regex'
+    pattern: 'no branch identity'
+    flags: 'i'
+    arm: 'both'
+  - name: no-proposal-written
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: 'proposal'
+    min: 0
+    max: 0
+    arm: 'both'

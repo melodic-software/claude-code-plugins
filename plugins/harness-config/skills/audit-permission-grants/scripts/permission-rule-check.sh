@@ -209,8 +209,19 @@ canonical_path() {
   fi
 }
 
+# Resolve the plugin root the way every other component in this marketplace
+# does: Claude Code sets CLAUDE_PLUGIN_ROOT in plugin form, and the BASH_SOURCE
+# fallback keeps a direct invocation (the test harness, a developer running the
+# script) working. `cd` and `pwd` are builtins, so this needs nothing on PATH.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+
 if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required" >&2
+  # shellcheck source=../../../lib/jq-install-hint.sh
+  if [[ -r "$PLUGIN_ROOT/lib/jq-install-hint.sh" ]] && source "$PLUGIN_ROOT/lib/jq-install-hint.sh"; then
+    jqhint::missing_message permission-rule-check.sh "${OSTYPE:-}" >&2
+  else
+    echo "ERROR: jq required" >&2
+  fi
   exit 2
 fi
 
@@ -261,11 +272,7 @@ fi
 # --- Detection patterns -------------------------------------------------------
 #
 # P1's auto-mode drop vocabulary is shared with audit-permission-state's entry
-# diff, so it lives in a define-only library rather than here. Resolve the plugin
-# root the way every other component in this marketplace does: Claude Code sets
-# CLAUDE_PLUGIN_ROOT in plugin form, and the BASH_SOURCE fallback keeps a direct
-# invocation (the test harness, a developer running the script) working.
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "${BASH_SOURCE[0]%/*}/../../.." && pwd)}"
+# diff, so it lives in a define-only library rather than here.
 PATTERNS_LIB="$PLUGIN_ROOT/lib/permission-patterns.sh"
 if [[ ! -r "$PATTERNS_LIB" ]]; then
   echo "ERROR: cannot read $PATTERNS_LIB — the plugin's shared permission-pattern library is missing" >&2

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Verdict: Blocked.** The copy button has no accessible name.\n\n## Accessibility\n\n| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` at `src/components/CodeBlock.tsx:16` | `<button aria-label=\"Copy code\" onClick={copy}>` | An icon-only button with no name is announced as \"button\"; verified from code |",
+      "why": "a one-line Blocked verdict comes before the findings"
+    },
+    {
+      "answer": "Reviewed: src/components/CodeBlock.tsx (diff).\n\nBlocked: one Blocking finding on the accessibility floor (accessibility lane only; the other lanes are left for a later pass).\n\n- Blocking: CodeBlock.tsx:16, icon-only button with no accessible name. Add aria-label=\"Copy code\".",
+      "why": "a short reviewed line, then the Blocked verdict, then the finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Verdict: Approve with changes.**\n\n| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` at `CodeBlock.tsx:16` | `aria-label=\"Copy code\"` | No accessible name |",
+      "why": "near miss: the finding is right and graded Blocking, but the verdict lets the diff merge"
+    },
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` at `CodeBlock.tsx:16` | `aria-label=\"Copy code\"` | No accessible name |\n\nVerdict: Blocked.",
+      "why": "the verdict comes only after the findings"
+    },
+    {
+      "answer": "Ship it. The copy button is a nice touch and the code is clean.",
+      "why": "ship verdict on a diff with a Blocking defect"
+    }
+  ]
+}

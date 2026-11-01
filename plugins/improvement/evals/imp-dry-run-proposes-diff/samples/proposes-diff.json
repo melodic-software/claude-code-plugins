@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "**Gap:** `src/discount.js:2` compares with `==` (`code == null`).\n**Basis:** docs/standards/javascript.md:5, \"Never use `==` or `!=`, even against `null`.\"\n\nProposed diff:\n\n```diff\n--- a/src/discount.js\n+++ b/src/discount.js\n@@ -1,4 +1,4 @@\n export function applyDiscount(totalCents, code) {\n-  if (code == null) {\n+  if (code === null || code === undefined) {\n     return totalCents;\n   }\n```\n\nDry run: nothing was changed, no branch or PR."
+    },
+    {
+      "answer": "One gap against the JavaScript standard (Basis: `docs/standards/javascript.md` line 5): loose equality in applyDiscount.\n\n```\n-  if (code == null) {\n+  if (code === undefined || code === null) {\n```\n\nStopping here as requested.",
+      "why": "bare diff lines, other operand order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Gap: `src/discount.js:2` uses `code == null`. Basis: docs/standards/javascript.md:5. I would change it to a strict comparison.",
+      "why": "describes the change, no diff"
+    },
+    {
+      "answer": "Gap: `src/discount.js` uses `var`? Basis: docs/standards/javascript.md:9.\n\n```diff\n-  if (code == null) {\n+  if (!code) {\n```",
+      "why": "diff fixes to a truthiness check, not strict equality"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

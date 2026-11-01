@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/a"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/a",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

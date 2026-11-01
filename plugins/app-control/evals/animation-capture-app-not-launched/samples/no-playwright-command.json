@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -rn playwright .claude/skills", "description": "Search for a browser driver"}}],
+      "why": "playwright as a search term"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "curl -fsS http://127.0.0.1:8080/health", "description": "Ready check"}}],
+      "why": "the read-only Ready command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli open http://127.0.0.1:8080/checkout", "description": "Open the page"}}],
+      "why": "drives a browser as a stand-in"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd evidence && npx playwright screenshot http://127.0.0.1:8080 shot.png", "description": "Screenshot"}}],
+      "why": "npx playwright after a separator"
+    }
+  ]
+}

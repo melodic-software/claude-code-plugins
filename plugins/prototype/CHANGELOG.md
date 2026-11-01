@@ -3,6 +3,25 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-10-31
+
+### Added
+
+- `/prototype:build-generator`, a user-invoked skill for an artifact prompting keeps missing: it diagnoses why the direct path fails, pitches the tool that closes that gap, builds a throwaway generator with live controls and a save button that writes the configuration to a project file, then harvests the saved output into the real artifact and deletes the tool. Arguments `save-output`, `add-controls` and `export <format>`; `/playgrounds:use` is offered for the dial-in case when it is available.
+- `context/control-panel.md`, the shared rules for a prototype's control panel: what goes on it, controls writing CSS variables, visible and copyable values, placement and replay.
+- `context/discipline.md` gains the exception that lets `build-generator`'s tool and saved configuration live in the project while the person tunes, with the tool deleted after harvest.
+
+- The `/prototype:explore-directions` and `/prototype:pressure-test` page eval cases check that the content security policy tag carries every base directive, not only `default-src 'none'`.
+
+- `/prototype:explore-directions` gains the actions `vary [<variant>]` (a new round diverging around one variant), `combine [<base>]` (a matrix keyed by variant pair that picks which parts of the other variants join a base, built as a new variant beside the originals) and `controls [<variant>]` (put a variant's numbers on the control panel); its process now narrows the scope to one piece, loads the interface skills the brief needs before drafting, keeps the current implementation as variant A, fills every variant with working interactions and worst-case content, and checks every variant before the handover. The bundled switcher adds a Demo/Worst content toggle and a slow-motion speed button, and shows replay and speed only when a variant moves.
+- The HTML mockup of `/prototype:explore-directions` and the HTML demo of `/prototype:pressure-test` add `form-action 'none'` and `base-uri 'none'` to their content security policy, and markup inlined from the app is stripped of `<script>` elements, `on*` attributes and `javascript:` URLs.
+
+- Sixteen outcome eval cases under `evals/` for `explore-directions`, `pressure-test` and `build-generator`.
+- `explore-directions` and `build-generator` accept a leading `--` that ends the actions, so a scope
+  or subject can start with an action word (`/prototype:explore-directions -- controls page`).
+
+- `/prototype:build-generator` gains reference files for researching a visual language before building a generator, worked examples keyed by artifact, and when to build a tool that reviews the work instead of making it.
+
 ## [0.19.0] - 2026-10-31
 
 ### Added

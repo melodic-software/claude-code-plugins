@@ -49,11 +49,11 @@
       "id": 5,
       "name": "routes-the-other-eval-format-away",
       "prompt": "/evals:validate .claude/skills/deploy-notes/evals. Validate this evals.json for me.",
-      "expected_output": "Names the format boundary: this validator reads only the prompt.md / case.yaml / graders layout, and the skill-creator evals.json format is validated by /skill-quality:check validate-evals when the skill-quality plugin is installed, with the file left unvalidated when it is not.",
+      "expected_output": "Names the format boundary: this validator reads only the prompt.md / case.yaml / graders layout, so pointed at the skill-creator evals.json it reports only that the directory holds no cases; the way forward is to convert the file's cases to case.yaml case directories (/evals:design skill <name> writes them) and validate those.",
       "expectations": [
         "Does not claim to have validated evals.json",
-        "Names skill-quality:check validate-evals as the owner of that format, presence-gated",
-        "States what happens when skill-quality is not installed"
+        "Says this validator reads only the prompt.md / case.yaml / graders layout",
+        "Routes the evals.json cases to conversion into case.yaml case directories, then validation of those"
       ]
     },
     {

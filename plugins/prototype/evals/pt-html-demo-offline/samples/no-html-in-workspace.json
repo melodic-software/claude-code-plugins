@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing in workspace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "demo/coupons.html"
+      ],
+      "why": "page in workspace"
+    }
+  ]
+}

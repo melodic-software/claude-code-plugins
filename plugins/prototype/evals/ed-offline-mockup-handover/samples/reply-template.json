@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "screen: /onboarding\ndirection: <key or graft>\nsteal: <piece> from <variant>\nskip: ...",
+      "why": "template"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Tell me which one you like best.",
+      "why": "no template"
+    }
+  ]
+}

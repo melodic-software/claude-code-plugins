@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.confirm { opacity: 0; transition: opacity 200ms var(--ease-out, ease-out), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n.confirm[open] { opacity: 1; }\n@starting-style { .confirm[open] { opacity: 0; } }\n@media (prefers-reduced-motion: no-preference) {\n  .confirm { scale: 0.96; transition: opacity 200ms var(--ease-out, ease-out), scale 200ms var(--ease-out, ease-out), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n  .confirm[open] { scale: 1; }\n  @starting-style { .confirm[open] { scale: 0.96; } }\n}\n```",
+      "why": "fade outside the query, a centered 0.96 scale only when motion is allowed, from display: none"
+    },
+    {
+      "answer": "```css\n.confirm {\n  opacity: 0;\n  scale: 0.92;\n  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1), scale 220ms cubic-bezier(0.32, 0.72, 0, 1), display 220ms allow-discrete, overlay 220ms allow-discrete;\n}\n.confirm[open] { opacity: 1; scale: 1; }\n@starting-style { .confirm[open] { opacity: 0; scale: 0.92; } }\n@media (prefers-reduced-motion: reduce) {\n  .confirm { transition-property: opacity, display, overlay; }\n}\n```",
+      "why": "a centered 0.92 scale-in, within 0.9 to 0.97, whose scale stops animating under reduced motion while the fade stays"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.confirm { transform: translateY(100vh); transition: transform 300ms ease-out; }\n.confirm[open] { transform: translateY(0); }\n```",
+      "why": "slides in from off-screen"
+    },
+    {
+      "answer": "```css\n.confirm { opacity: 0; scale: 0.96; transition: opacity 200ms ease-out, scale 200ms ease-out; }\n.confirm[open] { opacity: 1; scale: 1; }\n```",
+      "why": "near miss: the right centered scale, but it still plays under reduced motion"
+    },
+    {
+      "answer": "```css\n.confirm { opacity: 0; scale: 0.95; transition: opacity 200ms ease-out, scale 200ms ease-out; }\n.confirm[open] { opacity: 1; scale: 1; }\n@media (prefers-reduced-motion: reduce) {\n  * { animation: none !important; transition: none !important; }\n}\n```",
+      "why": "near miss: reduced motion handled with the blanket rule that removes the fade too"
+    },
+    {
+      "answer": "```css\n@keyframes pop { 0% { opacity: 0; transform: scale(0.95); } 70% { transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }\n@media (prefers-reduced-motion: no-preference) { .confirm[open] { animation: pop 300ms ease-out; } }\n```",
+      "why": "overshoots past scale 1, a bounce on a dialog"
+    },
+    {
+      "answer": "```css\n.confirm { opacity: 0; transition: opacity 200ms var(--ease-out, ease-out), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n.confirm[open] { opacity: 1; }\n@starting-style { .confirm[open] { opacity: 0; } }\n@media (prefers-reduced-motion: no-preference) {\n  .confirm { scale: 0.85; transition: opacity 200ms var(--ease-out, ease-out), scale 200ms var(--ease-out, ease-out), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n  .confirm[open] { scale: 1; }\n  @starting-style { .confirm[open] { scale: 0.85; } }\n}\n```",
+      "why": "near miss: centered and gated, but the scale starts at 0.85, below 0.9"
+    }
+  ]
+}

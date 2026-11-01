@@ -159,7 +159,7 @@
     "workflow_resilience_check_enabled": {
       "type": "boolean",
       "title": "Workflow-resilience-check guard",
-      "description": "Advises on un-throttled Workflow fan-out; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in.",
+      "description": "Advises on Workflow fan-out with no wave cap of its own; never blocks. Off by default since 0.20.0: a behavioral-class prose injector, config-disabled per the instruction-economy evidence gate (#2021). Set true to opt back in.",
       "default": false
     },
     "flag_commit_pr_skill_bypass_enabled": {
@@ -176,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.77.0"
+  "version": "0.77.1"
 }

@@ -153,6 +153,16 @@ An ecosystem's Status and the Overall line read `FAIL` when any cell or fired ga
 
 When any gate fired, list each by name and outcome below the ecosystem table, with its remediation on failure. The Overall line then names both counts, pass or fail (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`, `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so it is clear whether a gate ran.
 
+### 4. Record the result
+
+After the report, record its Overall line for the tree it ran on, in its own Bash call, with the line exactly as reported inside single quotes (write a `'` in it as `'\''`):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REPO_ROOT" --overall '<the Overall line>'
+```
+
+The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2) changes nothing in the report; say it was not recorded. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found".
+
 ## For other skills referencing /toolchain:check
 
 - **Command tables**: resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md), and read `context/<ecosystem>.md` for gotchas, including when embedding commands in an agent prompt.

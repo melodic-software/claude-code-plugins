@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "<meta name=\"color-scheme\" content=\"light dark\">",
+      "why": "name then content"
+    },
+    {
+      "answer": "<meta content='light dark' name='color-scheme' />",
+      "why": "content then name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<meta name=\"color-scheme\" content=\"light\">",
+      "why": "near miss: one scheme on a two-theme site"
+    },
+    {
+      "answer": ":root { color-scheme: light dark; }",
+      "why": "CSS only, no meta tag"
+    }
+  ]
+}

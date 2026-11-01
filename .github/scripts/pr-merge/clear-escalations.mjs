@@ -139,9 +139,11 @@
 //
 // The session-builder queue label (needs-session, each `label` that
 // escalation-routes.json names) comes off with no comment when the lanes App
-// added it last and each lane stop routed to it since then has its failing
-// status cleared on that stop's head: a same-head retry landed and
-// report-escalation.sh `clear` posted success after that stop (sessionVerdict).
+// added it last and each lane stop routed to it since then is mended: a
+// same-head retry landed and report-escalation.sh `clear` posted success after
+// that stop, or the head moved off every such stop's head and the new head
+// carries no failing status for their activities and passes its checks
+// (sessionVerdict).
 // At most SESSION_CHECKS_PER_RUN pull requests are read a run, kept or cleared,
 // from the same rotating offset.
 //
@@ -149,8 +151,8 @@
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
 //   CHECKS_TOKEN         the job's own token (checks: read, actions: read), for
 //                        the head's pr-require-checks runs and check runs,
-//                        and a lane stop's head statuses, which the lane
-//                        token cannot read
+//                        and the statuses of a lane stop's head and the
+//                        current head, which the lane token cannot read
 //   GITHUB_REPOSITORY    owner/repo
 //   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
@@ -445,20 +447,26 @@ const CHECKS = Object.freeze({
 });
 
 // A ci-fix stop: the lane could not fix CI at its resume key. Gone once a
-// trusted push moved the head and, at the new head, no check fails, runs or
-// was cancelled (fix-ci's failingChecks over every run, so a later skip hides
-// no failure), each check's latest run ended in PASSING, and one passed.
-// ci-status is left out: the label fails it.
+// trusted push moved the head and checksHeld finds the new head's checks pass.
 async function ciPasses(context) {
   const moved = await context.moved();
   if (moved === null) {
     return { held: "no trusted push alone moved the head off the resume key" };
   }
-  const head = context.pull.head.sha;
-  const runs = await context.read(async (reader) => {
+  const held = await checksHeld(context.read, context.repo, context.pull.head.sha);
+  return held === null ? `${moved}, and no check other than ${AGGREGATE} fails, runs or was cancelled at it` : { held };
+}
+
+// Why `head`'s checks do not pass, or null when they do: no check fails, runs
+// or was cancelled (fix-ci's failingChecks over every run, so a later skip
+// hides no failure), each check's latest run ended in PASSING, and one passed.
+// ci-status is left out: the label fails it. `read` runs a read with a token
+// that holds checks: read and answers null when the read fails.
+async function checksHeld(read, repo, head) {
+  const runs = await read(async (reader) => {
     const all = [];
     for (let page = 1; page <= CHECK_PAGES; page += 1) {
-      const batch = (await reader("GET", `/repos/${context.repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
+      const batch = (await reader("GET", `/repos/${repo}/commits/${head}/check-runs?filter=all&per_page=100&page=${page}`))?.check_runs;
       if (!Array.isArray(batch)) {
         return null;
       }
@@ -483,9 +491,9 @@ async function ciPasses(context) {
     [...latest.values()].some((run) => !PASSING.has(run.conclusion)) ||
     !others.some((run) => run.conclusion === "success")
   ) {
-    return { held: `a check other than ${AGGREGATE} fails, runs, was cancelled or did not pass at ${head}, or its runs did not read` };
+    return `a check other than ${AGGREGATE} fails, runs, was cancelled or did not pass at ${head}, or its runs did not read`;
   }
-  return `${moved}, and no check other than ${AGGREGATE} fails, runs or was cancelled at it`;
+  return null;
 }
 
 // The review lanes reviewLanesClean reads, as pr-require-checks.yml's
@@ -1495,20 +1503,37 @@ const STOP_HEAD = /^- Head: `([0-9a-f]{40})`$/m;
 // report-escalation.sh's status context for an activity.
 const stopContext = (activity) => (activity === "resolve-conflicts" ? "pr-unblock/conflict" : `pr-unblock/${activity}`);
 
+// A stop the new-head lift leaves on: the route marks a workflow or action
+// change beyond a full-SHA pin swap, which green checks do not judge, so only
+// its lane's own clear on the stop's head removes the label.
+const SAME_HEAD_ONLY = Object.freeze(["dependency-workflow-unpinned"]);
+// The newest status for `context` by github-actions[bot] in `statuses`
+// (newest first), or undefined.
+const laneStatus = (statuses, context) => statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
+
 // Whether the session label `label` on `number` comes off, or { reason }
 // saying why it stays. It comes off only when the lanes App added it last,
 // and every lanes App lane-stopped comment (one per activity, edited in
-// place) written or edited since then whose reason routes to `label` names a
-// head whose newest status for that activity's context, by
-// github-actions[bot], is `success` and newer than the stop: the stop that
-// added it was cleared on that same head. report-stop-status posts a stop's
-// failure in a job of its own, so a success older than the comment belongs to
-// an earlier stop and proves nothing. A stop since the label whose reason or
-// head does not parse, none at all, or a status read that fails keeps it. A
-// later head carries no status, so a stop on an older head keeps it for a
-// session. `checks` (the
-// job token) reads the statuses; the lanes App token holds no statuses
-// permission.
+// place) written or edited since then whose reason routes to `label` is
+// mended, on its own head or on a new one.
+// - Same head: the newest status at the stop's head for that activity's
+//   context, by github-actions[bot], is `success` and newer than the stop
+//   (report-escalation.sh `clear`, after a same-head retry landed).
+//   report-stop-status posts a stop's failure in a job of its own, so a
+//   success older than the comment belongs to an earlier stop and proves
+//   nothing.
+// - New head: when the PR's head is none of those stops' heads, a stop not
+//   so cleared is mended once its route is off SAME_HEAD_ONLY, the newest
+//   github-actions[bot] status for its context at the current head, if any,
+//   is `success`, and the current head's checks pass (checksHeld). The PR
+//   and the current head are read only when some stop is not cleared on its
+//   own head.
+//   A lane posts a status only on a head it gates, so nothing else marks a
+//   new head mended; a cause that still holds stops the lane again on the
+//   new head, and that stop puts the label back.
+// A stop since the label whose reason or head does not parse, none at all,
+// or a read that fails keeps it. `checks` (the job token) reads the statuses
+// and check runs; the lanes App token holds no statuses permission.
 async function sessionVerdict({ github, checks, repo, number, label, bot }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
   const { labeled, since } = labelHistory(timeline, label, new Set());
@@ -1522,7 +1547,7 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
       stops.set(activity, item);
     }
   }
-  const why = [];
+  const routed = [];
   for (const [activity, item] of stops) {
     const stoppedAt = Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
     if (stoppedAt < since) {
@@ -1534,27 +1559,69 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
     if (reason === undefined || head === undefined || escalationActivity(reason) !== activity) {
       return { reason: `the ${activity} stop since ${label} went on names no reason, head or activity this script can read` };
     }
-    if (ROUTES[reason].label !== label) {
-      continue;
+    if (ROUTES[reason].label === label) {
+      routed.push({ activity, reason, head, stoppedAt });
     }
-    const context = stopContext(activity);
-    let statuses;
+  }
+  if (routed.length === 0) {
+    return { reason: `no lane stop routed to ${label} since it went on` };
+  }
+  // A read that fails keeps the label and leaves the run green.
+  const guarded = async (fn) => {
     try {
-      statuses = await readStatuses(checks, repo, head);
+      return await fn();
     } catch (error) {
       console.log(`::warning title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
-      return { reason: `the statuses of ${head} did not read` };
+      return null;
     }
-    const newest = statuses.find((status) => status?.context === context && status?.creator?.login === "github-actions[bot]");
-    if (newest?.state !== "success") {
-      return { reason: `${reason} still fails ${context} at ${head} (${newest?.state ?? "no status"})` };
+  };
+  const why = [];
+  const open = [];
+  for (const stop of routed) {
+    const context = stopContext(stop.activity);
+    const statuses = await guarded(() => readStatuses(checks, repo, stop.head));
+    if (statuses === null) {
+      return { reason: `the statuses of ${stop.head} did not read` };
     }
-    if (!(Date.parse(newest.created_at) > stoppedAt)) {
-      return { reason: `${reason} still fails ${context} at ${head} (no success since the stop)` };
+    const own = laneStatus(statuses, context);
+    if (own?.state === "success" && Date.parse(own.created_at) > stop.stoppedAt) {
+      why.push(`${stop.reason} no longer fails ${context} at ${stop.head}`);
+    } else {
+      open.push({ ...stop, context, own });
     }
-    why.push(`${reason} no longer fails ${context} at ${head}`);
   }
-  return why.length === 0 ? { reason: `no lane stop routed to ${label} since it went on` } : { reason: null, why: why.join("; ") };
+  if (open.length === 0) {
+    return { reason: null, why: why.join("; ") };
+  }
+  const current = (await guarded(() => github("GET", `/repos/${repo}/pulls/${number}`)))?.head?.sha;
+  if (!SHA.test(String(current))) {
+    return { reason: "the pull request's head did not read" };
+  }
+  if (routed.some(({ head }) => head === current)) {
+    const { reason, context, head, own } = open[0];
+    const state = own?.state === "success" ? "no success since the stop" : (own?.state ?? "no status");
+    return { reason: `${reason} still fails ${context} at ${head} (${state})` };
+  }
+  const now = await guarded(() => readStatuses(checks, repo, current));
+  if (now === null) {
+    return { reason: `the statuses of ${current} did not read` };
+  }
+  for (const { reason, context, head } of open) {
+    if (SAME_HEAD_ONLY.includes(reason)) {
+      return { reason: `${reason} stopped at ${head}, and only its lane's clear on that head lifts ${label}: green checks do not judge its workflow change` };
+    }
+    const newest = laneStatus(now, context);
+    if (newest !== undefined && newest.state !== "success") {
+      return { reason: `${reason}'s ${context} reads ${newest.state} at the new head ${current}` };
+    }
+    why.push(`${reason} stopped at ${head}, and no ${context} status fails at the new head ${current}`);
+  }
+  const held = await checksHeld((fn) => guarded(() => fn(checks)), repo, current);
+  if (held !== null) {
+    return { reason: `${label} stays at the new head: ${held}` };
+  }
+  why.push(`no check other than ${AGGREGATE} fails, runs or was cancelled at ${current}`);
+  return { reason: null, why: why.join("; ") };
 }
 
 // Takes each session label off where sessionVerdict finds its stop cleared,

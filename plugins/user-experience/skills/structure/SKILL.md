@@ -4,7 +4,7 @@ argument-hint: "[flow, navigation or app context]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: anytime
+  workflow-stage: design
   summary: Shape user flows, information architecture and content structure, evidence-labeled
 ---
 
@@ -50,7 +50,7 @@ whiteboard or design-tool MCP server, a browser for the running app).
 Read the file for the job in front of you:
 
 - A user flow, its states, or the flow an existing app already has, or navigation, a sitemap,
-  content structure, card sorting and tree testing:
+  content structure, navigation depth, labels, a content inventory, card sorting and tree testing:
   `${CLAUDE_PLUGIN_ROOT}/reference/flows-ia.md`.
 - A journey across steps, channels and time, or the service behind it (a journey is wider than one
   flow): `${CLAUDE_PLUGIN_ROOT}/reference/journeys.md`.

@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: find-docs-routed-to-lane
+description: 'A find run on a repo whose README misstates the config file names the owning docs lane for that candidate instead of ranking it'
+tags: [find, lane-routing]
+expected_outcome: 'The reply names docs-hygiene or codebase-health for the README config-path drift, does not put that docs fix in a ranked row, and makes no Write or Edit call.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:find what should we improve in this repo?'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-owning-lane
+    type: regex
+    pattern: '(?:docs-hygiene|codebase-health)[^\n]{0,200}?(?:README|ledger\.yaml|documentation|docs?\b)|(?:README|ledger\.yaml|documentation|docs?\b)[^\n]{0,200}?(?:docs-hygiene|codebase-health)'
+    flags: 'i'
+    arm: both
+  - name: docs-candidate-not-ranked
+    type: regex
+    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?:[^\n]|\n(?=[ \t]+\S)))*?(?:README[^\n]{0,200}?(?:ledger\.(?:ya?ml|json)|config(?:uration)? (?:path|file)|settings)|ledger\.(?:ya?ml|json)[^\n]{0,200}?README|ledger\.ya?ml)|^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*?(?:README[^\n]{0,200}?(?:ledger\.(?:ya?ml|json)|config(?:uration)? (?:path|file)|settings)|ledger\.(?:ya?ml|json)[^\n]{0,200}?README|ledger\.ya?ml)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*(?:(?=\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))|(?![\s\S]))'
+    flags: 'im'
+    match: 'not_contains'
+    arm: both

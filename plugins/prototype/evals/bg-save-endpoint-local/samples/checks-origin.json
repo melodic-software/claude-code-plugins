@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"content\":\"if (req.headers.origin !== allowed) { res.statusCode = 403; }\"}",
+      "why": "origin check"
+    },
+    {
+      "answer": "{\"content\":\"if (req.get('origin') !== allowed) return res.sendStatus(403);\"}",
+      "why": "Express req.get"
+    },
+    {
+      "answer": "{\"content\":\"if (request.headers.get(\\\"origin\\\") !== allowed) return new Response(null, { status: 403 });\"}",
+      "why": "Fetch API headers.get"
+    },
+    {
+      "answer": "{\"content\":\"const { origin } = req.headers;\\nif (origin !== allowed) { res.statusCode = 403; }\"}",
+      "why": "destructured from req.headers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"content\":\"server.middlewares.use('/__lab/save', save)\"}",
+      "why": "no check"
+    },
+    {
+      "answer": "rejects a request whose `Origin` is not the tool's own",
+      "why": "prose only"
+    }
+  ]
+}

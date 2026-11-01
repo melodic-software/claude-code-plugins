@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: design-style-tool-project-defined
+description: "Hard (the prompt offers frontend-design): Written from MB:plugins/user-interface/reference/principles.md:62-66, MB:plugins/user-interface/reference/types/web.md:20-22 and MB:plugins/user-interface/skills/design/SKILL.md:57-60. Where the project defines its look, a style-imposing tool is not used for it. Head further limits such a tool to marketing pages or a redesign request; that narrowing is not graded here, so both versions share the outcome."
+tags: [project-first, routing, hard]
+runs: 3
+expected_outcome: "The design takes its colors, spacing, radius and type from design/tokens.json and docs/design-system.md and does not hand the page's look to frontend-design or another style-imposing tool"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Design the account settings page for this app: profile details, notification preferences and a danger zone for deleting the account. I have the frontend-design plugin installed, so use it if it helps. Give the layout and the exact styling values. This run cannot write files, so put the design in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600

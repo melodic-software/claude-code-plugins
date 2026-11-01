@@ -1,5 +1,59 @@
 # Changelog for the PR pipeline convention
 
+## [8.27.4] - 2026-10-31
+
+### Fixed
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` job also re-runs a head's `ci-status` when a `pr-unblock.yml` run completes after setting or clearing a `pr-unblock/*` status on it, and when a person on the trusted-actor list approves it. Before, both changes waited for a hand re-run: the status is written with a `GITHUB_TOKEN`, whose events start no workflow, and no `pull_request` event fires on a review.
+- The new `pr-review-approved.yml` relays an approving review of a same-repository pull request, with no permission, as a `workflow_run` upstream, so the re-run it causes is recorded for pr-verify's trigger gate.
+
+- A thread a `review-threads.reviewer-ids` bot opened, with no trusted person's direction on it, is
+  worked only when a trusted actor asked for that bot's review. Anyone can comment `@codex` on a
+  public repository.
+  - **An explicit request** is a `@codex` comment in an issue comment, a review comment or a review
+    body, posted since the same bot's previous review. It must come from a person on the
+    trusted-actor list. The bot's own text does not count.
+  - **An automatic review** has no `@codex` comment and counts as asked for by whoever triggered it.
+    That is the pull request's author on opening, or the actor of a ready-for-review event. Every
+    such event in the window must be a trusted person's or the lanes App's.
+  - Any untrusted request or event in the window leaves the thread for a person, and so does none
+    that can be read. So do these, since each may have held a request:
+    - an untrusted comment or review edited since the window opened, whatever it says now (review
+      edit times come from GraphQL);
+    - an untrusted comment that was deleted (GraphQL `CommentDeletedEvent`). The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
+  - The select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml`
+    apply the same check. `chatgpt-codex-connector[bot]` stays on `reviewer-ids`, and the
+    trusted-actor list is unchanged.
+
+## [8.27.3] - 2026-10-31
+
+### Fixed
+
+- Both review lanes (`review-code`, `review-security`) run on the `pr-review` profile at `opus`, effort `high`, in place of `sonnet`: they judge work the Opus profiles write, and no objective failure signal is on the head when their model is chosen (`docs/plugin-philosophy.md`, "Model tiers", rules 3 and 4). A test fails when either review route resolves to a model weaker than a route that writes code.
+
+## [8.27.2] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep now also removes `needs-session` after a push that mends the stop. That holds when the head is no longer any stop's head, the newest `pr-unblock/*` status for each stop's activity at the new head, if any, is a success, and its checks pass, not counting `ci-status`, which the label keeps red. Before, only a same-head retry lifted the label, and a session had to remove it by hand after a new head. A `dependency-workflow-unpinned` stop still comes off only on its own head. If the cause still holds, the lane stops again on the new head and labels it again ([#11200](https://github.com/melodic-software/claude-code-plugins/issues/11200)).
+
+- check-wip-cap reads the queued `agent-ready` issues from the repository issues listing
+  (`GET /repos/{repo}/issues`, open, oldest first) in place of the search API, whose results carry
+  no recency guarantee, so parallel apply-verdict admissions count against a fresh queued count.
+  Pull requests and the hold labels (`needs-human`, `needs-owner-decision`,
+  `status: needs-decision`, `status: needs-info`, in any case) are left out client-side. A failed
+  page, or one that is not a list, leaves the queued count unread (`admission_basis`
+  `fail-open`), so intake admission admits nothing, as before. Past 10 pages one more issue
+  counts as unlisted and admissions pause. The pull request searches are unchanged.
+- Intake admission reads the racing admissions' `admission-deferred` listing before the
+  `agent-ready` one. A run that adds `agent-ready` and then drops its claim between the two
+  reads was missing from both, so a parallel admission could take one place past the room.
+  The claim order is unchanged.
+- Intake admission tests run `Promise.all` bursts of 2, 4 and 5 concurrent `admit()` runs
+  against one shared fake GitHub with room 1, 2 and 3: no burst admits past its room, every
+  shuffled burst admits, and a burst whose runs all read the room before any claim admits
+  exactly the room.
+
 ## [8.27.1] - 2026-10-31
 
 ### Fixed

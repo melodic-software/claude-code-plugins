@@ -35,11 +35,12 @@ const pr = ({ labels = [], body = "", ageHours = 1, number } = {}) => ({
 });
 
 // A search API that answers by query: the open listing pages through `open`,
-// the queued issue listing through `queued` (issues as { number }), the
-// merged and opened counts answer `merged` and `admitted`; an Error
-// answer throws. A pull request read answers `heads[number]` as its head
-// ref. Each path is recorded.
-function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {}, blockedBy = {} } = {}) {
+// the merged and opened counts answer `merged` and `admitted`; an Error
+// answer throws. The repository issues listing pages through `queued` (issues
+// as { number, labels?, pull_request? }); null answers no list, and page
+// `failQueuedPage` throws. A pull request read answers `heads[number]` as its
+// head ref. Each path is recorded.
+function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplete = false, heads = {}, blockedBy = {}, failQueuedPage = null } = {}) {
   const paths = [];
   const github = async (method, path) => {
     paths.push(`${method} ${path}`);
@@ -60,8 +61,22 @@ function searchApi({ open = [], merged = 0, admitted = 0, queued = [], incomplet
       }
       return { number: Number(pull[1]), head: { ref: head } };
     }
+    if (/^\/repos\/[^/]+\/[^/]+\/issues$/.test(url.pathname)) {
+      const page = Number(url.searchParams.get("page"));
+      if (queued instanceof Error) {
+        throw queued;
+      }
+      if (page === failQueuedPage) {
+        throw new Error(`GET ${path} failed with status 502`);
+      }
+      if (!Array.isArray(queued)) {
+        return {};
+      }
+      const size = Number(url.searchParams.get("per_page"));
+      return queued.slice((page - 1) * size, page * size);
+    }
     const q = url.searchParams.get("q");
-    const answer = q.includes("is:issue") ? queued : q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
+    const answer = q.includes("is:merged") ? merged : q.includes("created:") ? admitted : open;
     if (answer instanceof Error) {
       throw answer;
     }
@@ -106,20 +121,65 @@ test("near misses do not hold a PR", () => {
   assert.equal(isHeld({ labels: null, body: null }), false);
 });
 
-test("the reads are four serial searches: the lanes App's PRs, then the open agent-ready issues not held", async () => {
+test("the reads are three serial searches for the lanes App's PRs, then the issues listing of open agent-ready issues, oldest first", async () => {
   const { github, paths } = searchApi({ open: [pr()], merged: 5, admitted: 3 });
   await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
   const queries = paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com"));
-  assert.ok(queries.every((url) => url.pathname === "/search/issues"));
+  assert.equal(queries.length, 4);
+  assert.ok(queries.slice(0, 3).every((url) => url.pathname === "/search/issues"));
   assert.deepEqual(
-    queries.map((url) => url.searchParams.get("q")),
+    queries.slice(0, 3).map((url) => url.searchParams.get("q")),
     [
       `repo:${REPO} is:pr is:open ${AUTHOR}`,
       `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`,
       `repo:${REPO} is:pr ${AUTHOR} created:>=2026-10-17T12:00:00Z`,
-      `repo:${REPO} is:issue is:open label:agent-ready -label:needs-human -label:needs-owner-decision -label:"status: needs-decision" -label:"status: needs-info"`,
     ],
   );
+  assert.equal(queries[3].pathname, `/repos/${REPO}/issues`);
+  assert.deepEqual(Object.fromEntries(queries[3].searchParams), { labels: "agent-ready", state: "open", sort: "created", direction: "asc", per_page: "100", page: "1" });
+});
+
+// The search index carries no recency guarantee, and admit.mjs counts its
+// racing admissions against this count, so the queued issues come from the
+// repository issues listing. It lists pull requests too
+// (https://docs.github.com/en/rest/issues/issues#list-repository-issues) and
+// takes no label exclusion, so both are left out client-side.
+test("the queued listing leaves out pull requests and hold labels in any case, in listing order", async () => {
+  const queued = [
+    { number: 1 },
+    { number: 2, pull_request: {} },
+    { number: 3, labels: [{ name: "needs-human" }] },
+    { number: 4, labels: [{ name: "Status: Needs-Decision" }] },
+    { number: 5, labels: [{ name: "needs-owner-decision" }] },
+    { number: 6, labels: [{ name: "status: needs-info" }] },
+    { number: 7, labels: [{ name: "agent-ready" }, { name: "priority: high" }, null, { name: 7 }] },
+    { number: 8, labels: [{ name: "status: ready" }] },
+  ];
+  const reads = await read({ merged: 24, queued });
+  assert.deepEqual(reads.queued, [1, 7, 8]);
+  assert.equal(reads.queuedUnlisted, 0);
+  assert.equal(status(reads).queued_issues, 3);
+});
+
+test("the queued listing pages until a short page, counting pull requests toward the page size", async () => {
+  const queued = Array.from({ length: 150 }, (_, i) => (i % 10 === 0 ? { number: i + 1, pull_request: {} } : { number: i + 1 }));
+  const { github, paths } = searchApi({ merged: 24, queued });
+  const reads = await readLaneWip(github, { repo: REPO, now: NOW, windowHours: 24 });
+  assert.equal(paths.filter((path) => path.startsWith(`GET /repos/${REPO}/issues?`)).length, 2);
+  assert.equal(reads.queued.length, 135);
+  assert.deepEqual(reads.queued.slice(0, 3), [2, 3, 4]);
+});
+
+test("a failed page or an answer that is no list leaves the queued count unread, so admissions read fail-open", async () => {
+  const many = Array.from({ length: 150 }, (_, i) => ({ number: i + 1 }));
+  for (const answers of [{ queued: many, failQueuedPage: 2 }, { queued: many, failQueuedPage: 1 }, { queued: null }]) {
+    const reads = await read({ merged: 24, ...answers });
+    assert.equal(reads.queued, null, JSON.stringify(answers.failQueuedPage));
+    assert.equal(reads.searchIncomplete, false);
+    const result = status(reads, { "pause-from": "2026-10-01" });
+    assert.equal(result.queued_issues, null);
+    assert.equal(result.admission_basis, "fail-open");
+  }
 });
 
 test("the open listing pages until a short page", async () => {
@@ -132,7 +192,8 @@ test("the open listing pages until a short page", async () => {
 
 test("a search that answers incomplete results is an unknown read", async () => {
   const reads = await read({ open: [pr()], merged: 0, admitted: 3, incomplete: true });
-  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete: true });
+  // The queued listing is no search, so it still reads.
+  assert.deepEqual(reads, { open: null, merged: null, admitted: null, queued: [], queuedUnlisted: 0, blocked: [], searchIncomplete: true });
 });
 
 // During a GitHub search incident the API answered total_count 0 with
@@ -168,7 +229,7 @@ test("an unreadable base config closes new admissions with pause-from unset, fut
 });
 
 test("a search answer with no incomplete_results field is a failed read, not an incomplete one", async () => {
-  const reads = await read({ open: [pr()], merged: 48, queued: null });
+  const reads = await read({ open: null, merged: 48 });
   assert.equal(reads.searchIncomplete, false);
   const result = status(reads, { "pause-from": "2026-10-01" });
   assert.equal(result.admission_open, true);
@@ -389,18 +450,18 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
   assert.equal(status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" }).admission_room, 36);
 });
 
-test("past the search's 1,000-result listing, unlisted queued issues still count and admissions pause", async () => {
-  // 1,050 queued issues: the search lists 1,000 (10 pages of 100) and answers
-  // total_count 1,050; the 50 unlisted ones count as queued, no lane PR names
-  // them. A cap above that (100/h x 24 h = 2,400) still pauses: a count the
-  // listing cut short never admits.
+test("past the listing's 10 pages, an unlisted queued issue still counts and admissions pause", async () => {
+  // 1,050 queued issues: the listing stops at 1,000 (10 pages of 100) and
+  // answers no count, so a full last page counts one more as queued, no lane
+  // PR naming it. A cap above that (100/h x 24 h = 2,400) still pauses: a
+  // count the listing cut short never admits.
   const queued = issues(...Array.from({ length: 1050 }, (_, i) => i + 1));
   const reads = await read({ open: [pr({ body: "Closes #1" })], merged: 0, queued });
   assert.equal(reads.queued.length, 1000);
-  assert.equal(reads.queuedUnlisted, 50);
+  assert.equal(reads.queuedUnlisted, 1);
   const result = status(reads, { "pause-from": "2026-10-01" }, { ...LIMITS, "admission-min-per-hour": 100 });
   assert.equal(result.queued_cap, 2400);
-  assert.equal(result.queued_issues, 1049);
+  assert.equal(result.queued_issues, 1000);
   assert.equal(result.queued_truncated, true);
   assert.equal(result.queued_over, true);
   assert.equal(result.admission_open, false);
@@ -799,7 +860,7 @@ test("pause reads make exactly two searches however many issues are queued", asy
       paused.paths.map((path) => new URL(path.slice("GET ".length), "https://api.github.com").searchParams.get("q")),
       [`repo:${REPO} is:pr is:open ${AUTHOR}`, `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`],
     );
-    // Full reads: four searches, one pull request read when issues are queued,
+    // Full reads: three searches, one issues listing page, one pull request read when issues are queued,
     // and one blocker read per queued issue no lane PR names, at most BLOCKER_READS.
     const named = n === 0 ? 0 : 2;
     assert.equal(full.paths.length, 4 + (n === 0 ? 0 : 1) + Math.min(Math.max(n - named, 0), BLOCKER_READS));

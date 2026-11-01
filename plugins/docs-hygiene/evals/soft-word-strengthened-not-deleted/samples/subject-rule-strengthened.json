@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# Commit messages\n\n- The subject line is at most 50 characters; put detail in the body.\n- Never commit a file under `secrets/`: no hook checks that folder.\n```\n\n- Replaced \"reasonably short where appropriate\" with a 50-character limit.",
+      "why": "precise limit"
+    },
+    {
+      "answer": "```markdown\n# Commit messages\n\n- Always keep the subject line short: one clause, no trailing period.\n- Never commit a file under `secrets/`.\n```",
+      "why": "firmer word with a condition"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# Commit messages\n\n- Never commit a file under `secrets/`: no hook checks that folder.\n```\n\n- Cut the subject-line rule: a no-op.",
+      "why": "subject-line rule deleted"
+    },
+    {
+      "answer": "```markdown\n# Commit messages\n\n- Keep the subject line reasonably short where appropriate.\n- Never commit a file under `secrets/`.\n```",
+      "why": "unchanged soft rule"
+    },
+    {
+      "answer": "```markdown\n# Commit messages\n\n- Write good commit messages.\n- Never commit a file under `secrets/`.\n```",
+      "why": "replaced by a general line with no subject-line limit"
+    }
+  ]
+}

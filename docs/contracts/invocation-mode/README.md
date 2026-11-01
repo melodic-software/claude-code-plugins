@@ -96,7 +96,9 @@ documented budget.
    deliberate human choice (fleet sync, batched deletion, machine-level session control), or its
    triggering signal is private to the human (e.g. `discipline:wait-what`, where only the human knows
    comprehension broke), or it enters a persistent session-consuming mode the human should choose
-   deliberately (e.g. `education:teach`).
+   deliberately (e.g. `education:teach`). Why: started by the model, a skill in this class
+   begins work the human did not ask for, such as questions about an idea they did not bring up;
+   only the human knows when it fits.
 2. **(ii) Setup skills.** Per the plugin-philosophy setup contract ("Setup is explicit and
    repeatable"): `setup` skills are named `setup` and carry `disable-model-invocation: true`. The
    class covers `setup` only. A read-only `check` skill beside it (`<plugin>:check`, which reads

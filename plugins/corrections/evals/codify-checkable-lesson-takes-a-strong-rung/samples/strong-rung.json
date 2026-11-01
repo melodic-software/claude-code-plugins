@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Rung: shared-helper, with a lint naming it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: instruction."
+    }
+  ]
+}

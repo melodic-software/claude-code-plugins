@@ -716,8 +716,12 @@ the review could not finish (its cap, an unlanded fix, an unreadable config, a c
 an uncited control, a workflow change beyond a pin swap). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
-rebased head until a session removes the label, or `clear-escalations.mjs` does once a same-head
-retry cleared the stop's failing status. It also puts the PR in the
+rebased head until a session removes the label, or `clear-escalations.mjs` does: once a same-head
+retry cleared the stop's failing status, or once the head moved off every such stop's head and the
+new head carries no failing status for their activities and passes its checks (`ci-status` aside,
+which the label keeps red). A `dependency-workflow-unpinned` stop is lifted only on its own head,
+since green checks do not judge a workflow change. If the cause holds, the lane stops again on the
+new head and labels it again. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the
@@ -3253,7 +3257,8 @@ the log and step summary carry one line
 annotation titled `admission paused`). Under it, `admission_room` is how many more issues may be
 admitted now. The queued cap gates only new `agent-ready` labels, never a run: a queued issue
 leaves the count only by running, so pausing runs on it would hold the count shut. A queued read
-that fails leaves admissions open (`admission_basis: fail-open`) and changes no run pause. A
+that fails leaves `admission-open` `true` (`admission_basis: fail-open`) and changes no run pause;
+intake admission and work-unblock read that basis as no room and admit nothing. A
 search that answers `incomplete_results: true` (a degraded search can answer a false empty) is
 unknown, not failed: admissions pause whether or not `pause-from` is set or reached
 (`admission_basis` and `admission_reason` `search-incomplete`), with a `check-wip-cap` warning,
@@ -3262,8 +3267,13 @@ resolve-config import, as after a failed `npm ci` of its dependencies) leaves th
 admissions pause the same way (`admission_basis` and `admission_reason` `config-unreadable`), with
 a `check-wip-cap` warning; the run pause keeps the last known state, as on any failed read. The queued cap itself still
 pauses only on or after `pause-from`, and no run pause changes.
-The search lists at most 1,000 issues: past that, the issues it counted but did not list count as
-queued, and admissions pause (`queued_truncated: true`).
+The queued issues come from the repository issues listing (open `agent-ready` issues, oldest
+first), not the search index, whose results carry no recency guarantee. The listing also returns
+pull requests and takes no label exclusion, so pull requests and the hold labels (`needs-human`,
+`needs-owner-decision`, `status: needs-decision`, `status: needs-info`, in any case) are left out
+after the read. A page that fails or is not a list leaves the queued count unread
+(`admission_basis: fail-open`). The listing reads at most 10 pages of 100: a full tenth page counts
+one more issue as queued, and admissions pause (`queued_truncated: true`).
 
 work-unblock is the one lane that adds `agent-ready` to a new issue. Past the room it labels a
 ready issue `admission-deferred` instead, and each hourly sweep revisits the open
@@ -3291,17 +3301,19 @@ most 50 issues a call); a read that fails admits as though no such pull request 
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
 group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
-each admit the full room. The search index can still lag an `agent-ready` label added moments
-before, so a run right after another may read the room as one admission too wide.
+each admit the full room. An `agent-ready` label added moments before may still be missing from
+the issues listing, so a run right after another may read the room as one admission too wide.
 
 Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read
 the same room at once. Under a room it first claims a place with a fresh `admission-deferred`, then
 adds `agent-ready` only while fewer issues than the room count ahead of it. Those are the open
-issues the issues listing (not the search) shows with `agent-ready` or `admission-deferred`, each
+issues the issues listing shows with `agent-ready` or `admission-deferred`, each
 placed by its newest `admission-deferred` add (else its first `agent-ready` add) since 10 minutes
 before the status read; a tie, or an issue whose add its events do not show yet, counts as ahead.
 Otherwise, or when that read fails, the issue stays deferred for work-unblock's sweep. An issue
-counted both there and in the search's count only makes the check stricter.
+counted both there and in check-wip-cap's queued count only makes the check stricter: it defers
+to the sweep, never stalls. The 10 minutes start well before the status read, since a run that
+claimed before the read may add `agent-ready` after it.
 
 The queued cap paces only work-unblock's and intake admission's new `agent-ready` labels. Every
 other writer is exempt by design (owner decision 2026-10-22, #8966), and the issues it labels still
@@ -3336,7 +3348,7 @@ open listing and the merged count, and leaves the admission fields null with `ad
 | `merged_lane_prs_window`, `merge_rate_per_hour`, `merge_rate_window_hours`, `target_lead_time_hours` | The merge rate and its inputs. |
 | `admitted_lane_prs_window`, `admission_cap`, `opened_to_merged_ratio` | Lane PRs opened in the window and their cap. |
 | `queued_issues`, `queued_total` | Queued issues with no open lane PR and no blocker that still blocks (at most 30 blocker reads; an unread issue counts), and those plus the held lane PRs; null when a read failed. |
-| `queued_truncated` | `true` when the search counted more queued issues than it lists; admissions then pause. |
+| `queued_truncated` | `true` when the queued listing filled its tenth page of 100, so more queued issues may be unlisted; admissions then pause. |
 | `queued_cap`, `admission_factor`, `admission_min_per_hour` | The queued cap and its inputs. |
 | `wip_over`, `held_over`, `admission_over`, `queued_over`, `held_alarm` | Which limit is crossed. |
 | `alert` | Any of the five. |
@@ -3468,7 +3480,16 @@ Before the lane has reviewed the head, the dispute waits: the round escalates no
 round cap such a finding goes to the fresh fixer round as a code-review lane finding does, unless
 a trusted person directed it or the security-review lane held its head as `CRITICAL`, which goes
 to a person ([Loop caps](#loop-caps)). The bot's later comments in its thread
-count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
+count as the reviewer bot's; anyone else's leaves the thread alone. A listed bot's thread that no
+trusted person directed is worked only when the `@codex` request behind the bot's review came
+from a person on the trusted-actor list. With no `@codex` comment, the review is automatic, and it
+counts as asked for by whoever triggered it: the pull request's author on opening, or the actor of
+a ready-for-review event. Every such event since the bot's previous review must be a trusted
+person's or the lanes App's (`APP_SENDER_ID`). Any untrusted request or event since that review,
+or none that can be read, leaves the thread for a person. So does a comment or review by anyone
+else, apart from our own bots, that was edited since the window opened, or a deleted comment
+of theirs, since either may have held a request. The reason is logged
+(`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
 reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The

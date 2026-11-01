@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Important\n\n- `src/settings-menu.css:5`: on close the backdrop runs 300ms and the dialog 150ms, so the backdrop is still at 0.71 opacity at 210ms after the dialog is gone. An overlay and its content move as one, so close them together:\n\n```css\n.settings-backdrop {\n  transition: opacity 150ms cubic-bezier(0.55, 0, 1, 0.45);\n}\n```",
+      "why": "names the mismatch and gives the backdrop the dialog's duration and curve"
+    },
+    {
+      "answer": "**Important**: the close timings differ. Put both on one token, `--settings-close: 150ms cubic-bezier(0.55, 0, 1, 0.45)`, and use it for the backdrop's opacity and the dialog's opacity and transform.",
+      "why": "one shared duration and easing through a token"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Important\n\n- `src/settings-menu.css:5`: the backdrop starts slow because of its accelerating curve. Switch it to `cubic-bezier(0.16, 1, 0.3, 1)` so it clears early:\n\n```css\n.settings-backdrop { transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1); }\n```",
+      "why": "near miss: blames the curve and leaves the backdrop at 300ms against the dialog's 150ms"
+    },
+    {
+      "answer": "Shorten the backdrop fade from 300ms to 220ms so it trails the dialog less.",
+      "why": "shortens the backdrop to a value that still differs from the dialog's"
+    },
+    {
+      "answer": "The dialog closes too fast next to the backdrop. Slow the dialog to 300ms and leave the backdrop alone.",
+      "why": "lengthens only the dialog"
+    }
+  ]
+}

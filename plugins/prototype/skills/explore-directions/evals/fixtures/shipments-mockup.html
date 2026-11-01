@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'">
+<title>/shipments variants</title>
+<style>
+  body { margin: 0; font-family: Arial, sans-serif; background: #f7f7f5; color: #1c1c1c; }
+  header { padding: 12px 24px; background: #23395b; color: #fff; }
+  main { padding: 24px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; }
+  .cards { display: grid; gap: 12px; max-width: 520px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px; }
+  .map { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  .map-tiles { min-height: 240px; background: #dfe8e1; border-radius: 6px; }
+</style>
+</head>
+<body>
+<header>Parcel Track · Signed in as Sample Customer</header>
+<main>
+  <section data-variant="A" data-variant-label="Ledger">
+    <table>
+      <thead><tr><th>Parcel</th><th>Status</th><th>Expected</th><th>Location</th></tr></thead>
+      <tbody>
+        <tr><td>PT-1001</td><td>In transit</td><td>Nov 3</td><td>Depot North</td></tr>
+        <tr><td>PT-1002</td><td>Delayed</td><td>Nov 5</td><td>Port East</td></tr>
+        <tr><td>PT-1003</td><td>Out for delivery</td><td>Today</td><td>Van 12</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section data-variant="B" data-variant-label="Cards">
+    <div class="cards">
+      <article class="card"><strong>Nov 3</strong> · PT-1001 · In transit · Depot North</article>
+      <article class="card"><strong>Nov 5</strong> · PT-1002 · Delayed · Port East</article>
+      <article class="card"><strong>Today</strong> · PT-1003 · Out for delivery · Van 12</article>
+    </div>
+  </section>
+  <section data-variant="C" data-variant-label="Map">
+    <div class="map">
+      <div class="map-tiles" role="img" aria-label="Map with three parcel pins"></div>
+      <ul>
+        <li>Depot North: PT-1001</li>
+        <li>Port East: PT-1002 (delayed)</li>
+        <li>Van 12: PT-1003</li>
+      </ul>
+    </div>
+  </section>
+</main>
+<!-- The bundled assets/variant-switcher.html is inlined whole here; elided from this fixture. -->
+</body>
+</html>

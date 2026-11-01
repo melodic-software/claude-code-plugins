@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"interview-data/staging/r1/manifest.json\",\"content\":\"{\\\"lookAt\\\": \\\"A.html\\\", \\\"variants\\\": [\\\"A\\\", \\\"B\\\"]}\"}}]}}",
+      "why": "page written with Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > interview-data/staging/r1/manifest.json <<'JSON'\\n{\\\"lookAt\\\": \\\"A.html\\\"}\\nJSON\",\"description\":\"x\"}}]}}",
+      "why": "page written with Bash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"printf '%s' '{\\\"lookAt\\\":\\\"A.html\\\"}' > interview-data/staging/r1/manifest.json\",\"description\":\"x\"}}]}}",
+      "why": "page written with Bash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"manifest.json needs a top-level \\\"lookAt\\\"\"}]}}",
+      "why": "tool result carrying the marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n lookAt interview-data/staging/r1/manifest.json\",\"description\":\"x\"}}]}}",
+      "why": "Bash read or search, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"interview-data/staging/r1/manifest.json\",\"content\":\"{\\\"variants\\\": [\\\"A\\\", \\\"B\\\"]}\"}}]}}",
+      "why": "page written without the marker"
+    }
+  ]
+}

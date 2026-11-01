@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I did not open the X link. Paste the text of the post and I will add it as an item.",
+      "why": "paste the text"
+    },
+    {
+      "answer": "Waiting on you: could you share what the post says? X pages are not fetched automatically.",
+      "why": "share what the post says"
+    },
+    {
+      "answer": "Please copy the post's text here so I can summarize it; I could not find a non-X source.",
+      "why": "copy the text"
+    },
+    {
+      "answer": "If you send me the wording of the announcement, I will cite it against the X URL.",
+      "why": "send the wording"
+    },
+    {
+      "answer": "Can you provide the content of that tweet?",
+      "why": "provide the content"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I fetched the post: Northwind announced Atlas 2 with a 1M context window.",
+      "why": "fetched X"
+    },
+    {
+      "answer": "## AI briefing\n\n### Northwind\n\nNo items in this window.",
+      "why": "post dropped silently"
+    },
+    {
+      "answer": "Done. The briefing is above.",
+      "why": "status only"
+    }
+  ]
+}

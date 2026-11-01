@@ -25,3 +25,29 @@ page look like" stays here.
 A marketplace plugin resolves only where it is installed and enabled. The routing states what to do
 when the `playground` skill or the wrapper resolves, and says the capability exists as an
 installable plugin when neither does.
+
+## Boundary with this skill
+
+Both produce a browser page with controls that change what is shown, so an ask to "try options
+visually" can mean either:
+
+- **`playground` (marketplace plugin, first-party, from `anthropics/claude-plugins-official`).** Its
+  `playground` skill builds an interactive parameter explorer: controls on one side, a live preview
+  on the other, and a prompt at the bottom with a copy button. The output returns to the
+  conversation as a prompt.
+- **This skill (marketplace plugin).** Switchable UI variants of the user's own project (a local
+  mockup in the app's own look by default, or its real header, data, and routes on request); the
+  winning-variant key is kept and the rest is thrown away.
+
+**Routing.** When the ask is to explore a parameter space and hand back a prompt, route it to the
+`playground` skill when that plugin is installed, or to `/playgrounds:use` when that wrapper is
+installed. When neither is, say the capability exists as an installable plugin and do not build an
+imitation. Keep questions about how the user's own screen should be laid out here.
+
+**Mutation gate.** A playground writes its own page; this skill never builds one on its behalf.
+Routing ends the turn: no offer to write the explorer as a plain task or a one-off page either,
+since that is the imitation the routing rule declines.
+
+**Availability is never assumed.** The plugin is present only where it is installed from its
+marketplace; this section states what to do when it resolves, never that it is present. The
+four-part records live in this file.

@@ -1,8 +1,8 @@
 # Non-UI Live Testing Playbook
 
-Per-surface mapping of change-type → smoke-test invocation for non-UI code. Complements `e2e.md` (browser-driven UI evidence). Cites `/toolchain:check` for command shapes. Never restates, never drifts.
-
-Load on-demand when `/testing:run-e2e` is invoked for non-UI changes. UI changes route to `e2e.md`.
+Per-surface mapping of change type to smoke-test invocation for non-UI code, read when
+`/testing:run-e2e` runs for non-UI changes. UI changes route to `e2e.md`. Command shapes come from
+`/toolchain:check`, never restated here.
 
 ## When this playbook applies
 
@@ -29,7 +29,8 @@ Invocation commands come from `/toolchain:check`; framework, project-naming, and
 
 ## MCP stdio handshake
 
-When unit tests pass but the server fails to register, the gap is the JSON-RPC `initialize` handshake, a protocol-level smoke test that proves the server speaks MCP over stdio correctly.
+When unit tests pass but the server fails to register, test the JSON-RPC `initialize` handshake:
+a protocol-level smoke test that proves the server speaks MCP over stdio.
 
 **Pattern (all runtimes):**
 
@@ -38,9 +39,8 @@ When unit tests pass but the server fails to register, the gap is the JSON-RPC `
 3. Read one line from stdout; parse as JSON-RPC response
 4. Assert `result.protocolVersion`, `result.serverInfo.name`, and `result.capabilities` match expected shape
 
-**Request/response shapes:** the MCP spec owns the `initialize` request and response schemas.
-Read them there rather than from a copy here (the protocol is versioned; a restated shape drifts
-when it revs). This recipe was written against the pinned `2025-06-18` revision
+**Request/response shapes:** read the `initialize` request and response schemas from the MCP spec,
+not a copy here (the protocol is versioned). This recipe was written against the pinned `2025-06-18` revision
 (<https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle>); check the current
 revision via <https://modelcontextprotocol.io/specification/latest> and match the recipe to the
 revision your server SDK actually implements. Revisions after `2025-11-25` replace the
@@ -55,7 +55,8 @@ legacy/dual-era servers only (verified 2026-08-26).
 | .NET | `dotnet run --project <ServerProject>.csproj --no-build` (after `dotnet build`) |
 | Python | `uv run python -m <server_module>` |
 
-Wire as `*.handshake.test.<ext>` next to existing unit tests; runner inherits the surface's existing harness (vitest for Node, xUnit for .NET, pytest for Python).
+Wire as `*.handshake.test.<ext>` next to existing unit tests, run by the surface's existing harness
+(vitest for Node, xUnit for .NET, pytest for Python).
 
 **Recheck:** when an official MCP server-test harness ships, replace this bespoke recipe with the harness invocation.
 

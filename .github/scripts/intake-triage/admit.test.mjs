@@ -1579,6 +1579,31 @@ describe("admit", () => {
       ]);
     });
 
+    // admit() adds agent-ready before it drops its claim, so reading the claims
+    // first leaves no gap an admission can pass through unseen.
+    test("admissionsSince sees an issue that takes agent-ready and drops its claim between its two listing reads", async () => {
+      const since = Date.parse("2026-10-30T10:00:00Z");
+      const claim = { event: "labeled", label: { name: DEFERRED }, actor: { id: APP }, created_at: "2026-10-30T10:01:00Z" };
+      const labels = new Set([DEFERRED]);
+      const events = [claim];
+      let listings = 0;
+      const github = async (method, path) => {
+        if (path.startsWith("/repos/o/r/issues?")) {
+          const answer = labels.has(new URLSearchParams(path.split("?")[1]).get("labels")) ? [{ number: 8 }] : [];
+          listings += 1;
+          if (listings === 1) {
+            labels.add(AGENT_READY);
+            labels.delete(DEFERRED);
+            events.push({ ...claim, label: { name: AGENT_READY }, created_at: "2026-10-30T10:01:01Z" });
+          }
+          return answer;
+        }
+        return [...events];
+      };
+      assert.deepEqual(await admissionsSince(github, "o/r", since), [{ number: 8, at: Date.parse("2026-10-30T10:01:00Z") }]);
+      assert.equal(listings, 2);
+    });
+
     test("admissionsAhead counts a tie and an unread add ahead, and every other entry when its own add is unread", () => {
       const entered = [
         { number: 9, at: null },
@@ -1594,6 +1619,130 @@ describe("admit", () => {
       assert.equal(admissionsAhead([{ number: 3, at: 100 }], 7), 1);
       assert.equal(admissionsAhead([], 7), 0);
     });
+
+    // Promise.all bursts of admit() runs, one per issue numbered from the
+    // fixture's up, against one shared fake GitHub. Label writes land in the
+    // shared state with event times one second apart, read back by the issues
+    // listing, each issue's events and the older-deferred search; every other
+    // read is fakeGitHub's, as for the fixture issue. `status` answers the room as check-wip-cap
+    // reads it: `room` less the issues that carry agent-ready now. With
+    // `gate`, each run's claim waits until every run reaches its own, so every
+    // run reads the room before any claim. `random` picks up to three
+    // event-loop turns before each answer, which shuffles the runs.
+    function burstGitHub({ runs, room, gate, random }) {
+      const numbers = Array.from({ length: runs }, (_, i) => 7 + i);
+      const createdAt = (n) => Date.parse("2026-10-20T08:00:00Z") + (n - 7) * 1000;
+      const labels = new Map(numbers.map((n) => [n, new Set([READY, "work-class: mechanical"])]));
+      const events = new Map(numbers.map((n) => [n, []]));
+      const fake = fakeGitHub();
+      let clock = Math.floor(Date.now() / 1000) * 1000 - 60_000;
+      const write = (n, event, name) => {
+        clock += 1000;
+        events.get(n).push({ event, label: { name }, actor: { id: APP }, created_at: new Date(clock).toISOString() });
+        if (event === "labeled") {
+          labels.get(n).add(name);
+        } else {
+          labels.get(n).delete(name);
+        }
+      };
+      const claimed = new Set();
+      const held = [];
+      const github = async (method, path, body) => {
+        for (let turns = Math.floor(random() * 4); turns > 0; turns -= 1) {
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+        if (method === "GET" && path.startsWith("/repos/o/r/issues?")) {
+          const label = new URLSearchParams(path.split("?")[1]).get("labels");
+          return numbers.filter((n) => labels.get(n).has(label)).map((number) => ({ number }));
+        }
+        if (method === "GET" && path.startsWith("/search/issues?")) {
+          const q = new URLSearchParams(path.split("?")[1]).get("q");
+          assert.match(q, new RegExp(`label:${DEFERRED} created:<`));
+          const before = Date.parse(/created:<(\S+)/.exec(q)[1]);
+          return { total_count: numbers.filter((n) => labels.get(n).has(DEFERRED) && createdAt(n) < before).length, incomplete_results: false, items: [] };
+        }
+        const own = /^\/repos\/o\/r\/issues\/(\d+)([/?].*)?$/.exec(path);
+        const n = own ? Number(own[1]) : null;
+        if (!labels.has(n)) {
+          return fake.github(method, path, body);
+        }
+        const rest = own[2] ?? "";
+        if (method === "GET" && rest === "") {
+          return issueOf({ number: n, created_at: new Date(createdAt(n)).toISOString(), labels: [...labels.get(n)].map((name) => ({ name })) });
+        }
+        if (method === "GET" && rest.startsWith("/events")) {
+          return [...events.get(n)];
+        }
+        if (method === "POST" && rest === "/labels") {
+          if (gate && body.labels.includes(DEFERRED) && !claimed.has(n)) {
+            claimed.add(n);
+            await new Promise((resolve) => {
+              held.push(() => {
+                write(n, "labeled", DEFERRED);
+                resolve();
+              });
+              if (held.length === runs) {
+                held.forEach((release) => release());
+              }
+            });
+          } else {
+            body.labels.forEach((name) => write(n, "labeled", name));
+          }
+          return [];
+        }
+        if (method === "DELETE" && rest.startsWith("/labels/")) {
+          write(n, "unlabeled", decodeURIComponent(rest.slice("/labels/".length)));
+          return null;
+        }
+        return fake.github(method, `/repos/o/r/issues/7${rest}`, body);
+      };
+      const status = async () => {
+        const left = room - numbers.filter((n) => labels.get(n).has(AGENT_READY)).length;
+        return { paused: false, admission_open: left > 0, admission_room: Math.max(0, left), admission_reason: left > 0 ? null : "queued", admission_basis: "read" };
+      };
+      const run = (number) => admit({ github, repository: "o/r", number, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status, log: () => {} });
+      return { numbers, labels, run };
+    }
+    // mulberry32: a seeded generator, so a failing shuffle replays.
+    const seeded = (seed) => () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const burst = async (options) => {
+      const world = burstGitHub(options);
+      const outcomes = (await Promise.all(world.numbers.map(world.run))).map((result) => result.outcome);
+      const labeled = world.numbers.filter((n) => world.labels.get(n).has(AGENT_READY)).length;
+      return { outcomes, admitted: outcomes.filter((outcome) => outcome === "admitted").length, labeled };
+    };
+    const BURSTS = [
+      { runs: 2, room: 1 },
+      { runs: 4, room: 2 },
+      { runs: 5, room: 3 },
+    ];
+
+    // Asserting only "never past the room" passes when every run defers, so
+    // each shuffled burst must also admit.
+    for (const { runs, room } of BURSTS) {
+      test(`a burst of ${runs} parallel runs with room ${room} never admits past the room, and admits`, async () => {
+        for (let seed = 1; seed <= 20; seed += 1) {
+          const { outcomes, admitted, labeled } = await burst({ runs, room, gate: false, random: seeded(seed) });
+          assert.ok(admitted >= 1 && admitted <= room, `seed ${seed}: ${outcomes.join(", ")}`);
+          assert.equal(labeled, admitted, `seed ${seed}`);
+          assert.ok(outcomes.every((outcome) => outcome === "admitted" || outcome === "deferred"), `seed ${seed}: ${outcomes.join(", ")}`);
+        }
+      });
+
+      test(`a burst of ${runs} runs that all read room ${room} before any claim, claiming in distinct seconds, admits exactly the room`, async () => {
+        for (const random of [() => 0, ...[1, 2, 3, 4, 5].map(seeded)]) {
+          const { outcomes, admitted, labeled } = await burst({ runs, room, gate: true, random });
+          assert.equal(admitted, room, outcomes.join(", "));
+          assert.equal(labeled, room);
+          assert.equal(outcomes.filter((outcome) => outcome === "deferred").length, runs - room, outcomes.join(", "));
+        }
+      });
+    }
   });
 
   // refine.mjs starts the size split only from this exact wait comment.

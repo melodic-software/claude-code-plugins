@@ -10,15 +10,15 @@ metadata:
 
 ## Why this skill exists
 
-Skills have a public API and a private body, the contract is `context/public-surface-contract.md` (bundled with this skill). External consumers, rules, agents, other skills, prose docs, must cite the public surface only. Editing the private body must not break external consumers because no external consumer is allowed to depend on it.
+Skills have a public API and a private body; the contract is `context/public-surface-contract.md` (bundled with this skill). External consumers (rules, agents, other skills, prose docs) must cite the public surface only, so editing the private body never breaks them.
 
-Without enforcement, private bodies leak. A rule file cites a path inside `<skill>/<some-subdir>/` because the content is convenient. The skill author refactors that subdir and the citation breaks silently. Nothing fails the build, nothing greps red. The skill cannot evolve without coordinating with every leaker.
+Without enforcement, private bodies leak: a rule cites a path inside `<skill>/<some-subdir>/`, the author refactors that subdir, and the cite breaks silently. Nothing fails the build.
 
-This skill provides the detection + classification + remediation discipline that closes that gap. Distinct concern from `/docs-hygiene:extract-ssot` (which detects content duplication via Rule of Three). Encapsulation violations are **single-violation matters**. Rule of Three does not gate them.
+Distinct from `/docs-hygiene:extract-ssot` (content duplication via Rule of Three). Encapsulation violations are **single-violation matters**. Rule of Three does not gate them.
 
 ## Public surface matrix
 
-The **Skill** surface, Public = frontmatter + documented actions + args/flags + `/skill-name` slash invocation + the `scripts/` entry surface; private = everything else inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (any OTHER subdirectory, all `*.schema.json` at any depth, all heading anchors), is defined by `context/public-surface-contract.md`, including the data-file and scripts/ entry-surface carve-outs and the rip-and-paste-portability rationale. This skill audits cites against two more authoring surfaces the contract file does not enumerate:
+The **Skill** surface is defined by `context/public-surface-contract.md`: public = frontmatter + documented actions + args/flags + `/skill-name` slash invocation + the `scripts/` entry surface; private = everything else inside `.claude/skills/<X>/` or `plugins/<plugin>/skills/<X>/` (any OTHER subdirectory, all `*.schema.json` at any depth, all heading anchors). That file holds the data-file and scripts/ entry-surface carve-outs and the rip-and-paste-portability rationale. This skill also audits cites against two authoring surfaces the contract file does not enumerate:
 
 | Surface | Public (cite externally) | Private |
 |---------|--------------------------|---------|
@@ -27,16 +27,16 @@ The **Skill** surface, Public = frontmatter + documented actions + args/flags + 
 
 ### CI / git-hook sharing. Pick a technique, not an exception
 
-Workflows and git hooks needing logic that ALSO lives in a skill must not reach into skill internals. Pick a sharing technique by logic size. Scripts/ facade (the skill exposes a public `scripts/<name>.sh` entry delegating to a private backend; hooks/CI invoke it), intentional duplication, plugin packaging, or headless `claude -p '/skill <action>'` invocation, per `context/public-surface-contract.md` "CI / git-hook consumption. Entry surface, not internals".
+Workflows and git hooks needing logic that ALSO lives in a skill must not reach into skill internals. Pick a sharing technique by logic size: scripts/ facade (a public `scripts/<name>.sh` entry delegating to a private backend; hooks/CI invoke it), intentional duplication, plugin packaging, or headless `claude -p '/skill <action>'` invocation, per `context/public-surface-contract.md` "CI / git-hook consumption. Entry surface, not internals".
 
-The choice is per-cite. The bundled `detect.sh` is a **candidate enumerator**: it lists path shapes that *may* be private-surface cites. Exit 1 means candidates exist after mechanical filters, not that those hits are adjudicated violations. Classification (filter taxonomy below) is required before treating a hit as illegal. Do not hard-gate CI or pre-commit on `detect.sh`'s exit code alone.
+The choice is per-cite. The bundled `detect.sh` is a **candidate enumerator**: exit 1 means candidates remain after mechanical filters, not adjudicated violations. Classify (filter taxonomy below) before treating a hit as illegal. Do not hard-gate CI or pre-commit on `detect.sh`'s exit code alone.
 
 ## Action router
 
 | Argument | Action | Purpose |
 |----------|--------|---------|
 | *(empty)* / `detect` | Default | Run detection grep, classify legal vs illegal, output violation table. Behind the no-scope confirmation below when nothing narrows the scope |
-| `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation. For when the user already said "whole repo" |
+| `sweep` | Explicit repo-wide detect | Default detect minus the no-scope confirmation, for when the user already said "whole repo" |
 | `fix <file>:<line>` | Targeted remediation | Interactive Path A (promote-out) vs Path B (route-via-`/<skill>`) for one hit |
 | `file-issues` | Batch | File one tracking work item per illegal hit in the consumer's tracker (e.g. `gh issue create`); emit a checklist if no tracker is available |
 
@@ -45,15 +45,15 @@ One action per response.
 ### No inherited scope. Confirm before a repo-wide run
 
 Shared clean-tree / no-scope shape: [`../../context/clean-tree-fallback.md`](../../context/clean-tree-fallback.md).
-Read it when the bare invocation is unattended or non-interactive, the case the rules below leave
-unstated, or when editing those rules.
-This skill's trigger is "no inherited scope" (not only "clean tree"), a dirty tree with unrelated
+Read it when the bare invocation is unattended or non-interactive (the case the rules below leave
+unstated), or when editing those rules.
+This skill's trigger is "no inherited scope", not only "clean tree": a dirty tree with unrelated
 edits still needs the confirm when nothing names the detect surface.
 
 The default action's domain is the whole repo, but a bare invocation does not prove the user meant
-that. When the invocation arrives with NO inherited working set. No diff in flight, no prior audit
-notes, nothing in the conversation narrowing the scope. Ask ONE confirmation before running the
-detection, presenting these prescribed defaults for adjustment:
+that. With NO inherited working set (no diff in flight, no prior audit notes, nothing in the
+conversation narrowing the scope), ask ONE confirmation before running detection, presenting these
+prescribed defaults for adjustment:
 
 | Default | Value |
 |---------|-------|
@@ -61,19 +61,19 @@ detection, presenting these prescribed defaults for adjustment:
 | Mode | detect + classify only; remediation stays a separate, user-approved step |
 | Worker fan-out | off. Classify in-session. When the user opts into subagent classification or remediation, run 2–3 concurrent workers, no more (our pacing cap, independent of the harness's own concurrent-subagent limit: [pointer](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit), as of 2026-10-11, recheck when that section changes the default limit), and check each worker's cited evidence before accepting its classification, while rate-limit telemetry is absent; when the `rate-limit-guard` plugin's snapshot is readable, resolve pacing from its reader contract instead (that contract owns the snapshot path, staleness rule, and thresholds. Read them there) |
 
-An inherited scope, or a scope the user already stated in the invocation ("across the repo",
-"audit this directory"). Suppresses the question; audit that surface directly. `sweep` is the
+An inherited scope, or a scope the user stated in the invocation ("across the repo",
+"audit this directory"), suppresses the question; audit that surface directly. `sweep` is the
 explicit opt-in that skips the confirmation and runs the repo-wide detect immediately.
 
 ## Detection
 
 `bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh"` (`--apply-filters` optional)
 
-`detect.sh` enumerates **candidates**, not adjudicated violations. With `--apply-filters`, stderr summary keys are `raw` / `mech-filtered` / `candidates`. Exit 1 = candidates remain; exit 0 = no candidates (not a clean bill of health. See limitations below).
+With `--apply-filters`, stderr summary keys are `raw` / `mech-filtered` / `candidates`. Exit 1 = candidates remain; exit 0 = no candidates (not a clean bill of health. See limitations below).
 
 Matched shapes:
 
-- Any path into a subdirectory under a skill (`<X>/<any-subdir>/...`. Regardless of subdir name, including uppercase / single-char / digit-leading / underscore-leading segments) **except `scripts/`** (entry-surface carve-out, see below)
+- Any path into a subdirectory under a skill (`<X>/<any-subdir>/...`, regardless of subdir name, including uppercase / single-char / digit-leading / underscore-leading segments) **except `scripts/`** (entry-surface carve-out, see below)
 - Heading-anchor cites into `SKILL.md` body structure (`<X>/SKILL.md#<anchor>`)
 - Any `*.schema.json` file at any depth (`<X>/<file>.schema.json`)
 
@@ -94,11 +94,11 @@ Every text file type under the scanned surfaces is read (binary files and `node_
 
 Allowlist: `docs/conventions/audit-encapsulation-allowlist.tsv` (or `--allowlist <file>`), one `path<TAB>reason` row per exempt file or `dir/` prefix; `#` lines and blank lines are skipped, a row with no reason is an error (exit 2). Use it only for fixtures, evals and tests that exist to exercise a detector; a real cite is fixed, not listed.
 
-Legal external cites: bare `<X>/SKILL.md` path in a consumer repo, from outside `plugins/`, or inside the same plugin (discouraged but legal. Natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts from callers outside `plugins/` or inside the same plugin (entry-surface carve-out below).
+Legal external cites: bare `<X>/SKILL.md` path in a consumer repo, from outside `plugins/`, or inside the same plugin (discouraged but legal; natural-language + slash invocation is canonical), `<X>/<file>.json` data files at skill root (data-file carve-out), and `<X>/scripts/<entry>` entry scripts from callers outside `plugins/` or inside the same plugin (entry-surface carve-out below).
 
-**scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries outside `plugins/` MAY path-cite a skill's entry scripts directly, so this inbound audit treats their `<X>/scripts/...` cites as legal (like data files). A file under `plugins/<q>/` citing another plugin's `scripts/` is flagged: plugin-to-plugin goes by `/plugin:skill`. The skill-to-skill half of the asymmetry, a sibling SKILL.md citing another skill's `scripts/` stays slash-only, is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
+**scripts/ entry-surface carve-out:** a skill's `scripts/` is its declared ENTRY surface per `context/public-surface-contract.md`. Harness / CI / hooks / workflow registries outside `plugins/` MAY path-cite a skill's entry scripts directly, so this inbound audit treats their `<X>/scripts/...` cites as legal (like data files). A file under `plugins/<q>/` citing another plugin's `scripts/` is flagged: plugin-to-plugin goes by `/plugin:skill`. The skill-to-skill half (a sibling SKILL.md citing another skill's `scripts/` stays slash-only) is out of this inbound audit's scope; a consuming repo that wants it enforced wires its own outbound gate.
 
-The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files. Each filtered to what exists. Consumer repos with only `.claude/skills/` behave as before, apart from the wider file types.
+The script scans the consumer repo it runs in: every `.claude/` child directory except `skills/` (self-citation domain; opt in via `--include-skills` for skill-maintenance review) and `worktrees/`, plus `.github/`, `docs/`, `.lefthook/`, `plugins/`, root instruction/config files (`AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTRIBUTING.md`, `lefthook.yml`), and `.claude/` top-level files, each filtered to what exists. Consumer repos with only `.claude/skills/` behave as before, apart from the wider file types.
 
 Or invoke the skill (the agent applies the filter taxonomy below):
 
@@ -108,7 +108,7 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 
 ## Filter taxonomy. Legal hits
 
-`detect.sh` output is broad without `--apply-filters`. Use the filter taxonomy below for KIND-1/2/3; `--apply-filters` drops only the mechanically-decidable subset (self-citation and worktree paths). Remaining rows are **candidates**. Apply KIND-1/2/3, mirror-automation, glob-config, and plugin-cache judgment in-session before calling anything a violation.
+`--apply-filters` drops only the mechanically-decidable subset (self-citation and worktree paths). Remaining rows are **candidates**: apply KIND-1/2/3, mirror-automation, glob-config, and plugin-cache judgment in-session before calling anything a violation.
 
 | Filter | Hit shape | Why legal |
 |--------|-----------|-----------|
@@ -117,20 +117,20 @@ Or invoke the skill (the agent applies the filter taxonomy below):
 | **KIND-2 forced-cite** | Another tool's semantics structurally require a verbatim path (a path-scoped rule trigger, a watch-glob, a drift-gate comparing against a vendored copy) | Citation IS the structural contract |
 | **KIND-3 self-test** | This skill's / a hook's own regression fixtures embed literal violation strings | Exercise the filter; not real citations |
 | **Mirror-automation** | A scheduled-automation prompt (e.g. `.claude/routines/<name>.md`) cites `.claude/skills/<name>/<private-path>` when its basename matches the skill name | Such prompts are cron arms of slash skills; mirror cites are part of the skill contract per the Public surface matrix |
-| **Glob-config** | Skill-internal path used as a glob/filter in an exclusion list, hooks allowlist, or `.gitignore`, not a content `Read` cite | Path is structural filter syntax, not progressive-disclosure content (overlaps KIND-2; named separately for grading) |
-| **Plugin cache** | `~/.claude/plugins/cache/<plugin>/...` | Upstream territory; foreign contract. These paths never match the detector PATTERN (not under a skill root), so `--apply-filters` has no cache branch. Classify as legal if they appear in a manual/agent sweep |
+| **Glob-config** | Skill-internal path used as a glob/filter in an exclusion list, hooks allowlist, or `.gitignore`, not a content `Read` cite | Structural filter syntax, not progressive-disclosure content (overlaps KIND-2; named separately for grading) |
+| **Plugin cache** | `~/.claude/plugins/cache/<plugin>/...` | Upstream territory; foreign contract. Never matches the detector PATTERN (not under a skill root), so `--apply-filters` has no cache branch. Classify as legal if it appears in a manual/agent sweep |
 | **Worktree path** | `<worktree-root>/<n>/.claude/skills/<X>/...` (per the repo's worktree convention, e.g. `.worktrees/`, `.claude/worktrees/`, `.git/worktrees/`) | Worktrees share the tracked tree; same rules apply at the root path |
 | **Intra-plugin cite** (only where the consuming repo has declared the plugin-monorepo convention) | A file under `plugins/<p>/` cites `plugins/<p>/skills/<s>/<private-path>`, same `<p>`. Covers a sibling skill body, a plugin-level `context/`, `reference/` or `agents/` doc, and the plugin `README.md` | The plugin, not the skill, is the shipping unit there: one manifest, one version, skills that never travel apart, so the absent-path breakage this contract prevents cannot occur. See `context/public-surface-contract.md`, "Layered convention". **Cross-plugin cites stay illegal**, and heading anchors stay illegal either way |
 
 Hits that survive ALL filters = illegal. Report.
 
-The intra-plugin filter is off unless the consuming repo has actually declared that convention and is built that way: one manifest and one version per plugin, no per-skill manifest, and no install path that separates two skills in one plugin. Check before applying it; the unrelaxed taxonomy is the default. A path that does not resolve as written is still a defect even when this filter would otherwise make it legal.
+The intra-plugin filter is off unless the consuming repo has declared that convention and is built that way: one manifest and one version per plugin, no per-skill manifest, and no install path that separates two skills in one plugin. Check before applying it; the unrelaxed taxonomy is the default. A path that does not resolve as written is still a defect even when this filter would otherwise make it legal.
 
 ## Remediation paths
 
 ### Path A. Promote content out (caller wants the data)
 
-Use when: the caller needs data the private file contains, and the data is genuinely shared vocabulary or constraint.
+Use when the caller needs data the private file contains, and the data is genuinely shared vocabulary or constraint.
 
 1. Invoke `/docs-hygiene:extract-ssot verify` via the Skill tool (the 6-gate refuse-fast check) against the private file's content
 2. If it passes: extract the content into a shared rule or convention doc outside the skill (e.g. `.claude/rules/<topic>.md`, or extend an existing one)
@@ -140,7 +140,7 @@ Use when: the caller needs data the private file contains, and the data is genui
 
 ### Path B. Route via `/skill-name` invocation (caller wants the behavior)
 
-Use when: the caller wants the skill's behavior, not the data. A reference into the private body is a workaround because the skill has no public action covering the use case.
+Use when the caller wants the skill's behavior, not the data: the reference into the private body is a workaround for a missing public action.
 
 1. Identify which skill action would deliver the desired behavior
 2. If the action exists: rewrite the caller to invoke `/<skill-name> <action> <args>`
@@ -194,10 +194,10 @@ A surfaced violation is never silently ignored: fix it, capture it as a side not
 
 ## Anti-patterns guarded
 
-- **Single-violation tolerance**. "it's only one place, no big deal." Encapsulation rot accumulates one violation at a time. Each is a binary contract break, not a Rule of Three threshold.
-- **Silent workaround**, the caller inlines the data instead of routing through the skill, hiding the violation from future audits. Mitigated by the `# TODO(audit-encapsulation)` marker requirement.
-- **Filter laziness**. Flagging every grep hit without applying the filter taxonomy. False positives erode trust in the audit; users stop running it.
-- **Wrong-direction Path A**. Promoting skill-internal content to a shared doc when the caller actually wanted skill behavior. Mitigated by the "data vs behavior" classification step in Path A vs Path B selection.
+- **Single-violation tolerance** ("it's only one place, no big deal."). Each violation is a binary contract break, not a Rule of Three threshold.
+- **Silent workaround**: the caller inlines the data instead of routing through the skill, hiding the violation from future audits. Mitigated by the `# TODO(audit-encapsulation)` marker requirement.
+- **Filter laziness**: flagging every grep hit without applying the filter taxonomy. False positives make users stop running the audit.
+- **Wrong-direction Path A**: promoting skill-internal content to a shared doc when the caller wanted skill behavior. Mitigated by the "data vs behavior" classification in Path A vs Path B selection.
 
 ## Sanity checks
 

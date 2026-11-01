@@ -37,3 +37,4 @@ git init -q -b main
 git -c user.name=eval -c user.email=eval@example.invalid add -A
 git -c user.name=eval -c user.email=eval@example.invalid commit -q -m "Add cart"
 git checkout -q -b feature/cart-total
+printf '/.*\n' >>.git/info/exclude

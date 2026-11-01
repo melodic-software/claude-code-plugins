@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebSearch",
+          "input": {
+            "query": "Northwind AI news"
+          }
+        }
+      ],
+      "why": "collected"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Put each case in its own directory under plugins/release-tools/evals/, for example evals/each-pr-once/case.yaml with the graders, plus a prompt.md holding the request. Check them with /evals:validate plugins/release-tools/evals before a paid run.",
+      "why": "the layout with the file name inline"
+    },
+    {
+      "answer": "One `case.yaml` per case directory in the plugin's eval directory.",
+      "why": "backticked file name"
+    },
+    {
+      "answer": "Format: CASE.YAML files, one per case, under plugins/release-tools/evals/.",
+      "why": "upper case, matched by flag i"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Create skills/deploy-notes/evals/evals.json with skill_name and an evals array, one object per case.",
+      "why": "near miss: the skill-creator JSON file"
+    },
+    {
+      "answer": "Write a case yaml file per case under evals/.",
+      "why": "near miss: no file name"
+    },
+    {
+      "answer": "Deploy notes usually list the merged pull requests grouped by area.",
+      "why": "answers a different question"
+    }
+  ]
+}
