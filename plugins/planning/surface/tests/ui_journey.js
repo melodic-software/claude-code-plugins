@@ -728,6 +728,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     const pushed = await page.waitForFunction(f => window.__io.applied !== f, frame, {timeout: 5000, polling: 50}).then(() => true).catch(() => false);
     ok("the Notes send toast outlasts the next state push", pushed && /Queued, Claude is busy/.test(await text("#noteToast")), (pushed ? "" : "no frame; ") + await text("#noteToast"));
     await page.click("#flyClose", {timeout: 2000}).catch(() => {});
+    // Leaving Notes clears the send toast and its busy note together, so coming back while that wake is still in flight shows neither.
+    const closed = !(await page.$eval("#fly", el => el.classList.contains("open"))), busy = /^Claude is working on /.test(await text("#workLine"));
+    await page.evaluate(() => document.querySelector('[data-panel="notes"]').click()); await settle(300);
+    ok("reopening Notes while a wake is in flight shows no busy note on its own", closed && busy && await text("#noteToast") === "", (closed ? "" : "Notes did not close; ") + (busy ? "" : "no wake in flight; ") + JSON.stringify(await text("#noteToast")));
+    await page.click("#flyClose", {timeout: 2000}).catch(() => {});
   }
   if (PHASE === 17) { // after the wrap-up the user confirms the third restatement; the shell has written nothing since phase 16
     await page.setViewportSize({width: 1400, height: 860}); await tap("#sumBtn", 300);
