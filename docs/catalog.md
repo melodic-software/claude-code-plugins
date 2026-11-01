@@ -28,7 +28,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Development
 
-- [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit.
+- [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit and, unless markdown_format_end_of_turn is false, at each turn end for the uncommitted changes.
 - [`bash-format`](../plugins/bash-format): Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`biome-format`](../plugins/biome-format): Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.
 - [`ruff-format`](../plugins/ruff-format): Rewrites Python with Ruff's safe fixes and formatter once per batch of tool calls and at git pre-commit, only when a Ruff config governs the file, using the consuming repo's own Ruff config; lint findings are reported at commit.
@@ -107,7 +107,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Security
 
-- [`guardrails`](../plugins/guardrails): Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, cross-domain paths, PR-fix lane requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, root or out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.
+- [`guardrails`](../plugins/guardrails): Sixteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, cd && git, root/out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets, paths, CLI flags, skill refs and removed paths.
 
 ## Workflow
 
