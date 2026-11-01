@@ -30,12 +30,20 @@ one line per check, detail lines indented under it:
                       or more Bash calls had every one fail with no output; each
                       means the run measured a session that never ran, or ran with
                       no working shell. A failed call that printed output ran in a
-                      working shell, whatever its exit code
+                      working shell, whatever its exit code. A 0-turn run whose
+                      trace holds assistant messages ran in a forked session (a
+                      slash-invoked `context: fork` skill) and passes
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
-                      it then left the score unchanged. A with-arm denial aimed
-                      at or under the plugin's directory (suite.root or a
+                      it then left the score unchanged, or when every run of
+                      its case in both arms was denied the same named call
+                      other than Skill (tool and target) with no absolute path
+                      at, under or above the plugin's directory, since the
+                      environment then denied it with or without the plugin,
+                      such as a user-scope read of ~/.claude. Otherwise a
+                      with-arm denial aimed at or under the plugin's
+                      directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
                       no absolute path or no known plugin directory, is
                       a FAIL; in an invocation-probe case a denial of a named
@@ -127,6 +135,7 @@ LINE_TYPE, LINE_SUBTYPE = "type", "subtype"
 TRACE_INIT = ("system", "init")  # type, subtype of the line carrying the model
 TRACE_MODEL = "model"
 TRACE_RESULT = "result"  # type of the closing line
+TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
@@ -144,6 +153,10 @@ EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's 
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
+# A Glob with no path searches where its pattern points: the guard checks the
+# directory the pattern's literal part names, cut at its first glob character.
+GLOB_TOOL, GLOB_PATTERN = "Glob", "pattern"
+GLOB_CHAR = re.compile(r"[*?\[{]")
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 # A word the shell would expand, or a path packed after another character (/a,/b).
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
@@ -632,10 +645,17 @@ def check_errors(runs, root):
     return PASS, "no run errored or aborted", [], None
 
 
+def assistant_messages(run):
+    """How many assistant messages the run's trace holds, 0 with no trace."""
+    return sum(1 for line in run.trace or [] if line.get(LINE_TYPE) == TRACE_ASSISTANT)
+
+
 def check_started(runs):
     """A run at 0 turns that check_errors passes, or one whose trace shows the
-    sandbox failing to start, scored a session that never ran or had no shell."""
-    details, failed = [], set()
+    sandbox failing to start, scored a session that never ran or had no shell.
+    A 0-turn run whose trace holds assistant messages ran in a forked session
+    (a slash-invoked `context: fork` skill), which the turn count leaves out."""
+    details, failed, forked = [], set(), []
     for r in runs:
         if (
             is_number(r.row.get(RUN_TURNS))
@@ -644,8 +664,15 @@ def check_started(runs):
             and not r.row.get(RUN_ABORTED)
             and not trace_errored(r)
         ):
-            details.append("%s: 0 turns and no run error" % r.where)
-            failed.add(r)
+            messages = assistant_messages(r)
+            if messages:
+                forked.append(
+                    "%s: 0 turns, and its trace holds %s (%s)"
+                    % (r.where, plural(messages, "assistant message"), r.trace_path)
+                )
+            else:
+                details.append("%s: 0 turns and no run error" % r.where)
+                failed.add(r)
         reason = shell_failure(r)
         if reason:
             details.append("%s: %s (%s)" % (r.where, reason, r.trace_path))
@@ -655,11 +682,17 @@ def check_started(runs):
         return (
             FAIL,
             "%s never started or had no sandbox" % count,
-            details,
+            details + forked,
             "harness failure: %s never started or had no sandbox, so the score"
             " measures the harness, not the skill" % count,
         )
-    return PASS, "every run took a turn and no trace shows a sandbox failure", [], None
+    summary = "every run took a turn and no trace shows a sandbox failure"
+    if forked:
+        summary = (
+            "every run ran and no trace shows a sandbox failure; %s at 0 turns ran"
+            " in a forked session its trace holds" % plural(len(forked), "run")
+        )
+    return PASS, summary, forked, None
 
 
 def check_rows(cases, runs_wanted, arms):
@@ -726,10 +759,21 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
+def glob_root(pattern):
+    """The directory a Glob pattern names before its first glob character: the
+    pattern itself when it holds none, else the directory its literal part ends
+    in, so /p/plug* gives /p, an ancestor of /p/plugin. None for a non-string."""
+    if not isinstance(pattern, str):
+        return None
+    match = GLOB_CHAR.search(pattern)
+    return pattern if match is None else os.path.dirname(pattern[: match.start()])
+
+
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
-    the paths it targets: a Bash call's rooted arguments, else the target path or
-    None, the tool's name, the tool_use_id)."""
+    the paths it targets: a Bash call's rooted arguments, else the target path, a
+    path-less Glob's pattern root (glob_root) or None, the tool's name, the
+    tool_use_id, the (tool, target) pair that names the same call in another run)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -751,17 +795,19 @@ def denials(run):
         name, tool_input = call or calls.get(use_id, (None, {}))
         path = next((tool_input[k] for k in TARGET_KEYS if k in tool_input), None)
         target = path if path is not None else next(iter(tool_input.values()), "")
-        paths = (
-            bash_paths(tool_input.get(BASH_COMMAND))
-            if name == BASH_TOOL
-            else (path if isinstance(path, str) else None,)
-        )
+        if name == BASH_TOOL:
+            paths = bash_paths(tool_input.get(BASH_COMMAND))
+        elif path is None and name == GLOB_TOOL:
+            paths = (glob_root(tool_input.get(GLOB_PATTERN)),)
+        else:
+            paths = (path if isinstance(path, str) else None,)
         out.append(
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
                 paths,
                 name,
                 use_id,
+                (name, json.dumps(target)),
             )
         )
     return out
@@ -813,7 +859,7 @@ def same_as_clean(run, found, runs, roots):
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
-        inside(path, roots) for _, paths, _, _ in found[run] for path in paths
+        inside(path, roots) for _, paths, _, _, _ in found[run] for path in paths
     ):
         return False
     siblings = [
@@ -830,6 +876,27 @@ def same_as_clean(run, found, runs, roots):
     )
 
 
+def in_every_run(run, found, runs, roots):
+    """True when every denial in run names a call that every run of its case, in
+    both arms, was also denied, and none is aimed at, under or above the plugin's
+    directory. The without-arm runs lack the plugin, so a call denied in every
+    run of both arms is the environment's, such as a user-scope read a skill's
+    contract asks for, and cannot move the delta. Each run of the case needs a
+    readable trace. A Skill denial, or one naming no tool, never qualifies: in
+    the with-arm it may have kept the plugin's own skill from loading."""
+    case_runs = [r for r in runs if r.case is run.case]
+    both_arms = {r.arm for r in case_runs} == set(ARMS)
+    if not both_arms or any(r not in found for r in case_runs):
+        return False
+    if any(
+        name in (None, SKILL_TOOL) or any(rooted(p) and inside(p, roots) for p in paths)
+        for _, paths, name, _, _ in found[run]
+    ):
+        return False
+    held = [{key for _, _, _, _, key in found[r]} for r in case_runs]
+    return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -842,13 +909,13 @@ def probe_denial(run, found, runs, root):
     has denial-free with-arm runs and every one of them held too. A denial naming
     no tool may have been the Skill call."""
     if not is_probe(run.case, root) or not all(
-        name is not None and name != SKILL_TOOL for _, _, name, _ in found[run]
+        name is not None and name != SKILL_TOOL for _, _, name, _, _ in found[run]
     ):
         return False
     if graded_call_made(run, root):
         at, first = graded_call_at(run, root)
         return first is not None and all(
-            at.get(use_id, -1) > first for _, _, _, use_id in found[run]
+            at.get(use_id, -1) > first for _, _, _, use_id, _ in found[run]
         )
     if skill_graders(run.case, root)[0]:
         return False
@@ -882,10 +949,12 @@ def check_denials(runs, roots, root):
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, runs, root) or same_as_clean(r, found, runs, roots)
+        if probe_denial(r, found, runs, root)
+        or same_as_clean(r, found, runs, roots)
+        or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _ in found[r]]
+    details = [line for r in denied for line, _, _, _, _ in found[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
@@ -899,7 +968,9 @@ def check_denials(runs, roots, root):
             " its graded Skill call, or holding as every denial-free run of its"
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
-            " plugin): %s" % ", ".join(warned_cases)
+            " plugin; or a run denied only named calls other than Skill that every"
+            " run of its case was denied in both arms, none inside the plugin): %s"
+            % ", ".join(warned_cases)
         )
     if failed:
         reason = "%s in the traces" % plural(

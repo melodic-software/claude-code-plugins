@@ -25,7 +25,7 @@ The two reads are deliberately not identical:
 | | Drafting (config-resolution.md) | Enforcement (this seam) |
 |---|---|---|
 | Reader | the model | a POSIX sh hook (`[[ =~ ]]` / `grep -E`) |
-| Layers read | user-global, team, local, per-key merge | **team-tracked only**: `docs/conventions/source-control.yaml`, then for one release the neutral file and `.claude/source-control.md` |
+| Layers read | user-global, team, local, per-key merge | **team-tracked**: `docs/conventions/source-control.yaml`, then for one release the neutral file and `.claude/source-control.md`; for `subject_pattern` only, and only where those set none, the git-ignored personal `docs/conventions/source-control.local.yaml`, never merged |
 | Fallthrough | CLAUDE.md/rules/hook, then bundled CC default | **none**, so unresolved means no enforcement |
 | Dialect | any (the model interprets PCRE) | POSIX ERE only (normalized/rejected) |
 
@@ -50,6 +50,17 @@ name the file to change.
       when it carries the key.
    3. For one release, the **first non-empty body line** under the `## <key>` H2 in
       `.claude/source-control.md`.
+
+   4. **The personal layer**, for `subject_pattern` only: `docs/conventions/source-control.local.yaml`,
+      [ADR 0075](../../adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md)'s
+      `<home>/<concern>.local.<ext>`, read only when rungs 1 to 3 supply no
+      `subject_pattern`. It is read only while git ignores it (`git check-ignore`: a
+      `.gitignore` rule, `.git/info/exclude` or `core.excludesFile`), and git never reports a
+      tracked file ignored. A file present but not ignored disables enforcement with a diagnostic. It
+      fails closed on the same checks as the team file. `pr_title_pattern` never reads it, a
+      deferral included. `--layer` names it when it supplied the pattern. Drafting does not read
+      it: an operator who wants `/source-control:commit` to draft to the same pattern also sets
+      `## subject_pattern` in the drafting overlay, `.claude/source-control.local.md`.
 
    The legacy surfaces, and their fail-closed checks, are read only for a key the YAML lacks: a
    broken `convention_source` pointer never disables a key the YAML supplies. Each key holds exactly
@@ -119,8 +130,8 @@ Contract points:
 
   **Rung 2 requires the file to be git-TRACKED, a policy floor both surfaces enforce identically.**
   An untracked or gitignored file at the default path is a generated/local artifact, not team
-  convention; honoring it would let a personal/local file drive the gate (the same floor the team-only
-  reads protect) and would let drafting diverge from enforcement. Enforcement checks this with
+  convention; honoring it would let a personal/local file pose as team convention and drive the gate
+  ahead of every team pattern, and would let drafting diverge from enforcement. Enforcement checks this with
   `git ls-files --error-unmatch` (git-absent or untracked → skip rung 2, fall through to the markdown
   H2); the drafting read (`config-resolution.md`) applies the identical requirement, so both surfaces
   resolve the same file. Once a neutral file resolves via rung 1 or 2 it is authoritative and the
@@ -174,18 +185,24 @@ purposes without it.
 
 ## Two governing contracts
 
-- **Unresolved = no enforcement.** No team-tracked pattern (or a non-enforceable one) → the gate does
-  nothing. A gate never blocks against the bundled Conventional Commits default: CC is not a
+- **Unresolved = no enforcement.** No team-tracked pattern and no personal one (or a non-enforceable
+  one) → the gate does nothing. A gate never blocks against the bundled Conventional Commits default: CC is not a
   lane-1-eligible default (see [`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane
   convention posture"), so gating an un-opted-in repo against it would impose a convention the
-  consumer never chose. **Enforcement strength = strength of explicit team config.**
-- **Policy-floor via team-only reads.** Enforcement reads the **tracked** team layer only; the
-  user-global and gitignored `*.local.md` overlays are drafting inputs a blocking gate never
-  consults. This is the floor *by construction*: a personal/gitignored file cannot weaken what the
-  gate enforces because the gate never looks at it, and "is regex A stricter than B" is undecidable,
-  so no merge could honor a "tighten-only" rule anyway. A user wanting a stricter personal gate
-  tightens team policy via PR; a looser personal preference is a drafting choice, never an
-  enforcement bypass.
+  consumer never chose. **Enforcement strength = strength of explicit config: the team's, else the
+  operator's own.**
+- **Policy floor: the team layer, then a fallback-only personal layer.** Enforcement reads the
+  **tracked** team layer; the user-global and gitignored `*.local.md` overlays are drafting inputs a
+  blocking gate never consults. The one personal input is `subject_pattern` in the git-ignored
+  `docs/conventions/source-control.local.yaml`, and it applies **only where the team layer sets no
+  `subject_pattern`**. It is never merged with a team pattern, because "is regex A stricter than B"
+  is undecidable, so no merge could honor a "tighten-only" rule. Adding enforcement where the team
+  sets none is tightening, which ADR 0075 lets a personal value do on a policy floor. It cannot
+  weaken a team pattern: a team pattern always wins, and a broken or non-ERE team value disables
+  enforcement rather than falling back to the personal one. A git hook cannot read `userConfig`, so
+  the personal file is the source. A user who wants a stricter gate where the team already tracks a
+  pattern tightens team policy through a PR; a looser personal preference is a drafting choice,
+  never an enforcement bypass.
 
 ## Consumers
 

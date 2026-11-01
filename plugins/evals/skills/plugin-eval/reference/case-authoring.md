@@ -11,6 +11,7 @@ a run, because each one costs a paid pass to discover afterwards.
 - [Graders](#graders)
 - [Mocks](#mocks)
 - [Frontmatter bounds](#frontmatter-bounds)
+- [Calibration samples](#calibration-samples)
 - [Common mistakes](#common-mistakes)
 
 ## Layout
@@ -154,6 +155,22 @@ tools.
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
+
+## Calibration samples
+
+What the hub's "Calibrating a judge" commands do with a case's `samples/<grader>.json`:
+
+- `build` writes one case per sample into an empty plugin: the source case's prompt goes out
+  unchanged, and an appended system prompt presents the sample as fixed test material for the agent
+  to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades
+  that sample as the answer to that question. No generated file carries the label; a must-pass and
+  a must-fail case differ only in the sample text.
+- `build` skips a grader that judges a file or mock calls, and prints one line for each empty or
+  whitespace-only sample it skips: Claude Code answers an empty reply with an injected user turn,
+  so it cannot be reproduced, and an empty answer is a deterministic failure that needs no judge.
+- The appended prompt does not reach a `focus: trace` judge.
+- `score`'s agreement leaves out a run whose reply was not the sample, and one with neither a kept
+  trace nor judge evidence (also reported unchecked).
 
 ## Common mistakes
 
