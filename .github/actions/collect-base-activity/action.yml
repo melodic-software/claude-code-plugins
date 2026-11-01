@@ -422,7 +422,9 @@ runs:
         # (https://code.claude.com/docs/en/permissions#read-only-commands).
         # A skill that edits reads files with Read, Grep and Glob, so these
         # deny every command that can print a file or the environment,
-        # read-only or a text filter.
+        # read-only or a text filter. Last swept: Claude Code 2.1.316 on
+        # 2026-11-01, no command found; how and when to sweep, and where the
+        # result goes, is docs/conventions/pr-pipeline/README.md#claude-code-cli-releases.
         shell_denied=("Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(find *)" "Bash(env *)" "Bash(printenv *)" "Bash(strings *)" "Bash(od *)" "Bash(xxd *)" "Bash(diff *)" "Bash(sed *)" "Bash(awk *)" "Bash(sort *)" "Bash(cut *)" "Bash(tr *)" "Bash(base64 *)" "Bash(nl *)" "Bash(tac *)" "Bash(rev *)" "Bash(uniq *)" "Bash(fold *)" "Bash(column *)" "Bash(jq *)" "Bash(xargs *)" "Bash(more *)" "Bash(less *)" "Bash(wc *)")
         # run-claude-cli: the CLI runs with --restricted in the checkout and
         # reads nothing outside it, so everything the skill reads is staged

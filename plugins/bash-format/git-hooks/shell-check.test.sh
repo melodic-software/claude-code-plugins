@@ -179,6 +179,17 @@ printf '%s\nunused_variable=1\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "a warning-level finding (SC2034) blocks" "1||a.sh:2: warning: unused_variable appears unused. Verify use (or export if used externally). [SC2034]
 $HINT" "$(check "$REPO")"
+# A sed that crashes while it turns ShellCheck's output into findings leaves
+# none to block on, so it must fail the commit itself. The shim fails only the
+# call whose arguments hold the contract expression.
+mkdir -p "$WORK/fail-sed"
+printf '#!/bin/sh\ncase " $* " in\n*"\\1:\\2: \\3"*) echo "sed: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+  "$(command -v sed)" >"$WORK/fail-sed/sed"
+chmod +x "$WORK/fail-sed/sed"
+out="$(cd "$REPO" && PATH="$WORK/fail-sed:$PATH" bash "$CHECK" 2>&1)"
+expect "a sed that fails while reading the ShellCheck findings fails the commit" \
+  "1|sed: fatal error: internal error
+shell-check.sh: sed exited 2 while reading the shellcheck findings, so this change was not fully checked; fix that failure, then commit again" "$?|$out"
 
 new_repo
 printf '%s\necho $1\n' "$SHEBANG" >"$REPO/a.sh"

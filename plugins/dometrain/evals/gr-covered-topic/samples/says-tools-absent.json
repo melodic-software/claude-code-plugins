@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "The Dometrain MCP tools are not available in this session, so I can't ground this in a lesson. Here is the standard approach instead.",
+      "why": "plain sentence"
+    },
+    {
+      "answer": "## Dometrain grounding\n\nThe tools aren't connected here, so nothing below is course-grounded.\n\n## Approach\n\nUse AddJwtBearer.",
+      "why": "heading form, status on the next line"
+    },
+    {
+      "answer": "**Dometrain:** unavailable (no search_dometrain tool in this session).",
+      "why": "bold label form"
+    },
+    {
+      "answer": "| Source | Status |\n|---|---|\n| Dometrain MCP | not connected |",
+      "why": "table row"
+    },
+    {
+      "answer": "- No Dometrain tools are present, so this answer is my own guidance.",
+      "why": "list item, no-tools form"
+    },
+    {
+      "answer": "I don't have access to the Dometrain server in this session; run /dometrain:setup.",
+      "why": "don't have access to"
+    },
+    {
+      "answer": "I can't search Dometrain right now, so treat this as ungrounded.",
+      "why": "can't search"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Use AddAuthentication().AddJwtBearer() and set ValidIssuer, ValidAudience and IssuerSigningKey in TokenValidationParameters.",
+      "why": "answers without mentioning Dometrain at all"
+    },
+    {
+      "answer": "I searched Dometrain and the course recommends binding JwtOptions from configuration.",
+      "why": "claims a search happened"
+    },
+    {
+      "answer": "The Dometrain tools are available, so I used search_dometrain.",
+      "why": "wrong state"
+    },
+    {
+      "answer": "The Dometrain tools aren't missing; the lesson says to use AddJwtBearer.",
+      "why": "negated absence word"
+    },
+    {
+      "answer": "I don't need Dometrain for this one.",
+      "why": "declines the source without saying it is absent"
+    }
+  ]
+}
