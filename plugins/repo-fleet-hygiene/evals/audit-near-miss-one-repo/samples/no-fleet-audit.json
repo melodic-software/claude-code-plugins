@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-hygiene:clean",
+            "args": "caches"
+          }
+        }
+      ],
+      "why": "the per-repository owner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "codebase-health:audit"
+          }
+        }
+      ],
+      "why": "another plugin's audit skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-fleet-hygiene:audit",
+            "args": "."
+          }
+        }
+      ],
+      "why": "routes one repo to the fleet audit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ]
+}

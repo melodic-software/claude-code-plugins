@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | P1 | info | .claude/settings.json | `Bash(python3 *)` | exempt: CLAUDE.md |"
+    },
+    {
+      "answer": "Bash(python3 *) is still listed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "No fragile permission grants found.",
+      "why": "row dropped"
+    }
+  ]
+}

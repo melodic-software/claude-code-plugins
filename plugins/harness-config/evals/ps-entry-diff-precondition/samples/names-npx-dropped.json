@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "dropped: Bash(npx *) (package-manager-run)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Bash(python3 *) is dropped.",
+      "why": "npx missing"
+    }
+  ]
+}

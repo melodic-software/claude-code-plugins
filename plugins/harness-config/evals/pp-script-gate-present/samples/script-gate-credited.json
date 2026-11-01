@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | P7 destructive-action confirmation | wipe-cache | PRESENT | scripts/wipe-cache.sh:4 `read -r -p \"Delete everything under ...? [y/N]\"` exits unless the answer is y. No addition needed. |"
+    },
+    {
+      "answer": "**No, wipe-cache doesn't need a confirmation step.** The script it runs already asks before deleting anything. The skill that does need one is **purge-builds**, which deletes remote branches without asking.\n\n**Why wipe-cache is fine:** the skill only says to run `scripts/wipe-cache.sh`, and that script asks `[y/N]` before deleting (`scripts/wipe-cache.sh:4-5`). Anything other than `y` stops it. When Claude runs the script there's no one to type an answer, so the prompt gets no input and the script exits before the `rm`.\n\nOne small gap you might close, though it isn't a finding: in that case the script fails without showing the question, so Claude may try again with `echo y | …`, which gets past the prompt. The cache can be rebuilt, so the risk is low. If you want to close it, add a line to the skill saying: if the script asks for confirmation, pass the question to the user and never pipe in an answer.\n\n| # | Posture | Component | Verdict | Proposed addition or pointer |\n|---|---------|-----------|---------|------------------------------|\n| 1 | P7 Confirm before destructive actions | wipe-cache | PRESENT | The script's prompt, `scripts/wipe-cache.sh:4-5` |\n| 2 | P7 Confirm before destructive actions | purge-builds | MISSING | Diff below |\n| 3 | P4 Read the code before answering | lint-report | PRESENT | Step 1 runs ruff before any claim is made |\n| 4 | P6 Stopping points | lint-report | NOT-APPLICABLE | It only reports and ends by asking you (step 3). The verifier changed this from PRESENT. |\n| 5 | P7 Confirm before destructive actions | lint-report | NOT-APPLICABLE | It doesn't delete or change anything |\n\n**purge-builds** runs `rm -rf build/ dist/ .venv/` and then `git push origin --delete` on old `release/*` branches. Nothing asks first, and the branch deletion changes the shared remote. Proposed addition, based on the guide's \"Balancing autonomy and safety\" section:\n\n```diff\n # Purge builds\n \n+Before deleting anything, list the directories and the `release/*` branches you would remove, and\n+ask the user to confirm. Ask again, separately, before deleting remote branches, because that\n+changes the shared remote. If a deletion fails, report it. Do not force it or work around it.\n+\n 1. Run `rm -rf build/ dist/ .venv/` from the repository root.\n```\n\n**What the audit covered:**\n- **Skills checked:** all 3 in `.claude/skills/`. The project has no `.claude/settings*.json` and no hooks.\n- **Couldn't check:** your user-level Claude config directory wasn't readable in this session. So I can't rule out a user-level permission rule that already blocks `git push --delete`.\n- **Guide:** the prompting best-practices page, fetched today.\n- **Second opinion:** a separate fresh-context agent checked every verdict. It agreed on 1, 2, 3 and 5, and changed 4 from PRESENT to NOT-APPLICABLE.\n\n**The report wasn't saved.** Saving it to the plugin's data folder (`.../harness-config-inline/audit-prompting-postures/local/6f0dd35d2fc4/6f0dd35d/last-audit.md`) was blocked by this session's permissions, so this message is the only copy. I didn't edit any files; the purge-builds change is yours to apply.",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 1 | P7 | wipe-cache | MISSING | ```diff\n+ Ask before running the script.\n``` |",
+      "why": "misses the script gate"
+    },
+    {
+      "answer": "wipe-cache runs rm -rf; add a confirmation.",
+      "why": "no script"
+    },
+    {
+      "answer": "| # | Posture | Component | Verdict | Evidence |\n|---|---|---|---|---|\n| 1 | P7 Confirm before destructive actions | wipe-cache | PRESENT | scripts/wipe-cache.sh:4 asks `[y/N]` before it deletes |\n\nEven so, add a confirmation step to the skill itself: this is a required fix, because the skill should not rely on the script.\n\n```diff\n+Ask the user before running scripts/wipe-cache.sh.\n```",
+      "why": "credits the script gate, then recommends a skill confirmation step as a needed fix"
+    }
+  ]
+}

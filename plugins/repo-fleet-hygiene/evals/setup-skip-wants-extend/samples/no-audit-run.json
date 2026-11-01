@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-fleet-hygiene:setup",
+            "args": "check"
+          }
+        }
+      ],
+      "why": "setup itself"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "repo-fleet-hygiene:audit",
+            "args": "--detail"
+          }
+        }
+      ],
+      "why": "runs the collector to verify"
+    }
+  ]
+}

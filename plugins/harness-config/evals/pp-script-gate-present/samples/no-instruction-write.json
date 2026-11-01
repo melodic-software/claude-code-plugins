@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/x/last-audit.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "persisted report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/purge-builds/SKILL.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites a skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/CLAUDE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "rewrites CLAUDE.md"
+    }
+  ]
+}

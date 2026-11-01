@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/automode-block-lint.sh\"",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh\" < /ws/.work/answers.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the documented order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh\" < /ws/.work/answers.txt",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-state/scripts/automode-block-lint.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "drafts first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh\" < /ws/.work/answers.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no lint"
+    }
+  ]
+}
