@@ -6808,10 +6808,12 @@ test("pr-unblock.yml: a refused fix-ci collection runs apply-patch, whose select
 });
 
 // #8954, fix-ci's half: the run job binds the head it works on to the head
-// the caller gated, before any head code.
-test("pr-run-activity-read.yml: a trigger gate that read another head than the caller's fails the run before the head checkout", (t) => {
+// the caller gated, before any head code. A moved head is a supersede: the
+// run ends as a trigger decline's skip, not red.
+test("pr-run-activity-read.yml: a trigger gate that read another head than the caller's supersedes the run as a skip before the head checkout", (t) => {
   const steps = runSteps();
   const check = steps.find((step) => step.name === "Assert the gated head is the caller's");
+  assert.equal(check.id, "gated-head");
   assert.ok(steps.indexOf(check) > steps.findIndex((step) => step.id === "gate"));
   assert.ok(steps.indexOf(check) < steps.findIndex((step) => step.name === "Check out the PR head"));
   assert.deepEqual(check.env, { CALLER_HEAD: "${{ inputs.head-sha }}", HEAD_SHA: "${{ steps.gate.outputs.head-sha }}" });
@@ -6821,10 +6823,38 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   assert.equal(runs("false", TRUSTED), false);
   const root = tempDir("gated-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const moved = runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
-  assert.equal(moved.status, 1);
-  assert.match(moved.stdout, /^::error::the PR head the trigger gate read is not the head the caller gated/m);
-  assert.equal(runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: TRUSTED }).status, 0);
+  const run = (env) => {
+    const output = join(root, `output-${env.HEAD_SHA}`);
+    writeFileSync(output, "");
+    const result = runStep(check, root, { ...env, GITHUB_OUTPUT: output });
+    return { ...result, outputs: outputLines(output) };
+  };
+  const moved = run({ CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
+  assert.equal(moved.status, 0, moved.stdout);
+  assert.match(moved.stdout, /^::notice::superseded: the PR head moved; a later dispatch reads the new head$/m);
+  assert.doesNotMatch(moved.stdout, /::error::/);
+  assert.deepEqual(moved.outputs, { superseded: "true" });
+  const same = run({ CALLER_HEAD: TRUSTED, HEAD_SHA: TRUSTED });
+  assert.equal(same.status, 0, same.stdout);
+  assert.deepEqual(same.outputs, {});
+  // A supersede skips every step that needs the gate to proceed: trusted-base,
+  // and through it config, go and every head step.
+  const trustedBase = steps.find((step) => step.id === "trusted-base");
+  const gated = (superseded) => atStep(trustedBase.if, { "steps.gate.outputs.proceed": "true", "steps.gated-head.outputs.superseded": superseded });
+  assert.equal(gated("true"), false);
+  assert.equal(gated(""), true);
+  assert.equal(steps.find((step) => step.id === "config").if, "steps.trusted-base.outcome == 'success'");
+  // The run's head-sha stays empty, so the report job takes the trigger
+  // decline's empty-head path (neutral not-assessed, or no post), never failure.
+  const headSha = workflow("pr-run-activity-read.yml").jobs.run.outputs["head-sha"];
+  const runHead = (superseded) => evaluate(headSha, { "steps.gate.outputs.head-sha": OTHER, "steps.gated-head.outputs.superseded": superseded });
+  assert.equal(runHead("true"), "");
+  assert.equal(runHead(""), OTHER);
+  const head = chooseHead(t, { RUN_HEAD: runHead("true"), CALLER_HEAD: TRUSTED, API_HEAD: OTHER });
+  assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false", "not-run-reason": "not-assessed" });
+  const report = posted(head, { runResult: "success" });
+  assert.deepEqual([report.head_sha, report.conclusion, report.output.title], [TRUSTED, "neutral", "Skipped: not-assessed"]);
+  assert.deepEqual(chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, POST_DECLINE: "false" }).outputs, { post: "true", sha: "", forged: "false" });
   // Every fix-ci call passes the head fix-ci-context gated.
   const { jobs } = workflow("pr-unblock.yml");
   for (const id of FIX_CI_CALLS) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
