@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /sb/config/plugins/repo-hygiene/skills/clean/scripts/git-stash-audit.sh",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "audit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git stash list",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "hand-rolled list"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ]
+}
