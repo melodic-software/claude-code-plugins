@@ -1,0 +1,135 @@
+{
+  "skill": "verification:measure",
+  "plugin": "verification",
+  "skill_dir": "plugins/verification/skills/measure",
+  "ranking_note": "Authored from the before descriptions at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are verification:confirm (proving a change achieved its intended outcome after a build, test and lint prerequisite), performance:snapshot (qualifying a noisy host and capturing interleaved before/after snapshots against a performance goal), toolchain:ratchet (freezing a lint, suppression or telemetry count as a CI ceiling), testing:plan (which tests a change needs and where coverage gaps sit) and architecture:improve (scanning for shallow modules and seam leaks, then a design interview). measure owns checking a measurable-improvement claim against a baseline captured before the change: performance (wall time, memory, allocations, throughput, latency) or code metrics (complexity, coverage, coupling), each with a baseline phase and a compare phase, and an honest cannot-quantify when no baseline exists.",
+  "competitors": [
+    "verification:confirm",
+    "performance:snapshot",
+    "toolchain:ratchet",
+    "testing:plan",
+    "architecture:improve"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I rewrite the JSON parser, record its current parse time and memory so we can compare afterwards."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I swapped the list for a dictionary in the lookup path. Is the endpoint quicker now than it was this morning?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We split the giant ReportBuilder method. Show me whether cyclomatic complexity dropped versus the numbers from before the split."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put a number on the speedup from the batching change, using the figures we took before we started."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Capture allocations and throughput for the image resize pipeline now; I'm about to optimize it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Did coverage on the payments package go up after I added those tests? Compare to the earlier run."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My PR says p95 latency improved by a third. Back that claim up with before and after numbers or tell me it can't be shown."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Record coupling between the order and inventory modules today so I can tell later whether the decoupling work helped."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Now that the caching change is in, run the comparison against the baseline we saved during planning."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the startup any less memory hungry since we dropped the reflection scan? Give me the delta."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Confirm the new password reset flow does what the spec describes and that nothing else broke."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This build agent's timings swing wildly between runs. Can we even trust a wall-clock A/B here, and if not what counter should we use?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Freeze our current count of eslint-disable comments in CI so it can only go down from here."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which files in this diff lack tests, and which test types should I write for them?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the codebase for shallow modules and leaky seams and suggest where to deepen them."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Did the bug fix for the double-charge actually work? Verify it against the original report."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run interleaved before and after arms of the benchmark on this host for our latency goal, with the host qualified first."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a CI ceiling on the number of nullable warnings so new code can't raise it."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find the places in our code that would be easier to test if the module interfaces were designed differently."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rank the coverage gaps in this change by regression risk so I know what to test first."
+    }
+  ]
+}
