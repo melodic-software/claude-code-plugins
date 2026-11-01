@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" ratchet_offer=true",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "documented form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default ratchet_offer",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "chosen value passed as a default"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

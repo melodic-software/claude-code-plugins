@@ -92,7 +92,11 @@
 #     when the confirmed restatement has decisions), and its Intent section
 #     holds every line of the export's Intent: the intent paragraph and each
 #     live ask, note, own answer and note typed on a choice, compared with
-#     whitespace runs made one space. Needs Python 3, as the page does
+#     whitespace runs made one space. Its TLDR and Acceptance criteria hold
+#     every line the export writes there, and its Decisions hold each export
+#     line as many times as the export writes it and no other line naming a
+#     Q<N>, so a decision repeated, put back in an earlier form or contradicted
+#     by a second line naming its Q<N> fails. Needs Python 3, as the page does
 #   - no Step-exit checkbox (`- [ ] Step <N> exit ...`) is unchecked; a skipped
 #     exit step is ticked with `SKIPPED: <reason>`
 #   - every row of the ledger's `## Assumption sweep` section,
@@ -315,9 +319,9 @@ heading_texts() {
   ' "$3"
 }
 
-# Print each non-blank, unfenced line of the section whose heading text is
-# `name` (lowercase) between lines `lo` and `hi` (both exclusive), with its
-# whitespace runs made one space, as brief_fields reads a line.
+# Print each non-blank, unfenced line of the section whose whole heading text
+# matches the awk regex `name` (lowercase) between lines `lo` and `hi` (both
+# exclusive), with its whitespace runs made one space, as brief_fields reads a line.
 section_lines() {
   awk -v name="$1" -v lo="$2" -v hi="$3" "$fence_awk"'
     NR <= lo || NR >= hi { next }
@@ -334,8 +338,56 @@ section_lines() {
       sub(/^#+ /, "", section)
       next
     }
-    section == name && text != "" { print text }
+    section ~ ("^(" name ")$") && text != "" { print text }
   ' "$4"
+}
+
+# Name each line of the page export's section `name` (a section_lines regex) that
+# the Brief's own section lacks, as the section `label`. Reads the --surface
+# globals: the export in $expected_brief up to $export_hi, the Brief's bounds.
+need_export_lines() {
+  local have want
+  have=$'\n'"$(section_lines "$1" "$brief_lo" "$brief_hi" "$brief")"$'\n'
+  while IFS= read -r want; do
+    [[ -z "$want" || "$have" == *$'\n'"$want"$'\n'* ]] ||
+      proc_problem "Brief's $2 is missing a line the page export writes: $want"
+  done <<<"$(section_lines "$1" 1 "$export_hi" "$expected_brief")"
+}
+
+# Print how many lines of $2 equal $1.
+count_line() {
+  local n=0 line
+  while IFS= read -r line; do
+    [[ "$line" != "$1" ]] || n=$((n + 1))
+  done <<<"$2"
+  printf '%s' "$n"
+}
+
+# The Brief's Decisions against the page export's: each export line appears as
+# often as the export writes it, and a Brief line naming a Q<N> is one of the
+# export's lines. A decision duplicated, put back in an earlier form, or
+# contradicted by a second line naming its Q<N> fails.
+check_decisions() {
+  local want have want_n have_n seen=$'\n' export_lines brief_lines
+  local qn_re='(^|[^A-Za-z0-9])[Qq][1-9][0-9]*([^0-9A-Za-z_]|$)'
+  export_lines="$(section_lines decisions 1 "$export_hi" "$expected_brief")"
+  brief_lines="$(section_lines decisions "$brief_lo" "$brief_hi" "$brief")"
+  while IFS= read -r want; do
+    [[ -n "$want" && "$seen" != *$'\n'"$want"$'\n'* ]] || continue
+    seen="$seen$want"$'\n'
+    want_n="$(count_line "$want" "$export_lines")"
+    have_n="$(count_line "$want" "$brief_lines")"
+    if [[ "$have_n" -lt "$want_n" ]]; then
+      proc_problem "Brief's Decisions is missing a line the page export writes: $want"
+    elif [[ "$have_n" -gt "$want_n" ]]; then
+      proc_problem "Brief's Decisions has a line $have_n times that the page export writes $want_n time(s): $want"
+    fi
+  done <<<"$export_lines"
+  while IFS= read -r have; do
+    [[ -n "$have" && "$have" =~ $qn_re ]] || continue
+    [[ $'\n'"$export_lines"$'\n' == *$'\n'"$have"$'\n'* ]] ||
+      proc_problem "Brief's Decisions has a line the page export does not write (a decision in another form, or a second line for it): $have"
+  done <<<"$brief_lines"
 }
 
 # Set `trimmed` to $1 without its leading and trailing whitespace (no subshell).
@@ -1035,11 +1087,10 @@ if [[ "$procedure_on" -eq 1 ]]; then
         [[ -z "$want" || "$brief_headings" == *$'\n'"$want"$'\n'* ]] ||
           proc_problems="${proc_problems}Brief is missing the section '$want' that the page export writes"$'\n'
       done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
-      brief_intent=$'\n'"$(section_lines intent "$brief_lo" "$brief_hi" "$brief")"$'\n'
-      while IFS= read -r want; do
-        [[ -z "$want" || "$brief_intent" == *$'\n'"$want"$'\n'* ]] ||
-          proc_problems="${proc_problems}Brief's Intent is missing a line the page export writes: $want"$'\n'
-      done <<<"$(section_lines intent 1 "$export_hi" "$expected_brief")"
+      need_export_lines intent Intent
+      need_export_lines 'tl;?dr' TLDR
+      need_export_lines 'acceptance criteria' 'Acceptance criteria'
+      check_decisions
     fi
   fi
 

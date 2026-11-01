@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- Touched features: touched features not matched (app-control not installed)",
+      "why": "the fallback line"
+    },
+    {
+      "answer": "## Next\n\n- `touched features not matched (app-control not installed)`: install the app-control plugin.",
+      "why": "the fallback line in code formatting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Next\n\n- control-shop's cart/total may no longer match the app: install app-control, then /app-control:map refresh cart/total.",
+      "why": "matched the feature itself instead of the fallback line"
+    },
+    {
+      "answer": "Touched features not matched.",
+      "why": "no reason given"
+    }
+  ]
+}

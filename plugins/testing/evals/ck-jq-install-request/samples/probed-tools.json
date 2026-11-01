@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which python3"
+          }
+        }
+      ],
+      "why": "probed a different tool"
+    }
+  ]
+}

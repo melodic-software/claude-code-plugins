@@ -1,15 +1,14 @@
 # E2E run configuration
 
 The consumer config for `/testing:run-e2e`: how a run captures evidence, whether the browser is
-visible, who drives the run, and whether it drives an app that is already running. The keys live on
-two surfaces:
+visible, who drives, and whether it drives an app already running. The keys live on two surfaces:
 
 - `recording` and `browser_mode` stay on `.claude/testing/e2e.md`. That surface's identity is its
   path relative to `.claude/`, `testing/e2e.md`, so its layers are `~/.claude/testing/e2e.md`
   (user-global), `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.md` (team), and
   `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (local overlay).
-- `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing plugin's YAML config,
-  the file the scan settings share: team `docs/conventions/testing.yaml` (schema
+- `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing
+  plugin's YAML config, the file the scan settings share: team `docs/conventions/testing.yaml` (schema
   [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
   `~/.claude/testing.yaml`, and local overlay `.claude/testing.local.yaml`; per user, the plugin
   `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
@@ -20,10 +19,9 @@ goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, wh
 browser tool, and none of these keys is read: drive has no headed or headless setting, and a
 recording there is the control skill's `video` capture (SKILL.md, Drive route).
 
-This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
-merge is owned by the layering contract; see the
+This file owns the keys: meaning, allowed values, defaults, and precedence. Layer mechanics belong
+to the
 [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md).
-The two compose: this doc declares the keys and points there for layer mechanics.
 
 ## Keys
 
@@ -35,17 +33,18 @@ The two compose: this doc declares the keys and points there for layer mechanics
 | `reuse_running_instance` | `auto` \| `true` \| `false` | `auto` | per-key override |
 | `browser_driver` | a command name (`A-Z a-z 0-9 . _ -`) | `playwright-cli` | per-key override |
 
-Both surfaces merge by **per-key override**: a later layer replaces an earlier layer's value key by
-key, and a key absent from a later layer keeps the earlier value. The values are closed scalars, so
-concatenation would be meaningless. The layering contract requires a surface to declare its merge
-form next to its keys; this is that declaration.
+Both surfaces merge by **per-key override** (this is the merge-form declaration the layering
+contract requires): a later layer replaces an earlier layer's value key by key, and a key absent
+from a later layer keeps the earlier value. The values are closed scalars, so nothing
+concatenates.
 
 ### `recording`
 
 Selects whether a run captures a moving record in addition to the mandatory screenshot evidence.
 
 - `off` (default): no recording; the evidence-contract screenshots stay the floor.
-- `video`: record via the playwright CLI. Preferred for long or multi-page flows where a screenshot set loses the sequence.
+- `video`: record via the playwright CLI. Preferred for long or multi-page flows, where a
+  screenshot set loses the sequence.
 - `gif`: record via `gif_creator`. Preferred for short demos worth showing inline.
 
 A recording always supplements screenshot evidence; it never replaces it.
@@ -57,7 +56,7 @@ Selects whether the driven browser is visible.
 - `headless` (default): drive without a visible window.
 - `headed`: surface the browser window for direct observation.
 
-`run-e2e` resolves the value and passes it through to the executor, which owns the flag that realizes it.
+`run-e2e` resolves the value and passes it to the executor, which owns the flag that realizes it.
 
 ### `e2e_driver`
 
@@ -91,13 +90,13 @@ The decision table is in [own-driving.md](own-driving.md)'s Native step, under A
 
 ### `browser_driver`
 
-The command name of the one browser tool a `playwright` drive uses. It is a repository-scope key
-with a `userConfig` option of the same name. When the driver chosen for the run is `playwright`,
-whether `e2e_driver` pins it or `auto` picks it, `scripts/check-browser-driver.sh` checks before the
-first drive that the command is on PATH. When it is not, the run stops before driving anything with
-a message naming the setting, the value, the layer that supplied it, and the two ways forward:
-install that tool, or set `browser_driver` to a browser tool you have. No other browser tool is a
-silent substitute, and a run never switches tools partway through. Any value outside the command-name
+The command name of the one browser tool a `playwright` drive uses: a repository-scope key with a
+`userConfig` option of the same name. When the run's driver is `playwright`, whether `e2e_driver`
+pins it or `auto` picks it, `scripts/check-browser-driver.sh` checks before the first drive that
+the command is on PATH. When it is not, the run stops before driving anything, with a message
+naming the setting, the value, the layer that supplied it, and the two ways forward: install that
+tool, or set `browser_driver` to a browser tool you have. No other browser tool is a silent
+substitute, and a run never switches tools partway through. A value outside the command-name
 characters is named on stderr and the key takes its default.
 
 ## Precedence
@@ -124,9 +123,9 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`)
 
 On own driving, when the app has a control skill (`/app-control:map` writes it), the driving tool
-its hub names sits between the session prompt and every `e2e_driver` layer: a session instruction wins, then that
-driving tool (an `e2e_driver` value when it names one, else that tool or the hub's `cli/`), then
-the resolved `e2e_driver`. Changing `e2e_driver` later does not change the hub;
+its hub names sits between the session prompt and every `e2e_driver` layer: a session instruction
+wins, then that driving tool (an `e2e_driver` value when it names one, else that tool or the hub's
+`cli/`), then the resolved `e2e_driver`. Changing `e2e_driver` later does not change the hub;
 `/app-control:map refresh` or an edit to the hub does.
 
 The highest layer that sets a key decides it. A value outside the key's list is named with its file
@@ -135,9 +134,9 @@ run never stops on it. An unrendered `${user_config.<key>}` reads as unset.
 
 ## Older releases
 
-A testing release older than these two keys does not read `docs/conventions/testing.yaml` at all,
-and it refuses an unknown key in the files it does read, which stops its test scan. So the two keys
-are never read from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the
-team files an older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them
+A testing release older than these two keys does not read `docs/conventions/testing.yaml`, and it
+refuses an unknown key in the files it does read, which stops its test scan. So the two keys are
+never read from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the team
+files an older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them
 in `~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
 or later. `browser_driver` follows the same rule.

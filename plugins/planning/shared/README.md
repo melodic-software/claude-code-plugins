@@ -911,6 +911,16 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
 or chat text, or upload.
 
+**Fault spikes.** The server counts its fault entries by kind: client `error`, `rejection` and
+`api`, and `request` entries with a 5xx status, the 503 `busy` included. When 3 of one kind fall
+within 300 s, it writes one `fault-spike` event for Claude (`fault`, `count`, `window` in seconds,
+`threshold`), then none of any kind for 600 s (`SPIKE_THRESHOLD`, `SPIKE_WINDOW` and
+`SPIKE_COOLDOWN` in `server.py`). It does not count a `layout` entry, which also carries the
+phone keyboard readout, or a 501 or 505, which refuse a malformed request. An event that fails to
+write starts no cooldown. The event holds only the server's own counts, never a fault's message, source,
+route, fingerprint or pid, which any joined person can write. Claude reads `logs --summary` for the
+detail only when the owner asks.
+
 **What the page records** (`web/core.js` telemetry). Faults go out at once, under the person's pid
 so they can be matched to that person's request entries, the first time each fingerprint (`fp`)
 shows; a repeat is not sent:
