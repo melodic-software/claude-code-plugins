@@ -84,6 +84,9 @@ merge:
 SOURCE_CONTROL = "## babysit_loop_merge\n\nc2-mechanical\n"
 LEGACY_WITHOUT_KEY = "## babysit_loop_tier\n\nworker\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
+TRACKER_LEGACY = policy.tracker_binding.LEGACY_PATH
+# The YAML files `GhFake` answers absent when a test sets none.
+UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -112,8 +115,8 @@ class GhFake:
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
     the query's string variables, which may return a whole gh result. Any other call fails the test,
-    except a read of the team `docs/conventions/source-control.yaml` no test set: that file is
-    absent from a readable tree, so a fixture written before it existed stays a legacy-only repo.
+    except a read of a `UNSET_YAML` file no test set: that file is absent from a readable tree, so
+    a fixture written before it existed stays a legacy-only repo.
     """
 
     def __init__(self) -> None:
@@ -141,10 +144,11 @@ class GhFake:
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
-            prefix, _, ref = endpoint.partition(f"/contents/{TEAM_YAML}?ref=")
-            if ref:
-                self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
-                return http_error(404)
+            for unset in UNSET_YAML:
+                prefix, _, ref = endpoint.partition(f"/contents/{unset}?ref=")
+                if ref:
+                    self.rest.setdefault(f"{prefix}/contents?ref={ref}", [])
+                    return http_error(404)
             raise AssertionError(f"unexpected gh call: {args}")
         answer = self.rest[endpoint]
         if isinstance(answer, int):
@@ -1734,7 +1738,7 @@ class IssueVouch(unittest.TestCase):
 
     def test_the_admission_label_reads_the_tracker_config(self) -> None:
         gh = GhFake().install(self)
-        path = f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"
+        path = f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"
         mapped = {"config": {"role_labels": {"autonomous-eligible": "go"}}}
         gh.rest[path] = {
             "type": "file",
@@ -1832,7 +1836,7 @@ class IssueVouch(unittest.TestCase):
             self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
 
     def tracker(self, gh: GhFake, text: str) -> None:
-        gh.rest[f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"] = {
+        gh.rest[f"repos/{REPO}/contents/{TRACKER_LEGACY}?ref=main"] = {
             "type": "file",
             "encoding": "base64",
             "content": base64.b64encode(text.encode()).decode(),
