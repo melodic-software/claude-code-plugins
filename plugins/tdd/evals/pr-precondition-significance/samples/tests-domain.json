@@ -31,6 +31,18 @@
     {
       "answer": "No — skip CsvRowParser.Parse.\nYes — test Account.Withdraw.",
       "why": "verdict first, (b) answered first"
+    },
+    {
+      "answer": "Yes — test Account.Withdraw: the overdraft limit is a domain rule. No — skip CsvRowParser.Parse: the field-count check only protects array indexing.",
+      "why": "both verdicts first on one line"
+    },
+    {
+      "answer": "No, skip the CsvRowParser check. The overdraft guard in Withdraw is a domain rule, so yes, test it.",
+      "why": "prose, (a) in the second sentence"
+    },
+    {
+      "answer": "No for CsvRowParser.Parse; yes for Account.Withdraw, it is a business rule.",
+      "why": "verdict after a semicolon"
     }
   ],
   "fail": [
@@ -61,6 +73,14 @@
     {
       "answer": "Yes — test CsvRowParser.Parse.\nNo — skip Account.Withdraw.",
       "why": "verdict first, inverted"
+    },
+    {
+      "answer": "Yes for CsvRowParser.Parse; no for Account.Withdraw, it is just a guard.",
+      "why": "inverted, one line"
+    },
+    {
+      "answer": "No — skip Account.Withdraw. Yes, CsvRowParser.Parse deserves one.",
+      "why": "the yes sentence names (b)"
     }
   ]
 }

@@ -35,6 +35,18 @@
     {
       "answer": "- Skip: CsvRowParser.Parse. Only our exporter calls it.",
       "why": "skip first in a list"
+    },
+    {
+      "answer": "Yes — test Account.Withdraw: the overdraft limit is a domain rule. No — skip CsvRowParser.Parse: the field-count check only protects array indexing.",
+      "why": "both verdicts first on one line"
+    },
+    {
+      "answer": "Yes, the overdraft guard deserves a test. The CsvRowParser field-count check does not; skip it.",
+      "why": "prose, (b) in the second sentence"
+    },
+    {
+      "answer": "Yes for Account.Withdraw; no for CsvRowParser.Parse, since only the exporter calls it.",
+      "why": "verdict after a semicolon"
     }
   ],
   "fail": [
@@ -77,6 +89,14 @@
     {
       "answer": "No — skip Account.Withdraw.\nYes — test CsvRowParser.Parse.",
       "why": "verdict first, inverted"
+    },
+    {
+      "answer": "No for Account.Withdraw; yes for CsvRowParser.Parse, malformed rows happen.",
+      "why": "inverted, one line"
+    },
+    {
+      "answer": "Yes — test CsvRowParser.Parse. Skipping it would hide a contract.",
+      "why": "'Skipping' in the next sentence is not a skip verdict"
     }
   ]
 }

@@ -23,6 +23,18 @@
     {
       "answer": "Compare the total against a hard-coded 108m.",
       "why": "compare the total"
+    },
+    {
+      "answer": "Drop the Verify and assert that Total(cart) returns 108m.",
+      "why": "assert that the method returns a value"
+    },
+    {
+      "answer": "Replace the Moq Verify with Assert.Equal(108m, sut.Total(cart)).",
+      "why": "assert call wrapping Total("
+    },
+    {
+      "answer": "The test verifies the returned total, nothing else.",
+      "why": "'verifies' before the returned total"
     }
   ],
   "fail": [
@@ -53,6 +65,18 @@
     {
       "answer": "Total(cart) is already correct, so keep the Verify on ApplyDiscounts.",
       "why": "method name before Verify"
+    },
+    {
+      "answer": "Expect ApplyDiscounts to be called once whenever Total(cart) runs.",
+      "why": "expect on the interaction, Total( without returns"
+    },
+    {
+      "answer": "Keep Verify(x => x.ApplyDiscounts(cart)) and call sut.Total(cart) once.",
+      "why": "keeps Verify, calls Total("
+    },
+    {
+      "answer": "Verify that Total(cart) returns only after calling ApplyDiscounts once.",
+      "why": "Verify, not assert, before Total( returns"
     }
   ]
 }
