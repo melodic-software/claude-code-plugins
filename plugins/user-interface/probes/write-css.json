@@ -8,8 +8,7 @@
     "user-interface:audit",
     "user-interface:glossary",
     "user-interface:design",
-    "user-interface:setup",
-    "prototype:explore-directions"
+    "user-interface:setup"
   ],
   "queries": [
     {
@@ -76,7 +75,7 @@
       "id": "pos-train-11",
       "split": "train",
       "expect_trigger": true,
-      "request": "Our Badge is a styled-component. Give it a `variant` prop that switches between success, warning and danger colors using the theme tokens."
+      "request": "The focus ring on our Tabs disappears in Windows high-contrast mode. Fix the :focus-visible styles in tabs.css so it shows with forced colors on."
     },
     {
       "id": "pos-train-12",
@@ -252,8 +251,5 @@
       "expect_trigger": false,
       "request": "Look over the diff in this PR for the header and footer components and tell me about any accessibility or layout problems you see. Don't change anything, just report."
     }
-  ],
-  "competitor_dirs": {
-    "prototype:explore-directions": "plugins/prototype/skills/explore-directions"
-  }
+  ]
 }
