@@ -466,8 +466,10 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             ],
         )
 
-    def test_too_old_closes_too(self) -> None:
-        self.assertTrue(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
+    def test_too_old_closes_nothing(self) -> None:
+        # Owner decision 2026-11-01: a fresh pass at the head
+        # clears it, so the pull request stays open for that judgment.
+        self.assertFalse(World().run(StubReader(refusal=ve.TOO_OLD))["closed"])
 
 
 class LeavesItAlone(unittest.TestCase):
