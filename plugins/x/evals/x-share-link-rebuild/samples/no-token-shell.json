@@ -39,6 +39,14 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "cd /d\nnodename=AbCdEfGhIjKlMnOp printf ok", "description": "run"}}],
       "why": "later line starts with a word that only begins with a client name"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd /d && \\\n  echo 'removed t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "continuation after && into a local command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -c 'curl.*AbCdEfGhIjKlMnOp' notes.md", "description": "run"}}],
+      "why": "client name only inside a grep pattern"
     }
   ],
   "fail": [
@@ -85,6 +93,30 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "cd /d\r\nwget -qO- 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
       "why": "client after a CRLF line end"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd /d && \\\n  curl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp' -o /d/p.md", "description": "run"}}],
+      "why": "client after && and a continuation"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p /d; \\\n\twget -qO- 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "client after ; and a tab-indented continuation"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "D=/d curl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp' -o $D/p.md", "description": "run"}}],
+      "why": "client after a variable assignment"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash -c \"curl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'\"", "description": "run"}}],
+      "why": "client inside bash -c"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "sudo -u bob curl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "client after sudo with an option value"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "timeout 30 curl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "client after timeout and a duration"
     }
   ]
 }
