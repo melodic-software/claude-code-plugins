@@ -496,11 +496,12 @@ done
 # Review fixes on the #7475 question shape: the terminology matrix is the interview's first item and is not repeated at the top of a round, a user-stated claim cites its round, the page puts facts in context, and Withheld replaces five parts; each adds or clarifies a requirement, resolves no row, and the no-silent-resolve rule is unchanged
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
+# Restate bound restored (#11913 review): the out-of-band full restate applies before the user's next separate reply, keeping the same-turn and released-question clauses, so a later reply gets the ordinary drift check; it narrows no requirement the round needs, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "01d2ecc22137effab6c8b921d67f3635c8fb999d3d40e9d79337b70334c7efeb"
+  "24dbb59e864cfba6d94afdaf82db71842af5aaaadd64efe1db1be0cf039fab6e"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -532,11 +533,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # Both sections only gain the page-surface Step 4 command with --surface and a pointer to surface.md Wrap-up; every gate line stays, and --surface adds checks, so neither defense is weakened.
 # Full restate after an out-of-band return (#8466): the next message that presents a question ends with every open row in full, the moved row marked, in place of a one-line pointer; case 25 grades that restate and case 43 adds its single-return twin; neither resolves a row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Restate after any out-of-band return (#8466 review): the full restate also fires when a return releases a held question with no row moved, and when the message also processes a same-turn reply; case 44 adds the release-only path; each widens when the restate is required, resolves no row the user did not answer, and the no-silent-resolve, gap and blocker defenses are unchanged
+# Restate bound restored (#11913 review): the out-of-band full restate applies before the user's next separate reply, keeping the same-turn and released-question clauses, so a later reply gets the ordinary drift check; it narrows no requirement the round needs, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "720a50f16c5f450ff2edac59cb2cf424dd38287f3c3884232f87a2019b36b629"
+  "39aa4fbc09258725e632694463bebc485c733ba14c266d19a4ca0c23e3c5fa27"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
