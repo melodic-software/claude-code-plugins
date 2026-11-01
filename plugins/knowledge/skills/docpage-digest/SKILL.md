@@ -155,8 +155,10 @@ candidates; any other link is a row the handoff marks `skipped` with that reason
 ## Phase 3. Digest fan-out
 
 One subagent per digest unit, dispatched in waves that fit the session's free slots: the
-concurrent subagent limit is shared with every subagent the session runs, including sibling
-runs and this run's own verifiers. A spawn the harness refuses for that limit is handled by the
+concurrent subagent limit is shared with the subagents the session runs, sibling runs included;
+verifiers on the Workflow route are agents of another feature, and which limit those follow is
+[subagents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)'s
+to state (as of 2026-11-01; recheck when that section changes which agents share the limit). A spawn the harness refuses for that limit is handled by the
 subagent-death ladder in [context/pipeline-hardening.md](context/pipeline-hardening.md#subagent-death--usage-limit-ladder),
 not retried at once and not collapsed into inline writing.
 
