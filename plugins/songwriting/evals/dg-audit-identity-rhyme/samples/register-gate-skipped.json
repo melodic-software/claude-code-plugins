@@ -26,6 +26,14 @@
     {
       "answer": "Identity check: fail. Cliche: fail. Stress: pass.",
       "why": "never mentions the register gate"
+    },
+    {
+      "answer": "Stress: pass. Identity check: fail, light / delight is an identity. Cliche: fail. No voiceprint exists, but the register is too formal for a country ballad; delight sounds Victorian.",
+      "why": "names the missing voiceprint, then rules on register anyway"
+    },
+    {
+      "answer": "You have no voiceprint yet. Register: too formal, delight sounds Victorian.",
+      "why": "mentions the voiceprint without skipping the gate"
     }
   ]
 }

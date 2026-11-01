@@ -13,6 +13,6 @@ graders:
     target: last_message
   - name: register-gate-skipped
     type: regex
-    pattern: '\bvoiceprint\b|\bregister\b[^\n]{0,80}?\bskip(?:s|ped)?\b|\bskip(?:s|ped)?\b[^\n]{0,80}?\bregister\b'
+    pattern: '\bvoiceprint\b[^\n]{0,80}?\b(?:skip(?:s|ped)?|(?:can[''’]t|cannot|won[''’]t) (?:judge|rule on|check))\b|\bregister\b[^\n]{0,80}?\bskip(?:s|ped)?\b|\bskip(?:s|ped)?\b[^\n]{0,80}?\bregister\b'
     flags: 'i'
     target: last_message
