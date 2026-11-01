@@ -185,7 +185,9 @@ for (const step of steps) {
   const [key] = claimed;
   used.add(key);
   const scan = families[key].scan;
-  const gated = (id) => step.condition.includes(`steps.${id}.outputs.clean == 'true'`);
+  // A `${{ }}` with text around it is a non-empty string, always true, so it gates nothing.
+  const literal = /\$\{\{/.test(step.condition) && !/^\s*\$\{\{[\s\S]*\}\}\s*$/.test(step.condition);
+  const gated = (id) => !literal && step.condition.includes(`steps.${id}.outputs.clean == 'true'`);
   if (scan === "upload") {
     const viaLeakScan = step.scans.some((s) => s.id === "leak-scan") && String(step.path ?? "").includes("steps.leak-scan.outputs.dir") && gated("leak-scan");
     const viaScanStep = step.scans.some((s) => s.path !== undefined && String(s.path) === String(step.path ?? "") && gated(s.id));

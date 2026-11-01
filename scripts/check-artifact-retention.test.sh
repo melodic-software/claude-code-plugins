@@ -197,7 +197,7 @@ run_case "an upload in a composite action is checked" 1 \
 
 run_case "a computed name its job is not listed for fails" 1 \
   "edit $TABLE 't.families[\"verdict-*\"].uploads=[\".github/workflows/build.yml#build\"]'" \
-  "$WORKFLOW:25: upload \`\${{ steps.name.outputs.name }}\` matches no family" \
+  "$WORKFLOW:26: upload \`\${{ steps.name.outputs.name }}\` matches no family" \
   "$TABLE: family \`verdict-*\` lists upload .github/workflows/build.yml#build, which uploads no computed name"
 
 run_case "a max row keeps 90 days, so 89 differs" 1 \
@@ -221,7 +221,7 @@ run_case "a computed-by naming no file of the tree fails" 1 \
   "$TABLE: family \`verdict-*\` computed-by scripts/gone.mjs names no file"
 
 run_case "a row no upload matches fails" 1 \
-  "edit $TABLE 't.families[\"old-*\"]={\"retention-days\":1,\"readers\":[\".github/workflows/build.yml\"],\"reason\":\"gone\"}'" \
+  "edit $TABLE 't.families[\"old-*\"]={\"retention-days\":1,\"readers\":[\".github/workflows/build.yml\"],\"reason\":\"gone\",\"scan\":\"none\"}'" \
   "$TABLE: family \`old-*\` matches no upload step"
 
 run_case "a max row with no max-reader fails" 1 \
@@ -246,7 +246,7 @@ run_case "a row with no reason fails the schema" 1 \
 
 run_case "a scanned family's upload with no scan step fails" 1 \
   "drop_line $WORKFLOW '        uses: ./.github/actions/scan-upload'" \
-  "$WORKFLOW:15: upload \`lane-patch-\${{ github.run_attempt }}\` has no scan before it; $TABLE family \`lane-patch-*\` says scan: upload"
+  "$WORKFLOW:14: upload \`lane-patch-\${{ github.run_attempt }}\` has no scan before it; $TABLE family \`lane-patch-*\` says scan: upload"
 
 run_case "a scan over a different path does not count" 1 \
   "subst $WORKFLOW '          path: patch.diff
@@ -256,6 +256,10 @@ run_case "a scan over a different path does not count" 1 \
 
 run_case "an upload whose if: does not require the scan's clean output fails" 1 \
   "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean' 'if: steps.other.outputs.clean'" \
+  "has no scan before it"
+
+run_case "an if: with text around \${{ }} is always true, so it gates nothing" 1 \
+  "subst $WORKFLOW 'if: steps.scan-patch.outputs.clean == ' 'if: (\${{ always() }}) && steps.scan-patch.outputs.clean == '" \
   "has no scan before it"
 
 run_case "a plaintext family with no scan step before the seal fails" 1 \

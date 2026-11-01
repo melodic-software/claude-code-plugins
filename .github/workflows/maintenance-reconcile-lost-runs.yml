@@ -258,7 +258,7 @@ jobs:
 
       - name: Carry the settled runs
         if: >-
-          (${{ !cancelled() && steps.plan.outcome == 'success' }}) && steps.scan-upload-4.outputs.clean == 'true'
+          (!cancelled() && steps.plan.outcome == 'success') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

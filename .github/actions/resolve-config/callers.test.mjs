@@ -2802,6 +2802,13 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   for (const action of ["seal-lane-output/seal.mjs", "open-lane-output/open.mjs"]) assert.match(read(`../${action}`), /env\.GITHUB_RUN_ID/, action);
   for (const step of scan.steps) {
     assert.doesNotMatch(String(step.uses ?? ""), /^actions\/(cache|download-artifact)@/, step.name);
+    // One more exception: the verdict's pre-upload scan, from the
+    // default-branch .base checkout, which receives no secret.
+    if (step.id === "scan-upload") {
+      assert.equal(step.uses, "./.base/.github/actions/scan-upload");
+      assert.equal(stepSecrets(step).length, 0, `${step.name}: no secret`);
+      continue;
+    }
     if (step.id !== "open") assert.doesNotMatch(String(step.uses ?? ""), /^\.\//, `${step.name}: no other action from a checkout`);
   }
   // Payloads reach a script only through env, never inlined.
@@ -2876,7 +2883,9 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   assert.equal(atStep(scan.if, { ...stopped, "needs.run.outputs.go": "true" }), true);
   // The verdict steps keep the default success(): they run when no step before
   // them failed, so a skipped scan still posts the skip and a hit posts nothing.
-  for (const name of ["Write the verdict", "Upload the verdict"]) assert.equal(step(name).if, undefined, name);
+  // The upload also needs its own scan's clean output.
+  for (const name of ["Write the verdict", "Scan the upload for credentials"]) assert.equal(step(name).if, undefined, name);
+  assert.equal(step("Upload the verdict").if, "steps.scan-upload.outputs.clean == 'true'");
   for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
     assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
@@ -5373,7 +5382,7 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   assert.equal(proceed("skipped", "", ""), "", "a kill-switch stop");
   assert.equal(proceed("success", "true", "", "true"), "", "a pass-only round proceeds to no model");
   const upload = select.steps.find((s) => s.id === "upload");
-  assert.equal(upload.if, "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
+  assert.equal(upload.if, "(steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true') && steps.scan-upload.outputs.clean == 'true'");
   assert.equal(upload.with.name, "feedback-context-${{ github.run_attempt }}");
 });
 

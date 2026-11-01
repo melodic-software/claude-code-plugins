@@ -1856,7 +1856,7 @@ jobs:
 
       - name: Upload the verdict
         if: >-
-          (${{ !cancelled() && steps.verdict.outcome == 'success' }}) && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -3642,7 +3642,7 @@ jobs:
 
       - name: Upload the verdict
         if: >-
-          (${{ !cancelled() && steps.verdict.outcome == 'success' }}) && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -5174,7 +5174,7 @@ jobs:
 
       - name: Upload the verdict
         if: >-
-          (${{ !cancelled() && steps.verdict.outcome == 'success' }}) && steps.scan-upload.outputs.clean == 'true'
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
