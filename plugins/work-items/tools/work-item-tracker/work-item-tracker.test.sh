@@ -177,6 +177,12 @@ RC_CAPTURE=$?
 assert_eq "undeclared get-field-options verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the get-field-options verb" "$ERR" "get-field-options"
 
+# An adapter that declares no add-recurrence key exits 6 rather than recording anything.
+ERR="$(run_dispatcher add-recurrence "fake:o/r#1" --source-link https://example.com/1 --note seen 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared add-recurrence verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the add-recurrence verb" "$ERR" "add-recurrence"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"
