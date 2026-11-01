@@ -12,6 +12,14 @@
     {
       "answer": "**How I'd choose:**\n- **For quiet ache:** #1 or #2.\n- **For bitterness:** #5.\n- **For a wistful tone:** #7 or #8.",
       "why": "a choosing guide by feeling, no option crowned"
+    },
+    {
+      "answer": "**How I'd choose:** *for quiet ache*, #1 or #2; *for bitterness*, #5.",
+      "why": "an inline choosing guide that opens with italics (review finding)"
+    },
+    {
+      "answer": "**How I'd choose:** _if_ the song is tender, #3; if it is bitter, #5.",
+      "why": "an inline conditional guide"
     }
   ],
   "fail": [

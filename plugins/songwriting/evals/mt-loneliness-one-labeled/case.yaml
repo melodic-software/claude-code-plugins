@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: one-labeled-candidate
     type: regex
-    pattern: '(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)[- ]distance\b)[\s\S]*(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)[- ]distance\b)'
+    pattern: '(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)-distance\b)[\s\S]*(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\||\b(?:close|medium|far)-distance\b)'
     flags: 'i'
     match: not_contains
     target: last_message
