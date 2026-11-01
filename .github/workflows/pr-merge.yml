@@ -297,6 +297,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.post-merge.conclusion == 'success'
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/post-merge-report/
@@ -1674,6 +1675,7 @@ jobs:
         id: scan-upload-2
         if: >-
           always() && steps.head-refs.outcome == 'success'
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/head-refs/head-refs.json
@@ -1712,6 +1714,7 @@ jobs:
         id: scan-upload-3
         if: >-
           always() && steps.lane-records.outcome == 'success'
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/lane-records/lane-records.json
@@ -1757,6 +1760,7 @@ jobs:
         id: scan-upload-4
         if: >-
           always() && steps.carry.outputs.carried == 'true'
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -1854,6 +1858,7 @@ jobs:
         id: scan-upload-5
         if: >-
           always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/pr-merge-sweep.json
@@ -1877,6 +1882,7 @@ jobs:
         id: scan-upload-6
         if: >-
           always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/pr-merge-summary.json
@@ -1987,6 +1993,7 @@ jobs:
         id: scan-upload-7
         if: >-
           always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
         uses: ./.base/.github/actions/scan-upload
         with:
           path: ${{ runner.temp }}/verify-listing.json
