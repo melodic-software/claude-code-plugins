@@ -29,7 +29,9 @@
 # GraphQL query, curl to another host), whatever it names.
 #
 # A GitHub-hosted runner's home (the `runner` user on the Linux and macOS
-# images, `runneradmin` on Windows) in a quoted CI log is not a machine path.
+# images, `runneradmin` on Windows) in a quoted CI log is not a machine path,
+# and neither is a generic drive checkout root (`<drive>:\repos\<repo>`): in a
+# post, only user homes and this session's own checkout root block.
 #
 # KNOWN GAPS: block-fix-request-post's (`printf` with a computed argument, a
 # script or cmdlet that posts, `xargs` and other launchers it does not step
@@ -180,7 +182,18 @@ if ((_bgpc_paths)); then
       hpp::scan_text "$_bgpc_t" "$SCAN_ROOT" ""
       printf x
     )
-    _bgpc_viol+="${_bgpc_out%x}"
+    _bgpc_out="${_bgpc_out%x}"
+    # A generic drive checkout root (`D:\repos\<repo>`) names no user, and bug
+    # reports cite one routinely, so in a post only the user-home blocks and
+    # this session's own checkout root count. Each block ends in a blank line.
+    while [[ -n "$_bgpc_out" ]]; do
+      _bgpc_b="${_bgpc_out%%$'\n\n'*}"
+      if [[ "$_bgpc_b" == "$_bgpc_out" ]]; then _bgpc_out=""; else _bgpc_out="${_bgpc_out#*$'\n\n'}"; fi
+      case "$_bgpc_b" in
+      "Windows repo path detected:"* | "Escaped Windows repo path detected:"*) ;;
+      *) _bgpc_viol+="$_bgpc_b"$'\n\n' ;;
+      esac
+    done
   done
   if [[ -n "$_bgpc_viol" ]]; then
     {
