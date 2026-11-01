@@ -138,6 +138,10 @@ what the cited line shows. The finding itself stays in `## Findings` at its demo
 section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
 no demotion, the section reads `none`. The fix action does not parse it.
 
+When a surface returns after findings were presented for a decision and before the user answers,
+the next message that presents findings ends with every open finding in full:
+`docs/contracts/async-round-presentation/README.md` in the marketplace.
+
 ## Step 3: Persist findings
 
 Run the self-ignore guard ("Shared inputs"), then write the ranked report into the resolved findings location as `<UTC-timestamp>-<topic>.md`, with `<topic>` sanitized to `[a-z0-9._-]`. The timestamp format is in "Shared inputs". Relativize machine paths BEFORE writing. Findings cite `file:line` repo-relative only. File-name collision rule and file shape contract: [`${CLAUDE_PLUGIN_ROOT}/reference/findings-file-shape.md`](../../reference/findings-file-shape.md) "Findings-writer contract" and "Findings-file shape".

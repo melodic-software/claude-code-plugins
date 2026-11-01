@@ -87,7 +87,7 @@ As of 2026-10-11; recheck when either section moves.
 
 ## When the embedded step does not run
 
-Verify an embed by running the producing skill and confirming the added step actually fires, on
+Verify an embed by running the producing skill and confirming the added step fires, on
 **a real task, not one built for the test**. A contrived case exercises the step you are watching
 for and hides the salience problem that only shows up when the skill is competing with a real
 task's context.

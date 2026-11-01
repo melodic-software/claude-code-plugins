@@ -4,13 +4,16 @@
 // conclusion, and a list read short writes nothing. The
 // list endpoint pages at most 100 jobs and reports total_count
 // (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run).
+// Which Node suites run in test-bash comes from scripts/plan-test-lanes.sh's
+// rule: a *.test.js, .mjs or .cjs with a sibling <stem>.test.sh runs only
+// through that wrapper, where <stem> drops the last `.test.` and what follows.
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { main, upstreamJobs } from "./upstream-jobs.mjs";
+import { KEPT_JOBS, main, shapeJobs, upstreamJobs, wrappedNodeSuites } from "./upstream-jobs.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const RUN = 4242;
@@ -51,9 +54,45 @@ test("a list read short of its total_count, or with no job list, throws", async 
   await assert.rejects(upstreamJobs(paged([]).github, REPO, "12; rm"), /not a run id/);
 });
 
+test("a Node suite with a sibling .test.sh at the head is listed with its wrapper, and no other path is", () => {
+  const listed = wrappedNodeSuites([
+    // The suite pr-verify called unrun on pull request #11863: test-bash ran its wrapper.
+    "plugins/review/tests/explain-change.test.mjs",
+    "plugins/review/tests/explain-change.test.sh",
+    "a/b.test.js",
+    "a/b.test.sh",
+    "c/d.test.cjs",
+    "c/d.test.sh",
+    "e/h.fixtures.test.mjs",
+    "e/h.fixtures.test.sh",
+    // No sibling wrapper: test-node runs these.
+    "j/k.test.mjs",
+    "e/i.fixtures.test.mjs",
+    "e/i.test.sh",
+    // A shell suite with no Node sibling, and a file that is no suite.
+    "f/g.test.sh",
+    "f/g.mjs",
+  ]);
+  assert.deepEqual(listed, [
+    { suite: "plugins/review/tests/explain-change.test.mjs", wrapper: "plugins/review/tests/explain-change.test.sh" },
+    { suite: "a/b.test.js", wrapper: "a/b.test.sh" },
+    { suite: "c/d.test.cjs", wrapper: "c/d.test.sh" },
+    { suite: "e/h.fixtures.test.mjs", wrapper: "e/h.fixtures.test.sh" },
+  ]);
+});
+
 test("main writes the list to JOBS_FILE, and writes nothing when the read fails", async () => {
   const dir = tempDir("pr-verify-upstream-jobs-");
-  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, UPSTREAM_RUN_ID: String(RUN), JOBS_FILE: path.join(dir, "upstream-jobs.json") };
+  const headPaths = path.join(dir, "head-paths");
+  // git ls-tree -z: each path ends in a NUL, and a path may hold a space or a newline.
+  writeFileSync(headPaths, "x/a b.test.mjs\0x/a b.test.sh\0x/new\nline.test.mjs\0README.md\0");
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    UPSTREAM_RUN_ID: String(RUN),
+    JOBS_FILE: path.join(dir, "upstream-jobs.json"),
+    HEAD_PATHS_FILE: headPaths,
+  };
   await main(env, { github: paged([job(1), job(2, "failure")]).github });
   assert.deepEqual(JSON.parse(readFileSync(env.JOBS_FILE, "utf8")), {
     run_id: RUN,
@@ -61,9 +100,61 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
       { name: "job-1", conclusion: "success" },
       { name: "job-2", conclusion: "failure" },
     ],
+    wrapped_node_suites: [{ suite: "x/a b.test.mjs", wrapper: "x/a b.test.sh" }],
   });
   const short = { ...env, JOBS_FILE: path.join(dir, "short.json") };
   await assert.rejects(main(short, { github: paged([job(1)], 3).github }));
   assert.equal(existsSync(short.JOBS_FILE), false);
   await assert.rejects(main({ ...env, JOBS_FILE: "" }, { github: paged([]).github }), /JOBS_FILE is not set/);
+  const noTree = { ...env, JOBS_FILE: path.join(dir, "no-tree.json"), HEAD_PATHS_FILE: "" };
+  await assert.rejects(main(noTree, { github: paged([job(1)]).github }), /HEAD_PATHS_FILE is not set/);
+  assert.equal(existsSync(noTree.JOBS_FILE), false);
+});
+
+// resolve-pr.mjs keeps the jobs it read whole for draftRun in RUNNER_TEMP
+// (KEPT_JOBS); main takes them instead of reading the same list again.
+test("main takes the resolver's kept jobs with no read, and reads when they are missing, for another run or malformed", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const dir = tempDir("pr-verify-upstream-jobs-");
+  const temp = tempDir("pr-verify-upstream-temp-");
+  const headPaths = path.join(dir, "head-paths");
+  writeFileSync(headPaths, "README.md\0");
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    UPSTREAM_RUN_ID: String(RUN),
+    JOBS_FILE: path.join(dir, "upstream-jobs.json"),
+    HEAD_PATHS_FILE: headPaths,
+    RUNNER_TEMP: temp,
+  };
+  const live = [job(1), job(2, "failure")];
+  const kept = [job(3, "skipped")];
+  const run = async (content) => {
+    if (content === undefined) {
+      rmSync(path.join(temp, KEPT_JOBS), { force: true });
+    } else {
+      writeFileSync(path.join(temp, KEPT_JOBS), content);
+    }
+    const { github, paths } = paged(live);
+    await main(env, { github });
+    return { paths, jobs: JSON.parse(readFileSync(env.JOBS_FILE, "utf8")).jobs };
+  };
+  // The file as resolve-pr.mjs writes it: no read, and its jobs.
+  assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped" }] });
+  const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
+  for (const [label, content] of [
+    ["no file", undefined],
+    ["another run's jobs", JSON.stringify(shapeJobs(RUN + 1, kept))],
+    ["not JSON", "{"],
+    ["no job list", JSON.stringify({ run_id: RUN })],
+    ["a job with no name", JSON.stringify({ run_id: RUN, jobs: [{ conclusion: "success" }] })],
+    ["a conclusion that is not text", JSON.stringify({ run_id: RUN, jobs: [{ name: "x", conclusion: 1 }] })],
+    ["the run id as text", JSON.stringify({ run_id: String(RUN), jobs: [] })],
+  ]) {
+    assert.deepEqual(await run(content), read, label);
+  }
+  // With no RUNNER_TEMP there is nowhere to look, so it reads.
+  const { github, paths } = paged(live);
+  await main({ ...env, RUNNER_TEMP: "" }, { github });
+  assert.equal(paths.length, 1);
 });

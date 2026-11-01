@@ -65,7 +65,7 @@ proposal waits for the user's yes, because the remaining questions are the user'
 On that yes, stop asking and close out through the normal gates; ship-it drops questions, never a
 gate:
 
-1. Move each `open` row to `deferred`, with the user's reply as its resolution, so the
+1. Move each `open` and `discussing` row to `deferred`, with the user's reply as its resolution, so the
    register gate passes without inventing an answer. Skip the assumption sweep: it exists to find
    more questions, which the user just declined; say so in the restatement, and tick the ledger's
    Step 2 exit box with `SKIPPED: ship-it`, since the `--procedure` check fails on an unchecked one.

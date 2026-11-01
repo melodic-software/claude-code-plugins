@@ -46,14 +46,17 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge as pm  # noqa: E402
 from test_babysit_postmerge import (  # noqa: E402
+    APP_ACTOR,
     FIXTURES,
     FORK_SHA,
     HEAD_SHA,
     IDENTITY,
     LATER_SHA,
+    MERGE_SHA,
     OTHER_SHA,
     REPO,
     RUN_URL,
+    TIP_SHA,
     CheckCase,
     by,
     canary_run,
@@ -776,6 +779,43 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual(verdict.merges, ())
         self.assertEqual(self.lane_reruns(verdict), [(11, True)])
         self.assertEqual(pm.verdict_exit(verdict), 0)
+
+    def test_a_red_a_later_green_schedule_run_settled_gets_no_rerun_when_every_merge_is_settled(
+        self,
+    ) -> None:
+        # Every lane merge carries the identity's settled marker, so no
+        # merge lists the full runs; the probe still lists the lookback's
+        # schedule runs, and the green one descending from run 11 settles it.
+        self.gh.merged = [identity_merge(number=7002)]
+        self.gh.pin_comments = [
+            {
+                "author": APP_ACTOR,
+                "body": pm.settled_comment(MERGE_SHA),
+                "lastEditedAt": None,
+            }
+        ]
+        self.lane_red(bash_log((TOUCHED, False)))
+        self.gh.descendants.add(TIP_SHA)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(
+                12, "success", head_sha=TIP_SHA, created_at="2026-10-12T10:30:00Z"
+            ),
+        )
+        reader = pm.pin_reader(REPO, IDENTITY)
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=lambda actor: False,
+            merged_since=datetime(2026, 10, 12, 0, 0, tzinfo=UTC),
+            now=self.NOW,
+            pinned_sha=reader,
+            lane_merges_only=True,
+            settled=reader.settled,
+        )
+        self.assertEqual([s.settled for s in verdict.merges], [True])
+        self.assertEqual(self.lane_reruns(verdict), [])
 
     def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
         # Run 11 on a tag named main: its commit is not on refs/heads/main.

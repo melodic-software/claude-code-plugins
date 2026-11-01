@@ -22,7 +22,7 @@
     "family": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["retention-days", "readers", "reason"],
+      "required": ["retention-days", "readers", "reason", "scan"],
       "properties": {
         "retention-days": {
           "description": "Days an upload keeps the artifact: 1 to 89, or `max` for the repository maximum of 90, which needs a max-reader.",
@@ -43,6 +43,10 @@
           "minLength": 1
         },
         "reason": { "type": "string", "minLength": 1 },
+        "scan": {
+          "description": "Whether the family is a lane or eval artifact that a leak scan (lib/publish-gate.mjs scanLeak) clears before it leaves the run. `upload`: each upload step follows a .github/actions/scan-upload step over the same path, whose clean output its `if:` requires, or reads from the read runner's leak-scan output directory. `plaintext`: the upload is sealed ciphertext, so a scan step over the plaintext comes earlier in the same steps. `none`: not a lane or eval artifact; the reason says why.",
+          "enum": ["upload", "plaintext", "none"]
+        },
         "computed-by": {
           "description": "The script whose step output sets each upload's retention-days as `${{ steps.<id>.outputs.retention-days }}`; retention-days records the longest it returns.",
           "type": "string",

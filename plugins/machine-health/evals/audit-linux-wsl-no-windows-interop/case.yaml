@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: audit-linux-wsl-no-windows-interop
+graders:
+  - name: reports-unknown
+    type: regex
+    pattern: '\bUNKNOWN\b'
+    target: last_message
+  - name: points-to-porting-guide
+    type: regex
+    pattern: 'discovery-guide|not-implemented\.md|\bport(?:ing)?\b'
+    flags: 'i'
+    target: last_message
+  - name: no-windows-interop
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:[;|&(]|\\n))?\s*(?:(?:[^"\\\s]|\\.)*/)?(?:(?:powershell|pwsh|cmd|wsl|schtasks|sc)\.exe\b|pwsh\b(?:[^"\\;|&]|\\.)*?\.ps1\b)'
+    min: 0
+    max: 0
+    arm: 'both'

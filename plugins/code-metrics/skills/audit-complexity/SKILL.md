@@ -141,8 +141,8 @@ wall clock is the slowest collector's own, which the plugin does not control.
   package metadata or `go version -m` reports, and reads `version unavailable` when neither
   answers, so two reports can still be compared by tool.
 - Python and Bash have no maintained cognitive-complexity collector, so those rows read
-  `unavailable` with that reason rather than reporting a substitute measure. The claim, what it
-  rests on, when it was checked, and what should send you to check again are recorded in
+  `unavailable` with that reason rather than reporting a substitute measure. The claim, its basis,
+  as-of date and recheck trigger are recorded in
   [`${CLAUDE_PLUGIN_ROOT}/reference/collectors.md`](../../reference/collectors.md).
 - Halstead outside Python is per file, so a file's difficulty is not a function's. Python is the
   only lane with per-function Halstead, and even there the rows carry no line range.

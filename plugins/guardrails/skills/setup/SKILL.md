@@ -1,5 +1,5 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
 argument-hint: "[check|apply] [install-git-hooks [scope]|install-read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
@@ -140,7 +140,8 @@ Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repo
 manager, so the checks cover every commit, not only Claude's tool calls:
 `commit-msg-convention` (the subject against the team-tracked `subject_pattern`, the pattern
 `block-convention-violation` reads), `pre-commit-content` (secrets and machine-specific paths
-on the lines a commit adds, whatever wrote the file) and `reference-verify` (CLI flags,
+on the lines a commit adds, whatever wrote the file), `pre-push-content` (the same scan on
+each pushed commit, for commits that check never judged) and `reference-verify` (CLI flags,
 `/plugin:skill` references and deleted repository paths on the lines the pushed commits add;
 a `pre-push` entry, since its cost is over the commit budget). The
 installer script only detects, renders and writes files the plugin owns; every step that
@@ -178,10 +179,11 @@ with your own edit tools. Never runs from bare `apply`.
    chose to leave remain. A `hooks-path` decision is the one `git config core.hooksPath
    .githooks` per clone that plain shared hooks need; `block-no-verify` allows exactly that
    value.
-6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that a
-   commit-msg subject with no team-tracked `subject_pattern` passes everything, so the
+6. **Verify.** Run `verify` and report its lines as `check` step 5 does. Also state that with
+   no team-tracked `subject_pattern`, and no personal one in a git-ignored
+   `docs/conventions/source-control.local.yaml`, every commit-msg subject passes, so the
    `commit-msg-convention` entry is inert until `/source-control:setup apply` writes a
-   convention.
+   convention or the operator writes that file.
 
 When the user does not want an entry in this clone, run
 `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" decline --entry <name>`; the

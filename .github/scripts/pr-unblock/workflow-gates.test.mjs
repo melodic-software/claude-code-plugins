@@ -425,8 +425,15 @@ test("pr-unblock.yml: a pass-only select uploads its context but never proceeds 
   assert.deepEqual(outputs("success", { proceed: "true" }), { proceed: "true", "resolve-only": "" });
   assert.deepEqual(outputs("success", { resolveOnly: "true" }), { proceed: "", "resolve-only": "true" });
   assert.deepEqual(outputs("skipped", {}), { proceed: "", "resolve-only": "" });
+  // The context is scanned on the same condition and uploads only on the scan's clean output.
+  const scan = block.findIndex((line) => line === "        id: scan-upload");
+  assert.equal(ifAt(block, scan + 1, 8), "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
   const upload = block.findIndex((line) => line === "        id: upload");
-  assert.equal(ifAt(block, upload + 1, 8), "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
+  assert.ok(scan > 0 && scan < upload);
+  assert.equal(
+    ifAt(block, upload + 1, 8),
+    "(steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true') && steps.scan-upload.outputs.clean == 'true'",
+  );
 });
 
 // The post-hoc review of #9565: the job checked out, set up and staged on

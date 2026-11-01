@@ -95,22 +95,21 @@ repeating it. Every one of them is a way a true number supports a false conclusi
 
 ## Owners of the other measures
 
-This plugin does not measure these. Each one has an owner, and each pointer is gated:
+This plugin does not measure these. Each one has an owner, and each pointer is gated: when the
+named plugin is not installed, the concern is out of this plugin's scope and nothing here
+substitutes for it, unless the bullet names its own fallback.
 
 - **Surviving mutants and mutation score.** Invoke `/mutation-testing:principles` for what a
-  surviving mutant means, and `/mutation-testing:audit` to run one, when the `mutation-testing` plugin is installed;
-  otherwise the concern is out of this plugin's scope and nothing here substitutes for it. Coverage
-  cannot answer it: a covered line can still be unchecked.
-- **Tautological and assertion-free tests.** Invoke `/testing:audit` when the `testing` plugin is installed;
-  otherwise the concern is out of this plugin's scope and nothing here substitutes for it.
-- **Dead code.** Invoke `/code-tidying:audit-dead-code` when the `code-tidying` plugin is installed;
-  otherwise the concern is out of this plugin's scope and nothing here substitutes for it. ISO/IEC
-  5055 files dead code as its own weakness (7.1.5, CWE-561), separate from every measure here.
-- **Coupling and fan-in.** Invoke `/coupling:reduce` when the `coupling` plugin is installed;
-  otherwise the concern is out of this plugin's scope and nothing here substitutes for it.
-- **Lint rules and style violations.** Invoke `/toolchain:lint` when the `toolchain` plugin is installed;
-  otherwise the concern is out of this plugin's scope and nothing here substitutes for it. A lint
-  rule fires a finding; the measures here do not.
+  surviving mutant means, and `/mutation-testing:audit` to run one, when the `mutation-testing`
+  plugin is installed. Coverage cannot answer it: a covered line can still be unchecked.
+- **Tautological and assertion-free tests.** Invoke `/testing:audit` when the `testing` plugin is
+  installed.
+- **Dead code.** Invoke `/code-tidying:audit-dead-code` when the `code-tidying` plugin is
+  installed. ISO/IEC 5055 files dead code as its own weakness (7.1.5, CWE-561), separate from
+  every measure here.
+- **Coupling and fan-in.** Invoke `/coupling:reduce` when the `coupling` plugin is installed.
+- **Lint rules and style violations.** Invoke `/toolchain:lint` when the `toolchain` plugin is
+  installed. A lint rule fires a finding; the measures here do not.
 - **Comparing two reports.** Feed an audit skill's `--json` document to `/verification:measure metrics` when the `verification` plugin is installed,
   treating a report whose `status` is `empty` on either side as INCONCLUSIVE; otherwise keep the
   JSON beside your notes and compare by hand.

@@ -92,10 +92,10 @@
 # persists them.
 #
 # Ecosystems: whatever the adapters/*.yaml files claim by their files: globs
-# (JS/TS, Python, C#, Bash, bats, Pester, Go). An adapter marked advisory
-# (bash-harness) never gates --check without --strict. For bash *.test.sh this
-# scan owns assertions only; scripts/check-discriminating-test-skips.sh keeps
-# the skip-vacating shape.
+# or by content (JS/TS, Python, C#, Bash, bats, Pester, Go). An adapter marked
+# advisory (bash-harness) never gates --check without --strict. For bash
+# *.test.sh this scan owns assertions only;
+# scripts/check-discriminating-test-skips.sh keeps the skip-vacating shape.
 #
 # Skipped tests (it.skip/x-prefixed/@skip/[Fact(Skip=…)]/[Ignore…]) are not
 # judged — a test that does not run is the skip gate's concern, not this
@@ -431,7 +431,7 @@ fi
 # every adapter, and a file whose winner is off is not scanned, rather than
 # handed to a sibling that also matches its name (js-jest for a Vitest file).
 adapter_ids=()
-declare -A a_lang=() a_globs=() a_detect=() a_advisory=()
+declare -A a_lang=() a_globs=() a_cglobs=() a_cregex=() a_detect=() a_advisory=()
 all_globs=()
 while IFS=$'\t' read -r id key val; do
   [[ -n "${a_lang[$id]+x}" ]] || {
@@ -444,37 +444,59 @@ while IFS=$'\t' read -r id key val; do
     a_globs[$id]+="$val"$'\n'
     all_globs+=("$val")
     ;;
+  claim_by_content.files) a_cglobs[$id]+="$val"$'\n' ;;
+  claim_by_content.any_regex) a_cregex[$id]+="$val"$'\n' ;;
   detect.any_regex) a_detect[$id]+="$val"$'\n' ;;
   advisory) [[ "$val" == true ]] && adapter_on "$id" && a_advisory[$id]=1 ;;
   *) ;;
   esac
 done <"$ADAPTER_TABLE"
 
-# pick_adapter <file>: the adapter claiming <file> by its files: globs; among
-# several, the first in load order whose detect.any_regex matches the content,
-# else the first in load order with no detect list, else the first in load
-# order. Prints nothing when none claims the file.
+# regex_args <newline-separated EREs>: sets PATS to grep's -e arguments.
+regex_args() {
+  local re
+  PATS=()
+  while IFS= read -r re; do [[ -n "$re" ]] && PATS+=(-e "$re"); done <<<"$1"
+}
+
+# claims <id> <file>: a files: glob of <id> names the file, or a
+# claim_by_content.files glob does and the content matches its any_regex.
+claims() {
+  local base="${2##*/}" glob
+  while IFS= read -r glob; do
+    # shellcheck disable=SC2053 # the glob is a pattern on purpose
+    [[ -n "$glob" && "$base" == $glob ]] && return 0
+  done <<<"${a_globs[$1]:-}"
+  while IFS= read -r glob; do
+    # shellcheck disable=SC2053 # the glob is a pattern on purpose
+    if [[ -n "$glob" && "$base" == $glob ]]; then
+      regex_args "${a_cregex[$1]}"
+      LC_ALL=C grep -qE "${PATS[@]}" -- "$2" 2>/dev/null
+      return
+    fi
+  done <<<"${a_cglobs[$1]:-}"
+  return 1
+}
+
+# pick_adapter <file>: the adapter claiming <file>; among several, the first in
+# load order whose detect.any_regex matches the content, else the first in load
+# order with no detect list, else the first in load order. Prints nothing when
+# none claims the file.
 pick_adapter() {
-  local base="${1##*/}" id glob re first="" first_detects="" pats
+  local id first="" first_detects=""
   for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
-    while IFS= read -r glob; do
-      # shellcheck disable=SC2053 # the glob is a pattern on purpose
-      if [[ -n "$glob" && "$base" == $glob ]]; then
-        # The fallback is the first claimant with no detect list (the default
-        # for its language, as cs-xunit is), else the first claimant.
-        if [[ -z "$first" || (-n "$first_detects" && -z "${a_detect[$id]:-}") ]]; then
-          first="$id"
-          first_detects="${a_detect[$id]:-}"
-        fi
-        pats=()
-        while IFS= read -r re; do [[ -n "$re" ]] && pats+=(-e "$re"); done <<<"${a_detect[$id]:-}"
-        if [[ ${#pats[@]} -gt 0 ]] && LC_ALL=C grep -qE "${pats[@]}" -- "$1" 2>/dev/null; then
-          printf '%s' "$id"
-          return
-        fi
-        break
-      fi
-    done <<<"${a_globs[$id]:-}"
+    claims "$id" "$1" || continue
+    # The fallback is the first claimant with no detect list (the default
+    # for its language, as cs-xunit is), else the first claimant.
+    if [[ -z "$first" || (-n "$first_detects" && -z "${a_detect[$id]:-}") ]]; then
+      first="$id"
+      first_detects="${a_detect[$id]:-}"
+    fi
+    regex_args "${a_detect[$id]:-}"
+    if [[ ${#PATS[@]} -gt 0 ]] && LC_ALL=C grep -qE "${PATS[@]}" -- "$1" 2>/dev/null; then
+      printf '%s' "$id"
+      return
+    fi
   done
   printf '%s' "$first"
 }
@@ -493,10 +515,10 @@ collect_files() {
     -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
-# The walk takes the union of every adapter's files: globs. Each file is then
-# bucketed by its adapter's language, and the buckets scan in the fixed order
-# js, python, cs, bash, pwsh, go, so finding order does not depend on adapter
-# file names.
+# The walk takes the union of every adapter's files: globs, plus the files
+# content_files claims. Each file is then bucketed by its adapter's language,
+# and the buckets scan in the fixed order js, python, cs, bash, pwsh, go, so
+# finding order does not depend on adapter file names.
 name_args=()
 declare -A glob_seen=()
 for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
@@ -508,6 +530,26 @@ for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
   done <<<"${a_globs[$id]:-}"
 done
 [[ ${#name_args[@]} -gt 0 ]] || name_args=(-name '')
+
+# content_files: files a claim_by_content.files glob names whose content
+# matches that adapter's any_regex. Adapters sharing both lists (cs-nunit
+# inherits cs-xunit's) walk once.
+content_files() {
+  local id glob args key
+  local -A walked=()
+  for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
+    [[ -n "${a_cglobs[$id]:-}" ]] || continue
+    key="${a_cglobs[$id]}"$'\t'"${a_cregex[$id]}"
+    [[ -z "${walked[$key]:-}" ]] || continue
+    walked[$key]=1
+    args=()
+    while IFS= read -r glob; do
+      [[ -n "$glob" ]] && args+=(${args[@]+-o} -name "$glob")
+    done <<<"${a_cglobs[$id]}"
+    regex_args "${a_cregex[$id]}"
+    collect_files "${args[@]}" | tr '\n' '\0' | LC_ALL=C xargs -0 -r grep -lE "${PATS[@]}" -- 2>/dev/null
+  done
+}
 
 # include_files: files under the root that a paths.include glob names, walked
 # past the prunes above (only .git and node_modules stay pruned); each still
@@ -578,7 +620,10 @@ while IFS= read -r f; do
   *) ;;
   esac
 done < <(
-  collect_files "${name_args[@]}"
+  {
+    collect_files "${name_args[@]}"
+    content_files
+  } | sort
   include_files
 )
 

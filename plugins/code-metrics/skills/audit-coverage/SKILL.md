@@ -222,8 +222,8 @@ Everything tunable resolves through the code-metrics layers (user-global, team
   anything only when the roots are relative, or absolute and present on the machine running the
   audit. A report built elsewhere declares absolute roots (the usual coverlet, kcov and gcovr shape
   for a CI run) naming directories this machine does not have, so every candidate misses and every
-  class lands under the first root the way it did before the roots were read at all. Rewriting a
-  root from another machine onto the local tree needs a mapping the report does not carry.
+  class lands under the first root. Rewriting a root from another machine onto the local tree
+  needs a mapping the report does not carry.
 - Two functions in one file whose qualified names share a tail (`A.run` and `B.run`) can bind to
   each other's artifact region when the artifact carries only the short name; the file-level
   numbers are unaffected.

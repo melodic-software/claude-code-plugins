@@ -158,6 +158,7 @@ test("the later legs repeat the key leg's steps but for the credential, the leg 
   const normalize = (job) =>
     steps(job)
       .filter((s) => !/^Check the (key|subscription) leg$|^(Record|Upload) the handoff$|^Check the credential$/.test(s.name))
+      .filter((s) => !(s.name === "Scan the upload for credentials" && /\/lane-sweep-handoff\//.test(s.block)))
       .map(({ name, block }) => ({
         name,
         lines: block.split("\n").filter((line) => line.trim() !== "" && !/^\s*#/.test(line) && !differs.some((re) => re.test(line))),

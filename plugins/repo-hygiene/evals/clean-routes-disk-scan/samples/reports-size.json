@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "dist/ is 244K and .pytest_cache/ 16K; about 276 KiB in total.",
+      "why": "sizes"
+    },
+    {
+      "answer": "Total reclaimable: 282624 bytes",
+      "why": "bytes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I could not measure anything in this repository.",
+      "why": "no size"
+    }
+  ]
+}

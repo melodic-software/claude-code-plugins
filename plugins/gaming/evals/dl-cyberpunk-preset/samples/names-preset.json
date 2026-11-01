@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Preset: `cyberpunk-2077` (shipped), no ini keys.", "why": "key in code" },
+    { "answer": "I'd pass -Preset cyberpunk-2077.", "why": "flag form" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Preset: bases only.", "why": "misses the shipped preset" },
+    { "answer": "Using the Cyberpunk 2077 profile.", "why": "title, not the key" }
+  ]
+}

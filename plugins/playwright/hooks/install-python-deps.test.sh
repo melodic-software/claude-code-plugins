@@ -10,6 +10,8 @@
 # test-scope: plugins/playwright/hooks/* plugins/playwright/skills/demo-video/scripts/pydeps.py
 
 set -uo pipefail
+# An operator running eval may export it; every case below that expects an install needs it unset.
+unset EVAL_PLAYWRIGHT_SKIP_PYDEPS
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="${HOOK_DIR%/*}"
@@ -118,6 +120,33 @@ if [[ "$RC" -eq 0 && -z "$out" ]]; then
 else
   fail "no data dir: rc=$RC output=[$out]"
 fi
+
+# EVAL_PLAYWRIGHT_SKIP_PYDEPS=1 (an eval case that never uses demo-video): nothing installs and nothing is said.
+root="$(new_plugin evalskip "$digest")"
+data="$WORK/data-evalskip"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" EVAL_PLAYWRIGHT_SKIP_PYDEPS=1
+out="$OUT"
+if [[ "$RC" -eq 0 && -z "$out" && ! -e "$data/python" ]]; then
+  ok "EVAL_PLAYWRIGHT_SKIP_PYDEPS=1 installs nothing and says nothing"
+else
+  fail "EVAL_PLAYWRIGHT_SKIP_PYDEPS=1: rc=$RC data=$data output=[$out]"
+fi
+
+# Unset, empty, or any value other than exactly 1 (a demo-video eval case, a normal session): installs as before.
+for value in unset '' 0 true ' 1' 1x; do
+  data="$WORK/data-evalvalue-${#value}-${value//[^A-Za-z0-9]/_}"
+  if [[ "$value" == unset ]]; then
+    run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
+  else
+    run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" EVAL_PLAYWRIGHT_SKIP_PYDEPS="$value"
+  fi
+  out="$OUT"
+  if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
+    ok "EVAL_PLAYWRIGHT_SKIP_PYDEPS=[$value] still installs"
+  else
+    fail "EVAL_PLAYWRIGHT_SKIP_PYDEPS=[$value]: rc=$RC installs=$(installs "$data") output=[$out]"
+  fi
+done
 
 # No Python on PATH: a notice naming the floor, not a silent skip.
 tools="$WORK/tools"
