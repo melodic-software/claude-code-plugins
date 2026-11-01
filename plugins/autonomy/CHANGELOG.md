@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.15] - 2026-11-01
+
+### Fixed
+
+- The guardrails reference's per-invocation merge widening section names the C5 untrusted-provenance hold as its bound, matching the `source-control` config-resolution reference, instead of an unconditional C4/C5 human-merge floor (#9668).
+
 ## [0.32.14] - 2026-11-01
 
 ### Changed

@@ -1806,15 +1806,15 @@ jobs:
               .join(' ');
             core.setOutput('text', text.replace(/\s+/g, ' ').slice(0, 500));
 
-      # One lane record per run, naming the credential the leg ran on. A
-      # handoff records nothing; the fallback call records the run under a
-      # name that says why it ran, and a credit-stop or no-key call records
-      # that reason as fallback-reason. An issue run keeps the lane's own name.
+      # One lane record per leg, naming the credential the leg ran on. A leg
+      # that hands off records itself with handoff true; the fallback call
+      # records the run under a name that says why it ran, and a credit-stop
+      # or no-key call records that reason as fallback-reason. An issue run
+      # keeps the lane's own name.
       - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
+          always() && steps.key-present.outputs.present != 'false'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
@@ -1845,6 +1845,7 @@ jobs:
           fallback-reason: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          handoff: ${{ steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
 
       - name: Run the script activity
         id: act-script

@@ -7,8 +7,8 @@
 # --dir installs into that checkout instead of the current directory. Each --extra-pr serves one more
 # open pull request from that head branch into the same base, with the first one's draft state and checks.
 # The pull request is a draft unless --open is given. --no-pr serves no pull request until `gh pr create`
-# opens one from <head-branch>. The head is always pushed here: the eval sandbox holds .git read-only,
-# so a run's push must find nothing to send, which git reports as up to date with exit 0.
+# opens one from <head-branch>. The head is always pushed here: a run whose root sits under /tmp has
+# .git read-only, so its push must find nothing to send, which git reports as up to date with exit 0.
 # Issues the stand-in serves are <git common dir>/eval-forge/issues/<n>.json, written by the scaffold. --failing-check adds one failing check with
 # that name, which `pr checks` and the pull request's status rollup then report. Each --thread adds
 # one unresolved review thread with that id, from a person on the current diff, to what
@@ -119,7 +119,8 @@ git push -q origin "$base" "$head" "${extra_heads[@]+"${extra_heads[@]}"}"
 for b in "$head" "${extra_heads[@]+"${extra_heads[@]}"}"; do
   git branch -q --set-upstream-to="origin/$b" "$b"
 done
-# A fetch opens FETCH_HEAD for writing before anything else, and nothing under the run root is
-# writable to a run's Bash on Linux, so the file points at the one writable path every run has.
+# A fetch opens FETCH_HEAD for writing before anything else, and on Linux nothing under a run root in
+# /tmp is writable to the run's Bash (with TMPDIR outside /tmp the root is writable, as
+# /evals:plugin-eval records), so the file points at the one writable path every run has.
 # A later read of FETCH_HEAD resolves to nothing; origin/<branch> is unaffected.
 ln -sf /dev/null "$(git rev-parse --path-format=absolute --git-path FETCH_HEAD)"
