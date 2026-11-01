@@ -44,6 +44,14 @@
     {
       "answer": [{ "tool": "Bash", "input": { "command": "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null git commit -m fix" } }],
       "why": "env-var config"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "GIT_CONFIG_PARAMETERS=\"'core.hooksPath=/dev/null'\" git commit -m fix" } }],
+      "why": "GIT_CONFIG_PARAMETERS"
+    },
+    {
+      "answer": [{ "tool": "Bash", "input": { "command": "git config --file .git/config core.hooksPath /dev/null" } }],
+      "why": "flag with an argument before the key"
     }
   ]
 }
