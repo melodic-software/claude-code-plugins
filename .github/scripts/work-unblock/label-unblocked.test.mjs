@@ -2195,6 +2195,22 @@ test("a run whose later leg stopped green on stale workflow files is re-fired", 
   }
 });
 
+// The stale run's report-outcome re-fires it at once; when that report's mint
+// is refused or fails (a main change older than the broker's report window),
+// the run ends red. It still ran no model, so the sweep re-fires it as a stale
+// stop on its next run, not on the failed-mint clock (limits.reset-clamp-min
+// after the run ended, here not yet passed).
+test("a stale run whose report-outcome mint failed is re-fired at once, not as a failed mint", async () => {
+  const reportMint = { name: "report-outcome / run", conclusion: "failure", steps: [{ name: "Request the lane token", conclusion: "failure" }] };
+  const red = stalledRun({ jobs: [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), reportMint], conclusion: "failure", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: red.github, actions: red.actions }), 0);
+  assert.deepEqual(writes(red.calls), refired(30));
+  // The same failed mint after a model run waits for the clock.
+  const ran = stalledRun({ jobs: [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped"), reportMint], conclusion: "failure", ended: "2026-10-16T11:30:00Z" });
+  assert.equal(await sweep({ github: ran.github, actions: ran.actions }), 0);
+  assert.deepEqual(writes(ran.calls), []);
+});
+
 // A breaker trip: the token broker refused the run for the lanes kill switch,
 // which only the refused job's log names. Run 40127074215 failed at
 // broker-check's broker ask before any resolve-issue run job; run 40127093047
