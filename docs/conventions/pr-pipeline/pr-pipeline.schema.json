@@ -120,7 +120,7 @@
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit and funding stops since a person last added agent-ready after which work-unblock stops restarting the issue: it comments with outcome=failed, removes agent-ready and adds no label."
+          "description": "Limit and funding stops since a person last added agent-ready after which work-unblock stops restarting the issue: it comments with outcome=failed, removes agent-ready and adds no label. It also bounds the no-fault re-fires: failed mints and kill-switch trips per version of the lane workflow files before work-unblock's backoff, and report-outcome's immediate re-fires of a run that stopped on stale workflow files since a person last added agent-ready or a run last reported, past which work-unblock's sweep re-fires it."
         },
         "wip-cap": {
           "type": "integer",
