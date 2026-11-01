@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh\"\nD=\"/opt/claude/plugins/data/harness-config-melodic-software\"\nbash \"$S\" paths --plugin-data \"$D\" --run-id 20261101T120000Z",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the documented variable form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh paths --run-id r1 --plugin-data /opt/claude/plugins/data/harness-config-melodic-software",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "inline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p /opt/claude/plugins/data/harness-config-melodic-software/runs/harbor/r1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand-built run dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh paths --run-id r1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no --plugin-data"
+    }
+  ]
+}

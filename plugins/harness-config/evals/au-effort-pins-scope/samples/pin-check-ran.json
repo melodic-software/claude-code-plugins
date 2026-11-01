@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/scripts/fetch-docs.sh\" --cache --max-age 0 --out /tmp/d model-config",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/check-effort-pins.sh\" --docs-dir /tmp/d",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "fetch then check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/check-effort-pins.sh --docs-dir .work/docs",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unquoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit/scripts/audit-engine.sh\" --table --out .work/harness-config-audit/findings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the engine instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn '^effort:' .claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand grep for pins"
+    }
+  ]
+}

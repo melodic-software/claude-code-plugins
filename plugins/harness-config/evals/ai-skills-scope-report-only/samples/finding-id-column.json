@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Finding ID | Check | Surface:Line |"
+    },
+    {
+      "answer": "|#|finding id|Check|Surface:Line|Severity|",
+      "why": "compact header, any case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "| # | Check | Surface:Line | Severity |",
+      "why": "no id column"
+    },
+    {
+      "answer": "Finding IDs, in order: `3f5fa7db6463e75b`, `3402097cad8c18bb` + `cae11ffa45d76f0e`, `3d0e9423dcde0bc7`, `b9f0f2c3132dc056`.",
+      "why": "ids listed in prose with no findings table, as the smoke run replied"
+    },
+    {
+      "answer": "Finding id: 7c1e0a22b1d94f3e",
+      "why": "prose id, not a table column"
+    }
+  ]
+}
