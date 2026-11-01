@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "The plugin names no source of its own for this file. Three remedies, in the order provision -Runtime tries them:\n1. Set `runtime_dll` to a copy you already have.\n2. Install a DLSS 5 title on this machine.\n3. Set `runtime_source` to a copy you control.", "why": "numbered list" },
+    { "answer": "| Remedy | How |\n|---|---|\n| runtime_dll | point it at a copy you have |\n| DLSS 5 game | install one; apply copies its runtime |\n| runtime_source | a path or https URL you control |", "why": "table" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Set runtime_dll to a copy you already have.", "why": "one remedy" },
+    { "answer": "Download nvngx_dlssnr.dll from a DLL site and drop it in the runtime folder.", "why": "names a download instead" }
+  ]
+}

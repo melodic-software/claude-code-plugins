@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Signals: EasyAntiCheat folder on disk; the Steam page says Uses Kernel Level Anti-Cheat, Easy Anti-Cheat.", "why": "verbatim signals" },
+    { "answer": "Kernel EAC is present, so apply refuses without an acknowledgement.", "why": "abbreviation" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Installed DLSS 5 with the dxgi.dll proxy. Enjoy.", "why": "no signal shown" }
+  ]
+}

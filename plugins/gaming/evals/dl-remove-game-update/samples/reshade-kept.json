@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "ReShade.ini is listed as kept (unknown, not ours): the mod didn't install it, so it's your call.", "why": "skill wording" },
+    { "answer": "I won't delete ReShade.ini; it isn't a file the mod placed.", "why": "refusal first" },
+    { "answer": "**ReShade.ini:** not the mod's. Delete it yourself if you no longer use ReShade.", "why": "bold label" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Deleted ReShade.ini, the folder is clean now.", "why": "deletes it" },
+    { "answer": "Steam updated the game; offer the refresh.", "why": "silent on ReShade" }
+  ]
+}

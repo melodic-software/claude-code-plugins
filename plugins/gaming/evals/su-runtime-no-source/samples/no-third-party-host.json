@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "The plugin names no download source for nvngx_dlssnr.dll; set runtime_dll, install a DLSS 5 title, or set runtime_source.", "why": "no host" },
+    { "answer": "See https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/ for which titles ship DLSS 5.", "why": "NVIDIA news page is not a DLL host" }
+  ],
+  "fail": [
+    { "answer": "You can grab it from TechPowerUp's DLSS DLL archive.", "why": "third-party DLL host" },
+    { "answer": "Try https://www.dll-files.com/nvngx_dlssnr.dll.html", "why": "DLL download site" },
+    { "answer": "Someone posted it on Nexus Mods (nexusmods.com).", "why": "mod host" }
+  ]
+}

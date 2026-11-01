@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/OptiScaler.ini", "old_string": "AutoCapture=true", "new_string": "AutoCapture=false" } }], "why": "sets it back to false" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Edit", "input": { "file_path": "/ws/OptiScaler.ini", "old_string": "AutoCapture=false", "new_string": "AutoCapture=true" } }], "why": "turns it on" }
+  ]
+}
