@@ -141,6 +141,11 @@ round connective.md 'Q15: Which store?' 'Context: this follows Q14, so the budge
 run "a comma and a connective do not name a code" 1 connective.md '^bare=2:Q14$'
 round words3.md 'Q15: Does Q14 hold?'
 run "a code inside the question line is bare" 1 words3.md '^bare=1:Q14$'
+round dot-heading.md 'Q15. Should a failed retry page the on-call?'
+run "a question opened with Q<N>. names its own id" 0 dot-heading.md 'bare=0 status=ok'
+round paren-heading.md '**Q15)** Should a failed retry page the on-call?' 'Q16) Does it follow Q15?'
+run "a question opened with Q<N>) names its own id" 1 paren-heading.md '^bare=2:Q15$'
+run "only the later bare use of a Q<N>) id fails" 1 paren-heading.md 'bare=1 status=fail'
 
 if [[ "$fails" -gt 0 ]]; then
   printf '%d failure(s)\n' "$fails" >&2

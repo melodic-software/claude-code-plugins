@@ -20,8 +20,10 @@
 #                   connective such as `so` or `and` (`C3: scoped change`,
 #                   `question Q14, retry budget`, `lane (one builder
 #                   session)`), or sits in parentheses after words
-#                   (`scoped change (C3)`). `Checked against: C1, C3` is bare
-#                   twice; each later use in the same block is not checked
+#                   (`scoped change (C3)`). The `Q<N>` that opens a question
+#                   line is named by that question, whether `:`, `.` or `)`
+#                   follows it. `Checked against: C1, C3` is bare twice; each
+#                   later use in the same block is not checked
 #
 # Lines inside fenced code blocks are ignored, in the ledger and the round; a
 # fence left open exits 2.
@@ -184,7 +186,15 @@ LC_ALL=C awk '
   {
     sub(/\r$/, "")
     if (fence($0) || in_fence) next
-    if ($0 ~ /^[^A-Za-z0-9]*Q[0-9]+[.):]/) delete used
+    if (match($0, /^[^A-Za-z0-9]*Q[0-9]+[.):]/)) {
+      delete used
+      # The Q<N> that opens a question line is the handle of that question,
+      # named by the question itself whatever separator follows it.
+      c = substr($0, RSTART, RLENGTH)
+      sub(/^[^A-Za-z0-9]*/, "", c)
+      sub(/[.):]$/, "", c)
+      used[c] = 1
+    }
     grade($0, FNR)
   }
   END {
