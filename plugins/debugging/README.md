@@ -61,6 +61,13 @@ This plugin has no `userConfig`. The phase checklist is a bundled template you c
 into your own working-notes location (or track inline); nothing is written to shared
 plugin storage.
 
+A repository can commit `docs/conventions/debugging.yaml` to set one key, checked against
+[`schemas/debugging.schema.json`](schemas/debugging.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `always_on_signal` | `when-instrumented`, `always`, `never` | `when-instrumented` | When `/debugging:debug` Phase 6 proposes one cheap, always-on signal that would have shown the deciding fact at first look: only after Phase 4 instrumentation ran, on every run, or never. |
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).
