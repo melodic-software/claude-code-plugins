@@ -290,11 +290,39 @@ export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-i
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
 // The lane name its stop-reason markers carry.
 const LANE = "work-resolve-issue";
-const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: (security))?(?: resets=(\S+))?(?: cap=(\d+))?(?: pr=(\d+))?(?: run=(\d+))?(?: branch=(resumed))?(?: credential=([A-Z][A-Z0-9_]*))?(?: fallback=(credit-stop|auth|no-key|limit-stop))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
+
+// The secret NAME a run's leg used and why it fell back, from lane.json, which
+// the run could rewrite: a name outside SECRET_NAME or a reason outside
+// FALLBACKS is dropped, so the marker carries only closed, public-safe values.
+const SECRET_NAME = /^[A-Z][A-Z0-9_]*$/;
+const FALLBACKS = new Set(["credit-stop", "auth", "no-key", "limit-stop"]);
+export function readLaneCredential(dir) {
+  let lane;
+  try {
+    lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+  } catch {
+    return {};
+  }
+  return {
+    ...(typeof lane?.credential === "string" && SECRET_NAME.test(lane.credential) && { credential: lane.credential }),
+    ...(typeof lane?.fallback === "string" && FALLBACKS.has(lane.fallback) && { fallback: lane.fallback }),
+  };
+}
+
+// The plan with ` credential=<NAME> fallback=<reason>` (each when valid)
+// closing its outcome marker line.
+export function withCredential(plan, { credential, fallback } = {}) {
+  const tag = `${typeof credential === "string" && SECRET_NAME.test(credential) ? ` credential=${credential}` : ""}${FALLBACKS.has(fallback) ? ` fallback=${fallback}` : ""}`;
+  if (!tag || typeof plan?.comment !== "string") {
+    return plan;
+  }
+  return { ...plan, comment: plan.comment.replace(/^(<!-- work-resolve-issue outcome=[^\n]*?) -->/m, `$1${tag} -->`) };
+}
 
 // The marker a limited run leaves on its issue; work-unblock reads it back.
 export const limitedMarker = ({ resets, runId, onResumed = false }) =>
@@ -309,7 +337,7 @@ export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
 // sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
-// {outcome, resets, run, onResumed, pr?, security?} from a comment body that opens with the lane's
+// {outcome, resets, run, onResumed, pr?, security?, credential?, fallback?} from a comment body that opens with the lane's
 // marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
 // unreadable; onResumed is true for `branch=resumed`; security is true on an
 // intake marker a pushbackSecurity stop left.
@@ -324,6 +352,8 @@ export function parseOutcomeMarker(body) {
     resets: Number.isFinite(resets) ? resets : null,
     run: match[6] ?? "",
     onResumed: match[7] === "resumed",
+    ...(match[8] && { credential: match[8] }),
+    ...(match[9] && { fallback: match[9] }),
     ...(match[5] && { pr: match[5] }),
     ...(match[2] && { security: true }),
   };
@@ -2105,6 +2135,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           unmarked,
           collectRefused: env.COLLECT_REFUSED === "true",
         });
+    plan = withCredential(plan, readLaneCredential(dir));
     if (plan.action === "turn-cap") {
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing.

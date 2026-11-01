@@ -19,7 +19,11 @@ import {
   countTurnCapRestarts,
   decide,
   doneEvidence,
+  ESCALATION_MARKER,
   findPrior,
+  limitedMarker,
+  readLaneCredential,
+  withCredential,
   findPriorMain,
   main,
   mustHold,
@@ -2055,6 +2059,56 @@ test("the limited marker reads back with its reset and run", () => {
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=stopped -->").outcome, "stopped");
   assert.equal(parseOutcomeMarker("hello"), null);
   assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 branch=resumed -->").onResumed, true);
+});
+
+// ADR 0087: the marker names the secret the run used and why it fell back,
+// from lane.json, which the run could rewrite, so only closed values pass.
+// A fake value in a key's shape, built at run time so no scanner reads a key here.
+const TOKEN_SHAPED = ["sk", "ant", "api03", "x".repeat(24)].join("-");
+const credentialOf = (lane) => withDir({ "lane.json": JSON.stringify(lane) }, (dir) => readLaneCredential(dir));
+
+test("the outcome marker names a valid credential and fallback reason from lane.json", () => {
+  const read = credentialOf({ branch: "", class: "rate-limit", credential: "ISSUE_LANE_CLAUDE_API_KEY", fallback: "credit-stop" });
+  assert.deepEqual(read, { credential: "ISSUE_LANE_CLAUDE_API_KEY", fallback: "credit-stop" });
+  const plan = withCredential({ action: "limited", comment: `${limitedMarker({ resets: "2026-10-17T18:00:00Z", runId: "555", onResumed: true })}\nStopped.` }, read);
+  assert.equal(
+    plan.comment,
+    "<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 branch=resumed credential=ISSUE_LANE_CLAUDE_API_KEY fallback=credit-stop -->\nStopped.",
+  );
+  assert.deepEqual(parseOutcomeMarker(plan.comment), {
+    outcome: "limited",
+    resets: Date.parse("2026-10-17T18:00:00Z"),
+    run: "555",
+    onResumed: true,
+    credential: "ISSUE_LANE_CLAUDE_API_KEY",
+    fallback: "credit-stop",
+  });
+  // After the escalation line, the outcome line is the one that takes the tags.
+  const escalated = withCredential({ comment: `${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=failed run=9 -->\n<!-- other -->` }, { credential: "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN" });
+  assert.equal(escalated.comment, `${ESCALATION_MARKER}\n<!-- work-resolve-issue outcome=failed run=9 credential=FALLBACK_CLAUDE_CODE_OAUTH_TOKEN -->\n<!-- other -->`);
+  assert.equal(parseOutcomeMarker(escalated.comment).credential, "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN");
+});
+
+test("the outcome marker drops a credential that is not a secret name and a fallback reason outside the closed set", () => {
+  for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "", 7]) {
+    assert.deepEqual(credentialOf({ credential }), {}, String(credential));
+  }
+  for (const fallback of ["handoff", "fallback", "rate-limit", "CREDIT-STOP", ""]) {
+    assert.deepEqual(credentialOf({ credential: "ISSUE_LANE_CLAUDE_API_KEY", fallback }), { credential: "ISSUE_LANE_CLAUDE_API_KEY" }, fallback);
+  }
+  assert.deepEqual(credentialOf({ branch: "" }), {}, "a lane.json without the fields");
+  assert.deepEqual(withDir({ "lane.json": "{not json" }, (dir) => readLaneCredential(dir)), {}, "an unreadable lane.json");
+  const plan = { action: "limited", comment: "<!-- work-resolve-issue outcome=failed run=9 -->" };
+  assert.equal(withCredential(plan, { credential: TOKEN_SHAPED, fallback: "handoff" }), plan, "nothing valid leaves the plan as it was");
+  // A marker whose tokens fall outside the closed values does not parse as the lane's.
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 credential=lower_case -->"), null);
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 fallback=handoff -->"), null);
+});
+
+test("an outcome marker without a credential or fallback still parses without them", () => {
+  const read = parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 branch=resumed -->");
+  assert.deepEqual(read, { outcome: "failed", resets: null, run: "9", onResumed: true });
+  assert.equal(parseOutcomeMarker("<!-- work-resolve-issue outcome=failed run=9 fallback=no-key -->").fallback, "no-key");
 });
 
 const LIMIT_NOW = Date.parse("2026-10-17T12:00:00Z");
