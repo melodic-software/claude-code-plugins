@@ -43,7 +43,10 @@ TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
 [ "$IGNORED" -eq 1 ] && IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")"
 if [ "$IGNORED" -eq 1 ]; then
   IGNORE_SRC="${IGNORE_MATCH%%:*}"
+  # A repository .gitignore prints relative to the work tree; an excludes file prints
+  # absolute, so a global `core.excludesFile = ~/.gitignore` must not pass the name test.
   case "$IGNORE_SRC" in
+    /*) IGNORED=0 ;;
     .gitignore|*/.gitignore) ;;
     *) IGNORED=0 ;;
   esac

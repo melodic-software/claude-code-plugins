@@ -161,12 +161,15 @@ write() {
 
 # gitignored <path>: a repository .gitignore rule ignores the path, as
 # reference/overlay-ignore-probes.md decides it (info/exclude and core.excludesFile
-# protect no teammate).
+# protect no teammate). git prints a repository .gitignore source relative to the
+# work tree and an excludes file as an absolute path, so a global excludes file
+# named ~/.gitignore is refused before the .gitignore name test.
 gitignored() {
   local match
   git -C "$ROOT" check-ignore --no-index -q -- "$1" || return 1
   match="$(git -C "$ROOT" check-ignore --no-index -v -- "$1")"
   case "${match%%:*}" in
+  /*) return 1 ;;
   .gitignore | */.gitignore) return 0 ;;
   *) return 1 ;;
   esac

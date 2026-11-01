@@ -5,6 +5,9 @@
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG WORK_ITEM_TRACKER_BINDING CLAUDE_PROJECT_DIR
+# The developer's global and system git config (a core.excludesFile among them)
+# must not decide whether a fixture's overlay path is ignored.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/migrate-binding.sh"
@@ -129,6 +132,20 @@ assert_eq "not ignored: exit 3" 3 "$?"
 assert_contains "not ignored: reported" "$out" "overlay: not-ignored"
 assert_absent "not ignored: no YAML binding" "$ROOT/docs/conventions/work-items.yaml"
 assert_absent "not ignored: no YAML overlay" "$ROOT/docs/conventions/work-items.local.yaml"
+
+# Case 5b: a global excludes file named .gitignore protects no teammate, so it does
+# not count as a repository rule.
+ROOT="$(fixture global-excludes)"
+: >"$ROOT/.gitignore"
+mkdir -p "$TEST_TMPDIR/home"
+printf '%s\n' '*.local.yaml' >"$TEST_TMPDIR/home/.gitignore"
+printf '[core]\n\texcludesFile = %s\n' "$TEST_TMPDIR/home/.gitignore" >"$TEST_TMPDIR/global.gitconfig"
+printf '%s\n' '{"schema_version": "1.0", "provider": "github", "config": {"lease_ttl_hours": 24}}' >"$ROOT/.work-item-tracker.json"
+printf '%s\n' '{"config": {"lease_ttl_hours": 6}}' >"$ROOT/.work-item-tracker.local.json"
+out="$(GIT_CONFIG_GLOBAL="$TEST_TMPDIR/global.gitconfig" bash "$SCRIPT" --root "$ROOT" 2>/dev/null)"
+assert_eq "global excludes file: exit 3" 3 "$?"
+assert_contains "global excludes file: reported" "$out" "overlay: not-ignored"
+assert_absent "global excludes file: no YAML overlay" "$ROOT/docs/conventions/work-items.local.yaml"
 
 # Case 6: values the YAML subset cannot carry, or the seam would read as absent,
 # stop before any write.
