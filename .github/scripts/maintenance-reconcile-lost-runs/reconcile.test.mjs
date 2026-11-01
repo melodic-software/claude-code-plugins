@@ -109,7 +109,10 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
     }
     const latest = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?filter=latest&per_page=100$/.exec(path);
     if (method === "GET" && latest) {
-      const found = byId.get(Number(latest[1]))?.jobs ?? [];
+      // A run with no jobs named is a ready pull request's: its ci-status
+      // skipped the draft step resolve-pr's draftRun reads.
+      const ready = [{ id: 1, name: "ci-status", conclusion: "success", steps: [{ name: "Note a draft", conclusion: "skipped" }] }];
+      const found = byId.get(Number(latest[1]))?.jobs ?? ready;
       return { total_count: found.length, jobs: found };
     }
     const notes = /^\/repos\/[^/]+\/[^/]+\/check-runs\/([0-9]+)\/annotations\?per_page=100$/.exec(path);

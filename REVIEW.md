@@ -49,6 +49,13 @@ form `standards/review/<file>.md#<heading>`, resolved relative to wherever
 the `standards` checkout root is available: this repository's own root when
 `standards` reviews itself, or the `--add-dir` mount root everywhere else.
 
+When the reviewed repository has a `docs/review/README.md`, that file indexes
+the repository's own per-concern review criteria, and a self-hosted or local
+review also reads the files there whose concern the change touches. Those
+paths resolve against the reviewed repository's root, not the `standards`
+checkout or its `--add-dir` mount. A repository without `docs/review/` is
+reviewed as before.
+
 ## Code-review lane scope
 
 This lane owns every review dimension except security: correctness,

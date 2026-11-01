@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
-# The tracker reads a .work-item-tracker.local.json overlay beside the binding, so
+# The tracker reads a per-user overlay beside the binding, so
 # the binding gets a private directory rather than the shared $TMPDIR.
 STORAGE="$(mktemp -d)"
 BINDING_DIR="$(mktemp -d)"

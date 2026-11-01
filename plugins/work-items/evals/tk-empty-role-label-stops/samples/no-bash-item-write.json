@@ -16,7 +16,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "ls -la .work-items/ && cat .work-item-tracker.json"
+            "command": "ls -la .work-items/ && cat docs/conventions/work-items.yaml"
           }
         }
       ],
@@ -49,18 +49,18 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "jq '.config.role_labels[\"autonomous-eligible\"] | length > 0' .work-item-tracker.json"
+            "command": "yq '.tracker.config.role_labels[\"autonomous-eligible\"] | length > 0' docs/conventions/work-items.yaml"
           }
         }
       ],
-      "why": "comparison in a jq read"
+      "why": "comparison in a yq read"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "cp .work-item-tracker.json /tmp/binding-copy.json"
+            "command": "cp docs/conventions/work-items.yaml /tmp/binding-copy.yaml"
           }
         }
       ],
@@ -95,18 +95,18 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "jq '.config.role_labels[\"autonomous-eligible\"]=\"agent-ready\"' .work-item-tracker.json | tee .work-item-tracker.json"
+            "command": "yq '.tracker.config.role_labels[\"autonomous-eligible\"]=\"agent-ready\"' docs/conventions/work-items.yaml | tee docs/conventions/work-items.yaml"
           }
         }
       ],
-      "why": "jq piped to tee over the binding"
+      "why": "yq piped to tee over the binding"
     },
     {
       "answer": [
         {
           "tool": "Bash",
           "input": {
-            "command": "sed -i 's/\"autonomous-eligible\": \"\"/\"autonomous-eligible\": \"agent-ready\"/' .work-item-tracker.json"
+            "command": "sed -i 's/autonomous-eligible: \"\"/autonomous-eligible: agent-ready/' docs/conventions/work-items.yaml"
           }
         }
       ],

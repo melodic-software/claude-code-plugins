@@ -2,7 +2,7 @@
   "skill": "user-interface:design",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/design",
-  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. user-interface:write-animation builds one animation, so a request to animate a menu (neg-train-06) goes there. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here. Build-a-component probes (pos-*-build-*) cover the build triggers #11423 adds; competitors there are the same-plugin neighbors a UI request could reach (styling code, animation, review, naming, plugin settings) plus prototype:explore-directions.",
+  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. user-interface:write-animation builds one animation, so a request to animate a menu (neg-train-06) goes there. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here. Build-a-component probes (pos-*-build-*) cover the build triggers #11423 adds; competitors there are the same-plugin neighbors a UI request could reach (styling code, animation, review, naming, plugin settings) plus prototype:explore-directions. Shape probes (pos-*-shape-*) ask what one radius or shadow should be, including a question that gives every number, which the model otherwise answers without loading the skill.",
   "competitors": [
     "planning:design",
     "prototype:explore-directions",
@@ -115,6 +115,18 @@
       "split": "train",
       "expect_trigger": true,
       "request": "Should we write our own data grid with sorting and column resizing or pull in something like AG Grid or TanStack Table? We're on React with Tailwind."
+    },
+    {
+      "id": "pos-train-shape-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our product tiles have 12px corners and the thumbnail image inside each one, inset by 8px, also has 12px corners. It looks slightly off but I can't say why. What should the thumbnail's corners be?"
+    },
+    {
+      "id": "pos-train-shape-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Every surface in our admin app uses the same drop shadow, so the dropdown menu over a card doesn't look like it's floating above it. How should the shadows differ between the card and the menu?"
     },
     {
       "id": "neg-train-01",
@@ -241,6 +253,12 @@
       "split": "validation",
       "expect_trigger": true,
       "request": "My Go CLI `syncctl status` currently dumps everything as one wall of text. I want it to show each remote as a row with a colored state (ok / drifting / failed), a summary line at the bottom, and degrade cleanly when piped or when NO_COLOR is set. How should the output be laid out?"
+    },
+    {
+      "id": "pos-validation-shape-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "On mobile our bottom sheet has big rounded top corners and a 1px hairline border, and the list rows inside it have their own rounded backgrounds. The edges where they meet look clumsy. What radius and border treatment would make them sit together?"
     },
     {
       "id": "neg-validation-01",

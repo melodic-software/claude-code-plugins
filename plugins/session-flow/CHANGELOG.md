@@ -1,5 +1,35 @@
 # Changelog: session-flow plugin
 
+## [3.3.0] - 2026-11-01
+
+### Added
+
+- `/session-flow:retro trends` shows the team's delivery metrics beside the session scores by invoking `/work-items:measure-delivery` when that skill is available. When the work-items plugin is not installed, it says the delivery metrics were not read and why.
+
+### Changed
+
+- `retro`'s bundled enforcement-ladder copy, now 2.1.0, lists `/corrections:codify` as the reader that picks a rung for a recurring mistake, a findings file or review comments, in place of `/review:audit-enforceability` and retro's codify mode.
+
+## [3.2.0] - 2026-11-01
+
+### Added
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+### Fixed
+
+- The `af-unknown-token-stops` eval case's `rejects-bad-token` grader now accepts the stop reply
+  "`--apply-fixes` isn't an argument this skill accepts", which `/session-flow:audit-friction`
+  gives, so a correct stop no longer scores 0.50.
+
+- The `rr-routes-never-codifies` eval case now also fails a run that calls Edit on CLAUDE.md,
+  CLAUDE.local.md or a `.claude/rules/` file. The eval denies writes under `.claude/`, so an Edit
+  of the existing rule file left it unchanged and the run still passed every grader.
+
 ## [3.1.1] - 2026-11-01
 
 ### Fixed

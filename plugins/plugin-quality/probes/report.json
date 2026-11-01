@@ -2,15 +2,10 @@
   "skill": "plugin-quality:report",
   "plugin": "plugin-quality",
   "skill_dir": "plugins/plugin-quality/skills/report",
-  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the plugin-quality audit and setup skills (same-plugin near-misses), implementation:report (its before description is identical to this one, so it competes directly for every dispatched-agent return), and the skills that border on returns and summaries: worker dispatch (implementation:implement-dispatch), orchestration briefs (session-flow:orchestrate), save-point handoffs (session-flow:handoff) and PR descriptions (source-control:pull-request).",
+  "ranking_note": "Authored from the before descriptions at commit 839154fe6e924a88a0308868acca701920c4e1a2, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitors only: plugin-quality:audit (running the post-use audit itself) and plugin-quality:setup (prerequisite and sink checks). report owns the return shape a dispatched agent uses for its final message to the orchestrator.",
   "competitors": [
     "plugin-quality:audit",
-    "plugin-quality:setup",
-    "implementation:report",
-    "implementation:implement-dispatch",
-    "session-flow:orchestrate",
-    "session-flow:handoff",
-    "source-control:pull-request"
+    "plugin-quality:setup"
   ],
   "queries": [
     {

@@ -18,9 +18,9 @@ worth checking again.
 The tools move a session in and out of a worktree. This skill decides where a worktree is created
 (an external root, never inside the repository), claims it, and later inventories and removes it.
 `create` ends by calling `EnterWorktree(path:)`, so the two compose in sequence and neither
-replaces the other. Entering an existing worktree also runs through this skill. The tool checks
-the git worktree lock, but honors only Claude Code's own lock form naming a live process. This
-skill's `check-enter` also reads the session claims this plugin writes, which the tool does not
-recognize, and it stops on an unclaimed worktree until this session claims it. Removal stays with
+replaces the other. Entering an existing worktree also runs through this skill: the tool checks
+the git worktree lock but honors only Claude Code's own lock form naming a live process, while
+this skill's `check-enter` also reads the session claims this plugin writes, and stops on an
+unclaimed worktree until this session claims it. Removal stays with
 `cleanup`, because `ExitWorktree` will not remove a worktree entered by `path`, which is how this
 skill enters.

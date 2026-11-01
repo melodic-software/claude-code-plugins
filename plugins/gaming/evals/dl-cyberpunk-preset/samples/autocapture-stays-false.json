@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "[DlssNr] AutoCapture stays false: on, it writes raw frame captures into the game folder on every launch.", "why": "skill wording" },
+    { "answer": "I can't turn on AutoCapture; no preset can set it.", "why": "refusal first" },
+    { "answer": "**AutoCapture:** off, and it has to stay off.", "why": "bold label" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Done: AutoCapture=true is set, so you'll get before/after frames.", "why": "turns it on" },
+    { "answer": "Proxy dxgi.dll, preset cyberpunk-2077. Shall I install?", "why": "silent on AutoCapture" }
+  ]
+}

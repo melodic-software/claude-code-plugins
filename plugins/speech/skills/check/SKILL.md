@@ -1,5 +1,5 @@
 ---
-description: "Read-only check of the speech plugin's text-to-speech prerequisites: Python 3.12+, Node.js, espeak-ng, the hook-installed numpy and onnxruntime, and the Kokoro model files. Use when: 'narrate stopped with exit 2', 'what is speech missing', 'is text to speech ready', a session-start notice named a speech prerequisite, or before assuming narration will run. Reports each missing prerequisite with its remedy. Does not install."
+description: "Read-only check of the speech plugin's text-to-speech prerequisites (Python, Node.js, espeak-ng, Python packages, Kokoro model), reporting each gap with its remedy. Use when: 'narrate stopped with exit 2', 'what is speech missing', 'is text to speech ready', a session-start notice named a speech prerequisite, or before assuming narration will run. Does not install."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools:

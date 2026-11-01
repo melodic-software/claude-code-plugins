@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-11-01
+
+### Changed
+
+- `codify`'s enforcement-ladder copy, now 2.1.0, names `/corrections:codify` as the reader that picks a rung for a recurring mistake, a findings file or review comments, and its Boundary no longer names the older review and retro surfaces.
+
 ## [0.9.0] - 2026-11-01
 
 ### Added

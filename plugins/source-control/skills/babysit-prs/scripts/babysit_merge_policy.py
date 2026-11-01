@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import contextlib
 import json
 import ntpath
 import os
@@ -45,6 +46,7 @@ from urllib.parse import quote
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
+import babysit_tracker_binding as tracker_binding
 import babysit_whole_review as whole_review
 from babysit_classify import (
     actor_kind,
@@ -100,6 +102,9 @@ MAX_IN_FLIGHT_CEILING = 24
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
+# Each `merge.rung` name and the code it stands for. The codes stay accepted
+# as aliases and are the form the gate compares and reports.
+RUNG_NAMES = {"merge": "C2", "merge-reviewed": "C3"}
 # `babysit_loop_merge` values as a rung.
 LOOP_MERGE_RUNG = {
     "human-only": "off",
@@ -406,20 +411,33 @@ _FLOOR_ROWS: dict[str, FloorRows] = {}
 
 def floor_paths_in(text: str) -> FloorRows:
     """The `merge.diff-check.floor-paths` rows of a pipeline document, read once
-    per document: `lib/yaml-subset.awk`'s flat records, since the shared reader's
-    `--list` prints scalar items alone. Raises `FloorRowError` on a row the
-    floor cannot use, and `PolicyReadError` when the parser cannot run or
-    rejects the document."""
+    per document from its `yaml_records`, since the shared reader's `--list`
+    prints scalar items alone. Raises `FloorRowError` on a row the floor
+    cannot use, and `PolicyReadError` when the parser cannot run or rejects
+    the document."""
     if text in _FLOOR_ROWS:
         return _FLOOR_ROWS[text]
+    records = {
+        key[len(FLOOR_PATHS_KEY) + 1 :]: value
+        for key, value in yaml_records(text).items()
+        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}.")
+    }
+    _FLOOR_ROWS[text] = rows = floor_rows(records)
+    return rows
+
+
+def yaml_records(text: str) -> dict[str, str]:
+    """A YAML document's `lib/yaml-subset.awk` records: each scalar's dotted
+    key to its value. Raises `PolicyReadError` when the parser cannot run or
+    rejects the document."""
     platform = "win32" if os.name == "nt" else sys.platform
     bash = resolve_bash(os.environ, platform, os.path.isfile)
     if bash is None:
         raise PolicyReadError("no usable bash found to run the shared YAML parser")
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
-        document.write_text(text, encoding="utf-8")
         try:
+            document.write_text(text, encoding="utf-8")
             proc = run_command(
                 [bash, "-c", 'LC_ALL=C exec awk -f "$0" "$1"']
                 + [str(PARSER.with_name("yaml-subset.awk")), str(document)],
@@ -430,13 +448,8 @@ def floor_paths_in(text: str) -> FloorRows:
             raise PolicyReadError(f"the shared YAML parser failed: {exc}") from exc
     if proc.returncode != 0:
         raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
-    records = {}
-    for line in proc.stdout.split("\n"):
-        key, _, value = line.partition("\t")
-        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}."):
-            records[key[len(FLOOR_PATHS_KEY) + 1 :]] = value
-    _FLOOR_ROWS[text] = rows = floor_rows(records)
-    return rows
+    pairs = (line.partition("\t") for line in proc.stdout.split("\n") if line)
+    return {key: value for key, _, value in pairs}
 
 
 def _merge_names(text: str, key: str) -> bool:
@@ -948,7 +961,8 @@ def read_config_at(
     (`_resolve_loop_merge`: the lower of `docs/conventions/source-control.yaml`
     and `.claude/source-control.md`), all read at `base_sha` through
     `file_at(path, sha)` (text, or None when absent), by default a local clone
-    holding `base_sha` (`_clones_holding`), else the contents API. A pipeline
+    holding `base_sha` (`_clones_holding`), else a checkout of `base_sha`
+    (`_config_checkout`), else the contents API. A pipeline
     file the shared reader rejects is off; an absent one has no merge block
     (rung off, authority unset). Raises `PolicyReadError` when the pipeline
     file cannot be read.
@@ -958,12 +972,18 @@ def read_config_at(
         raise PolicyReadError(f"base SHA is not a 40-hex commit id: {base_sha!r}")
     if file_at is None:
         root = next(_clones_holding(base_sha), None)
+        checkout = _config_checkout(base_sha)
 
         def file_at(path: str, sha: str) -> str | None:
             if root is not None:
                 try:
                     return _git_file_at(root, path, sha)
                 except _SymlinkAt:
+                    pass
+            if checkout is not None and sha == base_sha:
+                try:
+                    return _git_file_at(checkout, path, sha)
+                except PolicyReadError:
                     pass
             return _file_at(owner, name, path, sha)
 
@@ -1013,9 +1033,11 @@ def read_config_at(
         found = values[key]
         return found[0] if found else None
 
-    rung = scalar("merge.rung") or "off"
+    rung = rung_code(scalar("merge.rung")) or "off"
     if rung not in RUNG_RANK:
-        notes.append(f"merge.rung {rung!r} is not off, C2 or C3")
+        notes.append(
+            f"merge.rung {rung!r} is not off, merge (C2) or merge-reviewed (C3)"
+        )
         rung = "off"
     lines = scalar("merge.diff-check.max-changed-lines")
     if lines is not None and not re.fullmatch(r"[0-9]+", lines):
@@ -1432,6 +1454,12 @@ def lane_identity(repo: str, base_sha: str) -> tuple[str | None, str]:
 # --- Effective rung ---------------------------------------------------------------
 
 
+def rung_code(value: str | None) -> str | None:
+    """`value` with a rung name (`RUNG_NAMES`) read as its code; any other
+    value, a code or an unknown one, unchanged."""
+    return RUNG_NAMES.get(value or "", value)
+
+
 @dataclass(frozen=True)
 class EffectiveRung:
     rung: str
@@ -1444,6 +1472,7 @@ def effective_rung(
 ) -> EffectiveRung:
     """min(merge.rung, babysit_loop_merge, rung cap, demotion); an unknown input
     is off. `cap` None means no cap (a proven 404); `demoted` holds it off."""
+    config_rung, cap = rung_code(config_rung), rung_code(cap)
     inputs = {
         "merge.rung": config_rung if config_rung in RUNG_RANK else "off",
         LOOP_MERGE_KEY: LOOP_MERGE_RUNG.get(loop_merge or "", "off"),
@@ -1544,6 +1573,7 @@ def read_rung_cap(repo: str) -> RungCap:
     status, value = _variable(owner, name, RUNG_CAP_VARIABLE)
     if status == 404:
         return RungCap(None, "no-cap")
+    value = rung_code(value)
     if status == 200 and value in RUNG_RANK:
         return RungCap(value, "cap-set")
     return RungCap("off", "cap-unreadable" if status != 200 else "cap-invalid")
@@ -1561,6 +1591,7 @@ def rung_cap(repo: str, *, authority: str, lane_value: str | None = None) -> Run
         return RungCap("off", "lane-value-missing")
     if lane_value == "":
         return RungCap(None, "no-cap")
+    lane_value = rung_code(lane_value)
     if lane_value in RUNG_RANK:
         return RungCap(lane_value, "cap-set")
     return RungCap("off", "cap-invalid")
@@ -2302,29 +2333,24 @@ def _opt_in_refusal(
     return f"opt-in-label:{untrusted}" if untrusted else None
 
 
-TRACKER_CONFIG = ".work-item-tracker.json"
 ADMISSION_ROLE = "autonomous-eligible"
 DEFAULT_ADMISSION_LABEL = "agent-ready"
 
 
 def admission_label(owner: str, name: str, ref: str) -> str:
-    """The tracker's admission role label at `ref` (`agent-ready` unless
-    `.work-item-tracker.json` maps `autonomous-eligible`). Raises
-    `PolicyReadError` when the config cannot be read or parsed."""
-    text = _file_at(owner, name, TRACKER_CONFIG, quote(ref, safe=""))
-    if text is None:
-        return DEFAULT_ADMISSION_LABEL
+    """The tracker binding's admission role label at `ref` (`agent-ready`
+    unless it maps `autonomous-eligible`; `babysit_tracker_binding`). Raises
+    `PolicyReadError` when the binding cannot be read or parsed."""
+    at = quote(ref, safe="")
     try:
-        config = json.loads(text)
-    except ValueError as exc:
-        raise PolicyReadError(f"{TRACKER_CONFIG} at {ref} is not JSON: {exc}") from exc
-    roles = json_object(
-        json_object(json_object(config).get("config")).get("role_labels")
-    )
-    label = roles.get(ADMISSION_ROLE)
-    if isinstance(label, str) and label.strip():
-        return label.strip()
-    return DEFAULT_ADMISSION_LABEL
+        return tracker_binding.role_label(
+            lambda path: _file_at(owner, name, path, at),
+            yaml_records,
+            ADMISSION_ROLE,
+            DEFAULT_ADMISSION_LABEL,
+        )
+    except tracker_binding.BindingError as exc:
+        raise PolicyReadError(f"{exc} (at {ref})") from exc
 
 
 def _vouch_refusal(
@@ -3268,7 +3294,31 @@ def base_tip(owner: str, name: str, base: str) -> str:
     sha = json_object(json_object(answer).get("object")).get("sha")
     if status != 200 or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise PolicyReadError(f"the base branch {base} did not resolve")
+    if _BASE_TIPS is not None:
+        _BASE_TIPS[f"{owner}/{name}@{base}"] = sha
     return sha
+
+
+# Each branch tip `base_tip` read inside `base_tips_remembered`; None outside.
+_BASE_TIPS: dict[str, str] | None = None
+
+
+@contextlib.contextmanager
+def base_tips_remembered() -> Iterator[None]:
+    """Within the block, `remembered_base_tip` answers a tip `base_tip`
+    already read: one judgment's reads of a branch see one tip."""
+    global _BASE_TIPS
+    outer, _BASE_TIPS = _BASE_TIPS, {}
+    try:
+        yield
+    finally:
+        _BASE_TIPS = outer
+
+
+def remembered_base_tip(owner: str, name: str, base: str) -> str:
+    """`base`'s tip as read inside `base_tips_remembered`, else `base_tip`."""
+    known = (_BASE_TIPS or {}).get(f"{owner}/{name}@{base}")
+    return known or base_tip(owner, name, base)
 
 
 def lifts_of(
@@ -5053,10 +5103,16 @@ DEFAULT_BRANCH_SECTION = "default-branch"
 SHARED_DEFAULT_BRANCHES: set[str] = set()
 
 
+# The workflow event's `repository.default_branch`, taken for the run's own
+# repository (`GITHUB_REPOSITORY`) instead of a read.
+DEFAULT_BRANCH_ENV = "BABYSIT_DEFAULT_BRANCH"
+
+
 def _default_branch(repo: str, *, shared: bool = False) -> str:
     """The default branch's name. `shared` takes one another gate process of
     the run read within `run_cache.MAX_AGE`; every read is saved for them, a
-    failed one never."""
+    failed one never. `DEFAULT_BRANCH_ENV` answers for the run's own
+    repository without a read and is not saved."""
     cached = (
         run_cache.get(DEFAULT_BRANCH_SECTION, repo, run_cache.MAX_AGE)
         if shared
@@ -5065,6 +5121,14 @@ def _default_branch(repo: str, *, shared: bool = False) -> str:
     if isinstance(cached, str) and cached:
         SHARED_DEFAULT_BRANCHES.add(repo)
         return cached
+    event = os.environ.get(DEFAULT_BRANCH_ENV, "")
+    if (
+        os.environ.get("GITHUB_REPOSITORY", "").casefold() == repo.casefold()
+        and re.fullmatch(r"[A-Za-z0-9._/-]+", event)
+        and not event.startswith("-")
+        and ".." not in event
+    ):
+        return event
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -5145,15 +5209,47 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}/pulls/{number}")
     pr = json_object(payload) if status == 200 else {}
+    if not _pull_request_shaped(pr):
+        raise PolicyReadError(f"#{number} could not be read (status {status})")
+    record_pull_request_total(repo, number, pr["head"]["sha"], pr.get("commits"))
+    return pr
+
+
+def _pull_request_shaped(pr: dict[str, Any]) -> bool:
+    """Whether `pr` has a base and head SHA that are full commit ids and refs."""
     base, head = json_object(pr.get("base")), json_object(pr.get("head"))
-    if not (
+    return bool(
         SHA_RE.fullmatch(str(base.get("sha")))
         and SHA_RE.fullmatch(str(head.get("sha")))
         and isinstance(base.get("ref"), str)
         and isinstance(head.get("ref"), str)
+    )
+
+
+def cached_pull_request(
+    path: str | None, repo: str, number: int, head: str
+) -> dict[str, Any] | None:
+    """`pull_request`'s record from the file at `path`, which the caller read
+    in this run, when it is `repo`'s #`number` at `head`; None for anything
+    else (no path, an unreadable or other record), so the caller reads live."""
+    if not path:
+        return None
+    try:
+        pr = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not is_json_object(pr) or not _pull_request_shaped(pr):
+        return None
+    full = json_object(json_object(pr["base"]).get("repo")).get("full_name")
+    if (
+        type(pr.get("number")) is not int
+        or pr["number"] != number
+        or pr["head"]["sha"] != head
+        or not isinstance(full, str)
+        or full.casefold() != repo.casefold()
     ):
-        raise PolicyReadError(f"#{number} could not be read (status {status})")
-    record_pull_request_total(repo, number, head.get("sha"), pr.get("commits"))
+        return None
+    record_pull_request_total(repo, number, head, pr.get("commits"))
     return pr
 
 
@@ -5225,6 +5321,26 @@ def _full_history_root(checkout: Path) -> Path | None:
     # A partial clone lacks older blobs, which the read never fetches.
     promisor = r"^(extensions\.partialclone|remote\..*\.promisor)$"
     if _git(root, "config", "--get-regexp", promisor) is not None:
+        return None
+    return root
+
+
+# A checkout whose HEAD is a base commit, shallow or sparse, that config reads
+# at exactly that commit take files from (ci-status's base-config checkout).
+CONFIG_CHECKOUT_ENV = "BABYSIT_CONFIG_CHECKOUT"
+
+
+def _config_checkout(sha: str) -> Path | None:
+    """The top of `CONFIG_CHECKOUT_ENV`'s checkout when its HEAD is `sha`,
+    else None. A file it cannot answer (a symlink, a blob a sparse partial
+    checkout lacks, which is never fetched) is read through the API."""
+    raw = os.environ.get(CONFIG_CHECKOUT_ENV, "").strip()
+    if not raw or not Path(raw).is_dir():
+        return None
+    root = Path(raw).resolve()
+    top = _git(root, "rev-parse", "--show-toplevel")
+    head = _git(root, "rev-parse", "--verify", "HEAD^{commit}")
+    if not top or Path(top.strip()).resolve() != root or not head or head.strip() != sha:
         return None
     return root
 
@@ -5757,7 +5873,7 @@ class Promotion:
     reason: str | None
 
     def promoted(self, rung: str | None) -> bool:
-        needed = RUNG_CELLS.get(rung or "")
+        needed = RUNG_CELLS.get(rung_code(rung) or "")
         return bool(
             self.cells
             and needed

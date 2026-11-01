@@ -42,7 +42,7 @@ gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/$BASE" \
   | jq -e 'add | any(.[]; .type == "merge_queue")' >/dev/null && echo 'merge queue: skip the update'
 ```
 
-A dependency manager's PR names its app as the author. The spelling depends on the source:
+A dependency manager's PR names its app as the author, spelled by source:
 `gh pr view` and `gh pr list` print `app/dependabot`, and REST `.user.login` prints
 `dependabot[bot]`. Match either form, as `is_dependency_author` in the babysit-prs engine does:
 
@@ -111,8 +111,8 @@ blocks a merge whose target it cannot resolve. `--match-head-commit <sha>`, with
 literally, makes GitHub refuse the merge if the head moved. It is optional for an immediate merge
 and required with `--auto`, so auto-merge is armed only on the head the session reviewed. The pin
 does not hold after arming: a push by anyone with write access keeps auto-merge armed, and where the
-AI review checks are not required checks the new head can merge on `ci-status` alone. An armed
-auto-merge is therefore reported, as [confirm queue entry](#confirm-queue-entry) does. Before
+AI review checks are not required checks the new head can merge on `ci-status` alone, so an armed
+auto-merge is reported, as [confirm queue entry](#confirm-queue-entry) does. Before
 pushing to a PR with auto-merge armed, disarm it with
 `gh pr merge <pr_number> -R <owner>/<repo> --disable-auto`, and re-arm it only after the reviews
 pass on the new head. Making the AI review checks required in rulesets is tracked in

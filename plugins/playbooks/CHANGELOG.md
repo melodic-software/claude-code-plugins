@@ -4,6 +4,30 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.26.0] - 2026-11-01
+
+### Added
+
+- The skill criteria (`skill-authoring/reference/skill-criteria.md`) gain a Stack-specific tools section: detect the project's tool and use it without an interview, otherwise research live, interview, and write the setup into the project.
+- The skill criteria's Body section points at `scripts/shared-copies.txt` as the one shared-copies record, keeps shared files as copies, and names the drift registry a cluster of copies also needs.
+- The skill criteria's Measurement section says skill-creator is run as it ships, not wrapped, names the tested route for cutting text (cut, `/docs-hygiene:compress compare`, then evals with and without the removed text), and re-audits shipped skills on each model release.
+
+### Changed
+
+- `/playbooks:skill-authoring`'s skill criteria no longer say check 14 needs the skill-creator JSON file under `--require-evals`; a suite case listing the skill's directory name in a one-line `tags: [...]` passes it.
+
+- The `boris` and `skill-authoring` skill bodies and their reference and context files cut filler, intensifiers and repeated restatement; no rule, number, example or cross-reference changed, and vendored upstream copies are untouched ([#6572](https://github.com/melodic-software/claude-code-plugins/issues/6572)).
+
+### Fixed
+
+- `rewrite-a-plugin.md` step 5 runs the emitted trigger probes with the run line from the README beside them, rather than a copy of its flags that went stale.
+
+## [0.25.3] - 2026-11-01
+
+### Fixed
+
+- The skill-authoring criteria say the marketplace's spoke gate covers both the plugin-root and the skill-dir substitution variables, now that `scripts/check-spoke-plugin-root.sh` searches spokes for both ([#11750](https://github.com/melodic-software/claude-code-plugins/issues/11750)).
+
 ## [0.25.2] - 2026-11-01
 
 ### Fixed

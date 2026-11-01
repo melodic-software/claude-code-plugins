@@ -8,6 +8,18 @@
     },
     {
       "answer": "Six options below; pick by emotional intent."
+    },
+    {
+      "answer": "**How I'd choose:**\n- **For quiet ache:** #1 or #2.\n- **For bitterness:** #5.\n- **For a wistful tone:** #7 or #8.",
+      "why": "a choosing guide by feeling, no option crowned"
+    },
+    {
+      "answer": "**How I'd choose:** *for quiet ache*, #1 or #2; *for bitterness*, #5.",
+      "why": "an inline choosing guide that opens with italics (review finding)"
+    },
+    {
+      "answer": "**How I'd choose:** _if_ the song is tender, #3; if it is bitter, #5.",
+      "why": "an inline conditional guide"
     }
   ],
   "fail": [
@@ -23,6 +35,22 @@
     },
     {
       "answer": "My one pick:\n\n## The house settled crooked toward her side.\n\nIt works because the image carries the absence without naming it."
+    },
+    {
+      "answer": "Here is how it plays out. I'd go with the saw: #1.",
+      "why": "how in an earlier sentence, then a pick"
+    },
+    {
+      "answer": "How I'd choose: #2. It is the best.",
+      "why": "a single pick on the choosing-guide line (review finding)"
+    },
+    {
+      "answer": "**How I'd choose:** \"the porch light still waits up\".",
+      "why": "a single quoted pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** *the porch light still waits up*.",
+      "why": "a single italic pick on the choosing-guide line (review finding)"
     }
   ]
 }

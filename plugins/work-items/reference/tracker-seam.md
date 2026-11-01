@@ -40,8 +40,8 @@ routes rather than halting unconditionally.
   plugin install is incomplete: stop and surface that the plugin must be reinstalled or repaired,
   rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
   recurring schedule and label remaps but does NOT create the seam.
-- **The provider binding** (`.work-item-tracker.json` at the project root, seeded by
-  `/work-items:setup`). Unlike the two above, a missing binding has a legitimate recovery path, so it is
+- **The provider binding** (the `tracker` key of `<home>/work-items.yaml`, else the legacy
+  repo-root JSON binding `/work-items:setup` writes). Unlike the two above, a missing binding has a legitimate recovery path, so it is
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`,
@@ -164,7 +164,8 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 ## Role-label resolution is an action-entry invariant
 
 At the start of every action that queries, creates, or filters items by a canonical role, read
-`.work-item-tracker.json` and resolve each role the action uses from `config.role_labels`; an absent
+the binding the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the legacy
+repo-root JSON binding) and resolve each role the action uses from `config.role_labels`; an absent
 file or absent entry falls back to the documented default silently (setup omits default entries on
 purpose). Keep
 those resolved strings for that invocation and
@@ -203,8 +204,8 @@ step sequence.
 ### With `/session-flow:retro`
 
 The retrospective skill's Phase 3 surfaces "Issue candidates": deferred research, discovered gaps,
-recurring recheck updates. Approved items use `/work-items:track add`. Mid-session learnings can be
-captured with `/session-flow:retro codify`.
+recurring recheck updates. Approved items use `/work-items:track add`. A recurring mid-session
+correction goes to `/corrections:codify`, which picks the rung that encodes it.
 
 ### With `/source-control:pull-request`
 
@@ -270,5 +271,6 @@ bound adapter's operations reference. For GitHub, that is
 - Own the label taxonomy content. That is
   [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md)
   (universal + repo-specific groups).
-- Bind the provider. The active provider lives in `.work-item-tracker.json` at the project root,
-  seeded once by `/work-items:setup`; these skills read the binding but never write it.
+- Bind the provider. The active provider lives under the `tracker` key of `<home>/work-items.yaml`,
+  else in the legacy repo-root JSON binding `/work-items:setup` writes; these skills read the
+  binding but never write it.

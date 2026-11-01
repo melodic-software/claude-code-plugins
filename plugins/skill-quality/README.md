@@ -98,7 +98,7 @@ the reviewer to confirm the description still names that intent, or to restore t
   editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
   provenance rests on reviewing the diff and on the skill's own content tests.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
-  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
+  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a plugin suite case lists the skill's directory name in a one-line `tags: [...]`, or a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
 - Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
@@ -143,8 +143,9 @@ the reviewer to confirm the description still names that intent, or to restore t
   2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck when a re-measure
   of that repository moves them. Growth of either against `CHECK_SKILL_BASE_REF`, or the merge-base
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
-  is skipped with an INFO. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the
-  rule.
+  is skipped with an INFO. A `SKILL.md` above the 5,000-token router cap also warns; the count
+  is an estimate, whole-file characters divided by 4 and rounded up, and prints as INFO under the
+  cap. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the rule.
 - Settings tokens as conditions (`FAIL:`, blocking where a baseline applies). A sentence with `when`, `if` or `unless`
   before a `${user_config.KEY}` token that is its subject (`is true`, `is on`, `is false`)
   fails unless the same sentence states what an unexpanded token means, e.g. "(unexpanded, empty,

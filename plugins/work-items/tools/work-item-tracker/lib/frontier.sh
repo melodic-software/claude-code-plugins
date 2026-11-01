@@ -29,7 +29,7 @@ wit_filter_frontier() {
   # --args positionals keep labels containing spaces intact (every member does).
   floor_json="$(jq -n -c '$ARGS.positional' --args "${WIT_HUMAN_FLOOR_WORK_CLASS_LABELS[@]}" "${WIT_HUMAN_FLOOR_PROVENANCE_LABELS[@]}" "${WIT_HUMAN_FLOOR_STATUS_LABELS[@]}")"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" \
-    --argjson floor "$floor_json" '{
+    --arg wayfind "$WIT_WAYFIND_LABEL_PREFIX" --argjson floor "$floor_json" '{
     schema_version: .schema_version,
     items: [
       .items[]
@@ -38,6 +38,7 @@ wit_filter_frontier() {
           and .blocked_by_count == 0
           and ((.assignees // []) | length == 0)
           and (((.labels // []) | index($container)) | not)
+          and (any((.labels // [])[]?; type == "string" and startswith($wayfind)) | not)
           and (if $auto == "true"
                then (((.labels // []) | index($human_gated)) | not)
                     and (((.labels // []) | any(. as $l | $floor | index($l))) | not)

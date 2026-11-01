@@ -293,8 +293,18 @@ jobs:
       # neither runs the check again then. They download it from this run
       # only. The next run's post-merge-dispatch reads it too (the step
       # above), and reuses it while it is younger than SHARED_MAX_AGE.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.post-merge.conclusion == 'success'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/post-merge-report/
+
       - name: Keep the post-merge report for enable-auto-merge
-        if: steps.post-merge.conclusion == 'success'
+        if: >-
+          (steps.post-merge.conclusion == 'success') && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -514,8 +524,20 @@ jobs:
           echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
           echo "run-id=$id" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          steps.dispatch.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/dispatched.json
+
+      # Kept 30 days: a lane merge is judged on this record only until a check
+      # settles it (the identity's settled marker on its pull request); after
+      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
-        if: steps.dispatch.outputs.run-id != ''
+        if: >-
+          (steps.dispatch.outputs.run-id != '') && steps.scan-upload-2.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
@@ -621,8 +643,17 @@ jobs:
           echo "{\"rerunner_run_id\":$GITHUB_RUN_ID,\"run_id\":$RUN_ID,\"attempt\":2}" >"$RUNNER_TEMP/rerun.json"
           echo "recorded=true" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          !cancelled() && steps.rerun.outputs.recorded == 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/rerun.json
+
       - name: Record the re-run
-        if: "!cancelled() && steps.rerun.outputs.recorded == 'true'"
+        if: >-
+          (!cancelled() && steps.rerun.outputs.recorded == 'true') && steps.scan-upload-3.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-rerun-${{ steps.post-merge.outputs.lane-rerun }}-attempt-2
@@ -757,8 +788,17 @@ jobs:
             exit 0
           done <<<"$runs"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-4
+        if: >-
+          !cancelled() && steps.alert.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/alerted.json
+
       - name: Record the alert sent
-        if: "!cancelled() && steps.alert.outputs.run-id != ''"
+        if: >-
+          (!cancelled() && steps.alert.outputs.run-id != '') && steps.scan-upload-4.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-alerted-${{ steps.alert.outputs.run-id }}
@@ -1397,6 +1437,46 @@ jobs:
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
 
+      # Each lane merge the check above judged verified from a readable read,
+      # with nothing left that could change it, is listed in its report's
+      # `settle`. This posts the agent identity's settled marker on each one's
+      # pull request under the lane token, as the pin comment is posted, since
+      # only the identity's unedited marker counts. Later checks count a
+      # settled merge verified without reading its runs or its
+      # pr-merge-dispatched artifact, so only a settled merge stops depending
+      # on that artifact's 30-day retention. A merge with a red, superseded or
+      # flaked full run in its window is never settled and still needs it. A
+      # failed post is a warning: the merge is listed again on the next run's
+      # check.
+      - name: Settle verified lane merges
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && (steps.post-merge.outputs.code == '0' || steps.post-merge.outputs.code == '1'
+              || steps.post-merge.outputs.code == '5')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          report=$RUNNER_TEMP/post-merge.json
+          if ! jq -e '.settle | length > 0' "$report" >/dev/null 2>&1; then
+            exit 0
+          fi
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --settle-from "$report" \
+            </dev/null >"$RUNNER_TEMP/post-merge-settle.json" || code=$?
+          cat "$RUNNER_TEMP/post-merge-settle.json"
+          if [ "$code" != 0 ]; then
+            echo "::warning::settling verified lane merges exited $code; no marker was posted"
+          fi
+          jq -r '.warnings[]?' "$RUNNER_TEMP/post-merge-settle.json" 2>/dev/null | while IFS= read -r warning; do
+            echo "::warning::$warning"
+          done
+
       # A whole-review request (babysit_whole_review.py) converts a lane or
       # adopted PR to a draft and marks it ready again; a run that ended
       # between the two left a draft the listing above skips. Each listed
@@ -1622,8 +1702,17 @@ jobs:
       # The next run's starting point (rotation.mjs reads it), uploaded even
       # when the job is cancelled, since cursor.json is rewritten after each
       # candidate.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.gate.outcome != 'skipped'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/gate-cursor/cursor.json
+
       - name: Record where the gate stopped
-        if: always() && steps.gate.outcome != 'skipped'
+        if: >-
+          (always() && steps.gate.outcome != 'skipped') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-gate-cursor
@@ -1652,8 +1741,18 @@ jobs:
           mkdir -p "${HEAD_REFS_OUT%/*}"
           node .base/.github/scripts/pr-merge/head-ref-map.mjs write
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.head-refs.outcome == 'success'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/head-refs/head-refs.json
+
       - name: Upload them for the next run
-        if: always() && steps.head-refs.outcome == 'success'
+        if: >-
+          (always() && steps.head-refs.outcome == 'success') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1681,8 +1780,18 @@ jobs:
           mkdir -p "${LANE_RECORDS_OUT%/*}"
           node .base/.github/scripts/pr-merge/lane-records.mjs write
 
+      - name: Scan the upload for credentials
+        id: scan-upload-3
+        if: >-
+          always() && steps.lane-records.outcome == 'success'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/lane-records/lane-records.json
+
       - name: Upload the lane records for the next run
-        if: always() && steps.lane-records.outcome == 'success'
+        if: >-
+          (always() && steps.lane-records.outcome == 'success') && steps.scan-upload-3.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1717,8 +1826,18 @@ jobs:
             --keys "$RUNNER_TEMP/skip-keys.json" --summary "$RUNNER_TEMP/pr-merge-summary.json" \
             --outputs-dir "$RUNNER_TEMP" --store "$RUNNER_TEMP/pr-merge-carried.json" --run-id "$GITHUB_RUN_ID"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-4
+        if: >-
+          always() && steps.carry.outputs.carried == 'true'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+
       - name: Upload the verdict reads for the next run
-        if: always() && steps.carry.outputs.carried == 'true'
+        if: >-
+          (always() && steps.carry.outputs.carried == 'true') && steps.scan-upload-4.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -1805,8 +1924,18 @@ jobs:
           node .base/.github/scripts/pr-merge/sweep-summary.mjs
           jq -r '"refusal" + "-counts=" + (.refusal_counts | tojson)' "$SWEEP_SUMMARY_TO"
 
+      - name: Scan the upload for credentials
+        id: scan-upload-5
+        if: >-
+          always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-merge-sweep.json
+
       - name: Upload the sweep's verdicts
-        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
+        if: >-
+          (always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')) && steps.scan-upload-5.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1819,11 +1948,19 @@ jobs:
       # The gate-check job below writes each candidate's check run from these
       # rows. Not while the lane is report-only, nor after the gate's
       # rate-limit stop: that job's own stop file would not hold it.
+      - name: Scan the upload for credentials
+        id: scan-upload-6
+        if: >-
+          always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-merge-summary.json
+
       - name: Hand the gate's rows to the check writer
         id: rows
         if: >-
-          always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false'
-          && steps.gate.outputs.rate-limited != 'true'
+          (always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true') && steps.scan-upload-6.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1922,10 +2059,18 @@ jobs:
       # the pages since a base, holding GitHub's live count). Only a
       # scheduled or hand-started run's file is read back, so only one
       # uploads it. Rules: .github/scripts/pr-merge/listing-carry.mjs.
+      - name: Scan the upload for credentials
+        id: scan-upload-7
+        if: >-
+          always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/verify-listing.json
+
       - name: Keep the artifact listing for the next run
         if: >-
-          always() && steps.gate.outcome != 'skipped'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          (always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload-7.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -2330,10 +2475,20 @@ jobs:
       # each to expire within the hour, with the arm step's skip records. A
       # file name of its own: the merge job uploads pr-merge-head-refs. Only a
       # scheduled or hand-started run's file is read back.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: |
+            ${{ runner.temp }}/verify-answers/verify-answers.json
+            ${{ runner.temp }}/verify-answers/eam-skip.json
+
       - name: Upload the verifier answers for the next run
         if: >-
-          always() && steps.arm.outcome != 'skipped'
-          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+          (always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')) && steps.scan-upload.outputs.clean == 'true'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -2364,8 +2519,18 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload-2
+        if: >-
+          always() && steps.carry.outputs.kept == 'true'
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+
       - name: Upload the verdict reads for the next run
-        if: always() && steps.carry.outputs.kept == 'true'
+        if: >-
+          (always() && steps.carry.outputs.kept == 'true') && steps.scan-upload-2.outputs.clean == 'true'
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -2497,9 +2662,11 @@ jobs:
     env:
       API_BUDGET_TOKEN: github-token
     steps:
-      # The api-budget library only, from the default branch. A failed
-      # checkout leaves no library: the steps below call GitHub as they would
-      # without it, and no reading is logged.
+      # The api-budget library and the upload scanner, from the default
+      # branch. A failed checkout leaves neither: the steps below call GitHub
+      # as they would without the library, and no reading is logged, but the
+      # dispatched-run record's scan fails the job, as a failed upload of
+      # that record does, so the unrecorded run shows red.
       - name: Check out the api-budget library
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2509,6 +2676,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/log-api-budget/
+            /.github/actions/scan-upload/
+            /lib/publish-gate.mjs
           sparse-checkout-cone-mode: false
 
       # At most one full run of main per CAP_MINUTES, each of main's tip,
@@ -2683,8 +2852,20 @@ jobs:
       # The post-merge check counts a full run started by github-actions[bot]
       # only when a pr-merge.yml run on main uploaded an artifact naming it.
       # Only this run's own steps can upload this run's artifacts.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.dispatch.outputs.run-id != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/dispatched.json
+
+      # Kept 30 days: a lane merge is judged on this record only until a check
+      # settles it (the identity's settled marker on its pull request); after
+      # that no check reads it, so its expiry fails no settled merge.
       - name: Record the dispatched run
-        if: steps.dispatch.outputs.run-id != ''
+        if: >-
+          (steps.dispatch.outputs.run-id != '') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}

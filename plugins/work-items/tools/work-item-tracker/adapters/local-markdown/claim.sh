@@ -8,14 +8,15 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
-  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0'
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--phase <kind>]
+  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0
+  --phase (triage, discovery or implementation) records the work the lease is for; absent means implementation'
 wit_help_if_requested "$usage" "$@"
 
 id="${1:-}"
 [[ -n "$id" ]] || wit_usage_error "$usage"
 shift
-ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
+ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id="" phase=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --ttl-hours)
@@ -33,10 +34,16 @@ while [[ $# -gt 0 ]]; do
     session_id="$2"
     shift 2
     ;;
+  --phase)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--phase needs a value"
+    phase="$2"
+    shift 2
+    ;;
   *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
+[[ -z "$phase" ]] || wit_lease_phase_valid "$phase" || wit_usage_error "--phase must be triage, discovery or implementation"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
 if ! [[ "$ttl_minutes" =~ ^[0-9]{1,2}$ ]] || ((10#$ttl_minutes > 59)); then
   wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
@@ -66,10 +73,12 @@ lease_id="$(wit_next_lease_id)"
 
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$holder" --arg now "$now" \
   --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" --arg cid "$lease_id" \
+  --arg phase "$phase" \
   '{schema_version: $sv, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber)}
    + (if ($ttl_minutes | tonumber) > 0 then {ttl_minutes: ($ttl_minutes | tonumber)} else {} end)
-   + (if $sid != "" then {session_id: $sid} else {} end)')"
+   + (if $sid != "" then {session_id: $sid} else {} end)
+   + (if $phase != "" then {phase: $phase} else {} end)')"
 # The lease marker and the assignee are one claim and must land together: a live
 # lease with an empty assignees would look available and let a later claim race the
 # live lease. A failed assignee write attempts to roll the marker back (wit_claim_write

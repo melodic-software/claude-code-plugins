@@ -10,11 +10,18 @@ git config user.email eval@example.invalid
 
 printf '.work/\n' >.gitignore
 printf '# webhooks\n\nOutbound webhook delivery.\n' >README.md
-mkdir -p webhooks .work-items
+mkdir -p webhooks .work-items docs/conventions
 printf 'def deliver(event):\n    return post(event)\n' >webhooks/deliver.py
 : >.work-items/.keep
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items", "role_labels": {"autonomous-eligible": ""}}}
-JSON
+cat >docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+    role_labels:
+      autonomous-eligible: ""
+YAML
 git add .
 git commit -q -m "chore: scaffold webhooks"

@@ -341,6 +341,7 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_state.py", "enforcement"),
+    ("plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
@@ -364,16 +365,16 @@ _EXPRESSION_SECRET = r"\$\{\{(?:[^}]|\}(?!\}))*?(?<![\w.'\"-])secrets(?![\w-])"
 _NON_JOB_SECRET = re.compile(
     r"\bsecrets\s*(?:\.\s*(?!github_token\b)(?:[A-Za-z0-9_]+|\*)"
     r"|\[(?!\s*['\"]github_token['\"]\s*\])[^\]]*\])"
-    r"|\bsecrets\b(?=\s*\))|\bsecrets\s*:\s*inherit\b"
+    r"|\bsecrets\b(?=\s*\))|\bsecrets['\"]?\s*:\s*['\"]?inherit\b"
     rf"|{_EXPRESSION_SECRET}{_NOT_JOB_TOKEN}",
     re.IGNORECASE,
 )
 # A lane token minted in the run, or an OIDC token a cloud trusts:
-# `id-token: write`, or `write-all`, which sets "access for all of the
-# available permissions" (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions),
+# `id-token: write`, its key or value quoted or not, or `write-all`, which
+# sets "access for all of the available permissions" (https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#permissions),
 # id-token among them.
 _MINTED_CREDENTIAL = re.compile(
-    r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token\s*:\s*['\"]?write\b"
+    r"\buses\s*:\s*['\"]?[^\s'\"]*request-lane-token|\bid-token['\"]?\s*:\s*['\"]?write\b"
     r"|\bwrite-all\b",
     re.IGNORECASE,
 )
@@ -1205,10 +1206,11 @@ _SAFE_PIPELINE_LINE = re.compile(
     r"\s*(?:#.*)?|\s*(?:description|title)\s*:(?:\s.*)?", re.IGNORECASE
 )
 # Any secrets reference: `secrets.NAME`, `secrets.*`, `secrets['NAME']`, the
-# whole `secrets` context as an argument, and `secrets: inherit`.
+# whole `secrets` context as an argument, and `secrets: inherit`, its key or
+# value quoted or not.
 _SECRET_REF = re.compile(
     r"\bsecrets\s*(?:\.\s*(?:[A-Za-z0-9_]+|\*)|\[[^\]]*\])|\bsecrets\b(?=\s*\))"
-    r"|\bsecrets\s*:\s*inherit\b"
+    r"|\bsecrets['\"]?\s*:\s*['\"]?inherit\b"
     rf"|{_EXPRESSION_SECRET}(?:[^}}]|\}}(?!\}}))*\}}\}}",
     re.IGNORECASE,
 )

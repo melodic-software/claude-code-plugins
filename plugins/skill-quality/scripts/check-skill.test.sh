@@ -4148,6 +4148,52 @@ else
   fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
+# 48b. A single-file plugin case.yaml whose tags name the skill satisfies --require-evals;
+#      one whose tags only start with the skill's name does not.
+mkdir -p "$TMP/plugins/p1/evals/c1"
+printf '%s\n' 'schema_version: 1' 'tags: [listed-other, hard]' >"$TMP/plugins/p1/evals/c1/case.yaml"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals fails when no case.yaml tag is exactly the skill"
+else
+  fail "a case tagged only listed-other should not satisfy listed (rc=$rc): $out"
+fi
+printf '%s\n' 'schema_version: 1' "tags: [hard, 'listed']" >"$TMP/plugins/p1/evals/c1/case.yaml"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
+  pass "--require-evals accepts a plugin case.yaml that tags the skill"
+else
+  fail "a case tagged listed should satisfy --require-evals (rc=$rc): $out"
+fi
+
+# 48c. The shape convert-evals-json.py writes: an untagged case.yaml beside a
+#      prompt.md whose front matter carries the tag. A tags line in the prompt
+#      body, after the front matter, does not count.
+printf '%s\n' 'schema_version: "1.1"' "name: 'listed-c1'" 'graders:' >"$TMP/plugins/p1/evals/c1/case.yaml"
+printf '%s\n' '---' "tags: ['other']" '---' '' "tags: ['listed']" >"$TMP/plugins/p1/evals/c1/prompt.md"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals ignores a tags line in the prompt body"
+else
+  fail "a tags line after the front matter should not count (rc=$rc): $out"
+fi
+printf '%s\n' '---' "tags: ['listed', 'hard']" 'allowed_tools: [Read, Glob, Grep, Skill]' '---' '' 'Prompt text.' >"$TMP/plugins/p1/evals/c1/prompt.md"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
+  pass "--require-evals accepts a converted case whose prompt.md front matter tags the skill"
+else
+  fail "a converted case tagged listed should satisfy --require-evals (rc=$rc): $out"
+fi
+rm -rf "${TMP:?}/plugins/p1/evals"
+
 # 49. The evals-warrant walk stops at a filesystem root instead of spinning.
 # `dirname` is a fixed point at every root: `.` for a relative path on any
 # platform, and `<drive>:` on Git Bash, where `git rev-parse --show-toplevel`
@@ -5364,6 +5410,33 @@ if grep -q 'INFO: no HEAD version (new skill): size growth skipped' <<<"$out" &&
   pass "check 30 skips growth with an INFO for a skill new at the base ref"
 else
   fail "check 30 should skip growth for a new skill: $out"
+fi
+# Router cap: 5000 tokens, estimated as whole-file codepoints / 4 rounded up,
+# so 20000 chars is exactly at the cap and 20001 is the first over it.
+# router_skill <name> <total SKILL.md chars>
+router_skill() {
+  local md pad
+  md=$'---\ndescription: "Do a thing. Use when: \'a thing\' is needed."\ndisable-model-invocation: false\n---\n'
+  printf -v pad '%*s' "$(($2 - ${#md}))" ''
+  mkdir -p "$SKILLS/$1"
+  printf '%s' "$md${pad// /x}" >"$SKILLS/$1/SKILL.md"
+}
+router_skill sz-router-at 20000
+out="$(run sz-router-at 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'above the router cap' <<<"$out" &&
+  grep -q 'INFO: SKILL.md about 5000/5000 tokens (router cap)' <<<"$out"; then
+  pass "check 30 stays quiet on a SKILL.md at exactly 5000 estimated tokens"
+else
+  fail "check 30 should be quiet at the router cap (rc=$rc): $out"
+fi
+router_skill sz-router-over 20001
+out="$(run sz-router-over 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: SKILL.md is about 5001 tokens (20001 chars / 4), above the router cap of 5000' <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a SKILL.md above 5000 estimated tokens"
+else
+  fail "check 30 should WARN above the router cap, exit 0 (rc=$rc): $out"
 fi
 
 # Check 31: a settings token as the subject of a condition with no fallback.

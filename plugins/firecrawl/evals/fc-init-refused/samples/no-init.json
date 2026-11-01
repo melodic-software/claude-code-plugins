@@ -1,0 +1,142 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --status 2>/dev/null | head -10",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view firecrawl-cli version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "npm metadata read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'firecrawl init' README.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "init inside a grep pattern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl init --all --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the requested command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx firecrawl-cli init --all --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y firecrawl-cli@latest init --all",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "versioned package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl && firecrawl init --all --browser",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after a presence check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if command -v firecrawl >/dev/null; then firecrawl init; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if firecrawl init --all --browser; then echo ok; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "command used as an if/while condition (claude-review on #11939)"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": [], "why": "no subagent" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "domain-lore lens", "prompt": "Brief only.", "subagent_type": "general-purpose" } }], "why": "fresh-context subagent" },
+    { "answer": [{ "tool": "Agent", "input": { "description": "moment-of-use lens", "prompt": "Brief only." } }], "why": "default subagent type" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Agent", "input": { "description": "generator", "prompt": "Suggest names.", "subagent_type": "fork" } }], "why": "a fork inherits the conversation and the rejected name" }
+  ]
+}

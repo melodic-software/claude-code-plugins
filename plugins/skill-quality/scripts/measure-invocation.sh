@@ -597,11 +597,12 @@ Run within one plugin at a time (the CLI loads a single plugin):
 
 ```
 claude plugin eval plugins/<plugin> --eval-dir <this-dir-filtered-to-that-plugin> --trust-plugin \
-  --ablation none --keep-temp --disallow-tools Read Glob Grep
+  --ablation none --keep-temp --disallow-tools Read Glob Grep Agent
 ```
 
 The run workspace is empty, so without `--disallow-tools` the agent searches
-outside it and the denied calls make the run INVALID.
+outside it, or hands the task to a subagent that outlives the run's timeout;
+the denied calls and timed-out runs make the run INVALID.
 
 A with-only `tool_used: Skill` grader is a plugin-fired indicator, not a score.
 Copy the per-case predicted fire/quiet bits into a report JSON matching
