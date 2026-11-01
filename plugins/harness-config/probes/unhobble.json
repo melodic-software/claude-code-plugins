@@ -1,0 +1,122 @@
+{
+  "skill": "harness-config:unhobble",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/unhobble",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice C (#11563); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings its near-miss negatives route to: audit-instructions, audit-prompting-postures, audit-pass, audit-automation-gaps; negatives aimed at the built-in fewer-permission-prompts or update-config skills are kept without a competitor entry.",
+  "competitors": [
+    "harness-config:audit-instructions",
+    "harness-config:audit-prompting-postures",
+    "harness-config:audit-pass",
+    "harness-config:audit-automation-gaps"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "a new model just shipped. I want to see what it does with none of our CLAUDE.md or rules loaded, note where it struggles, and only put back what it really needs"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "turn off all the standing instructions in this repo for a while and keep a log of what goes wrong"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I suspect half of AGENTS.md is dead weight now. Set up an experiment where we remove it and add rules back only when the same mistake keeps repeating."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "before I delete the 'always run tsc' rule, can we watch for a while whether the model ever needs it?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "pick up the bare-model experiment where we left off, I've got new stumble notes to log"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "does opus even need our 200-line CLAUDE.md anymore? let's find out by working without it"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "strip everything from .claude/rules, do normal work, and only restore a rule after it fails twice for the same reason"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Re-baseline our instructions against the newest model: remove them, record the failures, and restore only what earns its way back."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "keep an eye on the no-force-push rule for a couple of weeks before we cut it"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "start a deletion watch on the commit-message section of CLAUDE.md"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "read our CLAUDE.md and flag statements that are stale or contradict how Claude Code works now"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "my @docs/style.md import in CLAUDE.md isn't loading, figure out why"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "does CLAUDE.md say when the agent should stop and ask? what posture guidance is it missing?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run one coordinated pass of all the audits over this repo and give me a single findings report."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "which rules in CLAUDE.md should really be hooks instead of prose?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "after the claude code update, check my settings and hooks for drift against the docs"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "remove the env block from .claude/settings.json"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "is AGENTS.md overly rigid? point out instructions that overconstrain the model, just report"
+    }
+  ]
+}

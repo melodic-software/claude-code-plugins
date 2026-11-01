@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"allow\": [\"$defaults\", \"Test Execution: ...\"]}"
+    },
+    {
+      "answer": "\"soft_deny\": [\n    \"$defaults\","
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\"allow\": [\"Test Execution: ...\"]}",
+      "why": "no token"
+    }
+  ]
+}

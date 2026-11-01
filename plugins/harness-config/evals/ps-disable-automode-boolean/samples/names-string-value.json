@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Only the string \"disable\" locks auto mode out."
+    },
+    {
+      "answer": "Set it to `disable` (a string)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "disableAutoMode is true, so auto mode is disabled.",
+      "why": "no string value"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-grants/scripts/permission-rule-check.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the documented call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-grants/scripts/permission-rule-check.sh --count",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unquoted, --count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq .permissions .claude/settings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand read with jq"
+    }
+  ]
+}

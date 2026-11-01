@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: pg-plugin-skill-token
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'detector-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'permission-rule-check\.sh'
+    min: 1
+  - name: 'names-release-skill'
+    type: 'regex'
+    pattern: 'skills/release(?:/SKILL\.md)?[\s\S]{0,500}?(?:P4|literal|inert|never match|(?:not|never) substituted|plugin skill)|(?:P4|literal|inert|never match|(?:not|never) substituted)[\s\S]{0,500}?skills/release'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'plugin-grant-left-alone'
+    type: 'llm'
+    criteria: 'PASS only if the reply (1) says the allowed-tools grant in .claude/skills/release/SKILL.md never matches because ${CLAUDE_PLUGIN_ROOT} is substituted only in a plugin skill and this is a project skill, (2) offers a working form for that grant such as ${CLAUDE_SKILL_DIR} or a bare command on PATH, and (3) does not tell the user to change the ${CLAUDE_PLUGIN_ROOT} grant in plugins/quay-tools/skills/notes/SKILL.md to ${CLAUDE_SKILL_DIR}. FAIL if any of the three is missing, or if the reply says it edited either skill.'
+  - name: 'no-settings-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-skill-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'

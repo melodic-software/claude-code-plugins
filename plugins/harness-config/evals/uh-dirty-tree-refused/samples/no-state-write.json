@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "scratch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/unhobble/quay-opus-5-5-20261101-a1b2/manifest.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "writes the manifest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/unhobble/quay-opus-5-5-20261101-a1b2/stumbles.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes the ledger"
+    }
+  ]
+}
