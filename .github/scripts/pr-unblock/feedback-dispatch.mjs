@@ -595,8 +595,9 @@ export async function dispatchFeedback({
   // and nothing sends it again, so a cap that could not be read (#11354)
   // does not hold it.
   // A round sent for pr-verify's FAIL at this head (notesSince) expects the
-  // reader's FAIL refusal there.
-  const expected = !passOnly && notesSince !== null ? [VERIFY_FAIL] : [];
+  // reader's FAIL refusal there, and so does a pass-only round: its pass may
+  // meet a same-head FAIL it did not supersede, whose notes stay open.
+  const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
   const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
   const { cap: capped, supersededAtHead } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (capped) {

@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchFeedback, failureAnnotation, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { verifyReader } from "./verify-cap.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -301,12 +302,14 @@ test("a pass-only dispatch names the head superseded only when the gate's reader
 
 // A round sent for pr-verify's FAIL at the head (notesSince set) finds that
 // FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
-// the reader is told to expect it; a review run's round and a pass expect none.
-test("only a round sent for pr-verify's FAIL at the head expects the reader's FAIL refusal", async () => {
+// the reader is told to expect it, and so does a pass-only round: its pass
+// may meet a same-head FAIL it did not supersede, whose notes stay open. A
+// review run's round expects none.
+test("a round sent for pr-verify's FAIL at the head, and a pass-only round, expect the reader's FAIL refusal", async () => {
   for (const [extra, expected] of [
     [{ notesSince: Date.parse("2026-10-17T19:00:00Z") }, ["verify:fail"]],
     [{}, []],
-    [{ passOnly: true }, []],
+    [{ passOnly: true }, ["verify:fail"]],
   ]) {
     const asked = [];
     const verifyCapped = (request) => {
@@ -320,6 +323,26 @@ test("only a round sent for pr-verify's FAIL at the head expects the reader's FA
       JSON.stringify(extra),
     );
   }
+});
+
+// The reader itself (verify-cap.mjs verifyReader) answering verify:fail for a
+// same-head FAIL the pass did not supersede: the pass-only round still runs,
+// and nothing warns. Another refusal still warns.
+test("a pass-only round whose reader finds a same-head FAIL not superseded warns nothing", async () => {
+  const run = async (refusal) => {
+    const lines = [];
+    const spawn = async () => ({ status: 0, stdout: `${JSON.stringify({ refusal, head: HEAD, detail: `a FAIL at ${HEAD}`, supersededAtHead: false })}\n`, stderr: "" });
+    const api = fakeApi();
+    const verifyCapped = verifyReader({ GITHUB_REPOSITORY: REPOSITORY }, { spawn, log: (line) => lines.push(line) });
+    await decide(api, resolvedLane(), { passOnly: true, verifyCapped });
+    return { lines, inputs: api.calls.dispatch.map((call) => call.inputs) };
+  };
+  const quiet = await run("verify:fail");
+  assert.deepEqual(quiet.lines, []);
+  assert.deepEqual(quiet.inputs.map((inputs) => [inputs["verify-pass-head"], inputs["verify-superseded-head"]]), [[HEAD, undefined]]);
+  const other = await run("verify:earlier-fail");
+  assert.equal(other.lines.length, 1);
+  assert.match(other.lines[0], /^::warning::#42: .*verify:earlier-fail/);
 });
 
 test("a PR the reader does not find at the cap dispatches as before", async () => {
