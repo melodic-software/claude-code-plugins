@@ -85,6 +85,18 @@
         }
       ],
       "why": "rm on the second line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CLEAN_GUARD_ACK=1 bash \"${CLAUDE_SKILL_DIR}/scripts/clean-caches.sh\" --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted script path before --apply (claude-review on #11981)"
     }
   ]
 }
