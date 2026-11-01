@@ -1,5 +1,5 @@
 ---
-description: "Staged workflow navigator (explore, research, design, plan, implement, test, review, verify, retro): suggests the next stage and routes end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:recommend-skills."
+description: "Staged workflow navigator (explore through retro): names the next stage and routes end-of-phase continuation (continue, clear, compact, handoff, background). Use when: 'what comes next', 'what step am I on', 'clear or compact'. Full skill menu: /session-flow:recommend-skills."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false

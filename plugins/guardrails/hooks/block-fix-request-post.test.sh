@@ -29,6 +29,9 @@ P='PR-fix lane: please fix this finding'
 F='```'
 WD="$TEST_TMPDIR/wd"
 mkdir -p "$WD"
+# Its own repository, so the fixture never reads the guardrails.yaml of a
+# checkout the temp directory happens to sit in.
+git init -q "$WD"
 printf 'Thanks for the review.\n%s\n' "$P" >"$WD/body.md"
 printf 'Context.\n\n> %s\n\nThat quoted line is how the owner asks.\n' "$P" >"$WD/quoted.md"
 printf '%s\n%s\n%s\n' "$F" "$P" "$F" >"$WD/fenced.md"
@@ -37,9 +40,9 @@ printf '{"body":"Context\\n%s"}\n' "$P" >"$WD/payload.json"
 printf '{"body":"> %s"}\n' "$P" >"$WD/quoted.json"
 printf 'mutation { addComment(input:{subjectId:"I_1", body:"%s"}) { clientMutationId } }\n' "$P" >"$WD/m.graphql"
 
-# payload <tool> <command>: a payload whose cwd holds the fixture files.
+# payload <tool> <command> [cwd]: a payload whose cwd holds the fixture files.
 payload() {
-  jq -n --arg t "$1" --arg c "$2" --arg d "$WD" '{tool_name:$t,cwd:$d,tool_input:{command:$c}}'
+  jq -n --arg t "$1" --arg c "$2" --arg d "${3:-$WD}" '{tool_name:$t,cwd:$d,tool_input:{command:$c}}'
 }
 
 N_DENY=0
@@ -87,7 +90,7 @@ quiet_plain() {
 
 # mcp <label> <tool> <tool_input JSON> <expected>
 mcp() {
-  verdict "$(jq -n --arg t "$2" --argjson i "$3" '{tool_name:$t,tool_input:$i}')"
+  verdict "$(jq -n --arg t "$2" --argjson i "$3" --arg d "${5:-$WD}" '{tool_name:$t,cwd:$d,tool_input:$i}')"
   if (($4 == 2)); then
     assert_eq "deny: $1 (direct, dispatched)" "2 2" "$RCS"
     N_DENY=$((N_DENY + 1))
@@ -262,6 +265,51 @@ assert_exit "an over-length command naming the phrase is refused" 2 "$rc"
 rc=0
 bash "$HOOK" <<<"$(payload Bash "echo $(printf 'x%.0s' {1..17000})")" >/dev/null 2>&1 || rc=$?
 assert_exit "an over-length command without the phrase is left to the row's ceiling" 0 "$rc"
+
+# --- 9. The fix_request_post setting in docs/conventions/guardrails.yaml -------
+# team_repo <name> <yaml> <on-default-branch> [staged yaml]: a repository whose
+# team file holds <yaml>, committed and published as origin/HEAD when
+# <on-default-branch> is 1, else only written and staged; [staged yaml] then
+# overwrites and stages the file on top. Prints its path.
+team_repo() {
+  local d="$TEST_TMPDIR/$1" f=docs/conventions/guardrails.yaml
+  mkdir -p "$d/docs/conventions" "$d/sub"
+  git init -q "$d"
+  printf '%s\n' "$2" >"$d/$f"
+  git -C "$d" add "$f"
+  if (($3)); then
+    git -C "$d" -c user.name=t -c user.email=t@example.com commit -qm team
+    git -C "$d" update-ref refs/remotes/origin/main HEAD
+    git -C "$d" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  fi
+  if [[ -n "${4-}" ]]; then
+    printf '%s\n' "$4" >"$d/$f"
+    git -C "$d" add "$f"
+  fi
+  printf '%s' "$d"
+}
+ALLOW=$(team_repo allow 'fix_request_post: allow' 1)
+verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$ALLOW")"
+assert_eq "quiet: allow mode, phrase posted (direct, dispatched)" "0 0" "$RCS"
+verdict "$(payload Bash "gh pr comment 5 -R other/repo --body \"$P\"" "$ALLOW")"
+assert_eq "quiet: allow mode is keyed to the session's repository, not the target (direct, dispatched)" "0 0" "$RCS"
+verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$ALLOW/sub")"
+assert_eq "quiet: allow mode, cwd below the repository root (direct, dispatched)" "0 0" "$RCS"
+mcp "MCP add_issue_comment, allow mode" mcp__github__add_issue_comment "{\"body\":\"$P\"}" 0 "$ALLOW"
+N_QUIET=$((N_QUIET + 3))
+
+deny_in() { # deny_in <label> <repo> [reason text]
+  verdict "$(payload Bash "gh pr comment 12 --body \"$P\"" "$2")"
+  assert_eq "deny: $1 (direct, dispatched)" "2 2" "$RCS"
+  [[ -z "${3-}" ]] || assert_contains "deny: $1 -> names the bad value" "$OUT_D" "$3"
+  N_DENY=$((N_DENY + 1))
+}
+deny_in "block mode" "$(team_repo block 'fix_request_post: block' 1)"
+deny_in "allow staged only, no default branch" "$(team_repo staged 'fix_request_post: allow' 0)"
+deny_in "allow staged over block on the default branch" "$(team_repo restaged 'fix_request_post: block' 1 'fix_request_post: allow')"
+deny_in "an unknown value" "$(team_repo typo 'fix_request_post: allow2' 1)" "fix_request_post: 'allow2'"
+deny_in "the key absent" "$(team_repo absent 'other_key: allow' 1)"
+deny_in "a team file that does not parse" "$(team_repo broken $'fix_request_post: allow\nfix_request_post: allow' 1)" "does not parse"
 
 echo "cases: deny=$N_DENY quiet=$N_QUIET"
 report

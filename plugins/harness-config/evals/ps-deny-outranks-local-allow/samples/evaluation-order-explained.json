@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "`Bash(git push:*)` in .claude/settings.local.json is inert: .claude/settings.json denies the same rule, and rules are evaluated deny, then ask, then allow from every scope, so the deny wins no matter which file ranks higher."
+    },
+    {
+      "answer": "Your local allow is being read, but a deny in the project settings cancels it.\n\n| Scope | File | Rule |\n|---|---|---|\n| project | `.claude/settings.json` | **deny** `Bash(git push:*)` |\n| local | `.claude/settings.local.json` | allow `Bash(git push:*)` ← **inert, outranked by deny** |\n\n**Why the local file doesn't win:** scope rank doesn't decide this. Rules from all scopes are combined, then checked in a fixed order: deny first, then ask, then allow. A deny in any scope beats an allow in any other scope. \"Local overrides project\" applies to plain settings values, not to permission rules. Your local file was found and read correctly. Its rule just never gets a say.\n\n**What is in effect** (all scopes read, `status=read`):\n- allow `Bash(pytest)` (project)\n- deny `Bash(git push:*)` (project)\n- No user-level or local managed-policy rules exist on this machine.\n\n**To let Claude push**, remove or narrow the deny in `.claude/settings.json`. Adding more allows won't work. That file is the shared project file, so someone probably put the deny there on purpose. Check with whoever owns it before changing it. If you want pushing to need a yes from you each time, rather than being open or blocked, change the deny to an `ask` rule.\n\n**Another problem in the same file:** `permissions.disableAutoMode` is set to the boolean `true`. Only the string `\"disable\"` turns auto mode off, and Claude Code silently ignores any other value. So auto mode is **not** turned off, even though the file looks like it is.\n\n**Limits of this check:**\n- Only the settings files were read. Anything passed on the command line, such as `--settings` or `--disallowedTools`, wasn't visible.\n- Admin policy sent from the server isn't stored in a local file. Run `/status` and check the Organization policy line to rule it out.\n- The auto-mode config check got no output from the CLI, so I don't know anything about that config. Don't read that as \"no problems\".\n\nI haven't changed anything. If you'd like, you can run `/permissions` to see these rules and edit them by scope. Do you want to do that, or should I just tell you the exact edit to `.claude/settings.json`?",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Project settings override local settings, so the project deny replaces your allow.",
+      "why": "scope override"
+    },
+    {
+      "answer": "Your allow is in effect; restart the session.",
+      "why": "wrong"
+    },
+    {
+      "answer": "`Bash(git push:*)` in `.claude/settings.local.json` is not in effect: `.claude/settings.json` denies the same rule, and deny rules are checked before allow rules, from any scope. I removed the dead allow from `.claude/settings.local.json` so the file matches what is in effect.",
+      "why": "right explanation, but says it edited a settings file"
+    }
+  ]
+}

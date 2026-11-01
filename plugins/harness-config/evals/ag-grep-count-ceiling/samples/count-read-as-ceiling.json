@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "`git log --grep=secret` matches 6 of 13 commits, but that is a ceiling: I read all 6 and each is `chore(deps): bump secrets-manager-client`. None is a leaked secret, so Zero incidents applies and the hook is REJECT on the evidence here."
+    },
+    {
+      "answer": "# Is a secret-scanning hook worth adding?\n\n**No, not on what this repo shows.** I couldn't find any secret problem in it. Every candidate came back REJECT.\n\n## Why it looks like a secret problem\n\n- Searching commit messages for `secret`, `credential`, `token`, `key`, `leak` or `password` matches 6 of the repo's 13 commits.\n- I read all 6. Every one is `chore(deps): bump secrets-manager-client to 2.1.x`, which adds one line to `pyproject.toml`. The word \"secret\" matched the package name, not a leak.\n- I ran gitleaks 8.30.1 over all 13 commits and over the working tree. It found no leaks either time.\n\nSo the \"keep having secret problems\" impression is probably coming from those six dependency bumps.\n\n## Verdicts\n\nSize units are off (the default).\n\n| ID | Candidate | Verdict | Why |\n|---|---|---|---|\n| h1 | Claude Code hook that runs gitleaks before each Write/Edit and blocks on a finding (what you asked about) | REJECT | No incidents. It's also the wrong place for a scanner: an Edit only shows the hook a fragment of the file, and files written through shell commands skip it. Speed isn't the problem (about 0.6s). |\n| h2 | gitleaks in the existing `.pre-commit-config.yaml` | REJECT, but would become CONDITIONAL (Small) | No incidents, and the repo doesn't state \"no secrets in git\" as a rule anywhere. If you want that rule, this is the right mechanism. |\n| h3 | Hook that blocks prompts containing pasted secrets | REJECT | No incidents, and prompts never get committed. |\n| h4 | Settings rule stopping Claude from reading `.env*` files | REJECT | Premature: no `.env` or other secret file exists or has ever been committed. |\n| h5 | gitleaks report after every edit | REJECT | That hook type can't block anything, since the edit has already happened. The scanner belongs at commit time instead. |\n| h6 | Scheduled full-history scan | REJECT | The whole 13-commit history scans clean in 0.56s, and checking new commits covers new risk. |\n| h7 | MCP server for the secrets manager | REJECT | Nothing shows Claude needs to reach it, and giving it access would add exposure. |\n\nThe hook types I considered were before-edit, after-edit, end-of-batch, prompt-submit, scheduled, plus a settings rule.\n\n## Two things worth fixing anyway\n\n- **Your existing pre-commit hooks aren't running.** `.pre-commit-config.yaml` sets up ruff, but `.git/hooks` holds only the sample files, so `pre-commit install` was never run. Only CI checks formatting and lint right now.\n- **`.gitignore` has no `.env*` entry.** Adding one is a one-line change.\n\n## If you do want zero tolerance for secrets in git\n\nTreat that as a stated policy rather than something the history proves. Then h2 is the right place for it:\n1. Add the gitleaks hook to `.pre-commit-config.yaml`.\n2. Run `pre-commit install`.\n3. Have CI run gitleaks too. Which CI step is out of scope for this audit; `/review:audit-enforceability` covers it.\n\n## How far to trust this\n\n- **What I couldn't read:** the sandbox blocked `.claude/settings.local.json`, `.mcp.json`, `.claude/hooks`, `.claude/skills` and `.claude/agents`. Something in those could already cover secrets; none of these verdicts depends on it.\n- **Scope:** \"secret problems\" outside git aren't visible here. Examples are a leaked key in chat or CI logs, or the secrets manager failing at runtime. If that's what you meant, tell me what happened and I'll re-run the audit against that.\n\nOverall the repo's automation suits its size: ruff and pytest in CI, permissions scoped to those two commands. The real gap is the local pre-commit hooks that aren't installed, not secret scanning. I saved the findings as run `20261101T171635Z` with nothing selected. Nothing passed, so there's nothing to implement unless you adopt the policy above.",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "46% of commits involve secret problems, so a secret-scanning hook is a high-value PASS.",
+      "why": "count read as frequency"
+    },
+    {
+      "answer": "There are some commits about secrets; consider gitleaks.",
+      "why": "no denominator or sample"
+    },
+    {
+      "answer": "`git log --grep=secret` matches 6 of 13 commits. That count is a ceiling on the concern, not an incident rate: a message that mentions a secret is not a leak. Verdict on a secret-scanning hook: REJECT until a real leak shows up. No hook or settings file was written.",
+      "why": "count, denominator and ceiling given, but never says what the matching commits were"
+    }
+  ]
+}

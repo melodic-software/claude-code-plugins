@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "inert allow scopes=local outranked_by=deny Bash(git push:*)"
+    },
+    {
+      "answer": "The project deny is evaluated first and blocks it."
+    },
+    {
+      "answer": "The deny beats your allow."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Bash(git push:*) is allowed.",
+      "why": "says allowed"
+    }
+  ]
+}
