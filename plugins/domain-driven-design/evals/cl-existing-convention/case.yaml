@@ -21,7 +21,7 @@ graders:
     target: { source: file, path: docs/domain/claims-terms.md }
   - name: stale-definition-gone
     type: regex
-    pattern: '^\|\s*\**Claimant\**\s*\|\s*Anyone who contacts the claims desk\.?\s*\|'
+    pattern: '^\|\s*\**Claimant\**\s*\|\s*Anyone who contacts the claims desk\b'
     flags: 'mi'
     match: not_contains
     target: { source: file, path: docs/domain/claims-terms.md }
