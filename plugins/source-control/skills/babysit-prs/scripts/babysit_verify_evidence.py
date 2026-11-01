@@ -4399,7 +4399,9 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
             rung = merge_policy.effective_rung(
                 config_rung=config.rung,
                 loop_merge=config.loop_merge,
-                cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
+                cap=args.rung
+                if merge_policy.rung_code(args.rung) in merge_policy.RUNG_RANK
+                else "off",
                 demoted=False,
             ).rung
             held = (
