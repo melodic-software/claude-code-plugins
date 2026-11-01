@@ -310,6 +310,32 @@ class ConvertTest(ConverterTestCase):
                 )
                 self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
 
+    def test_a_negation_in_another_clause_still_grants_bash(self):
+        for skill, body in (
+            (
+                "posone",
+                "Its pre-computed context lines do not run when the file is read, so run "
+                "`command -v node`, `node --version`, `command -v jq` and `jq --version` "
+                "through Bash.",
+            ),
+            (
+                "postwo",
+                "Its pre-computed context lines are not rendered when this skill reads\n"
+                "the file, so run every probe via Bash.",
+            ),
+        ):
+            with self.subTest(body=body):
+                tools = self.converted_tools(
+                    skill, "---\ndescription: Check.\n---\n\n%s\n" % body
+                )
+                self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill", "Bash"])
+
+    def test_a_negation_wrapped_onto_the_previous_line_grants_nothing(self):
+        tools = self.converted_tools(
+            "wrapneg", "---\ndescription: Read.\n---\n\nDo not run the script\nthrough Bash.\n"
+        )
+        self.assertEqual(tools, ["Read", "Glob", "Grep", "Skill"])
+
     def test_a_plain_skill_keeps_the_base_tools(self):
         tools = self.converted_tools(
             "alpha", "---\ndescription: Summarize.\n---\n\nSummarize the doc.\n"

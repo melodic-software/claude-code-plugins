@@ -114,14 +114,21 @@ ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
 # - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
-# A sentence that tells the skill to stay off Bash grants nothing.
+# A clause that tells the skill to stay off Bash grants nothing. Only the
+# clause holding the Bash phrase counts, so "lines do not run, so run X through
+# Bash" still grants it.
 NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
+# A hard-wrapped line joins the next unless that line starts a block (blank
+# line, list item, heading, quote or table row).
+WRAP = re.compile(r"[ \t]*\n[ \t]*(?![\n\-*#>|]|\d+\.)")
 
 
 def body_needs_bash(text):
-    for sentence in re.split(r"(?<=[.!?;])\s+|\n", text):
-        if BASH_IN_BODY.search(sentence) and not NEGATION.search(sentence):
-            return True
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n", WRAP.sub(" ", text)):
+        for match in BASH_IN_BODY.finditer(sentence):
+            clause = re.split(r"[,:]", sentence[: match.start()])[-1]
+            if not NEGATION.search(clause):
+                return True
     return False
 
 # One tool in an allowed-tools value; a permission pattern in parentheses after
