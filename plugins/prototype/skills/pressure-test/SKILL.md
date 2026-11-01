@@ -1,6 +1,6 @@
 ---
 description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what the rules do with an awkward sequence of events or an odd record: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer'. A pure logic module, liftable into production, sits behind a disposable shell: the terminal app, or a self-contained click-through HTML demo for someone outside engineering. Records the validated answer in a durable note. Visual or design questions: /prototype:explore-directions."
-argument-hint: "[scope]"
+argument-hint: "[observe] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,7 +10,9 @@ metadata:
   summary: Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model
 ---
 
-**Arguments.** `[scope]`. e.g., /prototype:pressure-test scheduling state machine
+**Arguments.** `[observe] [scope]`. e.g., /prototype:pressure-test scheduling state machine, or
+/prototype:pressure-test observe reservation check in renew or in a guard. A leading `observe`
+selects [Observe](#observe-the-agent-runs-the-fork).
 
 ## Repository context. Gather first
 
@@ -42,7 +44,8 @@ Arguments: `$ARGUMENTS`
 This skill checks a set of rules by running them. It puts the logic in question into a small pure
 module, wraps that module in a disposable shell a person drives one action at a time, and shows
 the whole state after every action. The shell is a terminal app by default, or one HTML file for
-a driver who does not use a terminal.
+a driver who does not use a terminal. With `observe`, the agent runs the variants of a fork itself
+and recommends one.
 
 The examples in this file follow one case: a library's loan rules. A copy can be on the shelf, on
 loan, overdue or reserved, and the events are borrow, renew, return, reserve and a day passing. A
@@ -128,6 +131,44 @@ Constraints (the same set as explore-directions' HTML mockup substrate):
 - **Markdown captures the answer.** Copy what the demo taught into your durable answer (per the
   shared discipline), then discard the page like any other shell, the validated logic module is
   the only artifact that outlives the prototype (lifted into production per step 5).
+
+## Observe: the agent runs the fork
+
+With `observe`, the agent drives instead of a person. Use it for a fork: two or more variants of
+the same logic, where running each one on the same inputs settles which to keep. In the loans
+case: the reservation check sits inside `renew()` in one variant and in a guard before it in the
+other, and the question is whether both refuse a renewal of a reserved copy.
+
+1. **Write the question down**, as step 1 below, naming each variant and the inputs that tell
+   them apart.
+2. **Build and run each variant.** Write each one as its own logic module (step 2's rules hold),
+   and drive all of them from one disposable harness script in place of the step 3 shell. The
+   harness feeds every variant the same inputs in the same order. It starts with one command and
+   prints every variant's state after each event.
+3. **Record, per variant:**
+   - **Behavior**: what it accepted and refused, and the state it ended in.
+   - **Output**: what it printed or returned for each input, copied from the run.
+   - **Timing**: the wall-clock time of that variant's own calls, measured separately for each
+     variant and labeled `timing (unqualified)`. It is one run on this machine, with no warm-up,
+     repeats or load control, so it ranks nothing on its own. Qualified timing is
+     `/performance:snapshot`'s job.
+4. **Recommend.** Give a recommendation that names the variant to keep and the observed evidence
+   behind it: the input, and what each variant did with it. When the runs do not tell the
+   variants apart, say so and recommend nothing.
+5. **Capture and delete**, as step 5 below: write the per-variant record and the recommendation
+   into the durable answer per the shared discipline, with the variants that lost and why. Delete
+   the harness and the losing modules once the run alone settled the fork or the person accepted
+   the recommendation. While a call is still the person's, or no variant won, leave the
+   placeholder note the shared discipline names and keep the variants.
+
+**Product and preference calls stay with the person.** When the variants differ in what users
+should get, what reads better or which trade-off the team accepts, record the evidence and ask;
+the recommendation covers only what the run settled. When the fork is itself a performance target
+(the question is which variant meets a speed or resource goal), hand off to `/performance:goal`
+instead of recommending from unqualified timing.
+
+The model auto-invoke gate in the shared discipline holds for `observe` too: when nobody asked
+for a prototype, STOP and confirm scope before writing any variant.
 
 ## Process
 
