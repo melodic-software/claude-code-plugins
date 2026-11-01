@@ -848,6 +848,20 @@ assert_eq "a carried default value whose default changed: carried at the new def
   "0:$HEADER"$'\nwritten_against: fixture@1.1.0\nworkers: 4\nprovenance:\n  workers: default' "$?:$(cat "$(yaml_of "$R")")"
 assert_contains "a carried default value whose default changed: the change is printed" "$out" \
   "INFO .claude/fixture.yaml: workers=2 is marked default, written against fixture@1.0.0; it is carried at the plugin default now, 4"
+# A stale default carried while another key keeps the retired file: once that
+# key is removed, a rerun compares the settings file against the value the
+# carry wrote, the new default, so the retired file is removed.
+R="$(new_root mig-stale-rerun)"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nextra: x\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a stale default beside a key that cannot be carried: carried at the new default" "0:workers: 4" "$?:$(grep -x 'workers: 4' "$(yaml_of "$R")")"
+assert_eq "a stale default beside a key that cannot be carried: the retired file is left in place" "1" "$(exists "$R/.claude/fixture.yaml")"
+old_yaml "$R" $'written_against: fixture@1.0.0\nworkers: 2\nprovenance:\n  workers: default\n'
+out="$(mrun --root "$R" --yes)"
+assert_eq "a stale default already carried, run again: exits 0" "0" "$?"
+assert_eq "a stale default already carried, run again: workers is not kept" "" "$(printf '%s\n' "$out" | grep -F 'workers=')"
+assert_eq "a stale default already carried, run again: the retired file is removed" "0" "$(exists "$R/.claude/fixture.yaml")"
+assert_eq "a stale default already carried, run again: the new default stays" "workers: 4" "$(grep -x 'workers: 4' "$(yaml_of "$R")")"
 R="$(new_root mig-empty)"
 old_yaml "$R" $'mode:\nworkers: 3\n'
 out="$(mrun --root "$R" --yes)"
