@@ -35,6 +35,17 @@ error names. Fetch is GraphQL only, ten merged PRs per call; stderr counts the P
   `resolved_unanswered`; resolution is the thread's state when fetched.
 - **Precision** is the two VALID buckets over the labeled answers. Report it beside the
   `answered-unlabeled` and `unanswered` counts, never alone: a lane that finds less scores higher.
+- **Who answered.** `by_author` splits each lane's answered outcomes and precision by the kind of
+  account that wrote the answer the outcome came from, beside the combined figures: `bot` (a
+  GitHub App, the lanes App included), `agent` (a person's account whose answer carries the D5
+  `<!-- d5 finding=` marker line or a line opening with Claude Code's `Generated with [Claude Code]`),
+  `person` (any other person's account) and `unknown` (a deleted account, any other account type,
+  or no recorded kind, as in a snapshot saved before the split). An agent that drops both signs counts as `person`. Unanswered findings have no answerer
+  and appear only in the combined figures.
+- **Agent-labeled precision is an upper bound.** The `agent` and `bot` rows record how the
+  answering agent labeled a finding under the review discipline, not an independent judgment of
+  the reviewer; the `person` row is the closest to one. How much the agent rows are inflated is
+  not measured.
 - **Reposts** are counted apart: the same lane raised the same path and first line on an earlier
   head, or the answer cites an earlier finding of that lane.
 - **Rounds.** `lane_review_rounds` counts a lane's reviewed heads up to its first clean head after
