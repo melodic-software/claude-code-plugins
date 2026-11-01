@@ -154,7 +154,7 @@ reporter-info listing, the sweep's list and count, and every read before the fir
    name; the next `reclaim` after a further quiet TTL frees it. Exit `7` means the lease is no
    longer this run's; leave it and the assignee.
 
-When `.work-item-tracker.json` does not resolve, give the choice
+When the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, give the choice
 [`tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Provider-neutral over the
 seam" names before the first write: run `/work-items:setup`, or, in a deliberate gh-native mode, write
 unclaimed and report that no race-safe claim was held. An unbound local-markdown store writes

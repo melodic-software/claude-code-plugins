@@ -212,7 +212,7 @@ wit_need_linear_config() {
   name="$(basename "${BASH_SOURCE[1]}")"
   binding="$(wit_find_binding)" ||
     {
-      printf '%s: no binding found (.work-item-tracker.json) — see CONTRACT.md Setup\n' "$name" >&2
+      printf '%s: no binding found (tracker: in <home>/work-items.yaml) — see CONTRACT.md Setup\n' "$name" >&2
       exit "$EX_CONFIG"
     }
   ejson="$(wit_effective_binding_json "$binding")" ||
