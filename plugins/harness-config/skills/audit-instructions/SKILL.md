@@ -11,13 +11,12 @@ metadata:
 
 ## Purpose
 
-Audit whether the instructions you have written for Claude Code are still earning their context cost
-against **current** model capability. As models improve, prior-model-era scar tissue accretes:
-workarounds for mistakes the model no longer makes, prescriptive step lists that now constrain more
-than they help, bare prohibitions, and show-your-thinking directives. This skill sweeps the
-locally-owned instruction surfaces, cites each finding to current official prompting doctrine, tiers
-it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
-diff, so instruction surfaces shrink as models get better instead of only ever growing.
+Audit whether the instructions written for Claude Code still earn their context cost against
+**current** model capability. As models improve, instructions accrete workarounds for mistakes the
+model no longer makes, prescriptive step lists that now constrain more than they help, bare
+prohibitions, and show-your-thinking directives. This skill sweeps the locally-owned instruction
+surfaces, cites each finding to current official prompting doctrine, tiers it by how confident the
+evidence can be, and packages proposed removals or rewrites as a human-gated diff.
 
 The check catalog, covering the checks I1–I42, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
