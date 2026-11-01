@@ -13,8 +13,8 @@
 #   GITHUB_OUTPUT       receives stale=true when the files differ
 #
 # Exit: 0. Anything unreadable sets nothing and leaves it to the broker. In a
-# job, 1 when the api-budget rate guard cannot record a rate-limit stop and
-# ends the step (api_budget_stop).
+# job, non-zero (killed by TERM) when the api-budget rate guard cannot record
+# a rate-limit stop and ends the step (api_budget_stop).
 set -uo pipefail
 # In a job, each gh call keeps its rate-limit reading for the job-end
 # api-budget notice (.github/actions/log-api-budget).

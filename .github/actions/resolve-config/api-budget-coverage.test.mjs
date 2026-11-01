@@ -8,8 +8,8 @@
 //     whose own text does any of those;
 //   - uses resolve-config or check-trusted-trigger.
 // It does not see GitHub calls made from Node or Python (an api-budget.mjs
-// caller, babysit_gh.py), through a script a script runs, or through other gh
-// subcommands.
+// caller, babysit_gh.py), through a script a script runs or a scripts/lib file
+// a script sources, or through other gh subcommands.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path/posix";
@@ -20,66 +20,53 @@ import { parse } from "yaml";
 const ROOT = new URL("../../../", import.meta.url);
 const WORKFLOWS = new URL(".github/workflows/", ROOT);
 
-// Jobs that call GitHub and are not yet covered, each with its reason.
+// Jobs that call GitHub and are not yet covered, each with the exact gap the
+// detector reports for it, so a gap that grows, shrinks or closes fails.
+const RESOLVE = "resolve-config without API_BUDGET_TOKEN";
+const NO_CHECKOUT = "no job-end log-api-budget step; no API_BUDGET_TOKEN";
+const LANE_JOB =
+  "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
+const DECIDE_REBUILD =
+  "no API_BUDGET_TOKEN; .github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
+const REPORT_ESCALATION =
+  ".github/scripts/pr-unblock/report-escalation.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  ...["pr-run-activity-read.yml:run", "pr-run-activity-write.yml:run"].map(
-    (key) => [
-      key,
-      "the lane job: no job-end log step, and check-trusted-trigger and resolve-config run without API_BUDGET_TOKEN",
-    ],
-  ),
-  ...[
-    "intake-triage.yml:redispatch-refined",
-    "intake-triage.yml:triage-split-children",
-    "pr-review-main.yml:record",
-  ].map((key) => [
-    key,
-    "no checkout to load the log-api-budget action from, and no API_BUDGET_TOKEN",
-  ]),
-  [
-    "dependabot-fragments.yml:write",
-    "the step's own gh pr and gh api calls run with no API_BUDGET_TOKEN",
-  ],
+  // The lane jobs.
+  ["pr-run-activity-read.yml:run", LANE_JOB],
+  ["pr-run-activity-write.yml:run", LANE_JOB],
+  // No checkout to load the log-api-budget action from.
+  ["intake-triage.yml:redispatch-refined", NO_CHECKOUT],
+  ["intake-triage.yml:triage-split-children", NO_CHECKOUT],
+  ["pr-review-main.yml:record", NO_CHECKOUT],
+  // The step's own gh pr and gh api calls.
+  ["dependabot-fragments.yml:write", "no API_BUDGET_TOKEN"],
   // The detector judges selection-audit.sh by the whole file; trace, the mode
   // this job runs, makes none of its gh calls (red-replay does).
   [
     "maintenance-audit-test-selection.yml:audit-test-selection",
-    "the per-file detector: trace calls no GitHub API, so no log step",
+    "no job-end log-api-budget step",
   ],
-  ...[
-    "release-publish-plugins.yml:build",
-    "release-publish-plugins.yml:merge",
-  ].map((key) => [
-    key,
-    "decide-rebuild.sh does not wrap its gh calls, and the job sets no API_BUDGET_TOKEN",
-  ]),
-  [
-    "pr-require-checks.yml:ci-status",
-    "report-escalation.sh runs as its own process and does not wrap its gh calls",
-  ],
-  [
-    "pr-unblock.yml:report-stop-status",
-    "report-escalation.sh runs as its own process and does not wrap its gh calls",
-  ],
-  ...[
-    "intake-triage.yml:apply-refinement",
-    "pr-merge.yml:merge",
-    "pr-merge.yml:enable-auto-merge",
-    "pr-review-main.yml:review",
-    "pr-review-main.yml:review-subscription",
-    "pr-review-main.yml:review-fallback",
-    "pr-unblock.yml:adjudicate-feedback",
-    "pr-verify.yml:check-intent",
-    "pr-verify.yml:check-intent-subscription",
-    "pr-verify.yml:check-intent-fallback",
-    "work-unblock.yml:label-unblocked",
-  ].map((key) => [
-    key,
-    "resolve-config runs without API_BUDGET_TOKEN, so its readings go unrecorded",
-  ]),
+  ["release-publish-plugins.yml:build", DECIDE_REBUILD],
+  ["release-publish-plugins.yml:merge", DECIDE_REBUILD],
+  // report-escalation.sh runs as its own process.
+  ["pr-require-checks.yml:ci-status", REPORT_ESCALATION],
+  ["pr-unblock.yml:report-stop-status", REPORT_ESCALATION],
+  // resolve-config and check-trusted-trigger read readings into
+  // API_BUDGET_TOKEN's bucket only when the job or step sets it.
+  ["intake-triage.yml:apply-refinement", RESOLVE],
+  ["pr-merge.yml:merge", RESOLVE],
+  ["pr-merge.yml:enable-auto-merge", RESOLVE],
+  ["pr-review-main.yml:review", RESOLVE],
+  ["pr-review-main.yml:review-subscription", RESOLVE],
+  ["pr-review-main.yml:review-fallback", RESOLVE],
+  ["pr-unblock.yml:adjudicate-feedback", RESOLVE],
+  ["pr-verify.yml:check-intent", RESOLVE],
+  ["pr-verify.yml:check-intent-subscription", RESOLVE],
+  ["pr-verify.yml:check-intent-fallback", RESOLVE],
+  ["work-unblock.yml:label-unblocked", RESOLVE],
   [
     "pr-unblock-dispatch.yml:dispatch",
-    "check-trusted-trigger runs without API_BUDGET_TOKEN, so its readings go unrecorded",
+    "check-trusted-trigger without API_BUDGET_TOKEN",
   ],
 ]);
 
@@ -115,19 +102,14 @@ const detector = ({ read, exists }) => {
       .map(([, path]) => path)
       .filter((path) => GH_CALL.test(read(path)));
   // A script run as its own process gets no gh() a step defines: it wraps its
-  // own calls, itself or through a scripts/lib file it sources, by sourcing a
-  // wrapper file that exists and defines api_budget_wrap_gh.
-  const wrapsItself = (path) => {
+  // own calls by sourcing a wrapper file that exists and defines
+  // api_budget_wrap_gh.
+  const scriptWraps = (path) => {
     const rel = read(path).match(SELF_WRAP)?.[1];
     if (!rel) return false;
     const wrapper = join(dirname(path), rel);
     return exists(wrapper) && /\bapi_budget_wrap_gh\(\)/.test(read(wrapper));
   };
-  const scriptWraps = (path) =>
-    wrapsItself(path) ||
-    [...read(path).matchAll(/\blib\/([\w.-]+\.(?:sh|bash))\b/g)].some(
-      ([, lib]) => wrapsItself(`scripts/lib/${lib}`),
-    );
   const stepCallsGitHub = (step) =>
     Boolean(actionOf(step)) ||
     GH_CALL.test(step.run ?? "") ||
@@ -203,20 +185,13 @@ const repoWorkflows = () =>
       .sort()
       .map((f) => [f, parse(readFileSync(new URL(f, WORKFLOWS), "utf8"))]),
   );
-const keyOf = (gap) => gap.slice(0, gap.indexOf(": "));
 
+// The repository's gaps are exactly the allowlist's: a job outside it with a
+// gap fails, and so does an allowlisted job whose gap grew, shrank or closed.
 test("every job that calls the GitHub API logs its api budget", () => {
   assert.deepEqual(
-    repo.gaps(repoWorkflows()).filter((gap) => !ALLOWED.has(keyOf(gap))),
-    [],
-  );
-});
-
-test("every allowlisted job still has a gap", () => {
-  const open = new Set(repo.gaps(repoWorkflows()).map(keyOf));
-  assert.deepEqual(
-    [...ALLOWED.keys()].filter((key) => !open.has(key)),
-    [],
+    repo.gaps(repoWorkflows()).sort(),
+    [...ALLOWED].map(([key, missing]) => `${key}: ${missing}`).sort(),
   );
 });
 
