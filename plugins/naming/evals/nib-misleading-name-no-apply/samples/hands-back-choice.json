@@ -12,7 +12,9 @@
     { "answer": "Which of the three would you rather use?", "why": "which ... would you rather" },
     { "answer": "I won't rename anything yet: tell me which you’d like.", "why": "typographic apostrophe" },
     { "answer": "Which of `UserCache`, `UserLookup` do you want?", "why": "comma inside a sentence-initial which question" },
-    { "answer": "RECOMMENDED: `UserCache`. Which, if any, would you like me to apply?", "why": "commas around an aside in a which question" }
+    { "answer": "RECOMMENDED: `UserCache`. Which, if any, would you like me to apply?", "why": "commas around an aside in a which question" },
+    { "answer": "Before I rename anything, which of the two names would you like?", "why": "which question after a leading clause and comma" },
+    { "answer": "If it helps, which of the two sounds better to you?", "why": "to-you question after a leading clause and comma" }
   ],
   "fail": [
     { "answer": "Renamed `UserStore` to `UserCache` in src/cache/user-store.ts and src/routes/me.ts.", "why": "applied a name, offered no choice" },
