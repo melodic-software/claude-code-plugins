@@ -4003,6 +4003,11 @@ test("scan job: the reply, run fields and patch round-trip sealed from the run j
   const stopped = await scanIn(t, { go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" });
   assert.equal(stopped.open.ran, false);
   assert.deepEqual([stopped.failed, stopped.outputs.reply, stopped.outputs.patch], [null, "false", "false"]);
+  // A superseded run: the trigger gate proceeded, then the moved head left
+  // head-sha empty and skipped everything after it.
+  const superseded = await scanIn(t, { go: "", "kill-proceed": "true", "trigger-proceed": "true", "trigger-reason": "ok", "gate-reason": "", "head-sha": "", "config-outcome": "skipped", "act-outcome": "skipped" });
+  assert.equal(superseded.open.ran, false);
+  assert.deepEqual([superseded.failed, superseded.outputs.reply, superseded.outputs.patch], [null, "false", "false"]);
 });
 
 // Issue mode seals its outcome files with the reply, run fields and patch.
@@ -6843,7 +6848,25 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   const gated = (superseded) => atStep(trustedBase.if, { "steps.gate.outputs.proceed": "true", "steps.gated-head.outputs.superseded": superseded });
   assert.equal(gated("true"), false);
   assert.equal(gated(""), true);
-  assert.equal(steps.find((step) => step.id === "config").if, "steps.trusted-base.outcome == 'success'");
+  // Every later step is off on a supersede: each if:, with the steps before
+  // the check succeeded, every later step skipped, and every other output
+  // empty, reads false. api-failures runs always() and touches no head.
+  const at = steps.indexOf(check);
+  const ran = new Set(steps.slice(0, at + 1).map((step) => step.id).filter(Boolean));
+  const later = steps.slice(at + 1);
+  assert.ok(later.length > 40);
+  for (const step of later) {
+    if (step.id === "api-failures") continue;
+    assert.ok(step.if, `${step.name} has no if:`);
+    const refs = [...new Set(String(step.if).match(/\b(?:steps|inputs|needs|vars|github|job)\.[\w.-]*[\w]/g) ?? [])];
+    const context = {};
+    for (const ref of refs.sort((a, b) => b.length - a.length)) {
+      const [, id, kind] = /^steps\.([\w-]+)\.(outcome|conclusion|outputs)/.exec(ref) ?? [];
+      if (kind === "outcome" || kind === "conclusion") context[ref] = ran.has(id) ? "success" : "skipped";
+      else context[ref] = { "job.status": "success", "steps.gated-head.outputs.superseded": "true", "steps.gate.outputs.proceed": "true", "steps.kill.outputs.proceed": "true" }[ref] ?? "";
+    }
+    assert.equal(atStep(step.if, context), false, `${step.name} runs on a supersede`);
+  }
   // The run's head-sha stays empty, so the report job takes the trigger
   // decline's empty-head path (neutral not-assessed, or no post), never failure.
   const headSha = workflow("pr-run-activity-read.yml").jobs.run.outputs["head-sha"];
