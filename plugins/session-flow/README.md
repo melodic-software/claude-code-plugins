@@ -230,7 +230,7 @@ passes merged before scoring.
 /session-flow:retro            # full 5-phase analysis (default)
 /session-flow:retro codify     # persist a specific mid-session learning
 /session-flow:retro codify reviews  # lessons from recent merged PRs' review comments
-/session-flow:retro trends     # cross-session score history
+/session-flow:retro trends     # cross-session score history, plus delivery metrics with work-items
 /session-flow:retro quick      # abbreviated, for limited context
 ```
 

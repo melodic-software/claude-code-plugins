@@ -67,7 +67,7 @@ Resolve at runtime, never hardcode machine-specific paths:
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
 | "codify", "save learnings", mid-session learning | **codify** | `context/codify.md`, targeted codification only |
 | "codify reviews", "what do reviewers keep telling us", "mine review comments" | **codify**, `reviews` input | `context/codify.md`, lessons from recent merged PRs' review comments |
-| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
+| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history, plus delivery metrics from `/work-items:measure-delivery` when that skill is available |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it

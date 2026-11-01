@@ -249,6 +249,28 @@
         "The finding names the Guardrail criterion section of the ladder copy as the bar it applied",
         "It proposes a check through the findings hand-off and waits for approval instead of building it or only adding prose"
       ]
+    },
+    {
+      "id": 21,
+      "name": "trends-reads-delivery-metrics-when-available",
+      "prompt": "/session-flow:retro trends. The score history file has 12 rows from the last month. The work-items plugin is installed here, so /work-items:measure-delivery is among the available skills.",
+      "expected_output": "Trends mode presents the cross-session score trends, then invokes /work-items:measure-delivery through the Skill tool and shows its report (delivery table, trend lines, window, branch and deploy signal) under a Delivery metrics heading after the score trends.",
+      "files": [],
+      "expectations": [
+        "The skill invokes /work-items:measure-delivery through the Skill tool during trends mode",
+        "Its delivery report appears under a Delivery metrics heading after the score trends, not in place of them"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "trends-says-when-delivery-metrics-absent",
+      "prompt": "/session-flow:retro trends. The score history file has 12 rows from the last month. Only the session-flow plugin is installed; no work-items skills are available.",
+      "expected_output": "Trends mode presents the cross-session score trends and states that /work-items:measure-delivery is not among the available skills, pointing at installing or enabling the work-items plugin. It does not compute delivery metrics itself.",
+      "files": [],
+      "expectations": [
+        "The output says /work-items:measure-delivery is not among the available skills and names the work-items plugin as the way to get it",
+        "It does not compute deployment frequency or other delivery metrics on its own"
+      ]
     }
   ]
 }
