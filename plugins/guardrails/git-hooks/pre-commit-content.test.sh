@@ -298,7 +298,7 @@ check_failing() { # <repo> <marker> -> "<rc>|<last stderr line>"
   rc=$?
   printf '%s|%s' "$rc" "${err##*$'\n'}"
 }
-SCAN_ERR='guardrails: the content scan failed (see the error above), so this change was not fully scanned; fix that error, then commit again.'
+SCAN_ERR='guardrails: the content scan did not finish, so this change was not fully scanned; fix the tool failure named above, then commit again.'
 FAKE_MAC_SHARED="${SL}Users${SL}Shared${SL}cache"
 FAKE_MAC="${SL}Users${SL}alice${SL}projects${SL}demo"
 # shellcheck disable=SC2016 # each marker is literal program text
@@ -319,6 +319,14 @@ for c in \
   git -C "$REPO" add notes.md
   expect "a failing scan tool blocks: $label" "1|$SCAN_ERR" "$(check_failing "$REPO" "$marker")"
 done
+# The library greps send their stderr to /dev/null, so the hook names the tool
+# that failed itself.
+new_repo
+printf 'line one\nline two\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+err="$(cd "$REPO" && PATH="$SHIMS:$PATH" SHIM_FAIL='-qE' bash "$CHECK" 2>&1 >/dev/null)"
+expect "a failing scan tool is named even when its stderr is discarded" yes \
+  "$(grep -qxF 'guardrails: grep exited 2 during the content scan' <<<"$err" && echo yes)"
 new_repo
 printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/n.bin"
 git -C "$REPO" add n.bin

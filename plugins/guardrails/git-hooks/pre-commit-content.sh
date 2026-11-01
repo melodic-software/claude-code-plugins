@@ -67,7 +67,7 @@ scan_tool() {
   rc=$?
   case "$tool:$rc" in
   *:0 | *:141 | grep:1) ;;
-  *) : >"$scan_error" ;;
+  *) printf 'guardrails: %s exited %s during the content scan\n' "$tool" "$rc" >>"$scan_error" ;;
   esac
   return "$rc"
 }
@@ -359,8 +359,8 @@ done
   untag "$whole"
 } | sort -u -t: -k1,1 -k2,2n >"$CHECKS_TMP/blocking"
 if [[ -e "$scan_error" ]]; then
-  cat "$CHECKS_TMP/blocking" >&2
-  printf 'guardrails: the content scan failed (see the error above), so this change was not fully scanned; fix that error, then commit again.\n' >&2
+  cat "$CHECKS_TMP/blocking" "$scan_error" >&2
+  printf 'guardrails: the content scan did not finish, so this change was not fully scanned; fix the tool failure named above, then commit again.\n' >&2
   exit 1
 fi
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
