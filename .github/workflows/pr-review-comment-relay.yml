@@ -1,0 +1,36 @@
+name: pr-review-comment-relay
+
+# Relays a new review comment by a person on a lanes App pull request to
+# pr-feedback-dispatch.yml, which lists this workflow's name under
+# workflow_run: a listed human's reply on a thread the pr-unblock lane
+# escalated then starts address-feedback within one dispatcher pass, with no
+# review round behind it (ADR 0087).
+#
+# Its GITHUB_REF is the PR's merge ref, so the file is treated as
+# PR-controlled. It holds nothing to change: no permission, no checkout, no
+# secret, and no event field reaches a step. The dispatcher, and the gate and
+# broker it answers to, trust only what GitHub sets on this run: its path, its
+# event, its actor and re-runner (both must be listed humans), its head SHA
+# and its pull_requests. The job's condition only saves runners: a bot's
+# comment, a fork's PR and a PR off a lane branch are skipped here, and a
+# skipped run starts no dispatch. Only created comments relay; an edit starts
+# nothing. GitHub runs no pull_request_review_comment workflow on a PR with a
+# merge conflict; such a reply is picked up once resolve-conflicts pushes a
+# new head and its review run completes.
+on:
+  pull_request_review_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  relay:
+    if: >-
+      github.event.comment.user.type == 'User'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'work-resolve-issue/issue-')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Relay the comment
+        run: echo "A person's review comment; pr-feedback-dispatch.yml decides from this run's own facts."

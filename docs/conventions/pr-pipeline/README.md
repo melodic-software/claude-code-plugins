@@ -242,6 +242,17 @@ slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
 
+It also runs on `workflow_run` `completed` of `pr-review-comment-relay`, which a person's new
+review comment on a lane branch starts (`pull_request_review_comment` `created`, no permission,
+no checkout, no secret). It reads the relay run back and dispatches as above, with the relay run
+as the upstream the record names, only when the run succeeded, its actor and re-runner are both
+listed humans (never the lanes App), its `pull_requests` name the PR, and an unresolved thread
+carries a listed human's direction; only check runs started after the relay run count. The gate and
+the broker accept that upstream by path, event and actor id
+([ADR 0087](../../adr/0087-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
+GitHub starts no such run on a conflicted PR; that reply is picked up by the review run after
+`resolve-conflicts` pushes.
+
 It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-verify.yml` on
 `main` uploaded a `fail` verdict, its `post-verify-notes` job (a base job with no model, holding
 `pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review

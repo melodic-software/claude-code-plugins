@@ -105,6 +105,7 @@ async function gate({
   dispatcherWorkflow,
   runDispatcherWorkflow,
   runDispatcherUpstreams,
+  runDispatcherRelay,
   expectedUpstreamHead,
   pushedCommit,
   lanesAppId,
@@ -155,6 +156,7 @@ async function gate({
       ...(runDispatcherUpstreams === undefined
         ? {}
         : { RUN_DISPATCHER_UPSTREAMS: runDispatcherUpstreams }),
+      ...(runDispatcherRelay === undefined ? {} : { RUN_DISPATCHER_RELAY: runDispatcherRelay }),
       ...(expectedUpstreamHead === undefined ? {} : { EXPECTED_UPSTREAM_HEAD: expectedUpstreamHead }),
       ...(pushedCommit === undefined ? {} : { PUSHED_COMMIT: pushedCommit }),
       ...(lanesAppId === undefined ? {} : { LANES_APP_ID: lanesAppId }),
@@ -2335,6 +2337,60 @@ test("workflow_run dispatcher: refused when the lanes App id is not passed, sinc
 test("workflow_run dispatcher: a review a listed human started proceeds", async () => {
   const github = fakeGitHub(runDispatcherRoutes({ upstream: { actor: KYLE, triggering_actor: KYLE } }));
   assert.deepEqual(await runDispatched({ github }), PROCEED);
+});
+
+// A listed human's review comment, relayed by pr-review-comment-relay.yml
+// (ADR 0087): the gate accepts that upstream by path, event and actor id.
+const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
+const RELAY = {
+  path: RELAY_WORKFLOW,
+  name: "pr-review-comment-relay",
+  event: "pull_request_review_comment",
+  actor: KYLE,
+  triggering_actor: KYLE,
+  pull_requests: [{ number: 42 }],
+};
+const STRANGER_USER = { login: "stranger", id: 999, type: "User" };
+const relayDispatched = (options) => runDispatched({ runDispatcherRelay: RELAY_WORKFLOW, ...options });
+
+test("workflow_run dispatcher: a listed human's relayed review comment at the PR head proceeds", async () => {
+  const github = fakeGitHub(runDispatcherRoutes({ upstream: RELAY }));
+  assert.deepEqual(await relayDispatched({ github }), PROCEED);
+  assert.ok(github.calls.includes(upstreamRoute));
+});
+
+for (const [label, upstream, options = {}] of [
+  ["the gate names no relay", RELAY, { runDispatcherRelay: "" }],
+  ["the gate passes no relay input", RELAY, { runDispatcherRelay: undefined }],
+  ["the relay ran on pull_request", { ...RELAY, event: "pull_request" }],
+  ["the relay ran on pull_request_review", { ...RELAY, event: "pull_request_review" }],
+  ["the relay was started by the lanes App", { ...RELAY, actor: LANES_BOT, triggering_actor: LANES_BOT }],
+  ["the relay was started by an unlisted account", { ...RELAY, actor: STRANGER_USER, triggering_actor: STRANGER_USER }],
+  ["the relay was re-run by an unlisted account", { ...RELAY, triggering_actor: STRANGER_USER }],
+  ["the relay was re-run by the lanes App", { ...RELAY, triggering_actor: LANES_BOT }],
+  ["the relay names no actor", { ...RELAY, actor: undefined }],
+  ["the relay's listed actor is denied", RELAY, { deniedActorIds: String(KYLE.id) }],
+  ["the relay names another PR", { ...RELAY, pull_requests: [{ number: 43 }] }],
+  ["the relay names no PR", { ...RELAY, pull_requests: [] }],
+  ["the relay has no pull_requests", { ...RELAY, pull_requests: undefined }],
+  ["the relay ran at an older head", { ...RELAY, head_sha: BASE_SHA }],
+  ["the relay ran on a fork's head", { ...RELAY, head_repository: { id: 2, full_name: "stranger/claude-code-plugins" } }],
+  ["a review-comment run of another workflow", { ...RELAY, path: ".github/workflows/copy.yml" }],
+  ["a review-comment run of a review workflow", { ...RELAY, path: REVIEW_WORKFLOW }],
+]) {
+  test(`workflow_run dispatcher: relay refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(runDispatcherRoutes({ dispatcher: { status: "completed" }, upstream }));
+    assert.deepEqual(await relayDispatched({ github, ...options }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("workflow_run dispatcher: naming a relay leaves a review run's terms unchanged", async () => {
+  assert.deepEqual(await relayDispatched({ github: fakeGitHub(runDispatcherRoutes()) }), PROCEED);
+  const unlisted = { actor: STRANGER_USER, triggering_actor: STRANGER_USER };
+  assert.deepEqual(
+    await relayDispatched({ github: fakeGitHub(runDispatcherRoutes({ dispatcher: { status: "completed" }, upstream: unlisted })) }),
+    STOPPED("untrusted-actor"),
+  );
 });
 
 // A job after pr-unblock's model job: the review was of the head that job was

@@ -13,7 +13,8 @@
 // It dispatches pr-unblock.yml on main, with activity address-feedback, only
 // when all of these hold, and otherwise logs why not and dispatches nothing:
 // - the upstream run is a completed pull_request run of a review workflow,
-//   by exact path, in this repository and on a head of this repository;
+//   by exact path, or a successful relay run (below), in this repository and
+//   on a head of this repository;
 // - exactly one open, non-draft PR into main has that run's head SHA as its
 //   current head, and the lanes App opened it, or a person on the base's
 //   trusted-actors list did under an `adoption` section, with no `Hold:` body
@@ -99,6 +100,20 @@
 // then counting, but a limit stop keeps its reset hold, and the round is not
 // sent for a pr-verify FAIL. A head with SWEEP_HEAD_CAP rounds or releases, or
 // a run of the activity created since the request, is left alone.
+//
+// A completed pr-review-comment-relay.yml run, which a person's new review
+// comment on a lanes App PR starts, starts the file too (ADR 0087). main()
+// reads the relay run back from the API and admits it only when it is a
+// successful pull_request_review_comment run of this repository whose actor
+// and re-runner are both listed humans, never the lanes App (relayUpstream).
+// It then decides as above with the relay run as the upstream, which the
+// record names, and the relay's creation time as requestSince, as a fix
+// request's: check runs started by then stop counting and the head's handled
+// record is skipped. The PR must be among the relay run's pull_requests, and
+// only a thread carrying a listed human's direction can cause the dispatch.
+// GitHub starts no review-comment run on a conflicted PR; a reply posted then
+// keeps its thread workable on any head (address-feedback.mjs onReviewedHead),
+// so the review run after resolve-conflicts' push dispatches it.
 //
 // A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
@@ -304,7 +319,13 @@ async function requestEvidence({ api, number, pull, comments, threads, reviewerI
   };
 }
 
-export const hasWorkableThread = (threads, options) => threads.some((thread) => keptAuthors(thread, options) !== null);
+// With needsDirection, only a thread where threadAuthors marks a trusted
+// person's direction counts.
+export const hasWorkableThread = (threads, { needsDirection = false, ...options }) =>
+  threads.some((thread) => {
+    const authors = keptAuthors(thread, options);
+    return authors !== null && (!needsDirection || authors.some((entry) => entry.direction === true));
+  });
 
 // When the newest fix request by one of `fixers` was posted in a thread the
 // select job keeps and the reviewer bot opened, in ms, or null. Direction may
@@ -334,6 +355,39 @@ const threadFixers = ({ threads, trustedHumans, permission }) =>
   });
 
 export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
+// The relay a person's new review comment starts, and the only event it runs on.
+export const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
+export const RELAY_EVENT = "pull_request_review_comment";
+
+// The relay run the event names, read back from the API, when a listed human
+// (not the lanes App) started it and any re-run, it ran on a review comment of
+// a same-repository PR and succeeded; otherwise null, logged. The event's
+// actor ids only skip early; the API's admit.
+export async function relayUpstream({ api, upstream, repository, appSenderId, trustedHumans, log }) {
+  const listed = (user) => Number.isSafeInteger(user?.id) && user.id !== appSenderId && trustedHumans.has(user.id);
+  const skip = (why) => {
+    log(`skip: ${why}`);
+    return null;
+  };
+  if (!RUN_ID.test(String(upstream?.id)) || !listed(upstream.actor) || !listed(upstream.triggering_actor)) {
+    return skip(`relay run ${upstream?.id} was not started by a listed human`);
+  }
+  const run = await api.getWorkflowRun(upstream.id);
+  if (
+    String(run?.id) !== String(upstream.id) ||
+    run.path !== RELAY_WORKFLOW ||
+    run.event !== RELAY_EVENT ||
+    run.status !== "completed" ||
+    run.conclusion !== "success" ||
+    run.repository?.full_name !== repository ||
+    run.head_repository?.full_name !== repository ||
+    !listed(run.actor) ||
+    !listed(run.triggering_actor)
+  ) {
+    return skip(`relay run ${upstream.id} is not a successful same-repository review-comment relay by a listed human`);
+  }
+  return run;
+}
 // Its pull_request_target run follows a label coming off a PR (see main).
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
@@ -404,15 +458,17 @@ export async function dispatchFeedback({
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
     throw new Error("the lanes App sender id is not a positive integer");
   }
+  const relayed = upstream?.path === RELAY_WORKFLOW;
   if (
-    !settings.reviewWorkflows.includes(upstream.path) ||
-    upstream.event !== "pull_request" ||
+    !(relayed
+      ? upstream.event === RELAY_EVENT && upstream.conclusion === "success"
+      : settings.reviewWorkflows.includes(upstream.path) && upstream.event === "pull_request") ||
     upstream.status !== "completed" ||
     upstream.repository?.full_name !== repository ||
     upstream.head_repository?.full_name !== repository ||
     !SHA.test(upstream.head_sha ?? "")
   ) {
-    return skip(`run ${upstreamRunId} is not a completed same-repository review run`);
+    return skip(`run ${upstreamRunId} is not a completed same-repository review or relay run`);
   }
   const head = upstream.head_sha;
   const cutoff = notesSince ?? requestSince;
@@ -439,6 +495,10 @@ export async function dispatchFeedback({
   const number = pull.number;
   if (pull.draft !== false) {
     return skip(`#${number} is a draft`);
+  }
+  // The gate and the broker check the same: the relayed comment was on this PR.
+  if (relayed && !(upstream.pull_requests ?? []).some((entry) => entry?.number === number)) {
+    return skip(`relay run ${upstreamRunId} does not name #${number}`);
   }
   // A lanes App PR, or an adopted owner PR once idle. A pass-only round
   // resolves threads as the lanes App, which only its own PRs allow.
@@ -509,7 +569,13 @@ export async function dispatchFeedback({
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
     const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
-    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log });
+    // A relayed comment sends a round only for a thread carrying a trusted
+    // person's direction, so a comment elsewhere does not re-send threads a
+    // round already worked at this head.
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log, needsDirection: relayed });
+    if (relayed && !workable) {
+      return skip(`#${number} has no unresolved thread carrying a trusted person's direction`);
+    }
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
@@ -1379,7 +1445,22 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
     }
   }
   let notesSince = null;
+  let requestSince = null;
   let passOnly = false;
+  // A relayed reply is new direction at a head an earlier round may have
+  // handled: as for a fix request, only check runs started after the relay
+  // run was created count, and the head's handled record is skipped.
+  if (upstream?.path === RELAY_WORKFLOW) {
+    upstream = await relayUpstream({ api: client, upstream, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans, log });
+    if (upstream === null) {
+      summary();
+      return 0;
+    }
+    requestSince = Date.parse(upstream.created_at ?? "");
+    if (Number.isNaN(requestSince)) {
+      throw new Error(`relay run ${upstream.id} has no readable creation time`);
+    }
+  }
   if (upstream?.path === VERIFY_WORKFLOW) {
     if (env.VERIFY_HEAD_SHA && env.VERIFY_PASS_HEAD_SHA) {
       throw new Error("a pr-verify run names exactly one head: VERIFY_HEAD_SHA or VERIFY_PASS_HEAD_SHA");
@@ -1399,7 +1480,7 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
       return 0;
     }
   }
-  const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince, passOnly }).finally(summary);
+  const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince, requestSince, passOnly }).finally(summary);
   if (dispatched !== null) {
     appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\nupstream-run-id=${upstream.id}\n`);
   }

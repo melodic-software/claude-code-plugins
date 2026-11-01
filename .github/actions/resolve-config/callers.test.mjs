@@ -5242,6 +5242,7 @@ test("pr-run-activity-read.yml: the gate admits a feedback dispatch only for a r
     gate["run-dispatcher-upstreams"],
     "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}",
   );
+  assert.equal(gate["run-dispatcher-relay"], "${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}");
   const assertStep = steps.find((step) => step.name === "Assert a feedback context goes with review-threads");
   const config = steps.findIndex((step) => step.id === "config");
   assert.ok(steps.indexOf(assertStep) > config);
@@ -5393,9 +5394,9 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   for (const input of ["dispatcher-run-id", "dispatcher-workflow", "dispatched-workflow"]) {
     assert.equal(read[input], write[input], input);
   }
-  // The feedback dispatcher's two inputs are the write runner's, passed only
+  // The feedback dispatcher's three inputs are the write runner's, passed only
   // for a review-threads call (the next test).
-  for (const input of ["run-dispatcher-workflow", "run-dispatcher-upstreams"]) {
+  for (const input of ["run-dispatcher-workflow", "run-dispatcher-upstreams", "run-dispatcher-relay"]) {
     const value = String(write[input]).trim().split(/\s+/).join(" ");
     assert.equal(read[input], `\${{ inputs.feedback-context-sha256 != '' && '${value}' || '' }}`, input);
   }

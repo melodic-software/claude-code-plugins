@@ -22,6 +22,7 @@ condition 1 and the actor and author parts of condition 2).
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
 | `run-dispatcher-workflow` | empty | The workflow path a dispatcher run started by `workflow_run` must have; empty stops every such run |
 | `run-dispatcher-upstreams` | empty | Space-separated workflow paths that dispatcher's upstream run may have; empty stops every such run |
+| `run-dispatcher-relay` | empty | The workflow path of a review-comment relay that dispatcher's upstream run may have instead; empty accepts no relay |
 | `expected-upstream-head` | empty | For a job after pr-unblock's model job, the head that job gated; set on any path but a `workflow_run` dispatcher, it stops the run |
 | `pushed-commit` | empty | With `expected-upstream-head`, the commit apply-feedback-patch pushed onto it, the one other head the PR may be at; set without it, or not a lowercase SHA, it stops the run |
 | `lanes-app-id` | empty | The lanes App bot's user id: an upstream it started vouches |
@@ -87,6 +88,13 @@ condition 1 and the actor and author parts of condition 2).
     `pushed-commit`, the commit this run's apply-feedback-patch job pushed. Any other head stops
     the run, a verified lanes App commit included: a signature proves an App token made a commit,
     not that this run's push job did.
+  - an upstream whose `path` equals `run-dispatcher-relay` (`pr-review-comment-relay.yml`, which a
+    person's new review comment starts) is accepted in place of a review run when its `event` is
+    `pull_request_review_comment`, its `pull_requests` name the PR (an empty list stops the run),
+    and its `actor` and `triggering_actor` are both listed humans; the lanes App never vouches for
+    it. The repository and head checks above apply unchanged. The relay's `GITHUB_REF` is the
+    PR's merge ref, so its file is treated as PR-controlled and only these run facts, which GitHub
+    sets, are trusted ([ADR 0087](../../../docs/adr/0087-relay-a-listed-humans-review-comment-to-the-feedback-dispatcher.md)).
 
   Feedback dispatch stays person-only: a `pr-feedback-dispatch.yml` run re-run by
   `github-actions[bot]` fails the `kind: human` re-runner rule above, so the lost-run reconciler
