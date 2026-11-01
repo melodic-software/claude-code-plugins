@@ -15,10 +15,10 @@ when evidence is unavailable, untrusted, partial, or forgeable
 |---|---|---|
 | `c2-mechanical` | C2 mechanical only | `C2-auto-merge` |
 | `c3-autonomous` | C2 and C3 | `C2-auto-merge`, `C3-auto-merge` (and `C3-ai-review-blocking` as a prerequisite of `C3-auto-merge`) |
-| `full-autonomy` | every class up to C3 | same as `c3-autonomous` for C2/C3; still never C4/C5 |
+| `full-autonomy` | every class up to C3 | same as `c3-autonomous` for C2/C3 |
 | `human-only` | none | none. Promotion resolution is skipped (eligible set empty) |
 
-`C4/C5` merge never promotes; no cell covers them.
+No rung admits C4 or C5, and no cell covers them; C5 is also the untrusted-provenance hold no rung lifts.
 
 ## Trusted seam (required)
 
@@ -130,7 +130,7 @@ exclusion for the affected class only.
 ## Partition interaction
 
 Promotion resolution is a **gate on top of** the existing rung partition, not a substitute for it.
-A PR still requires a close-linked work item, label-enforced class, C4/C5 floor, do-not-merge veto,
+A PR still requires a close-linked work item, label-enforced class, C5 hold and C4 diff veto, do-not-merge veto,
 human blocking feedback withholdings, and every other step-3 rule. Effective-unpromoted
 `C2-auto-merge` makes a C2-mechanical PR ineligible exactly as if the rung were too low; it routes
 to the `safe` per-PR pass, never a merge-capable invocation.

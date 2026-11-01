@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: use-routes-natural-explorer
+graders:
+  - name: routes-use
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:playgrounds:)?use"'
+    arm: 'both'
+  - name: install-command
+    type: regex
+    pattern: '\bplugin install (?:--scope[ =]\w+ )?playground@claude-plugins-official\b'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-html-reply
+    type: regex
+    pattern: '<!doctype html|<html\b|<input[^>]*type=["'']?range'
+    flags: 'i'
+    match: not_contains
+    target: last_message

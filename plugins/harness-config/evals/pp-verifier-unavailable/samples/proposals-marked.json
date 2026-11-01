@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | P7 | purge-builds | MISSING (unverified) | ```diff ... |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "| 1 | P7 | purge-builds | MISSING | ```diff ... |",
+      "why": "no marker"
+    }
+  ]
+}

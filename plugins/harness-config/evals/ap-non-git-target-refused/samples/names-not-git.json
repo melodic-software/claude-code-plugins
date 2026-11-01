@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Refused: /ws is not a git repository."
+    },
+    {
+      "answer": "This directory isn't inside a git repo, so the pass stops before Phase 0."
+    },
+    {
+      "answer": "Refusing a non-git target: /tmp/harbor."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Pass complete: 12 findings across 3 lanes.",
+      "why": "ran anyway"
+    },
+    {
+      "answer": "git status shows a clean tree.",
+      "why": "different subject"
+    }
+  ]
+}

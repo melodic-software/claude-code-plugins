@@ -1,5 +1,5 @@
 ---
-description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and durable codification of learnings. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
+description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'show trends', or at end of session. Mid-session: /session-flow:running-retro."
 argument-hint: "[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -67,7 +67,7 @@ Resolve at runtime, never hardcode machine-specific paths:
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
 | "codify", "save learnings", mid-session learning | **codify** | `context/codify.md`, targeted codification only |
 | "codify reviews", "what do reviewers keep telling us", "mine review comments" | **codify**, `reviews` input | `context/codify.md`, lessons from recent merged PRs' review comments |
-| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
+| "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history, plus delivery metrics from `/work-items:measure-delivery` when it is available |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
 `--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it

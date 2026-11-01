@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Paste it under the autoMode key of ~/.claude/settings.json."
+    },
+    {
+      "answer": "Put it in `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`."
+    },
+    {
+      "answer": "This goes in your user settings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Paste it into .claude/settings.json.",
+      "why": "project file"
+    }
+  ]
+}

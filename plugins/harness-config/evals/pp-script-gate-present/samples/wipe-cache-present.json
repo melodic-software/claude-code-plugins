@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | P7 | wipe-cache | PRESENT | scripts/wipe-cache.sh:4 prompts before rm |"
+    },
+    {
+      "answer": "PRESENT: wipe-cache.sh asks before deleting."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "| 1 | P7 | wipe-cache | MISSING | add a confirmation |",
+      "why": "judged missing"
+    }
+  ]
+}

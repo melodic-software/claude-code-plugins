@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {
+      "answer": "Setup: no config file exists at the given path, so the script's config row is a FAIL for the missing file. Reports that FAIL and, for the literal password the user describes, the remediation to replace it with { \"env\": \"<VARIABLE>\" } and set that variable in the environment Claude Code starts in, never echoing the password value.",
+      "why": "the source's expected_output, which describes the reply rather than recording one; confirm the label before calibrating"
+    }
+  ]
+}

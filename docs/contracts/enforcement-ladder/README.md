@@ -1,5 +1,5 @@
 ---
-enforcement-ladder: 2.0.0
+enforcement-ladder: 2.1.0
 ---
 
 # Enforcement ladder
@@ -140,11 +140,9 @@ Each reader walks the same rungs with a different question.
 | Reader | Question | Rule |
 |---|---|---|
 | `/harness-config:audit-automation-gaps` | Is this concern already covered, and if not, what should cover it? | the strongest rung that covers the concern; a concern a stronger rung already covers is not a gap |
-| `/review:audit-enforceability` | Which check could have caught this one finding? | the cheapest rung whose check can actually assert the finding and passes the guardrail criterion; for a finding of class `invalid-state` it offers `make-impossible` first |
-| `/session-flow:retro` codify | Where should this repeated correction be encoded? | its encode policy: by default a repeated correction becomes an `instruction` edit (a `CLAUDE.md` or rules-file line), and a rule that must hold every time moves up to a rung that enforces it; retro documents the setting that changes this |
+| `/corrections:codify` | Which rung should stop this recurring mistake, described in the session, in a findings file (`findings`) or in review comments (`reviews`)? | the strongest rung that can decide the mistake and passes the guardrail criterion; a mistake that fails the criterion stays on the guidance tier or `human-review`, and `make-impossible` is only proposed |
 
-"Cheapest" and "strongest" are both orders over this one list. Cheapest asks what costs least to
-build and keep for one finding; strongest asks what leaves the least room for a whole class of
+"Strongest" is an order over this one list: it asks what leaves the least room for a whole class of
 mistakes. Neither skill reorders the list.
 
 ## Reordering

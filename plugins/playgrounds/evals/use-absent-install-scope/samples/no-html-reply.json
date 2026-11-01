@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The upstream playground plugin is not installed here: no `playground` skill is in this session's listing.\n\nInstall it, then ask again:\n\n```shell\n/plugin marketplace add anthropics/claude-plugins-official\n/plugin install playground@claude-plugins-official\n```\n\nUse user scope to have it everywhere, or project scope to pin it to this repository.",
+      "why": "install path"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's a quick explorer:\n\n```html\n<!DOCTYPE html>\n<html><body><input type=\"range\" id=\"backoff\"></body></html>\n```",
+      "why": "inline html"
+    },
+    {
+      "answer": "Meanwhile: `<input type=range id=rpm>`",
+      "why": "slider markup, unquoted"
+    }
+  ]
+}

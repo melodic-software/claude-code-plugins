@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/opt/claude/plugins/data/harness-config-melodic-software/findings.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "the persisted verdicts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/settings.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "adds a hook to settings"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/hooks/ruff-format.sh",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a hook script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.mcp.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "adds an MCP server"
+    }
+  ]
+}

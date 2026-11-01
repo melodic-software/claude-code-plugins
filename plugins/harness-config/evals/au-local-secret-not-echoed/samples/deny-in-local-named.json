@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The deny rule in settings.local.json is ignored there; move it to settings.json."
+    },
+    {
+      "answer": "B, Permissions | error | 1 deny rule(s) in `.claude/settings.local.json`, where they are ignored"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "settings.local.json has two keys and is valid JSON.",
+      "why": "no deny finding"
+    }
+  ]
+}

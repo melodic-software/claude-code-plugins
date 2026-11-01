@@ -5,7 +5,7 @@ The skills of `plugins/playbooks`. Each one is driven with `<plugin-dir>` set to
 ## Parts
 
 - `boris`: Boris Cherny's Claude Code workflow tips across 130 sections.
-- `fable-5`: Fable 5's operating doctrine loaded as standing session instructions.
+- `fable-5`: Fable 5.1's operating doctrine loaded as standing session instructions.
 - `repo-sweep`: Run the hygiene skill catalog through one repo, one PR, one commit per step.
 - `skill-authoring`: Anthropic's internal skill-authoring playbook and patterns.
 - `update`: Maintainer-facing drift-check and upstream sync for the playbooks plugin's vendored packs (boris, skill-authoring). No plain-words entry.

@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -3",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "history read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/unhobble/scripts/instruction-files.sh\" restore . HEAD~1 CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "helper restore"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout HEAD~1 -- .claude/rules/python-style.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git restore of a rule"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git restore --source=HEAD~1 -- CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git restore"
+    }
+  ]
+}

@@ -62,6 +62,7 @@
 //   RUNNER_TEMP         read: where the artifact is downloaded
 //   PR_MERGE_READS_PATH read: the job's shared GET answers
 //                       (rotation.mjs sharedReads), if set
+//   PR_MERGE_MAIN_TIP   read: main's tip (head-ref-map.mjs onMain), if set
 //   GITHUB_API_URL
 import { appendFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";

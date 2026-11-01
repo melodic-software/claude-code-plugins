@@ -44,7 +44,18 @@ one line per check, detail lines indented under it:
                       other than Skill (tool and target) with no absolute path
                       at, under or above the plugin's directory, since the
                       environment then denied it with or without the plugin,
-                      such as a user-scope read of ~/.claude. Otherwise a
+                      such as a user-scope read of ~/.claude. A denial of a
+                      named call other than Skill aimed only under the run's
+                      own plugin-data directory (<sandbox>/config/plugins/data,
+                      CLAUDE_PLUGIN_DATA), which the sandbox denies to any
+                      skill that persists state, is always a warning and is
+                      set aside before the rules here judge the run's other
+                      denials, so it never counts toward a FAIL; so is a Read,
+                      Grep or Glob aimed only under the session's own
+                      <sandbox>/config/projects/*/*/tool-results/, where Claude
+                      Code persists a large tool result the session already
+                      received. The run's score was taken under such a denial,
+                      so compare it only with runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
                       directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
@@ -147,6 +158,12 @@ TRACE_RESULT = "result"  # type of the closing line
 TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
+# A run's plugin-data directory (CLAUDE_PLUGIN_DATA), under its sandbox, beside out/.
+SANDBOX_PLUGIN_DATA = ("config", "plugins", "data")
+# Where a run's session persists a large tool result it already received:
+# <sandbox>/config/projects/<project>/<session>/tool-results/.
+SANDBOX_PROJECTS, TOOL_RESULTS_DIR = ("config", "projects"), "tool-results"
+TOOL_RESULTS_READERS = ("Read", "Grep", "Glob")
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
 MESSAGE, CONTENT, BLOCK_TYPE = "message", "content", "type"  # message.content[].type
 TOOL_USE, USE_ID, USE_NAME, USE_INPUT = "tool_use", "id", "name", "input"
@@ -910,6 +927,74 @@ def in_every_run(run, found, runs, roots):
     return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
 
 
+def sandbox_dir(run):
+    """The run's sandbox, <sandbox> for a trace at <sandbox>/out/trace.jsonl; None
+    for a trace anywhere else."""
+    if not run.trace_path:
+        return None
+    out = os.path.dirname(os.path.realpath(run.trace_path))
+    return os.path.dirname(out) if os.path.basename(out) == "out" else None
+
+
+def own_data_dir(run):
+    """The run's own plugin-data directory, <sandbox>/config/plugins/data, or None."""
+    sandbox = sandbox_dir(run)
+    return os.path.join(sandbox, *SANDBOX_PLUGIN_DATA) if sandbox else None
+
+
+def in_tool_results(path, projects):
+    """True when path is at or under <projects>/<project>/<session>/tool-results."""
+    if not under(path, projects):
+        return False
+    rel = os.path.relpath(os.path.realpath(path), os.path.realpath(projects))
+    parts = rel.split(os.sep)
+    return len(parts) >= 3 and parts[2] == TOOL_RESULTS_DIR
+
+
+def under(path, directory):
+    """True when path is rooted and at or under directory, symlinks resolved."""
+    if not rooted(path) or "\0" in path:
+        return False
+    path, directory = os.path.realpath(path), os.path.realpath(directory)
+    try:
+        return os.path.commonpath([path, directory]) == directory
+    except ValueError:
+        return False
+
+
+def own_data_denial(run, denial):
+    """True when the denial names a call other than Skill whose every target path
+    is under the run's own plugin-data directory. The eval sandbox keeps that
+    directory, where CLAUDE_PLUGIN_DATA points, out of reach, so a skill that
+    persists state is denied there in every run whatever it does; no case or
+    skill change can avoid it. A denial elsewhere in the run's config directory,
+    or with no rooted path, never qualifies."""
+    _, paths, name, _, _ = denial
+    data = own_data_dir(run)
+    return (
+        bool(data)
+        and name not in (None, SKILL_TOOL)
+        and bool(paths)
+        and all(under(p, data) for p in paths)
+    )
+
+
+def own_results_denial(run, denial):
+    """True when the denial is a Read, Grep or Glob whose every target path is
+    under the run's own config/projects/<project>/<session>/tool-results/. Claude
+    Code writes a large tool result there and the model reads it back; the run's
+    permission settings deny its config directory, so the read is denied whatever
+    the case does. It reads only output the session already received, so it
+    cannot add to what the model knows. Bash, a write, or any other path never
+    qualifies."""
+    _, paths, name, _, _ = denial
+    sandbox = sandbox_dir(run)
+    if not sandbox or name not in TOOL_RESULTS_READERS or not paths:
+        return False
+    projects = os.path.join(sandbox, *SANDBOX_PROJECTS)
+    return all(in_tool_results(p, projects) for p in paths)
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -957,18 +1042,41 @@ def probe_split(case, runs, found, root):
 
 def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
-    found = {r: denials(r) for r in traced}
-    denied = [r for r in traced if found[r]]
+    every = {r: denials(r) for r in traced}
+    # Plugin-data denials and reads of the session's own tool results are
+    # environment: they warn and never count toward a FAIL, so every other rule
+    # judges a run on the denials left.
+    data = {r: [d for d in every[r] if own_data_denial(r, d)] for r in traced}
+    results = {
+        r: [d for d in every[r] if d not in data[r] and own_results_denial(r, d)]
+        for r in traced
+    }
+    found = {
+        r: [d for d in every[r] if d not in data[r] and d not in results[r]]
+        for r in traced
+    }
+    denied = [r for r in traced if every[r]]
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, runs, root)
+        if not found[r]
+        or probe_denial(r, found, runs, root)
         or same_as_clean(r, found, runs, roots)
         or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _, _ in found[r]]
+    details = [line for r in denied for line, _, _, _, _ in every[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
+    set_aside = sum(len(data[r]) for r in denied)
+    if set_aside:
+        summary += "; %s under the run's own plugin-data directory, not counted" % plural(
+            set_aside, "denial"
+        )
+    read_back = sum(len(results[r]) for r in denied)
+    if read_back:
+        summary += "; %s of the session's own tool results, not counted" % plural(
+            read_back, "denied read"
+        )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
     for r in denied:
@@ -982,7 +1090,12 @@ def check_denials(runs, roots, root):
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
             " plugin; or a run denied only named calls other than Skill that every"
-            " run of its case was denied in both arms, none inside the plugin): %s"
+            " run of its case was denied in both arms, none inside the plugin; and"
+            " any named call other than Skill aimed only under the run's own"
+            " plugin-data directory, or a Read, Grep or Glob aimed only at the"
+            " session's own tool-results directory, which never counts toward a"
+            " FAIL; a run's score was taken under such a denial, so compare it only"
+            " with runs denied the same way): %s"
             % ", ".join(warned_cases)
         )
     if failed:
