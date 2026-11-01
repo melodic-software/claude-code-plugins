@@ -170,6 +170,22 @@ tbg_instance() {
   fi
 }
 
+# tbg_check_instance GATE INSTANCE: non-zero, with the reason in TBG_ERR, when
+# findMachine matches the lane instance (a fleet or private hostname). The
+# instance is published in the public marker, so a hostname-shaped one is
+# refused rather than masked; the message never echoes it.
+tbg_check_instance() {
+  local hit
+  if ! hit="$(printf '%s' "$2" | tbg_scan "$1")"; then
+    TBG_ERR="the lane-instance scan could not run"
+    return 1
+  fi
+  if [[ -n "$hit" ]]; then
+    TBG_ERR="the lane instance is withheld from the public marker: $hit; unset lane_instance (and drop lane_instance from a resumed state block) so the stored random id is used"
+    return 1
+  fi
+}
+
 # tbg_scan GATE: read the body on stdin and print why it is withheld, empty when
 # clean: a scanLeak block, its plain-assignment warning or URL userinfo
 # credentials (a credential, which must be rotated), or a findMachine hit (a home path, a fleet or private

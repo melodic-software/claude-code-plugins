@@ -788,6 +788,24 @@ else
   fail "home-path refusal: $(cat "$STDERR")"
 fi
 
+# A fleet-hostname-shaped instance passes the shape check but would publish the
+# hostname in the marker, so it is refused up front with its own code, before
+# any API call, and the message never echoes it.
+fresh_state
+FLEET_INSTANCE="melo-""lap-001"
+FLEET_SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$FLEET_INSTANCE -->"
+write_body "$WORK/fleet.md" "$FLEET_SENT"
+SAVED_INSTANCE="$INSTANCE"
+INSTANCE="$FLEET_INSTANCE"
+run "$WORK/fleet.md"
+INSTANCE="$SAVED_INSTANCE"
+check_rc 18 "$RC" "a fleet-hostname-shaped instance is refused (exit 18)"
+if grep -q "withheld from the public marker" "$STDERR" && ! grep -q "body withheld" "$STDERR" && ! grep -qF -- "$FLEET_INSTANCE" "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the hostname-instance refusal blames the instance, not the body, never echoes it, and makes no API call"
+else
+  fail "hostname-instance refusal: $(cat "$STDERR")"
+fi
+
 # A GitHub-hosted runner's home path reveals nothing, so it is not withheld.
 fresh_state
 printf '%s\ncycle=7 log=/ho''me/runner/work/app/app/run.log\n' "$SENT" >"$WORK/runner.md"

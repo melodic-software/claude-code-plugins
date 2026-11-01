@@ -12,7 +12,7 @@ convention's lane-instance identity rule. Resolution order matches `SKILL.md`'s 
 (cited from [invocation-argv.md](invocation-argv.md)): a supplied `--instance` token wins, else
 persisted `lane_instance` from the durable state block, else `${user_config.lane_instance}`. Pass
 the resolved value through; the script owns everything after that, including the stored random-id fallback
-for an unset key and the validation that rejects a non-conforming id.
+for an unset key and the validation that rejects a non-conforming or hostname-shaped id (exit 18).
 
 ## Invocation
 
@@ -91,6 +91,7 @@ to end the loop: the lane records the outcome and continues.
 | 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
 | 16 | No safe body dir (none given, not this plugin's data dir, or `/`, the home dir or an ancestor of it), or the body file is a symlink or resolves outside it | NOTHING was read or written. Compose the body under `--body-dir`. |
 | 17 | The body matches the leak scan, a credential shape or a home path or private hostname (the message names the rule, never the match), or the scan could not run | NOTHING was written. Remove the credential-shaped text and rotate a real credential. |
+| 18 | The resolved lane instance looks like a fleet or private hostname, which the public marker would publish, or that scan could not run | NOTHING was written. Re-run once this cycle with an empty `--instance`, so the script uses the stored random id, and persist that id as `lane_instance`; tell the operator to unset a hostname-shaped `lane_instance` key. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.

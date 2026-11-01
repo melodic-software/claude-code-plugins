@@ -657,6 +657,15 @@ assert_not_contains "the home-path refusal gives no rotation advice" "$out" "rot
 assert_not_contains "the home-path refusal never prints the path" "$out" "$FAKE_HOME"
 rm -f "$SAFE_DIR/homepath.txt"
 
+# A fleet-hostname-shaped instance in the marker is refused up front, blaming the
+# marker rather than the body, and never echoing it.
+FLEET_MARKER="lane:triage@melo-""lap-001"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "$FLEET_MARKER" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+assert_eq "a hostname-shaped marker instance is refused (exit 3)" 3 "$?"
+assert_contains "the hostname-marker refusal names the instance" "$out" "withheld from the public marker"
+assert_not_contains "the hostname-marker refusal does not blame the body" "$out" "body withheld"
+assert_not_contains "the hostname-marker refusal never prints the hostname" "$out" "melo-""lap-001"
+
 # A GitHub-hosted runner's home path reveals nothing: the scan lets it through.
 printf 'lane: triage\nlog: /ho''me/runner/work/app/app/run.log\n' >"$SAFE_DIR/runner.txt"
 printf '[]\n' >"$TMP/no-comments.json"

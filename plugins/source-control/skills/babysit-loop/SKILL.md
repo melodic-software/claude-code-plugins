@@ -307,7 +307,7 @@ block, re-read at every cycle start:
 ```json
 {"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
- "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"melo-lap-001",
+ "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"lane-3e7a91c4",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
  "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,"demotion_events":0,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,

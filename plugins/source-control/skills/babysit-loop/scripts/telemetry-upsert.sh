@@ -47,7 +47,9 @@
 # the caller records the lane as UNREPORTED and carries that to the next cycle):
 #   0  written and the read-back matches the body sent byte for byte
 #   3  invalid input, a body file outside the safe body dir or a symlink, or a
-#      body that failed the pre-write gate or the leak scan — nothing written
+#      body that failed the pre-write gate or the leak scan, or a lane instance
+#      findMachine matches (a hostname the public marker would publish) — nothing
+#      written
 #   4  gh or node not found — nothing written
 #   5  a gh call failed before anything verifiable landed: the write identity or
 #      the lookup (nothing written), the POST, or the PATCH (the comment holds an
@@ -120,6 +122,9 @@ fi
 # Rejected, never trimmed into something that looks valid.
 [[ "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]] ||
   die 3 "lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker"
+type -P node >/dev/null 2>&1 || die 4 "node not found (the leak scan needs it); nothing read or written"
+tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$INSTANCE" ||
+  die 3 "$TBG_ERR; nothing read or written"
 
 SENT="<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@$INSTANCE -->"
 
@@ -169,7 +174,6 @@ fi
 # The file must resolve under the safe body dir, and is read once into a private
 # copy every later step uses; see telemetry-body-gate.sh.
 [[ -n "$SAFE_OK" ]] || die 3 "$SAFE_WHY; nothing read or written"
-type -P node >/dev/null 2>&1 || die 4 "node not found (the leak scan needs it); nothing written"
 SEND_FILE=""
 BODY_COPY=""
 trap 'rm -f "$BODY_COPY" "$SEND_FILE"' EXIT

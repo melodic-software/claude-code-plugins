@@ -126,6 +126,9 @@
 #   17  the body matches the leak scan, a credential shape, a home path or a
 #       private hostname (the message names the rule, never the match), or the scan could not run - NOTHING written; rotate a real
 #       credential
+#   18  the resolved lane instance matches findMachine (a fleet or private
+#       hostname), which the public marker would publish, or that scan could not
+#       run - NOTHING written; unset lane_instance so the stored random id is used
 #
 # KNOWN LIMITS. Not implemented: the 64 KiB cap and read retries that the
 # `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
@@ -289,6 +292,10 @@ esac
 if ((${#INSTANCE} > 32)); then
   err "lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker"
   exit 5
+fi
+if ! tbg_check_instance "${BASH_SOURCE[0]%/*}/../lib/publish-gate.mjs" "$INSTANCE"; then
+  err "$TBG_ERR - nothing written"
+  exit 18
 fi
 
 # Checked before any gh api URL path: GitHub's routing normalizes `..` segments,

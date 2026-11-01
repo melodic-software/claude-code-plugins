@@ -38,7 +38,9 @@ The script writes the sentinel line
 so the file holds the telemetry alone (a file that already opens with that exact line is sent
 as-is). An unset `lane_instance` (empty, or a surviving literal `${user_config.…}` placeholder)
 falls back to a random `lane-<hex>` id the script makes once and keeps in
-`<body-dir>/lane-instance`, and logs the assumption. Never the hostname: the marker is public. The id is
+`<body-dir>/lane-instance`, and logs the assumption. Never the hostname: the marker is public, so a
+`lane_instance` the leak scan reads as a fleet or private hostname exits 3 with nothing written;
+unset the key so the stored random id is used. The id is
 operator-supplied text that ends up in a `jq` program and an API path, so it is validated against
 `^[a-z0-9][a-z0-9-]{0,31}$` and **rejected**, never trimmed into something that looks valid; the
 stored fallback passes the same check.

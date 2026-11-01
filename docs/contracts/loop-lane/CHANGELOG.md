@@ -12,7 +12,8 @@ invariant changed.
 
 - **Lane-instance default.** An unset `lane_instance` falls back to a random id made once and kept
   in the plugin data dir, not the machine hostname, which the public telemetry marker published.
-  The id stays stable across restarts and distinct per machine.
+  The id stays stable across restarts and distinct per machine. A supplied instance the leak scan
+  reads as a hostname is refused before any write.
 
 ## [14.0.0] - 2026-11-01
 

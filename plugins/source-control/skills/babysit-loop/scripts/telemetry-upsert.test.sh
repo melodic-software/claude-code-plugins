@@ -155,6 +155,14 @@ INST='Bad_Id' run
 check "invalid instance: exit 3" 3 "$?"
 check "invalid instance: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
+# 9b. A fleet-hostname-shaped instance passes the shape check but would publish
+#     the hostname in the marker: exit 3 before any gh call, blaming the instance.
+setup '[]'
+INST="melo-""lap-001" run
+check "hostname instance: exit 3" 3 "$?"
+check "hostname instance: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+check "hostname instance: names the instance, not the body" 1 "$(grep -c 'withheld from the public marker' "$STUB_DIR/err")"
+
 # 10. A literal @path body: exit 3 before any gh call.
 setup '[]' '@/tmp/telemetry.md'
 run

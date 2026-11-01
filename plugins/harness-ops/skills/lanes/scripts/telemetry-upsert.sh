@@ -154,7 +154,8 @@
 #   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
 #      or a body that failed the pre-write gate (over the size cap, under the
 #      size floor, starting with a literal `@`, or matching the leak scan, which
-#      names the rule and never the match) — NOTHING was written
+#      names the rule and never the match), or a --marker findMachine matches
+#      (a hostname the public sentinel would publish) — NOTHING was written
 #   4  prerequisite missing (gh, jq or node), or the repo / safe body dir / write
 #      identity unresolved (nothing was written)
 #   5  a gh API call (list / create / update) failed, the comment list was empty
@@ -342,6 +343,12 @@ if ((body_bytes < MIN_BODY_BYTES)); then
   exit 3
 fi
 
+# The marker is published too; a hostname-shaped instance in it is refused up
+# front, so the body scan below never blames the body for it.
+tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$MARKER" || {
+  err "$TBG_ERR; nothing was written"
+  exit 3
+}
 SENTINEL="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 new_body="$SENTINEL"$'\n'"$body_text"
 
