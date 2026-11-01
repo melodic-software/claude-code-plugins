@@ -4148,7 +4148,7 @@ else
   fail "unlisted skill should still fail --require-evals (rc=$rc): $out"
 fi
 
-# 48b. A plugin suite case.yaml whose tags name the skill satisfies --require-evals;
+# 48b. A single-file plugin case.yaml whose tags name the skill satisfies --require-evals;
 #      one whose tags only start with the skill's name does not.
 mkdir -p "$TMP/plugins/p1/evals/c1"
 printf '%s\n' 'schema_version: 1' 'tags: [listed-other, hard]' >"$TMP/plugins/p1/evals/c1/case.yaml"
@@ -4164,10 +4164,33 @@ printf '%s\n' 'schema_version: 1' "tags: [hard, 'listed']" >"$TMP/plugins/p1/eva
 out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
   bash "$SUT" --require-evals listed 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'case.yaml tags listed' <<<"$out"; then
+if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
   pass "--require-evals accepts a plugin case.yaml that tags the skill"
 else
   fail "a case tagged listed should satisfy --require-evals (rc=$rc): $out"
+fi
+
+# 48c. The shape convert-evals-json.py writes: an untagged case.yaml beside a
+#      prompt.md whose front matter carries the tag. A tags line in the prompt
+#      body, after the front matter, does not count.
+printf '%s\n' 'schema_version: "1.1"' "name: 'listed-c1'" 'graders:' >"$TMP/plugins/p1/evals/c1/case.yaml"
+printf '%s\n' '---' "tags: ['other']" '---' '' "tags: ['listed']" >"$TMP/plugins/p1/evals/c1/prompt.md"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'skill ships no evals/evals.json' <<<"$out"; then
+  pass "--require-evals ignores a tags line in the prompt body"
+else
+  fail "a tags line after the front matter should not count (rc=$rc): $out"
+fi
+printf '%s\n' '---' "tags: ['listed', 'hard']" 'allowed_tools: [Read, Glob, Grep, Skill]' '---' '' 'Prompt text.' >"$TMP/plugins/p1/evals/c1/prompt.md"
+out="$(cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$TMP/plugins/p1/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  bash "$SUT" --require-evals listed 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case tags listed' <<<"$out"; then
+  pass "--require-evals accepts a converted case whose prompt.md front matter tags the skill"
+else
+  fail "a converted case tagged listed should satisfy --require-evals (rc=$rc): $out"
 fi
 rm -rf "${TMP:?}/plugins/p1/evals"
 
