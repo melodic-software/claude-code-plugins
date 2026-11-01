@@ -3,6 +3,13 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.15] - 2026-11-01
+
+### Changed
+
+- The `dlss5` description is shorter (795 to 708 characters) and keeps every quoted trigger phrase. Held-out trigger probes on Opus and Sonnet showed no lost trigger and no new false trigger.
+- The `setup` body drops two authoring notes and two duplicates of rules it states elsewhere. Its outcome case scored the same before and after on Opus and Sonnet.
+
 ## [0.10.14] - 2026-10-30
 
 ### Changed

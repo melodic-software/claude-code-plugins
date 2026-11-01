@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Investigate mode stops at the root cause: no branch, no fix and no PR.",
+      "why": "no PR"
+    },
+    {
+      "answer": "The run posts the investigation comment without opening a pull request, then releases the claim.",
+      "why": "without opening"
+    },
+    {
+      "answer": "It does not open a PR; the marker comment is the whole result.",
+      "why": "does not open"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Then I dispatch the fix to restore the header on retry and open a draft PR.",
+      "why": "opens a PR"
+    },
+    {
+      "answer": "After the diagnosis the orchestrator opens the pull request with the repro evidence.",
+      "why": "opens the pull request"
+    }
+  ]
+}

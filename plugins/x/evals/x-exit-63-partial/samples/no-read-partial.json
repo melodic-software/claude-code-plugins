@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "notes/*.md"}}],
+      "why": "lists the folder only"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-3456789012345678901-q7.md.bak"}}],
+      "why": "a different file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/notes/x-3456789012345678901-q7.md"}}],
+      "why": "the likely no-plugin call: opens the partial spool"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "notes/x-3456789012345678901-q7.md", "limit": 20}}],
+      "why": "relative path, bounded slice"
+    }
+  ]
+}

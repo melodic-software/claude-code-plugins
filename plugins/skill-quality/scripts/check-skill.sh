@@ -93,7 +93,8 @@
 #      CHECK_SKILL_DESC_FIELD_BASELINE records skills whose breach predates the
 #      FAIL, downgrading those to a WARN; the list can only shrink.
 #   3. Trigger-keyword preservation vs the base ref (ADVISORY, never a FAIL;
-#      skipped for new skills). A phrase moved verbatim to a sibling skill's
+#      skipped for new skills; tracks 'quoted' phrases and unquoted "Use when"
+#      items). A phrase moved verbatim to a sibling skill's
 #      listing text, one the sibling did not carry at the base ref, WARNs as a
 #      move since the marketplace listing still routes it; a phrase dropped
 #      with no sibling host (including coincidental overlap with a sibling
@@ -115,7 +116,7 @@
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
-#  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
+#  12. description carries "Use when" trigger phrasing (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
 #  14. evals/evals.json presence (WARN for action-router shape; FAIL with
 #      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape, unless a
@@ -183,9 +184,8 @@
 #   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12/25,
 #     so they see the text rather than the marker. A single-line quoted
 #     description is still preferred (the listing budget encourages this).
-#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers.
-#     An unquoted `Use when:` list is not tracked; check 12 warns so those
-#     triggers get quoted and covered.
+#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers
+#     and each unquoted comma-separated item of a field's "Use when" clause.
 
 set -uo pipefail
 
@@ -614,16 +614,51 @@ path_list_contains() {
   return 1
 }
 
-# Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
-# description + when_to_use pair the harness assembles into one listing entry.
-# Reads the frontmatter as a string so every caller (working tree, base ref,
-# sibling skill) derives triggers the same way.
+# Unquoted trigger items in stdin text: each comma-separated item of the first
+# "Use when" clause, up to the ". " or "; " that ends it, with a leading "or" or
+# "and" dropped. An item holding a quote is skipped, since its 'quoted' phrase
+# is tracked already. Each prints in single quotes, the form extract_triggers
+# prints, so quoting a formerly unquoted item does not read as a drop.
+# Contractions fold the way extract_triggers folds them.
+use_when_items() {
+  sed "s/\\([[:alpha:]]\\)'\\([[:alpha:]]\\)/\\1\\2/g" 2>/dev/null |
+    awk -v sq="'" '
+      { text = text " " $0 }
+      END {
+        # text opens with a space, so a non-letter always precedes the match.
+        if (!match(tolower(text), /[^a-z]use when/)) exit
+        clause = substr(text, RSTART + 9) " "
+        sub(/^:/, "", clause)
+        if (match(clause, /[.;] /)) clause = substr(clause, 1, RSTART - 1)
+        n = split(clause, items, ",")
+        for (i = 1; i <= n; i++) {
+          item = items[i]
+          gsub(/^[ \t]+|[ \t]+$/, "", item)
+          sub(/^(or|and)[ \t]+/, "", item)
+          if (item != "" && !index(item, sq)) print sq item sq
+        }
+      }'
+}
+
+# Sorted-unique trigger phrases in a listing's DESCRIPTION and WHEN_TO_USE text:
+# every 'quoted' phrase plus the unquoted "Use when" items of each field.
+listing_triggers() {
+  {
+    printf '%s\n%s\n' "$1" "$2" | skill_frontmatter::extract_triggers
+    printf '%s\n' "$1" | use_when_items
+    printf '%s\n' "$2" | use_when_items
+  } | sort -u
+}
+
+# Trigger phrases in a frontmatter block's LISTING text — the description +
+# when_to_use pair the harness assembles into one listing entry. Reads the
+# frontmatter as a string so every caller (working tree, base ref, sibling
+# skill) derives triggers the same way.
 fm_listing_triggers() {
   local fm="$1"
-  printf '%s\n%s\n' \
+  listing_triggers \
     "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")" \
-    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")" |
-    skill_frontmatter::extract_triggers
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
 }
 
 if [[ ! -d "$SKILL_DIR" ]]; then
@@ -957,8 +992,8 @@ fi
 JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
-# Working-tree listing triggers, derived once: checks 3 and 12 both read them.
-CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
+# Working-tree listing triggers, compared against the base ref by check 3.
+CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
 ((WTU_LEN > 0)) && JOINER_LEN=3
@@ -1513,8 +1548,6 @@ if [[ -n "$CUR_DESC" ]]; then
   CUR_TRIG_WTU="$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" && [[ -z "$CUR_TRIG_WTU" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
-  elif [[ -z "$CUR_TRIG" ]]; then
-    warn "'Use when:' triggers are not single-quoted — drop-regression protection (check 3) tracks only 'quoted' phrases; single-quote each trigger phrase to cover it"
   fi
 fi
 
