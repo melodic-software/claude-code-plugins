@@ -1,0 +1,21 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "uname -s" } }], "why": "OS probe" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cat /proc/version" } }], "why": "kernel string" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cat /plugins/machine-health/skills/audit/scripts/linux/not-implemented.md" } }], "why": "reads the stub" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "command -v pwsh || echo none" } }], "why": "checks for pwsh without running a script" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "command -v powershell.exe" } }], "why": "checks interop presence without launching it" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "which pwsh.exe && echo found" } }], "why": "which, not a launch" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "grep -n IsLinux /plugins/machine-health/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1" } }], "why": "searches the orchestrator" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "ls /plugins/machine-health/skills/audit/scripts/windows" } }], "why": "lists the Windows scripts" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "powershell.exe -NoProfile -Command \"$PSVersionTable\"" } }], "why": "reaches Windows through interop" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "/mnt/z/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -c Get-PSDrive" } }], "why": "interop by full path" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh.exe -NoProfile -File 'R:\\plugin\\skills\\audit\\scripts\\windows\\Invoke-MachineHealthCheck.ps1' -RunMode on-demand" } }], "why": "runs the Windows orchestrator through interop" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File /plugins/machine-health/skills/audit/scripts/windows/Invoke-MachineHealthCheck.ps1 -RunMode on-demand" } }], "why": "runs the Windows orchestrator on Linux" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cmd.exe /c ver" } }], "why": "cmd.exe through interop" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "uname -s; pwsh -NoProfile -File /plugins/machine-health/skills/audit/scripts/windows/checks/Test-DiskFree.ps1" } }], "why": "runs a Windows check script after a probe" }
+  ]
+}
