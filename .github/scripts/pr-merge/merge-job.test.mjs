@@ -53,18 +53,38 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Read the lane records the last run kept",
       "Read the post-merge report the last run kept",
       "Check earlier lane merges",
+      "Scan the upload for credentials",
       "Keep the post-merge report for enable-auto-merge",
       "Read main's full-run cover",
       "Find lane merges no full run covers",
       "Start the full CI run on main",
+      "Scan the upload for credentials",
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
+      "Scan the upload for credentials",
       "Record the re-run",
       "Send a red full run to the demotion alert",
+      "Scan the upload for credentials",
       "Record the alert sent",
       "Log the API budget at the end",
     ],
   );
+  // Each upload waits on the credential scan just before it. The report is
+  // best-effort, so its scan cannot fail the job; a run record the
+  // post-merge check needs fails the job when its scan does (a missing
+  // scanner included), as a failed upload of it does.
+  assert.match(
+    assertScanned("Keep the post-merge report for enable-auto-merge", "steps.post-merge.conclusion == 'success'", list),
+    /\n {8}continue-on-error: true\n/,
+  );
+  for (const [name, predicate] of [
+    ["Record the dispatched run", "steps.dispatch.outputs.run-id != ''"],
+    ["Record the re-run", "!cancelled() && steps.rerun.outputs.recorded == 'true'"],
+    ["Record the alert sent", "!cancelled() && steps.alert.outputs.run-id != ''"],
+  ]) {
+    assert.doesNotMatch(assertScanned(name, predicate, list), /continue-on-error/, name);
+    assert.doesNotMatch(step(name, list), /continue-on-error/, name);
+  }
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
   assert.match(step("Check earlier lane merges", list), /\n {8}if: steps\.mode\.outputs\.live == 'true'\n/);
   assert.match(step("Check earlier lane merges", list), /babysit_postmerge\.py[\s\S]*--lane-merges-only/);
@@ -234,30 +254,54 @@ test("a listing whose open count cannot be read holds the job", () => {
 });
 
 // A step's `if:` as GitHub evaluates it on the schedule, with `steps` and
-// `needs` as given. No `if:` runs it.
-const runsOn = (name, context, needs = {}) => {
-  const found = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${step(name)}\n`);
+// `needs` as given. No `if:` runs it. Takes a step block, since the credential
+// scans share one name.
+const blockRunsOn = (block, context, needs = {}) => {
+  const found = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${block}\n`);
   if (!found) return true;
-  const script = `return (${found[1].replace(">-\n", "").replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`;
+  const script = `return (${found[1].replace(">-\n", "").replace(/\.([a-z]+(?:-[a-z0-9]+)+)/g, '["$1"]')});`;
   return new Function("steps", "needs", "github", "always", script)(context, needs, { event_name: "schedule" }, () => true);
 };
+const runsOn = (name, context, needs = {}) => blockRunsOn(step(name), context, needs);
+const SCAN = "Scan the upload for credentials";
+const isScanId = (id) => /^scan-upload(-\d+)?$/.test(id);
 // The merge job's steps at the listing's end: any step not named here has not
-// run, as on the schedule with a live lane.
+// run, as on the schedule with a live lane. Every credential scan reads as
+// clean, so an upload runs or not on its own condition.
 const atListing = (candidates) =>
   new Proxy(
     { "lane-token": { outputs: { token: "t" } }, mode: { outputs: { live: "true", "report-only": "false" } }, kill: { outputs: { proceed: "true" } }, candidates },
-    { get: (known, id) => known[id] ?? { outcome: "skipped", outputs: {} } },
+    { get: (known, id) => known[id] ?? (isScanId(id) ? { outcome: "success", outputs: { clean: "true" } } : { outcome: "skipped", outputs: {} }) },
   );
+// An upload gated by the credential scan just before it: the scan runs on the
+// upload's own condition and scans the same path, and the upload's folded
+// `if:` is that condition and the scan's clean output. Returns the scan.
+const pathOf = (block) => /\n {10}path: (\|\n(?: {12}.*\n)+|.*\n)/.exec(`${block}\n`)?.[1];
+const assertScanned = (name, predicate, list = steps) => {
+  const at = list.findIndex((s) => s.name === name);
+  assert.ok(at > 0, `step ${name}`);
+  const scan = list[at - 1];
+  assert.equal(scan.name, SCAN, `the step before ${name}`);
+  const id = /\n {8}id: (scan-upload(?:-\d+)?)\n/.exec(scan.block)?.[1];
+  assert.ok(id, `the scan before ${name} has an id`);
+  assert.ok(scan.block.includes(`\n        if: >-\n          ${predicate}\n`), `the scan before ${name} runs on its condition`);
+  assert.ok(scan.block.includes("\n        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]\n"), `the scan before ${name}`);
+  const upload = list[at].block;
+  assert.ok(upload.includes(`\n        if: >-\n          (${predicate}) && steps.${id}.outputs.clean == 'true'\n`), `${name} waits on ${id}`);
+  assert.ok(pathOf(upload), `${name} has a path`);
+  assert.equal(pathOf(scan.block), pathOf(upload), `the scan before ${name} scans its path`);
+  return scan.block;
+};
 const dispatched = (code) => ({ "post-merge-dispatch": { result: "success", outputs: { "post-merge-code": code, "rate-limited": "" } } });
 
 // Everything after the listing that reads, writes or files waits on `listed`;
 // a hold runs only the cleanup and the summary, and files no failed lane merge.
 test("no step after the listing acts on a held listing", () => {
-  const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1).map((s) => s.name);
+  const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1);
   assert.ok(after.length > 20);
-  const running = (candidates, code) => after.filter((name) => runsOn(name, atListing(candidates), dispatched(code)));
+  const running = (candidates, code) => after.filter(({ block }) => blockRunsOn(block, atListing(candidates), dispatched(code))).map((s) => s.name);
   const held = { outcome: "success", outputs: { held: "true" } };
-  const always = ["Count the sweep's refusals", "Upload the sweep's verdicts", "Log the API budget at job end", "Write the sweep cost", "Revoke the lane token"];
+  const always = ["Count the sweep's refusals", SCAN, "Upload the sweep's verdicts", "Log the API budget at job end", "Write the sweep cost", "Revoke the lane token"];
   assert.deepEqual(running(held, "0"), always);
   assert.deepEqual(running(held, "1"), always);
   // The same steps that a hold stops do run once the listing is whole.
@@ -375,11 +419,17 @@ test("a held listing files no failed lane merge; a run that listed goes by its o
 });
 
 test("a held listing writes a sweep summary with no read, and a monitor can tell it held", () => {
-  const skipped = { gate: { outcome: "skipped" }, candidates: { outputs: {} } };
+  const skipped = { gate: { outcome: "skipped" }, candidates: { outputs: {} }, "scan-upload-5": { outputs: { clean: "true" } } };
   for (const name of ["Count the sweep's refusals", "Upload the sweep's verdicts", "Write the sweep cost"]) {
     assert.equal(runsOn(name, { ...skipped, candidates: { outputs: { held: "true" } } }), true, name);
     assert.equal(runsOn(name, skipped), false, name);
   }
+  // The verdicts' credential scan runs on the same hold, and a scan that is
+  // not clean withholds the upload.
+  const scan = assertScanned("Upload the sweep's verdicts", "always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')");
+  assert.equal(blockRunsOn(scan, { ...skipped, candidates: { outputs: { held: "true" } } }), true);
+  assert.equal(blockRunsOn(scan, skipped), false);
+  assert.equal(runsOn("Upload the sweep's verdicts", { ...skipped, candidates: { outputs: { held: "true" } }, "scan-upload-5": { outputs: {} } }), false);
   const dir = tempDir("pr-merge-held-summary-");
   try {
     const bin = join(dir, "bin");
@@ -579,10 +629,8 @@ test("both token-holding jobs read the carried reads from the last trusted run's
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.ok(upload.includes("name: pr-merge-run-cache\n") && upload.includes(`path: ${carried}\n`));
   assert.ok(upload.includes("retention-days: 1\n"));
-  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.carried == 'true'\n/);
-  for (const name of ["Keep the verdict reads that never change", "Upload the verdict reads for the next run"]) {
-    assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
-  }
+  const scan = assertScanned("Upload the verdict reads for the next run", "always() && steps.carry.outputs.carried == 'true'");
+  for (const block of [keep, scan, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
 });
 
 // The merge gate reads no lane verdict, so enable-auto-merge's reader is the
@@ -610,8 +658,10 @@ test("enable-auto-merge uploads its verifier reads for the next run", () => {
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.ok(upload.includes("name: pr-merge-verify-run-cache\n") && upload.includes(`path: ${carried}\n`));
   assert.ok(upload.includes("retention-days: 1\n"));
-  assert.match(upload, /\n {8}if: always\(\) && steps\.carry\.outputs\.kept == 'true'\n/);
-  for (const block of [keep, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
+  const scan = assertScanned("Upload the verdict reads for the next run", "always() && steps.carry.outputs.kept == 'true'", list);
+  assert.ok(upload.includes("\n        if: >-\n          (always() && steps.carry.outputs.kept == 'true') && steps.scan-upload-2.outputs.clean == 'true'\n"));
+  // Keeping, scanning and uploading the reads never fails the job.
+  for (const block of [keep, scan, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
 });
 
 // The head-ref map (head-ref-map.mjs): read before the gate from the last
@@ -653,10 +703,8 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
   const upload = step("Upload them for the next run");
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.ok(upload.includes("name: pr-merge-head-refs\n") && upload.includes(`path: ${mapOut}\n`));
-  assert.match(upload, /\n {8}if: always\(\) && steps\.head-refs\.outcome == 'success'\n/);
-  for (const name of ["Read the head refs the last run kept", "Keep the head refs the gate read", "Upload them for the next run"]) {
-    assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
-  }
+  const scan = assertScanned("Upload them for the next run", "always() && steps.head-refs.outcome == 'success'");
+  for (const block of [read, keep, scan, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
   for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
     assert.ok(!s.block.includes("head-refs"), s.name);
   }
@@ -697,7 +745,7 @@ test("every post-merge check reads the lane records, and only the merge job uplo
   const upload = step("Upload the lane records for the next run");
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.ok(upload.includes("name: pr-merge-lane-records\n") && upload.includes(`path: ${out}\n`));
-  assert.match(upload, /\n {8}if: always\(\) && steps\.lane-records\.outcome == 'success'\n/);
+  assertScanned("Upload the lane records for the next run", "always() && steps.lane-records.outcome == 'success'");
   assert.doesNotMatch(jobBlock("post-merge-dispatch"), /name: pr-merge-lane-records|lane-records\.mjs write/);
   for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
     assert.ok(!s.block.includes("lane-records"), s.name);
@@ -1354,11 +1402,16 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       if (path === "steps.lane-token.outputs.token") return "t";
       if (path === "steps.mode.outputs.report-only") return "false";
       if (path === "steps.candidates.outputs.listed") return "true";
+      // Every credential scan reads as clean: the rows go by their own condition.
+      if (/^steps\.scan-upload(-\d+)?\.outputs\.clean$/.test(path)) return "true";
       return "";
     };
     for (const name of ["Hand the gate's rows to the check writer", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
       assert.equal(stepRuns(step(name), context, "failure"), limited !== "true", `${name} with rate-limited=${limited}`);
     }
+    const rowsScan = steps[steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer") - 1];
+    assert.equal(rowsScan.name, SCAN);
+    assert.equal(stepRuns(rowsScan.block, context, "failure"), limited !== "true", `the rows' scan with rate-limited=${limited}`);
   }
   // The refusal count still writes its summary, with no read of the run.
   const dir = tempDir("pr-merge-count-");
@@ -1490,7 +1543,10 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Skip refusals whose inputs have not changed"), at("Run the merge gate on each candidate") - 1);
   assert.ok(at("Record a failed lane merge") < at("Skip refusals whose inputs have not changed"));
   assert.equal(at("Keep the refusals the next run may skip"), at("Keep the verdict reads that never change") + 1);
-  assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
+  // The upload's credential scan sits between the record and the upload.
+  assert.equal(names[at("Keep the refusals the next run may skip") + 1], SCAN);
+  assert.match(steps[at("Keep the refusals the next run may skip") + 1].block, /\n {8}id: scan-upload-4\n/);
+  assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 2);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
   assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outputs\.listed == 'true'\n/);
@@ -1526,7 +1582,7 @@ test("the budget comes from the pipeline config, rotation runs before the gate, 
   assert.ok(names.indexOf("List the candidate PRs") < rotation && rotation < gate && gate < record);
   assert.match(step("Start after the candidate the last run reached"), /\n {8}continue-on-error: true\n/);
   const upload = step("Record where the gate stopped");
-  assert.match(upload, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
+  assertScanned("Record where the gate stopped", "always() && steps.gate.outcome != 'skipped'");
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-gate-cursor\n/);
 });
@@ -1539,7 +1595,11 @@ test("each candidate's check run is written by its own job, the only one holding
   assert.equal(text.match(/\n {6}checks: write\n/g)?.length, 1);
   const upload = step("Hand the gate's rows to the check writer");
   assert.ok(steps.findIndex((s) => s.name === "Run the merge gate on each candidate") < steps.findIndex((s) => s.name === "Hand the gate's rows to the check writer"));
-  assert.match(upload, /\n {8}if: >-\n {10}always\(\) && steps\.gate\.outcome != 'skipped' && steps\.mode\.outputs\.report-only == 'false'\n {10}&& steps\.gate\.outputs\.rate-limited != 'true'\n/);
+  const scan = assertScanned(
+    "Hand the gate's rows to the check writer",
+    "always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'",
+  );
+  for (const block of [scan, upload]) assert.match(block, /\n {8}continue-on-error: true\n/);
   assert.match(upload, /\n {10}name: pr-merge-gate-rows\n {10}path: \$\{\{ runner\.temp \}\}\/pr-merge-summary\.json\n/);
   assert.match(job, /\n {6}gate-rows: \$\{\{ steps\.rows\.outcome == 'success' \}\}\n/);
 
@@ -1846,7 +1906,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);
-  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.rerun\.outputs\.recorded == 'true'"\n/);
+  assertScanned("Record the re-run", "!cancelled() && steps.rerun.outputs.recorded == 'true'", list);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
@@ -1995,7 +2055,7 @@ test("a red full run is sent to post-merge-demotion-alert.yml once, by its run i
   assert.deepEqual(JSON.parse(run.record), { alerter_run_id: 700, run_id: 41 });
   assert.ok(run.calls[0].includes("actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D"), run.calls[0]);
   const upload = step("Record the alert sent", earlySteps());
-  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.alert\.outputs\.run-id != ''"\n/);
+  assertScanned("Record the alert sent", "!cancelled() && steps.alert.outputs.run-id != ''", earlySteps());
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-alerted-\$\{\{ steps\.alert\.outputs\.run-id \}\}\n/);
 });
@@ -2155,8 +2215,9 @@ test("the alert send runs after the re-run while the lane is live, and stops aft
     /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
   );
   const names = list.map((s) => s.name);
-  assert.deepEqual(names.slice(-3), [
+  assert.deepEqual(names.slice(-4), [
     "Send a red full run to the demotion alert",
+    SCAN,
     "Record the alert sent",
     "Log the API budget at the end",
   ]);

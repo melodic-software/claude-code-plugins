@@ -3,6 +3,14 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The shared builder writes the page title, 2026-11-01
+
+- **Rule 5 allows one builder-written title.** `buildView()` takes an optional `title` and
+  writes it into the template's `<title>` as escaped plain text, with whitespace collapsed and
+  the text cut to 80 characters. The runtime and validator still refuse any binding on
+  `<title>`. `education:illustrate` passes the explainer's title and `review:explain-change`
+  passes the digest's title, so a published page is named for its content, not its template.
+
 ## `adhd:clarify` resolves `medium` from the cascade, 2026-10-31
 
 - **`adhd:clarify` leaves the grandfathered list.** It reads `medium` from the argument and the

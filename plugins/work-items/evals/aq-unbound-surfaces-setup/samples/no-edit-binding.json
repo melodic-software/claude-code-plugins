@@ -24,7 +24,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/w/.work-item-tracker.json",
+            "file_path": "/w/docs/conventions/work-items.yaml",
             "old_string": "github",
             "new_string": "local-markdown"
           }

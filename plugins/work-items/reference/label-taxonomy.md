@@ -18,7 +18,7 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 | Type | native Issue Type (org) · `type:` label (personal/non-org) | The kind of issue: `Bug` (broken vs. intent), `Feature` (new capability), `Task` (any other tracked work: maintenance, refactor, tests, docs, audits, chores). Commit-type granularity (`fix`/`feat`/`chore`/`docs`/`refactor`/`test`/`build`/`perf`) stays at the commit layer, not the issue axis. |
 | Priority | `priority:` | Urgency. Members from the live set. |
 | Status | `status:` | Exception and gate flags only (e.g. `needs-info`, `needs-decision`, `ready`). Members from the live set. **Claim is not a status label.** It is assignee + lease (see the seam claim protocol). **Blocked is not a status label.** It is a native `blocked-by` dependency edge. The triage floor is not a status value. |
-| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, the triage floor `needs-triage` (bare; not a `priority:` or `status:` value), plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, and `recurring`, listed under "Canonical roles" below). |
+| Meta | (none) | Tool-owned flat markers the automation sets: `automated`, `good-first-issue`, `migrated`, `stale`, the triage floor `needs-triage` (bare; not a `priority:` or `status:` value), the idea-issue park `needs-spec` (bare; set by triage), plus the three canonical-role labels (defaults `agent-ready`, `needs-human`, and `recurring`, listed under "Canonical roles" below). |
 | Cadence | `cadence:` | Recurrence period for maintenance items. Members from the live set. |
 | Work class | `work-class:` | Semantic risk class (C1–C5) stamped at triage for the fail-closed admission gate and merge partition. Canonical members and migration: [`work-class-labels.md`](work-class-labels.md). Classification criteria: the `autonomy` plugin's [`work-classes.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md). |
 | Capability tier | `capability-tier:` | Execution capability tier for the work-loop frontier quota guard. Canonical members and migration: [`capability-tier-labels.md`](capability-tier-labels.md). Absent label = general tier (fail-closed); body prose is never authority. |
@@ -26,8 +26,8 @@ These axes work in any repo and don't change per team. Do not snapshot their mem
 ## Canonical roles
 
 Three meta-axis members are **canonical roles**: skill and action prose speaks the role name, and
-the repo-actual label string resolves from the tracker binding: `.work-item-tracker.json`, key
-`config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
+the repo-actual label string resolves from the tracker binding (the `tracker` mapping of
+`<home>/work-items.yaml`, else the legacy repo-root JSON binding), key `config.role_labels`. When the key (or an individual role entry) is absent, the defaults below
 apply, so existing repos need zero migration.
 
 | Role | Default label | What it marks |
@@ -122,7 +122,7 @@ example is the `wayfind: *` axis: declared by the consuming repo's label-as-code
 but applied and removed only by `/planning:wayfind`, on its own map sub-issues, at sub-issue
 creation ("Never create labels ad hoc from this skill", per `/planning:wayfind` `SKILL.md` "Create or
 extend the map issue"). No work-items skill applies, strips, or requires a `wayfind:` value on the
-items it manages; it respects whatever role label (e.g. `needs-human`) a wayfind HITL item already
-carries, the same as any other item's role label. Members and semantics belong to the declaring
+items it manages, and `list-frontier` leaves out every item carrying a `wayfind:` label, whatever
+role label it carries, so `/work-items:work` never picks one. Members and semantics belong to the declaring
 repo and `/planning:wayfind`, per the resolved decision `melodic-software/github-iac#179`, so they are
 referenced here, not restated.

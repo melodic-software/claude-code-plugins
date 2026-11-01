@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A customer's request for help. | |\n",
+      "why": "row appended, empty Avoid"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A customer's request for help, received through any channel. | charge record |\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n",
+      "why": "row above Case, Avoid filled"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| **Ticket** | One request for help raised by a customer. | metered charge |\n",
+      "why": "bold term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n",
+      "why": "no Ticket row"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n\n**Ticket**\n\nA customer's request for help.\n",
+      "why": "fallback prose instead of the table"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A customer's request for help. |\n",
+      "why": "two columns, table shape broken"
+    },
+    {
+      "answer": "# Support language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Case | The internal investigation opened in response to one or more customer requests. | incident |\n| Ticket | A metered charge record received from a usage source. | |\n",
+      "why": "Billing meaning copied into Support"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: cl-disputed-language
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: asks-about-the-terms
+    type: regex
+    pattern: '^[^\n]*\b(?:accounts?|customers?|tenants?|concepts?|things?)\b[^\n]*\?'
+    flags: 'mi'
+    target: last_message
+  - name: glossary-untouched
+    type: regex
+    pattern: '\b(?:accounts?|customers?|tenants?)\b'
+    flags: 'i'
+    match: not_contains
+    target: { source: file, path: docs/glossary.md }
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "Your game isn't corrupted. Steam updated it after the apply (build 25311042 -> 25458807).", "why": "isn't corrupted" },
+    { "answer": "Nothing is wrong with the install: the MODIFIED exe is from the Steam update.", "why": "nothing is wrong" },
+    { "answer": "**Corrupted?** No. The drift came from the game update, not the mod.", "why": "drift came from update" },
+    { "answer": "The tool says \"only game files drifted, none of the mod's.\" That points to a normal update, not damage.", "why": "observed smoke reply: an update, not damage" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Yes, Ride-Win64-Shipping.exe was damaged during removal. Run Verify integrity.", "why": "calls it damage" },
+    { "answer": "Run remove again after verifying.", "why": "no explanation" }
+  ]
+}
