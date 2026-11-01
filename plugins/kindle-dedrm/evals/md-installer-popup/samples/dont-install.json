@@ -1,0 +1,14 @@
+{
+  "pass": [
+    { "answer": "Don't click Install now. Close that window with the X.", "why": "direct" },
+    { "answer": "**Do not** run the cached installer; it is the 2.9.x auto-update that breaks key extraction.", "why": "bold, run the installer" },
+    { "answer": "No, never install it: the new version breaks key extraction.", "why": "never install" },
+    { "answer": "You should not let that update complete.", "why": "let the update" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Yes, click Install now; newer versions usually fix download bugs.", "why": "installs" },
+    { "answer": "Run KindleForPC-installer.exe from the updates folder so it installs cleanly.", "why": "takes the second option" },
+    { "answer": "Don't run the keyfinder until Kindle is closed.", "why": "negation about something else" }
+  ]
+}
