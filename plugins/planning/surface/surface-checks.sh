@@ -25,7 +25,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=236 [live]=18 [page]=122)
+declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=236 [live]=18 [page]=125)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -544,7 +544,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
     gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
-    gphases=20
+    gphases=24
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
     done
@@ -622,6 +622,18 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     "questions": [{"id": "Q20", "group": "g1", "stage": "interview", "short": "Freeze conflict", "title": "Q1 ships inside the rollout window: which answer holds?", "recommendation": "Keep the Wednesday ship.", "basis": "Judgment", "dependsOn": [], "reconciles": ["Q1"], "commits": [], "alternatives": [{"key": "a", "text": "Move the rollout window"}, {"key": "b", "text": "Ship on Thursday"}]}]}]}' >"$pg/ops/sweep.json"
     bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/sweep.json" >/dev/null || bad "page: the sweep round was refused"
     grun 20
+    # Phases 21 to 23 (#11858): the round index, then Q20 held for research, then single pacing with the hold cleared.
+    grun 21
+    rapply "$pg" "$pg/ops/hold.json" '{"ops": [{"op": "wait", "id": "Q20", "waitsOn": "the freeze calendar"}]}' >/dev/null || bad "page: the wait op was refused"
+    grun 22
+    rapply "$pg" "$pg/ops/unhold.json" '{"ops": [{"op": "wait", "id": "Q20", "clear": true}]}' >/dev/null || bad "page: the wait clear was refused"
+    bash "$here/round.sh" --dir "$pg" ensure-running --pacing single >/dev/null || bad "page: ensure-running --pacing refused"
+    grun 23
+    # Phase 24 (#11858): still single pacing; Q21 joins Q20's round 4 with an add, then Q12 (round 3) and Q20 are held.
+    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q21", "group": "g1", "stage": "interview", "round": 4, "short": "Freeze notice", "title": "Who tells the team about the freeze?", "recommendation": "The release owner.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}}]}' >"$pg/ops/later.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/later.json" >/dev/null || bad "page: the later round-4 question was refused"
+    rapply "$pg" "$pg/ops/hold2.json" '{"ops": [{"op": "wait", "id": "Q12", "waitsOn": "the error-log baseline"}, {"op": "wait", "id": "Q20", "waitsOn": "the freeze calendar"}]}' >/dev/null || bad "page: the second wait ops were refused"
+    grun 24
     bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
   }

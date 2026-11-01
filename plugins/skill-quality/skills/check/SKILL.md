@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a thirty-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a thirty-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's legacy evals/evals.json (new cases: /evals:validate) against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -131,9 +131,9 @@ that line before editing, since it may be an illustrative example path rather th
 
 This action reads only the skill-creator JSON file a skill may still carry. A skill's new evals
 are `case.yaml` cases in its plugin's `evals/` directory: `/evals:design skill <name>` writes them
-and `/evals:validate` checks them. Point an author adding evals there. Check 14 still looks only
-for the JSON file, so where a gate runs `check --require-evals` (this marketplace's changed-skill
-CI does), a skill with suite cases alone fails there until check 14 reads suite cases; say so.
+and `/evals:validate` checks them. Point an author adding evals there. Under `check
+--require-evals`, check 14 passes a skill with no JSON file when a case in its plugin's `evals/`
+lists the skill's directory name in a one-line `tags: [...]`.
 
 1. Locate `<skills-root>/<skill-name>/evals/evals.json`. If absent, report that the skill ships no
    skill-creator file (not a failure) and that its suite cases, if any, are `/evals:validate`'s.

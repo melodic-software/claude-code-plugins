@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "4. Delete any newly staged installer under `%LOCALAPPDATA%\\Amazon\\Kindle\\updates`.", "why": "skill step wording" },
+    { "answer": "Run `bash sync-finalize.sh` after you quit Kindle.", "why": "names the finalize script" },
+    { "answer": "If a KindleForPC-installer.exe appeared during the sync, remove it before anything else.", "why": "installer then remove" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Open Kindle, click Sync, double-click each new book, then quit.", "why": "no installer step" },
+    { "answer": "If Kindle offers an update, install it so you're on the latest version.", "why": "installs instead of deleting" }
+  ]
+}

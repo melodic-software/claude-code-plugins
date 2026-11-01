@@ -253,7 +253,7 @@ HUMAN_GATED_SECTION = "human-gated-label"
 
 def human_gated_label(repo: str) -> str:
     """The tracker's human-gated role label for `repo` (`needs-human` unless
-    `.work-item-tracker.json` maps it): the label the verifier escalation adds
+    the tracker binding maps it): the label the verifier escalation adds
     and an autonomous merge holds on. Shared across a run's gate processes.
     A failed read other than a 404 raises `PostMergeReadError` and is never
     shared."""

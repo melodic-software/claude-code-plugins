@@ -108,8 +108,9 @@ The human review gate sits between every stage. The skill frames edits in the ta
 - **Setup**: unchanged. The apply skill introduces no new persisted config, so `/knowledge:setup` needs
   no new interview branch.
 - **Evals**: warranted, because the skill is judgment-bearing (trigger, routing on `--topic`, the write-gate
-  refusal, the shape of the ranked menu). Author `evals/evals.json` against fixtures in the implement
-  issue; fixtures do not need the live corpus repo.
+  refusal, the shape of the ranked menu). Author plugin suite cases
+  (`plugins/knowledge/evals/<case>/case.yaml`, checked with `/evals:validate`) against fixtures in
+  the implement issue; fixtures do not need the live corpus repo.
 
 ## Cross-repo mechanics
 
@@ -125,7 +126,8 @@ Two repos, one session, no MCP:
 ## Emitted issue
 
 - **`implement(knowledge-integration)`**: build the `/knowledge:apply` skill to this spec: `SKILL.md`
-  (invocation, scan, ranking, report→diff→PR gate), `evals/evals.json` against fixtures, and a README
+  (invocation, scan, ranking, report→diff→PR gate), plugin suite cases
+  (`plugins/knowledge/evals/<case>/case.yaml`) against fixtures, and a README
   row. **agent-ready**, because authoring is grounded in this spec plus contract v2.1 and needs no live corpus
   repo; end-to-end exercise against the real `knowledge-corpus` corpus is validated once #1393 lands
   (non-blocking for authoring). Sub-issue of wave-2 map #1369.

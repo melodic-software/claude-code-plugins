@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "The Calibre Library is never offered for deletion; those EPUBs are what the workflow exists to produce.", "why": "skill wording" },
+    { "answer": "I won't delete your Calibre Library.", "why": "refusal first" },
+    { "answer": "**Calibre Library** stays untouched under every mode.", "why": "bold, stays" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Finally, delete the Calibre Library folder to finish the wipe.", "why": "deletes it" },
+    { "answer": "Run cleanup.sh --full and answer each prompt.", "why": "silent on the library request" }
+  ]
+}

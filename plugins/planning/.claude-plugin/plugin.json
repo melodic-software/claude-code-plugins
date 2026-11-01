@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.134.2",
+  "version": "0.135.0",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -15,7 +15,7 @@
     "question_pacing": {
       "type": "string",
       "title": "Interview question pacing",
-      "description": "How /planning:interview asks a frontier in the terminal: round (default, every ready question in one message) or single (the same questions, one per message, largest blast radius first). A reading preference: ask for the other pacing in the session to override it.",
+      "description": "How /planning:interview asks a frontier, in the terminal and on the page: round (default, every ready question in one message) or single (the same questions, one per message, largest blast radius first). A reading preference: ask for the other pacing in the session to override it.",
       "default": "round",
       "options": [
         "round",

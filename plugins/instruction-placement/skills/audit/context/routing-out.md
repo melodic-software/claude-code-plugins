@@ -26,7 +26,7 @@ and do not judge it against the placement rubric instead.
 
 **Route, do not absorb.** A candidate routed out is reported *as routed*. It is not silently
 dropped, and it is not quietly re-classified as a placement finding because the sibling plugin
-happened to be unavailable. An operator reading the report should be able to see that the question
+was unavailable. An operator reading the report should be able to see that the question
 was recognized and where it went.
 
 **Route once, and keep the placement finding if there is one.** These are not exclusive. A section

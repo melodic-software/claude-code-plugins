@@ -2651,6 +2651,11 @@ listing there, and later candidates and their queued-entry checks read it instea
 No judgment, of a candidate or a queued entry, uses a listing (saved or in memory) begun more than
 two minutes before it: an older one is read again and saved. A saved listing can only lack artifacts uploaded since, so a refusal on it stands; a candidate it
 would allow is judged again on a listing of its own before it is allowed, which is saved in turn.
+The one exception is a candidate's `verify:missing` on the saved listing: its gate reads the head's
+two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no
+listing, and judges a pass found there with the saved listing, so a pass uploaded after that listing
+is seen in the same run. Its allow is judged again on a listing of its own like any other; a failed
+read, or no pass that counts, leaves `verify:missing`.
 A listing that got a 5xx or a fast
 network error is read again, three reads in all with backoff, all inside the one gh timeout a single
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
