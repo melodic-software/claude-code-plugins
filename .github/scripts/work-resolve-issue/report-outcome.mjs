@@ -171,6 +171,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
@@ -772,8 +773,10 @@ export const refireComment = (key, cause, actor = "work-unblock") =>
   `<!-- work-unblock refired ${key} -->\n${cause} ${actor} removed and added \`agent-ready\` back to start a fresh run on main's workflow files. If this run ends the same way, it re-fires the issue again, waiting longer each time.`;
 const STALE_CAUSE =
   "The work-resolve-issue run that `agent-ready` started waited in its slot past a change to its lane workflow files on main, so it stopped before any model turn.";
-// The labels the lane never starts on, as work-unblock's HOLDS lists them.
-const STALE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", UNTRUSTED_PROVENANCE, ATTENDED_LABEL, "security: outside-actor"]);
+// The labels the issue lane never starts or restarts on, which work-unblock
+// reads too: a person decides each but `attended`, which waits on a step the
+// owner takes present; only a person removes OUTSIDE_ACTOR_LABEL.
+export const LANE_HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", UNTRUSTED_PROVENANCE, ATTENDED_LABEL, OUTSIDE_ACTOR_LABEL]);
 const BLOB = /^[0-9a-f]{40}$/;
 
 // A run that stopped on stale workflow files ran no model and is no fault in
@@ -781,11 +784,14 @@ const BLOB = /^[0-9a-f]{40}$/;
 // sweep re-fires it: its re-fire record, then agent-ready removed and added
 // back by the App, which starts a fresh run (admission accepts the App's
 // agent-ready). Nothing is done when the run's files match main's (the
-// stale claim does not hold), the issue is closed, agent-ready is off or was
-// last removed, or a hold is on; and none past limits.limit-stops-per-issue
-// re-fire records since a listed human last added agent-ready or a run last
-// reported, so a main that moves faster than the slots drain backs off to
-// the sweep. Returns what it did.
+// stale claim does not hold), the issue is closed, agent-ready is off, was
+// last removed, or was last added by neither a listed human nor the App, or a
+// hold is on, or a person removes agent-ready before the write lands; and none
+// past limits.limit-stops-per-issue re-fire records since a listed human last
+// added agent-ready or a run last reported. Past that bound the hourly sweep
+// still re-fires a stale stop once per new version of the two lane workflow
+// files on main, so the re-fires are bounded by how often main changes them.
+// Returns what it did.
 export async function refireStale(github, repo, issueNumber, { workflowSha, bot, humans, limits }) {
   if (!BLOB.test(workflowSha ?? "")) {
     return "skipped: the run names no workflow commit";
@@ -811,7 +817,7 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   if (issue?.state !== "open" || !labels.includes("agent-ready")) {
     return "skipped: the issue is closed or agent-ready is off";
   }
-  const hold = labels.find((label) => STALE_HOLDS.has(label));
+  const hold = labels.find((label) => LANE_HOLDS.has(label));
   if (hold) {
     return `skipped: held by ${hold}`;
   }
@@ -820,6 +826,11 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   );
   if (events.at(-1)?.event !== "labeled") {
     return "skipped: agent-ready was last removed";
+  }
+  // The App's re-add admits on its own, so it repeats only a label admission
+  // would take: a listed human's or the App's own (work-unblock's rule).
+  if (!trustedLabeler(events, events.at(-1).label.name, { bot, humans })) {
+    return "skipped: agent-ready was last added by neither a listed human nor the lanes App";
   }
   const comments = (await paginate(github, `${base}/comments`)).filter((comment) => comment?.user?.login === bot);
   const at = (comment) => Date.parse(comment.created_at);
@@ -843,7 +854,16 @@ export async function refireStale(github, repo, issueNumber, { workflowSha, bot,
   if (!pending) {
     await github("POST", `${base}/comments`, { body: refireComment(key, STALE_CAUSE, "The run's report-outcome") });
   }
-  await github("DELETE", `${base}/labels/agent-ready`);
+  // A 404 is a person's removal since the read: it stands, and the record no
+  // App re-add follows ends nothing (work-unblock lists only agent-ready issues).
+  try {
+    await github("DELETE", `${base}/labels/agent-ready`);
+  } catch (error) {
+    if (/ answered 404$/.test(error?.message ?? "")) {
+      return "skipped: agent-ready was removed before the re-fire";
+    }
+    throw error;
+  }
   // The label is off now; one failed re-add would leave the issue out of the
   // lane, so it is tried twice and then fails the job.
   const add = () => github("POST", `${base}/labels`, { labels: ["agent-ready"] });

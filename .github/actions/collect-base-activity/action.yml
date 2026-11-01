@@ -153,7 +153,8 @@ runs:
           cp -R "$BASE_PATH/.github/scripts/lib/." "$RUNNER_TEMP/lib/"
         fi
         # The branch activity reader, which address-feedback.mjs listActivity
-        # loads as ../pr-merge/merge-holds.mjs.
+        # loads as ../pr-merge/merge-holds.mjs, and report-outcome.mjs imports
+        # for the outside-actor hold label.
         if [[ -f $BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs ]]; then
           mkdir -p "$RUNNER_TEMP/pr-merge"
           cp "$BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs" "$RUNNER_TEMP/pr-merge/"

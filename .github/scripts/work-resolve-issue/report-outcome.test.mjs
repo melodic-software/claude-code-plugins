@@ -36,6 +36,7 @@ import {
   SCAN_REFUSALS,
   readTurnCap,
   RESUMABLE,
+  LANE_HOLDS,
   refireStale,
   REFIRED,
   reusePlan,
@@ -3491,6 +3492,9 @@ test("the script loads from a copy of its own directory alone, beside the shared
     const here = dirname(fileURLToPath(import.meta.url));
     cpSync(here, join(copy, "base-script"), { recursive: true });
     cpSync(join(here, "..", "lib"), join(copy, "lib"), { recursive: true });
+    // collect-base-activity also stages the base merge-holds.mjs as ../pr-merge/.
+    mkdirSync(join(copy, "pr-merge"));
+    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(copy, "pr-merge", "merge-holds.mjs"));
     const module = await import(pathToFileURL(join(copy, "base-script", "report-outcome.mjs")).href);
     assert.equal(typeof module.main, "function");
   } finally {
@@ -4808,7 +4812,7 @@ test("main opens no PR when the closing PRs cannot be read", async () => {
 const STALE_BOT = "melodic-automation-lanes[bot]";
 const MAIN_BLOBS = ["a".repeat(40), "b".repeat(40)];
 const RUN_SHA = "c".repeat(40);
-const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["agent-ready"], state = "open", events, comments = [] } = {}) => {
+const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["agent-ready"], state = "open", events, comments = [], deleteStatus = 200 } = {}) => {
   const calls = [];
   const fetch = async (url, init = {}) => {
     const method = init.method ?? "GET";
@@ -4825,6 +4829,7 @@ const staleFetch = ({ runBlobs = ["d".repeat(40), "b".repeat(40)], labels = ["ag
       return ok(events ?? [{ event: "labeled", label: { name: "agent-ready" }, actor: { id: 1 }, created_at: "2026-11-01T10:00:00Z" }]);
     }
     if (method === "GET" && /\/issues\/77\/comments$/.test(pathname)) return ok(comments);
+    if (method === "DELETE" && deleteStatus !== 200) return { ok: false, status: deleteStatus, json: async () => ({}), text: async () => "" };
     if (method === "POST" || method === "DELETE") return ok({}, method === "POST" ? 201 : 200);
     return { ok: false, status: 404, json: async () => ({}), text: async () => "" };
   };
@@ -4914,13 +4919,45 @@ test("refireStale does nothing when the files match main's, or the issue is clos
 });
 
 test("main on a workflow-stale stop re-fires through refireStale and reads no outcome", async () => {
-  await withDir({}, async (dir) => {
+  await withDir({ "trusted.json": JSON.stringify({ version: 1, actors: [{ kind: "human", id: 1 }] }) }, async (dir) => {
     const { fetch, calls } = staleFetch();
-    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "workflow-stale", GITHUB_WORKFLOW_SHA: RUN_SHA }, fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "workflow-stale", GITHUB_WORKFLOW_SHA: RUN_SHA, TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
     assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready", "POST /labels"]);
   });
   await withDir({}, async (dir) => {
     const { fetch } = staleFetch();
     assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "stale" }, fetch }), 1, "an unknown skip reason fails");
   });
+});
+
+// One hold set for the lane, which work-unblock's sweep reads too: every hold
+// on it stops the immediate re-fire, the owner-only ones included.
+test("refireStale re-fires nothing on any of the lane's holds", async () => {
+  assert.ok(LANE_HOLDS.has("attended") && LANE_HOLDS.has("security: outside-actor") && LANE_HOLDS.has("work-class: untrusted-provenance"));
+  for (const hold of LANE_HOLDS) {
+    const { fetch, calls } = staleFetch({ labels: ["agent-ready", hold] });
+    assert.equal(await refire(fetch), `skipped: held by ${hold}`, hold);
+    assert.deepEqual(writes(calls), [], hold);
+  }
+});
+
+// The App's re-add admits on its own, so it repeats only a listed human's or
+// the App's own agent-ready, as the sweep's trustedLabeler rule says.
+test("refireStale re-fires nothing when agent-ready was last added by neither a listed human nor the App", async () => {
+  const by = (actor) => staleFetch({ events: [{ event: "labeled", label: { name: "agent-ready" }, actor, created_at: "2026-11-01T10:00:00Z" }] });
+  const stranger = by({ id: 42, login: "stranger" });
+  assert.match(await refire(stranger.fetch), /neither a listed human nor the lanes App/);
+  assert.deepEqual(writes(stranger.calls), []);
+  const app = by({ id: 9, login: STALE_BOT });
+  assert.match(await refire(app.fetch), /^re-fired/, "the App's own label is repeated");
+});
+
+// A person who removes agent-ready between the read and the write wins: the
+// 404 ends the re-fire without adding the label back.
+test("refireStale leaves a person's removal standing when the DELETE answers 404", async () => {
+  const { fetch, calls } = staleFetch({ deleteStatus: 404 });
+  assert.equal(await refire(fetch), "skipped: agent-ready was removed before the re-fire");
+  assert.deepEqual(writes(calls), ["POST /comments", "DELETE /labels/agent-ready"]);
+  const failed = staleFetch({ deleteStatus: 500 });
+  await assert.rejects(refire(failed.fetch), /answered 500/, "any other failure fails the job");
 });
