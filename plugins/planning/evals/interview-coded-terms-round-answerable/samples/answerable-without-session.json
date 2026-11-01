@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Unanswered from last round:\n\nQ5: How many reruns should one PR get before the pr-merge lane (the CI job that merges approved PRs) stops rerunning?\nContext: a rerun is one more pass of both AI reviews on the PR's new head SHA, the commit the PR branch points at; reruns fire on every new head SHA and never block the merge (.work/review-reruns/interview-checklist.md:16-17).\nMy recommendation: three reruns per PR.\nChecked against: ci-status stays the only required check; a review re-runs only when the head SHA changes\nBasis: verified, .work/review-reruns/interview-checklist.md:16.\nAlternatives:\n- (a) No limit. Never skips a review, but a PR pushed often reruns without end.\n- (b) One rerun. Cheapest, but a second fix push goes unreviewed.\n\nQ6: Should a force-push that keeps the same tree reset the rerun limit?\nContext: a force-push can change the head SHA without changing any file (judgment).\nMy recommendation: no.\nBasis: verified, .work/review-reruns/interview-checklist.md:6.\nAlternatives:\n- (a) Reset it. Simple to explain, but a rebase-only push spends reruns on unchanged code.",
+      "why": "self-contained, terms kept, the carried-over question in full"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q5: R-cap?\nMy recommendation: 3.\nChecked against: C1, C2\n\nQ6: Force-push resets R-cap?\nMy recommendation: no, per Q2.",
+      "why": "bare codes throughout"
+    },
+    {
+      "answer": "Still open: Q5 (how many reruns).\n\nQ6: Should the merge robot start over when someone re-uploads the latest version of the code?\nContext: the robot reviews again whenever the code changes.\nMy recommendation: no.\nAlternatives:\n- (a) Yes. Simpler, but more reviews.",
+      "why": "metaphor and lay wording replace the pr-merge lane and the head SHA, and the open question is a one-line reminder"
+    }
+  ]
+}

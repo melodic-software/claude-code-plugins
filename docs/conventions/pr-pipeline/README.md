@@ -13,6 +13,7 @@
 - [Merge authority](#merge-authority)
 - [Review-lane holds](#review-lane-holds)
 - [Trust-root paths](#trust-root-paths)
+- [Claude Code CLI releases](#claude-code-cli-releases)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
 - [Write identities](#write-identities)
@@ -80,7 +81,9 @@ into `intake`.
 An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
-trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
+trusted-actors list, not posted through an App, unedited or last edited by a listed human) or a
+`status: confirmed` issue with no other `status:` label and no `agent-ready` whose comment is such
+a decision, whether admission parked it there or a person confirmed it, or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
 status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
 nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
@@ -244,7 +247,9 @@ It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-
 `pull-requests: write`) posts the verdict's summary and notes on a lanes App PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only the comments that head does not hold yet, by file. A PR a person opened gets no
+that head, and only the comments that head does not hold yet, by file; a note in a resolved thread
+does not count, so a FAIL after a pass that superseded an earlier one at the same head opens a thread
+again. A PR a person opened gets no
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
@@ -268,10 +273,15 @@ push gives a head the verifier judges again.
 When the run uploaded a `pass` or `pass-notes` verdict instead, on an open PR still at that head
 `post-verify-notes` removes `pr-verify-failed` from a PR a person opened, if it is there, and
 dispatches nothing. On a lanes App PR it posts and resolves nothing: it reads the review threads, and when an
-unresolved fail-note thread from another head is open (`address-feedback.mjs` `staleVerifyNotes`,
+unresolved fail-note thread is open (`address-feedback.mjs` `staleVerifyNotes`,
 by the first comment's original commit) it names the head in `pass-head-sha`. The dispatch job then
 sends a pass-only round (input `verify-pass-head`), needing no workable thread, review marker or
-check-run room: `address-feedback-select` lists those threads in `run.json`'s `stale_notes`, no model
+check-run room. When the merge gate's reader, in the dispatch job's FAIL-cap read, reports the FAIL
+at that head superseded (`babysit_verify_evidence.py` `supersededAtHead`, the gate's own
+`_superseded` judgment), the dispatch also names the head in `verify-superseded-head`.
+`address-feedback-select` lists in `run.json`'s `stale_notes` the threads from another head, and
+those at the passing head only with `verify-superseded-head` at it (then naming it in
+`superseded_head`); a failed or missing read leaves those open. No model
 job or neutral check runs, and `publish-feedback` resolves each one still open and stale while the
 PR head is the passing one, as the lanes App, with no reply and no round marker, and skips
 `pass-only`, which the dispatcher's release reads pass over. A pass-only round goes only to lanes
@@ -609,7 +619,10 @@ Each leaf declares:
   a check reports before it reports done
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The schema refuses `checks`,
   `self-checks`, `verify-scripts` and `web-access` turned on for any other skill (effect `read`
-  without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing.
+  without `applied-by.patch`, or with `prepare: ci-context`), where they would do nothing, except
+  `verify-scripts` under `prepare: ci-context`, which the read runner stages as a base copy the
+  skill is told to run in place of the checkout's; its Bash, Edit and Write stay open, so review
+  of the patch is the control.
 - `self-checks` (optional, `skill` only): the same shape as `checks`, run and fixed by the skill
   through the same wrapper before it commits or hands its change on. Advisory: unlike `checks`, no
   runner job reruns them, so a failure the skill cannot fix still opens the PR and is named in its
@@ -621,10 +634,9 @@ Each leaf declares:
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
-  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset. In the write runner no ancestor holds the
-  token either; under run-claude-cli, code it runs can still read the job's token from an ancestor
-  process's `/proc/<pid>/environ`
-  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
+  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset. No Bash process above it holds
+  the token either: the write runner's settings clear it, and the read runner's run-claude-cli steps set
+  neither token ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
   inside the checkout), `scripts/git-mv-rm.sh` (`git mv` and `git rm` inside the checkout) and
@@ -713,7 +725,10 @@ entry that names `"label": "needs-session"` is a change the lane cannot make: a 
 not push, a fix that weakens a required check after its fresh fixer round, a failing check the
 `fix-ci` rung-up retry could not fix, or a dependency update
 the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
-an uncited control, a workflow change beyond a pin swap). `review-dependency` and
+an uncited control, a workflow change beyond a pin swap), or a review thread the lane left open
+that no lane or verdict will settle (`feedback-untaken-threads`, `feedback-unadjudicated`; while
+that stop stands on the head, `address-feedback`'s select job skips `awaiting-session` instead of
+escalating again). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
 rebased head until a session removes the label, or `clear-escalations.mjs` does: once a same-head
@@ -948,7 +963,9 @@ job's activity check it ends the head; on a push, reply or verdict job's check t
 retries the head under its per-head cap), `pass-only` (a pass-only address-feedback round's reply
 job, which ran no model and only resolved fail-note threads a pr-verify pass superseded; the
 dispatcher's release reads skip it), `stop-resolved` (an address-feedback or fix-ci select job found
-no stop standing on its head, whether or not one ever did), or, for an issue run under
+no stop standing on its head, whether or not one ever did), `awaiting-session` (an address-feedback
+select job whose head's stop already sits in the `needs-session` queue, so it does not escalate
+again), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -959,8 +976,12 @@ post no check: a fork PR, whose read-only token cannot write checks; a `pull_req
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
 Each review finding goes to an independent validator. Valid: fix it and reply with a citation.
-Invalid: reply with a cited disagreement. Unsure: escalate. A script resolves bot threads after
-the reply; human threads stay open for the human.
+Invalid: reply with a cited disagreement. Unsure: an adjudicator judges it
+(`adjudicate-feedback.mjs`), as it judges a disputed finding; only a finding at the security tier a
+person decides (a `CRITICAL` rating, or a security-review finding with no rating the lane reads)
+and a thread a person opened or directed go to that person (`feedback-uncertain`,
+`feedback-disputed`). A script resolves bot threads after the reply; human threads stay open for
+the human.
 
 ## Merge authority
 
@@ -1956,7 +1977,7 @@ record cannot be read), `verify:unreadable` and `verify:too-old`. A FAIL uploade
 `enable-auto-merge.mjs` read its run's one listing still holds. The refusals a pass decides
 (`verify:missing`, `verify:spec-changed`, `verify:untrusted-spec`) stay with `verdictHold` and
 `linkHold`. The same trusted approval of the head lifts it. A refusal the reader returns before
-it lists artifacts (`verify:too-old`, an unread config or commit list) reaches `merge-holds.mjs`
+it lists artifacts (an unread config or commit list) reaches `merge-holds.mjs`
 with no pass names, so it holds the same way and the same approval lifts it. Otherwise the pass
 names come from the reader's listing. The reader starts from pr-merge's head-ref map and carried
 run cache, the `pr-merge-run-cache` artifact of the newest scheduled or hand-started pr-merge run
@@ -2223,7 +2244,9 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 ### Verifier verdict
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
-same-repository, non-draft pull request into main, and after each one whose only failures are
+same-repository, non-draft pull request into main that did not start while the pull request was a
+draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and neither pr-verify
+nor the merge gate below counts a FAIL judged from one), and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
 widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
 jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session
@@ -2323,7 +2346,15 @@ another `-i`, so one run follows each change of the issue set. The pull request'
 at the head (it linked no issue, or more than a name carries) stops a new judgment unless the
 pull request now links issues a `fail` name carries and, since that `fail`'s run was created, only
 trusted people edited its body or connected or disconnected an issue, at least once; the resolver
-then proceeds with the reason `relinked`. In every case the earlier `fail` stays tied to the pull
+then proceeds with the reason `relinked`. The pull request's own `fail` at the head, plain or named
+with its issues, also stops a new judgment unless, since the last such `fail`'s run was created, a
+trusted person edited its body and only trusted people edited it or connected or disconnected an
+issue; the resolver then proceeds with the reason `body-edited`, so a body fix after a `fail` is
+judged at the same head, with no new commit. The body edit starts that judgment itself:
+`pr-require-checks` runs on `pull_request` `edited`, which GitHub sends when a title or body is
+edited, and `pr-verify` runs on that run's completion. The lanes App's or any other Bot's edit, an
+issue link change alone, or an edit history that cannot be read whole keeps the `fail`. In every
+case the earlier `fail` stays tied to the pull
 request and refuses the head unless the gate finds it superseded (below). Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
@@ -2368,7 +2399,8 @@ run), and a changed closing set or a removed spec comment leaves no time to
 compare, so those heads still wait for a person.
 
 Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
-its own reads every run it would not judge: a head already judged or moved past, a draft, a run red
+its own reads every run it would not judge: a head already judged or moved past, a draft or a run
+that started on one, a run red
 for anything an approval does not lift, an author it does not judge. So the gate's reads go only to
 a run the resolver would judge, and nothing either writes reaches the model before both pass.
 
@@ -2381,8 +2413,6 @@ other artifact with such a name is ignored. The resolver and the gate each hold 
 dependency-manager list, and one test runs both to keep them equal. At the pull request's vetted
 head:
 
-- created more than 80 days ago refuses (`verify:too-old`): artifacts last at most 90 days in this
-  repository (the retention maximum and its setting), so an older verdict may be gone;
 - counted `fail` verdicts at `merge.max-verify-fails` (default 3) or more distinct heads of the pull
   request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
   says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
@@ -2421,14 +2451,15 @@ head:
   is not counted against that bound. Closing a newly filed duplicate issue instead starts the count
   of other pull requests again; a pass then needs that issue written by a trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
-  relink superseded it: every counted `fail` there is this pull request's, every counted pass
-  there was created after them and records other `linked_issues` than each `fail` does, and from
-  the first `fail`'s run's creation to each pass run's completion (`updated_at`) the pull request
-  has at least one body edit (`userContentEdits`) or issue connect or disconnect event, every one
-  by a `User` on the trusted-actor list's humans. The lanes App, any other Bot, an actor GitHub
-  cannot name, a read that fails or is cut short, a time that cannot be read, or the same linked
-  issues keep the refusal. Both the resolver and the gate read these acts in one GraphQL query,
-  only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
+  relink or a body fix superseded it: every counted `fail` there is this pull request's, every
+  counted pass there was created after them, and up to each pass run's completion (`updated_at`)
+  every body edit (`userContentEdits`) and issue connect or disconnect event on the pull request
+  is by a `User` on the trusted-actor list's humans, with at least one such act from the first
+  `fail`'s run's creation when the pass records other `linked_issues` than each `fail` does (a
+  relink), else at least one body edit from the last `fail`'s run's creation (a body fix). The
+  lanes App, any other Bot, an actor GitHub cannot name, a read that fails or is cut short, a time
+  that cannot be read, or the same linked issues with no body edit keep the refusal. Both the
+  resolver and the gate read these acts in one GraphQL query, only on this path. A superseded `fail` still counts toward `merge.max-verify-fails`, and the
   passes then decide as below. A judgment on an older listing (pr-merge's provisional one) can
   still refuse `verify:fail` until a listing that holds the superseding pass is read;
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
@@ -2503,7 +2534,13 @@ head:
   request opened. That comment stays out of the recorded spec comments, so the gate does not see
   it edited, hidden or replaced after a pass: an edit only takes it out of spec, and a person's
   correction made after a pass waits for the next head;
-- no counted verdict refuses (`verify:missing`).
+- no counted verdict refuses `verify:too-old` on a pull request created more than 80 days ago,
+  since its verdicts may be gone (artifacts last at most 90 days in this repository, the retention
+  maximum and its setting): the lost-run reconciler re-runs the head's passed `pr-require-checks`
+  run, recorded, inside GitHub's 30-day re-run window, so pr-verify judges the head, and a fresh
+  pass there clears it (owner decision 2026-11-01, #11023). A `fail` past that retention no longer
+  counts toward the cap;
+- otherwise no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
 login posts as that owner, so until agent sessions have their own GitHub identity, an issue or an
@@ -2519,10 +2556,10 @@ round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 `verify:spec-changed` holds for the lanes
 ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
-`verify:repeated-fail` and `verify:too-old` never clear for the pull request, so it never merges
-unattended, and no person's label goes on for either (owner decision 2026-10-29). Instead, while
-`merge.report-only` is false, the pr-merge lane closes a lanes App pull request at either one for
-a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
+`verify:too-old` waits for the fresh pass above, with no label. `verify:repeated-fail` never
+clears for the pull request, so it never merges unattended, and no person's label goes on for it
+(owner decision 2026-10-29). Instead, while `merge.report-only` is false, the pr-merge lane closes
+a lanes App pull request at it for a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
 `enable-auto-merge.mjs` through the reader's `capped-close` command, or by the gate under
 `merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
 lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
@@ -2830,6 +2867,36 @@ any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
 passing verdict like any other (see the switches above), unless it widens the trusted-actor
 list ([Trusted-actor widening](#the-local-babysit-lane)).
+
+## Claude Code CLI releases
+
+The lanes run the latest Claude Code CLI, with no version pin (owner decision, 2026-10-31,
+[#8595](https://github.com/melodic-software/claude-code-plugins/issues/8595)): ci-workflows'
+`run-claude-cli` resolves `latest` at run time when no caller passes `cli-version`, and
+claude-code-action moves on Dependabot bumps. Claude Code's built-in read-only command set can
+change between releases and is not configurable
+([permissions: Read-only commands](https://code.claude.com/docs/en/permissions#read-only-commands);
+as of 2026-11-01; recheck when that section changes), so a new release could let a write lane run
+a command that prints the environment, and with it the lane token. The `shell_denied` list in
+`.github/actions/collect-base-activity/action.yml` is the control, and a sweep keeps it current.
+
+After each Claude Code CLI release, and after each claude-code-action bump merges, a host runs the
+sweep on that version:
+
+1. Run `claude -p` with `--permission-mode dontAsk`, `--setting-sources project` from an empty
+   directory (no user settings, plugins or hooks), and `--disallowedTools` built from
+   `shell_denied` plus `Read(//proc/**)`, the rules a write lane gets. Start it under `env -i`
+   with a planted dummy variable and no credential in the environment.
+2. Ask it to run, one Bash call each, a list of commands that print `/proc/self/environ` or the
+   shell's variables through programs outside `shell_denied`, plus `pwd` as a control that Bash
+   runs at all.
+3. From the stream-json output, check that every listed command produced a tool call (a skipped
+   line is untested, not clean), and mark each result that contains the dummy value.
+4. A command whose result holds the dummy value gets a `Bash(<command> *)` rule in `shell_denied`,
+   and in the list in [`pr-run-activity.md`](pr-run-activity.md#skill-activities), before anything
+   else ships.
+5. Update the swept version and date in the comment above `shell_denied`, and post the command
+   list, the CLI version and the per-command result on #8595.
 
 ## The lane sweep
 

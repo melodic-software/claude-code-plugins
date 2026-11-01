@@ -905,11 +905,20 @@ jobs:
       python_plan: ${{ steps.plan.outputs.python_plan }}
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
+      # The one Playwright browser cache key test-bash and test-python restore and save
+      # under. It is named here because workflow- and job-level env allow neither runner
+      # nor hashFiles. It names the install arguments, so changing them misses the cache.
+      playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Name the Playwright browser cache key
+        id: playwright_key
+        env:
+          KEY: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
+        run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
       # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
       # merge queue the holds that cost no lane work, its hold labels, a
       # pr-unblock stop on its head and the lanes kill switch, are judged by
@@ -3306,6 +3315,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.bash_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.bash_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3421,6 +3431,15 @@ jobs:
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
+      # The Chromium the animation and browser legs drive shares test-python's cache entry,
+      # keyed on the locked playwright version (the lockfile hash); a hit skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'animation') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'browser')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ env.BROWSER_CACHE_KEY }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3430,6 +3449,9 @@ jobs:
       # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
@@ -3455,7 +3477,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -3482,6 +3509,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
@@ -3578,6 +3611,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.python_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.python_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3615,7 +3649,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: ${{ env.BROWSER_CACHE_KEY }}
       - name: Install locked plugin test toolchains
         timeout-minutes: 4
         id: toolchains
@@ -4019,7 +4053,7 @@ jobs:
       # gh-read.sh, so each step that sources that file reads through it.
       # Its read floor and limit cap are github-token's read-floor and
       # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
-      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
+      # (log-api-budget.test.mjs checks), as the shell wrapper reads no file.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -4858,7 +4892,10 @@ jobs:
       # required check, and the merge-group run does not fully close it: the
       # changed-file gates that read only github.base_ref decline there. No
       # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. This step says why it is
+      # ci-status on its head is not a draft run's. The hold steps that read
+      # GitHub (cost hold, human-gated, hold-lift, human-merge, pr-unblock,
+      # lanes hold) skip on a draft too, so a held draft is green as well;
+      # the ready_for_review run judges every hold. This step says why it is
       # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
@@ -4895,6 +4932,7 @@ jobs:
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -4909,7 +4947,8 @@ jobs:
       # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
       # review-lanes step holds; all are read there, never at the head,
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # whose refsIssue the cost step runs and whose holds the lanes-hold step
+      # runs, and clear-escalations.mjs with every
       # module and data file it loads, whose recheckStaleHold the hold-lift
       # step runs. A re-run replays the event, whose base.sha stays stale, so
       # a pull request into the default branch reads that branch's tip as it
@@ -5059,7 +5098,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5379,7 +5418,7 @@ jobs:
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5619,7 +5658,7 @@ jobs:
       # event list or trusted-actor list fails closed. Pinned by
       # scripts/ci-hold-human-merge.test.sh, which runs this body.
       - name: Fail a human-merge hold a listed person has not lifted
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5900,6 +5939,36 @@ jobs:
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
+      # ONLY A LANES APP PULL REQUEST IN THE QUEUE NEEDS PR-MERGE'S CARRIED
+      # READS: the lanes-hold step is their one reader, and it exits at its
+      # author check for every other author. This step reads the queued pull
+      # request through pr_read with the args the pr-unblock and lanes-hold
+      # steps read it with, so their reads answer from the cache and the job
+      # makes no more REST calls than before. `lanes` is `false` only when
+      # the read proves an author that is not the lanes App (the lanes-hold
+      # step's own test); an unread pull, ref or id leaves it unset, and the
+      # two carry steps run as before.
+      - name: Read whether the queued pull request is the lanes App's
+        id: queued_author
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          if [ -z "$pr" ] || [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] || ! pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr") ||
+            ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null 2>&1; then
+            echo "The queued pull request's author is not read here; the carry steps run."
+            exit 0
+          fi
+          if jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "lanes=true" >>"$GITHUB_OUTPUT"
+            echo "#$pr is the lanes App's; the carry steps run."
+          else
+            echo "lanes=false" >>"$GITHUB_OUTPUT"
+            echo "#$pr is not the lanes App's; the carry steps are skipped."
+          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -5917,10 +5986,11 @@ jobs:
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
       # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      # reader. Both steps skip a queued pull request the step above proved
+      # is not the lanes App's. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -5931,7 +6001,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -5959,8 +6029,10 @@ jobs:
       # body links one. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
-      # its own hold: in the queue at the group's base commit, and on a pull
-      # request event at the live base commit of a pull request into main. A
+      # its own hold: from the hold config checkout (base_config), with
+      # pr-pipeline.yaml and the trusted-actor list, in the queue at the
+      # group's base commit and on a pull request event at the default
+      # branch's tip at run time, for a pull request into main. A
       # pull request into any other branch is never armed and is not read, so
       # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
       # (the pull request named in the group's ref, as the step above reads
@@ -6022,7 +6094,7 @@ jobs:
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
-      # before listing (verify:too-old, an unread config) reaches
+      # before listing (an unread config or commit list) reaches
       # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
@@ -6052,7 +6124,7 @@ jobs:
       # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
       - name: Fail a head a pr-unblock lane stopped
         id: pr_unblock_status
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -6112,7 +6184,7 @@ jobs:
           done <<<"$failing"
           exit 1
       - name: Fail a lanes App pull request its body or a member holds
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -6128,6 +6200,14 @@ jobs:
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A pull request's author never changes, so the payload's (a re-run
+          # replays it) answers the author test without a read; a merge group
+          # names none.
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          # The head the broker step read the file list at: its pages stand in
+          # for the live list only while the live pull still has this head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -6180,6 +6260,14 @@ jobs:
               sleep $((attempt * 5))
             done
           }
+          # On a pull request event a well-formed payload author that is not
+          # the lanes App ends the step before any read; any other payload
+          # falls through to the live read and its test below.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [[ ${PR_AUTHOR_ID:-} =~ ^[1-9][0-9]*$ && -n ${PR_AUTHOR_TYPE:-} ]] &&
+            { [ "$PR_AUTHOR_ID" != "$LANES_APP_ID" ] || [ "$PR_AUTHOR_TYPE" != Bot ]; }; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
           pull=$(READER=pr_read read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
           if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
             echo "::error::the author of #$pr could not be read."
@@ -6225,26 +6313,39 @@ jobs:
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
-          module=.github/scripts/pr-merge/merge-holds.mjs
-          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          # The module, pr-pipeline.yaml and the trusted-actor list come from
+          # the hold config checkout, as the checks above read them: no
+          # contents read. A file missing there fails closed.
+          for file in .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml .github/standards/trusted-actors/trusted-actors.json; do
+            if [ ! -s "$BASE_CONFIG/$file" ] || ! cp "$BASE_CONFIG/$file" "$RUNNER_TEMP/${file##*/}"; then
+              echo "::error::could not read $file in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              exit 1
+            fi
+          done
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
           config=docs/conventions/pr-pipeline.yaml
-          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
           yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
-            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.denied-paths from $config in the hold config."
             exit 1
           }
-          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
-          # hold paths off (merge-holds.mjs pathHoldsOf).
+          # merge.diff-check.path-holds in the hold config: absent or false
+          # turns the hold paths off (merge-holds.mjs pathHoldsOf).
           PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
-            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.path-holds from $config in the hold config."
             exit 1
           }
           export PATH_HOLDS
-          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
-            --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          # On a pull request event the broker step above read every page of
+          # this list live in this job and left it; read it again when that
+          # step could not, its pages do not parse, or the live pull's head is
+          # no longer the event's (a push since). The count check below holds
+          # either way.
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
+            [[ ! ${PR_HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] || [ "$(jq -r '.head.sha // ""' <<<"$pull")" != "$PR_HEAD_SHA" ] ||
+            ! jq -c '.[] | [.filename, .previous_filename, .status]' "$RUNNER_TEMP/pr-files.json" >"$RUNNER_TEMP/files.jsonl" 2>/dev/null; then
+            read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+              --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          fi
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
           if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
@@ -6255,9 +6356,6 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
-          actors=.github/standards/trusted-actors/trusted-actors.json
-          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
             raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
@@ -6362,8 +6460,8 @@ jobs:
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            # A refusal returned before any listing (verify:too-old, an unread
-            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # A refusal returned before any listing (an unread config or
+            # commit list) goes on with no pass names: merge-holds.mjs
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true

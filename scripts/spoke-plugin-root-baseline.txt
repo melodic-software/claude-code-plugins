@@ -1,19 +1,23 @@
-# Skill spokes that still name a path through ${CLAUDE_PLUGIN_ROOT}, as
-# scripts/check-spoke-plugin-root.sh reads them. One `<repository-relative file
-# path> <occurrence count>` per line; a `#` starts a comment. Keyed on file.
+# Skill spokes that still name a path through ${CLAUDE_PLUGIN_ROOT} or
+# ${CLAUDE_SKILL_DIR}, as scripts/check-spoke-plugin-root.sh reads them. A spoke
+# is any file under a skill's context/, reference/, references/ or actions/
+# directory. One `<repository-relative file path> <occurrence count>` per line,
+# the count summing both tokens; a `#` starts a comment. Keyed on file.
 #
-# The Read tool substitutes no variables, so the token in a spoke reaches the
+# The Read tool substitutes no variables, so either token in a spoke reaches the
 # model verbatim. The fix: SKILL.md renders <skill-dir> from ${CLAUDE_SKILL_DIR}
 # and the spoke cites <skill-dir>/scripts/..., as plugins/harness-memory does.
 # Fix the file, then lower its count or delete its line.
 #
 # A file whose hits are prose, or whose hits carry a working fallback, may stay
-# listed with a trailing `# justified: <reason>` comment.
+# listed with a trailing `# justified: <reason>` comment. A file whose hits name
+# a path the model is meant to run or read carries `# pending: <fix>` until it
+# is fixed.
 #
-# Stale-guarded: an entry whose file is gone, no longer contains the token, or
-# holds a different count fails the gate. Never add an entry for a new spoke:
+# Stale-guarded: an entry whose file is gone, no longer contains either token,
+# or holds a different count fails the gate. Never add an entry for a new spoke:
 # use <skill-dir> instead.
-plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 3 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
+plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 9 # justified: the criteria name the substitution tokens and the grants they detect or recommend; the literal text is the subject, not a path to resolve
 plugins/harness-config/skills/audit/context/validation-categories.md 1 # justified: the sentence names the two placeholders the hook rules look for in a plugin-provided hook; the literal text is the rule's subject
 plugins/harness-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
 plugins/harness-ops/skills/lanes/context/restart-consumer.md 1 # justified: the sentence says the skill resolves the variable freshly at run time; it names the token and runs nothing
@@ -25,7 +29,36 @@ plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1 # justified: 
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
 plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
 plugins/event-storming/skills/simulation/reference/agentic-simulation.md 1 # justified: the sentence names the token as the read-only install directory a session archive is never written into; it runs nothing
-plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 2 # justified: the line tells skill authors which pointers to write in a SKILL.md body, where they substitute; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md 1 # justified: the rule tells skill authors how SKILL.md cites a bundled script, where the token substitutes; the literal text is the guidance
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 1 # justified: the line names the token as a topic of the upstream plugins reference it cites; it runs nothing
-plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 1 # justified: the convention text names the token it says a context file must not use; it runs nothing
+plugins/repo-fleet-hygiene/skills/audit/reference/security-review.md 1 # justified: the sentence names the token bundled assets are addressed through; it runs nothing
+plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 5 # justified: the convention text names the tokens it pairs in a SKILL.md body and its allowed-tools rule, and the one a context file must not use; it runs nothing
 plugins/source-control/skills/worktree/context/audit.md 1 # justified: the sentence tells the model not to emit the token in a command it presents; the literal text is the warning
+plugins/ai-slop/skills/audit/context/persist-findings.md 2 # pending: the steps run bundled scripts through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/ai-slop/skills/audit/context/rubric-fanout.md 1 # pending: the line names a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/architecture/skills/improve/actions/boundaries.md 1 # pending: the step runs a bundled helper through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/architecture/skills/improve/actions/conventions.md 1 # pending: the step runs a bundled helper through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/architecture/skills/map-landscape/reference/scope-modes.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/attribution/skills/audit/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/corrections/skills/codify/actions/group.md 2 # pending: the steps run bundled scripts through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/corrections/skills/codify/actions/note.md 1 # pending: the step runs a bundled tool through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/docs-hygiene/skills/audit-noise/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/docs-naming/skills/realign-file-names/context/apply-recipe.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/harness-config/skills/audit-instructions/context/persist-findings.md 1 # pending: the command runs a bundled script through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/scripts/... instead
+plugins/playbooks/skills/repo-sweep/reference/next.md 2 # pending: the shorthands S and C name bundled paths through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/... instead
+plugins/playbooks/skills/repo-sweep/reference/plan.md 2 # pending: the shorthands S and C name bundled paths through ${CLAUDE_SKILL_DIR}; cite <skill-dir>/... instead
+plugins/playwright/skills/playwright/actions/update.md 2 # pending: the commands run a bundled script through ${CLAUDE_PLUGIN_ROOT}; cite <skill-dir>/scripts/... instead
+plugins/work-items/skills/ship/actions/run.md 4 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/add.md 22 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/audit.md 4 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/done.md 2 # pending: the step links plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/edit.md 1 # pending: the step runs the tracker through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/link.md 3 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/list.md 3 # pending: the text links plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/publish-plan.md 2 # pending: the text links a plugin reference through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/recheck.md 3 # pending: the steps run a plugin script and link a plugin reference through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/search.md 1 # pending: the text names a plugin reference through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/start.md 9 # pending: the steps run the tracker and link plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/stats.md 1 # pending: the text names a plugin reference through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead
+plugins/work-items/skills/track/actions/view.md 3 # pending: the text names plugin references through ${CLAUDE_PLUGIN_ROOT}; render the plugin root in SKILL.md and cite it instead

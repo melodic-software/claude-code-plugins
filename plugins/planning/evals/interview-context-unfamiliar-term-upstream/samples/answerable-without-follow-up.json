@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nContext:\n- Today every crash report opens its own issue; nothing groups repeats (triage/intake.py:12).\n- Upstream's cluster step computes a dedupe fingerprint, a SHA-1 of the report's first error line after addresses and line numbers are stripped, and attaches the report to the open cluster with the same fingerprint instead of opening an issue (vendor/upstream-triage/README.md:7-10).\n- The gap: one crash seen by many users shows up as many issues (vendor/upstream-triage/README.md:16).\nMy recommendation: yes, add the cluster step, keyed on upstream's fingerprint.\nBasis: verified, vendor/upstream-triage/README.md:7-10 and triage/intake.py:12.\nAlternatives:\n- (a) Keep one issue per report. No new code, but duplicates keep hiding the crash count.\n- (b) Group by exact error text. Simpler than normalizing, but addresses and line numbers split one crash into many groups (vendor/upstream-triage/README.md:7).",
+      "why": "defines both terms, states upstream and today, alternatives carry gain and cost"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Should triage gain a cluster step?\nMy recommendation: yes, keyed on the dedupe fingerprint.\nAlternatives:\n- (a) No.\n- (b) Exact text.",
+      "why": "uses the fingerprint and cluster step undefined; says nothing about upstream or today; alternatives have no tradeoff"
+    },
+    {
+      "answer": "Here is what I see: upstream clusters reports by a dedupe fingerprint, a hash of the first error line, and our intake opens one issue per report.\n\nQ1: Should triage gain a cluster step?\nMy recommendation: yes.\n\nQ2: Should the fingerprint cover the whole stack?\nMy recommendation: no.",
+      "why": "the context sits only in the opening summary; Q2 gives no reason a reader could weigh"
+    }
+  ]
+}

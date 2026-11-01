@@ -276,6 +276,12 @@ class FakeGitHub:
         # The pull request's RELINK_QUERY answer (its `pullRequest`), or
         # "error" for a failed read; None answers as the closing read does.
         self.relink: Any = None
+        # The pr-require-checks pull_request runs at each head, and a
+        # total_count that cuts them; a head with none named answers 404.
+        self.checks_runs: dict[str, list[dict[str, Any]]] = {}
+        self.checks_total: dict[str, int] = {}
+        # Each checks run's latest jobs; a run with none named answers 404.
+        self.jobs: dict[int, dict[str, Any]] = {}
 
     def listed(self) -> list[dict[str, Any]]:
         """The artifacts a whole listing returns now, newest id first as
@@ -512,6 +518,24 @@ class FakeGitHub:
             if login not in self.permissions:
                 return missing()
             return ok({"permission": self.permissions[login]})
+        checks = re.fullmatch(
+            rf"repos/{REPO}/actions/workflows/pr-require-checks\.yml/runs"
+            r"\?head_sha=([0-9a-f]{40})&event=pull_request&per_page=100",
+            path,
+        )
+        if checks:
+            if checks[1] not in self.checks_runs:
+                return missing()
+            listed = self.checks_runs[checks[1]]
+            total = self.checks_total.get(checks[1], len(listed))
+            return ok({"total_count": total, "workflow_runs": listed})
+        jobs = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/jobs\?filter=latest&per_page=100",
+            path,
+        )
+        if jobs:
+            found_jobs = self.jobs.get(int(jobs[1]))
+            return missing() if found_jobs is None else ok(found_jobs)
         prefix = f"repos/{REPO}/actions/runs/"
         if path.startswith(prefix):
             run_id = int(path[len(prefix) :])
@@ -1196,9 +1220,12 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 fake.records[name]["linked_issues"] = None
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
-    def test_the_same_linked_issues_keep_the_fail(self) -> None:
+    def test_the_same_linked_issues_with_no_body_edit_keep_the_fail(self) -> None:
+        # A person's connect alone, no body edit: a body-edit re-judgment
+        # needs one (ATrustedBodyEditSupersedesAFailAtItsHead).
         fake = self.relinked()
         fake.records[named(HEAD, "fail")]["linked_issues"] = [TRUSTED_ISSUE]
+        fake.relink = relink_answer([], [(RELINK_AT, HUMAN)])
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_pass_created_before_the_fail_keeps_it(self) -> None:
@@ -1254,6 +1281,102 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             a for a in fake.artifacts if a["name"] != named(EARLIER, "pass")
         ]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+
+class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
+    """A FAIL at a head stops refusing once a trusted person edited the pull
+    request's body there and it passed again under the same linked issues,
+    when from the last FAIL's creation to the pass run's completion there is
+    at least one body edit and every body edit and issue connect or
+    disconnect was a trusted person's. The rule is the owner's (a body fix
+    after a FAIL is judged at the same head); the lanes App, another actor,
+    a connect alone, an edit before the last FAIL or a failed read keep it."""
+
+    @staticmethod
+    def edited(answer: dict[str, Any] | None = None) -> FakeGitHub:
+        """A FAIL at HEAD (run 2, created OLDER_START) and a pass there (run
+        1, RUN_STARTED), both recording issue 7; a person edited the body
+        between them."""
+        fake = FakeGitHub(
+            [artifact(named(HEAD, "pass"), 1), artifact(named(HEAD, "fail"), 2)],
+            {1: run(1, updated_at=PASS_DONE), 2: judged(2, OLDER_START)},
+            {
+                named(HEAD, "pass"): record(),
+                named(HEAD, "fail"): record(verdict="fail"),
+            },
+        )
+        fake.relink = answer or relink_answer([(RELINK_AT, HUMAN)])
+        return fake
+
+    def test_a_persons_body_edit_lets_the_pass_decide(self) -> None:
+        self.assertIsNone(read(self.edited()).refusal)
+
+    def test_any_other_actor_or_no_body_edit_keeps_the_fail(self) -> None:
+        # The paired case: the same window with only a person's edit clears.
+        self.assertIsNone(
+            read(self.edited(relink_answer([(RELINK_AT, HUMAN)]))).refusal
+        )
+        outsider = {"__typename": "User", "login": "outsider", "databaseId": 999}
+        for label, answer in (
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("outsider edit", relink_answer([(RELINK_AT, outsider)])),
+            ("ghost edit", relink_answer([(RELINK_AT, None)])),
+            (
+                "person edit, App connect",
+                relink_answer([(RELINK_AT, HUMAN)], [(RELINK_AT, LANES_ACTOR)]),
+            ),
+            ("person connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            ("nothing in the window", relink_answer()),
+            ("edits cut short", relink_answer([(RELINK_AT, HUMAN)], edits_total=101)),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                self.assertEqual(read(self.edited(answer)).refusal, "verify:fail")
+
+    def test_an_edit_before_the_last_fail_keeps_it(self) -> None:
+        # The person's edit falls between the two FAILs: the second judged it.
+        fake = self.edited()
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 3))
+        fake.runs[3] = judged(3, "2026-10-14T18:00:00Z")
+        self.assertEqual(read(fake).refusal, "verify:fail")
+        # An edit after the second FAIL lets the pass decide.
+        fake.relink = relink_answer(
+            [("2026-10-14T20:00:00Z", HUMAN), (RELINK_AT, HUMAN)]
+        )
+        self.assertIsNone(read(fake).refusal)
+
+    def test_the_report_names_a_fail_superseded_at_the_head(self) -> None:
+        # pr-unblock resolves that FAIL's fail-note threads on this field
+        # alone (feedback-dispatch.mjs), so it is true only where the FAIL at
+        # the head gave way.
+        self.assertIs(read(self.edited()).report()["supersededAtHead"], True)
+        for label, answer in (
+            ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
+            ("person connect only", relink_answer([], [(RELINK_AT, HUMAN)])),
+            ("failed read", "error"),
+        ):
+            with self.subTest(label):
+                evidence = read(self.edited(answer))
+                self.assertEqual(evidence.refusal, "verify:fail")
+                self.assertIs(evidence.report()["supersededAtHead"], False)
+
+    def test_the_report_names_no_fail_superseded_elsewhere_or_capped(self) -> None:
+        # Superseded at an earlier head only: nothing at this head gave way.
+        merge_only = ARelinkByPeopleSupersedesAFailAtItsHead().merge_only(
+            superseded=True
+        )
+        self.assertIs(read(merge_only).report()["supersededAtHead"], False)
+        # At the cap the FAIL at the head is never judged superseded.
+        fake = self.edited()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW, max_fails=1)
+            evidence = reader.evidence(PR, HEAD, pull())
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertIs(evidence.report()["supersededAtHead"], False)
 
 
 def rename(old: str, new: str) -> str:
@@ -2048,11 +2171,10 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
-    def test_its_own_fails_cannot_expire_before_it_is_too_old(self) -> None:
-        # Artifacts last 90 days here; a pull request is refused
-        # past TOO_OLD_DAYS, before any of its own FAILs can expire, so an
-        # expired FAIL never lifts the cap of a pull request still judged.
-        self.assertLess(ve.TOO_OLD_DAYS, 90)
+    def test_a_fresh_pass_clears_an_old_pull_request_whose_fails_expired(self) -> None:
+        # Owner decision 2026-11-01: a fresh pass at the head of
+        # a pull request past TOO_OLD_DAYS allows it, so FAILs that expired
+        # past the 90-day retention no longer count toward its cap.
         expired = passing(
             *(
                 artifact(named(sha, "fail"), i, expired=True)
@@ -2061,12 +2183,11 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             runs={i: judged(i, OLDER_START) for i in (2, 3, 4)},
         )
         evidence = read(expired, pull(created_at="2026-07-27T23:00:00Z"))
-        self.assertEqual(evidence.refusal, "verify:too-old")
-        self.assertFalse(evidence.needs_human)
+        self.assertIsNone(evidence.refusal)
 
-    def test_a_too_old_pull_request_still_names_its_own_fails(self) -> None:
-        # The capped close quotes them for the fresh attempt: the age refusal
-        # comes before the listing loop, so they are read for it alone. A
+    def test_fail_findings_with_no_judgment_name_its_own_fails(self) -> None:
+        # The capped close quotes them for the fresh attempt; with no
+        # judgment read first they come from the listing (`_own_fails`). A
         # sibling's FAIL and a foreign run's are not this pull request's.
         fake = passing(
             artifact(named(EARLIER, "fail"), 2),
@@ -2093,11 +2214,7 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
         ):
             reader = ve.Reader(REPO, "main", now=NOW)
-            evidence = reader.evidence(
-                PR, HEAD, pull(created_at="2026-07-27T23:00:00Z")
-            )
             findings = reader.fail_findings(PR)
-        self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertEqual(
             [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
         )
@@ -2331,10 +2448,28 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
 
 
 class AnOldPullRequestIsRefused(unittest.TestCase):
-    def test_older_than_80_days_is_too_old(self) -> None:
-        evidence = read(passing(), pull(created_at="2026-07-27T23:00:00Z"))
+    def test_older_than_80_days_with_no_verdict_is_too_old(self) -> None:
+        evidence = read(FakeGitHub([], {}), pull(created_at="2026-07-27T23:00:00Z"))
         self.assertEqual(evidence.refusal, "verify:too-old")
         self.assertFalse(evidence.needs_human)
+
+    def test_a_fresh_pass_at_the_head_clears_it(self) -> None:
+        # Owner decision 2026-11-01: the lane re-runs the
+        # verifier at the head, and its fresh pass clears verify:too-old.
+        self.assertIsNone(
+            read(passing(), pull(created_at="2026-07-27T23:00:00Z")).refusal
+        )
+        self.assertNotIn(ve.TOO_OLD, ve.VERIFY_FINAL)
+        self.assertNotIn(ve.TOO_OLD, ve.STANDING)
+
+    def test_a_fail_at_the_head_stays_a_fail(self) -> None:
+        # A FAIL at an old pull request's head goes to a fix round as on any
+        # other pull request, not to the age refusal.
+        fake = passing(
+            artifact(named(HEAD, "fail"), 2), runs={2: judged(2, OLDER_START)}
+        )
+        evidence = read(fake, pull(created_at="2026-07-27T23:00:00Z"))
+        self.assertEqual(evidence.refusal, "verify:fail")
 
     def test_79_days_is_judged(self) -> None:
         self.assertIsNone(
@@ -4717,14 +4852,26 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(self.escalation_writes(), [])
         self.assertNotIn("escalation", out["unattended"]["writes"])
 
-    def test_the_cap_and_an_old_pull_request_close_for_a_fresh_attempt(self) -> None:
-        # Owner rule 2026-10-27: neither is an intent, design or security
-        # question, so neither gets a person's label. Owner decision
+    def test_an_old_pull_request_waits_for_a_fresh_pass_and_is_not_closed(self) -> None:
+        # Owner decision 2026-11-01: the lost-run reconciler
+        # re-runs the verifier at the head, whose fresh pass clears it.
+        self.verdicts[unattended.PR] = evidence("verify:too-old")
+        with mock.patch.object(ve, "capped_close") as close:
+            code, out = self.lane()
+        self.assert_no_merge(code)
+        close.assert_not_called()
+        self.assertEqual(out["unattended"]["reason"], "verify:too-old")
+        self.assertIs(out["unattended"]["verify"]["needsHuman"], False)
+        self.assertEqual(self.escalation_writes(), [])
+
+    def test_the_cap_closes_for_a_fresh_attempt(self) -> None:
+        # Owner rule 2026-10-27: it is no intent, design or security
+        # question, so it gets no person's label. Owner decision
         # 2026-10-29: the gate closes the pull request for a fresh attempt at
         # its issue (capped_close, which judges it again and checks the
         # author), under merge.verify-cap-attempts.
         self.config = dataclasses.replace(self.config, verify_cap_attempts=2)
-        for refusal in ("verify:repeated-fail", "verify:too-old"):
+        for refusal in ("verify:repeated-fail",):
             with self.subTest(refusal):
                 self.verdicts[unattended.PR] = evidence(refusal)
                 with mock.patch.object(
@@ -5315,6 +5462,7 @@ class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
             "earlierFails": sorted(earlier),
             "ignored": 0,
             "detail": None,
+            "supersededAtHead": False,
             **extra,
         }
 
@@ -6528,6 +6676,171 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
         ):
             ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
         self.assertNotIn("ineligible", json.loads(out.getvalue()))
+
+
+def ci_status_jobs(draft_step: str) -> dict[str, Any]:
+    """ci-status's steps as `GET .../actions/runs/{id}/jobs?filter=latest`
+    returned them for #11832's checks runs at head 8d7ef05b: `Note a draft`
+    ran (success) in run 41273054889, started on the draft, and was skipped in
+    run 41273113342, started after the ready flip (pr-require-checks.yml:
+    `if: github.event.pull_request.draft == true`)."""
+    steps = [("Note a draft", draft_step), ("Aggregate lane results", "success")]
+    job = {
+        "id": 9001,
+        "name": "ci-status",
+        "conclusion": "success",
+        "steps": [{"name": n, "conclusion": c} for n, c in steps],
+    }
+    return {"total_count": 1, "jobs": [job]}
+
+
+DRAFT_JOBS = ci_status_jobs("success")
+READY_JOBS = ci_status_jobs("skipped")
+
+
+def ci_status_with(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    job = {"id": 9001, "name": "ci-status", "conclusion": "success", "steps": steps}
+    return {"total_count": 1, "jobs": [job]}
+
+
+# The jobs API can list a finished job's steps empty or cut short
+# (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
+# conclusion of the draft step decides; each of these is unreadable.
+UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
+    "an empty step list": ci_status_with([]),
+    "the draft step listed with no conclusion": ci_status_with(
+        [{"name": "Note a draft", "conclusion": None}]
+    ),
+    "the draft step not listed": ci_status_with(
+        [{"name": "Aggregate lane results", "conclusion": "success"}]
+    ),
+    "no ci-status job": {
+        "total_count": 1,
+        "jobs": [{"id": 9002, "name": "lint-repo", "conclusion": "success"}],
+    },
+}
+DRAFT_CHECKS, READY_CHECKS = 41273054889, 41273113342
+# #11832's times: the draft checks run was created at 04:25:39, the verifier
+# run that judged it and uploaded the FAIL at 04:26:22, and the ready checks
+# run at 04:26:33.
+FAIL_JUDGED = "2026-11-01T04:26:22Z"
+
+
+def draft_race(
+    fake: FakeGitHub, sha: str, before: dict[str, Any] = DRAFT_JOBS
+) -> FakeGitHub:
+    """Give `sha` #11832's two checks runs, the earlier one's jobs `before`."""
+    fake.checks_runs[sha] = [
+        {"id": READY_CHECKS, "created_at": "2026-11-01T04:26:33Z"},
+        {"id": DRAFT_CHECKS, "created_at": "2026-11-01T04:25:39Z"},
+    ]
+    fake.jobs[DRAFT_CHECKS] = before
+    fake.jobs[READY_CHECKS] = READY_JOBS
+    return fake
+
+
+class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
+    """A pull request opened as a draft and marked ready seconds later gets
+    two checks runs at one head; pr-verify judged the draft one, whose suites
+    all skipped, and failed it for "no tests ran" (#11832, #11836). Such a
+    FAIL counts nowhere: not at the head, not at another head, not toward
+    the cap of this or another pull request. Every failed read keeps it."""
+
+    @staticmethod
+    def fail_at(*shas: str) -> FakeGitHub:
+        """A pass at the head, and this pull request's FAILs at `shas`, each
+        uploaded by a verifier run created when #11832's was."""
+        runs = {i: judged(i, FAIL_JUDGED) for i in range(2, 2 + len(shas))}
+        return passing(
+            *(artifact(named(sha, "fail"), i) for i, sha in zip(runs, shas)),
+            runs=runs,
+        )
+
+    def test_at_the_head(self) -> None:
+        self.assertIsNone(read(draft_race(self.fail_at(HEAD), HEAD)).refusal)
+        ready = draft_race(self.fail_at(HEAD), HEAD, READY_JOBS)
+        self.assertEqual(read(ready).refusal, "verify:fail")
+
+    def test_at_an_earlier_head(self) -> None:
+        self.assertIsNone(read(draft_race(self.fail_at(EARLIER), EARLIER)).refusal)
+        self.assertEqual(read(self.fail_at(EARLIER)).refusal, "verify:earlier-fail")
+
+    def test_toward_the_cap(self) -> None:
+        heads = (EARLIER, IN_PR, UNRELATED)
+        fake = self.fail_at(*heads)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+        for sha in heads:
+            draft_race(fake, sha)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_toward_another_pull_requests_cap(self) -> None:
+        fake = FailsOnAnotherPullRequestForTheSameIssueCount.sibling_fails(
+            *SIBLING_HEADS
+        )
+        for run_id in set(fake.runs) - {1}:
+            fake.runs[run_id] = judged(run_id, FAIL_JUDGED)
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+        for sha in SIBLING_HEADS:
+            draft_race(fake, sha)
+        self.assertIsNone(read(fake).refusal)
+
+    def test_only_a_listed_draft_step_conclusion_reads_the_state(self) -> None:
+        def draft_run(jobs: dict[str, Any]) -> bool:
+            fake = FakeGitHub([], {})
+            fake.jobs[DRAFT_CHECKS] = jobs
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                return ve.Reader(REPO, "main")._draft_run(DRAFT_CHECKS)
+
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label), self.assertRaises(ve._Unreadable):
+                draft_run(jobs)
+        self.assertTrue(draft_run(DRAFT_JOBS))
+        self.assertFalse(draft_run(READY_JOBS))
+
+    def test_an_unreadable_draft_state_keeps_the_fail(self) -> None:
+        for label, jobs in UNREADABLE_DRAFT_STATE.items():
+            with self.subTest(label):
+                fake = draft_race(self.fail_at(HEAD), HEAD, jobs)
+                self.assertEqual(read(fake).refusal, "verify:fail")
+
+    def test_a_failed_or_short_read_keeps_the_fail(self) -> None:
+        def cut(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def jobs_unread(fake: FakeGitHub) -> None:
+            del fake.jobs[DRAFT_CHECKS]
+
+        def jobs_cut(fake: FakeGitHub) -> None:
+            fake.jobs[DRAFT_CHECKS] = {**DRAFT_JOBS, "total_count": 2}
+
+        def none_before(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD] = fake.checks_runs[HEAD][:1]
+
+        def a_ready_one_before(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000001, "created_at": "2026-11-01T04:25:00Z"}
+            )
+            fake.jobs[41273000001] = READY_JOBS
+
+        def no_time(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append({"id": 41273000002})
+
+        def listing_fails(fake: FakeGitHub) -> None:
+            fake.checks_runs.pop(HEAD)
+
+        for change in (
+            cut,
+            jobs_unread,
+            jobs_cut,
+            none_before,
+            a_ready_one_before,
+            no_time,
+            listing_fails,
+        ):
+            with self.subTest(change.__name__):
+                fake = draft_race(self.fail_at(HEAD), HEAD)
+                change(fake)
+                self.assertEqual(read(fake).refusal, "verify:fail")
 
 
 if __name__ == "__main__":

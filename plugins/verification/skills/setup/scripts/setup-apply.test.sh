@@ -10,6 +10,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 APPLY="$SCRIPT_DIR/setup-apply.mjs"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'chmod -R u+w "$TEST_TMPDIR" 2>/dev/null; rm -rf "$TEST_TMPDIR"' EXIT
@@ -62,14 +68,14 @@ R1="$(new_root c1)"
 out="$(run --root "$R1" proof_level=live)"
 assert_eq "case 1: writing to an absent file exits 0" "0" "$?"
 assert_eq "case 1: the file holds the value on its own line" "1" "$(grep -cx 'proof_level: live' "$(yaml_of "$R1")")"
-assert_contains "case 1: the file names its schema" "$(cat "$(yaml_of "$R1")")" "verification.schema.json"
+assert_contains "case 1: the file names its schema" "$(settings "$(yaml_of "$R1")")" "verification.schema.json"
 assert_contains "case 1: the output names the written path" "$out" "wrote docs/conventions/verification.yaml"
 
 R1B="$TEST_TMPDIR/c1b"
 mkdir -p "$R1B"
 run --root "$R1B" proof_level=strict >/dev/null
 assert_eq "case 1: missing docs/conventions directories are created" "0" "$?"
-assert_contains "case 1: the created file holds the value" "$(cat "$(yaml_of "$R1B")")" "proof_level: strict"
+assert_contains "case 1: the created file holds the value" "$(settings "$(yaml_of "$R1B")")" "proof_level: strict"
 
 # --- Case 2: the same value again writes nothing ---------------------------
 out="$(run --root "$R1" proof_level=live)"
@@ -260,7 +266,7 @@ apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file
   out="$(run --root "$r" --yes proof_level=live)"
   assert_eq "case 12: apply beside $1 exits 0" "0" "$?"
   assert_eq "case 12: apply beside $1 warns once" "1" "$(printf '%s\n' "$out" | grep -c 'WARN.*key stray is not in the schema')"
-  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(cat "$f")"
+  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(settings "$f")"
 }
 apply_keeps_unknown "an unknown key alone" $'stray: 1\n' $'stray: 1\nproof_level: live'
 apply_keeps_unknown "an unknown empty key" $'stray:\n' $'stray:\nproof_level: live'
@@ -279,7 +285,7 @@ apply_replaces() {
   printf '%s' "$2" >"$f"
   run --root "$r" --yes proof_level=strict >/dev/null
   assert_eq "case 13: apply over $1 exits 0" "0" "$?"
-  assert_eq "case 13: apply over $1 leaves the asked-for line" "proof_level: strict" "$(cat "$f")"
+  assert_eq "case 13: apply over $1 leaves the asked-for line" "proof_level: strict" "$(settings "$f")"
 }
 apply_replaces "an out-of-list word" $'proof_level: maybe\n'
 apply_replaces "a quoted out-of-list value" $'proof_level: "loose"\n'
@@ -424,7 +430,7 @@ out="$(node --require "$P19P" "$APPLY" --root "$R19P" proof_level=live 2>&1)"
 assert_eq "case 19: a temp name already taken exits 1" "1" "$?"
 one_line "case 19: a temp name already taken" "$out"
 assert_eq "case 19: a temp file this run did not create is kept" "someone else" \
-  "$(cat "$R19P/docs/conventions/.verification.yaml.4242.tmp")"
+  "$(settings "$R19P/docs/conventions/.verification.yaml.4242.tmp")"
 
 # A failed rename followed by a failed cleanup: still one line naming the
 # rename error, no stack trace, no target.
@@ -669,7 +675,7 @@ assert_contains "case 26: a file without live_workers reports it unset" "$out" "
 run --root "$R26U" --yes live_workers=2 >/dev/null
 assert_eq "case 26: adding live_workers beside proof_level exits 0" "0" "$?"
 assert_eq "case 26: proof_level is kept and live_workers added" $'proof_level: strict\nlive_workers: 2' \
-  "$(cat "$(yaml_of "$R26U")")"
+  "$(settings "$(yaml_of "$R26U")")"
 
 # --- Case 27: a command-line live_workers that is not such a number is refused --
 # A quoted number, a decimal, a sign, 0, a leading zero, a word and an empty or
@@ -722,7 +728,7 @@ lw_replaces() { # lw_replaces <label> <file body>
   printf '%s' "$2" >"$f"
   run --root "$r" --yes live_workers=4 >/dev/null
   assert_eq "case 29: apply over $1 exits 0" "0" "$?"
-  assert_eq "case 29: apply over $1 leaves the asked-for line" "live_workers: 4" "$(cat "$f")"
+  assert_eq "case 29: apply over $1 leaves the asked-for line" "live_workers: 4" "$(settings "$f")"
 }
 lw_replaces "zero" $'live_workers: 0\n'
 lw_replaces "a decimal" $'live_workers: 2.5\n'
@@ -751,7 +757,7 @@ R29U="$(new_root lf-unknown)"
 printf 'live_workers: 2\nworkers: 3\n' >"$(yaml_of "$R29U")"
 run --root "$R29U" --yes live_workers=4 >/dev/null
 assert_eq "case 29: apply beside an unknown key exits 0" "0" "$?"
-assert_eq "case 29: apply beside an unknown key keeps its line" $'live_workers: 4\nworkers: 3' "$(cat "$(yaml_of "$R29U")")"
+assert_eq "case 29: apply beside an unknown key keeps its line" $'live_workers: 4\nworkers: 3' "$(settings "$(yaml_of "$R29U")")"
 lw_refuses "an invalid proof_level it is not writing" $'proof_level: maybe\nlive_workers: 2\n'
 pair_twice "live_workers twice" live_workers=2 live_workers=3
 
@@ -768,6 +774,16 @@ out="$(run --root "$R30" --check --ref origin/main)"
 assert_eq "case 30: --check --ref with a committed live_workers exits 0" "0" "$?"
 assert_contains "case 30: the committed live_workers is read, not the working tree's" "$out" "PASS live_workers: 4"
 assert_contains "case 30: proof_level is unset in the committed file" "$out" "PASS proof_level: (unset)"
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+R="$(new_root record-chosen)"
+out="$(run --root "$R" proof_level=live)"
+assert_eq "the file records written_against and a chosen entry" "written_against: verification@$VERSION" "$(grep '^written_against: ' "$(yaml_of "$R")")"
+assert_contains "the file holds a chosen entry for the key" "$(cat "$(yaml_of "$R")")" "  proof_level: chosen"
+R="$(new_root record-default)"
+out="$(run --root "$R" --default proof_level)"
+assert_contains "--default records a default entry" "$(cat "$(yaml_of "$R")")" "  proof_level: default"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

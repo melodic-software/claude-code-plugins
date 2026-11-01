@@ -402,7 +402,8 @@ Three labels take work off the unattended path, and each means one thing (owner 
 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
-not fix, an unfinished dependency review)
+not fix, an unfinished dependency review, a review thread the lane left open with no verdict to
+settle it)
 goes to an agent session, which removes the label once it has made the change; pr-merge's
 `clear-escalations` sweep removes it when a same-head retry cleared the stop
 ([routing table](../../conventions/pr-pipeline/README.md#activities)).
@@ -1165,7 +1166,7 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
 - **A fixed interval is the operator's shape for invoking a single-pass mechanic directly.** The
   interval chosen once *is* the whole cadence policy: no per-cycle state derives a better one, so
   there is nothing for the cron schedule to discard. `babysit-prs`'s documented
-  `/loop 15m /source-control:babysit-prs worker` line is that shape.
+  `/loop 15m /source-control:babysit-prs worker --unattended` line is that shape.
 
 The two shapes coexist inside one plugin without conflicting because they answer different
 invocations, not competing defaults: `babysit-prs` documents a fixed-interval launch of *itself*,

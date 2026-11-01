@@ -168,8 +168,10 @@ ACTIVITY_CAP = 200
 # Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section). A new or changed short label takes the shared question shape's cap.
+# restatement section). A new or changed short label and a context take the shared question
+# shape's caps.
 TEXT_CAP = 20000
+CONTEXT_CAP = 4000
 SHORT_SHAPE = {
     "$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"
 }
@@ -744,11 +746,11 @@ def warn_bare_issue_refs(doc, label, value):
         )
 
 
-def warn_branch_source_links(label, facts):
-    """Warn once when facts links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
+def warn_branch_source_links(label, facts, field="facts"):
+    """Warn once when facts or context links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
     if facts and BRANCH_SOURCE_LINK.search(facts):
         warn(
-            f"{label} facts links a repo file by branch (blob/<branch>); "
+            f"{label} {field} links a repo file by branch (blob/<branch>); "
             "pin the source link to a commit SHA (blob/<sha>/...)"
         )
 
@@ -826,13 +828,13 @@ def warn_bare_file_ref(qid, field, text):
         )
 
 
-def warn_unreferenced_facts(qid, facts):
-    """Warn when a facts field holding more than its `Checked against:` line carries no link,
-    file:line or judgment label, so no claim in it can be checked."""
+def warn_unreferenced_facts(qid, facts, field="facts"):
+    """Warn when a facts or context field holding more than its `Checked against:` line carries
+    no link, file:line or judgment label, so no claim in it can be checked."""
     rest = CHECKED_AGAINST.sub("", facts or "")
     if rest.strip() and not FACTS_REFERENCE.search(rest):
         warn(
-            f"{qid} facts carries no link, file:line or judgment label; cite the source of "
+            f"{qid} {field} carries no link, file:line or judgment label; cite the source of "
             "each factual claim, or label a claim with none Judgment"
         )
 
@@ -843,7 +845,9 @@ def lint_questions(doc, qs):
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
         warn_branch_source_links(q["id"], q.get("facts"))
+        warn_branch_source_links(q["id"], q.get("context"), "context")
         warn_unreferenced_facts(q["id"], q.get("facts"))
+        warn_unreferenced_facts(q["id"], q.get("context"), "context")
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -869,7 +873,7 @@ def lint_questions(doc, qs):
             ("recommendation", rec),
         ):
             warn_bare_file_ref(q["id"], field, text)
-        for field in ("title", "recommendation", "basis"):
+        for field in ("title", "context", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
                 if tok not in ids and tok not in seen:
@@ -1421,6 +1425,7 @@ def op_revise(d, doc, a):
     for field, val, cap in (
         ("title", a.title, LINE_CAP),
         ("rec", a.rec, LINE_CAP),
+        ("context", a.context, CONTEXT_CAP),
         ("facts", a.facts, TEXT_CAP),
         ("basis", a.basis, TEXT_CAP),
         ("why", a.why, TEXT_CAP),
@@ -1454,11 +1459,14 @@ def op_revise(d, doc, a):
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     warn_branch_source_links(a.id, a.facts)
+    warn_branch_source_links(a.id, a.context, "context")
     warn_unreferenced_facts(a.id, a.facts)
+    warn_unreferenced_facts(a.id, a.context, "context")
     changed = []
     for field, val in (
         ("title", a.title),
         ("short", a.short),
+        ("context", a.context),
         ("facts", a.facts),
         ("basis", a.basis),
     ):
@@ -2146,6 +2154,7 @@ OP_ARGS = {
             "id": None,
             "title": None,
             "short": None,
+            "context": None,
             "facts": None,
             "basis": None,
             "rec": None,

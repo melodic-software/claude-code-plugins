@@ -34,6 +34,12 @@ why is the
 
 Arguments: `$ARGUMENTS`
 
+The user config layer, rendered from this plugin's `userConfig` (empty or a literal
+`${user_config.…}` token means unset; Phase 0 "Config" reads it):
+
+- `operators`: `${user_config.operators}`
+- `max_mutants`: `${user_config.max_mutants}`
+
 ## Argument parsing
 
 - **Scope** (optional): a path limiting which changed files are considered. Default: every changed
@@ -90,8 +96,7 @@ the diff scope for this run only.
 (tracked modified files and untracked files, each listed by path), so tests an agent has just
 written count before they are committed. A scope path narrows them. With `--exercised <test-path>`
 the files under that test file or folder replace the changed files, the mapping starts from them,
-and every step below that reads "the test set" means the tests under that path. That is not the
-scope path, which only narrows the changed files.
+and every step below that reads "the test set" means the tests under that path. That is not the scope path, which only narrows the changed files.
 
 **Which files are tests.** For each candidate file, invoke `/testing:audit --file <path>` through
 the Skill tool and read the `adapter:` line of its coverage block:
@@ -197,8 +202,7 @@ Under `--exercised`, run them in the order [The exercised scope](#the-exercised-
   with the project's own test command before returning here.
 
 Record the baseline run's result and wall-clock. Every later "killed" verdict is meaningful only
-against a green baseline captured in this run, not against the one `setup` recorded, which may be
-stale.
+against a green baseline captured in this run, not against the one `setup` recorded, which may be stale.
 
 **Capture `git status --porcelain` here.** This is *the Phase 0 snapshot* every later restoration
 check compares against, and the rest of this skill refers to it by that name. It is taken before the
@@ -385,23 +389,20 @@ persisted, never whether the tree they describe still exists.
 snapshot has already run by the time this phase is reachable, so a run that persists over a failed
 restore is not missing a check. It is declining to read one it already holds.
 
-The flag exists because the survivors this skill detects are real findings with
-no route to a remediation surface: writing one conforming file is that route, and it needs no wiring
-on the consuming side, the `review:fanout` `fix` action locates its input by frontmatter, never by
-provenance.
+The flag exists because the survivors this skill detects are real findings with no route to a
+remediation surface: writing one conforming file is that route, and it needs no wiring on the
+consuming side, the `review:fanout` `fix` action locates its input by frontmatter, never by provenance.
 
 The mechanics are owned by [`context/persist-findings.md`](context/persist-findings.md), which reads
 the detector-findings producer contract for this plugin. Six things there are easy to get wrong and
-are not optional: the destination is the contract's `<memory_dir>/reviews/<branch-slug>/`, never a hardcoded
-path outside it;
+are not optional: the destination is the contract's `<memory_dir>/reviews/<branch-slug>/`, never a hardcoded path outside it;
 **each** write this phase makes, the findings file and the self-ignore guard's `.gitignore` where a
 governing checkout was found, is proven outside tracked space before **that** write is made, against
 the checkout that governs the destination rather than the invoking worktree, with the guard's own
 write proven before the guard heals rather than reported afterwards, and with **nothing written at
 all** where a resolved root has no governing checkout, the guard's create-when-absent rule could
 land on a tracked-but-deleted `.gitignore` with no check having been possible, and the findings file
-on a tracked deletion it would modify rather than create
-(a memory root inside tracked space leaves `git status`
+on a tracked deletion it would modify rather than create (a memory root inside tracked space leaves `git status`
 identical either way and so cannot detect itself, while a root outside the worktree is a layout the
 consumer supports and a worktree-anchored probe could only ever refuse); the Phase 4 **verdict
 class** selects the contract rule and the rule decides `Tier`, never the finding's prose, with
@@ -470,8 +471,7 @@ Each one produces a *plausible* result, which is what makes them worth listing.
 - **A partially-completed run must report as partial.** Mutants that never ran are named as not-run,
   never counted as killed, never silently omitted. The same rule applies to a mutant set truncated
   by a cap. **A run cut short by a failed restore is not this case**. It reports failure, not a
-  partial result ([Phase 3](#phase-3-execute)). A partial report describes a tree that is intact;
-  that one is not.
+  partial result ([Phase 3](#phase-3-execute)). A partial report describes a tree that is intact; that one is not.
 - **Reaching for a withholding label is the standard way this technique manufactures false
   confidence.** "Equivalent" is the convenient explanation for any survivor whose test is hard to
   write. [Phase 4](#phase-4-triage-fresh-context) holds the bar for both withholding labels; do not

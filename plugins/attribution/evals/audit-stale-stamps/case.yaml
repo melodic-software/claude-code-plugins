@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: audit-stale-stamps
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'routes-audit'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:attribution:)?audit"'
+    arm: 'both'
+  - name: 'check-stamps-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?!(?:[^"\\]|\\.)*?--(?:show-config|help)\b)(?:[^"\\]|\\.)*?check-stamps\.sh'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-expired'
+    type: 'regex'
+    pattern: 'retry-policy\.md(?:(?!\.md\b)[\s\S]){0,200}?(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale|out of date|days over|days past|past (?:its |the )?(?:expiry|180-day|window))\b|(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale)\b[^\n.;!?]{0,120}?retry-policy\.md|^(?![^\n]*\b(?:no|none|zero|not|0)\s+(?:[\w-]+\s+){0,3}(?:expired|overdue|stale)\b)[^\n]*\b(?:expired|overdue|stale|days over)\b[^\n]*\n(?:(?!\.md\b)[\s\S]){0,400}?retry-policy\.md'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'fresh-not-expired'
+    type: 'regex'
+    pattern: 'cache-layout\.md(?:(?!\b(?:only|but|whereas|while|unlike)\b)[^\n.;!?]){0,100}?(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale)\b|(?<!not )(?<!n''t )(?<!n’t )(?<!yet )(?<!never )(?<!no )\b(?:expired|overdue|stale)\b[ \t]*:[ \t]*[`*]*(?:docs/)?cache-layout\.md'
+    flags: 'i'
+    match: 'not_contains'
+    target: 'last_message'

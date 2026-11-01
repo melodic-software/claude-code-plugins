@@ -977,7 +977,11 @@ cat >"$surface_dir/questions.json" <<'EOF'
 {"meta": {"title": "Export test"}, "rev": 1, "groups": [], "questions": [], "visuals": [],
  "restatements": [{"rev": 1, "at": "2026-09-24T10:00:00Z", "sections": {
    "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.",
-   "acceptance": "- p75 build is 4 min or less", "decisions": "- Q1 only the admin writes"}}]}
+   "tldr": "- Remote cache for CI builds",
+   "acceptance": "- p75 build is 4 min or less\n- a cache miss runs the full build",
+   "problem": "- Gap: merges queue behind slow builds", "constraints": "- no paid runners",
+   "outOfScope": "- fork builds", "planningOwned": "- the cache key layout",
+   "decisions": "- Q1 only the admin writes"}}]}
 EOF
 cat >"$surface_dir/responses.json" <<'EOF'
 {"seq": 4, "responses": {}, "history": {}, "events": [
@@ -1022,6 +1026,58 @@ done
 expect_exit "--surface without --procedure -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --surface "$surface_dir"
 expect_exit "--surface without --brief -> 2" 2 --ledger "$surface_ledger" --procedure --surface "$surface_dir"
 expect_exit "a missing --surface dir -> 2" 2 --ledger "$surface_ledger" --brief "$page_export" --procedure --surface "$TMP/no-surface"
+
+# 60b. Each copy of the page export broken one property at a time fails the Step 4
+#      page-surface command (--procedure --brief --surface).
+for want in "- Remote cache for CI builds" "- p75 build is 4 min or less" "- a cache miss runs the full build" "- Q1 only the admin writes" "Cut CI time so merges stop queuing."; do
+  if grep -qxF -e "$want" "$page_export"; then pass "the page export carries '$want'"; else fail "the page export carries '$want'"; fi
+done
+# page_variant <name> <awk program>: the page export rewritten by the program; echoes its path.
+page_variant() {
+  awk "$2" "$page_export" >"$TMP/page-export-$1.md"
+  printf '%s' "$TMP/page-export-$1.md"
+}
+# expect_surface_defect <label> <Brief> <stderr substring>
+expect_surface_defect() {
+  local err
+  expect_exit "--surface on $1 -> 1" 1 --ledger "$surface_ledger" --brief "$2" --procedure --surface "$surface_dir"
+  err="$(stderr_of --ledger "$surface_ledger" --brief "$2" --procedure --surface "$surface_dir")"
+  if [[ "$err" == *"$3"* ]]; then pass "--surface names $1"; else fail "--surface names $1 (stderr: '$err')"; fi
+}
+# shellcheck disable=SC2016 # the $0 in each program is awk's, not the shell's
+{
+  intent_para='$0 == "Cut CI time so merges stop queuing."'
+  admin_line='$0 == "- Q1 only the admin writes"'
+  other_form='Decisions has a line the page export does not write (a decision in another form, or a second line for it): - Q1 anyone writes'
+  expect_surface_defect "an Intent set to 'none stated'" "$(page_variant none-stated "$intent_para"' { print "none stated"; next } { print }')" \
+    "Intent is missing a line the page export writes: Cut CI time so merges stop queuing."
+  expect_surface_defect "an emptied Intent" "$(page_variant empty-intent '/^### Intent$/ { print; skip = 1; next } /^### / { skip = 0 } !skip')" \
+    "Intent is missing a line the page export writes: - Q1 own answer: Only the admin writes."
+  expect_surface_defect "a deleted Decisions section" "$(page_variant no-decisions-section '/^### Decisions$/ { skip = 1; next } /^### / { skip = 0 } !skip')" \
+    "missing the section 'decisions' that the page export writes"
+  expect_surface_defect "a duplicated decision line" "$(page_variant dup-decision '{ print } '"$admin_line"' { print }')" \
+    "Decisions has a line 2 times that the page export writes 1 time(s): - Q1 only the admin writes"
+  expect_surface_defect "a decision put back in an earlier form" "$(page_variant old-decision "$admin_line"' { print "- Q1 anyone writes"; next } { print }')" \
+    "$other_form"
+  expect_surface_defect "a decision contradicted by a second line" "$(page_variant contradicted-decision '{ print } '"$admin_line"' { print "- Q1 anyone writes" }')" \
+    "$other_form"
+  expect_surface_defect "removed restated TLDR bullets" "$(page_variant no-tldr-bullet '$0 != "- Remote cache for CI builds"')" \
+    "TLDR is missing a line the page export writes: - Remote cache for CI builds"
+  expect_surface_defect "a removed acceptance criterion" "$(page_variant one-criterion '$0 != "- a cache miss runs the full build"')" \
+    "Acceptance criteria is missing a line the page export writes: - a cache miss runs the full build"
+  expect_surface_defect "a removed restated Goal line" "$(page_variant no-goal-line '$0 != "Cut CI build time."')" \
+    "Goal is missing a line the page export writes: Cut CI build time."
+  expect_surface_defect "a removed restated Problem line" "$(page_variant no-problem-line '$0 != "- Gap: merges queue behind slow builds"')" \
+    "Problem is missing a line the page export writes: - Gap: merges queue behind slow builds"
+  expect_surface_defect "a removed restated constraint" "$(page_variant no-constraint '$0 != "- no paid runners"')" \
+    "Constraints is missing a line the page export writes: - no paid runners"
+  expect_surface_defect "a removed Out-of-scope line" "$(page_variant no-out-of-scope '$0 != "- fork builds"')" \
+    "Out-of-scope is missing a line the page export writes: - fork builds"
+  expect_surface_defect "a removed Deferred line" "$(page_variant no-deferred '$0 != "- the cache key layout; **arbiter: /planning:plan**"')" \
+    "Deferred questions is missing a line the page export writes: - the cache key layout; **arbiter: /planning:plan**"
+  expect_surface_defect "a decision line repeated under Constraints" "$(page_variant decision-in-constraints '{ print } $0 == "- no paid runners" { print "- Q1 only the admin writes" }')" \
+    "Constraints has a line the page export does not write (a decision in another form, or a second line for it): - Q1 only the admin writes"
+}
 
 # 61. --procedure grades the Step-exit checkboxes and the assumption sweep's
 #     dispositions. The reported failure: a sweep returned an undecided `decision`

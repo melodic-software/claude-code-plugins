@@ -28,7 +28,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Development
 
-- [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit.
+- [`markdown-format`](../plugins/markdown-format): Rewrites Markdown with markdownlint-cli2 once per batch of tool calls and at git pre-commit, only in repos that carry their own markdownlint config; findings are reported at commit and, unless markdown_format_end_of_turn is false, at each turn end for the uncommitted changes.
 - [`bash-format`](../plugins/bash-format): Auto-format shell scripts with shfmt once per batch of tool calls and again at git pre-commit, and check them with ShellCheck at commit, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`biome-format`](../plugins/biome-format): Rewrites JavaScript, TypeScript, JSX and JSON with Biome once per batch of tool calls and at git pre-commit, only when a biome.json governs the file, using the consuming repo's own Biome config.
 - [`ruff-format`](../plugins/ruff-format): Rewrites Python with Ruff's safe fixes and formatter once per batch of tool calls and at git pre-commit, only when a Ruff config governs the file, using the consuming repo's own Ruff config; lint findings are reported at commit.
@@ -69,7 +69,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 - [`overengineering`](../plugins/overengineering): Evidence-earned-keep audit of agent hooks and instructions, git hooks, CI lanes and gate scripts, branch protections, forge apps, and integrations. audit treats each as a retirement candidate until evidence earns its keep, argues in cost of carry, caps security-class retirements at FLAG-FOR-HUMAN, and writes a diffable findings file. realign simplifies behind a per-item human gate. delta reports changes since the last run. justify asks whether one artifact's reason still holds.
 - [`improvement`](../plugins/improvement): Find and make improvements to anything, from one method to a whole feature. find ranks evidence-cited candidates by value-to-effort and hands the pick to planning; improve ships one improvement, measured against the repo's standards and, when the focus asks for it, current upstream guidance, as one small draft PR. Both run unattended on a schedule.
 - [`attribution`](../plugins/attribution): Finds prose in tracked markdown that restates content an external source owns (vendor docs, blogs, articles) without attribution, confirms the source, and converts the copy into a pointer, a citation, or a dated stamped record. Documentation attribution, not software supply chain. Scripts do only mechanical work; judgment is LLM work. Read-only audit by default; explicit fix and sweep actions apply changes behind a semantic-diff guard and live pointer checks.
-- [`corrections`](../plugins/corrections): Turns a recurring correction into an enforced check. /corrections:codify counts how often a described mistake recurs, picks the strongest enforcement-ladder rung that can catch it, and proposes a check proven to fail on the old code and pass on the current code, using scripts/prove-check.sh to run it in temporary worktrees at two refs.
+- [`corrections`](../plugins/corrections): Turns a recurring correction into an enforced check. /corrections:codify counts how often a described mistake recurs, picks the strongest enforcement-ladder rung that can catch it, and proposes a check proven to fail on the old code and pass on the current code, using scripts/prove-check.sh to run it in temporary worktrees at two refs. It also takes a review findings file (codify findings <file>) or merged pull requests' review comments (codify reviews) as the source.
 
 ## Maintenance
 
@@ -107,7 +107,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Security
 
-- [`guardrails`](../plugins/guardrails): Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, cross-domain paths, PR-fix lane requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, root or out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.
+- [`guardrails`](../plugins/guardrails): Sixteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, cd && git, root/out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets, paths, CLI flags, skill refs and removed paths.
 
 ## Workflow
 

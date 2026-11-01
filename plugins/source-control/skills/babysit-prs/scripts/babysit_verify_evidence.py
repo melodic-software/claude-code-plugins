@@ -11,12 +11,16 @@ of a run can upload its artifacts, so the run record authenticates the name. An 
 repository, and its head SHA is a full SHA on the branch. A FAIL counts from
 any run of verifier origin, whatever its status or conclusion, since the
 upload comes before the run's later steps; a PASS or PASS-NOTES counts only
-from a completed, successful one. Any other artifact is ignored.
+from a completed, successful one. Any other artifact is ignored, and so is a
+FAIL whose verifier run judged a checks run that started while the pull
+request was a draft, which skipped every suite (`_draft_judged`, resolve-pr.mjs
+`draftJudgments`'s rule): every pr-require-checks pull_request run at its head
+created before the verifier run ran ci-status's `Note a draft` step. Such a
+FAIL counts nowhere below, at its head, at another head or toward the cap. A
+failed read, a list cut short or no such run keeps the FAIL.
 
 `Reader.evidence` decides one pull request at its vetted head, in this order:
 
-- the pull request was created more than `TOO_OLD_DAYS` ago:
-  `verify:too-old`, since a verdict may already have expired;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
@@ -32,14 +36,17 @@ from a completed, successful one. Any other artifact is ignored.
   attempt starts its own count;
 - a counted FAIL at the head, under any pull request number: `verify:fail`,
   unless it is superseded (`_superseded`): every counted FAIL there is this
-  pull request's, every counted pass there was created after them and records
-  other linked issues than each FAIL does, and from the first FAIL's creation
-  to each pass's run's completion (`updated_at`, which a run's later activity
-  only moves later) the pull request has at least one body edit or issue
-  connect or disconnect, every one a trusted person's (one GraphQL read,
-  RELINK_QUERY).
+  pull request's, every counted pass there was created after them, and up to
+  each pass's run's completion (`updated_at`, which a run's later activity
+  only moves later) every body edit and issue connect or disconnect on the
+  pull request is a trusted person's (one GraphQL read, RELINK_QUERY), with
+  at least one from the first FAIL's creation for a pass that records other
+  linked issues than each FAIL does (a relink), else at least one body edit
+  from the last FAIL's creation (a body fix judged at the same head).
   A superseded FAIL still counts toward `max_fails`, and the passes then
-  decide as below. Any record, time or read that fails keeps `verify:fail`;
+  decide as below; the report's `supersededAtHead` names it, for pr-unblock
+  to resolve that FAIL's fail-note threads. Any record, time or read that
+  fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
   from the name's digest, else from its verdict.json):
@@ -90,6 +97,11 @@ from a completed, successful one. Any other artifact is ignored.
   reconciler re-runs the head's checks to start that judgment. A changed
   closing set or a removed spec comment leaves no time to compare, and waits
   for a new head;
+- otherwise, on a pull request created more than `TOO_OLD_DAYS` ago,
+  `verify:too-old`: its verdicts may have expired, and the lost-run
+  reconciler re-runs the head's checks so pr-verify judges it, whose fresh
+  pass clears this. A FAIL expired past the retention no longer counts
+  toward the cap (owner decision 2026-11-01);
 - otherwise `verify:missing`.
 
 Only `verify:untrusted-spec` needs a human (`NEEDS_HUMAN`), who merges in
@@ -98,9 +110,9 @@ for the lanes (when a person is needed:
 https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner),
 and enable-auto-merge.mjs shows
 one that stands as a failing `pr-merge/unarmed` status. `verify:spec-changed`
-waits for the lanes to judge the head again. `verify:repeated-fail` and
-`verify:too-old` never clear (`VERIFY_FINAL`), so the gate never merges such
-a pull request unattended: the pr-merge lane closes a lanes App one for a
+and `verify:too-old` wait for the lanes to judge the head again.
+`verify:repeated-fail` never clears (`VERIFY_FINAL`), so the gate never merges
+such a pull request unattended: the pr-merge lane closes a lanes App one for a
 fresh attempt (`capped_close`), and address-feedback and fix-ci start no
 round on a pull request at `verify:repeated-fail` (pr-unblock
 verify-cap.mjs). A
@@ -166,7 +178,7 @@ judges `provisional` on the listing at hand at any age: an allow stands on
 it until the gate would allow the candidate, when babysit_merge.py calls
 `refresh()` and judges it again on a listing of its own, and so does a
 refusal no later upload clears (`STANDING`: a FAIL at the head, the FAIL
-cap, an old pull request). Any other refusal is judged again on a recent
+cap). Any other refusal is judged again on a recent
 listing, so none dequeues the candidate's queued entry on an older one. A
 candidate the gate refuses for anything else lists nothing more; queued
 entries are judged on a recent listing. A listing that got a 5xx or a fast network
@@ -234,6 +246,10 @@ from babysit_gh import (
 from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
+# The checks workflow pr-verify judges, and its ci-status step that runs only
+# on a draft's event (resolve-pr.mjs `DRAFT_STEP`, `_draft_judged`).
+CHECKS_WORKFLOW = "pr-require-checks.yml"
+DRAFT_STEP = "Note a draft"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
@@ -429,11 +445,12 @@ INTENT_PULL_REQUEST = "pull-request"
 # clear-escalations.mjs LANE_CAUSES.verdict shares nothing with it
 # (lane-causes-person-codes.test.mjs).
 NEEDS_HUMAN = (UNTRUSTED_SPEC,)
-# The refusals that never clear for the pull request: the FAIL cap and an
-# old pull request. The pr-merge lane closes a lanes App pull request at one
-# of them for a fresh attempt at its issue (`capped_close`, owner decision
+# The refusals that never clear for the pull request: the FAIL cap. An old
+# pull request's `verify:too-old` clears on a fresh pass at its head (owner
+# decision 2026-11-01). The pr-merge lane closes a lanes App pull request at
+# one of them for a fresh attempt at its issue (`capped_close`, owner decision
 # 2026-10-29), never adding a person's label.
-VERIFY_FINAL = (REPEATED_FAIL, TOO_OLD)
+VERIFY_FINAL = (REPEATED_FAIL,)
 # `_elsewhere`'s refusal detail when a FAIL run of another pull request for
 # the same issue cannot be read: pr-unblock verify-cap.mjs reads it as the
 # cap, failing closed.
@@ -451,10 +468,9 @@ CAPPED_CLOSE_RE = re.compile(
 )
 # The refusals no upload after the listing clears (`Reader.evidence`): a
 # counted FAIL at the head or the cap's FAILs stay counted whatever is
-# uploaded later, as no pass clears them, and a pull request's age only
-# grows. A pass uploaded later can clear any other refusal, and a read may
+# uploaded later, as no pass clears them. A pass uploaded later can clear any other refusal, and a read may
 # answer otherwise.
-STANDING = (FAIL, REPEATED_FAIL, TOO_OLD)
+STANDING = (FAIL, REPEATED_FAIL)
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
     "labels(first:100){totalCount nodes{name}} "
@@ -933,6 +949,9 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
+    # A counted FAIL at the head that `_superseded` gave way; False when the
+    # cap or a failed read decided first.
+    superseded_at_head: bool = False
 
     @property
     def needs_human(self) -> bool:
@@ -953,6 +972,7 @@ class Evidence:
             ),
             "ignored": self.ignored,
             "detail": self.detail,
+            "supersededAtHead": self.superseded_at_head,
         }
 
 
@@ -1140,6 +1160,13 @@ class Reader:
     # A pass run's `updated_at`, its completion (`_superseded`).
     _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
+    # `_draft_judged` answers by (head, FAIL run), and whether each checks
+    # run ran DRAFT_STEP (`_draft_run`).
+    _draft_judgments: dict[tuple[str, int], bool] = field(default_factory=dict)
+    _draft_runs: dict[int, bool] = field(default_factory=dict)
+    # The verifier run ids of each counted FAIL by (pull request, head), for
+    # `_elsewhere`'s draft check.
+    _fail_runs: dict[tuple[int, str], list[int]] = field(default_factory=dict)
     # Whether a pull request no issue lists counts (`_elsewhere`).
     _counted: dict[int, bool] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
@@ -2050,8 +2077,8 @@ class Reader:
         (`_record`), one entry per artifact, heads sorted. A record that
         cannot be read (an expired artifact, a failed download) is named by
         its run with `unreadable`, never skipped. A judgment that never
-        reached the listing (`verify:too-old`) left none, so the pull
-        request's own FAILs are read from the listing here (`_own_fails`)."""
+        reached the listing left none, so the pull request's own FAILs are
+        read from the listing here (`_own_fails`)."""
         if number not in self.fail_artifacts:
             self.fail_artifacts[number] = self._own_fails(number)
         found: list[dict[str, Any]] = []
@@ -2079,7 +2106,8 @@ class Reader:
 
     def _own_fails(self, number: int) -> dict[str, list[tuple[int, str, Any]]]:
         """The pull request's own FAIL artifacts in the listing, by head,
-        whose runs are not of another origin; one whose run cannot be read
+        whose runs are not of another origin and did not judge a run that
+        started on the draft (`_draft_judged`); one whose run cannot be read
         is kept, so `fail_findings` names it unreadable."""
         own: dict[str, list[tuple[int, str, Any]]] = {}
         for item in map(json_object, self._listing()):
@@ -2093,6 +2121,7 @@ class Reader:
                 or not isinstance(run_id, int)
                 or isinstance(run_id, bool)
                 or self._run_state(run_id, shared=True) == FOREIGN
+                or self._draft_judged(match[2], run_id)
             ):
                 continue
             own.setdefault(match[2], []).append(
@@ -2205,8 +2234,7 @@ class Reader:
         pr = json_object(pr)
         created = postmerge._time(pr.get("created_at"))
         now = self.now or datetime.now(UTC)
-        if now - created > timedelta(days=TOO_OLD_DAYS):
-            return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
+        too_old = now - created > timedelta(days=TOO_OLD_DAYS)
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
@@ -2229,6 +2257,7 @@ class Reader:
         # When each of those FAILs was uploaded (`created_at`), by pull
         # request and head, for the cap's fresh-attempt floor (`_elsewhere`).
         fail_times: dict[tuple[int, str], list[Any]] = {}
+        self._fail_runs = {}
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
             match = verdict_name(name)
@@ -2286,6 +2315,7 @@ class Reader:
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
             fail_times.setdefault((pr_n, sha), []).append(item.get("created_at"))
+            self._fail_runs.setdefault((pr_n, sha), []).append(run_id)
             for issue in named_issues(match):
                 failed_by_issue.setdefault(issue, set()).add((pr_n, sha))
             if not tied and match[4] is not None:
@@ -2301,6 +2331,9 @@ class Reader:
                     continue
                 if not head_ref or recorded != head_ref:
                     continue
+            if self._draft_judged(sha, run_id):
+                ignored += 1
+                continue
             verdicts.append(Verdict(sha, verdict, run_id))
             fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
         fails = [v for v in verdicts if v.verdict == "fail"]
@@ -2321,10 +2354,11 @@ class Reader:
 
         refusal: str | None
         detail = unreadable
+        head_superseded = False
         if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads ({_heads(failed)}), the cap is {self.max_fails}"
-        elif head in failed and not superseded(head):
+        elif head in failed and not (head_superseded := superseded(head)):
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
             _, elsewhere = self._elsewhere(
@@ -2385,9 +2419,14 @@ class Reader:
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
                     None,
                 )
+        elif too_old:
+            refusal = TOO_OLD
+            detail = f"created {created.isoformat()}"
         else:
             refusal = MISSING
-        return Evidence(refusal, head, tuple(verdicts), ignored, detail)
+        return Evidence(
+            refusal, head, tuple(verdicts), ignored, detail, head_superseded
+        )
 
     def _off_grammar(
         self, item: dict[str, Any], name: str, tied: bool
@@ -2447,6 +2486,11 @@ class Reader:
                     return True
             return False
 
+        def drafted(pr_n: int, sha: str) -> bool:
+            # Every FAIL there judged a run that started on the draft.
+            run_ids = self._fail_runs.get((pr_n, sha), [])
+            return bool(run_ids) and all(self._draft_judged(sha, r) for r in run_ids)
+
         heads: dict[int, set[str]] = {}
         for_issues: dict[int, set[int]] = {}
         for n in live:
@@ -2454,7 +2498,9 @@ class Reader:
             for pr_n, sha in named | {
                 (p, sha) for p in closers[n] for sha in failed_by_pr.get(p, set())
             }:
-                if after(fail_times.get((pr_n, sha), [None]), n):
+                if after(fail_times.get((pr_n, sha), [None]), n) and not drafted(
+                    pr_n, sha
+                ):
                     heads.setdefault(pr_n, set()).add(sha)
             for pr_n in {
                 *closers[n],
@@ -2549,6 +2595,90 @@ class Reader:
             return postmerge._time(self._created[run_id])
         except postmerge.PostMergeReadError:
             return None
+
+    def _draft_judged(self, sha: str, run_id: int) -> bool:
+        """Whether the FAIL verifier run `run_id` left at `sha` judged a
+        checks run that started while the pull request was a draft, so it
+        counts as no FAIL (resolve-pr.mjs `draftJudgments`, the same rule):
+        every pull_request run of CHECKS_WORKFLOW at `sha` created before the
+        verifier run ran DRAFT_STEP. pr-verify starts when a checks run
+        completes, so the run it judged is among them. The verifier run's
+        creation is read fresh (`_fresh_created`), so no carried record can
+        turn a FAIL away. A failed read, a list cut short, a time that cannot
+        be read, or no run before it answers False: the FAIL counts."""
+        key = (sha, run_id)
+        if key not in self._draft_judgments:
+            try:
+                self._draft_judgments[key] = self._judged_a_draft(sha, run_id)
+            except _Unreadable:
+                self._draft_judgments[key] = False
+        return self._draft_judgments[key]
+
+    def _judged_a_draft(self, sha: str, run_id: int) -> bool:
+        listed = json_object(
+            self._actions(
+                [
+                    "api",
+                    f"repos/{self.repo}/actions/workflows/{CHECKS_WORKFLOW}/runs"
+                    f"?head_sha={sha}&event=pull_request&per_page=100",
+                ],
+                f"checks runs at {sha[:12]}",
+            )
+        )
+        runs = listed.get("workflow_runs")
+        if not is_json_array(runs) or listed.get("total_count") != len(runs):
+            return False
+        created = self._fresh_created(run_id)
+        if created is None:
+            return False
+        before: list[Any] = []
+        for checks in map(json_object, runs):
+            try:
+                if postmerge._time(checks.get("created_at")) < created:
+                    before.append(checks.get("id"))
+            except postmerge.PostMergeReadError:
+                return False
+        return bool(before) and all(self._draft_run(i) for i in before)
+
+    def _draft_run(self, run_id: Any) -> bool:
+        """Whether checks run `run_id`'s latest ci-status job lists DRAFT_STEP
+        as `success` (a draft's run) or `skipped` (not), a condition that
+        reads the run's own event, which a re-run keeps. The jobs API can list
+        a finished job's steps empty or cut short (pr-require-checks.yml's
+        ci-status notes), so anything else raises `_Unreadable`: jobs not read
+        whole, no one ci-status job, the step not listed once, or no such
+        conclusion (resolve-pr.mjs `draftRun`)."""
+        if type(run_id) is not int:
+            return False
+        if run_id not in self._draft_runs:
+            listed = json_object(
+                self._actions(
+                    [
+                        "api",
+                        f"repos/{self.repo}/actions/runs/{run_id}/jobs"
+                        "?filter=latest&per_page=100",
+                    ],
+                    f"jobs of run {run_id}",
+                )
+            )
+            jobs = listed.get("jobs")
+            if not is_json_array(jobs) or listed.get("total_count") != len(jobs):
+                raise _Unreadable(f"the jobs of run {run_id} could not be read whole")
+            ci = [j for j in map(json_object, jobs) if j.get("name") == "ci-status"]
+            listed_steps = json_array(ci[0].get("steps")) if len(ci) == 1 else []
+            steps = [
+                step
+                for step in map(json_object, listed_steps)
+                if step.get("name") == DRAFT_STEP
+            ]
+            conclusion = steps[0].get("conclusion") if len(steps) == 1 else None
+            if conclusion not in ("success", "skipped"):
+                raise _Unreadable(
+                    f"run {run_id}'s draft state: ci-status lists no conclusion "
+                    f"for {DRAFT_STEP}"
+                )
+            self._draft_runs[run_id] = conclusion == "success"
+        return self._draft_runs[run_id]
 
     def _newest(self, passes: list[tuple[int, str, Any]]) -> list[tuple[int, str, Any]]:
         """The passes whose runs started last (`run_started_at`, which a
@@ -2681,23 +2811,24 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]],
         passes: list[tuple[int, str, Any]],
     ) -> bool:
-        """The pull request's linked issues changed at `sha` after its FAIL
-        there, by trusted people only, and it passed there since: every
+        """The pull request's linked issues or body changed at `sha` after its
+        FAIL there, by trusted people only, and it passed there since: every
         counted FAIL at `sha` records this pull request, head and verdict,
-        every counted pass at `sha` was created after them (`_passes_follow`)
-        and records linked issues that differ from each FAIL's, and from the
-        first FAIL's creation to each pass's run's completion (`updated_at`:
-        the run read the linked issues after it started) only trusted people edited
-        the body or connected or disconnected an issue, at least once
-        (`_relinked_by_people`).
+        every counted pass at `sha` was created after them (`_passes_follow`),
+        and up to each pass's run's completion (`updated_at`: the run read the
+        spec after it started) only trusted people edited the body or
+        connected or disconnected an issue (`_relinked_by_people`): at least
+        once from the first FAIL's creation, for a pass whose linked issues
+        differ from each FAIL's (a relink), else at least one body edit from
+        the last FAIL's creation (a body fix, resolve-pr.mjs `body-edited`).
         A superseded FAIL still counts toward `max_fails`. A record, time or
         read that fails is False."""
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
             return False
         try:
-            # The records first, then the run times and the edits: a FAIL at a
-            # head that also passed is most often a spec change, not a relink.
+            # The records first, then the run times and the edits, read once
+            # per pull request.
             judged: set[frozenset[int]] = set()
             for run_id, name, artifact in fails:
                 record = self._record(run_id, name, artifact)
@@ -2708,14 +2839,13 @@ class Reader:
                 ):
                     return False
                 judged.add(_linked_numbers(record))
+            # Whether each pass judged the FAILs' linked issues again.
+            same: list[bool] = []
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
-                if (
-                    record.get("pr") != number
-                    or record.get("head_sha") != sha
-                    or _linked_numbers(record) in judged
-                ):
+                if record.get("pr") != number or record.get("head_sha") != sha:
                     return False
+                same.append(_linked_numbers(record) in judged)
             if not self._passes_follow(
                 [Verdict(sha, "fail", r) for r, _, _ in fails], passes
             ):
@@ -2723,12 +2853,16 @@ class Reader:
             created = [self._fresh_created(r) for r, _, _ in fails]
             if None in created:
                 return False
-            since = min(c for c in created if c)
+            first = min(c for c in created if c)
+            last = max(c for c in created if c)
             if not all(
                 self._relinked_by_people(
-                    number, since, postmerge._time(self._updated.get(run_id))
+                    number,
+                    last if body else first,
+                    postmerge._time(self._updated.get(run_id)),
+                    body_edit=body,
                 )
-                for run_id, _, _ in passes
+                for (run_id, _, _), body in zip(passes, same, strict=True)
             ):
                 return False
         except (_Unreadable, postmerge.PostMergeReadError):
@@ -2736,15 +2870,16 @@ class Reader:
         return True
 
     def _relinked_by_people(
-        self, number: int, since: datetime, until: datetime
+        self, number: int, since: datetime, until: datetime, *, body_edit: bool = False
     ) -> bool:
         """At least one body edit or issue connect or disconnect on the pull
-        request falls from `since` to `until`, ends included, and every one
-        there was a trusted person's (`_trusted_actor`): never the lanes App
-        or another Bot, nor an actor GitHub cannot name. None there means the
-        link changed some way this read cannot see. RELINK_QUERY is read once
-        per pull request; a failed read, a list cut short or an act with no
-        readable time is False."""
+        request falls from `since` to `until`, ends included (a body edit,
+        under `body_edit`), and every one there was a trusted person's
+        (`_trusted_actor`): never the lanes App or another Bot, nor an actor
+        GitHub cannot name. None there means the link changed some way this
+        read cannot see. RELINK_QUERY is read once per pull request; a failed
+        read, a list cut short or an act with no readable time is False
+        (resolve-pr.mjs `relinkedByPeople`, `editedByPeople`)."""
         if number not in self._relinks:
             try:
                 self._relinks[number] = json_object(
@@ -2766,21 +2901,21 @@ class Reader:
         ):
             return False
         acts = [
-            (node.get("editedAt"), node.get("editor"))
+            (node.get("editedAt"), node.get("editor"), True)
             for node in map(json_object, edits["nodes"])
         ] + [
-            (node.get("createdAt"), node.get("actor"))
+            (node.get("createdAt"), node.get("actor"), False)
             for node in map(json_object, events["nodes"])
         ]
         try:
             inside = [
-                json_object(actor)
-                for at, actor in acts
+                (json_object(actor), edit)
+                for at, actor, edit in acts
                 if since <= postmerge._time(at) <= until
             ]
-            return bool(inside) and all(
+            return any(edit or not body_edit for _, edit in inside) and all(
                 self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
-                for actor in inside
+                for actor, _ in inside
             )
         except (_Unreadable, postmerge.PostMergeReadError):
             return False
@@ -3477,10 +3612,10 @@ def _kept_report(
     object comparing it with the kept one."""
     fresh = None
     if look.key is not None and answer_cacheable(report):
-        # A pull request already too old stays so; any other answer is read
-        # again once it turns too old.
+        # Age changes only one answer: verify:missing turns verify:too-old
+        # past TOO_OLD_DAYS. Any other answer moves only with the key.
         limits = [now + ANSWER_TTL, look.pass_expiry]
-        limits.append(None if report.get("refusal") == TOO_OLD else look.too_old)
+        limits.append(look.too_old if report.get("refusal") == MISSING else None)
         fresh = {
             "key": look.key,
             "readAt": now.isoformat(),

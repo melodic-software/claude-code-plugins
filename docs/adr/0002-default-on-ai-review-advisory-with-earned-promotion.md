@@ -437,6 +437,12 @@ this ADR to match what `ci-status` already does.
   (`.github/workflows/pr-review-security-hosted.yml`) leaves no required check unreported. The
   review requirement runs on the `pull_request` event only; in the queue, the `Fail a queued pull
   request carrying a hold label` step reads the hold labels again.
+- **The precision series tunes the lanes; it is not a promotion gate.** With Decision 2
+  superseded, lane precision has no promotion left to earn. The review-lane precision series
+  ([#7638](https://github.com/melodic-software/claude-code-plugins/issues/7638), the
+  `/harness-ops:morning-brief` `precision` action) sorts each lane's findings by how they were
+  answered and counts reposts and rounds to pass, as the instrument for tuning each lane's prompt,
+  model and effort and what it reports.
 
 ## Revisit triggers
 

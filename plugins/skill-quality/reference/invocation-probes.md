@@ -103,9 +103,19 @@ the span). Should-not-trigger probes are exempt.
 
 ## emit-plugin-eval results
 
-Each emitted `prompt.md` allows `Skill`, `Read`, `Glob` and `Grep`, so an exploratory read
-is not a denied call that marks the run INVALID. Run the emitted cases with `--keep-temp`:
-`run-validity.py` checks the traces, and they do not resolve without it.
+Run the emitted cases with `--ablation none --keep-temp --disallow-tools Read Glob Grep Agent`,
+as the emitted README shows. The run workspace is empty, so an agent that can search looks
+outside it, and `run-validity.py` fails the run on those denied calls. An agent that can dispatch
+a subagent, after the skill loads, hands it the task, and the run outlives its timeout. A case's
+`allowed_tools` only adds tools, so `--disallow-tools` is what removes them. `run-validity.py`
+reads the traces, which resolve only with `--keep-temp`, and its `probe tools` check warns when a
+probe run could still call one of these tools.
+
+- **Pointer**: `claude plugin eval --help`, the `--disallow-tools` line; the plugin-evals page,
+  <https://code.claude.com/docs/en/plugin-evals#grant-tools>, documents grants only. **As of**:
+  2026-11-01, Claude Code 2.1.316. **Recheck trigger**: the flag leaves the help, that page
+  documents removing a tool per case, or a kept probe trace's init line lists Agent (as `Task`)
+  with the flag passed.
 
 No script ingests `plugin-eval` or `claude -p` results. Turning them into a report JSON
 that matches `score` output, so `compare` can diff it against the baseline, is a manual step

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: cl-generic-term-rejected
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-why-not-admitted
+    type: regex
+    pattern: '\b(?:generic|general) (?:programming |technical |software |engineering |infrastructure )?(?:term|vocabulary|concept|word|pattern|mechanism)s?\b|\bimplementation(?:[- ](?:details?|specifics?|specification|mechanism|concerns?|level))\b|\b(?:not|isn''t|is not|rather than) (?:a |an )?(?:project[- ]specific |domain[- ]specific |business )?domain (?:term|concept|language|vocabulary|meaning)\b|\b(?:project[- ])?domain meaning\b|\barchitecture (?:docs?|documentation)\b|\btechnical (?:term|detail|vocabulary|concern)s?\b|\b(?:framework|tooling|library) nouns?\b|\bis tooling\b|\bare tooling\b'
+    flags: 'i'
+    target: last_message
+  - name: glossary-untouched
+    type: regex
+    pattern: '\bretr(?:y|ies|ied)\b|\bpolly\b|\bredis\b|\bbackoff\b'
+    flags: 'i'
+    match: not_contains
+    target: { source: file, path: docs/glossary.md }
+  - name: no-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

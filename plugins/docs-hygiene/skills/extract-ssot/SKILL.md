@@ -240,6 +240,12 @@ Per-phase checklist: `context/execution-checklist.md`.
 | `/docs-hygiene:rename-references` | An extraction renamed a heading, and every citing form still needs sweeping. |
 | `/docs-hygiene:audit-encapsulation` | The duplication turns out to sit across a skill boundary. |
 
+## Spoke paths
+
+The `actions/` and `context/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or
+writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
+
 ## Recheck triggers
 
 | Condition | Action |

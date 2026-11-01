@@ -1,0 +1,106 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pwsh -NoProfile -Command \"Get-ItemProperty 'HKCU:\\Control Panel\\Desktop' | Select-Object ScreenSaveActive, ScreenSaveTimeOut, ScreenSaverIsSecure\"",
+            "description": "Set screensaver timeout check"
+          }
+        }
+      ],
+      "why": "registry read whose description says set"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /q SCHEME_CURRENT SUB_VIDEO VIDEOIDLE",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg query"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /requests",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg requests"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /change monitor-timeout-ac 0",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg /change"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /x standby-timeout-ac 0",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg /x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "powercfg /setacvalueindex SCHEME_CURRENT SUB_VIDEO VIDEOIDLE 0",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "powercfg /setacvalueindex"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "xset -dpms",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "local Linux equivalent"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "systemctl mask sleep.target suspend.target",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "systemd sleep mask"
+    }
+  ]
+}

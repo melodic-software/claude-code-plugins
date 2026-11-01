@@ -3,6 +3,38 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.1] - 2026-11-01
+
+### Fixed
+
+- The `code-reviewer`, `brief-reviewer`, `ci-log-auditor`, `doc-drift-detector` and
+  `architecture-guardian` agents no longer claim their `model: opus` pin always reviews on a model
+  at least as capable as the one that produced the work. The pin is stated as this repository's
+  choice to keep judgment fan-out off the frontier tier, and each points at the subagent model
+  order for what it resolves to. The pins are unchanged.
+  `fanout` run-everything mode points at the values the Agent `model` parameter takes and labels
+  the cross-vendor reviewer as this repository's design choice, and `quality-gate` downstream mode
+  points at the subagent nesting rule ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+- Two eval cases check that `setup apply` passes a key the operator accepts at the plugin default as
+  `--default <key>`, and a value the operator chose as `<key>=<value>` even when it equals the
+  default, and that the written file records `default` or `chosen` to match.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer, so `ratchet_offer`, `downstream_probe` and `fanout_diversity` fall back to their defaults for that session. Update everyone sharing a repository before anyone
+  writes the file.
+
 ## [2.0.8] - 2026-10-31
 
 ### Changed
