@@ -53,6 +53,14 @@
     {
       "answer": "Clone https://github.com/anthropics/claude-plugins-official and start Claude with `--plugin-dir` pointing at its plugins/playground folder.",
       "why": "a dot inside a URL does not end the sentence before the workaround"
+    },
+    {
+      "answer": "Copy the skill folder into .claude/skills, and it won't need the plugin install.",
+      "why": "a negation after the workaround does not cover it"
+    },
+    {
+      "answer": "Start Claude with --plugin-dir ./playground; it won't touch your managed settings.",
+      "why": "a negation after a path workaround does not cover it"
     }
   ]
 }
