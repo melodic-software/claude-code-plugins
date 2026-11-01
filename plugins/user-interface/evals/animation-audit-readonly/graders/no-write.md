@@ -1,7 +1,7 @@
 ---
-type: tool_used
-tool: Write
-min: 0
-max: 0
+type: regex
+target: trace
+match: not_contains
 arm: both
+pattern: '"name":"(?:Write|NotebookEdit)","input":\{|"name":"Skill","input":\{[^}]*?--fix'
 ---

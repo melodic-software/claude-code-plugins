@@ -422,7 +422,14 @@ bash "<plugin-root>/scripts/check-open-questions.sh" \
 bash "<plugin-root>/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <memory_dir>/<topic-slug>/PLAN.md
+
+# Step 4 on a page-surface run: the same, plus the page's data dir.
+bash "<plugin-root>/scripts/check-open-questions.sh" \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
+  --brief <memory_dir>/<topic-slug>/PLAN.md --surface '<data_dir>'
 ```
+
+`--surface` checks the Brief against the page's export; [`surface.md`](surface.md) "Wrap-up" lists what it fails.
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 

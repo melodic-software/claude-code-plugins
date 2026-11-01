@@ -142,10 +142,17 @@
     },
     {
       "name": "markdown-format-stop-end-of-turn-option-off-spawns",
-      "command": "bash scripts/hook-census.sh markdown-format Stop markdown-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "command": "bash scripts/hook-census.sh markdown-format Stop markdown-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --env CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN=false --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 1,
-      "goal": "With markdown_format_end_of_turn at its default (false), the Stop row costs only the node launcher: the --require-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who never opted in. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+      "goal": "With markdown_format_end_of_turn set to false, the Stop row costs only the node launcher: the --run-if-unset-or-true gate closes before bash starts. Stop fires on every turn end, so this is what every turn costs a user who turned the check off. Measured 1 on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "markdown-format-stop-end-of-turn-default-clean-spawns",
+      "command": "bash scripts/hook-census.sh markdown-format Stop markdown-format.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"stop_hook_active\":false,\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 20,
+      "goal": "With markdown_format_end_of_turn unset, its default, the Stop row runs the check on every turn end; on a clean tree with no uncommitted Markdown it prints nothing. This is what every turn costs a user who never set the option. Measured 20 (11 creations, 9 execs) on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
       "name": "powershell-format-stop-end-of-turn-option-off-spawns",

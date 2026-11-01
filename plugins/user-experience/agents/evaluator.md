@@ -2,8 +2,9 @@
 name: evaluator
 description: "Fresh-context UX evaluator: judges a flow, journey or synthesis produced earlier in the same session against the method its brief names, and returns findings only. Dispatched by /user-experience:evaluate with the artifact's path and the method; not intended for direct ad-hoc use."
 tools: Read, Grep, Glob
-model: opus
-effort: high
+model: opus # reason: this repository's choice; a fresh-context judge of another agent's artifact gets a strong model, and no upstream page sets one
+# effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level, as of 2026-10-31; recheck when that table's levels or rows change
+effort: high # reason: an evaluation is verification work, which the linked table maps to this level
 maxTurns: 30
 ---
 

@@ -227,8 +227,9 @@ never copy a case's text and never use held-back cases.
    copies of the plugin made for the run.
 
 Re-run on any change: a description change re-measures triggering, a body change re-measures
-output (`/evals:plugin-eval` for a plugin suite). `evals/evals.json` follows the runner's shape;
-`/skill-quality:check validate-evals <skill>` checks it.
+output (`/evals:plugin-eval` for a plugin suite). A skill's cases are `case.yaml` cases in its
+plugin's `evals/` directory (`/evals:design skill <name>` writes them); `/evals:validate` checks
+them before a run.
 
 **Pre-share checklist.** Each row is mechanical (a `/skill-quality:check` check decides it),
 judgment (a reviewer reads) or attestation (the author states it).
@@ -243,10 +244,12 @@ judgment (a reviewer reads) or attestation (the author states it).
 - Scripts: `scripts/*.test.sh` pass (mechanical, check 7); no committed cache or build artifacts
   (mechanical, check 13); injected `!` commands portable with a fallback (mechanical, checks 19
   and 20); output names what the script did, including on failure (judgment).
-- Evals and testing: `evals/evals.json` present (mechanical, check 14) and valid
-  (`validate-evals`); fresh-session baseline captured (attestation); models exercised, from
-  `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill run under a `model` override or
-  inside a subagent names every target model, or says which are untested (attestation).
+- Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); check 14 reads
+  only the skill-creator JSON file, and a gate running it with `--require-evals` still needs that
+  file until check 14 reads suite cases (mechanical); fresh-session baseline captured
+  (attestation); models exercised, from `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill
+  run under a `model` override or inside a subagent names every target model, or says which are
+  untested (attestation).
 
 Close with `/skill-quality:check <skill>`: it answers the mechanical rows, and its WARN lines are
 the reviewer's reading list for the rest.

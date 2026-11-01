@@ -1,0 +1,130 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.files[]' /tmp/run/corpus.json > /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the corpus file list goes to a temp path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/opt/p/skills/audit/scripts/check-stamps.sh\" --paths-file /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the stamp check reads the docs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n Verified docs/retry-policy.md docs/cache-layout.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a read-only grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp docs/retry-policy.md /tmp/run/retry-policy.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies a fixture out, not into it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '/re-verified/p' docs/release-notes.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed without -i; the word re-verified carries a dash before letters ending in i"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/2024-03-04/2026-10-31/' docs/retry-policy.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "refreshes the stamp in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'Verified 2026-10-31.\\n' >> docs/release-notes.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "appends to a fixture"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /tmp/new.md | tee docs/retry-policy.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee into a fixture"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/run/fixed.md docs/cache-layout.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies over a fixture"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e 's/March 2024/2024-03-01/' docs/release-notes.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "perl -i on a fixture"
+    }
+  ]
+}

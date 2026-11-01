@@ -4,6 +4,28 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.25.2] - 2026-11-01
+
+### Fixed
+
+- `rewrite-a-plugin.md` step 5 runs the emitted trigger probes with `--disallow-tools Read Glob Grep`, so the runs can gate VALID.
+
+## [0.25.1] - 2026-10-31
+
+### Changed
+
+- The skill criteria reference puts a skill's eval cases in its plugin's `evals/` directory as `case.yaml` cases, written by `/evals:design` and checked by `/evals:validate`, in place of `evals/evals.json` and `/skill-quality:check validate-evals`.
+
+## [0.25.0] - 2026-10-31
+
+### Added
+
+- `/playbooks:skill-authoring` eval cases for the skill criteria's "State the action" and structured-output rules: `skill-authoring-reason-for-required-step`, `skill-authoring-reason-scopes-narrow-rule`, `skill-authoring-background-left-out`, `skill-authoring-self-evident-rule-no-reason`, `skill-authoring-judgment-rule-no-reason` and `skill-authoring-style-output-labeled-pairs`. Each checks that the run read `reference/skill-criteria.md`.
+
+### Changed
+
+- `/playbooks:skill-authoring` skill criteria now ask for each rule's reason unless it is self-evident, with a bad and good example, and add few diverse canonical examples over edge-case lists, domain expertise as what earns a line, the reason behind degrees of freedom and progressive disclosure, and starting a new skill from the expert's written knowledge.
+
 ## [0.24.16] - 2026-10-31
 
 ### Fixed

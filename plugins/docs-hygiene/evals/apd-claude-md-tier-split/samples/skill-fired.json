@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-progressive-disclosure", "args": "CLAUDE.md"}}], "why": "qualified name with target"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "CLAUDE.md"}}, {"tool": "Skill", "input": {"skill": "audit-progressive-disclosure"}}], "why": "bare name after a read"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:write-for-agents"}}], "why": "the writing sibling"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:compress"}}], "why": "the compression sibling"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "instruction-placement:audit"}}], "why": "the placement audit from another plugin"}
+  ]
+}

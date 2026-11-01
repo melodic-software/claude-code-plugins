@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "docs/commands.md \u2014 verdict: delete  [audience: human]\n\n| Factor | Reading |\n|---|---|\n| Derivable? | yes \u2014 package.json scripts |\n\nVerdict rationale: every row restates a script.\n\ndocs/payments-retries.md \u2014 verdict: keep-owns-facts  [audience: both]\n\nOwned-fact salvage: retries stay at 3 because 5 tripped Acme Pay's 10 req/s per-account limit and locked the account.\n\ndocs/commands.md: delete\ndocs/payments-retries.md: keep-owns-facts"
+    },
+    {
+      "answer": "The commands page is a copy of package.json; the payments page owns the reason the retry count is 3 (Acme's rate limit and the March lockout), which no file states.\n\n`docs/commands.md`: convert to a pointer to the package.json scripts\n`docs/payments-retries.md`: keep (trim the settings table, keep the rate-limit rationale)"
+    },
+    {
+      "answer": "- **docs/commands.md**: **remove**\n- **docs/payments-retries.md**: **keep** the rationale paragraph; the settings table can become a link to config/payments.json"
+    },
+    {
+      "answer": "docs/commands.md: delete\ndocs/payments-retries.md: delete",
+      "why": "commands verdict alone is right"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Your vitest run fails because tsconfig.json excludes the test folder. Add it to include.",
+      "why": "different question"
+    },
+    {
+      "answer": "docs/commands.md: keep\ndocs/payments-retries.md: keep",
+      "why": "commands kept"
+    },
+    {
+      "answer": "docs/commands.md looks fine to me; both docs can stay.",
+      "why": "no cut decision"
+    }
+  ]
+}

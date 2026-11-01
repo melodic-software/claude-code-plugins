@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n## tallyctl 2.4.0\n\n### Breaking changes\n\n- `tallyctl export`: `--out-dir` is now `--output`, and the old flag is gone. Use `--output` in your scripts.\n\n### New\n\n- `tallyctl export`: you can write Parquet with `--format parquet`.\n\n### Fixed\n\n- `tallyctl sync` no longer hangs when the remote returns 304.\n- `tallyctl import` keeps the last row of a CSV that has no trailing newline.\n````\n\nApplied the release-note rules in docs/contributing/writing.md.",
+      "why": "user-facing only"
+    },
+    {
+      "answer": "````markdown\n# 2.4.0\n\n## Breaking changes\n- `tallyctl export` renames `--out-dir` to `--output`; update any script that passes `--out-dir`.\n\n## New\n- `tallyctl export --format parquet` writes Parquet files.\n\n## Fixed\n- `tallyctl sync`: no hang on a 304 from the remote.\n- `tallyctl import`: the final CSV row is no longer dropped.\n````\n\nStyle: the project's writing guide, `docs/contributing/writing.md`.",
+      "why": "user-facing only"
+    },
+    {
+      "answer": "",
+      "why": "vacuous pass: no block (house-headings-in-order fails it)"
+    },
+    {
+      "answer": "tallyctl 2.3.0 shipped last month.",
+      "why": "vacuous pass: different question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "````markdown\n### Breaking changes\n- `tallyctl export`: `--out-dir` renamed to `--output`.\n\n### New\n- `tallyctl export --format parquet`.\n\n### Fixed\n- `tallyctl sync` hang on 304.\n- Deflaked the sync retry test.\n- Pinned actions/checkout to v4.2.2.\n- Bumped serde to 1.0.214.\n````",
+      "why": "ci, test and dependency commits listed"
+    },
+    {
+      "answer": "````markdown\n### Fixed\n- Fixed a typo in the README.\n````",
+      "why": "docs commit listed"
+    },
+    {
+      "answer": "````markdown\n### New\n- Split ledger.rs into ledger/mod.rs and ledger/io.rs.\n````",
+      "why": "refactor listed"
+    }
+  ]
+}

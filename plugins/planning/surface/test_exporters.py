@@ -1510,6 +1510,63 @@ class TestResolvedOwnAnswer(SessionCase):
         self.assertNotIn(self.READ, row)
 
 
+class TestRevisedAccept(SessionCase):
+    """A recommendation revised after an accept sets the accept aside: the row is open and names
+    the text the user accepted until they accept again."""
+
+    OLD = "Recommended answer for Q1."
+    NEW = "Use the lock."
+
+    def apply(self, *ops):
+        path = self.tmp / f"ops-{len(list(self.tmp.iterdir()))}.json"
+        path.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        rc, out = self.rp("apply", "--file", str(path))
+        self.assertEqual(rc, 0, out)
+
+    def revised(self):
+        self.session(
+            [question("Q1"), question("Q2")], [event(1, "Q1", "accept", text="fine")]
+        )
+        self.apply(
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": self.NEW,
+                "affects": "none",
+                "keepAlternatives": True,
+                "seq": 1,
+            }
+        )
+
+    def row(self, ledger):
+        return register_rows(ledger)[0]
+
+    def test_the_row_is_open_and_names_the_accepted_text(self):
+        self.revised()
+        row = self.row(self.export("ledger"))
+        self.assertIn("| open |", row)
+        self.assertIn(f"note:: fine; aside:: accepted: {self.OLD}", row)
+        self.assertNotIn(self.NEW, row)
+        self.assertNotIn("answer::", row)
+
+    def test_the_set_aside_accept_round_trips_through_import_ledger(self):
+        self.revised()
+        first = self.export("ledger")
+        again = self.tmp / "again"
+        again.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=again)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.row(self.export("ledger", d=again)), self.row(first))
+
+    def test_accepting_again_counts_the_new_text(self):
+        self.revised()
+        self.apply({"op": "record-terminal", "id": "Q1", "decision": "accept"})
+        row = self.row(self.export("ledger"))
+        self.assertIn("| answered |", row)
+        self.assertIn(f"answer:: accepted: {self.NEW}", row)
+        self.assertNotIn("aside::", row)
+
+
 class TestBriefIntent(SessionCase):
     """The Brief's Intent, above its Goal: the restated intent paragraph, then the user's own
     words from each live ask, note and own event and each note typed on a choice; an answered
@@ -2801,7 +2858,11 @@ class TestImportLedger(SessionCase):
                     "contradictory fields 'hold' and 'status answered'",
                 ),
                 (
-                    "open | round 1 | Who? | aside:: accepted: y",
+                    "open | round 1 | Who? | aside:: free-text: y",
+                    "contradictory fields 'aside' and 'hold'",
+                ),
+                (
+                    "answered | round 1 | Who? | aside:: accepted: y",
                     "contradictory fields 'aside' and 'hold'",
                 ),
                 (

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.15.3] - 2026-11-01
+
+### Fixed
+
+- `/work-items:work` passes `--unattended` to each skill it calls that takes it when it runs unattended: in an autonomous invocation it passes it to `/debugging:debug`, `/implementation:implement-dispatch`, `/source-control:pull-request create --pushed` and `/source-control:babysit-prs`, and in CI mode it passes it to `/debugging:debug` and `/discovery:research`. Before, such a run could reach an ask nobody answers ([#11546](https://github.com/melodic-software/claude-code-plugins/issues/11546)).
+
+## [3.15.2] - 2026-10-31
+
+### Fixed
+
+- `/work-items:work` points its model binding and `userConfig` substitution text at the upstream sections behind them.
+
 ## [3.15.1] - 2026-10-31
 
 ### Fixed
