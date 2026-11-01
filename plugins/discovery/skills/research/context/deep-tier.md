@@ -120,7 +120,10 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
    `question` is the resolved topic and is the only required key. `angles` are optional search
    angles; the default runs official docs first, then vendor blogs, practitioners, and issues and
    changelogs. `sources` are optional seed URLs, read first. `maxConcurrent` is an optional wave
-   size, clamped to 1-16, default 4. `artifactPath` is the slice's `RESEARCH.md`, echoed back. An
+   size, clamped to 1-16 by the workflow script itself, default 4. The clamp is this plugin's own
+   cap; the runtime's concurrency limit for workflow agents is
+   [workflows: behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)'s
+   to state (as of 2026-11-01; recheck when that section changes the limit or how to raise it). `artifactPath` is the slice's `RESEARCH.md`, echoed back. An
    `error` return means nothing was dispatched: relaunch after fixing `missing-question`; take the
    researcher fallback on `no-sources`.
 5. **Write the artifact from the result**, to the shape in [artifact-shape.md](artifact-shape.md).
