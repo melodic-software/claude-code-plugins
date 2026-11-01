@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.2] - 2026-11-01
+
+### Fixed
+
+- The pre-commit content check now fails the commit, with a message saying the scan did not finish, when a text tool it runs (awk, grep, sed, sort or cut) fails. A crashed awk run used to leave the staged text unscanned and the commit passing.
+- The pre-commit content check no longer takes over 30 seconds on a single large added file: its whitespace-only test ran in time that grew with the square of the file's size. A 1,300-file merge now takes about 30 seconds instead of about 100.
+
 ## [0.77.1] - 2026-10-31
 
 ### Fixed

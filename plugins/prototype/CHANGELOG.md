@@ -3,6 +3,14 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-11-01
+
+### Fixed
+
+- The `bg-save-output-harvests` eval case's `lab-route-removed` grader matched `lab` anywhere, so a
+  correct `src/App.jsx` holding the word `label` failed it. The pattern is now `\blab\b`, which
+  still catches the `/lab/torn-edge` route and the `./lab/` import, with samples for both sides.
+
 ## [0.20.0] - 2026-10-31
 
 ### Added
