@@ -50,6 +50,10 @@
     {
       "answer": "1. Where we landed\n   - Q3 churn: [__]\n2. What customers said\n   - Hartwell quote: [__]\n3. Decision\n   - \"Keep or drop the Starter tier?\"",
       "why": "in a compact numbered outline, the next numbered slide ends the quote section"
+    },
+    {
+      "answer": "1. Where we landed\n- Q3 churn: [__]\n2. What customers said\n- Hartwell quote: [__]\n3. Decision\n- \"Keep or drop the Starter tier?\"",
+      "why": "unindented sub-bullets: the next numbered slide still ends the quote section"
     }
   ],
   "fail": [
