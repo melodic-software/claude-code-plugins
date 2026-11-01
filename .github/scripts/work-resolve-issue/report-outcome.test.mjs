@@ -2103,7 +2103,7 @@ test("the outcome marker names a valid credential and fallback reason from lane.
 test("the outcome marker drops a credential that is not a secret name and a fallback reason outside the closed set", () => {
   // An upper-snake value outside the three names run-claude-cli records for
   // issue-lane is dropped too: a rewritten lane.json could hold an encoded token.
-  for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43UOV3HO6DZPI", "AUTOMATIONS_CLAUDE_API_KEY", "", 7]) {
+  for (const credential of ["issue_lane_claude_api_key", TOKEN_SHAPED, "ISSUE-LANE KEY", "Q".repeat(42), "AUTOMATIONS_CLAUDE_API_KEY", "", 7]) {
     assert.deepEqual(credentialOf({ credential }), {}, String(credential));
   }
   for (const fallback of ["handoff", "fallback", "rate-limit", "auth", "limit-stop", "CREDIT-STOP", ""]) {
