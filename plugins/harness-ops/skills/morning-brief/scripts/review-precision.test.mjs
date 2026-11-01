@@ -242,6 +242,9 @@ test("a defer's forward link: this repository's #N or URL, never another reposit
   assert.equal(bucketOf("VALID (defer): filed https://github.com/example/repo/pull/250", 101, repo).bucket, "valid-follow-up");
   assert.equal(bucketOf("VALID (defer): filed https://github.com/other/repo/issues/250", 101, repo).bucket, "answered-unlabeled");
   assert.equal(bucketOf("VALID (defer): filed other/repo#250", 101, repo).bucket, "answered-unlabeled");
+  assert.equal(bucketOf("VALID (defer): filed example/repo#250", 101, repo).bucket, "valid-follow-up");
+  assert.equal(bucketOf("VALID (defer): filed Example/Repo#250", 101, repo).bucket, "valid-follow-up");
+  assert.equal(bucketOf("VALID (defer): filed fork-example/repo#250", 101, repo).bucket, "answered-unlabeled");
   assert.equal(bucketOf("VALID (defer): filed #250", 101, repo).bucket, "valid-follow-up");
 });
 

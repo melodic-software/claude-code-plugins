@@ -91,13 +91,14 @@ export function labelOf(text) {
   return FIX_SHA.test(text) ? "valid" : null;
 }
 
-// The item numbers an answer cites in this repository: `#N` not prefixed by another
-// `owner/repo`, and this repository's issue or pull URLs.
+// The item numbers an answer cites in this repository: a bare `#N`, and this repository's
+// `owner/repo#N` and issue or pull URLs; another repository's never count.
 function citedItems(text, repo) {
   const out = [...String(text).matchAll(/(?<![\w./-])#(\d+)\b/g)].map((m) => Number(m[1]));
   if (repo) {
-    const url = new RegExp(`https://github\\.com/${repo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/(?:issues|pull)/(\\d+)\\b`, "gi");
-    for (const m of String(text).matchAll(url)) out.push(Number(m[1]));
+    const name = repo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const own = new RegExp(`(?<![\\w./-])(?:https://github\\.com/${name}/(?:issues|pull)/|${name}#)(\\d+)\\b`, "gi");
+    for (const m of String(text).matchAll(own)) out.push(Number(m[1]));
   }
   return out;
 }
