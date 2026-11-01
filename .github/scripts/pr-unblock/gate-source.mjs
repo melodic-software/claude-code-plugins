@@ -168,6 +168,34 @@ export function foreignMarker(appComments, since, known) {
     .find((line) => !known(line) && !CLEARED.test(line));
 }
 
+// The hold a review lane, check-signed-commits or pr-verify keeps on a PR at
+// `head`, as gateSource's { source, reason }, or undefined when none is open.
+// These post while the label is already on, so who added it last never
+// decides them; gateSource and sharedCopyGate read them first.
+function openHold(timeline, head, lifted, reviewLabeled) {
+  const result = (source, reason) => ({ source, reason });
+  const holds = timeline.filter((item) => laneHold(item) !== undefined);
+  // A lifted hold on an older head holds nothing, whatever its marker says.
+  const unparsable = holds.find((item) => !HOLD_LINE.test(laneHold(item)) && (!(writtenAt(item) < lifted) || laneHold(item).includes(`sha=${head}`)));
+  if (unparsable !== undefined) {
+    return result("unknown", `a review-lane hold marker does not parse: ${laneHold(unparsable).slice(0, 120)}`);
+  }
+  if (holds.some((item) => HOLD_LINE.exec(laneHold(item))?.[1] === head)) {
+    return result("review-hold", `a review lane holds head ${head}`);
+  }
+  const open = openReviewHold(timeline, lifted, reviewLabeled);
+  if (open !== undefined) {
+    return result("review-hold", `a review lane's hold is open: ${holdText(open).slice(0, 120)}`);
+  }
+  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
+    return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return result("credential-hold", "pr-verify withheld a fail that may hold a credential");
+  }
+  return undefined;
+}
+
 // Where the human-gated `label` on a PR at `head` came from:
 // - "review-hold" when a review lane's hold names `head`, or one is open;
 // - "signed-commits-hold" when check-signed-commits' hold is open;
@@ -183,25 +211,9 @@ export function foreignMarker(appComments, since, known) {
 export function gateSource({ timeline, label, head, isLanesApp, trusted }) {
   const result = (source, reason) => ({ source, reason });
   const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted);
-  const holds = timeline.filter((item) => laneHold(item) !== undefined);
-  // A lifted hold on an older head holds nothing, whatever its marker says.
-  const unparsable = holds.find((item) => !HOLD_LINE.test(laneHold(item)) && (!(writtenAt(item) < lifted) || laneHold(item).includes(`sha=${head}`)));
-  if (unparsable !== undefined) {
-    return result("unknown", `a review-lane hold marker does not parse: ${laneHold(unparsable).slice(0, 120)}`);
-  }
-  const atHead = holds.find((item) => HOLD_LINE.exec(laneHold(item))?.[1] === head);
-  if (atHead !== undefined) {
-    return result("review-hold", `a review lane holds head ${head}`);
-  }
-  const open = openReviewHold(timeline, lifted, reviewLabeled);
-  if (open !== undefined) {
-    return result("review-hold", `a review lane's hold is open: ${holdText(open).slice(0, 120)}`);
-  }
-  if (openSignedCommitsHold(timeline, lifted) !== undefined) {
-    return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
-  }
-  if (openCredentialHold(timeline, lifted) !== undefined) {
-    return result("credential-hold", "pr-verify withheld a fail that may hold a credential");
+  const held = openHold(timeline, head, lifted, reviewLabeled);
+  if (held !== undefined) {
+    return held;
   }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);
@@ -238,10 +250,15 @@ const SHARED_COPY_REFUSAL = /^Refusal: `shared-copy-sources-changed:/;
 // its only marker, came within PAIRED_MS of the label, names `head` (``at head
 // `<sha>` ``) and refuses with the `shared-copy-sources-changed:` prefix, and
 // no lanes App comment since carries a marker but report-escalation.sh's
-// lane-stopped; "unknown" for anything else.
-export function sharedCopyGate({ timeline, label, head, isLanesApp }) {
+// lane-stopped, and no review-lane, signed-commits or credential hold is open
+// (openHold's source then); "unknown" for anything else.
+export function sharedCopyGate({ timeline, label, head, isLanesApp, trusted }) {
   const result = (source, reason) => ({ source, reason });
-  const { labeled, since } = labelHistory(timeline, label);
+  const { labeled, since, lifted, reviewLabeled } = labelHistory(timeline, label, trusted);
+  const held = openHold(timeline, head, lifted, reviewLabeled);
+  if (held !== undefined) {
+    return held;
+  }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);
   }

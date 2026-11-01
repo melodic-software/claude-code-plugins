@@ -719,8 +719,9 @@ jobs:
   # and on a clean merge runs the base's sync-shared-copies.sh, which runs the
   # base's scripts/sync-shared-copies.sh and refuses a head that changes it,
   # its registry or scripts/lib, or a write the base-tip
-  # scripts/shared-copies.txt lists as no copy. A conflicted merge is
-  # resolve-conflicts's to settle, so this one stops there. The regenerated
+  # scripts/shared-copies.txt lists as no copy. A merge that is not clean
+  # escalates as shared-copy-merge-conflicted: resolve-conflicts is held by
+  # the same label, so a session merges main by hand. The regenerated
   # copies leave as a patch, which apply-shared-copies pushes; when the merge
   # already holds current copies (both sides regenerated disjoint canonical
   # edits), it pushes the merge alone, which still moves the head past the
@@ -751,15 +752,19 @@ jobs:
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       patch-sha256: ${{ steps.sync.outputs.sha256 }}
       patch-attempt: ${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}
-      # Only the sync script's own refusals: a merge that is not clean is
-      # resolve-conflicts's, whose reasons this activity never gives.
-      escalation-reason: ${{ steps.sync.outputs.refused }}
+      # The sync script's own refusals, or shared-copy-merge-conflicted for a
+      # merge that is not clean: resolve-conflicts stays held by the label
+      # pr-merge's refusal put on, so the stop goes to the session queue
+      # rather than sitting silent on this head.
+      escalation-reason: >-
+        ${{ steps.sync.outputs.refused
+        || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' && 'shared-copy-merge-conflicted' || '' }}
       skip-reason: >-
         ${{ steps.head.outputs.applicable == 'false' && 'not-applicable'
         || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
         || steps.hold.outputs.held == 'true' && 'awaiting-human'
         || steps.hold.outputs.lane-escalated == 'false' && 'not-applicable'
-        || (steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean') && 'not-applicable' || '' }}
+        || steps.behind.outputs.behind == 'false' && 'not-applicable' || '' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -916,7 +921,8 @@ jobs:
             ;;
           esac
 
-      # As resolve-conflicts-select merges it; only a clean merge goes on.
+      # As resolve-conflicts-select merges it; only a clean merge goes on, and
+      # any other escalates as shared-copy-merge-conflicted.
       - name: Merge the base into the head
         id: prepare
         if: steps.behind.outputs.behind == 'true'

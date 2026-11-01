@@ -690,7 +690,7 @@ jobs:
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
             shared-copy-tooling-changed | shared-copy-path-unregistered | shared-copy-workflow-staged) ;;
             shared-copy-unexpected-path-staged | shared-copy-patch-invalid | shared-copy-patch-not-applied) ;;
-            shared-copy-patch-protected-path) ;;
+            shared-copy-patch-protected-path | shared-copy-merge-conflicted) ;;
             patch-empty | patch-invalid | patch-credential | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"

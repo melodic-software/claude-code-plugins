@@ -6224,7 +6224,7 @@ test("pr-run-activity-write.yml: the first step admits every sync-shared-copies 
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
   const routes = JSON.parse(read("../../scripts/pr-unblock/escalation-routes.json"));
   const rules = JSON.parse(read("./patch-rules.json"));
-  const reasons = ["shared-copy-tooling-changed", "shared-copy-path-unregistered", ...rules["shared-copies"].escalations];
+  const reasons = ["shared-copy-tooling-changed", "shared-copy-path-unregistered", "shared-copy-merge-conflicted", ...rules["shared-copies"].escalations];
   for (const reason of reasons) {
     const status = spawnSync("bash", ["-c", step.run], {
       encoding: "utf8",
@@ -7473,8 +7473,17 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.equal(push["patch-attempt"], "${{ needs.sync-shared-copies-select.outputs.patch-attempt }}");
   assert.equal(outputs["patch-attempt"], "${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}", "an empty run downloads no patch");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.refused": "shared-copy-tooling-changed" }), ["false", ""], "a refusal posts its stop's skip");
-  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "conflicted" }), ["false", "not-applicable"], "resolve-conflicts's to settle");
-  assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "escalate" }), ["false", "not-applicable"]);
+  // resolve-conflicts is held by the same label, so a merge that is not clean
+  // escalates for a session instead of posting not-applicable on the head.
+  const escalation = (values) => evaluate(outputs["escalation-reason"], ctx(values));
+  for (const state of ["conflicted", "escalate"]) {
+    assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": state }), ["false", ""], `a ${state} merge posts its stop's skip`);
+    assert.equal(escalation({ ...gated, "steps.prepare.outputs.merge-state": state }), "shared-copy-merge-conflicted", state);
+  }
+  assert.equal(escalation({ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.refused": "shared-copy-tooling-changed" }), "shared-copy-tooling-changed");
+  for (const values of [{ ...gated, "steps.prepare.outputs.merge-state": "clean", "steps.sync.outputs.state": "written" }, { ...gated, "steps.behind.outputs.behind": "false" }, {}]) {
+    assert.equal(escalation(values), "", JSON.stringify(values));
+  }
   assert.deepEqual(decide({ ...gated, "steps.behind.outputs.behind": "false" }), ["false", "not-applicable"]);
   assert.deepEqual(decide({ ...gated, "steps.hold.outputs.lane-escalated": "false" }), ["false", "not-applicable"], "no shared-copy refusal to answer");
   assert.deepEqual(decide({ ...gated, "steps.hold.outputs.held": "true", "steps.hold.outputs.lane-escalated": "false" }), ["false", "awaiting-human"]);
@@ -7482,7 +7491,6 @@ test("pr-unblock.yml: sync-shared-copies-select proceeds on a written or empty s
   assert.deepEqual(decide({ "steps.head.outputs.applicable": "false" }), ["false", "not-applicable"], "another author or base");
   assert.deepEqual(decide({}), ["", ""], "stopped before deciding");
   assert.deepEqual(decide({ ...gated, "steps.prepare.outputs.merge-state": "clean" }), ["", ""], "the sync step failed");
-  assert.equal(outputs["escalation-reason"], "${{ steps.sync.outputs.refused }}", "only the sync script's refusals, never resolve-conflicts's");
 });
 
 // The not-run job posts the activity's check on every head the select job
@@ -7506,6 +7514,7 @@ test("pr-unblock.yml: sync-shared-copies-not-run posts every decided outcome neu
   assert.deepEqual(posted({ skip: "awaiting-human" }), ["skipped", "awaiting-human"]);
   assert.deepEqual(posted({ skip: "not-applicable" }), ["skipped", "not-applicable"]);
   assert.deepEqual(posted({ reason: "shared-copy-tooling-changed" }), ["skipped", "lane-stopped"]);
+  assert.deepEqual(posted({ reason: "shared-copy-merge-conflicted" }), ["skipped", "lane-stopped"]);
   assert.equal(evaluate(job.if, ctx({ result: "failure", proceed: "" })), true, "a failed select posts");
   assert.deepEqual(posted({ result: "failure", proceed: "" }), ["failure", ""]);
   assert.equal(evaluate(job.if, ctx({ result: "success", proceed: "" })), false, "a kill-switch stop posts nothing");

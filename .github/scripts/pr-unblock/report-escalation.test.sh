@@ -160,7 +160,7 @@ SESSION_REASONS=(protected-path-conflict conflict-patch-protected-path
   dependency-round-cap dependency-fix-not-landed dependency-config-unreadable
   dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned
   shared-copy-tooling-changed shared-copy-path-unregistered shared-copy-unexpected-path-staged
-  shared-copy-patch-protected-path
+  shared-copy-patch-protected-path shared-copy-merge-conflicted
   feedback-untaken-threads feedback-unadjudicated)
 FAIL_REASONS=(workflow-staged unexpected-path-staged repeat-cap unresolved-conflict conflict-patch-invalid conflict-patch-not-applied
   feedback-not-converging feedback-verifier-open feedback-not-landed feedback-invalid feedback-partial

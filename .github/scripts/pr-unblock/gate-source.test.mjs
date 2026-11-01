@@ -454,3 +454,17 @@ test("sync-shared-copies stays held once a person spoke or another lane marked t
   assert.equal(allows(refused(), "sync-shared-copies", { reviews: [{ user: OWNER, submitted_at: "2026-10-18T11:00:00Z" }] }), false);
   assert.equal(allows([...refused(), escalated("unresolved-conflict", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
 });
+
+// A review lane, check-signed-commits or pr-verify posts its hold while the
+// label is already on, so the hold adds no `labeled` event.
+test("sync-shared-copies stays held by a review-lane, signed-commits or credential hold posted after the refusal", () => {
+  const at = "2026-10-18T10:05:00Z";
+  for (const [why, comment] of [
+    ["claude[bot] review hold", commented({ login: "claude[bot]", id: 2, type: "Bot" }, `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->\nHeld.`, at)],
+    ["github-actions[bot] review hold on an older head", hold(OLD, at)],
+    ["signed-commits hold", signedHold(ACTIONS, at)],
+    ["credential hold", commented(ACTIONS, `${CREDENTIAL_HOLD}\nReason: \`security\``, at)],
+  ]) {
+    assert.equal(allows([...refused(), comment], "sync-shared-copies"), false, why);
+  }
+});

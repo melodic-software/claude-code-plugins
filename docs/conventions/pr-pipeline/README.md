@@ -1483,7 +1483,9 @@ the rules that only tighten in
   sends one run per refused head, a base-code job merges the default branch tip and runs the base's
   sync script, refusing a head that changes the script, its registry or `scripts/lib`
   (`shared-copy-tooling-changed`) and any write the base-tip registry lists as no copy
-  (`shared-copy-path-unregistered`), and `apply-shared-copies` pushes one merge commit under
+  (`shared-copy-path-unregistered`) and a merge that is not clean, which resolve-conflicts cannot
+  take while the label holds it (`shared-copy-merge-conflicted`, queued for a session), and
+  `apply-shared-copies` pushes one merge commit under
   patch-rules.json's `shared-copies` row, which admits only registered copies; when the merge
   already holds current copies, the commit is the merge alone. The new head moves
   past the refusal, so the next pr-merge sweep clears the label. Any
