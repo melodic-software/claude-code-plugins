@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": "Because you play online co-op, play modded only solo or offline.", "why": "skill wording" },
+    { "answer": "**Online play:** keep the mod for single-player sessions; take it out before joining friends.", "why": "single-player" },
+    { "answer": "Use it in Offline mode only.", "why": "offline" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Yes, it's safe to run with your friends online.", "why": "no solo or offline advice" }
+  ]
+}

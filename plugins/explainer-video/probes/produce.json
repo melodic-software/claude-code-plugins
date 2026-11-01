@@ -1,0 +1,131 @@
+{
+  "skill": "explainer-video:produce",
+  "plugin": "explainer-video",
+  "skill_dir": "plugins/explainer-video/skills/produce",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are explainer-video:check (read-only readiness of Python, ManimCE, ffmpeg and ffprobe, never renders), animation:produce (hand-drawn film from style packs with boards and an approval gate), user-interface:write-animation (one interface animation in the project's UI stack), speech:narrate (text-to-speech audio and word timings only, no video), playwright:demo-video (recorded screen demo of a web UI change for a PR), visualization:present (slide deck through the Slides Artifact type) and visualization:visualize (a static diagram, chart or page for the conversation). produce owns scripting, narrating, rendering and self-checking a short ManimCE explainer video.",
+  "competitors": [
+    "explainer-video:check",
+    "animation:produce",
+    "user-interface:write-animation",
+    "speech:narrate",
+    "playwright:demo-video",
+    "visualization:present",
+    "visualization:visualize"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you put together a two-minute video explaining how a hash map handles collisions, with a voiceover?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a short animated clip showing the Pythagorean theorem proof, rendered with Manim."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make me a narrated video that walks through how TCP's three-way handshake works."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn my notes on gradient descent into a little animated explainer I can post for my students."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Render a quick Manim animation of a matrix rotating a vector, no audio needed."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Before I try rendering anything, is Manim and ffmpeg actually set up for the explainer plugin on this machine?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's my brief and the watercolor style pack. Draw storyboards for me to approve, then render the short film."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a fade-and-slide entrance transition to the modal in our React app."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read this script aloud and give me a wav file plus per-word timestamps."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record a demo video of the new checkout flow on localhost and attach it to my pull request."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Could you make a narrated animation explaining binary search step by step?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Explain eigenvectors visually in a short video with captions and narration."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need an animated math video showing how a Fourier series builds up a square wave."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce a silent animated clip that shows how a linked list insertion moves pointers."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Turn these talk notes into a slide deck I can present on Friday."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a mermaid diagram of the request flow we just discussed."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Generate a voiceover with ElevenLabs for this paragraph."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make the settings drawer draggable with a spring animation."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Animate this brief in the ink-sketch style pack, boards first."
+    }
+  ]
+}

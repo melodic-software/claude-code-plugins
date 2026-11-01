@@ -19,7 +19,7 @@
       "id": 2,
       "name": "due-resolves-remapped-recurring-role-before-listing",
       "prompt": "/work-items:track due\n\nThe tracker binding maps recurring-maintenance to scheduled-upkeep. There are open scheduled-upkeep items, but no label named recurring.",
-      "expected_output": "At action entry, the due flow reads .work-item-tracker.json, resolves recurring-maintenance to scheduled-upkeep, and uses that exact label in its open-item listing before exact-title reconciliation. It never queries --label recurring and therefore does not misreport existing maintenance items as orphaned.",
+      "expected_output": "At action entry, the due flow reads the tracker binding, resolves recurring-maintenance to scheduled-upkeep, and uses that exact label in its open-item listing before exact-title reconciliation. It never queries --label recurring and therefore does not misreport existing maintenance items as orphaned.",
       "files": [],
       "expectations": [
         "Reads config.role_labels[recurring-maintenance] before the first tracker query",

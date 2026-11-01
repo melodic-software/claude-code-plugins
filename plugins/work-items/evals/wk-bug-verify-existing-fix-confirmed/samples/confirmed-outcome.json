@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Outcome: **Confirmed**. Baseline 9e07d31 printed `Hello, None` on both runs; 4f1c2ab printed `Hello, Ann` on both. Closed #8 citing 4f1c2ab.",
+      "why": "names the outcome"
+    },
+    {
+      "answer": "Verify-existing-fix ended Confirmed, so no fix is written.",
+      "why": "plain phrasing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The existing fix looks right, so I closed #8 as already fixed.",
+      "why": "no verification outcome"
+    },
+    {
+      "answer": "Outcome: Inconclusive. The baseline did not reproduce twice.",
+      "why": "wrong outcome"
+    }
+  ]
+}

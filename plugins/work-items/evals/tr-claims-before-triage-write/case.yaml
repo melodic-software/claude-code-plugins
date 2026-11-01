@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: tr-claims-before-triage-write
+description: 'Claim before the first write: an unattended /work-items:triage of item #1, a raw needs-triage bug report too thin to reproduce on an offline local-markdown tracker, claims the item through the seam with --phase triage before it edits the item file for the needs-info outcome. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+tags: [triage, claim, lease]
+plugins: ["../.."]
+expected_outcome: 'The run reads item #1, finds too little detail to reproduce the export failure, and takes the needs-info outcome. Before its first write to .work-items/1.md it runs the seam claim on local-markdown:local/markdown#1 with --phase triage, so the item file ends holding a work-item-lease marker whose JSON carries "phase":"triage". Only then does it edit the item for the needs-info label and comment, and after its last write it clears its own assignee from the item.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:triage 1 Running unattended as a /loop AFK lane whose standing rules authorize triage label and comment mutations; no operator will answer.'
+  allowed_tools: [Bash, Read, Glob, Grep, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: claims-for-triage
+    type: tool_used
+    tool: Bash
+    input_match: '(?<![\w-])claim[ \t](?:[^"\\]|\\.)*?--phase[ \t]+(?:\\?["''])?triage\b'
+    min: 1
+    arm: with-only
+  - name: claim-before-item-edit
+    type: tool_order
+    before:
+      tool: Bash
+      input_match: '(?:work-item-tracker\.sh|\$\{?[A-Za-z_]\w*\}?)(?:\\")?[ \t]+claim\b|local-markdown/claim\.sh'
+    after:
+      tool: Edit
+      input_match: '"file_path":"(?:[^"\\]|\\.)*\.work-items/1\.md"'
+    arm: with-only
+  - name: lease-carries-triage-phase
+    type: regex
+    pattern: '^<!-- work-item-lease v1 \{[^\n]*"phase":"triage"'
+    flags: 'm'
+    target: { source: file, path: .work-items/1.md }
+    arm: with-only

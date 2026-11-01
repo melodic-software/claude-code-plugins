@@ -592,6 +592,162 @@ else
   echo "SKIP: symlinked team yaml (ln -s unavailable on this filesystem)"
 fi
 
+# =====================================================================
+# The personal layer (docs/conventions/source-control.local.yaml): one
+# operator's subject_pattern, read only while git ignores the file and only
+# when the team layer supplies no subject_pattern. Never merged with a team
+# pattern.
+# =====================================================================
+
+PERSONAL="docs/conventions/source-control.local.yaml"
+# addpersonal <repo> <body> [gitignore|exclude|none]: write the personal file,
+# ignored through .gitignore (the default) or .git/info/exclude, or not at all.
+# core.excludesFile names a file that does not exist, so no global ignore rule
+# on the machine running the suite can decide a case.
+addpersonal() {
+  local d="$1" how="${3:-gitignore}"
+  git -C "$d" init -q 2>/dev/null || true
+  git -C "$d" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"
+  addneutral "$d" "$PERSONAL" "$2"
+  case "$how" in
+  gitignore) printf '%s\n' 'docs/conventions/**/*.local.*' >>"$d/.gitignore" ;;
+  exclude)
+    mkdir -p "$d/.git/info"
+    printf '%s\n' "/$PERSONAL" >>"$d/.git/info/exclude"
+    ;;
+  *) ;;
+  esac
+}
+P_BODY=$'subject_pattern: \047^PERSONAL-[0-9]+: .+\047'
+
+# --- the personal pattern is used when the team sets none ---
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+assert_eq "personal: used when the team sets none" '^PERSONAL-[0-9]+: .+' "$(run "$r")"
+assert_eq "personal: bash resolves it the same" '^PERSONAL-[0-9]+: .+' "$(bash "$SCRIPT" "$r" subject_pattern)"
+assert_eq "personal: --layer names the personal file" "$PERSONAL" "$(layer "$r")"
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY" exclude
+assert_eq "personal: an entry in .git/info/exclude counts as ignored" '^PERSONAL-[0-9]+: .+' "$(run "$r")"
+r="$(newrepo "")"
+addyaml "$r" $'pr_open_state: ready'
+addpersonal "$r" "$P_BODY"
+assert_eq "personal: used when the team yaml carries other keys only" '^PERSONAL-[0-9]+: .+' "$(run "$r")"
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: Conventional Commits'
+assert_eq "personal: the CC keyword expands" "$CC_ERE" "$(run "$r")"
+
+# --- a team pattern wins and the personal one is ignored when both exist ---
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+addyaml "$r" $'subject_pattern: \047^TEAM-[0-9]+: .+\047'
+assert_eq "personal: the team yaml pattern wins over the personal one" '^TEAM-[0-9]+: .+' "$(run "$r")"
+assert_eq "personal: --layer names the team yaml when both exist" "$TEAM_YAML" "$(layer "$r")"
+r="$(newrepo $'## subject_pattern\n^MD-[0-9]+: .+')"
+addpersonal "$r" "$P_BODY"
+assert_eq "personal: a legacy team pattern wins over the personal one" '^MD-[0-9]+: .+' "$(run "$r")"
+# A team value that cannot be enforced disables the gate; the personal pattern
+# never stands in for it.
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+addyaml "$r" $'subject_pattern: \047^(?:feat|fix): .+\047'
+out="$(run "$r" 2>/dev/null)"
+rc=$?
+assert_exit "personal: a non-ERE team pattern -> exit 1, the personal one not used" 1 "$rc"
+assert_eq "personal: a non-ERE team pattern -> empty stdout" "" "$out"
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+addyaml "$r" $'subject_pattern: \047\047'
+out="$(run "$r" 2>/dev/null)"
+rc=$?
+assert_exit "personal: an empty team key -> exit 1, the personal one not used" 1 "$rc"
+assert_eq "personal: an empty team key -> empty stdout" "" "$out"
+
+# --- neither gives no enforcement, silently ---
+r="$(newrepo "")"
+git -C "$r" init -q 2>/dev/null || true
+out="$(run "$r" 2>"$TEST_TMPDIR/neither.err")"
+rc=$?
+assert_exit "personal: neither team nor personal -> exit 1" 1 "$rc"
+assert_eq "personal: neither team nor personal -> empty stdout and stderr" "|" "$out|$(<"$TEST_TMPDIR/neither.err")"
+r="$(newrepo "")"
+addpersonal "$r" $'pr_open_state: ready'
+out="$(run "$r" 2>"$TEST_TMPDIR/neither.err")"
+rc=$?
+assert_eq "personal: a personal file with no subject_pattern -> exit 1, silent" "1||" \
+  "$rc|$out|$(<"$TEST_TMPDIR/neither.err")"
+
+# --- pr_title_pattern never reads the personal file ---
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: \047^P-[0-9]+: .+\047\npr_title_pattern: \047^P-[0-9]+: .+\047'
+run "$r" pr_title_pattern >/dev/null 2>&1
+assert_exit "personal: pr_title_pattern is not read from the personal file" 1 $?
+addyaml "$r" $'pr_title_pattern: "Same as `subject_pattern`."'
+run "$r" pr_title_pattern >/dev/null 2>&1
+assert_exit "personal: a team deferral does not reach the personal subject_pattern" 1 $?
+
+# --- a personal file git does not ignore is reported, not read ---
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY" none
+out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
+rc=$?
+assert_exit "personal: not ignored -> exit 1" 1 "$rc"
+assert_eq "personal: not ignored -> empty stdout" "" "$out"
+assert_eq "personal: not ignored -> the diagnostic says why" yes \
+  "$(grep -q 'source-control.local.yaml is not ignored by git' "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+git -C "$r" add -f -- "$PERSONAL"
+out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
+rc=$?
+assert_exit "personal: a tracked personal file -> exit 1 though .gitignore matches it" 1 "$rc"
+assert_eq "personal: a tracked personal file -> empty stdout" "" "$out"
+
+# --- fail closed: the personal file gets the team file's checks ---
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: \047^unclosed: .+'
+out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
+rc=$?
+assert_exit "personal: an unparsable file -> exit 1" 1 "$rc"
+assert_eq "personal: the parse diagnostic names the personal file" yes \
+  "$(grep -q 'source-control.local.yaml does not parse' "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: \047\047'
+out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
+rc=$?
+assert_exit "personal: an empty key -> exit 1" 1 "$rc"
+assert_eq "personal: the empty-key diagnostic names the personal file" yes \
+  "$(grep -q "source-control.local.yaml carries 'subject_pattern'" "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: [\047^a: .+\047, \047^b: .+\047]'
+out="$(run "$r" 2>/dev/null)"
+rc=$?
+assert_eq "personal: a list where one value belongs -> exit 1, empty stdout" "1|" "$rc|$out"
+r="$(newrepo "")"
+addpersonal "$r" $'dialect: pcre\nsubject_pattern: \047^P-[0-9]+: .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "personal: dialect pcre -> exit 1" 1 $?
+r="$(newrepo "")"
+addpersonal "$r" $'subject_pattern: \047^(?:feat|fix): .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "personal: a non-ERE personal pattern -> exit 1" 1 $?
+printf '%s\n' "subject_pattern: '^outside-personal: .+'" >"$TEST_TMPDIR/outside-personal.yaml"
+r="$(newrepo "")"
+addpersonal "$r" "$P_BODY"
+rm -f "$r/$PERSONAL"
+ln -s "$TEST_TMPDIR/outside-personal.yaml" "$r/$PERSONAL" 2>/dev/null
+if [[ -L "$r/$PERSONAL" ]]; then
+  out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
+  rc=$?
+  assert_exit "personal: a symlinked file -> exit 1" 1 "$rc"
+  assert_eq "personal: a symlinked file -> empty stdout" "" "$out"
+  # The symlink check, not the ignore check, refused it.
+  assert_eq "personal: a symlinked file -> the symlink diagnostic" yes \
+    "$(grep -q "the personal file '$PERSONAL' is a symlink" "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
+else
+  echo "SKIP: symlinked personal file (ln -s unavailable on this filesystem)"
+fi
+
 # --- --layer prints nothing when nothing is enforced ---
 r="$(newrepo "")"
 out="$(layer "$r")"

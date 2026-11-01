@@ -15,8 +15,8 @@ workflows, fixed in the script:
 | `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path contains `security` |
 
 The run listing does not show `pr-review-cli.yml`'s `lane` input, so the caller's path decides its
-lane. Otherwise the caller's own file name does not matter (`pr-review-hosted.yml` on a public repository,
-`pr-review.yml` on a private one). The script reads the `referenced_workflows` field of the
+lane. Otherwise the caller's file name does not matter (`pr-review-hosted.yml` on a public
+repository, `pr-review.yml` on a private one). The script reads the `referenced_workflows` field of the
 repository's newest pull request runs, up to three pages of 100:
 
 ```bash
@@ -100,9 +100,9 @@ It keeps the runs whose `app.slug` is `github-actions` and whose `name` is `test
 `conclusion` is not `skipped`, else the newest run, and judges its `status` and `conclusion`.
 `filter=all` instead of the default `latest`, because a label or body edit re-runs a workflow on
 the same commit and that run can post the test lanes skipped (this repository's
-`pr-require-checks.yml` does): the newest run per name would then be the skip, hiding a failure.
-A re-run that passed still replaces its failed attempt. A `status` other than `completed` (`queued`, `in_progress`,
-`waiting`, `requested`, `pending`) reads `pending`; a `conclusion` other than `success`, `skipped`
+`pr-require-checks.yml` does), making the newest run per name the skip and hiding a failure. A
+re-run that passed still replaces its failed attempt. A `status` other than `completed` (`queued`,
+`in_progress`, `waiting`, `requested`, `pending`) reads `pending`; a `conclusion` other than `success`, `skipped`
 or `neutral` reads `failing`. Pointer: the endpoint, `filter` and both field value sets are read at
 [REST API: list check runs for a Git reference](https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference).
 As of: 2026-10-29. Recheck trigger: that section renames `filter`, changes its default, or adds a

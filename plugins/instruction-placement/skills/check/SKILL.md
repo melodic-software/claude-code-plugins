@@ -34,7 +34,7 @@ It exists because every failure mode here is silent. Claude Code does not warn w
 matches nothing, when a bracket expression is malformed, or when a pattern exceeded the brace budget
 and was used unexpanded. The rule simply never fires, and the convention it carries is quietly
 absent from every session that needed it. A repository can accumulate a dozen dead rules and look
-perfectly healthy.
+healthy.
 
 Wire it into CI beside the linters. It is fast, deterministic, and has no judgment layer to drift.
 
@@ -53,8 +53,8 @@ Wire it into CI beside the linters. It is fast, deterministic, and has no judgme
 
 The last two are the least obvious. A `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the
 working directory or above it is read *instead of* `AGENTS.md`, so a repository carrying both with
-no import between them gets a perfectly-generated, perfectly-in-sync index that never enters
-context, the entire subagent-gap mitigation doing nothing while every other check reports green. The
+no import between them gets a generated, in-sync index that never enters context: the
+subagent-gap mitigation does nothing while every other check reports green. The
 same silence repeats one level down: a nested `AGENTS.md` is indexed as a surface that loads when
 Claude reads its directory, and a `CLAUDE.md` on that path takes its place unless one of them
 imports or symlinks it. Sync, reachability, and wiring are independent questions; ask all three.
@@ -191,7 +191,7 @@ do about it**. The three failure statuses have different fixes and saying "inval
   measured nothing is a false assurance a reviewer will act on.
 - **An in-sync index can still be inert.** `check` and `reachable` answer different questions, and a
   repository can pass the first while failing the second. Reporting "index in sync" without the
-  reachability verdict is the exact false assurance the previous point warns about. `NATIVE` is the
+  reachability verdict is the false assurance the previous point warns about. `NATIVE` is the
   honest middle verdict, not a pass: it says only that nothing in the repository blocks the target,
   which is all a static check can see. `verify-load.sh` is what answers whether it actually loaded.
 - **Rules discovery follows symlinks and does not require git.** A symlinked rule points outside the

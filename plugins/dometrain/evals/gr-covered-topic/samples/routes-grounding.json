@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "dometrain:grounding",
+            "args": "validate JWT tokens in ASP.NET Core minimal APIs"
+          }
+        }
+      ],
+      "why": "qualified name with args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "grounding"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "dometrain:setup"
+          }
+        }
+      ],
+      "why": "wrong skill in the same plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "knowledge:course-digest"
+          }
+        }
+      ],
+      "why": "another plugin's course skill"
+    }
+  ]
+}

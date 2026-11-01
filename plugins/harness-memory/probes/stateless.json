@@ -1,0 +1,119 @@
+{
+  "skill": "harness-memory:stateless",
+  "plugin": "harness-memory",
+  "skill_dir": "plugins/harness-memory/skills/stateless",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitor only: harness-memory:audit (checklist audit of CLAUDE.md, AGENTS.md, rules and auto memory, where stateless only inspects, disables or purges auto memory). stateless owns the status, disable and purge of Claude Code self-written per-repo auto memory.",
+  "competitors": [
+    "harness-memory:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I don't want Claude keeping notes about me between sessions in this repo. Shut that feature off."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is Claude saving anything about this project on its own? Show me what's there and what my settings say."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Delete everything Claude has memorized for this project, I want a clean slate."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make Claude forget between sessions: no persistent notes, nothing carried over."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Switch off the automatic memory feature in every scope, user and project both."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check whether auto memory is enabled anywhere on this machine."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Clear out the memory folder Claude keeps under ~/.claude/projects for this repo."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'd like each session to start fresh with no remembered context. Set that up."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Running unattended: turn off Claude's self-written memory notes and report what changed."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit our CLAUDE.md and rules files against the official docs checklist."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Delete my old conversation transcripts under ~/.claude to free up disk space."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Save where we are so I can /clear and pick it back up afterwards."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Strip the instructions from CLAUDE.md that current models no longer need."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a line to CLAUDE.md telling Claude to always use pnpm."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which conventions in our CLAUDE.md should move into path-scoped rules?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is our CLAUDE.local.md and the auto-memory content healthy, or has any of it grown too long?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write me a handoff file before I close this session."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Two of my rules files contradict each other. Which one wins?"
+    }
+  ]
+}

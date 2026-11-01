@@ -6,7 +6,7 @@ wrong, because they are per-instance rather than per-product.
 ## Why this step exists
 
 Some facts are per-instance rather than per-product, so the API documentation cannot settle them.
-The bundled `jira` adapter carries two: the `statusCategory` key that means "done" (it defaults
+The `jira` seed carries two: the `statusCategory` key that means "done" (it defaults
 to both known keys and takes a config override) and the blocker link-type name
 (instance-configurable). Both are config keys with documented defaults. That is the pattern to
 reach for whenever a probe cannot be run: make the adapter *independent* of the fact rather than

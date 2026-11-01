@@ -1,10 +1,12 @@
 {
   "pass": [
-    {"answer": "", "why": "the stand-in recorded no call"},
-    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\",\"--body\",\"resolve thread T_bot_retries when a worker runs\"]}\n", "why": "the words inside a review body are not a resolve call"}
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"api\",\"graphql\",\"-f\",\"query=query{reviewThreads}\"]}\n", "why": "the stand-in served a thread read and recorded no resolve"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\"]}\n{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\",\"--body\",\"resolve thread T_bot_retries when a worker runs\"]}\n", "why": "the words inside a review body are not a resolve call"}
   ],
   "fail": [
-    {"answer": "{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n"},
-    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\"]}\n{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n", "why": "a resolve after another call"}
+    {"answer": "", "why": "an empty or missing record proves nothing"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"api\",\"user\",\"--jq\",\".login\"]}\n{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"list\",\"--state\",\"open\",\"--author\",\"@me\",\"--limit\",\"200\",\"--json\",\"number\",\"--jq\",\"length\"]}\n", "why": "only the skill's pre-computed rows: the model read nothing through the stand-in"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\"]}\n{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n"},
+    {"answer": "{\"command\":\"resolve thread\",\"pr\":214,\"args\":[\"T_bot_retries\"]}\n{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\"]}\n", "why": "a resolve before a read"}
   ]
 }

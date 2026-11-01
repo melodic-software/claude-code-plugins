@@ -733,6 +733,7 @@
       "reason": "The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.",
       "evidence": [
         "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
+        "skills docs page, Work on Claude API projects (https://code.claude.com/docs/en/skills, fetched 2026-11-01, Claude Code 2.1.316): the subcommand table now also lists api-version, managed-agents-secure and preserved-thinking-migration; cost-optimize and prompt-audit, which this verdict names, are still listed, so the verdict holds",
         "platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository",
         "reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'",
         "reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate"
@@ -744,7 +745,7 @@
       },
       "recheck": {
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution",
-        "verified": "2026-09-11"
+        "verified": "2026-11-01"
       },
       "baked": {
         "description_phrase": true,
@@ -818,7 +819,7 @@
         "https://code.claude.com/docs/en/plugin-evals.md (the raw variant; read 2026-09-11) documents the same flag set, the case layout, the exit codes 0/1/2/130/143, and the aggregate-result.json fields; the raw page matched `--help` exactly where a summarizer over the rendered page had fabricated a flag table",
         "gate basis: the command shipped in Claude Code 2.1.269 (anthropics/claude-code, 2026-09-11); below that floor the binary prints `plugin eval is currently in early access`, and a server-side switch prints `plugin eval is currently unavailable`, which no local setting restores",
         "the docs page: the run strips user settings, hooks, CLAUDE.md, MCP servers, other plugins, memory, and skills, so a rules or CLAUDE.md target has nothing to measure; native Windows has no sandbox backend, so a case granting Bash, Write, or Edit is refused rather than run unconfined, with WSL2 named for Windows and bubblewrap plus socat for Linux",
-        "the docs page: the case format (`prompt.md` plus `graders/*.md`, or `case.yaml` with `schema_version: \"1.1\"`) is not the skill-creator `evals/evals.json` format this marketplace's skills carry, so the two coexist and `skill-quality:check validate-evals` keeps the other one",
+        "the docs page: the case format (`prompt.md` plus `graders/*.md`, or `case.yaml` with `schema_version: \"1.1\"`) is not the skill-creator `evals/evals.json` format; new cases here use the suite format, checked by `evals:validate`, and `skill-quality:check validate-evals` checks only the legacy per-skill files until they are converted",
         "our planned description: preflight, validate without spending, price, and read the delta for a `claude plugin eval` run; the CLI runs and scores, this skill guides the practice around it (shipped as `plugins/evals/skills/plugin-eval` in melodic-software/claude-code-plugins#4154)",
         "`plugin eval` is absent from the 2.1.232 and 2.1.251 extractions the sibling rows rest on; absence from an extraction is a statement about the extraction, and the command postdates both"
       ],
@@ -3618,7 +3619,7 @@
         "skill": "write-for-agents",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration now reads \"(removed)\"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.314",
       "date": "2026-10-31",
       "fingerprint": {
@@ -3636,7 +3637,7 @@
         "skill": "assess",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.288",
       "date": "2026-10-02",
       "fingerprint": {
@@ -3654,7 +3655,7 @@
         "skill": "route",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.288",
       "date": "2026-10-02",
       "fingerprint": {
