@@ -2238,9 +2238,8 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main that did not start while the pull request was a
-draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and pr-verify does not
-treat a FAIL judged from one as judging the head, though the merge gate below still counts it), and
-after each one whose only failures are
+draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and neither pr-verify
+nor the merge gate below counts a FAIL judged from one), and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
 widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
 jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session

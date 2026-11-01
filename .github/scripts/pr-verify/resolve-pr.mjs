@@ -314,8 +314,9 @@ export async function draftRun(github, repository, runId) {
 // created before it ran DRAFT_STEP. pr-verify starts when a checks run
 // completes, so the run it judged is among them. Such a FAIL judged suites
 // that never ran, which resolvePull no longer does. A read that fails, a list
-// cut short, or no run before it answers false, so the FAIL counts.
-function draftJudgments(github, repository, head) {
+// cut short, a time that cannot be read, or no run before it answers false, so
+// the FAIL counts. babysit_verify_evidence `_draft_judged` is the same rule.
+export function draftJudgments(github, repository, head) {
   let listing;
   const drafts = new Map();
   return async (verify) => {
@@ -326,7 +327,11 @@ function draftJudgments(github, repository, head) {
       if (!Array.isArray(runs) || listed.total_count !== runs.length) {
         return false;
       }
-      const before = runs.filter((run) => Date.parse(run?.created_at ?? "") < Date.parse(verify.created_at ?? ""));
+      const judgedAt = Date.parse(verify.created_at ?? "");
+      if (Number.isNaN(judgedAt) || runs.some((run) => Number.isNaN(Date.parse(run?.created_at ?? "")))) {
+        return false;
+      }
+      const before = runs.filter((run) => Date.parse(run.created_at) < judgedAt);
       for (const { id } of before) {
         if (!drafts.has(id)) {
           drafts.set(id, Number.isSafeInteger(id) ? draftRun(github, repository, id) : Promise.resolve(false));

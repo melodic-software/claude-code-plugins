@@ -16,6 +16,9 @@
 - The relink rule: the same RELINK_QUERY text, and the same body edits and
   issue connect or disconnect events let a FAIL be superseded (every one
   since the FAIL a trusted person's; a cut or unreadable answer never).
+- The draft-run rule: the same FAIL is dropped as judged from a checks run
+  that started on the draft (`_draft_judged`, resolve-pr's `draftJudgments`),
+  and every failed or short read keeps it in both.
 - The spec kind: the verdict write-verdict.mjs builds from resolve-pr's spec
   text records `spec_kind`, and the gate allows a pass only when it matches
   how the issue is linked now (a `Refs:` slice or a closing issue).
@@ -210,6 +213,94 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
         # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
+
+    def test_a_fail_judged_from_a_draft_run_is_dropped_the_same(self) -> None:
+        # #11832's checks runs at the head (gate.draft_race), then each change
+        # the gate suite's keeps-the-FAIL test makes; `jobs` None is a read
+        # that fails, `runs` None a listing that fails.
+        base = {
+            "runs": [
+                {"id": gate.READY_CHECKS, "created_at": "2026-11-01T04:26:33Z"},
+                {"id": gate.DRAFT_CHECKS, "created_at": "2026-11-01T04:25:39Z"},
+            ],
+            "total": None,
+            "jobs": {
+                gate.DRAFT_CHECKS: gate.DRAFT_JOBS,
+                gate.READY_CHECKS: gate.READY_JOBS,
+            },
+        }
+        ready_before = {**base["jobs"], gate.DRAFT_CHECKS: gate.READY_JOBS}
+        jobs_cut = {
+            **base["jobs"],
+            gate.DRAFT_CHECKS: {**gate.DRAFT_JOBS, "total_count": 2},
+        }
+        scenarios = {
+            "a draft run before": base,
+            "a ready run before": {**base, "jobs": ready_before},
+            "the runs cut short": {**base, "total": 3},
+            "the draft run's jobs unread": {
+                **base,
+                "jobs": {gate.READY_CHECKS: gate.READY_JOBS},
+            },
+            "the draft run's jobs cut short": {**base, "jobs": jobs_cut},
+            "no run before": {**base, "runs": base["runs"][:1]},
+            "a ready run beside": {
+                "runs": [
+                    *base["runs"],
+                    {"id": 41273000001, "created_at": "2026-11-01T04:25:00Z"},
+                ],
+                "total": None,
+                "jobs": {**base["jobs"], 41273000001: gate.READY_JOBS},
+            },
+            "a run with no time": {
+                **base,
+                "runs": [*base["runs"], {"id": 41273000002}],
+            },
+            "the runs unread": {**base, "runs": None},
+        }
+        script = (
+            f"import {{ draftJudgments }} from {json.dumps(RESOLVER.as_uri())};"
+            " const { scenarios, repo, head, judgedAt } = JSON.parse(process.argv[1]);"
+            " const out = [];"
+            " for (const { runs, total, jobs } of scenarios) {"
+            "   const github = async (method, path) => {"
+            "     if (path.includes('/actions/workflows/')) {"
+            "       if (runs === null) throw new Error('GET failed with status 502');"
+            "       return { total_count: total ?? runs.length, workflow_runs: runs };"
+            "     }"
+            "     const id = /\\/actions\\/runs\\/(\\d+)\\/jobs/.exec(path)?.[1];"
+            "     if (id && jobs[id]) return jobs[id];"
+            "     throw new Error(`GET ${path} failed with status 404`);"
+            "   };"
+            "   out.push(await draftJudgments(github, repo, head)({ created_at: judgedAt }));"
+            " }"
+            " console.log(JSON.stringify(out));"
+        )
+        payload = {
+            "scenarios": list(scenarios.values()),
+            "repo": gate.REPO,
+            "head": gate.HEAD,
+            "judgedAt": gate.FAIL_JUDGED,
+        }
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        for (label, scenario), judged in zip(scenarios.items(), js, strict=True):
+            fake = gate.FakeGitHub([], {2: gate.judged(2, gate.FAIL_JUDGED)})
+            if scenario["runs"] is not None:
+                fake.checks_runs[gate.HEAD] = scenario["runs"]
+            if scenario["total"] is not None:
+                fake.checks_total[gate.HEAD] = scenario["total"]
+            fake.jobs = dict(scenario["jobs"])
+            with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                reader = ve.Reader(gate.REPO, "main")
+                with self.subTest(label):
+                    self.assertEqual(reader._draft_judged(gate.HEAD, 2), judged)
+        self.assertEqual(js[:2], [True, False])
 
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
         # A FAIL the gate still counts must not expire before the pull

@@ -795,6 +795,9 @@ test("a FAIL counts when a run it could have judged started on a ready pull requ
     "the jobs list is cut short": draftRace({ ...DRAFT_JOBS, total_count: 2 }),
     "the head's runs cannot be read": draftRace(DRAFT_JOBS, { upstreamRuns: undefined }),
     "the head's runs are cut short": draftRace(DRAFT_JOBS, { upstreamTotal: 3 }),
+    "a checks run with no creation time": draftRace(DRAFT_JOBS, {
+      upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" }), upstream({ id: DRAFT_CHECKS, created_at: "2026-11-01T04:25:39Z" }), upstream({ id: 41273000002 })],
+    }),
     "no run started before the FAIL's judgment": draftRace(DRAFT_JOBS, { upstreamRuns: [upstream({ created_at: "2026-11-01T04:26:33Z" })] }),
   };
   for (const [label, setup] of Object.entries(cases)) {
