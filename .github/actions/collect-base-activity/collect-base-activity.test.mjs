@@ -163,6 +163,18 @@ function stage(overrides) {
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
+// #8595: the lanes run the latest CLI, so the comment above shell_denied
+// records the last swept version and points at the release procedure.
+test("the shell deny set names its last swept CLI version and a procedure heading that exists", () => {
+  const action = readFileSync(ACTION, "utf8");
+  const comment = /((?:^ *#.*\n)+) *shell_denied=\(/m.exec(action)?.[1] ?? "";
+  assert.match(comment.replace(/\n *# */g, " "), /Last swept: Claude Code \d+\.\d+\.\d+ on \d{4}-\d{2}-\d{2}/);
+  const anchor = /README\.md#([a-z0-9-]+)/.exec(comment)?.[1];
+  assert.equal(anchor, "claude-code-cli-releases");
+  const readme = readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline/README.md"), "utf8");
+  assert.match(readme, /^## Claude Code CLI releases$/m);
+});
+
 test("an issue lane's prompt names the issue before the activity's args", () => {
   const { status, prompt, args } = stage({ SKILL: "work-items:work", ISSUE_NUMBER: "77" });
   assert.equal(status, 0);

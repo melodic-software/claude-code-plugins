@@ -36,12 +36,13 @@ failed read, a list cut short or no such run keeps the FAIL.
   attempt starts its own count;
 - a counted FAIL at the head, under any pull request number: `verify:fail`,
   unless it is superseded (`_superseded`): every counted FAIL there is this
-  pull request's, every counted pass there was created after them and records
-  other linked issues than each FAIL does, and from the first FAIL's creation
-  to each pass's run's completion (`updated_at`, which a run's later activity
-  only moves later) the pull request has at least one body edit or issue
-  connect or disconnect, every one a trusted person's (one GraphQL read,
-  RELINK_QUERY).
+  pull request's, every counted pass there was created after them, and up to
+  each pass's run's completion (`updated_at`, which a run's later activity
+  only moves later) every body edit and issue connect or disconnect on the
+  pull request is a trusted person's (one GraphQL read, RELINK_QUERY), with
+  at least one from the first FAIL's creation for a pass that records other
+  linked issues than each FAIL does (a relink), else at least one body edit
+  from the last FAIL's creation (a body fix judged at the same head).
   A superseded FAIL still counts toward `max_fails`, and the passes then
   decide as below. Any record, time or read that fails keeps `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
@@ -2801,23 +2802,24 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]],
         passes: list[tuple[int, str, Any]],
     ) -> bool:
-        """The pull request's linked issues changed at `sha` after its FAIL
-        there, by trusted people only, and it passed there since: every
+        """The pull request's linked issues or body changed at `sha` after its
+        FAIL there, by trusted people only, and it passed there since: every
         counted FAIL at `sha` records this pull request, head and verdict,
-        every counted pass at `sha` was created after them (`_passes_follow`)
-        and records linked issues that differ from each FAIL's, and from the
-        first FAIL's creation to each pass's run's completion (`updated_at`:
-        the run read the linked issues after it started) only trusted people edited
-        the body or connected or disconnected an issue, at least once
-        (`_relinked_by_people`).
+        every counted pass at `sha` was created after them (`_passes_follow`),
+        and up to each pass's run's completion (`updated_at`: the run read the
+        spec after it started) only trusted people edited the body or
+        connected or disconnected an issue (`_relinked_by_people`): at least
+        once from the first FAIL's creation, for a pass whose linked issues
+        differ from each FAIL's (a relink), else at least one body edit from
+        the last FAIL's creation (a body fix, resolve-pr.mjs `body-edited`).
         A superseded FAIL still counts toward `max_fails`. A record, time or
         read that fails is False."""
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
             return False
         try:
-            # The records first, then the run times and the edits: a FAIL at a
-            # head that also passed is most often a spec change, not a relink.
+            # The records first, then the run times and the edits, read once
+            # per pull request.
             judged: set[frozenset[int]] = set()
             for run_id, name, artifact in fails:
                 record = self._record(run_id, name, artifact)
@@ -2828,14 +2830,13 @@ class Reader:
                 ):
                     return False
                 judged.add(_linked_numbers(record))
+            # Whether each pass judged the FAILs' linked issues again.
+            same: list[bool] = []
             for run_id, name, artifact in passes:
                 record = self._record(run_id, name, artifact)
-                if (
-                    record.get("pr") != number
-                    or record.get("head_sha") != sha
-                    or _linked_numbers(record) in judged
-                ):
+                if record.get("pr") != number or record.get("head_sha") != sha:
                     return False
+                same.append(_linked_numbers(record) in judged)
             if not self._passes_follow(
                 [Verdict(sha, "fail", r) for r, _, _ in fails], passes
             ):
@@ -2843,12 +2844,16 @@ class Reader:
             created = [self._fresh_created(r) for r, _, _ in fails]
             if None in created:
                 return False
-            since = min(c for c in created if c)
+            first = min(c for c in created if c)
+            last = max(c for c in created if c)
             if not all(
                 self._relinked_by_people(
-                    number, since, postmerge._time(self._updated.get(run_id))
+                    number,
+                    last if body else first,
+                    postmerge._time(self._updated.get(run_id)),
+                    body_edit=body,
                 )
-                for run_id, _, _ in passes
+                for (run_id, _, _), body in zip(passes, same, strict=True)
             ):
                 return False
         except (_Unreadable, postmerge.PostMergeReadError):
@@ -2856,15 +2861,16 @@ class Reader:
         return True
 
     def _relinked_by_people(
-        self, number: int, since: datetime, until: datetime
+        self, number: int, since: datetime, until: datetime, *, body_edit: bool = False
     ) -> bool:
         """At least one body edit or issue connect or disconnect on the pull
-        request falls from `since` to `until`, ends included, and every one
-        there was a trusted person's (`_trusted_actor`): never the lanes App
-        or another Bot, nor an actor GitHub cannot name. None there means the
-        link changed some way this read cannot see. RELINK_QUERY is read once
-        per pull request; a failed read, a list cut short or an act with no
-        readable time is False."""
+        request falls from `since` to `until`, ends included (a body edit,
+        under `body_edit`), and every one there was a trusted person's
+        (`_trusted_actor`): never the lanes App or another Bot, nor an actor
+        GitHub cannot name. None there means the link changed some way this
+        read cannot see. RELINK_QUERY is read once per pull request; a failed
+        read, a list cut short or an act with no readable time is False
+        (resolve-pr.mjs `relinkedByPeople`, `editedByPeople`)."""
         if number not in self._relinks:
             try:
                 self._relinks[number] = json_object(
@@ -2886,21 +2892,21 @@ class Reader:
         ):
             return False
         acts = [
-            (node.get("editedAt"), node.get("editor"))
+            (node.get("editedAt"), node.get("editor"), True)
             for node in map(json_object, edits["nodes"])
         ] + [
-            (node.get("createdAt"), node.get("actor"))
+            (node.get("createdAt"), node.get("actor"), False)
             for node in map(json_object, events["nodes"])
         ]
         try:
             inside = [
-                json_object(actor)
-                for at, actor in acts
+                (json_object(actor), edit)
+                for at, actor, edit in acts
                 if since <= postmerge._time(at) <= until
             ]
-            return bool(inside) and all(
+            return any(edit or not body_edit for _, edit in inside) and all(
                 self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
-                for actor in inside
+                for actor, _ in inside
             )
         except (_Unreadable, postmerge.PostMergeReadError):
             return False
