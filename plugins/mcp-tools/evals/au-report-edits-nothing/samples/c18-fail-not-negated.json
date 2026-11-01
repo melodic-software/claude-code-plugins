@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C18 requiresUserInteraction | OPINION | FAIL | string |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C18 requiresUserInteraction does not FAIL: \"true\" works.",
+      "why": "negated verdict"
+    }
+  ]
+}
