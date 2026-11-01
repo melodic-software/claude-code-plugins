@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-11-01
+
+### Changed
+
+- The audit and principles skill descriptions are shorter (audit 1007 to 530 characters, principles 795 to 511). Held-out trigger probes on Opus showed no lost trigger and no new false trigger. Frozen trigger probes for both skills are added.
+
 ## [0.12.0] - 2026-11-01
 
 ### Added
