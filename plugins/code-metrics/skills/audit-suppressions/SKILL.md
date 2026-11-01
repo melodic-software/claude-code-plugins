@@ -16,9 +16,9 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 ## Purpose
 
-A suppression turns a linter or type checker off for one line, one block or one file. Each one is
-a decision someone made once; this skill lists them so a reader can see how many there are, which
-explain themselves, and which switch off a rule the team counts as correctness rather than style.
+A suppression turns a linter or type checker off for one line, one block or one file. This skill
+lists them so a reader can see how many there are, which explain themselves, and which switch off
+a rule the team counts as correctness rather than style.
 It reports and stops: no pass or fail, and the report carries no severity (a `--findings` file
 carries the tier its rule's row sets, below). Whether a suppression should go is the reader's call.
 

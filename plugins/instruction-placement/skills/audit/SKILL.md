@@ -174,7 +174,7 @@ Before ranking, resolve the tracked suppression surface `.claude/instruction-pla
 its three layers ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md))
 and suppress every candidate whose `finding_id` it carries. That file is how a decline reaches a
 checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
-operator already made somewhere else.
+operator already made elsewhere.
 
 Derive a candidate's `anchor/v1` and `finding_id` by running `detect.sh identity`, never by hand.
 `--file` is the repo-relative path:

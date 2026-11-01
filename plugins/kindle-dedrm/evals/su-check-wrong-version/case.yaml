@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: su-check-wrong-version
+graders:
+  - name: version-fail
+    type: regex
+    pattern: '\bFAIL\b[^\n]{0,120}(?:2\.9|[Vv]ersion|Kindle)|(?:Kindle|[Vv]ersion|2\.9)[^\n]{0,120}\bFAIL\b'
+    target: last_message
+  - name: needs-pinned-version
+    type: regex
+    pattern: '\b2\.8\.0\.70980\b|\b70980\b'
+    target: last_message
+  - name: user-uninstalls
+    type: regex
+    pattern: '\bSettings\b[^\n]{0,40}\bApps\b|\byou(?:''ll)?\b[^\n]{0,40}\buninstall\w*|\buninstall\w*\b[^\n]{0,40}\b(?:yourself|first|manually|by hand)\b|\b(?:never|won''t|doesn''t|does[\s*_]+not|can''t|cannot|don''t|do[\s*_]+not)\b[^\n]{0,40}\b(?:auto-?)?uninstall\w*'
+    flags: 'i'
+    target: last_message
+  - name: no-uninstall
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:uninstall\.exe|winget(?:\.exe)?\s+uninstall|Remove-AppxPackage|Uninstall-Package|msiexec(?:\.exe)?\s+/x)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-download
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?(?:\bcurl\b|\bwget\b|Invoke-WebRequest|\biwr\b|Invoke-RestMethod|Start-BitsTransfer|\bgh\s+release\s+download\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    min: 0
+    max: 0
+    arm: 'both'
