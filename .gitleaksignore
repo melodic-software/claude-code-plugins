@@ -68,3 +68,5 @@ ab2def117acf8a6b4024624d34962cd314c9abd7:plugins/planning/shared/tests/fixtures/
 eda0c081edc6e01a57ced6e7b5bdee058b40178b:plugins/planning/shared/tests/fixtures/state-v2.json:generic-api-key:33
 2bf7855780888b5888d7774094ed536f92753b5e:plugins/session-flow/scripts/tests/test_save_point.py:jwt:572
 plugins/gaming/evals/dl-cyberpunk-preset/prompt.md:generic-api-key:28
+# A base32 encoding of the lowercase alphabet, a dropped-credential test fixture since replaced.
+f6ecd85b962b76ae796894a09c0f98d25c0e9787:.github/scripts/work-resolve-issue/report-outcome.test.mjs:generic-api-key:2106
