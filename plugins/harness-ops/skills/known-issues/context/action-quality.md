@@ -63,14 +63,14 @@ flagged message, or for a request that ended in a refusal because the flagged ca
 fallback for the model in use. To recover, we use:
 
 - `/model` to switch back to the original model.
-- `/config` > **Switch models when a message is flagged** off (or `switchModelsOnFlag: false`)
-  to be asked each time instead of switched.
+- `/config` > **Switch models when a message is flagged**, choosing to be asked each time (or
+  `switchModelsOnFlag: false`), instead of being switched.
 - `/feedback` to report a flag that looks wrong.
 
 Pointer: for which models fall back, to what, and the recovery settings, see
 [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
 (correlate with the [Opus 5.5 usage guide](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)).
-As of: 2026-10-01. Recheck trigger: that section changes, or a new model gains or loses a
+As of: 2026-11-01. Recheck trigger: that section changes, or a new model gains or loses a
 fallback.
 
 ## Fragility note
