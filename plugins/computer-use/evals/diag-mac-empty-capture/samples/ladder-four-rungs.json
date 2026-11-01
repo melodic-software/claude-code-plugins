@@ -11,6 +11,14 @@
     {
       "answer": "| Step | Check | Why |\n|---|---|---|\n| 1 | Screen saver running | Most common cause; separate from lock and sleep |\n| 2 | Session locked | Lock screen blocks capture |\n| 3 | Display asleep | Machine must be awake |\n| 4 | Pinned display | Reset `switch_display` to `auto` |\n\nThis is environmental, so rerunning the screenshot won't change it. `zoom` re-captures, so it fails with capture.\n\nmacOS: unverified. No probe commands ship for it, so read the screen saver, display sleep and lock settings in System Settings.",
       "why": "table reply"
+    },
+    {
+      "answer": "This is environment state. Walk the ladder: screensaver, lock, display sleep, then reset `switch_display` to auto.",
+      "why": "compact ladder naming the rungs as nouns"
+    },
+    {
+      "answer": "Environment, not a tool bug.\n\n**Screensaver?** Most likely.\n\n**Lock?** Capture stops on the lock screen.\n\n**Display sleep?** The machine must be on.\n\n**Pinned?** Reset `switch_display` to auto.",
+      "why": "noun headings for each rung"
     }
   ],
   "fail": [
