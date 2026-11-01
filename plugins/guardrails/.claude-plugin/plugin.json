@@ -1,6 +1,6 @@
 {
   "name": "guardrails",
-  "description": "Fifteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, merges with open review, cross-domain paths, PR-fix lane requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, root or out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets and paths, CLI flags, skill refs and removed paths.",
+  "description": "Sixteen toggleable guards. Blocks: secret writes, machine paths, git hook bypass, force-push, reset --hard, open-review merges, cross-domain paths, PR-fix requests, drive-root /tmp writes, exported MSYS_NO_PATHCONV, cd && git, root/out-of-tree recursive deletes, shell-expanded commit -m, off-convention commit/PR titles; off by default, credential reads. Warns: Workflow fan-out, direct gh pr create. Git hooks check commit subjects, secrets, paths, CLI flags, skill refs and removed paths.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -112,6 +112,12 @@
       "type": "boolean",
       "title": "Block-exported-MSYS-pathconv guard",
       "description": "Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details.",
+      "default": true
+    },
+    "block_cd_prefix_enabled": {
+      "type": "boolean",
+      "title": "Block-cd-prefix guard",
+      "description": "Denies a Bash command that opens with cd <path> followed by &&, ; or a newline and then runs git or writes to a relative path, with the reason to use git -C <abs path>. cd . and a cd to the current directory pass. On by default.",
       "default": true
     },
     "block_root_delete_target_enabled": {
