@@ -80,6 +80,15 @@ inputs:
       human, at the PR's current head. Empty stops every such dispatcher.
     required: false
     default: ""
+  run-dispatcher-relay:
+    description: >
+      The workflow path of a review-comment relay a workflow_run dispatcher's
+      upstream may have instead. It must be a pull_request_review_comment run
+      of this repository naming the PR in its pull_requests, started (and any
+      re-run) by a listed human, never the lanes App, at the PR's current
+      head. Empty accepts no relay.
+    required: false
+    default: ""
   expected-upstream-head:
     description: >
       For a job after pr-unblock's model job, the head that job was gated on.
@@ -186,6 +195,7 @@ runs:
         DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
         RUN_DISPATCHER_WORKFLOW: ${{ inputs.run-dispatcher-workflow }}
         RUN_DISPATCHER_UPSTREAMS: ${{ inputs.run-dispatcher-upstreams }}
+        RUN_DISPATCHER_RELAY: ${{ inputs.run-dispatcher-relay }}
         EXPECTED_UPSTREAM_HEAD: ${{ inputs.expected-upstream-head }}
         PUSHED_COMMIT: ${{ inputs.pushed-commit }}
         LANES_APP_ID: ${{ inputs.lanes-app-id }}

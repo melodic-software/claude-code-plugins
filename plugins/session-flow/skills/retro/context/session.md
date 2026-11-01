@@ -257,8 +257,9 @@ before filling the table. The placement decision tree and the per-target recomme
 (memory, rules, hooks, skills, agents, MCP servers, settings) live there.
 
 **Repeated corrections.** A finding that is a correction the session needed more than once is
-encoded through codify's Strength step (`context/codify.md`, step 2), which picks its rung before
-its place. Its row here names that route.
+routed to `/corrections:codify "<the mistake>"` when the `corrections` plugin is installed, which
+counts it and picks its rung before its place; its row here names that route. Without it, the
+catalog's matching section takes the finding, as its "Owner skills" section says.
 
 Present as a GFM table with a **Scope** column distinguishing:
 

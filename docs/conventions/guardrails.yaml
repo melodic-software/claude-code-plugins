@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../../plugins/guardrails/schemas/guardrails.schema.json
+# Team layer for the guardrails plugin's settings.
+# Resolution: plugins/guardrails/hooks/block-fix-request-post.sh (fix_request_post).
+# allow: the fix-request guard protects only against our own actors, so it is lifted here.
+fix_request_post: allow

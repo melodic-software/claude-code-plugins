@@ -33,6 +33,17 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   key) and decide it against the
   [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
   Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
+- **Invocation convention.** Before setting `disable-model-invocation: true`, list every starter
+  that is not a person typing `/name`: another skill, a subagent preload, `/loop`, a routine, a
+  Desktop task, a workflow prompt, an event trigger. An automation starter, present or planned, is
+  a reason against `true`. The rubric's
+  [exception classes](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#exception-classes-the-only-reasons-to-write-true)
+  decide: write `true` only under one of them, and a `setup` skill stays `true` under class (ii)
+  whatever starts it. Listing starvation alone is not a class: listing cost was rejected as one in
+  [#4659](https://github.com/melodic-software/claude-code-plugins/issues/4659). Why: the rule keys
+  on the starter, not on reach. Which starters can reach a user-invoked skill is the rubric's
+  [first default bullet](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md#the-default-and-why),
+  which carries the probe record and its recheck trigger.
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
   and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/argument-hint/README.md);
@@ -57,8 +68,8 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
   guessed. Keep a quoted user idiom that shares no word with the rest of the description (a
   jargon or slang name for the job) when probes show it moves triggering; cut a paraphrase of
-  words already present. Weaker models lean on these terms more, so measure on each model the
-  skill targets.
+  words already present. Our untested hypothesis is that weaker models lean on these terms more,
+  so measure on each model the skill targets.
 - **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
   trigger text does nothing there: the invocation-control section of the Claude Code skills docs
   in [Sources](#sources).
@@ -72,6 +83,12 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 
 ## Body
 
+- **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
+  conversation. A read-only action proceeds and names what it inferred; the planned
+  bare-run setting calls this default `proceed`, and no settings key carries it yet. A state
+  change proposes the action and waits for a yes, a fixed floor. With nothing to infer, ask one multiple-choice question. Unattended, a state change
+  stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
+  guessed write needs the person's yes, and an unattended run has no one to give it.
 - Apply the deletion test, then the prompt audit's flags: trigger-case enumeration, step
   choreography for a judgment task, history narratives (see
   [History and provenance](#history-and-provenance)), and restated volatile specifics, which
@@ -114,8 +131,14 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
   splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
-  the body), while every extra model-invoked skill adds a description to the always-loaded listing (a user-invoked one stays out of it). Split only when the parts
-  change independently or answer different requests.
+  the body), while every extra model-invoked skill adds a description to the always-loaded
+  listing (a user-invoked one stays out of it). A split is the exception: split only when the
+  parts change independently or answer different requests.
+- **SKILL.md is a router, under 5,000 tokens.** It is the hub: it holds the standing rules and
+  routes each action to its own spoke under `actions/`, one file per action, so a run loads the
+  router and the one action it needs. The cap is a house setting; `/skill-quality:check` estimates the count at 4
+  characters per token and WARNs above it (check 30). Every skill carries evals
+  ([Measurement](#measurement)).
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
@@ -142,9 +165,8 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   ([Sources](#sources)); `/skill-quality:check` holds the current value and enforces it. Our own
   measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06; recheck
   when a re-measure at a newer commit moves it). Length is the symptom; the deletion test is the
-  remedy. Aim for a short hub, not a short skill: SKILL.md carries the standing rules and routes
-  each task to the file it needs, so a large skill is sound when the agent loads only what the
-  work in front of it calls for. Never cut to reach a line count.
+  remedy. Aim for a short router, not a short skill: a large skill is sound when the agent loads
+  only what the work in front of it calls for. Never cut to reach a line count.
 
 ## Stack-specific tools
 
@@ -197,9 +219,9 @@ reads it. A key nothing reads is cut.
 - Grant only the tools the agent needs.
 - Pin `model` in frontmatter. `inherit` only for an agent that must run on the orchestrator's
   model, with the reason on the same line: `model: inherit  # reason: <why>`. An omitted field
-  falls back to the orchestrator's model with nothing to show it was chosen; a dispatching skill
-  overrides per call. `scripts/validate-plugin-contracts.mjs` fails a definition that breaks
-  either rule.
+  leaves nothing in the definition to show a model was chosen; what an omitted, pinned or
+  per-call value resolves to is read at the [Subagent docs](#sources) entry's pointers.
+  `scripts/validate-plugin-contracts.mjs` fails a definition that breaks either rule.
 
 ## Measurement
 
@@ -261,7 +283,9 @@ cut the re-audit proposes takes the cutting-text route above, tested with and wi
 text.
 
 Re-run on any change: a description change re-measures triggering, a body change re-measures
-output (`/evals:plugin-eval` for a plugin suite). A skill's cases are `case.yaml` cases in its
+output (`/evals:plugin-eval` for a plugin suite). Every skill has evals, since a change to a
+skill without them cannot show it lost nothing; the only exception is a recorded skip in
+`scripts/evals-warrant-exemptions.txt`, which check 14 honors. A skill's cases are `case.yaml` cases in its
 plugin's `evals/` directory (`/evals:design skill <name>` writes them); `/evals:validate` checks
 them before a run.
 
@@ -269,19 +293,21 @@ them before a run.
 judgment (a reviewer reads) or attestation (the author states it).
 
 - Frontmatter and body: description caps (mechanical, checks 2 and 2b); "Use when" phrasing
-  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); skill-internal paths resolve
-  with forward slashes (mechanical, check 5); spoke directories referenced from the hub
-  (mechanical, check 15); `## Contents` on a long spoke (mechanical, check 26); explicit
-  `disable-model-invocation` (mechanical, check 24); gotchas surface (mechanical, check 11);
-  arguments follow the skill argument shape (judgment); every other rule on this page
-  (judgment).
+  (mechanical, check 12); SKILL.md line cap (mechanical, check 4); SKILL.md router cap of
+  5,000 tokens (mechanical WARN, check 30); one `actions/` file per action (judgment);
+  skill-internal paths resolve with forward slashes (mechanical, check 5); spoke directories
+  referenced from the hub (mechanical, check 15); `## Contents` on a long spoke (mechanical,
+  check 26); explicit `disable-model-invocation` (mechanical, check 24); gotchas surface
+  (mechanical, check 11); arguments follow the skill argument shape (judgment); every other rule
+  on this page (judgment).
 - Scripts: `scripts/*.test.sh` pass (mechanical, check 7); no committed cache or build artifacts
   (mechanical, check 13); injected `!` commands portable with a fallback (mechanical, checks 19
   and 20); output names what the script did, including on failure (judgment).
 - Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); under
   `--require-evals`, check 14 passes when a suite case lists the skill's directory name in a
   one-line `tags: [...]` (mechanical); fresh-session baseline captured
-  (attestation); models exercised, from `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill
+  (attestation); models exercised, from the Agent-tool model aliases (the [Subagent docs](#sources)
+  entry holds the pointer) (attestation); a skill
   run under a `model` override or inside a subagent names every target model, or says which are
   untested (attestation).
 
@@ -322,8 +348,12 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
   (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
 - **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
-  and [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-10-06. Recheck: the model resolution order or the omitted-field fallback
-  changes.
+  for the model resolution order and the Agent-tool alias set,
+  [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
+  for the force setting that overrides frontmatter `model`, and
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-11-01.
+  Recheck: the model resolution order, the omitted-field fallback, the force setting or the
+  Agent-tool alias list changes.
 - **Pocock's skills**, <https://github.com/mattpocock/skills> at commit `6fd9479`, measured by us
   over 38 skills. As of 2026-10-06. Recheck: a re-measure at a newer commit moves a median or a
   shape.

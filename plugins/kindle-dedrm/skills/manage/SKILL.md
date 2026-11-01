@@ -1,5 +1,5 @@
 ---
-description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Action router: setup (first-time provisioning: download, firewall block, ICACLS lock, Calibre plugins, keyfinder; delegated to the dedicated /kindle-dedrm:setup check/apply skill), sync (new purchases: disable firewall, sync Kindle, re-enable, re-run keyfinder), update (drift check: upstream version pins and tutorial URLs, no mutations), cleanup (reversible decommission: per-item confirmation, --soft or --full), status (diagnostic). Every state mutation has a documented compensating reversal. Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Calibre and Kindle are mentioned together."
+description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Actions: setup (first-time provisioning, delegated to /kindle-dedrm:setup), sync (new purchases), update (drift check, no mutations), cleanup (reversible decommission: per-item confirmation, --soft or --full), status (diagnostic). Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Calibre and Kindle are mentioned together."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true
 disable-model-invocation: false
@@ -7,13 +7,13 @@ disable-model-invocation: false
 
 ## Purpose
 
-Personal-use Kindle DRM removal is a fragile multi-tool workflow with state mutations that, if forgotten, leave the user's machine in an awkward state (silent auto-update, stuck firewall rules, half-installed Calibre plugins). This skill captures the lifecycle as discrete reversible actions and tracks every upstream source that drifts independently (Amazon's Kindle for PC release cadence, Satsuoni's DeDRM_tools fork, Kindle_Key_Finder zip with rolling date in URL, techy-notes.com tutorial article).
+Personal-use Kindle DRM removal is a fragile multi-tool workflow whose forgotten state mutations leave the machine broken (silent auto-update, stuck firewall rules, half-installed Calibre plugins). Each lifecycle step is a reversible action, and every upstream source that drifts independently is tracked (Amazon's Kindle for PC release cadence, Satsuoni's DeDRM_tools fork, Kindle_Key_Finder zip with rolling date in URL, techy-notes.com tutorial article).
 
 Scope: Windows-only (Kindle for PC + KFXKeyExtractor are Windows binaries). Single-user. Books the user owns.
 
 ## First step: probe current state
 
-Probe current state on every invocation. Run scripts/status.sh and read the JSON output before deciding which action applies.
+On every invocation, run scripts/status.sh and read its JSON before deciding which action applies.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/status.sh"
@@ -26,13 +26,13 @@ Output reports: Kindle for PC version, firewall rule presence, ICACLS deny prese
 | Action | When | What it does |
 |---|---|---|
 | (empty) | Default. Auto-detect from status | If pristine → recommend `/kindle-dedrm:setup`. If state OK + user mentioned new books → recommend `sync`. Otherwise emit status report |
-| `setup` | First-time install | Delegates to the dedicated **`/kindle-dedrm:setup`** skill (uniform check/apply contract): provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
+| `setup` | First-time install | Delegates to **`/kindle-dedrm:setup`**: provisioning walkthrough: download, install Kindle for PC 2.8.0, sign-in checkpoint, sync books, install Calibre plugins, run keyfinder, apply firewall + ICACLS lockdown |
 | `sync` | New books purchased after initial setup | Disable firewall, prompt user to sync in Kindle, delete cached installer, re-enable firewall, re-run keyfinder |
 | `update` | Periodic drift check | WebFetch tutorial URLs + gh API for upstream releases, diff against captured baselines in `reference/sources.md`, emit drift report. No mutations |
 | `cleanup` | Decommission | Walk through every reversible mutation with per-item Y/N. Default (confirm-each) offers the firewall rule, ICACLS deny, keyfinder, and downloads; `--soft` limits to tools + downloads (keeps the firewall/ICACLS lock and Kindle for PC); `--full` also offers to uninstall Kindle for PC and remove Calibre plugins. The Calibre Library is never offered |
 | `status` | Diagnostic | Same as default empty action |
 
-Smart auto-detect when action is empty: read pre-computed context, classify state, recommend the most-fitting action OR emit status if classification is ambiguous. Never commit to setup/sync/cleanup without user confirmation when ambiguous.
+When the action is empty, read the pre-computed context, classify state, and recommend the most-fitting action, or emit status if classification is ambiguous. When ambiguous, never commit to setup/sync/cleanup without user confirmation.
 
 ## Hard safety rules
 
@@ -46,12 +46,10 @@ Apply across every action. Violating any risks losing the working 2.8.0 setup or
 
 ## Action: setup
 
-First-time provisioning lives in the dedicated **`/kindle-dedrm:setup`** skill, which conforms to the
-uniform check/apply contract: `check` probes prerequisites and current state read-only, `apply` runs the
-full provisioning walkthrough (`reference/workflow.md`). The gated artifact download, install,
-firewall block, ICACLS lock, Calibre plugins, and keyfinder. When this router's smart auto-detect finds
-a pristine machine, recommend `/kindle-dedrm:setup` rather than provisioning inline; the sequence has a
-single owner (`/kindle-dedrm:setup` → `reference/workflow.md`).
+First-time provisioning lives in **`/kindle-dedrm:setup`**: `check` probes prerequisites and current
+state read-only, `apply` runs the full provisioning walkthrough (`reference/workflow.md`): the gated
+artifact download, install, firewall block, ICACLS lock, Calibre plugins, and keyfinder. When
+auto-detect finds a pristine machine, recommend `/kindle-dedrm:setup` rather than provisioning inline.
 
 ## Action: sync
 
@@ -76,7 +74,7 @@ If user reports a cached installer popped up during step 3, that's expected. Ama
 
 ## Action: update
 
-Drift check. No mutations. Diffs upstream sources against captured baselines in `reference/sources.md` + `reference/versions.md`.
+No mutations. Diffs upstream sources against captured baselines in `reference/sources.md` + `reference/versions.md`.
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/check-drift.sh"
@@ -95,22 +93,20 @@ Two further sources are tracked in `reference/sources.md` but have no automated 
 companion article, and the supported-version list in Kindle_Key_Finder's `code/modules/utils.py`.
 Check those by hand when a drift report leaves a question open.
 
-Output: drift report listing each source's status (`current` / `stale` / `unreachable`) and recommended action (`re-download` / `update version pin` / `manual review`). User decides what to act on; update action itself does not apply changes.
+Output: drift report listing each source's status (`current` / `stale` / `unreachable`) and recommended action (`re-download` / `update version pin` / `manual review`). The user decides what to act on.
 
-When the user accepts a drift recommendation, the re-pin edit is **maintainer work, gated
-on a working-tree checkout**: applying it requires `${CLAUDE_PLUGIN_ROOT}` to be inside a
-git working tree (`git -C "${CLAUDE_PLUGIN_ROOT}" rev-parse --is-inside-work-tree`
+When the user accepts a drift recommendation, the re-pin edit is **maintainer work**: apply
+it only when `${CLAUDE_PLUGIN_ROOT}` is inside a git working tree (`git -C "${CLAUDE_PLUGIN_ROOT}" rev-parse --is-inside-work-tree`
 succeeds, a marketplace clone or a `--plugin-dir` load). In installed form
 `${CLAUDE_PLUGIN_ROOT}` is the read-only plugin cache: **stop** after the drift report and
 direct the change to the plugin's source repository (file an issue or PR there); never
 edit bundled files in the cache. Consumers then receive the re-pin through
 `/plugin marketplace update`.
 
-In a checkout, when the user accepts a drift recommendation:
+In a checkout:
 
-1. Apply the change to `reference/versions.md` (update pin, refresh page summary). The
-   single source of truth; `check-drift.sh` parses its pins from that file, so no second
-   copy needs editing.
+1. Apply the change to `reference/versions.md` (update pin, refresh page summary).
+   `check-drift.sh` parses its pins from that file, so no second copy needs editing.
 2. Run the affected portion of `setup` (e.g., re-download DeDRM_tools if a new pre-release is selected).
 3. Verify the workflow still works end-to-end on at least one book (run `sync` mode against a single test book).
 
@@ -124,7 +120,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh --soft"    # tools 
 bash "${CLAUDE_PLUGIN_ROOT}/skills/manage/scripts/cleanup.sh --full"    # everything including Kindle for PC + Calibre plugins
 ```
 
-Reversal matrix (every row maps a mutation made by setup/sync to its compensating reversal):
+Reversal matrix (each setup/sync mutation and its compensating reversal):
 
 | Mutation | Compensating reversal | Confirm by default? |
 |---|---|---|

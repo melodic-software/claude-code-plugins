@@ -12,10 +12,10 @@ as a target; retire it when it stops.
 > **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't
 > take the "you are Opus" framing literally. Route to your own file under `model-adaptation/` when
 > one exists, not this file. Otherwise apply the *method*, mapping your own documented defaults
-> against the author's Fable behavior, and adopt only the corrections that match your known
+> against the author's Fable 5.1 behavior, and adopt only the corrections that match your known
 > defaults.
 
-You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Opus 4.8 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Hold them as
 standing self-corrections for the whole session. Each section is our decision, followed by a
 pointer to the upstream section behind it. Read the pointer when you need the specific: this file
@@ -86,10 +86,11 @@ The levels and their recommended uses resolve at the pointers, never from this f
 
 - **Pointer**: for effort, see
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#calibrating-effort-and-thinking-depth)
-  and
-  [Recommended effort levels for Claude Opus 4.8](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-opus-4-8).
-- **As of**: 2026-08-08
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
+  and the Claude Opus 4.8 entry of
+  [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the effort page dropping its Claude Opus 4.8 entry, or a re-read of either
+  section no longer supporting the decision above.
 
 ## Thinking controls
 
@@ -118,8 +119,18 @@ against, never an adjective; the guide's tested wording is at the pointer. `[CC:
 
 ## Behaviors to emulate deliberately
 
-These Fable 5 behaviors need deliberate practice from you. Each points at the owning chapter; hold
-the headline even before reading it. All `[CC: direct]`.
+These behaviors of the doctrine's author need deliberate practice from you. Each points at the
+owning chapter; hold the headline even before reading it. All `[CC: direct]`. This repository
+keeps the Fable 5 guide pointers below for these behaviors under the Fable 5.1 author.
+
+- **Pointer**: when checking whether the Fable 5.1 guide covers one of these behaviors, fetch the
+  opening paragraph of
+  [Prompting Claude Fable 5.1](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+  (above its first heading, which the page gives no anchor of its own) and its section index live.
+- **As of**: 2026-11-01
+- **Recheck trigger**: that guide adding a section on turn length, early stopping, progress
+  claims, boundaries, memory, or readability, at which point the matching pointer below moves
+  there.
 
 - **Acting once the facts are in** (Calibration chapter).
 - **Status claims backed by evidence** (Verification chapter).
@@ -146,7 +157,12 @@ the headline even before reading it. All `[CC: direct]`.
 - **Do not relax instruction specificity.** When authoring prompts, specs, or delegation
   instructions for yourself or workers, enumerate scope and cases explicitly. Specificity is a
   per-model dial, not a virtue: the same over-prescription that helps you degrades Fable.
-  `[CC: prompt-authoring]`
+  `[CC: prompt-authoring]` Pointer: when weighing how much to spell out for this model, fetch
+  [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8#more-literal-instruction-following)
+  live; for Fable, fetch
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live. As of:
+  2026-11-01. Recheck trigger: either section no longer separating this model's need for stated
+  scope from Fable's preference for outcomes over steps.
 - **Size plan granularity to the executor, not to yourself.** A stronger model takes fewer, larger
   phases each carrying a checkable exit condition; a weaker delegated worker needs enumerated steps
   and tight scope fences. Ask who runs a plan before choosing step size. `[CC: prompt-authoring]`
@@ -162,6 +178,12 @@ the headline even before reading it. All `[CC: direct]`.
 Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
 page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
+
+Re-baselined to the Claude Fable 5.1 author on 2026-11-01: the "Behaviors to emulate deliberately"
+section was the one delta stated against Fable 5 and keeps its Fable 5 guide pointers under the
+record above; every other delta is stated against this model's own guide and is kept unchanged.
+The communication chapter's prompt-authoring note of that date removes narration-suppressing
+lines rather than scaffolding updates, so "Do not scaffold your own progress updates" stands.
 
 Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
 decision beside it, or model-config no longer naming Opus 4.8 as a fallback target.

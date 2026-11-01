@@ -55,20 +55,58 @@ project file, because production imports that file. Once the person picks a keep
 is harvested into the project, the tool is deleted; the saved configuration and any export stay,
 since they are the harvested output.
 
+A fourth exception, to rule 6, for `/prototype:pressure-test`'s
+[evidence step](#evidence-step): the shell still leaves the working tree when the prototype is
+closed out, but the prototype's files can stay reachable on a pushed throwaway branch. That branch
+holds the evidence only when the repository's own secrets and machine-data check passed over those
+files; otherwise nothing is pushed, and the note records where the files were and why they were not
+pushed.
+
 ## When done
 
 Capture what the prototype taught somewhere durable: wherever your project keeps design
 decisions (a decision note, commit message, ADR, or issue tracker). If the user is present, a
 quick conversation captures the verdict; if not, leave a placeholder `NOTES.md` next to the
-prototype so the answer gets filled in before deletion. Then delete the throwaway code.
+prototype so the answer gets filled in before deletion. For `/prototype:pressure-test`, once the
+note holds the answer, run the [evidence step](#evidence-step), and only after it delete the
+throwaway code. `/prototype:explore-directions` and `/prototype:build-generator` do not run it:
+they delete the throwaway code once the note holds the answer.
 
 **Record the directions that lost, not only the one that won.** Name each direction that was tried
 and the reason it lost. A losing direction is the cheapest possible answer to "why not just do it
 this way?", and it is the only part of the exercise a future reader cannot reconstruct from the
 shipped result. When the verdict is a graft rather than a single winner, such as "this layout, but
 that one's navigation", say which piece came from where, and what was in the discarded parts that
-the graft deliberately left behind. The deletion in the next step is irreversible: whatever is not
-written here is gone, and the question gets re-litigated from scratch the next time it comes up.
+the graft deliberately left behind. The deletion that closes the prototype is irreversible: whatever
+is not written here (or, for `/prototype:pressure-test`, pushed by the evidence step) is gone, and
+the question gets re-litigated from scratch the next time it comes up.
+
+### Evidence step
+
+`/prototype:pressure-test` runs it, in its capture step, after the durable note is written and
+before the throwaway code is deleted. It adds no check of its own: it relies on the repository's own
+secrets and machine-data check, and pushes only when that check passes.
+
+1. **Find the check.** It is the scan the repository already runs over files before they leave the
+   machine, such as a pre-push or pre-commit secrets hook, or a pre-push secrets step its
+   source-control tooling runs, as its contributing guide, agent instructions or hook configuration
+   names it.
+2. **Run it over the prototype files**: every file the prototype added or changed inside the
+   working tree, the shell included. A file kept outside the repository, such as an HTML page in a
+   temp directory, is never copied in; the note records its path.
+3. **Name the branch** by the repository's declared branch-naming convention (its contributing
+   guide, agent instructions or a branch-name check). Never use the default branch's name, or a
+   name or prefix the repository reserves for automation lanes.
+4. **Push, or record why not.**
+   - When the check passed and the convention gave a name: create that branch in a separate
+     worktree, copy the prototype files into it, commit only them, push that branch (never the
+     default branch), and remove that worktree. The working tree keeps the prototype files as they
+     were, for the lift and the deletion that follow. Write the branch name and the commit SHA into
+     the durable note.
+   - Otherwise push nothing: the repository has no such check, the check failed, no convention is
+     declared, or the push itself failed. Write the prototype's local path and
+     `not pushed: <reason>` into the note, such as `not pushed: no secrets check in this repository`.
+     When the push failed after the commit, also write the local branch name.
 
 ## Outside a prototype's job
 

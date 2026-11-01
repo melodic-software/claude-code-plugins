@@ -80,8 +80,8 @@ lane-telemetry contract; one writer identity owns a marker). The upsert itself, 
 validation, the singleton lookup, the body gate, the write-status check and read-back, the
 POST/PATCH, and the creation-race reconcile, runs as `${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh`. Its
 arguments, its exit codes and what each one tells the lane to do, and the `$BODY_FILE` contract are
-owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md). Compose the body and
-invoke the script; do not write the comment by hand.
+owned by [reference/telemetry-upsert.md](reference/telemetry-upsert.md); its `<plugin-data>` is `${CLAUDE_PLUGIN_DATA}`.
+Compose the body there, pass it as `--body-dir`, and invoke the script; do not write the comment by hand.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content, state block included, in the lane's cycle report/log, noting the comment surface is absent.
@@ -94,7 +94,7 @@ the source of truth for these counters):
 {"schema":"work-items/loop-state@2","cycle":12,"clean_streak":1,"no_progress_streak":0,
  "item_cap":2,"rate_limit_latch":false,"first_drain_proposed":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
- "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
+ "lane_instance":"lane-3e7a91c4","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
  "paused_until":null,"latched_account":null,"effort":"unset",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,

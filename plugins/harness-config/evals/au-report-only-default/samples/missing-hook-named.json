@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "The PostToolUse hook points at `.claude/hooks/format-changed.sh`, which does not exist."
+    },
+    {
+      "answer": "D, Hooks | error | hook-path-missing: \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-changed.sh"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "One PostToolUse hook has a 30000 timeout that reads as milliseconds.",
+      "why": "the timeout row, not the missing script"
+    },
+    {
+      "answer": "Hooks look fine."
+    }
+  ]
+}

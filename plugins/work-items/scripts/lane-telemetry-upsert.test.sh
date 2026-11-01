@@ -5,8 +5,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UPSERT="$SCRIPT_DIR/lane-telemetry-upsert.sh"
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The safe body dir must be the plugin's data dir, so the work dir's last segment
+# names work-items.
+ROOT="$(mktemp -d)"
+WORK="$ROOT/work-items"
+mkdir -p "$WORK"
+trap 'chmod -R u+rwx "$ROOT" 2>/dev/null; rm -rf "$ROOT"' EXIT
 
 FAILED=0
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -162,6 +166,13 @@ FAKE
 chmod +x "$BIN/gh"
 PATH="$BIN:$PATH"
 export PATH
+# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
+# it under the work dir without touching HOME.
+cat >"$BIN/getent" <<'GETENT'
+#!/usr/bin/env bash
+printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
+GETENT
+chmod +x "$BIN/getent"
 
 LANE=work-loop
 INSTANCE=laptop-a
@@ -172,7 +183,7 @@ SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$INSTANCE -->"
 run() { # sets RC, STDERR, STDOUT; args after the fixed five
   STDERR="$WORK/stderr.txt"
   STDOUT="$(bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
-    --issue "$ISSUE" --body-file "$1" "${@:2}" 2>"$STDERR")"
+    --issue "$ISSUE" --body-file "$1" --body-dir "$WORK" "${@:2}" 2>"$STDERR")"
   RC=$?
 }
 
@@ -423,7 +434,7 @@ fi
 # --- 6. usage refusals ------------------------------------------------------
 fresh_state
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
-  --body-file "$GOOD" --bogus >/dev/null 2>"$WORK/e.txt"
+  --body-file "$GOOD" --body-dir "$WORK" --bogus >/dev/null 2>"$WORK/e.txt"
 check_rc 2 "$?" "an unknown argument exits 2"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
   >/dev/null 2>"$WORK/e.txt"
@@ -440,13 +451,13 @@ else
 fi
 
 bash "$UPSERT" --lane babysit --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
-  --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+  --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 3 "$?" "an unknown lane exits 3"
 
 # --- 7. lane-instance refusals ----------------------------------------------
 for bad in "Laptop-A" "-leading" "has_underscore" "has.dot"; do
   bash "$UPSERT" --lane "$LANE" --instance "$bad" --repo "$REPO" --issue "$ISSUE" \
-    --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+    --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
   check_rc 4 "$?" "lane instance '$bad' is rejected, never sanitized (exit 4)"
 done
 if grep -q 'refusing to build a marker' "$WORK/e.txt"; then
@@ -455,29 +466,50 @@ else
   fail "instance refusal stderr: $(cat "$WORK/e.txt")"
 fi
 bash "$UPSERT" --lane "$LANE" --instance "aaaaaaaaaabbbbbbbbbbccccccccccddd" --repo "$REPO" \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 5 "$?" "a 33-character lane instance exits 5"
 
 # A surviving userConfig placeholder means the key is unset, so it takes the
-# hostname fallback rather than being validated as a literal id.
+# stored random-id fallback rather than being validated as a literal id. The
+# marker is public, so the fallback is never the hostname.
 fresh_state
+IDDIR="$WORK/iddir/work-items"
+mkdir -p "$IDDIR"
+write_body "$IDDIR/body.md" "$SENT"
 bash "$UPSERT" --lane "$LANE" --instance '${user_config.lane_instance}' --repo "$REPO" \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
-if grep -q 'assuming the sanitized hostname' "$WORK/e.txt"; then
-  pass "a surviving userConfig placeholder falls back to the hostname and logs the assumption"
+  --issue "$ISSUE" --body-file "$IDDIR/body.md" --body-dir "$IDDIR" >/dev/null 2>"$WORK/e.txt"
+STORED="$(cat "$IDDIR/lane-instance" 2>/dev/null)"
+if [[ "$STORED" =~ ^lane-[0-9a-f]{8}$ ]] && grep -q "using the stored random id '$STORED'" "$WORK/e.txt"; then
+  pass "a surviving userConfig placeholder falls back to a stored random id and logs it"
 else
-  fail "placeholder handling stderr: $(cat "$WORK/e.txt")"
+  fail "placeholder handling: stored '$STORED', stderr: $(cat "$WORK/e.txt")"
+fi
+HOST="$(hostname 2>/dev/null || uname -n)"
+HOST_SANITIZED="$(printf '%s' "$HOST" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+if [[ -n "$STORED" && "$STORED" != "$HOST" && "$STORED" != "$HOST_SANITIZED" ]]; then
+  pass "the fallback instance id is not the hostname"
+else
+  fail "the fallback instance id equals the hostname"
+fi
+write_body "$IDDIR/body.md" "<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$STORED -->"
+bash "$UPSERT" --lane "$LANE" --instance "" --repo "$REPO" \
+  --issue "$ISSUE" --body-file "$IDDIR/body.md" --body-dir "$IDDIR" >/dev/null 2>"$WORK/e.txt"
+check_rc 0 "$?" "a second unset-instance run reuses the stored id and upserts"
+if [[ "$(cat "$IDDIR/lane-instance")" == "$STORED" ]] && ! grep -rqF -- "$HOST_SANITIZED" "$FAKE_GH_STATE" "$FAKE_GH_ARGV"; then
+  pass "the stored id is stable across runs and the hostname reaches no API call"
+else
+  fail "the stored id changed or the hostname reached the API"
 fi
 
 # --- 8. repo and issue refusals ---------------------------------------------
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "owner/repo/../../other/target" \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 6 "$?" "a traversal-shaped --repo exits 6 before any API call"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "../.." \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 6 "$?" "a dot-segment --repo exits 6 before any API call"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "4a2" \
-  --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+  --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"
 check_rc 7 "$?" "a non-numeric --issue exits 7"
 
 # --- 9. missing prerequisites ------------------------------------------------
@@ -494,9 +526,9 @@ minbin_add() {
     chmod +x "$MINBIN/$t"
   done
 }
-minbin_add bash cat head tail wc tr sort grep hostname awk jq
+minbin_add bash cat head tail wc tr sort grep awk jq
 if PATH="$MINBIN" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"; then
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"; then
   fail "gh absent should not succeed"
 else
   check_rc 8 "$?" "gh absent from PATH exits 8"
@@ -504,7 +536,7 @@ fi
 rm -f "$MINBIN/jq"
 minbin_add gh
 if PATH="$MINBIN" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
-  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"; then
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$WORK/e.txt"; then
   fail "jq absent should not succeed"
 else
   check_rc 8 "$?" "jq absent from PATH exits 8"
@@ -639,6 +671,156 @@ FAKE_GH_FAIL="get"
 export FAKE_GH_FAIL
 run "$GOOD"
 check_rc 14 "$RC" "a read-back that cannot be performed exits 14"
+
+# --- 15. body-file containment and the leak scan ----------------------------
+# A path outside the safe dir is refused before any read: the file is mode 000,
+# so a read would fail differently, and the refusal makes zero API calls.
+fresh_state
+OUTSIDE="$ROOT/outside"
+mkdir -p "$OUTSIDE"
+printf 'PRIVATE-KEY-MATERIAL\n' >"$OUTSIDE/secret.txt"
+chmod 000 "$OUTSIDE/secret.txt"
+run "$OUTSIDE/secret.txt"
+check_rc 16 "$RC" "a body file outside the safe dir is refused (exit 16)"
+if grep -q 'must resolve under the safe body dir' "$STDERR" && ! grep -q 'PRIVATE-KEY-MATERIAL' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the outside-path refusal names the rule, echoes no content and makes no API call"
+else
+  fail "outside-path refusal: $(cat "$STDERR")"
+fi
+chmod 600 "$OUTSIDE/secret.txt"
+run "$WORK/../outside/secret.txt"
+check_rc 16 "$RC" "a .. traversal out of the safe dir is refused (exit 16)"
+ln -s "$OUTSIDE/secret.txt" "$WORK/link.md"
+run "$WORK/link.md"
+check_rc 16 "$RC" "a symlink leaf escaping the safe dir is refused (exit 16)"
+if ! grep -q 'PRIVATE-KEY-MATERIAL' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the symlink refusal echoes no content and makes no API call"
+else
+  fail "symlink refusal reached content or the API"
+fi
+rm -f "$WORK/link.md"
+STDERR="$WORK/stderr.txt"
+env -u CLAUDE_PLUGIN_DATA bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "no --body-dir and no work-items CLAUDE_PLUGIN_DATA exits 16"
+FOREIGN="$WORK/codex-data"
+mkdir -p "$FOREIGN"
+cp "$GOOD" "$FOREIGN/body.md"
+CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file "$FOREIGN/body.md" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "another plugin's CLAUDE_PLUGIN_DATA is no safe body dir (exit 16)"
+
+# A credential-shaped body is withheld whole, never posted, never echoed. The
+# fake token is assembled at run time so no token-shaped literal is tracked.
+fresh_state
+FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
+printf '%s\ncycle=7 note=%s\n' "$SENT" "$FAKE_TOKEN" >"$WORK/leak.md"
+run "$WORK/leak.md"
+check_rc 17 "$RC" "a body carrying a credential-shaped token is refused (exit 17)"
+if grep -q "leak-scan rule 'GitHub token'; a real credential must be rotated" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" <<<"$STDOUT" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the leak refusal names the rule, never prints the token, and makes no API call"
+else
+  fail "leak refusal: $(grep -c . "$FAKE_GH_ARGV") API calls, stderr: $(sed "s/$FAKE_TOKEN/<token>/" "$STDERR")"
+fi
+printf '%s\ncycle=7 password="hunter2hunter2"\n' "$SENT" >"$WORK/assign.md"
+run "$WORK/assign.md"
+check_rc 17 "$RC" "a body carrying a plain secret assignment is withheld too (exit 17)"
+
+# A caller-chosen --body-dir must be the plugin's data dir: one whose last
+# segment does not name work-items, or that is the home dir or an ancestor of it,
+# contains nothing, so it is refused before the body is read.
+fresh_state
+mkdir -p "$ROOT/elsewhere"
+cp "$GOOD" "$ROOT/elsewhere/body.md"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$ROOT/elsewhere/body.md" --body-dir "$ROOT/elsewhere" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir that is not the work-items data dir is refused (exit 16)"
+STUB_PASSWD_HOME="$WORK/user" HOME=/nonexistent-other bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir that is an ancestor of the home dir is refused (exit 16)"
+if grep -q 'home dir' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the home-ancestor refusal names the rule and makes no API call"
+else
+  fail "home-ancestor refusal: $(cat "$STDERR")"
+fi
+
+# CDPATH cannot redirect a relative body path: with the cwd outside and a CDPATH
+# that holds a same-named dir inside the safe dir, the outside file is refused.
+fresh_state
+mkdir -p "$ROOT/cwd/sub" "$WORK/sub"
+cp "$GOOD" "$ROOT/cwd/sub/body.md"
+cp "$GOOD" "$WORK/sub/body.md"
+(cd "$ROOT/cwd" && CDPATH="$WORK" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+  --issue "$ISSUE" --body-file sub/body.md --body-dir "$WORK" >/dev/null 2>"$STDERR")
+check_rc 16 "$?" "CDPATH cannot make an outside relative body path pass (exit 16)"
+
+# A symlinked or malformed stored lane-instance is refused and never echoed.
+fresh_state
+LIDIR="$ROOT/lid/work-items"
+mkdir -p "$LIDIR"
+write_body "$LIDIR/body.md" "$SENT"
+printf 'lane-0000beef\n' >"$ROOT/lid/elsewhere-id"
+ln -s "$ROOT/lid/elsewhere-id" "$LIDIR/lane-instance"
+bash "$UPSERT" --lane "$LANE" --instance "" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$LIDIR/body.md" --body-dir "$LIDIR" >/dev/null 2>"$STDERR"
+check_rc 4 "$?" "a symlinked stored lane-instance is refused (exit 4)"
+rm -f "$LIDIR/lane-instance"
+printf 'Not_A-Valid.ID-sentinel-text\n' >"$LIDIR/lane-instance"
+bash "$UPSERT" --lane "$LANE" --instance "" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$LIDIR/body.md" --body-dir "$LIDIR" >/dev/null 2>"$STDERR"
+check_rc 4 "$?" "a malformed stored lane-instance is refused (exit 4)"
+if grep -q 'stored lane-instance is malformed' "$STDERR" && ! grep -q 'Not_A-Valid' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the malformed-id refusal never echoes the stored value and makes no API call"
+else
+  fail "malformed-id refusal: $(cat "$STDERR")"
+fi
+
+# A home path in the body is withheld like a credential: the comment is public.
+fresh_state
+# A fake home path, assembled at run time so no user path is tracked.
+FAKE_HOME="/ho""me/alice"
+printf '%s\ncycle=7 worktree=%s/worktrees/app\n' "$SENT" "$FAKE_HOME" >"$WORK/homepath.md"
+run "$WORK/homepath.md"
+check_rc 17 "$RC" "a body naming a home path is withheld (exit 17)"
+if grep -q "names a machine path or hostname (home path); remove it" "$STDERR" && ! grep -q 'rotate' "$STDERR" && ! grep -qF -- "$FAKE_HOME" "$STDERR"; then
+  pass "the home-path refusal names the rule, never the path"
+else
+  fail "home-path refusal: $(cat "$STDERR")"
+fi
+
+# A fleet-hostname-shaped instance passes the shape check but would publish the
+# hostname in the marker, so it is refused up front with its own code, before
+# any API call, and the message never echoes it.
+fresh_state
+FLEET_INSTANCE="melo-""lap-001"
+FLEET_SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$FLEET_INSTANCE -->"
+write_body "$WORK/fleet.md" "$FLEET_SENT"
+SAVED_INSTANCE="$INSTANCE"
+INSTANCE="$FLEET_INSTANCE"
+run "$WORK/fleet.md"
+INSTANCE="$SAVED_INSTANCE"
+check_rc 18 "$RC" "a fleet-hostname-shaped instance is refused (exit 18)"
+if grep -q "withheld from the public marker" "$STDERR" && ! grep -q "body withheld" "$STDERR" && ! grep -qF -- "$FLEET_INSTANCE" "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+  pass "the hostname-instance refusal blames the instance, not the body, never echoes it, and makes no API call"
+else
+  fail "hostname-instance refusal: $(cat "$STDERR")"
+fi
+
+# A GitHub-hosted runner's home path reveals nothing, so it is not withheld.
+fresh_state
+printf '%s\ncycle=7 log=/ho''me/runner/work/app/app/run.log\n' "$SENT" >"$WORK/runner.md"
+run "$WORK/runner.md"
+check_rc 0 "$RC" "a body naming only the hosted-runner home path is posted"
+
+# The plugin name is checked again on the canonical dir: a symlink named for the
+# plugin that points at another dir is refused.
+fresh_state
+mkdir -p "$ROOT/config"
+cp "$GOOD" "$ROOT/config/body.md"
+ln -s "$ROOT/config" "$ROOT/work-items-x"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$ROOT/work-items-x/body.md" --body-dir "$ROOT/work-items-x" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir symlink named for the plugin but resolving elsewhere is refused (exit 16)"
 
 if ((FAILED == 0)); then
   printf 'all lane-telemetry-upsert tests passed\n'

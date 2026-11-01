@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "0000 c1b8 Fabrikam Fixture <fixture@fabrikam.example> 1772445600 +0000\tOn topic/export-report: spike rounding to cents STASH-A-1\nc1b8 5507 Fabrikam Fixture <fixture@fabrikam.example> 1781517600 +0000\tOn topic/export-report: try header layout STASH-B-2\n5507 0ff3 Fabrikam Fixture <fixture@fabrikam.example> 1793181600 +0000\tOn topic/export-report: quote csv fields STASH-C-3\n",
+      "why": "all three"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "0000 5507 Fabrikam Fixture <fixture@fabrikam.example> 1781517600 +0000\tOn topic/export-report: try header layout STASH-B-2\n5507 0ff3 Fabrikam Fixture <fixture@fabrikam.example> 1793181600 +0000\tOn topic/export-report: quote csv fields STASH-C-3\n",
+      "why": "oldest dropped"
+    },
+    {
+      "answer": "",
+      "why": "stash cleared"
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "skill": "x:read",
+  "plugin": "x",
+  "skill_dir": "plugins/x/skills/read",
+  "ranking_note": "Authored from the before description at commit 41c2c93072, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The x plugin ships one skill, so no same-plugin competitor exists. The competitors live in other plugins: knowledge:video-digest claims x.com and twitter.com video URLs, firecrawl:firecrawl takes blocked or JavaScript-heavy pages, and discovery:research multi-source research. Plugin eval loads only this plugin, so near-miss negatives test that the skill stays quiet, not competitor wins. The description's skip clause covers private, protected and deleted posts, so one negative names a protected post.",
+  "competitors": [
+    "knowledge:video-digest",
+    "firecrawl:firecrawl",
+    "discovery:research"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Someone dropped https://x.com/harborlane_dev/status/1849203311402557440 in our team chat. Pull the text of that post for me."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Fetching https://twitter.com/quillfen/status/1702938475610293248 just gives me a 'sign in to X' page. What did the post actually say?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This is a numbered multi-part thread, 1/ through 14/: https://x.com/tallowmere_eng/status/1811112223334445556 . Lay out every post in order."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn the long-form piece at https://x.com/i/article/1923344556677889900 into a markdown file I can keep in my notes."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "While researching the outage I found a status update at https://x.com/copperfen_status/status/1834455667788990011. Quote what it says verbatim."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What are people saying underneath https://x.com/ledgerpine/status/1845566778899001122? I want the comments as well as the original."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Get me the full wording of this tweet: https://mobile.twitter.com/wrenfield/status/1856677889900112233"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The author split this explanation across a dozen replies to themselves: https://x.com/brightmoor_ops/status/1867788990011223344 . Stitch it into one readable piece."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Save the essay posted at https://x.com/novaquill/article/1878899001122334455 as a Markdown document."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My search results point to https://x.com/harbortail/status/1889900112233445566 as the original announcement. What exactly does it announce?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read https://blog.example.com/posts/version-3-2 and tell me what changed in that release."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "WebFetch on https://pricing.harbortail.example/plans comes back 403 from Cloudflare. Scrape it some other way and save the page to disk."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Watch the 40-minute conference talk video in https://x.com/confspeaker/status/1890011223344556677 and give me its transcript plus takeaways for this repository."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write three short posts for our company X account announcing the 2.0 release, each under 280 characters."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the difference between a quote post and a repost on X, and which one notifies the original author?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up a GitHub Actions job that publishes our release notes to our X account through the official API."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Crawl every page under https://docs.brightmoor.example/guides/ and save each one as markdown in a local folder."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research how content moderation policies on X and Bluesky changed this year and give me a comparison with cited sources."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The account behind https://x.com/quietfern/status/1801122334455667788 is protected and I'm not an approved follower. Tell me what that post says anyway."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize this Mastodon thread for me: https://mastodon.example/@devteam/113344556677889900"
+    }
+  ]
+}

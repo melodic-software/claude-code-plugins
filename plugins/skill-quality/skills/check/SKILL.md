@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a thirty-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's legacy evals/evals.json (new cases: /evals:validate) against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
+description: "Static quality gate for Claude Code skills. Use when checking or linting a SKILL.md or its frontmatter before shipping a skill or plugin, validating a skill's legacy evals.json (new cases: /evals:validate), checking whether the shared skill listing budget overflows, or measuring description auto-invocation against probes. Not for writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -343,8 +343,8 @@ and review against the invariant.
   or a line ending in a colon (a YAML mapping indicator). A quoted or block-scalar description may
   contain it.
 - Check 3 (trigger-keyword preservation) is advisory: it warns on a dropped phrase and never fails
-  the run. It tracks single-quoted `'phrase'` triggers; an unquoted `Use when:` list is not tracked,
-  and check 12 warns so those phrases get quoted and covered. A dropped phrase found verbatim in a
+  the run. It tracks single-quoted `'phrase'` triggers and each unquoted comma-separated item of a
+  field's `Use when` clause, up to the period or semicolon that ends it. A dropped phrase found verbatim in a
   sibling skill's description/when_to_use under the same skills root, where the sibling did NOT
   already carry it at the base ref, is a trigger MOVE and warns naming the host, because the listing
   still routes the phrase. A phrase absent everywhere, or one the sibling carried all along

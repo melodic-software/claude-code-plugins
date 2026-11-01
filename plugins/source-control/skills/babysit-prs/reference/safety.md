@@ -827,7 +827,7 @@ A single-PR merge-capable invocation dispatched by `source-control:babysit-loop`
 at **any** merge-capable tier, worker and autopilot alike, carries the lane's **partitioned head
 SHA** as its merge authorization, supplied in the invocation brief: the merge gate's
 `--expected-head` is that partitioned head, never a fresher head this invocation picked itself. The
-lane's partition class-checked exactly that head's diff (work class C2/C3 against the C4/C5 floor),
+lane's partition class-checked exactly that head's diff (work class C2-C4 within the rung, clear of the C5 hold),
 and this skill's merge gate does not class-check, so a worker push that moves the head off the pin
 is not a cue to re-pin. It is the end of this invocation's merge authority. The pinned gate's
 head-match refusal enforces the boundary deterministically; the invocation reports the new head and
@@ -842,8 +842,9 @@ A lane-pinned invocation (above) merges only through the merge gate's `--unatten
 (§Unattended Merge Path), which refuses `--auto` and disarms an auto-merge it finds armed. Where
 the repository does not configure that path, the gate refuses and the invocation reports the PR
 merge-ready for a human. The lane's partition is the only class check, so the PR is already C2
-(mechanical) or C3 (scoped); a C4 (structural) or C5 PR carries the body hold line and waits for
-the user.
+(mechanical), or C3 (scoped) or C4 (structural) at a C3 rung. A C5 (untrusted-provenance) PR the
+work lane opens carries the body hold line the lane writes for untrusted provenance and waits for
+the user; it is never handed to this invocation.
 
 The AI review checks are the review lane's `claude-review-status` (matched by that job segment
 under any caller, e.g. `review /` or `pr-review /`) and the security lane's
@@ -894,7 +895,10 @@ person to rerun the run once the switch is off. The same holds after the upstrea
 stopped the first attempt (class `upstream-degraded`): the caller's `kill-switch` job failed with
 its lane's `an upstream outage stops this review (` (or `security review (`) error and the first
 attempt has no lane job. The gate never starts that rerun; the lost-run reconciler reruns the
-run's failed jobs once GitHub Actions is operational and the upstream gate would let it run.
+run's failed jobs once GitHub Actions is operational and the upstream gate would let it run. A first
+attempt the evidence classifies as `NO_OUTCOME` (`babysit_review_evidence.py`) binds a second
+attempt only when the lane posted nothing on the head, by the lost-run rule below. The gate never
+starts that rerun: a defect in the lane fails every run until its fix ships.
 
 The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
 whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`
@@ -976,7 +980,7 @@ that path is this narrow:
   resolution, never what the wrappers permit, which is exactly why the severity refusal above
   still lands on it.
 - **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
-  to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
+  to a PR outside the rung partition (C5 untrusted-provenance, or a class above the rung), and never
   substitutes for escalation when the resolution is unresolved or the resolver is uncertain.
 
 ## Autopilot Merge Tier: Enabled-Path Mechanics

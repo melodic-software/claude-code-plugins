@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "OPINION-tier checks: 4 available, 4 not run; enable with `--opinion`."
+    },
+    {
+      "answer": "Pass a --opinion flag to run the 3 opinion checks that did not run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Opinion-tier checks were not run.",
+      "why": "no enabling argument"
+    }
+  ]
+}

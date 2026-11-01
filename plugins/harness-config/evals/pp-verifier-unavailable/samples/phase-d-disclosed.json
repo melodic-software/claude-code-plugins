@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": "Phase D did not run: no subagent could be dispatched in this session."
+    },
+    {
+      "answer": "Verifier attestation: Phase D unavailable, verified inline."
+    },
+    {
+      "answer": "Phase D didn't run, because the Agent tool is missing from this session.",
+      "why": "contraction"
+    },
+    {
+      "answer": "**Two steps didn't happen:**\n- **No second-opinion check.** This session can't start a separate reviewer to challenge the finding, so the proposal below is marked *(unverified)*.",
+      "why": "re-smoke reply header with Agent disallowed: discloses without naming Phase D"
+    },
+    {
+      "answer": "**Reviewer:** skills batch skipped, no reviewer available. The proposal was checked by me only.",
+      "why": "re-smoke reply attestation line"
+    },
+    {
+      "answer": "The verifier did not run: this session has no Agent tool.",
+      "why": "names the verifier, not the phase"
+    },
+    {
+      "answer": "I checked your three skills. One needs an addition and two are fine. I couldn't run the independent verifier step because this session can't start subagents, so the finding below is marked **(unverified)**.",
+      "why": "second re-smoke reply header"
+    },
+    {
+      "answer": "**Verifier check:** The independent verifier never ran because no Agent tool was available.",
+      "why": "second re-smoke reply attestation line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Phase D verified 3 proposals.",
+      "why": "claims it ran"
+    },
+    {
+      "answer": "**Verifier check:** a fresh-context verifier reviewed the skills batch. It checked the proposals (upheld `purge-builds`) and the verdicts (reversed `wipe-cache` to MISSING, upheld the rest).",
+      "why": "smoke reply line from the run that was granted Agent: claims verification, no disclosure"
+    },
+    {
+      "answer": "The reviewer upheld every row, and nothing was skipped.",
+      "why": "verification ran; 'skipped' is not about the reviewer"
+    },
+    {
+      "answer": "The verifier found no issue with the proposals.",
+      "why": "verification ran; 'no' is not about the reviewer"
+    },
+    {
+      "answer": "The verifier ran on the skills batch and never raised an objection.",
+      "why": "verification ran; never is not about running"
+    }
+  ]
+}

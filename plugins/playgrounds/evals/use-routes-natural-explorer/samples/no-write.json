@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/work/retry-explorer.html",
+            "content": "<!DOCTYPE html>"
+          }
+        }
+      ],
+      "why": "hand-built page"
+    }
+  ]
+}

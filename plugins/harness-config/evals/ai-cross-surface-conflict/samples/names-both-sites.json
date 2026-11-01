@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | 9a1c | I15 | .claude/skills/deploy/SKILL.md:9 vs services/billing/CLAUDE.md:4 | ..."
+    },
+    {
+      "answer": "`services/billing/CLAUDE.md` line 4 forbids what `.claude/skills/deploy/SKILL.md` line 9 requires."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "services/billing/CLAUDE.md:4 carries a bare prohibition (I6).",
+      "why": "one site"
+    },
+    {
+      "answer": "No cross-surface conflicts found.",
+      "why": "clean"
+    }
+  ]
+}

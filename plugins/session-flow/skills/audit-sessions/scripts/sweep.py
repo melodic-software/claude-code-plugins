@@ -575,7 +575,7 @@ def judged_section(turns: list[dict], verdicts: dict[str, dict], scope: str, cat
             "reason": " ".join(verdicts[turn["turn_id"]]["reason"].split()),
             "confidence": "judged",
             "route": "retro-codify",
-            "suggested_skill": skill_label("/session-flow:retro codify", catalog),
+            "suggested_skill": skill_label("/corrections:codify", catalog),
         }
         for turn in turns
         if verdicts.get(turn["turn_id"], {}).get("verdict") == "correction"

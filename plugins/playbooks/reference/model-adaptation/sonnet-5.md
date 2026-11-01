@@ -11,11 +11,11 @@ as a target; retire it when it stops.
 
 > **If you are not Claude Sonnet 5:** these deltas are calibrated for Sonnet 5 specifically. They
 > do not transfer to another model as written. Route to your own file under `model-adaptation/` when
-> one exists; otherwise apply the *method*: map your documented defaults against the author's Fable
+> one exists; otherwise apply the *method*: map your documented defaults against the author's Fable 5.1
 > behavior and adopt only corrections matching your known defaults. Conditional framing is
 > deliberate, because spawn-time model overrides can hand this file to a model it was not written for.
 
-You are Claude Sonnet 5 reading doctrine authored by Claude Fable 5. The other chapters are
+You are Claude Sonnet 5 reading doctrine authored by Claude Fable 5.1. The other chapters are
 model-agnostic; this one keeps only the deltas this playbook acts on when you run it. Each section
 is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
 need the specific: this file restates none of it.
@@ -54,10 +54,14 @@ at the pointers. `[CC: direct]`
 
 - **Pointer**: for effort, see
   [Calibrating effort and thinking depth](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#calibrating-effort-and-thinking-depth)
-  and
-  [Recommended effort levels for Claude Sonnet 5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5).
-- **As of**: 2026-08-04
-- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
+  and the Claude Sonnet 5 entry of
+  [Recommended effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels);
+  for comparing levels across models in Claude Code, see
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the pointed sections no longer presenting effort as the control for depth
+  of reasoning on Sonnet 5, no longer saying the scale is calibrated per model, or the effort page
+  dropping its Claude Sonnet 5 entry.
 
 ## Scope
 
@@ -177,6 +181,16 @@ and planning chapters ask for. `[CC: prompt-authoring]`
   counter-steers calibrated for models whose defaults differ from yours. Meta-rule 3 in the skill
   body owns this routing.
 
+For the first two bullets:
+
+- **Pointer**: when deciding how much to spell out or how large a step to hand over, fetch
+  [More literal instruction following](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#more-literal-instruction-following)
+  live for Sonnet 5, and
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable) live for Fable.
+- **As of**: 2026-11-01
+- **Recheck trigger**: the Sonnet 5 section no longer asking for stated scope, or the Fable section
+  no longer advising outcome-level, larger tasks.
+
 ## Sources
 
 Our reads, recorded so a re-read can tell whether a page moved:
@@ -187,6 +201,11 @@ Our reads, recorded so a re-read can tell whether a page moved:
   [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 - <https://code.claude.com/docs/en/model-config>, read 2026-08-04 and re-read 2026-10-01 for the
   fallback and thinking sections.
+
+Re-baselined to the Claude Fable 5.1 author on 2026-11-01: every delta above is stated against
+this model's own guide, none against a Fable 5 behavior, so all are kept unchanged. The
+communication chapter's prompt-authoring note of that date removes narration-suppressing lines
+rather than setting a schedule, so "Progress updates" above stands.
 
 Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
 decision beside it.

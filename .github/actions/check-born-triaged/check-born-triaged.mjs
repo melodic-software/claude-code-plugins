@@ -23,9 +23,6 @@ const triage = (reason) => ({ skip: "false", reason });
 const isListReadable = (list) => list?.version === 1 && Array.isArray(list.actors);
 
 function isTrustedAuthor(id, list, lanesAppId) {
-  if (!Number.isInteger(id)) {
-    return false;
-  }
   if (/^[1-9][0-9]*$/.test(String(lanesAppId ?? "")) && id === Number(lanesAppId)) {
     return true;
   }
@@ -44,26 +41,33 @@ export function humanIds(list) {
     .join(",");
 }
 
+// Why `issue` is not born triaged, or null when it is. `trusted(id)` answers
+// whether its author's numeric id is a listed human's or the lanes App's.
+export function notBornTriaged(issue, trusted) {
+  // The publisher writes the marker as the body's last line, so a quoted copy
+  // mid-body does not count.
+  if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
+    return "no-marker";
+  }
+  if (!Number.isInteger(issue.user?.id) || !trusted(issue.user.id)) {
+    return "untrusted-author";
+  }
+  if (!issue.type?.name) {
+    return "no-type";
+  }
+  const labels = (issue.labels ?? []).map((label) => label.name ?? "");
+  if (!labels.some((name) => ROLE_LABELS.has(name) || name.startsWith("status:"))) {
+    return "no-status";
+  }
+  return null;
+}
+
 export function checkBornTriaged({ issue, list, lanesAppId }) {
   if (!isListReadable(list)) {
     return triage("list-unreadable");
   }
-  // The publisher writes the marker as the body's last line, so a quoted copy
-  // mid-body does not count.
-  if (!String(issue.body ?? "").trimEnd().endsWith(BORN_TRIAGED_MARKER)) {
-    return triage("no-marker");
-  }
-  if (!isTrustedAuthor(issue.user?.id, list, lanesAppId)) {
-    return triage("untrusted-author");
-  }
-  if (!issue.type?.name) {
-    return triage("no-type");
-  }
-  const labels = (issue.labels ?? []).map((label) => label.name ?? "");
-  if (!labels.some((name) => ROLE_LABELS.has(name) || name.startsWith("status:"))) {
-    return triage("no-status");
-  }
-  return { skip: "true", reason: "born-triaged" };
+  const reason = notBornTriaged(issue, (id) => isTrustedAuthor(id, list, lanesAppId));
+  return reason ? triage(reason) : { skip: "true", reason: "born-triaged" };
 }
 
 export async function run({ fetchIssue, list, lanesAppId, sleep = delay, attempts = 6, delayMs = 5000 }) {

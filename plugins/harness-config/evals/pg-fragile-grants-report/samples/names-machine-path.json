@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "| P2 | error | .claude/settings.json | `Bash(.../tools/release.sh:*)` names a user home |"
+    },
+    {
+      "answer": "The release.sh grant hardcodes a machine path, so it is not portable."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Run release.sh to cut a tag.",
+      "why": "names the script, not the finding"
+    },
+    {
+      "answer": "P2 found nothing.",
+      "why": "no release.sh"
+    }
+  ]
+}

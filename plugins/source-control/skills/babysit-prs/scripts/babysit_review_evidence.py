@@ -61,7 +61,7 @@ LANES: dict[str, tuple[str, str]] = {
 # marker or a `critical-findings:` count; `readonly_workflow` clears the
 # workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
-# the standards index, the instruction exception register, the
+# the standards index, the per-concern review rules in docs/review/, the instruction exception register, the
 # untrusted-content contract, at docs/contracts/ and at the docs/conventions/
 # stubs installed plugin versions still read), the lane's input directory
 # .claude-lane/ (the code lane falls back to a context file there), and
@@ -78,6 +78,7 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
+    "docs/review/",
     "docs/contracts/instruction-exception-register/",
     "docs/contracts/untrusted-content/",
     "docs/conventions/instruction-exception-register/",
@@ -209,6 +210,17 @@ PUBLISH_RATE_LIMIT_RE = re.compile(
 INSTALL_FAILED = "install-failed"
 INSTALL_FAILURE_RE = re.compile(
     rf"(?P<lane>[\w-]+): failure-class={re.escape(INSTALL_FAILED)}: "
+)
+# Or when the lane job ended before it reported an outcome: this lane's
+# publish-review failure line (ci-workflows publish.cjs `fail`) with class
+# `no-outcome`. A runner loss or a defect in the lane's own outcome step (the
+# 2026-11-01 outage, fixed by ci-workflows#952) both end there, so attempt 2
+# binds only when the lane posted nothing on the head (`_unposted`). It binds a
+# re-run but does not start one (GATE_RERUN_CLASSES): a defect fails every run
+# until its fix ships, and a re-run before then would spend the one attempt.
+NO_OUTCOME = "no-outcome"
+NO_OUTCOME_RE = re.compile(
+    rf"(?P<lane>[\w-]+): failure-class={re.escape(NO_OUTCOME)}: "
 )
 # Or when a kill switch stopped attempt 1 before the review started: the
 # caller's `kill-switch` job succeeded and its `Report the kill switch` step
@@ -1110,6 +1122,7 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
 
 # The failure classes of a failed attempt 1 after which attempt 2 binds
 # (`rerun_binds`), each with its test of one failure annotation's message.
+# `NO_OUTCOME` binds too, but only after the posted check, so it is not here.
 RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     "rate-limit": lambda lane, m: RATE_LIMIT_CLASS_RE.search(m) is not None,
     "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
@@ -1118,9 +1131,9 @@ RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
 }
 # The ones the merge gate re-runs itself (babysit_merge
 # `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
-# run's conclusion names rather than an annotation. A rejected credential is
-# left to a person: a re-run before the secret is fixed would spend the one
-# allowed attempt.
+# run's conclusion names rather than an annotation. A rejected credential and
+# `NO_OUTCOME` are left to a person: a re-run before the secret or the lane is
+# fixed would spend the one allowed attempt.
 GATE_RERUN_CLASSES = frozenset(
     {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
 )
@@ -1147,8 +1160,8 @@ def rerun_binds(
     """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
     `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch or the
     upstream-status gate stopped it (`_kill_switch_stopped`,
-    `_upstream_stopped`), or an outage lost it before its lane posted
-    (`_lost_unposted`)."""
+    `_upstream_stopped`), or an outage lost it, or its lane job ended with
+    `NO_OUTCOME`, before its lane posted (`_lost_unposted`, `_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
     if first.get("conclusion") in LOST_CONCLUSIONS:
@@ -1157,7 +1170,14 @@ def rerun_binds(
         return False
     if _upstream_stopped(lane, run_id, first):
         return True
-    return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
+    job = _lane_job(lane, run_id, first)
+    if rerun_classes(lane, job):
+        return True
+    return (
+        any(_lane_line(NO_OUTCOME_RE, lane, m) for m in _failures(job))
+        and not recorded(job)
+        and _unposted(lane, first, sha, second, posted)
+    )
 
 
 def recorded(job: Mapping[str, Any]) -> bool:
@@ -1178,9 +1198,9 @@ def _lost_unposted(
 ) -> bool:
     """Whether lost attempt 1 reached no side effect: its lane job, when it
     has one, was lost too and left no completion record, and the lane posted
-    nothing on `sha` from attempt 1's start to attempt 2's (`lane_posted`). A
-    lane job that ended on its own (a failure outside `RERUN_CLASSES`) judged
-    the head, so a re-run could trade its verdict away."""
+    nothing on the head (`_unposted`). A lane job that ended on its own judged
+    the head unless it failed on a class `rerun_binds` accepts, so a re-run
+    could trade its verdict away."""
     if sha is None or second is None or posted is None:
         return False
     jobs = first.get("jobs")
@@ -1190,6 +1210,20 @@ def _lost_unposted(
         job = _lane_job(lane, run_id, first)
         if job.get("conclusion") not in LOST_CONCLUSIONS or recorded(job):
             return False
+    return _unposted(lane, first, sha, second, posted)
+
+
+def _unposted(
+    lane: str,
+    first: Mapping[str, Any],
+    sha: str | None,
+    second: Mapping[str, Any] | None,
+    posted: Poster | None,
+) -> bool:
+    """Whether the lane posted nothing on `sha` from attempt 1's start to
+    attempt 2's (`lane_posted`); unknown inputs read as posted."""
+    if sha is None or second is None or posted is None:
+        return False
     return not posted(
         lane, sha, first.get("run_started_at"), second.get("run_started_at")
     )

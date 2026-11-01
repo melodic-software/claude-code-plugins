@@ -1,5 +1,5 @@
 ---
-description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, routed, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', or on a /loop interval. Scoring and codifying are /session-flow:retro."
+description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'checkpoint this session', 'watch this session in the background', or on a /loop."
 argument-hint: "[topic|arm]"
 user-invocable: true
 disable-model-invocation: false
@@ -26,7 +26,8 @@ session, so observations accumulate across a long session or a `/loop` interval 
 for a single end-of-session pass.
 
 It **captures and routes** findings; it does not apply them. Codification (editing `CLAUDE.md`,
-rules, or memory) stays with `/session-flow:retro codify`. Tracker filing is offered, never
+rules, or memory) stays with `/session-flow:retro`'s approval checkpoint, and turning one recurring
+mistake into a check or a line with `/corrections:codify`, which proposes and never applies. Tracker filing is offered, never
 performed automatically.
 
 ## Siblings. Pick the right one
@@ -144,8 +145,9 @@ subagent's own pass: the ledger outlives the session and travels to other sessio
 
 Present the checkpoint findings, then OFFER the forward routes; act only on the ones the user picks:
 
-- **Codify a durable learning** → `/session-flow:retro codify` (running-retro never edits
-  `CLAUDE.md`, rules, or memory itself).
+- **Codify a durable learning** → `/corrections:codify "<the learning>"` when the `corrections`
+  plugin is installed, otherwise `/session-flow:retro`, whose session mode codifies approved
+  learnings (running-retro never edits `CLAUDE.md`, rules, or memory itself).
 - **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
   For each **Skill-fit gap** finding, first fill its `existing issue` field: search the owning
   plugin's open issues through `/work-items:track search` (the tracker seam; name no provider
@@ -245,7 +247,8 @@ counterpart: a `/loop` cannot fire after the session ends, but the observer can.
 ## What this skill does NOT do
 
 - **Does not score the session**. The five scored dimensions are `/session-flow:retro`'s.
-- **Does not codify learnings**, capture + route only; codification is `/session-flow:retro codify`.
+- **Does not codify learnings**, capture + route only; codification is `/session-flow:retro` or
+  `/corrections:codify`.
 - **Does not auto-file tracker issues**, skill-fit gaps included; it offers routing; the user decides.
 - **Does not `/clear` or end the session**, unlike `handoff`; the session continues.
 - **Does not run builds, tests, or a code review**, and does not write into the consumer's repo

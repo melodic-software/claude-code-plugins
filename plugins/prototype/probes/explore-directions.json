@@ -1,0 +1,132 @@
+{
+  "skill": "prototype:explore-directions",
+  "plugin": "prototype",
+  "skill_dir": "plugins/prototype/skills/explore-directions",
+  "ranking_note": "Authored from the before descriptions at commit 3e2d300ad331d7dfd63f399486154edd370a07aa, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings prototype:pressure-test (a throwaway terminal app or HTML demo stepping business logic, state or a data model through awkward cases) and prototype:build-generator (a tunable throwaway generator for an artifact prompting cannot hit). explore-directions owns building a few structurally different throwaway layouts of one screen, switchable in place, to decide what it should look like.",
+  "competitors": [
+    "prototype:pressure-test",
+    "prototype:build-generator"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We can't agree whether the orders page should be a dense table or a grid of cards. Can you build a few versions I can flip between?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I commit to anything for the onboarding dashboard, I'd like to see three quite different takes on how it could be arranged."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where would a returns panel fit on our account page? Throw together a couple of alternatives I can click through."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have no idea how the analytics overview screen should be organized. Give me some rough arrangements to try before we pick one."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Prototype a handful of directions for the new invoice detail page in a standalone HTML file I can open without running anything."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our team keeps arguing from whiteboard sketches about the settings screen. Can you make clickable alternatives so we can choose?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build a few competing versions of the checkout summary behind ?variant= on the real cart route so we can judge them with live data."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What could the empty, loading and error states of the inbox page look like? Show me several divergent approaches I can toggle."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want to see some alternative arrangements for the team members page before we settle on one and build it properly."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sketch three competing structures for a parcel tracking screen with a toggle so the product owner can try each one."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Spin up a little terminal app so I can step through whether a subscription can be paused while a payment retry is still pending."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How should our CLI's error output look when a config file fails to parse, and when should it use color?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a diagram of the request flow we just talked through between the gateway, the auth service and billing."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make me an interactive explorer with sliders for tuning an easing curve, and hand me back a prompt with the values I settle on."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draft a sitemap for the admin area: which sections live under settings, billing and team, and how the navigation nests."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the CSS for the pricing card component using our existing spacing and color tokens."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The noise texture behind our hero keeps coming out wrong however I describe it. Give me something with knobs I can tune, then save the result into the repo."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me some rough ideas for how we could cut support tickets about password resets, cheapest first."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a heuristic evaluation of our live checkout and list the usability problems by severity."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Style the warning banner our PowerShell module prints so it reads well in both dark and light terminals."
+    }
+  ]
+}

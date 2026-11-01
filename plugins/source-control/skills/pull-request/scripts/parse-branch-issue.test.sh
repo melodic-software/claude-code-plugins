@@ -45,6 +45,7 @@ run_test "feat/42-new-rule emits 42" "feat/42-new-rule" "42" 0
 run_test "fix/123-analyzer-fp emits 123" "fix/123-analyzer-fp" "123" 0
 run_test "chore/789-rename-skill emits 789" "chore/789-rename-skill" "789" 0
 run_test "chore/routine-issue-555-tidy emits 555" "chore/routine-issue-555-tidy" "555" 0
+run_test "dossier/42-auth-notes emits 42" "dossier/42-auth-notes" "42" 0
 run_test "feat/just-a-feature no number" "feat/just-a-feature" "" 1
 run_test "worktree-foo-bar wrong prefix" "worktree-foo-bar" "" 1
 run_test "cursor/abc-xyz cloud-agent no number" "cursor/abc-xyz" "" 1

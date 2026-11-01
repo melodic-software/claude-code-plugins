@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "The release skill is a project skill under .claude/skills, so `${CLAUDE_PLUGIN_ROOT}` is never substituted there and `Bash(${CLAUDE_PLUGIN_ROOT}/scripts/tag.sh *)` stays a literal string (P4). Bundle the script in the skill and grant `Bash(${CLAUDE_SKILL_DIR}/scripts/tag.sh *)`. The notes skill ships inside the quay-tools plugin, where the token resolves, so its grant is correct; leave it."
+    },
+    {
+      "answer": "The release grant is ignored because of where the release skill lives, not because of its token. `${CLAUDE_PLUGIN_ROOT}` only gets filled in inside a skill that ships in a plugin.\n\n| | Notes skill | Release skill |\n|---|---|---|\n| Location | `plugins/quay-tools/skills/notes/SKILL.md` | `.claude/skills/release/SKILL.md` |\n| Kind | Skill inside a plugin (there's a `.claude-plugin/plugin.json` at its root) | Project skill |\n| `${CLAUDE_PLUGIN_ROOT}` | Replaced with the plugin's install path, so the rule matches `fmt-notes.sh` | Not replaced, so it stays as literal text |\n| Result | Works | The rule never matches a real command |\n\nThe release skill isn't part of any plugin, so there's no plugin root to substitute. Its rule is checked against the literal string `${CLAUDE_PLUGIN_ROOT}/scripts/tag.sh …`, no real command ever looks like that, and you get prompted every time.\n\n## Permission Hygiene Report: 2026-11-01 (filter: `frontmatter`)\n\n### Summary\n- **Scan root:** `/ws` (the repo's git root)\n- **What was read:** 2 `allowed-tools` blocks from 2 skill files; 3 allow rules from 1 settings scope (project; local and user-global don't exist); 1 plugin manifest\n- **Not read:** 0 files couldn't be opened, 0 settings files had invalid JSON, 0 files were excluded\n- **Outside this scan's reach:** managed-policy and enterprise settings, a `--settings` flag file, and the old start-directory copy of settings (before v2.1.211)\n- **Repo-level permission notes:** none. `CLAUDE.md` has no permission notes, and there's no `AGENTS.md` or `.claude/rules/`.\n- **Errors:** 1 (P4). **Warnings:** 0 within the `frontmatter` filter.\n\n### Findings\n| # | Check | Severity | Source | Finding | Recommended | Exempt? |\n|---|---|---|---|---|---|---|\n| 1 | P4 | error | `.claude/skills/release/SKILL.md` `allowed-tools` | `Bash(${CLAUDE_PLUGIN_ROOT}/scripts/tag.sh *)` is in a project skill, so the token stays literal and the grant never matches | Use `${CLAUDE_SKILL_DIR}` for a script stored with this skill (see below) | no |\n\nThe notes skill was also scanned. It came back clean because its token is valid in a plugin skill, so leave that one as it is.\n\n### Fix\nThere are two options:\n\n1. **Keep `release` as a project skill:**\n   ```yaml\n   allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/tag.sh *)\n   ```\n   **There's a second problem:** `tag.sh` doesn't exist anywhere in the repo. For this rule to work, the script has to live at `.claude/skills/release/scripts/tag.sh`, and the skill body should call it by that path rather than the bare `scripts/tag.sh`.\n2. **Move `release` into `quay-tools`:** put it at `plugins/quay-tools/skills/release/SKILL.md` and `tag.sh` at `plugins/quay-tools/scripts/tag.sh`. Then the current `${CLAUDE_PLUGIN_ROOT}` grant works, the same way the notes skill's does.\n\n### Other findings the `frontmatter` filter hid\nThe scan covered the whole repo, and these three findings fell outside the filter. Run without a filter to get the full report.\n- **P2 (error):** `.claude/settings.json` hardcodes `<user-home>/tools/release.sh`, which breaks on other machines and puts a username in the repo.\n- **P1 (warning):** `.claude/settings.json` allows `Bash(python3 *)`, a broad rule that auto mode drops.\n- **P3 (warning):** `plugins/quay-tools/settings.json` has a `permissions` block, but a plugin's `settings.json` can't grant permissions, so it's ignored. Whoever needs that rule has to add it to their own `~/.claude/settings.json`.\n\nTo edit the settings-file rules from the last section, you can run `/permissions` yourself if your session has it, or edit the files by hand. The `allowed-tools` fix above has to be made in the skill file itself. This audit only reports and didn't change anything.",
+      "why": "smoke reply on the before text"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The release skill's grant is inert because of the plugin-root token. Switch both skills to `${CLAUDE_SKILL_DIR}` for consistency.",
+      "why": "rewrites the plugin skill"
+    },
+    {
+      "answer": "Both grants look correct; the problem is elsewhere.",
+      "why": "misses P4"
+    },
+    {
+      "answer": "The `allowed-tools` grant in `.claude/skills/release/SKILL.md` never matches: `${CLAUDE_PLUGIN_ROOT}` is substituted only in plugin skills, and this is a project skill, so the literal token stays in the rule. The grant in `plugins/quay-tools/skills/notes/SKILL.md` is a plugin skill and works as written. I changed nothing.",
+      "why": "diagnoses the project skill and leaves the plugin skill alone, but offers no working form"
+    }
+  ]
+}

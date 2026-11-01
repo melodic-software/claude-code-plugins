@@ -228,14 +228,15 @@ passes merged before scoring.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
-/session-flow:retro codify     # persist a specific mid-session learning
-/session-flow:retro codify reviews  # lessons from recent merged PRs' review comments
-/session-flow:retro trends     # cross-session score history
+/session-flow:retro trends     # cross-session score history and delivery metrics
 /session-flow:retro quick      # abbreviated, for limited context
 ```
 
 Token totals count each assistant message once and human messages count only typed turns, so
 numbers from 0.46.0 on are lower than earlier retros' for the same kind of session (#5818).
+
+One recurring mistake, or the lessons in recent merged PRs' review comments, go to
+`/corrections:codify` (its `reviews` action), not to a retro mode.
 
 ### audit-sessions
 
@@ -245,8 +246,8 @@ reports per-session metrics against a shipped reference baseline, shows this sto
 each threshold and marks a stale baseline, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
 applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
-preferences two or more sessions show, and hands each one you confirm to `retro codify` for a
-user-scope file, never a repository file. The `correction` action has the session's model judge
+preferences two or more sessions show, and hands each one you confirm to `/corrections:codify` for
+a user-scope file, never a repository file. The `correction` action has the session's model judge
 which stored short turns corrected the agent and reports them in a separate, unranked `Judged`
 section beside the measured findings.
 
@@ -254,7 +255,7 @@ section beside the measured findings.
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
-/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to retro codify
+/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to corrections:codify
 /session-flow:audit-sessions correction --since 2026-09-01  # model-judged corrections, reported unranked
 ```
 
@@ -283,7 +284,7 @@ to a fresh subagent that runs `retro`'s parser, selectively reads the flagged tr
 classifies each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill
 change / new-skill candidate / tracker issue). Findings append to a cumulative running ledger, one
 stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default).
-It captures and routes only: codification stays with `retro codify`,
+It captures and routes only: codification stays with `retro` and `/corrections:codify`,
 tracker filing is offered not automatic, the session is never scored, and it is non-terminating
 (unlike `handoff`, it does not `/clear`). Composes with `/loop` for periodic checkpoints.
 
@@ -551,14 +552,6 @@ worker_continuation=<value>` writes that file after validating it. Resolution an
 [`reference/config.md`](reference/config.md). Picking a value from a list needs Claude Code
 v2.1.271 or later.
 
-**`encode_policy` and `review_mining_prs`.** Read by `/session-flow:retro codify`.
-`encode_policy` sets where a lesson starts on the enforcement ladder: `promote-when-must-hold`
-(default) writes it as an instruction line unless the rule must hold every time;
-`strongest-first` proposes the strongest rung that can assert it. `review_mining_prs` (2-200,
-default 20) is how many recent merged PRs `codify reviews` reads. Both resolve like
-`worker_continuation`, from the same `docs/conventions/session-flow.yaml`, and
-`/session-flow:setup apply` writes them.
-
 **`wip_commit`.** Read by `/session-flow:handoff`, and only when you ask in the session to pause.
 On (`true`), the handoff makes one local `chore(wip): <one-line state>` commit of the tracked files
 the work changed, records its SHA in the save-point and lists untracked paths there. It never
@@ -610,8 +603,6 @@ reads it from.
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
 | `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
-| `encode_policy` | string | `"promote-when-must-hold"` | `CLAUDE_PLUGIN_OPTION_ENCODE_POLICY` | Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins. |
-| `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
 | `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Communication-based tests are for inter-system calls with visible side effects, like a message published to a bus.",
+      "why": "inter-system"
+    },
+    {
+      "answer": "Save Verify for **unmanaged** dependencies such as an SMTP gateway.",
+      "why": "unmanaged, bold"
+    },
+    {
+      "answer": "- Mock only out-of-process collaborators that other applications observe.",
+      "why": "out-of-process in a list"
+    },
+    {
+      "answer": "Interaction checks make sense when the call crosses the system boundary, e.g. a payment gateway.",
+      "why": "crosses the system boundary"
+    },
+    {
+      "answer": "| Collaborator | Verify calls? |\n|---|---|\n| External service (email) | Yes |\n| PricingRules | No |",
+      "why": "table with external service"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Verify every collaborator call so the test documents how CheckoutService works.",
+      "why": "communication everywhere"
+    },
+    {
+      "answer": "Use SUMIF in the spreadsheet.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -104,8 +104,15 @@ Keep plugins horizontally decoupled:
   argument, or an optional namespaced skill invocation.
 - Native manifest `dependencies` are reserved for hard requires: a plugin genuinely broken without
   its collaborator. Optional collaboration stays presence-gated with a documented fallback. The
-  first versioned dependency brings the `{name}--v{version}` release-tag step
-  (`claude plugin tag --push`) with it.
+  first versioned dependency brings a release-tag step with it.
+  - **Pointer**: when a plugin here gains its first versioned dependency, read
+    [release a plugin that others depend on](https://code.claude.com/docs/en/plugins/dependencies#release-a-plugin-that-others-depend-on)
+    for who tags which repository, and
+    [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
+    for the tag name and the command that makes it, live.
+  - **As of**: 2026-11-01
+  - **Recheck trigger**: either section changes who must create the tag, the tag format, or the
+    command that creates it.
 - Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
@@ -945,7 +952,7 @@ the main checkout's root, so the install enables the plugin for every session th
 worktree. Outside a git repository the file stays in the folder you ran from.
 
 - **Pointer:** [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
-  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference).
+  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference#claude-plugin-commands).
   Observed for `plugin install --scope local` on Claude Code 2.1.289, WSL2, during the
   install-and-test run in melodic-software/claude-code-plugins#6318, reported in #6375.
 - **As of:** 2026-10-04.
@@ -1496,9 +1503,9 @@ same depth on two models):
   buys).
 - **Sweep model and effort together before raising either.** A lane outgrowing its level tests the
   newer model at lower effort before pinning the old one higher, on its own evals. Cross-model
-  economics and the flat-curve reading live in the fable-5 pack's model-adaptation chapter for the
-  newer model (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort
-  economics"); current prices resolve through the `claude-api` skill at decision time.
+  economics and the flat-curve reading live in the fable-5 pack's prompt-caching reference
+  (`plugins/playbooks/reference/prompt-caching.md`, "Request assembly"); current prices resolve
+  through the `claude-api` skill at decision time.
 - **Effort is the first lever in either direction; steering prose is the second.** We set the
   level to fit the lane's work and add prose only where that level still falls short (Pointer:
   for why, see

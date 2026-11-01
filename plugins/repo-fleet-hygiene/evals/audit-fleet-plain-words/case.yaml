@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: audit-fleet-plain-words
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: fleet-audit-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:repo-fleet-hygiene:)?audit"'
+    min: 1
+    arm: 'with-only'
+  - name: no-git-mutation
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bgit\b(?:\s+(?:-[Cc]\s+\S+|--[\w-]+(?:=\S+)?))*\s+(?:fetch|pull|push|reset|checkout|switch|rebase|merge|stash(?!\s+(?:list|show)\b)|gc|prune|remote\s+(?:set-url|remove|rm)|worktree\s+(?:prune|remove|repair|move)|branch(?:\s+-[A-Za-z]+)*\s+(?:-[A-Za-z]*[dDmM][A-Za-z]*|--delete|--move))(?![\w-])|\brm\s+(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)(?![\w-]))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: hands-off-to-apply
+    type: regex
+    pattern: 'repo-fleet-hygiene:apply\b'
+    target: last_message
+  - name: reports-evidence-gap
+    type: regex
+    pattern: '\bBLOCKED\b|\b[Ee]vidence gaps?\b|github-identity-unavailable|\bGitHub (?:evidence|identity)\b[^\n]{0,40}?\b(?:unavailable|UNKNOWN)\b'
+    target: last_message

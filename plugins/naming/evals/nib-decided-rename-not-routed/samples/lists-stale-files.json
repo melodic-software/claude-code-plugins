@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "Still on `fetchUser`:\n- src/pages/profile.js:1 and :4\n- src/components/header.js:1 and :4\n- README.md:3", "why": "all three files" }
+  ],
+  "fail": [
+    { "answer": "Still on `fetchUser`:\n- src/pages/profile.js:1 and :4\n- src/components/header.js:1 and :4", "why": "misses the README" },
+    { "answer": "Before you commit, consider `getUser` instead; `loadUser` reads oddly.", "why": "re-opens the name, lists nothing" }
+  ]
+}

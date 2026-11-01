@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.3] - 2026-11-01
+
+### Changed
+
+- The `audit` invocation probe `neg-train-01` words its sample skill location without a cross-plugin skill path; it keeps the same words, so its listing-overlap score is unchanged.
+
+## [0.18.2] - 2026-11-01
+
+### Changed
+
+- The frozen trigger probes for `audit` and `report` name only same-plugin competitors, so a rewrite in another plugin cannot move their scores ([#6588](https://github.com/melodic-software/claude-code-plugins/issues/6588)). Both descriptions are unchanged: in held-out trigger probes on Opus, a shorter `report` description lost one positive query (fired in 21 of 24 positive runs, 23 of 24 before), and the shorter `audit` description could not be measured, because the eval sandbox denied file reads outside it on three negative queries in both versions.
+
 ## [0.18.1] - 2026-10-31
 
 ### Fixed

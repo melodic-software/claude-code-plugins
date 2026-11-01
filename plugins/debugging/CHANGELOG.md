@@ -3,6 +3,22 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-01
+
+### Changed
+
+- `debug`'s post-mortem routes a check-shaped repo or policy mistake to `/corrections:codify "<the mistake>"`, in place of `/review:audit-enforceability`, so no review-findings file is needed first.
+
+## [0.16.0] - 2026-11-01
+
+### Added
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
 ## [0.15.0] - 2026-10-31
 
 ### Added

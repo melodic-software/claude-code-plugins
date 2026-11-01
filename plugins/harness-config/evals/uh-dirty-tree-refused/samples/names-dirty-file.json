@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "src/quay/app.py has uncommitted changes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The tree is clean.",
+      "why": "no file"
+    }
+  ]
+}

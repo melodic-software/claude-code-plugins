@@ -1,0 +1,139 @@
+{
+  "skill": "repo-hygiene:clean",
+  "plugin": "repo-hygiene",
+  "skill_dir": "plugins/repo-hygiene/skills/clean",
+  "ranking_note": "Authored from the before description at origin/main commit 30a665f349, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling repo-hygiene:setup is in this plugin (user-invoked only); the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins. Fleet asks for the selective tiers and the tree reset are positives: the skill owns the batch forms.",
+  "competitors": [
+    "repo-hygiene:setup",
+    "source-control:worktree",
+    "disk-hygiene:clean",
+    "disk-hygiene:audit",
+    "harness-ops:audit-install-state",
+    "repo-fleet-hygiene:audit",
+    "repo-fleet-hygiene:sync",
+    "code-tidying:audit-dead-code",
+    "source-control:commit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This checkout has grown to 4 GB. Show me which cache and output folders I could get rid of."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Wipe the pytest and ruff caches in this project; they're stale and confusing the test runner."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Delete the bin and obj folders from this .NET solution so I can do a clean rebuild."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which local branches here are already merged and safe to delete?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have a pile of old git stashes in this repo. Go through them and tell me which ones still matter."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put this working copy back to exactly what the remote has, as if I had just cloned it, but keep my .env file."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Clear the linter caches in every repository I have cloned under ghq."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run git gc here and drop the remote-tracking refs for branches that no longer exist upstream."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I zip up this project, how much space would removing the dist output and tool caches save?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reset all my clones to their upstream state in one go, skipping the dotfiles repo."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the linked worktree folders for the branches that merged last week."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "My home directory is full of old installers and half-finished downloads. Find what I can delete."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is my ~/.claude folder so large? List what is in it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is the repo-hygiene destructive guard switched on for this machine, and is node installed for it?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Squash my last three commits into one before I open the pull request."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find unused functions and dead code in src/ that we could delete."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "A few of my ghq clones are sitting on old feature branches. Switch each one back to its default branch."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit every repository on this machine for worktrees and branches that have drifted from their remotes."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Delete the scratch notes file I left in the docs folder."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our GitHub Actions cache storage is over quota; which cache entries should we evict?"
+    }
+  ]
+}

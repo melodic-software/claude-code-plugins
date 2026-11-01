@@ -93,7 +93,8 @@
 #      CHECK_SKILL_DESC_FIELD_BASELINE records skills whose breach predates the
 #      FAIL, downgrading those to a WARN; the list can only shrink.
 #   3. Trigger-keyword preservation vs the base ref (ADVISORY, never a FAIL;
-#      skipped for new skills). A phrase moved verbatim to a sibling skill's
+#      skipped for new skills; tracks 'quoted' phrases and unquoted "Use when"
+#      items). A phrase moved verbatim to a sibling skill's
 #      listing text, one the sibling did not carry at the base ref, WARNs as a
 #      move since the marketplace listing still routes it; a phrase dropped
 #      with no sibling host (including coincidental overlap with a sibling
@@ -115,7 +116,7 @@
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
-#  12. description carries "Use when" trigger phrasing, single-quoted (WARN)
+#  12. description carries "Use when" trigger phrasing (WARN)
 #  13. No committed cache/build artifacts (__pycache__, *.pyc, node_modules) (FAIL)
 #  14. evals/evals.json presence (WARN for action-router shape; FAIL with
 #      --require-evals / CHECK_SKILL_REQUIRE_EVALS=1 for any shape, unless a
@@ -158,9 +159,11 @@
 #      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
 #      blocks carrying an as-of date and a recheck trigger are exempt)
 #  30. Skill size: description above 419 chars or body above 160 lines
-#      (Pocock's measured max; his medians print as INFO), or either grown vs
-#      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
-#      skipped with an INFO when no base resolves or the skill is new)
+#      (Pocock's measured max; his medians print as INFO), SKILL.md above the
+#      5000-token router cap (estimated at 4 chars/token), or description or
+#      body grown vs CHECK_SKILL_BASE_REF, else the merge-base with origin
+#      (WARN; growth is skipped with an INFO when no base resolves or the skill
+#      is new)
 #  31. A `${user_config.KEY}` token used as the subject of a condition ("When
 #      `${user_config.x}` is true") with no inline fallback for the unexpanded
 #      token, in SKILL.md or any skill `.md` prose (FAIL where a baseline
@@ -181,9 +184,8 @@
 #   - A block-scalar `description: |` / `>-` is unfolded before checks 2/3/12/25,
 #     so they see the text rather than the marker. A single-line quoted
 #     description is still preferred (the listing budget encourages this).
-#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers.
-#     An unquoted `Use when:` list is not tracked; check 12 warns so those
-#     triggers get quoted and covered.
+#   - Trigger-drop protection (check 3) tracks single-quoted 'phrase' triggers
+#     and each unquoted comma-separated item of a field's "Use when" clause.
 
 set -uo pipefail
 
@@ -572,6 +574,13 @@ POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
+# Check 30: the router cap, a house setting of `/playbooks:skill-authoring`
+# (`## Body`, router standard): a SKILL.md stays under this many tokens. The
+# count is an estimate, whole-file codepoints divided by ROUTER_CHARS_PER_TOKEN
+# and rounded up, the same 4 chars/token check-listing-budget.sh defaults to,
+# not a tokenizer count.
+ROUTER_TOKEN_CAP=5000
+ROUTER_CHARS_PER_TOKEN=4
 
 FAILED=0
 WARNINGS=0
@@ -605,16 +614,51 @@ path_list_contains() {
   return 1
 }
 
-# Sorted-unique trigger phrases in a frontmatter block's LISTING text — the
-# description + when_to_use pair the harness assembles into one listing entry.
-# Reads the frontmatter as a string so every caller (working tree, base ref,
-# sibling skill) derives triggers the same way.
+# Unquoted trigger items in stdin text: each comma-separated item of the first
+# "Use when" clause, up to the ". " or "; " that ends it, with a leading "or" or
+# "and" dropped. An item holding a quote is skipped, since its 'quoted' phrase
+# is tracked already. Each prints in single quotes, the form extract_triggers
+# prints, so quoting a formerly unquoted item does not read as a drop.
+# Contractions fold the way extract_triggers folds them.
+use_when_items() {
+  sed "s/\\([[:alpha:]]\\)'\\([[:alpha:]]\\)/\\1\\2/g" 2>/dev/null |
+    awk -v sq="'" '
+      { text = text " " $0 }
+      END {
+        # text opens with a space, so a non-letter always precedes the match.
+        if (!match(tolower(text), /[^a-z]use when/)) exit
+        clause = substr(text, RSTART + 9) " "
+        sub(/^:/, "", clause)
+        if (match(clause, /[.;] /)) clause = substr(clause, 1, RSTART - 1)
+        n = split(clause, items, ",")
+        for (i = 1; i <= n; i++) {
+          item = items[i]
+          gsub(/^[ \t]+|[ \t]+$/, "", item)
+          sub(/^(or|and)[ \t]+/, "", item)
+          if (item != "" && !index(item, sq)) print sq item sq
+        }
+      }'
+}
+
+# Sorted-unique trigger phrases in a listing's DESCRIPTION and WHEN_TO_USE text:
+# every 'quoted' phrase plus the unquoted "Use when" items of each field.
+listing_triggers() {
+  {
+    printf '%s\n%s\n' "$1" "$2" | skill_frontmatter::extract_triggers
+    printf '%s\n' "$1" | use_when_items
+    printf '%s\n' "$2" | use_when_items
+  } | sort -u
+}
+
+# Trigger phrases in a frontmatter block's LISTING text — the description +
+# when_to_use pair the harness assembles into one listing entry. Reads the
+# frontmatter as a string so every caller (working tree, base ref, sibling
+# skill) derives triggers the same way.
 fm_listing_triggers() {
   local fm="$1"
-  printf '%s\n%s\n' \
+  listing_triggers \
     "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")" \
-    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")" |
-    skill_frontmatter::extract_triggers
+    "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
 }
 
 if [[ ! -d "$SKILL_DIR" ]]; then
@@ -948,8 +992,8 @@ fi
 JOINER_LEN=0
 CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
 CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
-# Working-tree listing triggers, derived once: checks 3 and 12 both read them.
-CUR_TRIG="$(printf '%s\n%s\n' "$CUR_DESC" "$CUR_WTU" | skill_frontmatter::extract_triggers)"
+# Working-tree listing triggers, compared against the base ref by check 3.
+CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
 WTU_LEN=${#CUR_WTU}
 ((WTU_LEN > 0)) && JOINER_LEN=3
@@ -1504,8 +1548,6 @@ if [[ -n "$CUR_DESC" ]]; then
   CUR_TRIG_WTU="$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)"
   if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" && [[ -z "$CUR_TRIG_WTU" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
-  elif [[ -z "$CUR_TRIG" ]]; then
-    warn "'Use when:' triggers are not single-quoted — drop-regression protection (check 3) tracks only 'quoted' phrases; single-quote each trigger phrase to cover it"
   fi
 fi
 
@@ -2499,8 +2541,9 @@ fi
 # --- Check 30: skill size vs Pocock's measured max and the base ref (WARN) -----
 # The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
 # `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
-# not grow a skill. WARNs on a description or body above Pocock's max (see the
-# constants), and on growth of either against the base ref. The base ref is
+# not grow a skill. WARNs on a description or body above Pocock's max, on a
+# SKILL.md above the router cap (see the constants), and on growth of the
+# description or body against the base ref. The base ref is
 # CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
 # or origin/main; with neither, or for a skill new at that ref, the growth half
 # is skipped with an INFO. Never a FAIL.
@@ -2516,6 +2559,19 @@ note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock media
   warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
 ((BODY_LINES > POCOCK_BODY_MAX)) &&
   warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
+# Read from the file, not a command substitution, so trailing newlines count;
+# -c drops an invalid UTF-8 byte instead of stopping the count at it.
+if command -v iconv >/dev/null 2>&1; then
+  ROUTER_CHARS=$(($(iconv -c -f UTF-8 -t UTF-32BE <"$SKILL_MD" 2>/dev/null | wc -c) / 4))
+else
+  ROUTER_CHARS=$(($(LC_ALL=C.UTF-8 wc -m <"$SKILL_MD")))
+fi
+ROUTER_TOKENS=$(((ROUTER_CHARS + ROUTER_CHARS_PER_TOKEN - 1) / ROUTER_CHARS_PER_TOKEN))
+if ((ROUTER_TOKENS > ROUTER_TOKEN_CAP)); then
+  warn "SKILL.md is about $ROUTER_TOKENS tokens ($ROUTER_CHARS chars / $ROUTER_CHARS_PER_TOKEN), above the router cap of $ROUTER_TOKEN_CAP: move per-action detail into actions/ (/playbooks:skill-authoring, Body)"
+else
+  note "SKILL.md about $ROUTER_TOKENS/$ROUTER_TOKEN_CAP tokens (router cap)"
+fi
 
 SIZE_BASE=""
 SIZE_BASE_LABEL=""

@@ -23,7 +23,7 @@ is read-only: it lists `Read`, `Glob` and `Grep`, and needs no `--allow-tools` g
 | Case | Adapted from | Answer |
 | --- | --- | --- |
 | `rv-json-escape-order` | `json_str` in `scripts/resolve-roles.sh`, Bash | `json_str` escapes quotes before backslashes, so a quote yields invalid JSON. Decoy: a shared `note` helper |
-| `rv-bounds-off-by-one` | `check_bounds` in `plugins/evals/skills/validate/scripts/validate-cases.py`, Python | `value <= low` reports a value at its inclusive minimum. Decoy: `%` to `str.format` in `check_env` |
+| `rv-bounds-off-by-one` | `check_bounds` in the evals plugin's `validate-cases.py`, Python | `value <= low` reports a value at its inclusive minimum. Decoy: `%` to `str.format` in `check_env` |
 | `rv-fetch-gate-prefix` | `decide` in `hooks/drift-checker-fetch-gate.mjs`, JavaScript | a `startsWith` fast path skips the host, userinfo and query checks. Decoy: `Buffer` chunks in `main` |
 | `vf-route-findings` | `skills/route/scripts/route.sh`, Bash | F1 refuted, F2 confirmed, F3 refuted, F4 confirmed |
 | `vf-check-fields-findings` | the field checks in `validate-cases.py`, Python | F1 confirmed, F2 refuted, F3 refuted, F4 confirmed |
@@ -37,11 +37,8 @@ Every grader is a deterministic `regex` over the final reply, and each has must-
 answers under `samples/`. No case has an `llm` or `baseline` grader, so no judge model scores a run
 and no grader needs calibration.
 
-Check the cases without a model call:
-
-```bash
-python3 plugins/evals/skills/validate/scripts/validate-cases.py plugins/multi-agent/evals/routing/review
-```
+Check the cases before a paid run with
+`/evals:validate plugins/multi-agent/evals/routing/review`.
 
 ## Arms
 
