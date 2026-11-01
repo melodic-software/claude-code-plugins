@@ -1,5 +1,5 @@
 ---
-description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and durable codification of learnings. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
+description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'show trends', or at end of session. Mid-session: /session-flow:running-retro."
 argument-hint: "[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

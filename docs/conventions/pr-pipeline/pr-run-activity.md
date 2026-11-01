@@ -2120,9 +2120,19 @@ caller or the write file merges while it waits, the broker would refuse the appl
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
 rule. On a difference it sets `stale=true` and ends green: the `Stop on stale workflow files`
-step runs, `go` is `false`, so no model turn, no outcome marker and no caller job follows, and
-the run counts as no failure. work-unblock's hourly sweep finds that step in the run's job
-listing and re-fires the issue on main's files, once per version of the two files. An issue that
+step runs, `go` is `false`, so no model turn and no outcome marker follows. The caller's
+`resolve-issue-stale` job, on a run that started no skill and reused no branch, finds that step
+in the run's job listing (`handoff-evidence.sh stale`, over every call) and runs `report-outcome`
+with `dimension-skip: workflow-stale`. The broker mints for that report job while each main
+change to the two files is recent (Broker reasons, `workflow-modified`), and
+`report-outcome.mjs` re-fires the issue at once on main's files: it checks the two blobs at the
+run's commit still differ from main's, that the issue is open with `agent-ready` on and no hold,
+posts work-unblock's re-fire record and removes and re-adds `agent-ready` as the App. It stops
+after `limits.limit-stops-per-issue` such records since a listed human last added
+`agent-ready` or a run last reported, so a main that moves faster than the slots drain backs off
+to work-unblock's hourly sweep, which finds the stop step in the job listing (a refused report
+mint included) and re-fires the issue once per version of the two files. A stale stop is no
+outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
