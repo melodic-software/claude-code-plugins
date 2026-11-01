@@ -485,12 +485,12 @@ async function refusal(args) {
         })
       : [];
   const kept = lapsed.some(({ kind }) => kind === "held");
-  const reason = !open ? "not open" : held ? `held by ${held}` : lapsed.length > 0 ? lapsed.map((item) => item.reason).join("; ") : await readiness({ ...args, base, lower });
+  const reason = !open ? "not open" : held ? `held by ${held}` : lapsed.length > 0 ? lapsed.map((item) => item.reason).join("; ") : await readiness({ ...args, base, lower, current });
   const stale = kept || lapsed.some(({ kind }) => kind === "not-ready") ? [] : lapsed;
   return { reason, held: open && Boolean(held), kept, stale, deferred: lower.includes(DEFERRED_LABEL), confirmed: parkedBesideReady(lower), current };
 }
 
-async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
+async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower, current }) {
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
@@ -509,6 +509,12 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   );
   if (pending.length > 0) {
     return `${pending.length} blocker(s) not closed by a listed human or a merge`;
+  }
+  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs),
+  // so its parent slices wait for them instead of taking a run that does nothing.
+  const subs = await openSubIssues(github, base, current);
+  if (subs.length > 0) {
+    return `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
