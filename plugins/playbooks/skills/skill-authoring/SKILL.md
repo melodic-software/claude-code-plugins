@@ -119,7 +119,7 @@ Options: append-only text logs, JSON files, SQLite databases. A standup-post ski
 
 For effort-aware behavior, embed the `CLAUDE_EFFORT` placeholder (same dollar-brace form) in SKILL.md content. Claude Code injects the current effort level at invocation; for the values it can take, see [available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions), the `CLAUDE_EFFORT` row (as of 2026-10-02; recheck when that row changes the level set). Example: skip expensive research phases when effort is `low`, run the full workflow at `high` or above.
 
-(The two variable names above are written without their dollar-brace wrapper because Claude Code substitutes such placeholders inline when this very skill loads.)
+(The two variable names above are written without their dollar-brace wrapper because Claude Code substitutes such placeholders inline when this skill loads.)
 
 ### 8. Store Scripts & Generate Code
 

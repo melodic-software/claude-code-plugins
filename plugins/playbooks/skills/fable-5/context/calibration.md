@@ -50,7 +50,7 @@ As of that 2026-08-03 read, neither sentence survived in a current entry, which 
 
 ## The reference page defines; a vendor post corroborates
 
-A vendor's own blog, launch announcement, or engineering post is first-party and still not the authority on what a term means: it is written once, dated, and never revised, while the reference page that owns the term is maintained against the behavior it describes. The two rarely contradict. The post is simply thinner, and what it omits is the part that would have changed your action.
+A vendor's own blog, launch announcement, or engineering post is first-party and still not the authority on what a term means: it is written once, dated, and never revised, while the reference page that owns the term is maintained against the behavior it describes. The two rarely contradict. The post is thinner, and what it omits is the part that would have changed your action.
 
 - TRIGGER: about to state a definition, and the source in front of you is a post rather than the reference page that owns the term.
 - RULE: cite the owning page and treat the post as corroborating voice. Pointer, never copy: a restatement of a definition freezes at the moment you wrote it, and the page is what a reader needs when the behavior moves.
@@ -103,7 +103,7 @@ A session has no single correct effort level; each decision inside it does. Budg
 ## Stop analyzing when analysis cannot change the action
 
 - STOP TRIGGERS, any one of which is sufficient: the next unit of analysis cannot alter what you do next; you are comparing options on dimensions where they do not differ; you are on a third pass over unchanged evidence; the concern is hypothetical with no concrete trigger anywhere in the actual task.
-- SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would actually pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class. A comparison you will not act on is decoration.
+- SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class.
 
 ## Price optional hardening against what the attacker already holds
 
@@ -137,6 +137,6 @@ External feedback (a failed check, a user correction) is the expensive way to le
 1. **Surprise**: a result you would have predicted differently. This tripwire only works if you form the prediction: before any action with observable output, pre-register what you expect. No expectation means surprise is undetectable, and miscalibration stays invisible. This is the owning statement of the pre-registered-prediction principle; sibling chapters that require a prediction field or a per-experiment prediction apply it without restating the why.
 2. **Convenience**: your plan depends on a fact that "should" be true but was never observed. Name it explicitly as an assumption the plan depends on and check it at the cheapest point, before the dependent work, not after it fails.
 3. **Friction**: you are building the third workaround for the same obstacle. Three workarounds means your model of the system is wrong, not that you are unlucky. Stop patching; revise the model.
-4. **Smoothness**: every result confirms your theory, and ambiguous results keep reading as support. Real systems push back; a resistance-free run means either the task was genuinely easy or your theory has started absorbing all evidence. Ask which, explicitly.
+4. **Smoothness**: every result confirms your theory, and ambiguous results keep reading as support. Real systems push back; a resistance-free run means either the task was easy or your theory has started absorbing all evidence. Ask which, explicitly.
 
 When an observation contradicts your expectation, the first move is to doubt the expectation, not to construct a story that preserves it. Failure mode prevented: confirmation drift, where a theory hardens with each ambiguous result until an external failure finally shatters it at maximum cost.

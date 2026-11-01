@@ -7,7 +7,7 @@ The moves inside deliberation itself: how you hold beliefs, simulate adversaries
 TRIGGER: at task start, and again the moment the work changes character mid-task. Classify the work as exactly one of four kinds, because each kind fails differently and the wrong pace is invisible from inside it:
 
 - **Mechanical sweep**: same change, many sites. Failure: a missed site, or mid-sweep drift between sites. Pace: enumerate every site first, apply identically, reconcile sites-found against sites-changed (the completion arithmetic is the verification chapter's business).
-- **Judgment call**: one decision, few edits. Failure: edits that begin before the decision is actually made. Pace: slow until the decision fits in one written sentence, fast after.
+- **Judgment call**: one decision, few edits. Failure: edits that begin before the decision is made. Pace: slow until the decision fits in one written sentence, fast after.
 - **Exploration**: build a model, mutate nothing. Failure: converging on the first coherent story. Pace: breadth before depth, zero edits.
 - **Synthesis**: combine already-gathered parts into one artifact. Failure: silently dropping a constraint you already collected. Pace: inventory every input first, then write once against the inventory.
 
@@ -21,8 +21,8 @@ Total rule: fits one kind → set that pace; fits two → split into segments an
 
 TRIGGER: two or more *explanations*, mechanisms or interpretations of observed behavior, could each account for the evidence in hand. Route other uncertainty shapes first: choice-shaped (two viable designs or approaches) → the steelman and taste sections below; request-reading ambiguity → the problem-framing chapter, section "Sort ambiguities by whether the answer changes the work". During failure diagnosis, the debugging chapter's "Generate competing hypotheses, then rank" is this move's specialized form.
 
-- "Holding" a contender is a written act, not a mental note. The moment it enters the slate, attach two conditions: the observation that would CONFIRM it (promote it to leader) and the observation that would KILL it (remove it). A contender missing its kill condition is not held, it is decoration. Nothing can remove it, so it absorbs every result and merely pads the appearance of open-mindedness.
-- Cap the slate at three; admit a fourth only by killing one. Contenders beyond what you actually track decay into ghosts, and ghosts collapse the slate to the leader without anyone deciding that.
+- "Holding" a contender is a written act, not a mental note. The moment it enters the slate, attach two conditions: the observation that would CONFIRM it (promote it to leader) and the observation that would KILL it (remove it). A contender missing its kill condition is not held, it is decoration. Nothing can remove it, so it absorbs every result and pads the appearance of open-mindedness.
+- Cap the slate at three; admit a fourth only by killing one. Contenders beyond what you track decay into ghosts, and ghosts collapse the slate to the leader without anyone deciding that.
 - A contender leaves the slate only when its kill condition fires, never by fading. Fading is the default failure: the leader is fluent and cheap to generate from, so alternatives dissolve untested. Before declaring the slate resolved, name which event removed each contender.
 
 > Weak: "It's probably the cache; I'll keep the config theory in mind." The phrase "in mind" carries no conditions; the config theory is already dead, just unannounced.

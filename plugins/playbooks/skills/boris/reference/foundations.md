@@ -66,8 +66,6 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 
 Boris's reasoning: "It's the best coding model I've ever used, and even though it's bigger & slower than Sonnet, since you have to steer it less and it's better at tool use, it is almost always faster than using a smaller model in the end."
 
-**The math:** Less steering + better tool use = faster overall results, even with a larger model.
-
 ---
 
 ## 3. Plan Mode
@@ -297,7 +295,7 @@ Use voice dictation! You speak 3x faster than you type. Prompts get way more det
 
 Enable the Slack MCP, paste a Slack bug thread into Claude, say "fix." Zero context switching.
 
-Or just say "Go fix the failing CI tests." Don't micromanage how.
+Or say "Go fix the failing CI tests." Don't micromanage how.
 
 **Pro tip:** Point Claude at docker logs to troubleshoot distributed systems. It is surprisingly capable at this.
 

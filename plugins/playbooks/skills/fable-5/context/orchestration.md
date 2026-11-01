@@ -33,7 +33,7 @@ This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynami
 
 ## Write worker specs as contracts
 
-A worker sees none of your conversation, your accumulated findings, or your standing instructions; every ambiguity in the spec gets filled by the worker's own guess, and guesses diverge across workers. That divergence is precisely where overlap and gaps come from. Write five parts, every time:
+A worker sees none of your conversation, your accumulated findings, or your standing instructions; every ambiguity in the spec gets filled by the worker's own guess, and guesses diverge across workers. That divergence is where overlap and gaps come from. Write five parts, every time:
 
 1. **Objective**: one sentence, stated as an outcome, not an activity.
 2. **Why it is being asked**: the larger task this feeds, who the output is for, and what it enables. This is the part that converts an ambiguity into a decision the worker can make correctly instead of a coin flip: knowing what the answer is FOR is often the only thing separating a useful return from a well-formed wrong one. A worker holding only an objective optimizes the sentence you wrote; a worker holding the reason optimizes the outcome you wanted.
