@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "33 files is past the ~20-file gate. Confirm the scope: all 33, or a subtree?",
+      "why": "ask only"
+    },
+    {
+      "answer": "**Cost gate.** Which files do you want audited? Severity uses error/warning/info once a run happens.",
+      "why": "severity words, no table header"
+    },
+    {
+      "answer": "- 33 markdown files found\n- Shall I proceed with all of them?",
+      "why": "list ask"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|---|---|---|---|---|\n\nNo findings.",
+      "why": "ran the audit, table header"
+    },
+    {
+      "answer": "## Verified non-issues\n\n- docs/topic-01.md: src/server.js serves the path\n\n## Config-gap observations\n\nShall I run /codebase-health:setup apply to persist docs/**?",
+      "why": "full report ending with the setup offer"
+    },
+    {
+      "answer": "Clean bill of health across all 33 docs.",
+      "why": "verdict without asking"
+    }
+  ]
+}

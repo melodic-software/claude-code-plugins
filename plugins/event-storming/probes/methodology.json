@@ -1,0 +1,137 @@
+{
+  "skill": "event-storming:methodology",
+  "plugin": "event-storming",
+  "skill_dir": "plugins/event-storming/skills/methodology",
+  "ranking_note": "Authored from the before descriptions at commit 968bfeb77df9416c9dd074ed9de3c7ac4f4049a7, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are event-storming:simulation (AI agents playing personas to run a workshop, usually on a Miro board, plus evaluating, retro and bounded-context discovery against an existing board), planning:design (types, contracts and module boundaries resolved before a plan; its listing says 'model this domain'), architecture:map-events (async message topology read from committed C# code), architecture:map-context (C4 system context from tracked configuration), domain-driven-design:curate-language (maintaining the ubiquitous-language glossary), prototype:pressure-test (a throwaway app stepping business rules through awkward event sequences) and planning:brainstorm (diverging into candidate approaches before scope is locked). methodology owns EventStorming facilitation knowledge and reference, and choosing and planning a format for a workshop that humans run.",
+  "competitors": [
+    "event-storming:simulation",
+    "planning:design",
+    "architecture:map-events",
+    "architecture:map-context",
+    "domain-driven-design:curate-language",
+    "prototype:pressure-test",
+    "planning:brainstorm"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're doing our first sticky-note workshop in person next week. Which event storming format suits a team trying to understand the whole order lifecycle?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What do the different sticky note colors stand for in an event storming session?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm facilitating a session tomorrow and people keep jumping straight to solutions. What should I do about it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do I run event storming over video calls with a team spread across three time zones?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk me through the grammar of the process-level stage: which sticky follows a command, and where do policies go?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's a pivotal event, and how do I use them to split the timeline while the room is working?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our team wants a workshop to figure out where the service boundaries in the logistics business fall. How should I set up the room and run it?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which facilitation mistakes should I watch for when one senior engineer dominates the wall?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a cheat sheet of event storming vocabulary: hotspot, read model, external system and the rest."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We have two hours with the claims experts on Thursday. Help me choose a workshop style and draft the agenda."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Have AI agents play the domain expert, developer and product owner and run a full workshop on our insurance claims domain on the Miro board."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me settle the types and package boundaries for the new invoicing module before I write the implementation plan."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of our C# services publish OrderShipped, and is anything consuming a message nobody sends?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a C4 context diagram of what the payments system talks to, based on our connection strings and base URLs."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The team uses 'policy' and 'contract' interchangeably. Pick the canonical term and record the other as a rejected synonym in our glossary."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build me a quick terminal app to step through what happens when a cancellation arrives after the parcel has left the warehouse."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me some rough options for how we could reduce onboarding drop-off, cheapest first, before we commit to anything."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look at the Miro board from yesterday's simulated session and give me a retrospective on how the workshop went."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the boundary heuristics against the stickies already on our Miro board and propose where the contexts split."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Sketch the interfaces and contracts between the catalog and pricing packages so I can plan the refactor."
+    }
+  ]
+}

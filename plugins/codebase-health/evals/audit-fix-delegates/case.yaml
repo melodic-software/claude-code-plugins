@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: audit-fix-delegates
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: finding-row
+    type: regex
+    pattern: 'README\.md`?(?::|#L|,? ?\(?line |,? ?L ?)\d+[\s\S]{0,300}?\bserve\b[^\n]{0,200}?(?:\bno\b|\bnot\b|\bmissing\b|\babsent\b|\bnon-?existent\b|\bundefined\b|\bdoesn''t\b|\bisn''t\b|\blacks?\b|\bonly\b|\bbut\b|\binstead\b|\bdefines\b[^\n]{0,40}?\bstart\b)|\bserve\b[^\n]{0,200}?(?:\bno\b|\bnot\b|\bmissing\b|\babsent\b|\bnon-?existent\b|\bundefined\b|\bdoesn''t\b|\bisn''t\b|\blacks?\b|\bonly\b|\bbut\b|\binstead\b|\bdefines\b[^\n]{0,40}?\bstart\b)[\s\S]{0,300}?README\.md`?(?::|#L|,? ?\(?line |,? ?L ?)\d+|README\.md`?(?::|#L|,? ?\(?line |,? ?L ?)\d+[\s\S]{0,300}?(?:\bno\b|\bnot\b|\bmissing\b|\babsent\b|\bnon-?existent\b|\bundefined\b|\bdoesn''t\b|\bisn''t\b|\blacks?\b|\bonly\b|\bbut\b|\binstead\b|\bdefines\b[^\n]{0,40}?\bstart\b)[^\n]{0,80}?\bserve\b'
+    flags: 'i'
+    target: last_message
+  - name: remediation-handoff
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need to|don''t need to|do not need to|not needed|skip)\b[^\n]*implementation:implement)[^\n]*implementation:implement\b[\s\S]{0,800}?verification:confirm\b|\bimplementation\b[^\n]{0,80}?\bverification\b[^\n]{0,80}?(?:\b(?:is|are)n''t (?:installed|available)\b|\b(?:is|are) not (?:installed|available)\b|\bnot installed\b|\bunavailable\b|\bmissing\b|\babsent\b)'
+    flags: 'im'
+    target: last_message
+  - name: no-implement-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:implementation:)?implement"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-confirm-run
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"/?(?:verification:)?confirm"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-repo-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:README\.md|package\.json|src/|test/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-repo-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:README\.md|package\.json|src/|test/)'
+    min: 0
+    max: 0
+    arm: 'both'

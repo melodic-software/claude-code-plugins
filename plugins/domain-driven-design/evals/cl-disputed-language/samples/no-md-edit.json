@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/src/orders/order.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "not a .md file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/glossary.md",
+            "old_string": "Avoid: parcel, order line",
+            "new_string": "Avoid: parcel, order line\n\n**Account**"
+          }
+        }
+      ],
+      "why": "appends an entry"
+    }
+  ]
+}

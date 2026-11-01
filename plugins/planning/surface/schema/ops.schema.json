@@ -96,6 +96,7 @@
         "id": {"type": "string"},
         "title": {"$ref": "#/$defs/line"},
         "short": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"},
+        "context": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/context"},
         "facts": {"$ref": "#/$defs/markdown"},
         "basis": {"$ref": "#/$defs/markdown"},
         "rec": {"$ref": "#/$defs/line"},
