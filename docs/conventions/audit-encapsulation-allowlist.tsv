@@ -6,7 +6,7 @@ plugins/attribution/skills/audit/evals/fixtures/golden/c28-near-verbatim-reforma
 plugins/attribution/skills/audit/scripts/list-corpus.test.sh	builds a scratch marketplace with plugins/demo/skills/ vendor and eval fixtures to exercise list-corpus.sh's corpus exclusions
 plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py	feeds synthetic plugins/<p>/skills/<s>/scripts/ instance paths to exercise the duplication registry filter's glob members
 plugins/docs-hygiene/evals/ae-cross-plugin-script-cite/	scaffold, graders and graded samples cite a scaffolded plugins/lint-kit skill script from a plugins/release-kit skill to exercise the encapsulation audit's cross-plugin scripts/ verdict
-plugins/guardrails/hooks/run-guards.test.shbuilds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
+plugins/guardrails/hooks/run-guards.test.sh	builds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
 plugins/guardrails/hooks/skill-reference-verify.test.sh	builds scratch plugin skill trees to exercise skill-reference-verify.sh's skill resolution
 plugins/harness-config/skills/audit-instructions/scripts/emit-findings.test.sh	uses a synthetic plugins/demo/skills/tool path to exercise emit-findings.sh's lane and surface findings
 plugins/harness-config/skills/audit-permission-grants/evals/evals.json	eval prompt names a hypothetical plugins/deploy/skills/ship/SKILL.md to exercise the permission-grant audit's inert-grant verdict
