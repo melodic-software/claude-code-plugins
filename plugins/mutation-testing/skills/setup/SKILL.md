@@ -214,7 +214,10 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 - **`user`** writes no file and no setting, and of `check` it runs only probe 6, so it runs no
   test command. It runs step 1, then settles only the two `userConfig` keys: `operators` as step 4
   does, and `max_mutants` unset by default, so the effort cap applies, offering a cap only when the
-  user asks. When this repository's team or local file already sets `operators` or `max-mutants`,
+  user asks. When the rendered `max_mutants` above is already a valid saved cap and the user wants
+  the effort cap, do not say the effort cap now applies: say the saved cap stays in force, since
+  leaving the key out keeps it, and that clearing it is done in
+  `/plugin configure mutation-testing@<marketplace>`. When this repository's team or local file already sets `operators` or `max-mutants`,
   say that file overrides the user value here. Then name how to save them:
   `/plugin configure mutation-testing@<marketplace>`, or headless
   `claude plugin configure mutation-testing@<marketplace> --values-stdin < values.json` with
