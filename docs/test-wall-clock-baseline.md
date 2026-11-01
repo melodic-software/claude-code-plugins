@@ -659,7 +659,6 @@ and is empty until one is made.
 | `plugins/wizard/skills/unattended/template.test.sh` | 70 | |
 | `plugins/work-items/scripts/backfill-capability-tier-labels.test.sh` | 0 | |
 | `plugins/work-items/scripts/evaluate-schedule-precondition.test.sh` | 0 | |
-| `plugins/work-items/scripts/first-drain-ratified.test.sh` | 0 | |
 | `plugins/work-items/scripts/lane-telemetry-upsert.test.sh` | 2 | |
 | `plugins/work-items/scripts/lib/legacy-frontier-tier-signal.test.sh` | 0 | |
 | `plugins/work-items/scripts/merge-hold.test.sh` | 0 | |

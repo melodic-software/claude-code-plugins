@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "The frontier envelope reports truncated: true, so the cycle-start snapshot is unusable and the cycle aborts with no state change. It runs no intake sweep, admission or execution and evaluates no exit condition: the empty item set is not an empty backlog, so the drain is not complete and no first-drain completion is proposed. Because truncation does not clear on its own, the cycle raises the stall escalation now, without waiting for the no-progress threshold: a `Lane stall: work-loop` item with the human-gated role label and the machine-marked escalation comment, reporting the truncated frontier read, the github adapter and its list_items_max of 1000. The durable counters (no_progress_streak 1, item_cap 2, first_drain_proposed false) are written back as read, with only heartbeat_at moving. The cycle report leads with a snapshot-unusable line naming the frontier read and the truncation, and, the launch being interactive, the lane schedules the next cycle instead of stopping.",
+      "answer": "The frontier envelope reports truncated: true, so the cycle-start snapshot is unusable and the cycle aborts with no state change. It runs no intake sweep, admission or execution and evaluates no exit condition: the empty item set is not an empty backlog, so the drain is not complete and the lane does not stop. Because truncation does not clear on its own, the cycle raises the stall escalation now, without waiting for the no-progress threshold: a `Lane stall: work-loop` item with the human-gated role label and the machine-marked escalation comment, reporting the truncated frontier read, the github adapter and its list_items_max of 1000. The durable counters (no_progress_streak 1, item_cap 2, clean_streak 0) are written back as read, with only heartbeat_at moving. The cycle report leads with a snapshot-unusable line naming the frontier read and the truncation, and, the launch being interactive, the lane schedules the next cycle instead of stopping.",
       "why": "the case's expected outcome"
     }
   ],
   "fail": [
     {
-      "answer": "The frontier is empty, so the drain is complete. Proposing first-drain completion.",
+      "answer": "The frontier is empty, so the drain is complete. Writing the final report and stopping.",
       "why": "misses a required token"
     },
     {
