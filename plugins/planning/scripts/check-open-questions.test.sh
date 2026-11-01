@@ -979,6 +979,8 @@ cat >"$surface_dir/questions.json" <<'EOF'
    "intent": "Cut CI time so merges stop queuing.", "goal": "Cut CI build time.",
    "tldr": "- Remote cache for CI builds",
    "acceptance": "- p75 build is 4 min or less\n- a cache miss runs the full build",
+   "problem": "- Gap: merges queue behind slow builds", "constraints": "- no paid runners",
+   "outOfScope": "- fork builds", "planningOwned": "- the cache key layout",
    "decisions": "- Q1 only the admin writes"}}]}
 EOF
 cat >"$surface_dir/responses.json" <<'EOF'
@@ -1063,6 +1065,18 @@ expect_surface_defect() {
     "TLDR is missing a line the page export writes: - Remote cache for CI builds"
   expect_surface_defect "a removed acceptance criterion" "$(page_variant one-criterion '$0 != "- a cache miss runs the full build"')" \
     "Acceptance criteria is missing a line the page export writes: - a cache miss runs the full build"
+  expect_surface_defect "a removed restated Goal line" "$(page_variant no-goal-line '$0 != "Cut CI build time."')" \
+    "Goal is missing a line the page export writes: Cut CI build time."
+  expect_surface_defect "a removed restated Problem line" "$(page_variant no-problem-line '$0 != "- Gap: merges queue behind slow builds"')" \
+    "Problem is missing a line the page export writes: - Gap: merges queue behind slow builds"
+  expect_surface_defect "a removed restated constraint" "$(page_variant no-constraint '$0 != "- no paid runners"')" \
+    "Constraints is missing a line the page export writes: - no paid runners"
+  expect_surface_defect "a removed Out-of-scope line" "$(page_variant no-out-of-scope '$0 != "- fork builds"')" \
+    "Out-of-scope is missing a line the page export writes: - fork builds"
+  expect_surface_defect "a removed Deferred line" "$(page_variant no-deferred '$0 != "- the cache key layout; **arbiter: /planning:plan**"')" \
+    "Deferred questions is missing a line the page export writes: - the cache key layout; **arbiter: /planning:plan**"
+  expect_surface_defect "a decision line repeated under Constraints" "$(page_variant decision-in-constraints '{ print } $0 == "- no paid runners" { print "- Q1 only the admin writes" }')" \
+    "Constraints has a line the page export does not write (a decision in another form, or a second line for it): - Q1 only the admin writes"
 }
 
 # 61. --procedure grades the Step-exit checkboxes and the assumption sweep's

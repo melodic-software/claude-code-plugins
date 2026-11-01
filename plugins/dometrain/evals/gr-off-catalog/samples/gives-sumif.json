@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "=SUMIFS(B:B, A:A, \"paid\")",
+      "why": "SUMIFS"
+    },
+    {
+      "answer": "## Formula\n\n`=SUMIF(A2:A100,\"paid\",B2:B100)`",
+      "why": "SUMIF in a heading section"
+    },
+    {
+      "answer": "| Formula | =sumif(A:A,\"paid\",B:B) |",
+      "why": "lower case in a table"
+    },
+    {
+      "answer": "- Use SUMIFS (B:B, A:A, \"paid\")",
+      "why": "space before paren"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Filter column A to paid and read the status bar total.",
+      "why": "no formula"
+    },
+    {
+      "answer": "=SUMPRODUCT((A:A=\"paid\")*B:B)",
+      "why": "a different formula than the outcome names"
+    }
+  ]
+}

@@ -244,8 +244,17 @@ jobs:
           echo "$head" >"$RUNNER_TEMP/pr-feedback-deferred.txt"
           echo "name=pr-feedback-deferred-$head-$verdict" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.deferred.outputs.name != ''
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-deferred.txt
+
       - name: Record the deferred verdict
-        if: steps.deferred.outputs.name != ''
+        if: >-
+          (steps.deferred.outputs.name != '') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.deferred.outputs.name }}
@@ -454,10 +463,17 @@ jobs:
             "$GITHUB_RUN_ID" "$UPSTREAM_RUN_ID" "$RUN_ID" >"$RUNNER_TEMP/pr-feedback-dispatched.json"
           echo "name=pr-feedback-dispatched-$UPSTREAM_RUN_ID-$RUN_ID" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-feedback-dispatched.json
+
       - name: Record the dispatched run
         if: >-
-          always() && steps.dispatch.outputs.run-id != ''
-          && steps.record.outcome == 'success'
+          (always() && steps.dispatch.outputs.run-id != '' && steps.record.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.record.outputs.name }}
@@ -554,9 +570,10 @@ jobs:
       API_BUDGET_TOKEN: github-token
     steps:
       # The list the record check reads, from the default branch, never the
-      # PR head, the reconciler-record check and the api-budget library. A
-      # failed checkout leaves no list: ci-status is still re-run, unrecorded
-      # unless the review run is a first attempt, and no reading is logged.
+      # PR head, the reconciler-record check, the api-budget library and the
+      # upload scanner. A failed checkout leaves no list and no scanner:
+      # ci-status is still re-run, unrecorded unless the review run is a first
+      # attempt, and no reading is logged.
       - name: Check out the trusted-actors list
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -570,6 +587,8 @@ jobs:
             /.github/actions/check-trusted-trigger/
             /.github/actions/check-kill-switch/
             /.github/actions/setup-pinned-node/
+            /.github/actions/scan-upload/
+            /lib/publish-gate.mjs
             /.node-version
           sparse-checkout-cone-mode: false
 
@@ -882,8 +901,18 @@ jobs:
       # Uploaded last before the re-run, so the record names the attempt the
       # re-run starts; a re-run someone else lands in between takes that
       # attempt, and this one's next attempt has no record and is refused.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.find.outputs.record != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/rerun-ci-status-record.json
+
       - name: Record the re-run
-        if: steps.find.outputs.record != ''
+        if: >-
+          (steps.find.outputs.record != '') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.find.outputs.record }}

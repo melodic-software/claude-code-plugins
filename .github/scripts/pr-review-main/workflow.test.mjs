@@ -798,8 +798,13 @@ test("the verdict uploads once, after it is written, under the writer's name", (
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.block));
     assert.equal(uploads.length, 1, job);
     assert.equal(uploads[0].name, "Upload the verdict");
-    assert.ok(index("Write the verdict", job) < index("Upload the verdict", job));
-    assert.match(uploads[0].block, /^ {8}if: steps\.verdict\.outcome == 'success'$/m);
+    // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
+    assert.ok(index("Write the verdict", job) < index("Scan the upload for credentials", job), job);
+    assert.equal(index("Scan the upload for credentials", job) + 1, index("Upload the verdict", job), job);
+    const scan = step("Scan the upload for credentials", job);
+    assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}steps\.verdict\.outcome == 'success'$/m, job);
+    assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-review-main-verdict\/verdict\.json$/m, job);
+    assert.match(uploads[0].block, /^ {8}if: >-\n {10}\(steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m);
     assert.match(uploads[0].block, /^ {10}name: \$\{\{ steps\.verdict\.outputs\.name \}\}$/m);
     // The tree is git's, the head and base the trigger gate's: never the model's.
     const write = step("Write the verdict", job);

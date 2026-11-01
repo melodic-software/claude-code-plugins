@@ -29,7 +29,9 @@
 //           the label on and no review lane holds the PR (gate-source.mjs),
 //           and on an adopted owner PR only as prHold lets fix-ci work it.
 //           On an adopted owner PR a body line starting `Hold:` skips
-//           awaiting-human.
+//           awaiting-human. An untaken thread whose stop on this head is
+//           already in the session-builder queue (sessionQueued) skips
+//           awaiting-session instead of escalating again.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -45,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
-import { retryRung, stopSkip } from "./escalation-routes.mjs";
+import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -206,15 +208,17 @@ export function quote(lines, summary = (count) => `What it wrote (${count} lines
 // The ids of the unresolved threads (listThreads) a pr-verify FAIL's notes
 // opened on a head other than `head`: the first comment is
 // github-actions[bot]'s, opens with VERIFY_NOTE_MARKER, and was posted on
-// another commit (its original commit, which a later push does not move). A
-// pass at `head` supersedes them: post-verify-notes finds them, and
-// publish-feedback.mjs resolves them as the lanes App.
-export function staleVerifyNotes(threads, head) {
+// another commit (its original commit, which a later push does not move), or
+// on `head` itself when `supersededHead` is `head`: the merge gate's reader
+// found the FAIL there superseded (babysit_verify_evidence.py
+// `supersededAtHead`). A pass at `head` supersedes them: post-verify-notes
+// finds them, and publish-feedback.mjs resolves them as the lanes App.
+export function staleVerifyNotes(threads, head, { supersededHead } = {}) {
   return threads
     .filter((thread) => {
       const root = thread.root?.nodes?.[0];
       const commit = root?.originalCommit?.oid ?? "";
-      return thread.isResolved === false && root?.author?.databaseId === MARKER_AUTHOR_ID && firstLine(root.body) === VERIFY_NOTE_MARKER && SHA.test(commit) && commit !== head;
+      return thread.isResolved === false && root?.author?.databaseId === MARKER_AUTHOR_ID && firstLine(root.body) === VERIFY_NOTE_MARKER && SHA.test(commit) && (commit !== head || supersededHead === head);
     })
     .map((thread) => thread.id);
 }
@@ -945,6 +949,24 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
   return kept;
 }
 
+// Whether this head's address-feedback stop sits in the session-builder
+// queue: the lanes App's lane-stopped comment for the activity (one, edited in
+// place, report-escalation.sh) names `headSha` and a reason whose
+// escalation-routes.json entry names a `label` the PR carries (needs-session).
+const LANE_STOPPED = `<!-- pr-unblock:lane-stopped activity=${ACTIVITY} -->`;
+export function sessionQueued({ labels = [], issueComments, headSha, isLanesApp }) {
+  const names = new Set(labels.map((label) => label.name));
+  return issueComments.some((comment) => {
+    const body = String(comment.body ?? "").replaceAll("\r\n", "\n");
+    if (!isLanesApp(comment.user) || firstLine(body) !== LANE_STOPPED) {
+      return false;
+    }
+    const reason = /^- Reason: `([^`]*)`$/m.exec(body)?.[1] ?? "";
+    const label = Object.hasOwn(ROUTES, reason) ? ROUTES[reason].label : undefined;
+    return /^- Head: `([0-9a-f]{40})`$/m.exec(body)?.[1] === headSha && typeof label === "string" && names.has(label);
+  });
+}
+
 export async function select({
   api,
   pr,
@@ -1038,6 +1060,11 @@ export async function select({
     // is resolved. Any other person's PR still escalates.
     if (untaken && owner) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    // A stop already queued for a session builder on this head stands down:
+    // escalating again would only re-post it. A new head escalates afresh.
+    if (untaken && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
+      return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
     return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
@@ -1140,6 +1167,7 @@ export function runRecord(file, reviewedHeads, ci) {
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
+    ...(file.superseded_head ? { superseded_head: file.superseded_head } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
     ...(ci ? { ci } : {}),
   };
@@ -1591,10 +1619,16 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     // stay off. With nothing to resolve (as on a rerun after the notes were
     // resolved by hand), the full select runs for `stop-resolved` alone, so
     // report-stop-status can clear a stop an earlier attempt left; no
-    // `proceed` or `resolve-only`, so no model or reply job starts.
+    // `proceed` or `resolve-only`, so no model or reply job starts. With
+    // VERIFY_SUPERSEDED_HEAD at the head (the dispatcher's verifier read found
+    // the FAIL there superseded), that FAIL's notes are stale too, and
+    // run.json names the head for the reply job's re-check.
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     if (!SHA.test(env.VERIFY_PASS_HEAD)) {
       throw new Error("VERIFY_PASS_HEAD is not a commit id");
+    }
+    if (env.VERIFY_SUPERSEDED_HEAD && !SHA.test(env.VERIFY_SUPERSEDED_HEAD)) {
+      throw new Error("VERIFY_SUPERSEDED_HEAD is not a commit id");
     }
     if (!env.DISPATCHER_RUN_ID) {
       throw new Error("only a dispatcher run sends a pr-verify pass head");
@@ -1603,10 +1637,11 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       log(`skip: the PR head ${env.HEAD_SHA} is not ${env.VERIFY_PASS_HEAD}, which pr-verify passed`);
       return 0;
     }
-    const stale = staleVerifyNotes(await client.listThreads(pr), env.HEAD_SHA);
-    log(`pass-only: ${stale.length} open fail-note thread(s) from an earlier head`);
+    const superseded = env.VERIFY_SUPERSEDED_HEAD === env.HEAD_SHA;
+    const stale = staleVerifyNotes(await client.listThreads(pr), env.HEAD_SHA, { supersededHead: superseded ? env.HEAD_SHA : undefined });
+    log(`pass-only: ${stale.length} open fail-note thread(s) from an earlier head${superseded ? " or this one, whose FAIL a pass superseded" : ""}`);
     if (stale.length > 0) {
-      const file = { version: 1, repository: env.GITHUB_REPOSITORY, pr, head_sha: env.HEAD_SHA, pr_paths: [], threads: [], stale_notes: stale };
+      const file = { version: 1, repository: env.GITHUB_REPOSITORY, pr, head_sha: env.HEAD_SHA, pr_paths: [], threads: [], stale_notes: stale, ...(superseded ? { superseded_head: env.HEAD_SHA } : {}) };
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(file, null, 2)}\n`);
       writeFileSync(env.RUN_FILE, runRecord(file));
       output("resolve-only", "true");

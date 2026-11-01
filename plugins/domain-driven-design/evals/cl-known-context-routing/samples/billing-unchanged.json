@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Billing language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A metered charge record received from a usage source. | support request |\n",
+      "why": "unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "# Billing language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A metered charge record received from a usage source. | support request |\n| Ticket | A customer's request for help. | |\n",
+      "why": "hedge copy of the Support meaning"
+    },
+    {
+      "answer": "# Billing language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Ticket | A customer's request for help, or a metered charge record. | support request |\n",
+      "why": "merged meanings"
+    },
+    {
+      "answer": "# Billing language\n\n| Term | Definition | Avoid |\n|---|---|---|\n| Charge ticket | A metered charge record received from a usage source. | support request |\n",
+      "why": "Billing term renamed"
+    }
+  ]
+}

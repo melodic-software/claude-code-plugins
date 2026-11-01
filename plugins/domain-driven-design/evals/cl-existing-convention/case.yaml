@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: cl-existing-convention
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: header-kept
+    type: regex
+    pattern: '^\|\s*Preferred term\s*\|\s*Meaning\s*\|\s*Rejected names\s*\|\s*$'
+    flags: 'm'
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: claimant-rejects-insured-org
+    type: regex
+    pattern: '^\|\s*\**Claimant\**\s*\|[^|\n]*\|[^|\n]*\binsured organi[sz]ation\b[^|\n]*\|\s*$'
+    flags: 'mi'
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: one-claimant-row
+    type: regex
+    pattern: '^\|\s*\**Claimant\**\s*\|[\s\S]*^\|\s*\**Claimant\**\s*\|'
+    flags: 'mi'
+    match: not_contains
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: stale-definition-gone
+    type: regex
+    pattern: '^\|\s*\**Claimant\**\s*\|\s*Anyone who contacts the claims desk\b'
+    flags: 'mi'
+    match: not_contains
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: policyholder-kept
+    type: regex
+    pattern: '^\|\s*Policyholder\s*\|\s*The party that owns the insurance contract\.\s*\|\s*account owner\s*\|\s*$'
+    flags: 'm'
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: no-reviewed-marker
+    type: regex
+    pattern: '^[\s*_>-]*Reviewed by assistant\b'
+    flags: 'mi'
+    match: not_contains
+    target: { source: file, path: docs/domain/claims-terms.md }
+  - name: no-other-md-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:(?:[^"\\]|\\.)*?(?:/|\\\\))?(?!claims-terms\.md")[^"/\\]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-other-md-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:(?:[^"\\]|\\.)*?(?:/|\\\\))?(?!claims-terms\.md")[^"/\\]*\.md"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -60,6 +60,7 @@ MISSING = {
     "earlierFails": [],
     "ignored": 0,
     "detail": None,
+    "supersededAtHead": False,
     "ineligible": None,
 }
 ALLOW = MISSING | {
@@ -703,6 +704,16 @@ class AnsweredTest(unittest.TestCase):
         # A pull request already too old stays so: the hour holds.
         self.fresh = MISSING | {"refusal": "verify:too-old"}
         self.answers_out.unlink()
+        self.run_main()
+        self.assertEqual(
+            self.written()[str(PR)]["expiresAt"], "2026-10-16T13:00:00+00:00"
+        )
+
+    def test_only_a_missing_verdict_is_capped_by_the_age(self) -> None:
+        # Age turns only verify:missing into verify:too-old, so any other
+        # answer of an old pull request keeps the hour.
+        self.world.repository["pullRequest"]["createdAt"] = "2026-07-27T23:00:00Z"
+        self.fresh = MISSING | {"refusal": "verify:spec-changed"}
         self.run_main()
         self.assertEqual(
             self.written()[str(PR)]["expiresAt"], "2026-10-16T13:00:00+00:00"

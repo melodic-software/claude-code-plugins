@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "needs-spec",
+            "path": "/cache/plugins/work-items/reference"
+          }
+        }
+      ],
+      "why": "searches the plugin's own references"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "plugin"
+          }
+        }
+      ],
+      "why": "searches the checkout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "export",
+            "path": "/w/src"
+          }
+        }
+      ],
+      "why": "searches the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "plugin",
+            "path": "/w/.work-items"
+          }
+        }
+      ],
+      "why": "cluster search over the item store"
+    }
+  ]
+}

@@ -93,6 +93,7 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -219,6 +220,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -237,6 +240,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -244,7 +248,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -252,6 +257,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The reads the subscription job would repeat, from the files and
@@ -1846,8 +1852,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -1905,6 +1920,7 @@ jobs:
       || needs.check-intent.outputs.credential-present == 'false')
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -2034,6 +2050,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -2052,6 +2070,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -2059,7 +2078,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -2067,6 +2087,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The judgment's model, turns and effort: the verify-pr route of the
@@ -3623,8 +3644,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -3681,6 +3711,7 @@ jobs:
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -3802,6 +3833,8 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # The head's tree, for upstream-jobs.mjs: trees come with a blobless fetch.
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
           # About 75k tokens of patch, the budget pr-review-main.yml sets: room
           # in the review profile's turns to read one chunk whole (judgment).
           MAX_DIFF_BYTES: "300000"
@@ -3820,6 +3853,7 @@ jobs:
           git -C "$SRC" remote add origin "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           git -C "$SRC" diff --no-ext-diff --no-textconv --no-color "$BASE_SHA...$HEAD_SHA" >"$DATA/diff.patch"
+          git -C "$SRC" ls-tree -r -z --name-only "$HEAD_SHA" >"$HEAD_PATHS_FILE"
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
@@ -3827,7 +3861,8 @@ jobs:
 
       # The jobs of the run this one was started by, each with its name and
       # conclusion, so the model can judge whether the suites that cover the
-      # change ran (prompt.md). The token reads only.
+      # change ran (prompt.md), and the Node suites at the head that test-bash
+      # runs through a sibling .test.sh. The token reads only.
       - name: List the upstream run's jobs
         if: steps.agree.outcome == 'success'
         env:
@@ -3835,6 +3870,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
           JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+          HEAD_PATHS_FILE: ${{ runner.temp }}/pr-verify-head-paths
         run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
 
       # The judgment's model, turns and effort: the verify-pr route of the
@@ -5146,8 +5182,17 @@ jobs:
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
+
       - name: Upload the verdict
-        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
+        if: >-
+          (!cancelled() && steps.verdict.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}

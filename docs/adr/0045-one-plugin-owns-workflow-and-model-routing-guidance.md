@@ -51,10 +51,23 @@ recheck when the workflows page changes how a script gets its model or its input
    pin, so a named agent keeps its pinned effort only when the spawn passes no `effort`
    ([subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level);
    recheck when that section changes precedence or which spawns honor `effort`).
+
+   *Note, 2026-11-01:* the model half holds the same way: a per-spawn `model` ranks above the
+   definition's, so a named agent keeps its pinned model only when the spawn passes none, and a
+   mod's `agent.spawn` hook or `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` can replace both
+   ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
+   recheck when that section changes the resolution order).
 4. **The fan-out guard is on by default.** Each role resolves to a `single` and a `fanout` variant.
    Under a frontier session, or when the caller does not name the session model, a fan-out variant
    that would inherit or name a frontier model names `opus` instead. A single synthesis or judge
    agent may inherit. Turning the guard off is an explicit configuration opt-in.
+
+   *Note, 2026-11-01:* on a provider where Claude Code cannot tell the main model's family, the
+   `opus` alias can resolve to the main model, so the guard does not keep a frontier session's
+   fan-out off frontier there
+   ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model);
+   recheck when that section changes which aliases resolve to the main model).
+   `/multi-agent:route` owns the guard.
 
 ## Alternatives considered
 

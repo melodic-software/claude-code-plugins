@@ -1,0 +1,122 @@
+{
+  "skill": "computer-use:diagnose",
+  "plugin": "computer-use",
+  "skill_dir": "plugins/computer-use/skills/diagnose",
+  "ranking_note": "Authored from the description and when_to_use at base commit 87399737d6, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling computer-use:setup is in this plugin (user-invoked only); the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "computer-use:setup",
+    "playwright:playwright",
+    "testing:diagnose",
+    "app-control:drive"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The desktop screenshots you take are so fuzzy I can't read the labels in the Quillmark settings dialog. Is there a way to get a sharper look at that panel?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Every screen grab from the desktop control tool comes back 0x0 on my laptop since I docked it. What's going on?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "When you click the Save button in the Ledgerly window, the pointer ends up about 40 pixels above and to the left of it. Why are your clicks off target?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Your keystrokes into the installer window fail with a UIPI error. Should you just keep retrying the typing?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I left you clicking through the Orbitdesk import wizard overnight and this morning the run had stopped after twenty minutes; the lock screen was up. What ended it?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "You pressed Escape three times on that dropdown in Pennywise and it stayed open. Why isn't the synthesized key working like mine does?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A notification popped up mid-task and now your desktop actions are refused because the focused window isn't on the permitted list. How do I get past that?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before you spend the afternoon operating the Tallyhoe desktop client on my screen while I'm out, what is likely to trip you up?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can I bump some setting so your screen captures come through at full 4K? The tiny status-bar text keeps getting mangled."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up computer use on this machine for me."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fill out the signup form on the Brightnook staging site in Chrome and screenshot the confirmation page."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The test_invoice_totals test started failing after the rounding change. Figure out why."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List the five largest files under the project's logs folder and delete anything older than a month."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What's the keyboard shortcut to take a screenshot of just one window on Windows?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a computer use preflight and tell me what fails."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Launch our app locally and walk through the checkout feature so I can see it working."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Create a ticket in Trackwell for the login bug; its MCP server is already connected."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a Playwright test that opens the dashboard page and checks the chart renders."
+    }
+  ]
+}

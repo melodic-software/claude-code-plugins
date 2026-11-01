@@ -2,25 +2,25 @@
 
 `<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
 
-Full detail for the `/source-control:worktree status` action. SKILL.md carries the headline; this file carries the porcelain-parse fields, the staleness math, the stranded-work axis, the classification table, and the output schema.
+Full detail for `/source-control:worktree status`. SKILL.md carries the headline; this file carries the porcelain-parse fields, the staleness math, the stranded-work axis, the classification table, and the output schema.
 
 ## Data collection
 
 1. **Worktree list**: Run `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>`. Do not parse porcelain by hand. It prints a header and one TSV row per worktree: `path head branch bare linked locked lock_reason prunable`, with `-` for an empty column. `locked` is `yes` for a lock with no reason too.
 
-   `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
+   `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default, `create` and `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) to build paths.
 
-2. **PR cross-reference**: For each worktree's branch, read its PRs in all states with their number, title, state and `headRefName` ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request), "PRs for worktree cross-reference"). Read per branch, never as one list of every PR: a repository-wide list is capped and silently drops the older PRs, so an older worktree would show no PR. A worktree with a detached HEAD has no branch to query. Graceful degradation: if `gh` is unavailable, skip PR info and note "GitHub API unavailable."; if the read for one branch fails, show that row's PR as "PR lookup incomplete" rather than `none`, and leave that branch out of the merged-refs input below.
+2. **PR cross-reference**: For each worktree's branch, read its PRs in all states with their number, title, state and `headRefName` ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request), "PRs for worktree cross-reference"). Read per branch, never one list of every PR: a repository-wide list is capped and silently drops older PRs, so an older worktree would show no PR. A worktree with a detached HEAD has no branch to query. Graceful degradation: if `gh` is unavailable, skip PR info and note "GitHub API unavailable."; if the read for one branch fails, show that row's PR as "PR lookup incomplete" rather than `none`, and leave that branch out of the merged-refs input below.
 
-3. **Last commit date**: For each worktree branch, get date of last commit:
+3. **Last commit date**: For each worktree branch, get its last commit date:
 
    ```bash
    git log -1 --format='%ci' <branch> 2>/dev/null
    ```
 
-4. **Staleness**: Compare last commit date to today. Default threshold: **14 days**. The configured override is `${user_config.worktree_stale_days}`. Use that value when it is a positive number, falling back to 14 when it is empty, invalid, or a literal unexpanded `${user_config.worktree_stale_days}` token.
+4. **Staleness**: Compare last commit date to today. Default threshold: **14 days**. The configured override is `${user_config.worktree_stale_days}`. Use it when it is a positive number; fall back to 14 when it is empty, invalid, or a literal unexpanded `${user_config.worktree_stale_days}` token.
 
-   **Reap age** (consumed by `cleanup`): hours since the last commit, `(now - %ct) / 3600` with `git log -1 --format=%ct <branch>` (epoch seconds; a detached worktree uses `git -C <worktree-path> log -1 --format=%ct HEAD`, since a bare `HEAD` resolves in the caller's checkout). The threshold is `${user_config.worktree_reap_after_hours}`. Use that value when it is a positive number, falling back to **48** when it is empty, invalid, or a literal unexpanded `${user_config.worktree_reap_after_hours}` token. An age that cannot be read counts as not past the threshold.
+   **Reap age** (consumed by `cleanup`): hours since the last commit, `(now - %ct) / 3600` with `git log -1 --format=%ct <branch>` (epoch seconds; a detached worktree uses `git -C <worktree-path> log -1 --format=%ct HEAD`, since a bare `HEAD` resolves in the caller's checkout). The threshold is `${user_config.worktree_reap_after_hours}`. Use it when it is a positive number; fall back to **48** when it is empty, invalid, or a literal unexpanded `${user_config.worktree_reap_after_hours}` token. An age that cannot be read counts as not past the threshold.
 
 5. **Stranded-work record**: age and PR state answer *is anyone still working here*; neither answers *would removing this destroy a commit*. Run the detection engine once per repository. It enumerates the worktrees itself and emits one TSV row per registered worktree:
 
@@ -28,9 +28,9 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
    bash "<scripts-dir>/landed-work.sh" --repo-dir <repo-toplevel> --merged-refs-file <file> --merged-pr-proof
    ```
 
-   `--merged-pr-proof` makes the engine read each unlanded branch's merged pull request (one `gh pr list --state merged --head <branch>`; only a PR merged into the resolved base counts) and report `landed` (method `merged-pr-head` or `merged-pr-commits`) when local HEAD equals or is an ancestor of the PR's head commit, or every unpushed local commit is in the PR's commit list. That is the proof for a squash-merged multi-commit branch, which patch-id cannot match. A failed read keeps the prior verdict and names the read in `reason` (`merged-pr-read-failed:...`). Omit the flag when `gh` was unavailable.
+   `--merged-pr-proof` makes the engine read each unlanded branch's merged pull request (one `gh pr list --state merged --head <branch>`; only a PR merged into the resolved base counts) and report `landed` (method `merged-pr-head` or `merged-pr-commits`) when local HEAD equals or is an ancestor of the PR's head commit, or every unpushed local commit is in the PR's commit list. That proves a squash-merged multi-commit branch, which patch-id cannot match. A failed read keeps the prior verdict and names the read in `reason` (`merged-pr-read-failed:...`). Omit the flag when `gh` was unavailable.
 
-   Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. That is what marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). Name-only evidence: a branch name reused after that merge still matches, so `superseded` narrows the reading of a row but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
+   Write the `headRefName` of each merged PR from step 2's per-branch reads to `<file>`, one per line. It marks a row as a likely *superseded draft* (a pull request carrying this branch NAME merged, so the base may already hold a later revision of the same change). The evidence is name-only: a branch name reused after that merge still matches, so `superseded` narrows a row's reading but never authorizes removing it. Omit the flag when `gh` was unavailable; when only some branches' reads failed, pass the merged refs from the reads that succeeded.
 
    Join rows to worktrees on the `path` column. The columns this file consumes: `unpushed`, `landed`, `base`, `peers`, `risk`, `reason`.
 
@@ -66,7 +66,7 @@ Two independent axes. **Work** answers whether removal would destroy a commit an
 | `dirty` | `dirty` | Uncommitted edits with nothing unpushed, **or** a working tree whose status could not be read at all, which the count columns show as `-`. The two are not distinguished, and neither is removable unattended |
 | `notgit` | `notgit` | Path is not a work-tree root. Probing it with `git -C` reports the *containing* repository's clean state |
 
-**Any risk value not in this table maps to `unknown`.** The mapping is closed on the safe side only: a value this file does not recognize is one it cannot vouch for, and the fail-closed rule that governs the engine governs its consumers too.
+**Any risk value not in this table maps to `unknown`.** The mapping is closed on the safe side only: an unrecognized value is one this file cannot vouch for, and the engine's fail-closed rule governs its consumers too.
 
 Every field the engine emits is non-empty: an absent value is the literal `-`, because a blank field collapses under tab-splitting and shifts every later column. Render `-` as "not resolved", never verbatim.
 
@@ -100,6 +100,6 @@ A `stranded` row whose `peers` column names another worktree is recoverable from
 **Summary:** 4 worktrees (1 in-review, 1 stale, 1 stranded with 4 commits at risk, 1 PR unknown)
 ```
 
-Report the at-risk commit total in the summary whenever it is non-zero. It is the sum of `unpushed` over every row in the stranded class (`STRANDED`, `UNKNOWN` and `superseded`), the same rows the stranded count covers, so the two figures never disagree. A row whose `unpushed` is `?` is counted as stranded with its commits unknown: say so rather than adding zero; a stranded row that reads as one line among many is how the commits get swept.
+Report the at-risk commit total in the summary whenever it is non-zero: the sum of `unpushed` over every stranded-class row (`STRANDED`, `UNKNOWN` and `superseded`), the same rows the stranded count covers, so the two figures never disagree. A row whose `unpushed` is `?` counts as stranded with its commits unknown: say so rather than adding zero; a stranded row that reads as one line among many is how the commits get swept.
 
 If issues are found, suggest actions: `/source-control:worktree cleanup` for stale/merged, `/source-control:worktree cleanup` also for a locked worktree whose PR is merged or whose work has landed (`worktree-claim.sh stale <path>` exits 0), which cleanup treats as a stale lock; a locked worktree without that evidence is left alone. For `stranded` and `unknown`, suggest pushing the branch first with `git -C <path> push -u origin HEAD`, which converts the row to `safe` without a judgment call.
