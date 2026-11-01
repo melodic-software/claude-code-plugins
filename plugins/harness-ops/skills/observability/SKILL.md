@@ -170,7 +170,7 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 
 `items` join record:
 
-`items` reads `autonomy.work_item.url` from datapoint and event attributes: Claude Code copies `OTEL_RESOURCE_ATTRIBUTES` keys onto every metric datapoint and event record, and onto metric datapoints only while `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES` is not `false`. A cloud session's records carry `ccr.session.id`, the key the docs name for telling cloud sessions apart. The attribute's value rules are the autonomy plugin's telemetry contract, Pillar 2.
+`items` reads `autonomy.work_item.url` from datapoint and event attributes and joins cloud sessions on `ccr.session.id` (which records carry each: see the pointer). The attribute's value rules are the autonomy plugin's telemetry contract, Pillar 2.
 
 - **Pointer**: <https://code.claude.com/docs/en/monitoring-usage#multi-team-organization-support> and <https://code.claude.com/docs/en/monitoring-usage#attribute-telemetry-to-cloud-sessions>; turns are `user_prompt` events, <https://code.claude.com/docs/en/monitoring-usage#user-prompt-event>.
 - **As of**: 2026-11-01
