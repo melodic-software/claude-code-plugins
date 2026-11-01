@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: wfh-grounding-readme
-description: "Gap probe for a grounding rule write-for-humans does not carry yet: introduce each concept before a sentence relies on it, or name it as assumed reader knowledge. Edge: the notes say checkpoint one line before they define it and never define collector or tail set, so a README that keeps the notes' order relies on a term before its reader has it. Both arms are expected to score alike unless the skill already grounds terms; a with-arm fail is the evidence that would justify adding the rule"
+description: "Gap probe for a grounding rule write-for-humans does not carry yet: introduce each concept before a sentence relies on it, or name it as assumed reader knowledge. Edge: the notes say checkpoint one line before they define it and never define collector or tail set, so a README that keeps the notes' order relies on a term before its reader has it. Both arms are expected to score alike unless the skill already grounds terms; a with-arm fail is the evidence that would justify adding the rule. Probe result: gap shown (Claude Code 2.1.316, main f7dde4f0e4, #12025): with the rule from #12098 loaded, terms-grounded with-arm 0/3 and without-arm 0/3; #12085 tracks the fix"
 tags: [write-for-humans, grounding, gap-probe]
 runs: 3
 expected_outcome: "The fenced README introduces checkpoint, collector and tail set (in a definition, an apposition or a glossary) at or before the first sentence that relies on each, or names a term as knowledge it assumes the reader has; every fact in the notes is kept"
