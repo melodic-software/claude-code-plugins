@@ -15,14 +15,16 @@
 # or `<`. A script wrapper's command after `--` (`bash gate.sh run KEY --
 # gh ...`, split on `+++`) and `bash -c`/`eval` operands are read as commands.
 #
-# SECRETS. lib/secret-detection/secret-patterns.sh over every body text. A hit
-# blocks, naming the pattern class only, never the value.
+# SECRETS. lib/secret-detection/secret-patterns.sh over every body text, but
+# not a request header's value (`-H 'Authorization: ...'`), which is not
+# posted. A hit blocks, naming the pattern class only, never the value.
 #
 # MACHINE PATHS. lib/path-detection/hardcoded-path-patterns.sh, blocking as
 # hardcoded-path-check's GitHub MCP lane does, with the same scan root. Read
 # over body files, here-doc and here-string bodies, and the posting command's
-# words with every file path it names removed, so a `--body-file` operand or
-# the wrapper script's own path is not judged. The whole command is not read
+# words less any word that only names one of its body files (`<path>`,
+# `--flag=<path>`, `@<path>`, `k=@<path>`), so a `--body-file` operand is not
+# judged; the wrapper script's own words are never posting words. The whole command is not read
 # for paths: it names the wrapper, the working directory and the body file.
 #
 # STAYS QUIET on a command that posts nothing to GitHub (a `gh api` GET, a
@@ -161,8 +163,17 @@ if ((_bgpc_paths)); then
     case "${GHPOST_BODY_KIND[_bgpc_i]}" in
     command) continue ;;
     word)
-      for _bgpc_f in ${GHPOST_PATHS[@]+"${GHPOST_PATHS[@]}"}; do
-        _bgpc_t="${_bgpc_t//"$_bgpc_f"/}"
+      # Drop a word that only names one of the posting command's body files
+      # (`<path>`, `--flag=<path>`, `@<path>`, `k=@<path>`); never cut text
+      # out of a body word.
+      for _bgpc_f in ${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"}; do
+        case "$_bgpc_t" in
+        "$_bgpc_f" | "-"*"=$_bgpc_f" | "@$_bgpc_f" | [!=[:space:]]*"=@$_bgpc_f")
+          _bgpc_t=""
+          break
+          ;;
+        *) ;;
+        esac
       done
       ;;
     *) ;;
