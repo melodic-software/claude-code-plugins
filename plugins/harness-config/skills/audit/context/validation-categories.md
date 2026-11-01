@@ -14,9 +14,8 @@
 - [Category J: Known-issues fix versions](#category-j-known-issues-fix-versions)
 - [Category K: Suppression age](#category-k-suppression-age)
 
-Detailed checks for each Phase 2 category (A–K). SKILL.md Phase 2 names the categories + points here;
-this file carries the per-check criteria. Run each category's checks and record findings with severity
-ratings.
+Per-check criteria for each Phase 2 category (A–K) that SKILL.md Phase 2 names. Run each category's
+checks and record findings with severity ratings.
 
 Load the audit checklist alongside these: [audit-checklist.md](../reference/audit-checklist.md).
 

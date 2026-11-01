@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "Already enforced: .pre-commit-config.yaml runs ruff and ruff-format."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "CI runs ruff.",
+      "why": "pre-commit missing"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "You're on main, the default branch; I won't start the experiment here."
+    },
+    {
+      "answer": "Created experiment/unhobble-opus-5-5."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Snapshot written.",
+      "why": "no branch named"
+    }
+  ]
+}

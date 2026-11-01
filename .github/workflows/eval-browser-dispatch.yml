@@ -591,6 +591,9 @@ jobs:
       # COMPARABLE per case. A suite with no result fails the job too.
       # A pull request run prints no case name, error or partial reason: the
       # model output those can carry would land in the public job summary.
+      # The REST API returns no job summary, so each suite's summary is also
+      # printed to the job log, with workflow commands off, and kept as
+      # summary.md beside its results.json, which a dispatched run uploads.
       - name: Summarize the results
         if: always() && steps.stage.outputs.go == 'true'
         env:
@@ -611,8 +614,14 @@ jobs:
               failed=1
               continue
             fi
-            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" >>"$GITHUB_STEP_SUMMARY" || failed=1
+            summary="$OUT/$name/summary.md"
+            node .base/.github/scripts/plugin-eval/summarize.mjs "$results" --plugin "$name" "${redact[@]}" >"$summary" || failed=1
+            cat "$summary" >>"$GITHUB_STEP_SUMMARY"
             echo >>"$GITHUB_STEP_SUMMARY"
+            token=$(openssl rand -hex 16)
+            echo "::stop-commands::$token"
+            cat "$summary"
+            echo "::$token::"
           done <<<"$SUITES"
           exit "$failed"
 

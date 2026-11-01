@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief\n\n### Goal\nInvoices export to CSV from the reporting replica.\n\n## Plan\n\n### Load-bearing assumptions\n\n| Assumption | Source | Falsifying check | Response if false |\n|---|---|---|---|\n| The reporting replica lags the primary by under five minutes | Brief | Phase 1 Sanity Check | Moderate: flag and continue |\n\n### Phase 1\n",
+      "why": "the plan consumes no prototype and has no Prototype evidence section"
+    },
+    {
+      "answer": "## Plan\n\nNo prototype evidence was consumed for this plan.\n\n### Phase 1\n",
+      "why": "the phrase in prose is not a section heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan\n\n### Prototype evidence\n\nnone\n\n### Phase 1\n",
+      "why": "the section is written with none although no prototype was consumed"
+    },
+    {
+      "answer": "## Plan\n\n### Prototype evidence\n\n| Prototype | Evidence | Left unproven |\n|---|---|---|\n\n### Phase 1\n",
+      "why": "an empty Prototype evidence table"
+    }
+  ]
+}

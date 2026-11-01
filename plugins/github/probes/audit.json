@@ -2,14 +2,10 @@
   "skill": "github:audit",
   "plugin": "github",
   "skill_dir": "plugins/github/skills/audit",
-  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are github:advise (forward-looking design and setup of a settings area, where audit reviews the current state and drift), github:setup (user-invoked only: checks gh install and auth and writes the plugin's consumer config), source-control:pull-request (one PR's lifecycle: create, CI fixes, review comments, merge), source-control:babysit-prs (a fleet pass advancing the user's open PRs), harness-ops:morning-brief (daily read-only ops view of one repo's queues, merge-ready PRs, lane failures and charges) and review:ci-log-auditor (one CI run's logs for masked failures and skipped jobs). audit owns the read-only, current-state review of the GitHub settings and admin plane: drift from declared conventions, standards conformance and cost signals.",
+  "ranking_note": "Authored from the before descriptions at commit b4214d6c7ea542bbcc1402639343e967ac6a0abf, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are github:advise (forward-looking design and setup of a settings area, where audit reviews the current state and drift) and github:setup (user-invoked only: checks gh install and auth and writes the plugin's consumer config). audit owns the read-only, current-state review of the GitHub settings and admin plane: drift from declared conventions, standards conformance and cost signals.",
   "competitors": [
     "github:advise",
-    "github:setup",
-    "source-control:pull-request",
-    "source-control:babysit-prs",
-    "harness-ops:morning-brief",
-    "review:ci-log-auditor"
+    "github:setup"
   ],
   "queries": [
     {
