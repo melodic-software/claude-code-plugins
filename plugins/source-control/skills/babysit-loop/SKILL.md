@@ -455,13 +455,10 @@ is a manual-restart state, per the convention. A forge rate-limit error ends the
 
 ## Spoke paths
 
-The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`, and the plugin's data dir as `<plugin-data>`, which is
-`${CLAUDE_PLUGIN_DATA}` (the telemetry upsert's `--body-dir`, where the telemetry file is
-composed). Substitute those paths for the placeholders before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+The `reference/` files write `<plugin-root>` for `${CLAUDE_PLUGIN_ROOT}` and `<plugin-data>` (the
+upsert's `--body-dir`) for `${CLAUDE_PLUGIN_DATA}`. Substitute those paths before running a command
+or writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}`
+token in them would reach the Bash tool unsubstituted, with no such variable to expand. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
