@@ -16,8 +16,8 @@
     {
       "id": 2,
       "name": "skill-target-emits-suite-cases",
-      "prompt": "/evals:design skill deploy-notes: the skill lives in my plugin at plugins/release-tools/skills/deploy-notes and needs evals.",
-      "expected_output": "After the criteria interview, emits one case directory per case under plugins/release-tools/evals/, each with a case.yaml (schema_version, name, description, tags, expected_outcome, graders) and a prompt.md holding the prompt; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; validates the written cases with /evals:validate and never writes an evals.json next to the skill.",
+      "prompt": "/evals:design skill deploy-notes: the skill lives in my plugin at release-tools/skills/deploy-notes and needs evals.",
+      "expected_output": "After the criteria interview, emits one case directory per case under release-tools/evals/, each with a case.yaml (schema_version, name, description, tags, expected_outcome, graders) and a prompt.md holding the prompt; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; validates the written cases with /evals:validate and never writes an evals.json next to the skill.",
       "expectations": [
         "Cases land as case directories with a case.yaml under the plugin's evals/ directory, not as an evals.json in the skill directory",
         "Every emitted case has a golden answer: an expected_outcome and at least one grader",

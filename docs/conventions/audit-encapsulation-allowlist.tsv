@@ -5,7 +5,8 @@ plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.test.sh	regressio
 plugins/attribution/skills/audit/evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/expected.json	golden case for the attribution audit's eval; its adjudication records the third-party repository URL its planted copy came from, a plugin skill path the detector cannot tell from this marketplace's
 plugins/attribution/skills/audit/scripts/list-corpus.test.sh	builds a scratch marketplace with plugins/demo/skills/ vendor and eval fixtures to exercise list-corpus.sh's corpus exclusions
 plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py	feeds synthetic plugins/<p>/skills/<s>/scripts/ instance paths to exercise the duplication registry filter's glob members
-plugins/guardrails/hooks/run-guards.test.sh	builds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
+plugins/docs-hygiene/evals/ae-cross-plugin-script-cite/	scaffold, graders and graded samples cite a scaffolded plugins/lint-kit skill script from a plugins/release-kit skill to exercise the encapsulation audit's cross-plugin scripts/ verdict
+plugins/guardrails/hooks/run-guards.test.shbuilds a scratch plugins/alpha/skills/setup tree to exercise run-guards.sh's post-tool dispatch
 plugins/guardrails/hooks/skill-reference-verify.test.sh	builds scratch plugin skill trees to exercise skill-reference-verify.sh's skill resolution
 plugins/harness-config/skills/audit-instructions/scripts/emit-findings.test.sh	uses a synthetic plugins/demo/skills/tool path to exercise emit-findings.sh's lane and surface findings
 plugins/harness-config/skills/audit-permission-grants/evals/evals.json	eval prompt names a hypothetical plugins/deploy/skills/ship/SKILL.md to exercise the permission-grant audit's inert-grant verdict
@@ -19,12 +20,21 @@ plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility
 plugins/harness-ops/skills/changelog/evals/fixtures/owner-surfaces.md	fixture owner-surface table names a hypothetical plugin skill to exercise the changelog skill's owner routing
 plugins/harness-ops/skills/changelog/scripts/discover-surfaces.test.sh	builds a scratch marketplace with plugin skills to exercise discover-surfaces.sh
 plugins/instruction-placement/scripts/render-index.test.sh	builds a scratch plugins/demo/skills/ fixture directory to exercise render-index.sh's fixture exclusion
+plugins/multi-agent/evals/routing/retrieval/rt-python-only-syntax/	answer key and graded samples name the snapshot's plugins/evals validate-cases.py path, the file the retrieval case asks for, to exercise its file-name and function-name graders
 plugins/multi-agent/skills/audit-defaults/scripts/list-scripts.test.sh	builds scratch plugin skill files to exercise list-scripts.sh's per-plugin grouping
 plugins/plugin-quality/skills/audit/scripts/collect-categories.test.sh	sample finding names a hypothetical plugin skill component to exercise collect-categories.sh
+plugins/review/evals/fixtures/recall-pr-merge-merge-state-listing/	fixture copies of the pull request's pr-merge.yml call the babysit-prs merge prefilter by its path, so the recall case's diff matches the real change
+plugins/review/evals/recall-be-ambitious-argument-hint/	scaffold rebuilds the pull request's discipline be-ambitious SKILL.md at its plugin path, and the case.yaml comment, prompt and graded samples name it, to exercise the review lanes' recall of its seeded finding
+plugins/review/evals/recall-pr-merge-merge-state-listing/scaffold.sh	rebuilds the pull request's babysit-prs merge prefilter at its plugin path to exercise the review lanes' recall of its seeded finding
+plugins/review/evals/security-review-broker-skill-grants-bash/scaffold.sh	builds scratch plugin skill trees the scaffolded token broker resolves by path to exercise the security review's skill-grant finding
 plugins/skill-quality/scripts/check-skill.test.sh	builds scratch plugins/p1/skills/ trees to exercise check-skill.sh's walk and evals-warrant exemptions
+plugins/skill-quality/scripts/measure-invocation.test.sh	builds a scratch plugins/fixture/skills/rival tree to exercise measure-invocation's competitor skill resolution
 plugins/source-control/evals/babysit-loop-forged-checkout-settings-not-trusted/samples/forged-surfaces-never-used.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the forged-settings grader
 plugins/source-control/evals/babysit-loop-missing-bootstrap-names-option/samples/no-resolver-run.json	graded sample tool calls name the promotion helper and binding checker paths to exercise the no-resolver-run grader
 plugins/source-control/skills/babysit-prs/scripts/tests/	feed plugin skill paths as changed files, CODEOWNERS rows and job logs to exercise the babysit risk, merge, review-evidence and post-merge engines
 plugins/source-control/skills/pull-request/scripts/feedback-thread.test.sh	feeds plugin skill paths to exercise feedback-thread.sh's path classification
+plugins/source-control/skills/pull-request/scripts/prep-warnings.test.sh	builds scratch plugins/p/skills/s trees to exercise prep-warnings.sh's skill-cut path classification
 plugins/testing/skills/audit/evals/judge-calibration/cases/	calibration cases are copies of repository tests, with the skill paths they cite, to exercise the test-audit judge
 plugins/testing/skills/audit/evals/judge-calibration/labels.tsv	labels record each case's source path and code under test to exercise the test-audit judge's calibration
+plugins/work-items/skills/work/unattended-callers.test.mjs	reads source-control's babysit-loop SKILL.md and its reference/cycle-shape.md, and the frontmatter of each skill a caller names, to check that every unattended call passes --unattended
+plugins/work-items/skills/work/unattended-callers.test.sh	test-scope lines name the debug, research and implement-dispatch SKILL.md files the unattended-callers check reads, so a change to them reruns it
