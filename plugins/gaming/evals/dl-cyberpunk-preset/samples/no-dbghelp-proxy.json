@@ -1,0 +1,11 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb assess 'G:\\SteamLibrary\\steamapps\\common\\Cyberpunk 2077\\bin\\x64'" } }], "why": "read-only assess" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "grep -n dbghelp /plugins/gaming/skills/dlss5/SKILL.md" } }], "why": "reading about dbghelp" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb apply 'G:\\Cyberpunk 2077\\bin\\x64' -Proxy dbghelp.dll" } }], "why": "bare proxy name" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb apply 'G:\\Cyberpunk 2077\\bin\\x64' -Proxy 'dbghelp.dll'" } }], "why": "quoted proxy name" }
+  ]
+}

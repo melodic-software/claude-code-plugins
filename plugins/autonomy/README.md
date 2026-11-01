@@ -135,7 +135,10 @@ stop with a re-injected self-check (keep going, or declare done), and if the lan
 allows the stop and alerts the operator via `hooks/lane-notify.sh` (OS toast + terminal bell/OSC 9,
 local machine only).
 
-Completion is signaled in two ways (a shell hook cannot re-run the `/goal` evaluator model): the exact
+Completion is signaled in two ways (a command hook cannot re-run the `/goal` evaluator model, which runs as a prompt-based Stop
+hook; see [goal: how evaluation works](https://code.claude.com/docs/en/goal#how-evaluation-works)
+and [hooks guide: prompt-based hooks](https://code.claude.com/docs/en/hooks-guide#prompt-based-hooks),
+as of 2026-11-01; recheck when either section changes what a command hook can trigger): the exact
 sentinel token in the agent's final message, or a marker file. The marker is consumed (deleted) when
 it authorizes a stop, one marker, one stop, so a file left in the checkout by a prior completed
 run never authorizes the stops of a later lane run. The gate is the settings-scoped,

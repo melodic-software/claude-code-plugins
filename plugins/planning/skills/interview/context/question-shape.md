@@ -28,10 +28,11 @@ SKILL.md "Spoke paths" defines.
 | `alternatives` | `{key, text, tradeoff}`, keys `a` to `d`; none restates the recommendation |
 | `dependsOn` | earlier question ids only |
 
-The basis, the withheld question, wording so yes accepts, the one verdict marker and the
-`Commits you to:` parts: SKILL.md's Stance states these for every lane, in "Recommended answers"
-(the first three), "One verdict marker, at most one context line" and "A recommendation that fixes
-more than one decision lists every part".
+The basis, the withheld question, wording so yes accepts, the one verdict marker, the context
+block, the alternatives' tradeoffs and the `Commits you to:` parts: SKILL.md's Stance states these
+for every lane, in "Recommended answers" (the first three), "One verdict marker", "Context first,
+as much as the decision needs and no more", "Alternatives carry their tradeoffs" and "A
+recommendation that fixes more than one decision lists every part".
 
 In every lane, a recommendation that reuses an existing value (an email address, account,
 subscription, region, secret name, repository) states the literal value in `recommendation` (in the option text,
@@ -43,8 +44,8 @@ SKILL.md's "Recommended answers" owns both rules.
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:`, `Flips if:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
-| page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `facts` carries the `Checked against:` line, then `context`, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
+| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the `Context:` block and `Source:` block are `context`, `My recommendation:`, `Origin:`, `Basis:`, `Inference:`, `Flips if:` and `Checked against:` are `recommendation` and `basis`, `Alternatives:` lists `alternatives` |
+| page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `context` is `context` (the card shows it above the recommendation), `facts` carries the `Checked against:` line, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
 | shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
 
 ## Context
@@ -57,12 +58,14 @@ Before the recommendation, `context` carries what drives the decision and nothin
 - which parts of an absorbed idea come from the source and which are ours, labeled;
 - any term the question relies on that the reader may not share, defined inline.
 
-Every factual claim carries a link or `file:line` the reader can open. If removing a line would not
-change how a reasonable person decides, remove it; long material goes behind a link. In the
-terminal lane the context stays within SKILL.md's one context line plus the `Source:` block; the
-page and the shared session have room for the whole block. A question shown again (unanswered from
-last round, restated after async input) keeps its context, recommendation, basis and alternatives:
-never a condensed form unless the user asks for one.
+Every factual claim carries a link or `file:line` the reader can open in one click (a URL with its
+section anchor, a timestamp for a video, a repo path); a claim with no source is labeled
+`judgment`. Write one claim per line so each carries its own reference. If removing a line would
+not change how a reasonable person decides, remove it; long material goes behind a link. Every
+lane carries the whole block, the terminal included; `basis` then names which of its sources the
+recommendation rests on. A question shown again (unanswered from last round, restated after async
+input) keeps its context, recommendation, basis and alternatives: never a condensed form unless
+the user asks for one or the summary covers answered items only.
 
 ## Plain names
 
@@ -70,8 +73,8 @@ Show the human name in everything a person reads: questions, restatements, recap
 and reports. When the name stands alone, show only the name (`scoped change`, not `C3`). Pair a
 code with its name only where the code must be quoted, such as a question id people answer by
 (`question Q14, retry budget`). Expand a code to its real name, never to a metaphor; keep the
-technical terms. On the page and in a shared session `Checked against:` names constraints in words;
-the terminal line follows SKILL.md "Keep a running constraint ledger". The ledger may keep bare ids.
+technical terms. In every lane `Checked against:` names constraints in words. The ledger may keep
+bare ids. SKILL.md "Name every code; define every term where it is used" owns the rule.
 
 ## Scope
 

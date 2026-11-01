@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: fc-plain-page
+graders:
+  - name: no-skill-firecrawl
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:firecrawl:)?firecrawl"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-firecrawl-run
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;|(]|&&|(?<!\\\\)\\n|\$\())?\s*(?:(?:if|elif|while|until|then|do|else|!|\{)\s+)*(?:(?:sudo|npx|exec|time)\s+(?:-\S+\s+)*)?(?:[^\s"\\;&|()]*/)?firecrawl(?:-cli)?(?:@[^\s"\\]+)?\s+(?!-)\w'
+    min: 0
+    max: 0
+    arm: 'both'

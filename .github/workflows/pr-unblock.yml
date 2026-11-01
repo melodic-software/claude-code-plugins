@@ -16,10 +16,11 @@ name: pr-unblock
 # PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
 # job keeps the threads, a read model job answers them, and script jobs push
 # its patch and post its replies.
-# After a pr-verify pass at a PR's head that left fail-note threads of earlier
-# heads open, it sends one with verify-pass-head: a pass-only round, where the
-# base job lists those threads, no model job runs, and the reply job resolves
-# them as the lanes App, posting nothing and counting no round.
+# After a pr-verify pass at a PR's head that left fail-note threads open, it
+# sends one with verify-pass-head: a pass-only round, where the base job lists
+# those of earlier heads, and those at the head when verify-superseded-head
+# names it, no model job runs, and the reply job resolves them as the lanes
+# App, posting nothing and counting no round.
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
@@ -27,7 +28,11 @@ name: pr-unblock
 # read model job returns a verdict and any fix as a patch, and script jobs
 # push a fix verdict's patch and act on the verdict. fix-ci: pr-unblock-dispatch.yml
 # also sends one per lanes App PR whose ci-status or pr-test-platforms run failed
-# past the lost-run reconciler's re-run. All set dispatcher-run-id; a trusted
+# past the lost-run reconciler's re-run. sync-shared-copies:
+# pr-unblock-dispatch.yml also sends one per lanes App PR that pr-merge refused
+# as shared-copy-sources-changed at its head; a base job merges the default
+# branch tip and regenerates the copies with the base's tooling, and a script
+# job pushes the merge. All set dispatcher-run-id; a trusted
 # human may dispatch with pr-number and activity alone. Every job trusts the
 # default branch tip, since a conflicting PR's base SHA is stale and the
 # dispatchers run from the tip.
@@ -48,7 +53,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, sync-shared-copies]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -57,6 +62,11 @@ on:
         default: ""
       verify-pass-head:
         description: address-feedback from pr-feedback-dispatch.yml only; the head a pr-verify pass judged, for a pass-only round.
+        required: false
+        type: string
+        default: ""
+      verify-superseded-head:
+        description: With verify-pass-head only; that head, when the merge gate's reader found the FAIL there superseded, so the round resolves its notes too.
         required: false
         type: string
         default: ""
@@ -124,6 +134,7 @@ jobs:
       && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    cache-mode: read
     permissions:
       contents: read # check out main and the PR head
       pull-requests: read # the PR's head and mergeable state
@@ -703,6 +714,416 @@ jobs:
         with:
           tokens: github-token
 
+  # sync-shared-copies is three jobs and no model. pr-merge refuses a lanes App
+  # head whose shared-library copies are stale as shared-copy-sources-changed
+  # and puts the human-gated label on; pr-unblock-dispatch.yml sends one
+  # dispatch per such head. This job runs only base code with a read-only
+  # token: it reads the PR head, resolves the slot, works past the label only
+  # when pr-merge's shared-copy refusal at that head put it on (lane-hold.mjs,
+  # gate-source.mjs sharedCopyGate), pins the default branch tip, merges it
+  # into the head with the base's prepare.sh as resolve-conflicts-select does,
+  # and on a clean merge runs the base's sync-shared-copies.sh, which runs the
+  # base's scripts/sync-shared-copies.sh and refuses a head that changes it,
+  # its registry or scripts/lib, or a write the base-tip
+  # scripts/shared-copies.txt lists as no copy. A merge that is not clean
+  # escalates as shared-copy-merge-conflicted: resolve-conflicts is held by
+  # the same label, so a session merges main by hand. The regenerated
+  # copies leave as a patch, which apply-shared-copies pushes; when the merge
+  # already holds current copies (both sides regenerated disjoint canonical
+  # edits), it pushes the merge alone, which still moves the head past the
+  # refusal.
+  sync-shared-copies-select:
+    needs: dispatcher-current
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'sync-shared-copies'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.dispatcher-current.outputs.stale != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out main and the PR head
+      pull-requests: read # the PR's head, author and labels
+    outputs:
+      # true when the sync ran on the clean merge: it wrote a patch, or found
+      # the merge's copies current (empty), when the refused head still needs
+      # the merge alone pushed; false on a skip or a refusal; empty when the
+      # job stopped before deciding.
+      proceed: >-
+        ${{ (steps.sync.outputs.state == 'written' || steps.sync.outputs.state == 'empty') && 'true'
+        || (steps.head.outputs.applicable == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.hold.outputs.lane-escalated == 'false' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' || steps.sync.outputs.refused != '') && 'false' || '' }}
+      patch-state: ${{ steps.sync.outputs.state }}
+      merge-state: ${{ steps.prepare.outputs.merge-state }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      base-sha: ${{ steps.base-sha.outputs.sha }}
+      conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
+      patch-sha256: ${{ steps.sync.outputs.sha256 }}
+      patch-attempt: ${{ steps.sync.outputs.state == 'written' && github.run_attempt || '' }}
+      # The sync script's own refusals, or shared-copy-merge-conflicted for a
+      # merge that is not clean: resolve-conflicts stays held by the label
+      # pr-merge's refusal put on, so the stop goes to the session queue
+      # rather than sitting silent on this head.
+      escalation-reason: >-
+        ${{ steps.sync.outputs.refused
+        || steps.prepare.outputs.merge-state != '' && steps.prepare.outputs.merge-state != 'clean' && 'shared-copy-merge-conflicted' || '' }}
+      skip-reason: >-
+        ${{ steps.head.outputs.applicable == 'false' && 'not-applicable'
+        || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        || steps.hold.outputs.held == 'true' && 'awaiting-human'
+        || steps.hold.outputs.lane-escalated == 'false' && 'not-applicable'
+        || steps.behind.outputs.behind == 'false' && 'not-applicable' || '' }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # As resolve-conflicts-select reads it, and the PR must be the lanes
+      # App's: the activity regenerates copies only on a lane's own branch.
+      - name: Read the PR head
+        id: head
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the pr-number input is not a PR number"
+            exit 1
+          fi
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          { read -r sha && read -r base && read -r head_repo && read -r author; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name, .user.id') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
+            exit 1
+          fi
+          if [[ -z ${base:-} || -z ${DEFAULT_BRANCH:-} ]]; then
+            echo "::error::the PR's base or the default branch is unknown"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $base != "$DEFAULT_BRANCH" ]]; then
+            echo "::notice::the PR's base is not the default branch; sync-shared-copies merges only the default branch"
+            echo "applicable=false" >>"$GITHUB_OUTPUT"
+          elif [[ ${author:-} != "$APP_SENDER_ID" ]]; then
+            echo "::notice::the lanes App did not open the PR; sync-shared-copies works only lane pull requests"
+            echo "applicable=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "applicable=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve the slot
+        id: slot
+        if: steps.head.outcome == 'success' && steps.head.outputs.applicable == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: sync-shared-copies
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ inputs.pr-number }}
+          head-sha: ${{ steps.head.outputs.sha }}
+
+      # The human-gated label holds the PR unless pr-merge's shared-copy
+      # refusal at this head put it on; with no such refusal
+      # (lane-escalated false) there is nothing for the activity to answer.
+      - name: Check the human-gated hold
+        id: hold
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          ACTIVITY: sync-shared-copies
+        run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
+
+      - name: Pin the base
+        id: base-sha
+        if: steps.hold.outputs.held == 'false' && steps.hold.outputs.lane-escalated == 'true'
+        run: |
+          sha=$(git -C .base rev-parse HEAD)
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the default branch tip is not a commit id"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # The base's merge scripts, version-bump script and sync script, never
+      # the head's, each merge script with its SHA-256, which the merge step
+      # checks.
+      - name: Copy the merge scripts from the base
+        id: merge-bin
+        if: steps.base-sha.outcome == 'success'
+        env:
+          BIN: ${{ runner.temp }}/merge-base-bin
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$BIN"
+          for file in .base/.github/scripts/merge-base/prepare.sh \
+            .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
+            name=$(basename "$file" .sh)
+            cp "$file" "$BIN/$name.sh"
+            sum=$(sha256sum <"$BIN/$name.sh")
+            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          done
+          no_progress=$(jq -r '.loop["no-progress"] // empty' "$RESOLVED")
+          if ! [[ $no_progress =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the resolved config holds no loop.no-progress"
+            exit 1
+          fi
+          echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the PR head
+        if: steps.base-sha.outcome == 'success'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.head.outputs.sha }}
+          path: head
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the head is behind the base
+        id: behind
+        if: steps.base-sha.outcome == 'success'
+        working-directory: head
+        env:
+          GIT_NO_REPLACE_OBJECTS: "1"
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: |
+          rc=0
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA" || rc=$?
+          case $rc in
+          0)
+            echo "::notice::the head already holds the default branch tip; nothing to merge"
+            echo "behind=false" >>"$GITHUB_OUTPUT"
+            ;;
+          1) echo "behind=true" >>"$GITHUB_OUTPUT" ;;
+          *)
+            echo "::error::git merge-base --is-ancestor exited $rc"
+            exit 1
+            ;;
+          esac
+
+      # As resolve-conflicts-select merges it; only a clean merge goes on, and
+      # any other escalates as shared-copy-merge-conflicted.
+      - name: Merge the base into the head
+        id: prepare
+        if: steps.behind.outputs.behind == 'true'
+        working-directory: head
+        env:
+          GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
+          GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: melodic-automation-lanes[bot]
+          GIT_COMMITTER_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          LOOP_NO_PROGRESS: ${{ steps.merge-bin.outputs.no-progress }}
+          GIT_NO_REPLACE_OBJECTS: "1"
+          BIN: ${{ runner.temp }}/merge-base-bin
+          OUT: ${{ runner.temp }}/merge-base-out
+          PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
+          BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: bash "$GITHUB_WORKSPACE/.base/.github/scripts/merge-base/run-prepare.sh"
+
+      # The base's sync-shared-copies.sh, copied out of the base checkout,
+      # regenerates the copies in the merged head; only its whitelisted,
+      # validated key=value lines become outputs.
+      - name: Regenerate the shared copies
+        id: sync
+        if: steps.prepare.outputs.merge-state == 'clean'
+        env:
+          BIN: ${{ runner.temp }}/sync-shared-copies-bin
+          PATCH_OUT: ${{ runner.temp }}/sync-shared-copies-patch/patch.diff
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: |
+          mkdir -p "$BIN" "$(dirname "$PATCH_OUT")"
+          cp .base/.github/scripts/pr-unblock/sync-shared-copies.sh "$BIN/"
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          result=$(bash "$BIN/sync-shared-copies.sh" "$GITHUB_WORKSPACE/.base" "$GITHUB_WORKSPACE/head" "$BASE_SHA" "$PATCH_OUT") || rc=$?
+          echo "::$token::"
+          state="" sum="" refused=""
+          while IFS='=' read -r key value; do
+            case $key in
+              state) [[ $value =~ ^(written|empty)$ ]] && state=$value ;;
+              sha256) [[ $value =~ ^[0-9a-f]{64}$ ]] && sum=$value ;;
+              refused) [[ $value =~ ^shared-copy-(tooling-changed|path-unregistered)$ ]] && refused=$value ;;
+            esac
+          done <<<"$result"
+          if ((rc == 3)) && [[ -n $refused ]]; then
+            echo "refused=$refused" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ((rc == 0)) || { echo "::error::sync-shared-copies.sh exited $rc"; exit 1; }
+          if [[ $state == written && -n $sum ]]; then
+            actual=$(sha256sum <"$PATCH_OUT")
+            [[ ${actual%% *} == "$sum" ]] || { echo "::error::the patch does not match the SHA-256 the sync printed"; exit 1; }
+          elif [[ $state != empty ]]; then
+            echo "::error::sync-shared-copies.sh printed no valid state"
+            exit 1
+          fi
+          echo "state=$state" >>"$GITHUB_OUTPUT"
+          echo "sha256=$sum" >>"$GITHUB_OUTPUT"
+
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.sync.outputs.state == 'written'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/sync-shared-copies-patch/patch.diff
+
+      - name: Upload the patch
+        if: >-
+          (steps.sync.outputs.state == 'written') && steps.scan-upload.outputs.clean == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: patch-pr-unblock-sync-shared-copies-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sync-shared-copies-patch/patch.diff
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # Every select outcome posts the sync-shared-copies check on the head the
+  # select job read, so dispatch.mjs sends a head once: no-model-turn when it
+  # proceeded (apply-shared-copies pushes the merge), else the skip reason, else
+  # the refusal's own skip (escalation-routes.mjs stopSkip). A select job that
+  # failed after reading the head posts failure, which dispatch.mjs retries
+  # until limit-stops-per-head failures stand on the head, as it does
+  # resolve-conflicts's. A kill-switch stop reads no head, and nothing is
+  # posted.
+  sync-shared-copies-not-run:
+    needs: sync-shared-copies-select
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'sync-shared-copies'
+      && (needs.sync-shared-copies-select.outputs.proceed != '' || needs.sync-shared-copies-select.result == 'failure')
+      && needs.sync-shared-copies-select.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Read the stop's skip reason
+        id: stop
+        env:
+          REASON: ${{ needs.sync-shared-copies-select.outputs.escalation-reason }}
+        run: echo "skip=$(node .base/.github/scripts/pr-unblock/escalation-routes.mjs skip)" >>"$GITHUB_OUTPUT"
+
+      - name: Post the sync-shared-copies check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: sync-shared-copies
+          run-result: ${{ needs.sync-shared-copies-select.result == 'failure' && 'failure' || 'skipped' }}
+          not-run-reason: >-
+            ${{ needs.sync-shared-copies-select.result != 'failure'
+            && (needs.sync-shared-copies-select.outputs.proceed == 'true' && 'no-model-turn'
+            || needs.sync-shared-copies-select.outputs.skip-reason
+            || steps.stop.outputs.skip) || '' }}
+          head-sha: ${{ needs.sync-shared-copies-select.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.sync-shared-copies-select.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  # The push job: apply-patch.mjs under patch-rules.json's shared-copies row,
+  # a script with no model that runs no head code. It merges the select job's
+  # pinned base into the head again, refuses any state but the select job's
+  # clean merge and tree, applies the select job's patch to that tree (none
+  # when the sync was empty), admits
+  # only copies the base-tip scripts/shared-copies.txt lists, skips a head
+  # that moved since the select job read it, and pushes one merge commit with
+  # the head and the base as parents, without force.
+  apply-shared-copies:
+    needs: sync-shared-copies-select
+    if: ${{ !cancelled() && needs.sync-shared-copies-select.outputs.proceed == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: pr-unblock
+      lane: pr-unblock
+      activity: apply-shared-copies
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      # The select job's own outputs: it ran no model and only base code.
+      # written or empty; an empty state carries no patch, SHA-256 or attempt.
+      patch-state: ${{ needs.sync-shared-copies-select.outputs.patch-state }}
+      patch-sha256: ${{ needs.sync-shared-copies-select.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.sync-shared-copies-select.outputs.patch-attempt }}
+      patch-activity: sync-shared-copies
+      patch-prepare: shared-copies
+      patch-head-sha: ${{ needs.sync-shared-copies-select.outputs.head-sha }}
+      patch-merge-base-sha: ${{ needs.sync-shared-copies-select.outputs.base-sha }}
+      patch-merge-state: clean
+      patch-conflict-tree: ${{ needs.sync-shared-copies-select.outputs.conflict-tree }}
+      # The select job proceeds only past pr-merge's shared-copy refusal,
+      # which gate-recheck.mjs reads again right before the push.
+      patch-human-gate: lane-escalation
+
   # address-feedback is five jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
   # Before any model turn it reads the PR head, resolves the slot (draft and
@@ -829,6 +1250,7 @@ jobs:
           # A pass-only round (address-feedback.mjs select), sent only by a
           # dispatcher run, which the reply job's gate checks.
           VERIFY_PASS_HEAD: ${{ inputs.verify-pass-head }}
+          VERIFY_SUPERSEDED_HEAD: ${{ inputs.verify-superseded-head }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: |
           mkdir -p "$FEEDBACK_DIR"
@@ -846,9 +1268,20 @@ jobs:
             done
           fi
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: |
+            ${{ runner.temp }}/feedback-context/threads.json
+            ${{ runner.temp }}/feedback-context/run.json
+
       - name: Upload the feedback context
         id: upload
-        if: steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'
+        if: >-
+          (steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: feedback-context-${{ github.run_attempt }}
@@ -1197,6 +1630,7 @@ jobs:
       && (needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-disputed || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-disputed || '') == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 75
+    cache-mode: read
     permissions:
       contents: read # the base checkout and the disputed files at the head
       issues: read # the linked issues' spec text (contract.json)
@@ -1536,9 +1970,18 @@ jobs:
 
       # overwrite: false, so a copy the model job's head code uploaded first
       # fails this upload, and the reply job reads no verdicts.
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.collect.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/adjudication/verdicts.json
+
       - name: Upload the verdicts
         id: upload
-        if: always() && steps.collect.outcome == 'success'
+        if: >-
+          (always() && steps.collect.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: feedback-adjudication-${{ github.run_attempt }}
@@ -1738,9 +2181,20 @@ jobs:
             echo "run-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
           fi
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.select.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: |
+            ${{ runner.temp }}/dependency-context/dependency.json
+            ${{ runner.temp }}/dependency-context/context.json
+
       - name: Upload the dependency context
         id: upload
-        if: steps.select.outputs.proceed == 'true'
+        if: >-
+          (steps.select.outputs.proceed == 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-context-${{ github.run_attempt }}
@@ -2171,9 +2625,18 @@ jobs:
           export REVIEWER_IDS
           node .base/.github/scripts/pr-unblock/fix-ci-context.mjs
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          steps.context.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/ci-context/context.json
+
       - name: Upload the context
         id: upload
-        if: steps.context.outputs.proceed == 'true'
+        if: >-
+          (steps.context.outputs.proceed == 'true') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-context-${{ github.run_attempt }}
@@ -2792,10 +3255,13 @@ jobs:
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
+      - sync-shared-copies-select
+      - apply-shared-copies
     if: >-
       ${{ !cancelled()
       && (needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
-      || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha || '') != ''
+      || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha
+      || needs.sync-shared-copies-select.outputs.head-sha || '') != ''
       && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
       || needs.apply-conflict-patch.outputs.escalation-reason != ''
       || needs.conflict-scan-refusal.outputs.escalation-reason != ''
@@ -2806,6 +3272,8 @@ jobs:
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''
+      || needs.sync-shared-copies-select.outputs.escalation-reason != ''
+      || needs.apply-shared-copies.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -2815,6 +3283,7 @@ jobs:
       || needs.apply-dependency-verdict.result == 'success' && needs.apply-dependency-verdict.outputs.skip-reason == ''
       || needs.apply-patch.result == 'success' && needs.apply-patch.outputs.skip-reason == ''
       || needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.skip-reason == ''
+      || needs.apply-shared-copies.result == 'success' && needs.apply-shared-copies.outputs.skip-reason == ''
       || needs.address-feedback-select.result == 'success' && needs.address-feedback-select.outputs.stop-resolved == 'true'
       || needs.fix-ci-context.result == 'success' && needs.fix-ci-context.outputs.stop-resolved == 'true') }}
     runs-on: ubuntu-24.04
@@ -2842,7 +3311,8 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           HEAD_SHA: >-
             ${{ needs.resolve-conflicts-select.outputs.head-sha || needs.address-feedback-select.outputs.head-sha
-            || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha }}
+            || needs.review-dependency-select.outputs.head-sha || needs.fix-ci-context.outputs.head-sha
+            || needs.sync-shared-copies-select.outputs.head-sha }}
           ESCALATION_REASON: >-
             ${{ needs.resolve-conflicts-select.outputs.escalation-reason
             || needs.apply-conflict-patch.outputs.escalation-reason
@@ -2857,7 +3327,9 @@ jobs:
             || needs.apply-patch-rung-up.outputs.escalation-reason
             || needs.apply-patch.outputs.rung-up == 'true'
             && !(needs.apply-patch-rung-up.result == 'success' && needs.apply-patch-rung-up.outputs.patch-skip-reason == '')
-            && 'ci-fix-escalated' || '' }}
+            && 'ci-fix-escalated'
+            || needs.sync-shared-copies-select.outputs.escalation-reason
+            || needs.apply-shared-copies.outputs.escalation-reason || '' }}
           ACTIVITY: ${{ inputs.activity }}
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh "$([ -n "$ESCALATION_REASON" ] && echo status || echo clear)"
@@ -2883,12 +3355,14 @@ jobs:
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
+      - sync-shared-copies-select
+      - apply-shared-copies
     # A reply job that failed with no reason (its lane token, a script error)
     # stops as feedback-publish-failed, derived here from its result.
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
     # resolve-conflicts-select, conflict-scan-refusal, address-feedback-select,
-    # review-dependency-select and fix-ci-context.
+    # review-dependency-select, fix-ci-context and sync-shared-copies-select.
     # At most one escalates: one activity runs per dispatch, a reply, verdict
     # or push job runs only after a select job proceeded, and a select job,
     # or fix-ci-context, escalates only before any model turn. A rung-up stop
@@ -2906,7 +3380,9 @@ jobs:
       || needs.review-dependency-select.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
-      || needs.apply-patch.outputs.escalation-reason != ''))
+      || needs.apply-patch.outputs.escalation-reason != ''
+      || needs.sync-shared-copies-select.outputs.escalation-reason != ''
+      || needs.apply-shared-copies.outputs.escalation-reason != ''))
       || (always() && needs.apply-patch.outputs.rung-up == 'true'
       && !(needs.apply-patch-rung-up.result == 'success'
       && needs.apply-patch-rung-up.outputs.escalation-reason == ''
@@ -2938,7 +3414,9 @@ jobs:
         || needs.fix-ci-context.outputs.escalation-reason
         || needs.apply-patch.outputs.escalation-reason
         || needs.apply-patch-rung-up.outputs.escalation-reason
-        || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated' || '' }}
+        || needs.apply-patch.outputs.rung-up == 'true' && 'ci-fix-escalated'
+        || needs.sync-shared-copies-select.outputs.escalation-reason
+        || needs.apply-shared-copies.outputs.escalation-reason || '' }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''

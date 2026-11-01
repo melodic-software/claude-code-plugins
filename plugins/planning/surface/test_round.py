@@ -1,5 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/shared/schema/event.schema.json
 """Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
@@ -794,6 +795,46 @@ class TestRevise(DirCase):
         rc, out, err = self.op("revise", id="Q1", alternatives=["a:One", "b:Two"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestContextField(DirCase):
+    """The question's context block sits next to facts and holds the same reference bar."""
+
+    WARNING = "context carries no link, file:line or judgment label"
+
+    def test_a_question_carries_context_and_unreferenced_context_warns(self):
+        q = question("Q4", context="The cache is shared by every job today.")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q4")["context"], "The cache is shared by every job today.")
+        self.assertIn(f"Q4 {self.WARNING}", err)
+
+    def test_referenced_context_is_quiet(self):
+        q = question("Q4", context="The cache is shared (`ci/cache.yml:12`).")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.WARNING, err)
+        self.assertNotIn("names a local file", err)
+
+    def test_context_linking_a_branch_warns(self):
+        link = "https://github.com/o/r/blob/main/a.py#L1"
+        q = question("Q4", context=f"The cache is shared ([a.py]({link})).")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 context links a repo file by branch", err)
+
+    def test_revise_context_records_the_change(self):
+        rc, out, err = self.op("revise", id="Q1", context="Jobs share it ([ci](https://example.com/ci#cache)).")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["context"], "Jobs share it ([ci](https://example.com/ci#cache)).")
+        self.assertIn("context", q["history"][-1]["changed"])
+        rc, out, err = self.op("revise", id="Q1", context="Jobs share it.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q1 {self.WARNING}", err)
+
+    def test_context_over_the_shared_cap_is_refused(self):
+        self.assert_refused("add", "--file", self.file("q.json", question("Q4", context="x" * 4001)))
 
 
 class TestSharedQuestionShape(DirCase):

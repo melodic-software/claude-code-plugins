@@ -60,9 +60,10 @@
     {
       "id": 5,
       "name": "ship-container-discovery-binding-label-no-hardcode",
-      "prompt": "/work-items:ship — no argument. The topic PLAN.md has no spec-container pointer line. The repo's .work-item-tracker.json remaps config.container_label to \"epic\".",
+      "prompt": "/work-items:ship — no argument. The topic PLAN.md has no spec-container pointer line. The repo's tracker binding in docs/conventions/work-items.yaml remaps tracker.config.container_label to \"epic\".",
       "expected_output": "Discovery resolves the container label from the binding — open items carrying \"epic\" are queried, not the hard-coded default work-map — and had the binding been absent the work-map default would be applied with a loud warning. If several open containers match, they are listed and the user picks which journey to drive; if none match, the skill reports that no container exists and routes container publishing to /work-items:decompose rather than creating one itself.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Resolves the container label from the binding's config.container_label (here \"epic\") for the fallback tracker query instead of hard-coding work-map",
         "Lists multiple matching containers and asks the user to pick rather than guessing",

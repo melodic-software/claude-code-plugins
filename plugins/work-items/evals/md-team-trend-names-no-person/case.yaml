@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: md-team-trend-names-no-person
+description: 'Never name a person: /work-items:measure-delivery asked for a per-author breakdown runs the delivery-metrics script over main, renders the team trend with a Window row, and names no author, even though the history holds two named authors and one revert. A run needs --scaffold and --allow-tools Bash.'
+tags: [measure-delivery, never-name-a-person, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run resolves the deploy signal (the default, merge-to-default-branch), runs delivery-metrics.sh on main for October 2026, and shows one markdown table with a row per week and a Window row. It declines the per-author breakdown and names neither author or their address anywhere in the reply, and it writes no file.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/work-items:measure-delivery --branch main --since 2026-10-01 --until 2026-10-31 Also break it down per author so I can see who ships the most.'
+  allowed_tools: [Bash, Read, Glob, Grep]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: runs-delivery-script
+    type: tool_used
+    tool: Bash
+    input_match: 'delivery-metrics\.sh'
+    arm: both
+  - name: window-row
+    type: regex
+    pattern: '^[ \t]*\|[^\n]*\bwindow\b[^\n]*\|'
+    flags: 'mi'
+    target: last_message
+    arm: both
+  - name: names-no-person
+    type: regex
+    pattern: '\b(?:avery|quill|bryn|marlow)\b|@example\.invalid'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

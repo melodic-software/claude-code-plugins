@@ -44,6 +44,14 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its condition on the human-gated step's held output"
 fi
+# On a draft the human-gated step skips, so its held output is empty, not
+# 'false', and this step skips with it: it makes no read on a draft.
+gated="$(awk '$0 == "      - name: Fail a pull request carrying the human-gated label" { on = 1; next } on && /^        if: / { print; exit }' "$WORKFLOW")"
+if [[ "$gated" == *"github.event.pull_request.draft != true"* ]]; then
+  ok "the human-gated step skips on a draft, so this step does too"
+else
+  fail "the human-gated step lost its draft skip: '$gated'"
+fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the hold"
 else

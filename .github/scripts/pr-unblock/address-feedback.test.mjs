@@ -2078,6 +2078,18 @@ test("main select with a pass head lists the stale fail-note threads for the rep
   // Only a dispatcher sends a pass head.
   await assert.rejects(main(["select"], env("human", { DISPATCHER_RUN_ID: "" }), { api: api([note("PRRT_old")]), log: () => {} }), /dispatcher/);
   await assert.rejects(main(["select"], env("bad", { VERIFY_PASS_HEAD: "main" }), { api: api([note("PRRT_old")]), log: () => {} }), /VERIFY_PASS_HEAD/);
+
+  // A same-head FAIL the gate's reader found superseded (the dispatcher's
+  // verify-superseded-head) adds its notes, and run.json names that head for
+  // the reply job's re-check; a FAIL not superseded there, or one superseded
+  // at another head, adds none.
+  const threads = [note("PRRT_old"), note("PRRT_now", HEAD), note("PRRT_done", OLD, true)];
+  await main(["select"], env("superseded", { VERIFY_SUPERSEDED_HEAD: HEAD }), { api: api(threads), log: () => {} });
+  assert.equal(out("superseded"), "resolve-only=true\n");
+  assert.equal(readFileSync(join(dir, "superseded.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old","PRRT_now"],"superseded_head":"${HEAD}"}\n`);
+  await main(["select"], env("elsewhere", { VERIFY_SUPERSEDED_HEAD: OLD }), { api: api(threads), log: () => {} });
+  assert.equal(readFileSync(join(dir, "elsewhere.run.json"), "utf8"), `{"version":1,"head_sha":"${HEAD}","pr_paths":[],"threads":[],"stale_notes":["PRRT_old"]}\n`);
+  await assert.rejects(main(["select"], env("bad-superseded", { VERIFY_SUPERSEDED_HEAD: "main" }), { api: api(threads), log: () => {} }), /VERIFY_SUPERSEDED_HEAD/);
 });
 
 // A rerun of a pass-only round after its stale notes were resolved by hand

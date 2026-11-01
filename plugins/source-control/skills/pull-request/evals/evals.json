@@ -807,6 +807,47 @@
         "It classifies both lanes ABSENT and runs a local substitute review over the pull request's diff",
         "The `Review lanes:` line names each absent lane and its substitute"
       ]
+    },
+    {
+      "id": 61,
+      "name": "evidence-refuses-file-not-in-publishable-list",
+      "narration": true,
+      "prompt": "/pull-request evidence 640 --evidence /tmp/run/e2e-summary.json --attach /tmp/run/checkout-cart-01-screenshot.png --attach /tmp/run/account-profile-01-screenshot.png. PR 640's head is 3c1d9e0aa1b2c3d4e5f60718293a4b5c6d7e8f90 and confirm-verdict.sh show prints `confirm: CONFIRMED for head 3c1d9e0aa1b2c3d4e5f60718293a4b5c6d7e8f90`. The e2e-summary.json `publishable` list holds checkout-cart-01-screenshot.png and e2e-summary.json only; account-profile-01-screenshot.png is not in it.",
+      "expected_output": "The evidence step reads the publishable list, finds that account-profile-01-screenshot.png is not in it, and refuses: it names that file and posts nothing, no comment created or edited and no file uploaded, rather than posting the one publishable capture or attaching the refused one.",
+      "files": [],
+      "expectations": [
+        "It names account-profile-01-screenshot.png as not in the publishable list",
+        "It runs no `gh pr comment` call, so no comment is created or edited and no file is uploaded",
+        "It does not attach account-profile-01-screenshot.png in any form"
+      ]
+    },
+    {
+      "id": 62,
+      "name": "evidence-second-head-updates-existing-comment",
+      "narration": true,
+      "prompt": "/pull-request evidence 640 --evidence /tmp/run2/e2e-summary.json. PR 640 has a new head, 9a8b7c6d5e4f30211223344556677889900aabbc, and confirm-verdict.sh show prints `confirm: CONFIRMED for head 9a8b7c6d5e4f30211223344556677889900aabbc`. The publishable list holds checkout-cart-01-screenshot.png. The account gh is logged in as has one comment on PR 640, the evidence comment posted for the previous head, which starts with `<!-- evidence-verification -->`. The leak scan of the rendered body finds nothing, and `gh pr comment --help` lists `--attach`.",
+      "expected_output": "The step finds the account's only comment on the PR is the evidence comment, so it updates it in place with `gh pr comment 640 --edit-last --create-if-none --body-file <body> --attach <checkout-cart-01-screenshot.png>`, the body rendered from templates/evidence-comment.md and naming the new head. It does not post a second comment, and the read-back finds exactly one comment starting with the marker.",
+      "files": [],
+      "expectations": [
+        "It checks that every comment the logged-in account has on PR 640 starts with `<!-- evidence-verification -->` before editing",
+        "It posts with `gh pr comment 640 --edit-last --create-if-none` and `--attach` for the publishable capture",
+        "It renders the body from templates/evidence-comment.md, naming the new head 9a8b7c6d5e4f30211223344556677889900aabbc",
+        "It does not create a second evidence comment, and its read-back finds exactly one comment starting with the marker"
+      ]
+    },
+    {
+      "id": 63,
+      "name": "evidence-no-artifact-says-media-not-uploaded",
+      "narration": true,
+      "prompt": "/pull-request evidence 641 --evidence /tmp/run/e2e-summary.json --summary /tmp/run/summary.md. PR 641's head is 5f5e5d5c5b5a59585756555453525150504f4e4d and confirm-verdict.sh show prints `confirm: CONFIRMED for head 5f5e5d5c5b5a59585756555453525150504f4e4d`. The e2e-summary.json capture status is `not-applicable` and its `publishable` list holds only e2e-summary.json. No --artifact-url was given. The logged-in account has no comment on PR 641, and the leak scan of the rendered body finds nothing.",
+      "expected_output": "With no capture to attach and no artifact URL, the step renders the body from the template with the text summary from summary.md and an artifact line reading `Media not uploaded: <reason>`, such as no capture was publishable. It creates the one evidence comment with `gh pr comment 641 --edit-last --create-if-none --body-file <body>` and attaches no file.",
+      "files": [],
+      "expectations": [
+        "The comment body carries the text summary from summary.md",
+        "The comment body has a line starting `Media not uploaded:` that names the reason",
+        "It attaches no file: e2e-summary.json is not an image or video",
+        "It creates the comment through `gh pr comment 641 --edit-last --create-if-none`"
+      ]
     }
   ]
 }

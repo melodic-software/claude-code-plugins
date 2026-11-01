@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\" --phase triage --ttl-hours 1"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: [\"status:needs-info\"]"
+          }
+        }
+      ],
+      "why": "claims, then edits the item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: [\"status:needs-info\"]"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\" --phase triage"
+          }
+        }
+      ],
+      "why": "edits before it claims"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "labels: [\"needs-triage\"]",
+            "new_string": "labels: [\"status:needs-info\"]"
+          }
+        }
+      ],
+      "why": "edits with no claim"
+    }
+  ]
+}

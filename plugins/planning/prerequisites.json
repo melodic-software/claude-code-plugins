@@ -5,7 +5,6 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:wayfind",
         "skill:draft-goal-condition"
       ],
       "detect": {
@@ -13,7 +12,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, /planning:wayfind cannot read the container label from .work-item-tracker.json and falls back to work-map, and fetch-docs.sh exits before reading anything, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
+      "degrade": "Without jq, fetch-docs.sh exits before reading anything, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",

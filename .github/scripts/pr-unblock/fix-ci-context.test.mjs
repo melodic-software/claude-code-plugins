@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
-import { CONTEXT_MAX_BYTES, countFixRounds, feedbackLines, logExcerpt, main, select, specField, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
+import { CONTEXT_MAX_BYTES, countFixRounds, feedbackLines, logExcerpt, main, OWNED_BRANCH, select, specField, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -363,7 +363,7 @@ test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a 
 test("a check listing that fails to read throws, so main writes no outputs and resolves nothing", async () => {
   const dir = tempDir("fix-ci-context-");
   try {
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS, GITHUB_OUTPUT: join(dir, "out") };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", OWNED_BRANCHES: "[]", TRUSTED_ACTORS, GITHUB_OUTPUT: join(dir, "out") };
     await assert.rejects(main(env, { api: fakeApi({ checkRunsError: new Error("GET check-runs returned 502") }), log: () => {} }), /502/);
     assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
     await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "lint-shell", "success")] }), log: () => {} });
@@ -378,6 +378,32 @@ test("a check listing that fails to read throws, so main writes no outputs and r
 test("a closed pull request is skipped", async () => {
   const result = await selectWith(fakeApi({ pull: { state: "closed", head: { sha: HEAD, repo: { full_name: "o/r" } } } }));
   assert.equal(result.decision, "skip");
+});
+
+// release-publish-plugins.yml rebuilds release/plugins after fix-ci reads it,
+// so a fix-ci push there answers 422 (#11840's runs 41308756974, 41312571464).
+test("a head branch a workflow owns and rebuilds skips owned-branch before any check is read", async () => {
+  const pull = (ref) => ({ state: "open", head: { sha: HEAD, ref, repo: { full_name: "o/r" } } });
+  const api = { ...fakeApi({ pull: pull("release/plugins") }), listCommitCheckRuns: async () => assert.fail("no check read") };
+  const result = await select({ api, pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3, ownedBranches: ["release/plugins"] });
+  assert.deepEqual(result, { decision: "skip", skipReason: OWNED_BRANCH, headSha: HEAD });
+  const other = await select({ api: fakeApi({ pull: pull("feat/x") }), pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3, ownedBranches: ["release/plugins"] });
+  assert.equal(other.decision, "proceed");
+});
+
+test("main reads OWNED_BRANCHES and writes the owned-branch skip", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", OWNED_BRANCHES: '["release/plugins"]', TRUSTED_ACTORS };
+    const api = fakeApi({ pull: { state: "open", head: { sha: HEAD, ref: "release/plugins", repo: { full_name: "o/r" } } } });
+    await main(env, { api, log: () => {} });
+    const outputs = readFileSync(env.GITHUB_OUTPUT, "utf8");
+    assert.match(outputs, /^proceed=false$/m);
+    assert.match(outputs, /^skip-reason=owned-branch$/m);
+    await assert.rejects(main({ ...env, OWNED_BRANCHES: '"release/plugins"' }, { api, log: () => {} }), /OWNED_BRANCHES/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // The human-gated label holds fix-ci unless another lane's escalation put it
@@ -427,7 +453,7 @@ test("a person's inline review-thread reply since another lane's escalation skip
 test("main writes the hold's skip reason and lane-escalated", async () => {
   const dir = tempDir("fix-ci-context-");
   try {
-    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", OWNED_BRANCHES: "[]", TRUSTED_ACTORS };
     await main({ ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: gatedApi(APP_USER, "ci-fix-escalated"), log: () => {} });
     const held = readFileSync(join(dir, "held"), "utf8");
     assert.match(held, /^proceed=false$/m);
@@ -478,6 +504,7 @@ test("main writes the context file and the step outputs", async () => {
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       FIX_CI_ROUNDS: "3",
+      OWNED_BRANCHES: "[]",
       TRUSTED_ACTORS,
     };
     await main(env, { api: fakeApi(), log: () => {} });
@@ -503,6 +530,7 @@ test("main escalates the round cap with no context file", async () => {
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       FIX_CI_ROUNDS: "1",
+      OWNED_BRANCHES: "[]",
       TRUSTED_ACTORS,
     };
     await main(env, { api: fakeApi({ commits: [fixCommit()] }), log: () => {} });
@@ -603,6 +631,7 @@ test("main writes weaken-retry true on a head with no lane stop, false after one
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       FIX_CI_ROUNDS: "3",
+      OWNED_BRANCHES: "[]",
       TRUSTED_ACTORS,
     };
     await main(env, { api: fakeApi(), log: () => {} });
@@ -685,6 +714,7 @@ const mainEnv = (dir) => ({
   APP_SENDER_ID: String(APP),
   CONTEXT_FILE: join(dir, "context.json"),
   FIX_CI_ROUNDS: "3",
+  OWNED_BRANCHES: "[]",
   TRUSTED_ACTORS,
   // As pr-verify.yml sets it, so the base config is not read.
   ISSUE_LANE_WEB_HOSTS: "[]",

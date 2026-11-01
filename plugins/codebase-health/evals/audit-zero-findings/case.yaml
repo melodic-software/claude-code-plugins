@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: audit-zero-findings
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-findings-statement
+    type: regex
+    pattern: '(?<!\bnot )(?<!\bnot all )(?<!\bnot a )(?:\bno findings\b|\bno (?:discrepancies|drift)\b|\b(?:zero|0) findings\b|\bclean bill of health\b|\ball (?:\d+ )?(?:of the )?(?:\d+ )?claims? (?:were |are )?(?:verified|confirmed)(?: as)? (?:correct|accurate|true)\b|\bfound no (?:discrepancies|drift|findings|issues)\b|\bnone (?:of (?:them|the (?:README )?claims) )?(?:have|has) drifted\b|\bnothing (?:has )?drifted\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-invented-finding
+    type: regex
+    pattern: '^[ \t]*\|[ \t]*\d+[ \t]*\|[ \t]*[*`]*(?:error|warning|info)[*`]*[ \t]*\||\b(?:error|warning|info)\b[*`]*[ \t]*(?:\||[-:—–,·])?[ \t]*[*`]*(?:doc|config)-drift\b'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: verified-non-issues
+    type: regex
+    pattern: 'verified non-?issues?\b(?:(?!\n[ \t]*(?:#{1,6}[ \t]+|(?:\d+\.[ \t]*)?\*\*[ \t]*)(?:\d+\.[ \t]*)?(?:drift patterns|fix priority|enforcement|config[- ]gap))[\s\S]){0,1500}?(?:package\.json|config\.js|config\.test\.js)'
+    flags: 'i'
+    target: last_message
+  - name: config-gap-section
+    type: regex
+    pattern: '(?<!\bno )(?<!skip )(?<!skipped )(?<!skipping )(?<!skip the )(?<!skipped the )(?<!skipping the )\bconfig(?:uration)?[- ]gaps?\b'
+    flags: 'i'
+    target: last_message

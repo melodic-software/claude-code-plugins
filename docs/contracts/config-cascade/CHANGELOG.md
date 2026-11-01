@@ -11,6 +11,10 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`source-control` commit-convention enforcement gains a fallback-only personal layer.** The
+  Implementers row records that the enforcement resolver reads `subject_pattern` from a git-ignored
+  `docs/conventions/source-control.local.yaml` only where the team tracks none, never merged with a
+  team pattern.
 - **`adhd` and `harness-config` (`audit-automation-gaps`) join the Implementers table.** Each reads
   `time_units` from the plugin's `userConfig` option and a team file, no-floor, later layer wins.
 - **`work-items` gains `ai_disclaimer`.** The Implementers row, renamed `work-items` (settings
