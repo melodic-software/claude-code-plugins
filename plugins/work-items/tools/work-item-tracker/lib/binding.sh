@@ -29,8 +29,9 @@ wit_project_root() {
 
 # wit_convention_home <root>: the repo-relative convention home the pointer region
 # binds, or the default home when the repository binds none. Fails when it declined
-# a home, when no home applies, or when the pointer is broken (that message passes
-# through to stderr).
+# a home, when no home applies (exit 5: the root is $HOME, an ancestor of it, or not
+# in a git work tree, so only the legacy JSON can bind it), or when the pointer is
+# broken (that message passes through to stderr).
 wit_convention_home() {
   local home rc
   [[ -f "$WIT_HOME_RESOLVER" && -f "$WIT_YAML_PARSER" ]] || return 1

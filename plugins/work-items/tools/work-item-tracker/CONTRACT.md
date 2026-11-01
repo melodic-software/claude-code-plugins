@@ -140,7 +140,10 @@ value (named by file, key and value; the overlay when it set the value) is exit 
 - **Legacy fallback (migration).** While the migration runs, when `<home>/work-items.yaml` has
   no `tracker` key (or the repository declined a home), the seam still reads
   `.work-item-tracker.json` at the repo root and prints a one-line `notice:` on stderr naming
-  it. The JSON file has the same keys as the `tracker` mapping:
+  it. A repo root where no home applies (it is `$HOME`, an ancestor of `$HOME`, or not inside
+  a git work tree: ADR 0075 fix 5) reads no `work-items.yaml` at all, not even under
+  `docs/conventions`; only the legacy JSON file binds it. The JSON file has the same keys as
+  the `tracker` mapping:
 
   ```json
   {

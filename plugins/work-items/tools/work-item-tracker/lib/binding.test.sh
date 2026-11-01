@@ -391,6 +391,20 @@ else
   pass "neither YAML nor JSON binding → discovery fails"
 fi
 
+# --- no home applies: a root outside a git work tree reads only the legacy JSON ---
+
+LOOSE="$TEST_TMPDIR/loose-folder"
+mkdir -p "$LOOSE/docs/conventions"
+write_binding "$LOOSE/docs/conventions/work-items.yaml" "$YAML_BINDING"
+if (unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_find_binding >/dev/null); then
+  fail "a non-git root never reads <home>/work-items.yaml" "failure" "success"
+else
+  pass "a non-git root never reads <home>/work-items.yaml"
+fi
+write_binding "$LOOSE/.work-item-tracker.json" "$VALID"
+OUT="$(unset WORK_ITEM_TRACKER_BINDING && CLAUDE_PROJECT_DIR="$LOOSE" wit_find_binding)"
+assert_eq "a non-git root binds through the legacy JSON only" "$LOOSE/.work-item-tracker.json" "$OUT"
+
 # --- invalid YAML: the error names the file, the key and the value ---
 
 IREPO="$(yaml_repo invalid-repo)"
