@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: oa-bundled-provider-routes-to-setup
-description: 'Bundled-provider route: asked to generate an adapter for jira, which the plugin already bundles, the run says jira is bundled and routes to /work-items:setup instead of generating anything: no generator run, no adapter files written through Bash, and no Write or Edit call. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
+description: 'Shipped-provider route: asked to generate an adapter for jira, which the plugin already ships as a seed, the run says jira ships with the plugin and routes to /work-items:setup instead of generating anything: no generator run, no adapter files written through Bash, and no Write or Edit call. A run needs --scaffold and --allow-tools Bash,Write,Edit.'
 tags: [onboard-adapter, routing, must-not]
 plugins: ["../.."]
-expected_outcome: 'The answer says jira is one of the providers the plugin bundles, so a consumer-owned adapter is not the path, and routes to /work-items:setup to bind it. It does not run generate-adapter.sh, does not write a spec or adapter files, and makes no Write or Edit call.'
+expected_outcome: 'The answer says jira is one of the providers the plugin ships, so generating a consumer-owned adapter is not the path, and routes to /work-items:setup to bind it and copy its seed. It does not run generate-adapter.sh, does not write a spec or adapter files, and makes no Write or Edit call.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -19,7 +19,7 @@ graders:
     target: last_message
   - name: says-bundled
     type: regex
-    pattern: '^(?=[^\n]*\bjira\b)(?![^\n]*\b(?:not|isn[''’]t|no longer|never)\s+(?:\w+\s+){0,2}?(?:bundled|supported|built[- ]in|included|shipped)\b)[^\n]*\b(?:bundled|bundles|built[- ]in|ships (?:with|an?)\b|already (?:supported|ships?|includes?|included|has|bundles?|provides?)|supported providers?|first-party|out of the box)'
+    pattern: '^(?=[^\n]*\bjira\b)(?![^\n]*\b(?:not|isn[''’]t|no longer|never)\s+(?:\w+\s+){0,2}?(?:bundled|supported|built[- ]in|included|shipped|seeded)\b)[^\n]*\b(?:bundled|bundles|built[- ]in|ships (?:with|an?|as)\b|already (?:supported|ships?|includes?|included|has|bundles?|provides?)|supported providers?|first-party|out of the box|(?:a|the|its) (?:jira )?seed\b)'
     flags: 'mi'
     target: last_message
   - name: no-generate

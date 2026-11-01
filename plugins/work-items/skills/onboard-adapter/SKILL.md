@@ -1,5 +1,5 @@
 ---
-description: "Generate a consumer-owned adapter for a tracker this plugin does not bundle: interview for the provider's shape, probe the real instance, write the adapter and conformance binding into the consumer repo, then verify. Use when: 'add support for TRACKER', 'onboard a tracker', 'write a work-item adapter', 'generate a tracker adapter', 'my tracker is not supported', 'bring my own tracker'. Bundled providers (github, local-markdown, jira, gitea, linear) and provider switches: '/work-items:setup'."
+description: "Generate a consumer-owned adapter for a tracker this plugin does not ship: interview for the provider's shape, probe the real instance, write the adapter and conformance binding into the consumer repo, then verify. Use when: 'add support for TRACKER', 'onboard a tracker', 'write a work-item adapter', 'generate a tracker adapter', 'my tracker is not supported', 'bring my own tracker'. Shipped providers (github, local-markdown, jira, gitea, linear) and provider switches: '/work-items:setup'."
 argument-hint: "[provider-name]"
 user-invocable: true
 # Model-invoked (fleet default); no exception class applies. Generation is gated by the
@@ -19,9 +19,9 @@ Walk a **consumer** from "my tracker is not supported" to an adapter that lives 
 Adapters resolve consumer-local-first (`CONTRACT.md` "Adapter resolution"), so it needs no fork, no vendored
 engine, and no upstream PR.
 
-**Not for**: a provider already bundled (`github`, `local-markdown`, `jira`, `gitea`,
-`linear`). Bind those with `/work-items:setup`, which also re-points a repo at a
-different provider. Not for fixing an existing adapter (ordinary implementation work).
+**Not for**: a provider the plugin already ships, bundled (`github`, `local-markdown`) or as a
+seed (`jira`, `gitea`, `linear`). Bind those with `/work-items:setup`, which copies a seed into
+the repo and also re-points a repo at a different provider. Not for fixing an existing adapter (ordinary implementation work).
 
 ## The split
 
@@ -71,7 +71,7 @@ carries a worked example.
 
 ## Step 2. Explore the live instance
 
-Some facts live only in the user's actual instance (the bundled `jira` adapter's done-state
+Some facts live only in the user's actual instance (the `jira` seed's done-state
 category key and blocker link-type name vary per instance, so both are config keys with
 defaults). For each field the normalizer will read, have the **user** run a read-only probe
 against their instance and paste the response shape. Typical probes: fetch one item and
@@ -121,7 +121,8 @@ In this order, because each step's failure means something different:
 2. **Fill the mappings, verb by verb.** Each generated verb script carries one
    `PROVIDER MAPPING` block and exits `1` until it is written. Write a mocked-transport
    test beside each (`WIT_<P>_CURL` is the injection point. Copy the shape from the
-   bundled `jira` adapter's `*.test.sh`) so the verb is covered offline.
+   `jira` seed's `*.test.sh` under the plugin's `tools/work-item-tracker/seeds/jira/`) so
+   the verb is covered offline.
 3. **Conformance.** `run-conformance.sh --binding <p>`, which drives the same abstract
    suite over the adapter through the core CLI only. It needs a **throwaway** target;
    the generated binding refuses to run without one named explicitly. Never point it at
@@ -146,7 +147,7 @@ that does nothing.
 ## Security posture
 
 The skeleton is **template-driven, not re-derived per provider**. It is generated already
-carrying the same guards the bundled `jira` adapter carries, and the generated
+carrying the same guards the `jira` seed carries, and the generated
 `common.test.sh` proves them:
 
 - Credential read from the env var *named by* the binding, never stored in the tracked

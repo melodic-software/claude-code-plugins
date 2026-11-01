@@ -159,7 +159,7 @@ The manifest is a promise the core routes on, so these are refusals, not warning
 - `verbs["list-items"]` and `limits.list_items_max` must agree.
 - `link-blocks: true` needs a non-zero `dependencies_per_type`.
 
-One note, not a refusal: `list-items: false` is coherent, since the bundled `jira` adapter is
+One note, not a refusal: `list-items: false` is coherent, since the `jira` seed is
 consume-only, but `list-frontier` can then never succeed, so no work-selection flow will
 find anything. The generator says so on stderr.
 
