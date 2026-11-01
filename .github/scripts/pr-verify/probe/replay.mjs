@@ -293,7 +293,8 @@ export function scenario(testCase, index, { owner, lane, outsider }) {
       repository: { full_name: REPOSITORY },
       head_repository: { full_name: REPOSITORY },
     },
-    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })),
+    // A ready pull request's run: ci-status skipped its draft step (resolve-pr draftRun).
+    jobs: UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success", ...(name === "ci-status" && { steps: [{ name: "Note a draft", conclusion: "skipped" }] }) })),
     issueRest: { number: issueNumber, ...rest("issues", issueNumber, issue.by ?? "owner", issue.body) },
     issueComments,
     prComments,
@@ -326,7 +327,8 @@ export function stubGitHub(s) {
   const page = (list) => (apiPath) => (/[?&]page=1$/.test(apiPath) ? list : []);
   const gets = [
     [`${R}/actions/runs/${s.runId}`, () => s.run],
-    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=1$/.test(apiPath) ? { total_count: s.jobs.length, jobs: s.jobs } : { total_count: s.jobs.length, jobs: [] })],
+    // upstream-jobs.mjs pages; resolve-pr's draftRun reads one unpaged list.
+    [`${R}/actions/runs/${s.runId}/jobs?`, (apiPath) => (/[?&]page=(?!1$)\d+$/.test(apiPath) ? { total_count: s.jobs.length, jobs: [] } : { total_count: s.jobs.length, jobs: s.jobs })],
     [`${R}/commits/${s.head}/pulls?`, page([s.pull])],
     [`${R}/actions/artifacts?name=`, () => ({ artifacts: [] })],
     [`${R}/pulls/${s.number}/reviews?`, page([])],

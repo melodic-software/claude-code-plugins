@@ -103,7 +103,7 @@ is_new() {
 # the lines a copy-detecting diff adds to it, not the whole file: it is judged
 # like a rename's destination. The lib's diff detects renames, not copies.
 changed_lines() {
-  local d
+  local d s
   checks_changed_lines
   : >"$CHECKS_TMP/copies"
   while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' d; do
@@ -119,6 +119,18 @@ changed_lines() {
         count = (n[2] == "") ? 1 : n[2] + 0
         if (count > 0) printf "%s\t%d\t%d\n", path, start, start + count - 1
       }' >"$CHECKS_TMP/ranges.copy"
+  # A failed stage fails the hook and keeps the lib's ranges, which judge a
+  # copy whole: short ranges would drop findings. A diff stopped by SIGPIPE
+  # (141) means awk stopped first, and awk reports.
+  local -a st=("${PIPESTATUS[@]}")
+  if ((st[0] != 0 && st[0] != 141)); then
+    checks_tool_failed git "${st[0]}" 'listing the lines a copy adds'
+    return 1
+  fi
+  if ((st[1] != 0)); then
+    checks_tool_failed awk "${st[1]}" 'listing the lines a copy adds'
+    return 1
+  fi
   # A copy keeps its place in the table only when the lib listed it (a binary
   # file it dropped stays out); a copy that adds no line keeps no range.
   awk -F '\t' -v OFS='\t' '
@@ -127,6 +139,11 @@ changed_lines() {
     !($1 in copy) { print; next }
     !($1 in done) { done[$1] = 1; printf "%s", add[$1] }' \
     "$CHECKS_TMP/copies" "$CHECKS_TMP/ranges.copy" "$CHECKS_TMP/ranges" >"$CHECKS_TMP/ranges.new"
+  s=$?
+  if ((s != 0)); then
+    checks_tool_failed awk "$s" 'merging the lines a copy adds into the changed lines'
+    return 1
+  fi
   mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
 }
 
@@ -147,7 +164,15 @@ narrow_to_branch() {
     { for (i = 1; i <= n; i++) if (p[i] == $1) {
         lo = ($2 + 0 > s[i]) ? $2 + 0 : s[i]; hi = ($3 + 0 < e[i]) ? $3 + 0 : e[i]
         if (lo <= hi) print $1, lo, hi } }' \
-    "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges"
+    "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges.new"
+  local s=$?
+  # A failed awk fails the hook and keeps the plain range, never fewer lines.
+  if ((s != 0)); then
+    checks_tool_failed awk "$s" 'narrowing the changed lines to the branch'
+    mv "$CHECKS_TMP/ranges.push" "$CHECKS_TMP/ranges"
+    return 1
+  fi
+  mv "$CHECKS_TMP/ranges.new" "$CHECKS_TMP/ranges"
 }
 
 # nearest_pushed_base: moves BASE to the commit of a tracking ref of $remote
