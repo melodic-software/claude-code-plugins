@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "## Verified non-issues\n\n| Claim | Evidence |\n|---|---|\n| README.md:7 Node 20+ | Read `package.json:5` engines.node `>=20` |\n| README.md:10 `npm test` | Read `package.json:11` |\n\n## Drift patterns\n\nNone.",
+      "why": "hash heading then table"
+    },
+    {
+      "answer": "**Verified non-issues**\n\n- `npm test` runs the suite: package.json scripts.test is `node --test`.\n- Port 3000 default: src/config.js:1.",
+      "why": "bold heading then list"
+    },
+    {
+      "answer": "## Verified non-issues\n\n### README.md:7 Node 20+\n\nConfirmed: package.json engines.node is `>=20`.\n\n### README.md:10 tests in test/\n\nConfirmed: test/config.test.js exists.",
+      "why": "hash sub-heading per claim"
+    },
+    {
+      "answer": "1. **Verified non-issues**: README.md:9 port 3000 unless PORT, confirmed in src/config.js:1; README.md:10 tests in test/, confirmed by test/config.test.js.",
+      "why": "numbered bold inline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Verified non-issues\n\n3 claims verified.\n\n## Drift patterns\n\nREADME.md:9 drifted from package.json.",
+      "why": "count only; evidence sits in the next section"
+    },
+    {
+      "answer": "**Verified non-issues**: none.\n\n**Fix priority**: update README to match package.json.",
+      "why": "none, evidence word only in the next bold section"
+    },
+    {
+      "answer": "Everything else checked out against package.json.",
+      "why": "no verified non-issues section"
+    }
+  ]
+}

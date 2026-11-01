@@ -93,6 +93,7 @@ jobs:
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -1905,6 +1906,7 @@ jobs:
       || needs.check-intent.outputs.credential-present == 'false')
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -3681,6 +3683,7 @@ jobs:
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 301
+    cache-mode: read
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
