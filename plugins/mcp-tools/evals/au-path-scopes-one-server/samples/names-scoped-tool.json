@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: inventory_list_items",
+      "why": "heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#### Tool: payments_charge_card",
+      "why": "other server"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

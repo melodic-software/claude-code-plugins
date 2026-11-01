@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
-import { escalationRoute } from "./escalation-routes.mjs";
+import { escalationRoute, ROUTES } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Ids from .github/standards/trusted-actors/trusted-actors.json and the
@@ -1987,6 +1987,53 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
   assert.deepEqual([none.decision, none.skipReason], ["skip", "stop-resolved"], "no unresolved thread");
   const held = await run(fakeApi({ labels: ["needs-human"], reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }));
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"], "a person holds the PR");
+});
+
+// The census of 2026-10-25..11-01 (11 PRs, 19 failing statuses): a thread the
+// lane answered UNCERTAIN, VALID-defer or INCORRECT stayed open, the next
+// round dropped it, and feedback-untaken-threads failed the head with no
+// queue label, so the PR waited on the owner. Both stops now queue the PR
+// for a session builder (needs-session), and while that stop stands on the
+// head the select job stands down without escalating again.
+test("feedback-untaken-threads and feedback-unadjudicated queue the PR for a session builder", () => {
+  for (const reason of ["feedback-untaken-threads", "feedback-unadjudicated"]) {
+    assert.deepEqual([ROUTES[reason].route, ROUTES[reason].label], ["fail", "needs-session"], reason);
+  }
+});
+
+const laneStopped = (reason, { head = HEAD, user = APP_USER, activity = "address-feedback" } = {}) => ({
+  id: 5,
+  user,
+  body: `<!-- pr-unblock:lane-stopped activity=${activity} -->\r\nThe pr-unblock lane stopped \`${activity}\` on this pull request: why.\r\n\r\n- Reason: \`${reason}\`\r\n- Head: \`${head}\`\r\n`,
+});
+const answered = { reviewComments: [comment(100, REVIEWER), comment(101, HUMAN)], threads: [thread("PRRT_1", [100, 101])] };
+
+test("an untaken thread whose stop on this head is in the session-builder queue skips awaiting-session", async () => {
+  for (const reason of ["feedback-untaken-threads", "feedback-unadjudicated"]) {
+    const result = await run(fakeApi({ ...answered, labels: ["needs-session"], issueComments: [reviewedHead, laneStopped(reason)] }));
+    assert.deepEqual([result.decision, result.skipReason, result.escalationReason, result.resolved], ["skip", "awaiting-session", undefined, undefined], reason);
+  }
+});
+
+test("an untaken thread escalates again unless this head's own address-feedback stop is queued", async () => {
+  for (const [label, overrides] of [
+    ["no needs-session label", { issueComments: [reviewedHead, laneStopped("feedback-untaken-threads")] }],
+    ["a stop on an older head", { labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-untaken-threads", { head: OLD_HEAD })] }],
+    ["a stop comment not by the lanes App", { labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-untaken-threads", { user: { id: STRANGER, type: "User" } })] }],
+    ["a stop whose reason names no queue label", { labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-stood-open")] }],
+    ["another activity's queued stop", { labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("ci-fix-escalated", { activity: "fix-ci" })] }],
+  ]) {
+    const result = await run(fakeApi({ ...answered, ...overrides }));
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+  }
+});
+
+test("a queued stop still clears once no thread is unresolved, and a person's hold still wins", async () => {
+  const queued = { labels: ["needs-session"], issueComments: [reviewedHead, laneStopped("feedback-untaken-threads")] };
+  const resolved = await run(fakeApi({ ...queued, threads: [thread("PRRT_1", [100, 101], { isResolved: true })] }));
+  assert.deepEqual([resolved.decision, resolved.skipReason, resolved.resolved], ["skip", "stop-resolved", true]);
+  const held = await run(fakeApi({ ...answered, ...queued, labels: ["needs-session", "needs-human"] }));
+  assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"]);
 });
 
 // pr-feedback-dispatch.yml sends verify-pass-head after a pr-verify pass at

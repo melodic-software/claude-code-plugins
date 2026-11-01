@@ -73,7 +73,9 @@ Dispatch rules:
    standard into the next round's dispatch. The bar escalates; rounds are not independent repeats.
 6. **Set the model explicitly on every agent call; never let the fleet inherit the session's.** The
    `object-writer` agent's frontmatter pins `opus` as a fail-safe, so a call that forgets the model
-   never lands on the session's model, a tier picked for the orchestrator's work, not the writers'.
+   does not simply inherit the session's model, a tier picked for the orchestrator's work, not the
+   writers'. Whether the pin can still resolve to the session's own model is the Choose a model
+   pointer below's to state; check it before relying on the pin.
    The pin is not the fleet tier: every call still names the fleet default below. The environment
    can force every subagent onto one model, overriding a per-call `model`. Stop to ask before
    spawning when such a forcing setting is on and would put the fleet on a tier above the fleet
@@ -93,8 +95,9 @@ Dispatch rules:
    than inheriting. When a new tier appears it becomes eligible by clearing the same bar, not by
    being newer.
 
-   **Never run a fleet on a tier priced above the fleet default.** Premium tiers cost a multiple per
-   token in both directions, and a fan-out multiplies that by the agent count. A tier above the
+   **Never run a fleet on a tier priced above the fleet default.** Premium tiers are priced higher per
+   token (rates: [Pricing](https://platform.claude.com/docs/en/about-claude/pricing)), and a fan-out
+   multiplies that by the agent count. A tier above the
    default belongs at a judge or verifier stage at most, where one call reads many writes.
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
@@ -114,7 +117,7 @@ Dispatch rules:
 
    **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs (rhyme-field
    enumeration, word-pool merge, syllable counting, dedup) are reading-heavy and low-reasoning, and
-   a cheaper tier is correct there. Object writing is neither. Dropping the writing fleet's own tier
+   in this skill's judgment (no eval measures it) a cheaper tier fits there. Object writing is neither. Dropping the writing fleet's own tier
    to save cost is the writer's call, not the plugin's: ask, and never record the answer as his
    without a source that says so.
 

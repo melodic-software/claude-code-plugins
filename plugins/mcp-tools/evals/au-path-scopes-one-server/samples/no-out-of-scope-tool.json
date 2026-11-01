@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#### Tool: inventory_list_items\n\nServers audited: 1",
+      "why": "scoped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "payments_charge_card was not audited since it is out of scope.",
+      "why": "negation-shaped: naming it shows the scan left the path"
+    },
+    {
+      "answer": "| payments | 1 | 9 | 2 | 0 | 3 |\n#### Tool: payments_charge_card",
+      "why": "audited"
+    }
+  ]
+}

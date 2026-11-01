@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "# This is environment state, not a tool bug\n\nAn `empty capture (0x0)` almost always means the screen is not capturable right now, and `zoom` fails the same way because it re-captures rather than cropping. Retrying unchanged will fail identically, so stop rerunning it and walk the ladder in order:\n\n1. **Screensaver running?** The most likely cause; it is not a lock and not display sleep.\n2. **Locked?** A locked session blocks capture and input.\n3. **Display asleep?** The machine must be awake.\n4. **Pinned to a display?** You used `switch_display` to the external monitor. Return to `auto` and retry once before concluding anything.\n\n## Commands on macOS\n\nNo macOS probe commands ship with this plugin, because none has been verified. Read these in System Settings yourself: the screensaver idle delay, display sleep, and whether a password is required on wake. The ladder above applies unchanged.",
+      "why": "# heading reply"
+    },
+    {
+      "answer": "**Verdict:** not a defect in the tool. Empty captures come from machine state.\n\n**Why zoom failed too:** zoom is a fresh capture of the region, not a crop, so it fails whenever capture fails.\n\n**Check, in this order:**\n- a screensaver on screen\n- a locked session\n- a sleeping display\n- capture pinned by `switch_display` to the external monitor: reset it to auto\n\n**About the commands you asked for:** I can't give you verified Terminal commands for macOS; the probe set was only verified on Windows. Open System Settings and read the screen saver start delay, the display sleep time, and the require-password-after-sleep option.",
+      "why": "**bold** heading reply"
+    },
+    {
+      "answer": "| Step | Check | Why |\n|---|---|---|\n| 1 | Screen saver running | Most common cause; separate from lock and sleep |\n| 2 | Session locked | Lock screen blocks capture |\n| 3 | Display asleep | Machine must be awake |\n| 4 | Pinned display | Reset `switch_display` to `auto` |\n\nThis is environmental, so rerunning the screenshot won't change it. `zoom` re-captures, so it fails with capture.\n\nmacOS: unverified. No probe commands ship for it, so read the screen saver, display sleep and lock settings in System Settings.",
+      "why": "table reply"
+    },
+    {
+      "answer": "Commands for macOS aren't verified here, so I won't guess.",
+      "why": "aren't verified"
+    },
+    {
+      "answer": "No macOS probe commands ship.",
+      "why": "reference wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run `pmset -g` to see display sleep and `defaults -currentHost read com.apple.screensaver idleTime` for the screensaver.",
+      "why": "fabricated macOS commands"
+    },
+    {
+      "answer": "Check the screensaver in System Settings.",
+      "why": "no statement about verification"
+    }
+  ]
+}
