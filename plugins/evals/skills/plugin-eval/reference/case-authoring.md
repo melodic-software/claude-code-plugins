@@ -59,6 +59,16 @@ unless the case routes it in explicitly.
 - [ ] Text a grader must match lives where the model will actually read it. A skill's hub file is
       loaded on invocation; a reference spoke is read only if the model chooses to, and a `Read`
       outside the empty workspace can be denied. Grade on terms the hub itself carries.
+- [ ] A case whose skill must write under the workspace's `.claude/` cannot be measured past that
+      write: runs never prompt, and no grant or allow rule lifts that directory's write protection.
+      Grade only what the skill produces before the write, or record the case as unmeasured. Live
+      rule: [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
+      (the `dontAsk` row and the `permissions.allow` paragraph) with
+      [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools), as of 2026-11-01.
+      Recheck trigger: either section changes.
+- [ ] A case that tests settings seeds them in the workspace with `context.scaffold_script` and
+      points the prompt at that scope. The run's own config directory, user settings included, is
+      denied, and the gate fails a denied read there: it can change what the skill reports.
 
 ## Graders
 
