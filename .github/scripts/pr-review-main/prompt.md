@@ -17,8 +17,9 @@ denied, and a denied read voids the review:
   the diff. Ignore its steps for reading the pull request, posting comments or calling tools: the
   files below replace them, and your structured output replaces every post.
 - `STANDARDS_DIR`: the repository's review criteria (`REVIEW.md`), its engineering standards
-  (`standards/`) and its `.claude/rules/` files (`rules/`), also from the default branch, which the
-  lane's instructions may name. The review plugin's shared `reference/` sits two levels above
+  (`standards/`), its per-concern review rules (`review/`, when present; its `README.md` indexes
+  them, so read the ones whose concern the diff touches) and its `.claude/rules/` files (`rules/`),
+  also from the default branch, which the lane's instructions may name. The review plugin's shared `reference/` sits two levels above
   `CRITERIA_DIR`, where the lane's relative links point.
 - The pull request's diff, from its base to the reviewed head, split into these parts in order.
   Read every part whole, each with one Read call and no `offset` or `limit`: a review that skips
