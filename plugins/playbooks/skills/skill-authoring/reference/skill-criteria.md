@@ -33,6 +33,14 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
   key) and decide it against the
   [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
   Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
+- **Invocation convention.** Before setting `disable-model-invocation: true`, list every starter
+  that is not a person typing `/name`: another skill, a subagent preload, `/loop`, a routine, a
+  Desktop task, a workflow prompt, an event trigger. Any automation starter, present or planned,
+  makes the skill model-invocable, with its unattended safety in body gates and scripts. A skill is
+  user-invoked only when it is starved in the listing and no automation starts it. Why: several of
+  those starters cannot reach a user-invoked skill; the invocation-mode rubric above records which.
+  As of 2026-11-01. Recheck: a release note naming `disable-model-invocation`, skill preload,
+  scheduled tasks or routines.
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/skill-argument-shape/README.md)
   and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/argument-hint/README.md);
@@ -72,6 +80,12 @@ the two versions with `/evals:plugin-eval`. A cut to an existing skill ships onl
 
 ## Body
 
+- **Bare invocation.** Run with no action, a skill infers the action and its arguments from the
+  conversation. A read-only action proceeds and names what it inferred; that is the setting
+  `proceed`. A state change proposes the action and waits for a yes, a fixed floor no setting
+  lowers. With nothing to infer, ask one multiple-choice question. Unattended, a state change
+  stops and reports instead of proposing. Why: a read-only guess costs a rerun at worst, while a
+  guessed write needs the person's yes, and an unattended run has no one to give it.
 - Apply the deletion test, then the prompt audit's flags: trigger-case enumeration, step
   choreography for a judgment task, history narratives (see
   [History and provenance](#history-and-provenance)), and restated volatile specifics, which
