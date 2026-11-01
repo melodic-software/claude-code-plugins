@@ -15,6 +15,9 @@ Every optional reference to another plugin's skill carries, at the reference sit
    "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
    install-recipe sites and the third-party route-row fields the carve-outs below name).
+   For a user-only target (`disable-model-invocation: true`), the Skill tool cannot reach it,
+   so the sentence is "tell the user to run `/other-plugin:skill` (if that plugin is
+   installed)" ([evidence](#hand-off-phrasing-measured)).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
@@ -87,8 +90,9 @@ and Sonnet 5.5 gave the same 27 of 27 for A and C. For a user-only target, A and
 run `/plugin:skill`" each named the command in 9 of 9 runs with no Skill call.
 
 No arm beat A, so the shape above stands. The fixture skills are short, so the result does not
-cover a hand-off deep in a long skill body. A user-only target is phrased "tell the user to run
-`/plugin:skill`": the tie goes to it, since the Skill tool cannot reach a user-only skill.
+cover a hand-off deep in a long skill body. The user-only tie goes to "tell the user to run", the
+wording element 1 of the shape sets with its gate, since the Skill tool cannot reach a user-only
+skill.
 
 ## Conformance
 
