@@ -108,15 +108,15 @@ OUT="$(bash "$COPY" jira --root "$JROOT" 2>/dev/null)"
 assert_eq "the jira seed copies" "copied" "$OUT"
 jq -cn '{schema_version:"1.0", provider:"jira",
   config:{lease_ttl_hours:24, jira:{site:"a.atlassian.net", project_keys:["AB"],
-    auth_email:"a@example.invalid", auth_env:"WIT_SEED_COPY_TEST_UNUSED"}}}' >"$JROOT/.work-item-tracker.json"
-CAPS="$(CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/.work-item-tracker.json" \
+    auth_email:"a@example.invalid", auth_env:"WIT_SEED_COPY_TEST_UNUSED"}}}' >"$JROOT/binding.json"
+CAPS="$(CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/binding.json" \
   bash "$TRACKER" capabilities 2>"$TMP_ROOT/err")"
 assert_eq "the dispatcher runs the copied jira adapter" "0" "$?"
 assert_eq "…which names its provider" "jira" "$(jq -r '.provider' <<<"$CAPS" 2>/dev/null)"
 
 # With no copy the dispatcher points at setup instead of a bare not-found.
 rm -rf "$JROOT/tools"
-CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/.work-item-tracker.json" \
+CLAUDE_PROJECT_DIR="$JROOT" WORK_ITEM_TRACKER_BINDING="$JROOT/binding.json" \
   bash "$TRACKER" capabilities >/dev/null 2>"$TMP_ROOT/err"
 assert_eq "an uncopied seed → exit 3" "3" "$?"
 assert_contains "…naming the setup step that copies it" "$(<"$TMP_ROOT/err")" "/work-items:setup apply"
