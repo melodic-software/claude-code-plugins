@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.134.1] - 2026-11-01
+
+### Fixed
+
+- `/planning:interview` names the `resolve-convention-home.sh` command in its EARS spoke and has it run before any `AGENTS.md`, `CLAUDE.md` or `authoring-formats/README.md` read for `acceptance_criteria_format`, so a repository whose pointer line names a non-default convention home gets its own format instead of the default path's.
+
+- `align.test.sh` now fails under `CI=true` when node is missing or when `align.js` skips for want
+  of playwright-core or a Chromium, as the UI suites already do, so a CI leg without a browser no
+  longer reports the page alignment check green. Local runs still skip green
+  ([#8498](https://github.com/melodic-software/claude-code-plugins/issues/8498)).
+
 ## [0.134.0] - 2026-11-01
 
 ### Added
