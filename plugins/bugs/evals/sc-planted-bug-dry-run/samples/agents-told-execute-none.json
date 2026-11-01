@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "Hunt src/discount.js for boundary defects. Execution permission: `execute: none`. Run nothing from the repository.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate: candidate 1",
+            "prompt": "Your default verdict is REFUTE. execute: none",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "Hunt src/discount.js for boundary defects.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate: candidate 1",
+            "prompt": "Your default verdict is REFUTE. Run a quick node check if it helps.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "no execution permission line, so the single-prompt run set none and never said so"
+    }
+  ]
+}

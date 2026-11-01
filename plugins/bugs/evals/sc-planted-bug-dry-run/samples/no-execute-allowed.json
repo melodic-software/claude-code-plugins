@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate: candidate 1",
+            "prompt": "Your default verdict is REFUTE. execute: none",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate: candidate 1",
+            "prompt": "Your default verdict is REFUTE. execute: allowed",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "nobody answered in a single-prompt run, so no yes set allowed"
+    }
+  ]
+}

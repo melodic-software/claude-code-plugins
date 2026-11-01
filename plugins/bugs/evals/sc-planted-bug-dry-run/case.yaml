@@ -33,6 +33,30 @@ graders:
     pattern: '\b(?:src/)?discount\.js(?::\d+|#L\d+|,? line \d+)'
     flags: 'i'
     target: last_message
+  - name: agents-told-execute-none
+    type: tool_used
+    tool: Agent
+    input_match: 'execute:\s*none'
+    min: 1
+  - name: no-execute-allowed
+    type: tool_used
+    tool: Agent
+    input_match: 'execute:\s*allowed\b'
+    min: 0
+    max: 0
+  - name: no-fixture-execution
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\b(?:node|npm|npx|pnpm|yarn|bun|bunx|deno)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: evidence-not-reproduced
+    type: regex
+    pattern: '\bEvidence\b(?:\*\*)?[ \t]*(?:[:|—–]|-[ \t]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?reproduced\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message
   - name: no-write
     type: tool_used
     tool: Write

@@ -120,6 +120,36 @@
         "Lens 5 is not dispatched",
         "The run metadata names the lenses used"
       ]
+    },
+    {
+      "id": 9,
+      "name": "unattended-run-executes-nothing",
+      "prompt": "Unattended routine run, nobody is present to answer questions: /bugs:scan evals/fixtures/member-card/member-card.js --dry-run",
+      "expected_output": "The caller declares the run unattended, so Step 1 sets `execute: none` without asking anything, names it in the run metadata, and puts it in every hunter and gate prompt. No hunter, gate or main-thread step runs the fixture or any repository code (no node, npm, npx or test runner invocation). Every surviving finding is labeled `verified-by-reading` with the reason that execution was not permitted on this run; none is labeled `reproduced`.",
+      "files": [
+        "evals/fixtures/member-card/member-card.js"
+      ],
+      "expectations": [
+        "The run asks no question and does not end its turn waiting for permission",
+        "The run metadata names the execution permission as `execute: none`",
+        "Every hunter and gate dispatch prompt carries `execute: none`",
+        "No Bash call in the main thread or any subagent runs node, npm, npx, a test runner, or any other repository code",
+        "Every surviving finding carries the evidence label `verified-by-reading`, and no finding is labeled `reproduced`"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "undeclared-single-prompt-run-does-not-stall",
+      "prompt": "/bugs:scan evals/fixtures/member-card/member-card.js --dry-run",
+      "expected_output": "Nothing declares the run unattended, but a single-prompt run cannot wait for the person's answer, so Step 1 sets `execute: none` without ending the turn on a question, and the run continues to dispatch hunters and gates. Survivors are labeled `verified-by-reading`.",
+      "files": [
+        "evals/fixtures/member-card/member-card.js"
+      ],
+      "expectations": [
+        "The run does not end its turn on the execution-permission question; hunters and a gate are dispatched",
+        "The execution permission is `execute: none`, because no explicit yes from the person arrived",
+        "No surviving finding is labeled `reproduced`"
+      ]
     }
   ]
 }
