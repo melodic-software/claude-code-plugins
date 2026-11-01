@@ -193,7 +193,8 @@ validator preference order and plan-validate-execute, and diagnosing an embedded
 
 Read [`reference/skill-criteria.md`](reference/skill-criteria.md) when writing, rewriting or
 reviewing a skill or plugin agent: frontmatter, descriptions (the fuller form of tip 5), body,
-reference files, metadata, history and provenance, agents, and measurement, including the
+stack-specific tools, reference files, metadata, history and provenance, agents, and measurement
+(with the route for cutting text and the re-audit on each model release), including the
 pre-share checklist whose rows are tagged mechanical (with the `skill-quality:check` number),
 judgment, or attestation. It is the house standard other skills cite by heading, and its Sources
 section holds the record behind every figure.

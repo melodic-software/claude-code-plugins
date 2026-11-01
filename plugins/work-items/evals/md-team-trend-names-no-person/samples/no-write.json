@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/work-items/skills/measure-delivery/scripts/delivery-metrics.sh\" --repo /w --deploy-signal merge-to-default-branch --branch main"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/delivery-report.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writes a report file"
+    }
+  ]
+}

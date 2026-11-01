@@ -19,7 +19,7 @@
 #
 # Exit 0 = every registered question is resolved (register is clean) and, with
 #          --procedure, the procedure checks below pass
-# Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
+# Exit 1 = at least one question is still `open`, `discussing` or `superseded-by-plan` (the
 #          contract is not locked), --procedure found a procedure defect
 #          (the register is gradeable but the interview did not complete its
 #          own procedure; fix the ledger or Brief and re-run), the named
@@ -44,7 +44,9 @@
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
 #   - Q1 | answered | round 1 | <question> | <resolution>
-# Statuses: open | answered | deferred | withdrawn | blocked | superseded-by-plan
+# Statuses: open | discussing | answered | deferred | withdrawn | blocked | superseded-by-plan
+# `discussing` is an `open` question the user asked to talk through: it counts
+# in `open=<n>` and blocks the gate the same way.
 # `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
 # the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
 # gate exactly like `open`.
@@ -879,7 +881,7 @@ while IFS= read -r line; do
   # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
   shopt -s nocasematch
   case "$status_field" in
-  open) open_count=$((open_count + 1)) ;;
+  open | discussing) open_count=$((open_count + 1)) ;;
   answered) answered=$((answered + 1)) ;;
   deferred)
     deferred=$((deferred + 1))

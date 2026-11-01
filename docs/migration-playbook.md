@@ -353,9 +353,12 @@ path states "no upstream" and names the regeneration trigger instead (e.g. a mod
 
 ## Evals: warrant policy and consumer-verify recipe
 
-Evals are model-graded behavior fixtures at `plugins/<plugin>/skills/<skill>/evals/evals.json`,
-schema `plugins/skill-quality/reference/evals.schema.json`. They are **warranted, not mandatory**:
-a skill ships them only when they earn their keep.
+Evals are model-graded behavior cases. A new case is a `claude plugin eval` suite case at
+`plugins/<plugin>/evals/<case>/case.yaml` whose one-line `tags: [...]` list, in `case.yaml` or in
+`prompt.md`'s frontmatter, holds the directory name of the skill it covers, checked with no model call by `/evals:validate`. Per-skill `plugins/<plugin>/skills/<skill>/evals/evals.json`
+files (schema `plugins/skill-quality/reference/evals.schema.json`) are legacy: existing ones stay
+until `plugins/evals/skills/plugin-eval/scripts/convert-evals-json.py` converts them, and no new one
+is added. Evals are **warranted, not mandatory**: a skill ships them only when they earn their keep.
 
 **Warrant rule.** A skill **warrants** evals when it carries a judgment-bearing behavioral contract
 that could silently regress: how it triggers, how it routes an ambiguous request, when it refuses,
@@ -371,26 +374,31 @@ plugin's shape does not exempt it: a `setup` skill *is* warrantable (the `codeba
 eval is the model). Gray-zone skills (thin mechanical wrappers, reference-ish
 routers) are **author-confirm**: re-check the warrant against the live `SKILL.md` at authoring time
 and record an explicit skip verdict if it dissolves, because a satisfied "looks covered" is not a warrant.
-This section is the policy; current coverage is verified on demand. Glob
-`plugins/*/skills/*/evals/evals.json` across the tree and read the result against the warrant rule
-above, never from a checked-in snapshot that decays the moment a skill lands.
+This section is the policy; current coverage is verified on demand. Read the `tags:` of
+`plugins/*/evals/*/case.yaml` and of each case's `prompt.md` frontmatter (where
+`convert-evals-json.py` writes them), and glob the legacy `plugins/*/skills/*/evals/evals.json` across the
+tree, and read the result against the warrant rule above, never from a checked-in snapshot that
+decays the moment a skill lands.
 
 **The gate honors a recorded skip.** `scripts/check-changed-skills.sh` passes `--require-evals` for
 every skill whose `SKILL.md` is new or modified, and `plugins/skill-quality/scripts/check-skill.sh`
-then hard-FAILs on a missing `evals/evals.json`, unless that skill is listed in
-`scripts/evals-warrant-exemptions.txt`. A skip becomes a reviewed, diffable line rather than an
-implicit absence; anything unlisted still fails closed. The file is stale-guarded: a row whose
+then hard-FAILs unless a case in the skill's plugin `evals/` tags its directory name, the skill still ships a legacy
+`evals/evals.json`, or the skill is listed in `scripts/evals-warrant-exemptions.txt`. A skip
+becomes a reviewed, diffable line rather than an implicit absence; anything unlisted still fails
+closed. The file is stale-guarded: a row whose
 skill is gone, or that now ships `evals/evals.json`, fails the gate so the list can only shrink.
 This is the Exit A decision from #3135: the warrant rule above and the CI gate now agree.
 
-**Rich form.** Each case carries `id`, a kebab-case `name`, a `prompt`, an `expected_output`
-description, optional `files` fixtures, and an `expectations` array of objectively-verifiable checks
-(the field may equivalently be named `assertions`, the name skill-creator upstream uses). Aim to
-cover trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
-must not do.
+Whatever the format, aim to cover trigger/routing, the happy path, at least one refusal/guardrail,
+and one anti-pattern the skill must not do.
 
-Give a new case a slug `id`, the same kebab-case text as its `name`, never the next integer: two
-pull requests that each take the next number collide on merge. The schema accepts integer and
+**Legacy rich form.** Each case in an existing `evals.json` carries `id`, a kebab-case `name`, a
+`prompt`, an `expected_output` description, optional `files` fixtures, and an `expectations` array
+of objectively-verifiable checks (the field may equivalently be named `assertions`, the name
+skill-creator upstream uses).
+
+When an existing file gains a case, give it a slug `id`, the same kebab-case text as its `name`,
+never the next integer: two pull requests that each take the next number collide on merge. The schema accepts integer and
 string ids and the quality lint requires only that they are unique, so existing integer ids stay.
 
 **Method source.** The methodology behind this policy is Anthropic's "Define success criteria and
@@ -403,8 +411,7 @@ eval. Two deliberate divergences from the guidance hold for this corpus, and the
 below says why a shipped runner does not close them: nothing grades an `evals/evals.json` case in
 this repository, so case volume stays low (the guidance's volume-over-polish principle assumes
 cheap automated grading) and grading is a human judgment pass (the method the guidance ranks last).
-A behavioral contract that warrants a measured number instead of a reviewed fixture gets a
-`claude plugin eval` suite, which is a different format and a different decision.
+New cases use the `claude plugin eval` suite format instead, which the command runs and grades.
 
 **Adoption record: `claude plugin eval`, and which eval format is which.** Two Anthropic-owned eval
 formats exist and they are not the same. The one this per-skill corpus uses is **`skill-creator`'s**:
@@ -425,14 +432,12 @@ record supersedes the deferral, it does not close the ticket. The adopted surfac
 plugin, whose `/evals:plugin-eval` guides a run of the command and whose `/evals:validate` checks
 case files with no model call, over the pilot suite at `plugins/evals/evals/`.
 
-**Both formats stay, and neither migrates into the other.** Anthropic states the separation from
-both sides, and they answer different questions. The per-skill `evals/evals.json` corpus remains
-the default and the gated one: `scripts/check-changed-skills.sh` requires it and
-`/skill-quality:check validate-evals` schema-checks it on every PR. A `prompt.md` plus `graders/*.md`
-suite is warranted where a plugin's contribution needs a measured with-versus-without number rather
-than a reviewed fixture; it runs on demand rather than in CI, because every run and every judge
-grader is a metered model call, and its only static gate here is `/evals:validate`.
-**The consequence for authors of an `evals.json` case is unchanged:** nothing in *this* CI executes
+**The suite format is the default for new cases.** The per-skill `evals/evals.json` corpus is
+legacy: `scripts/check-changed-skills.sh` still accepts it in place of a tagging suite case,
+`/skill-quality:check validate-evals` schema-checks it on every PR, and `convert-evals-json.py`
+converts it into plugin suite cases. A suite runs on demand rather than in CI, because every run
+and every judge grader is a metered model call, and its only static gate here is `/evals:validate`.
+**For a legacy `evals.json` case:** nothing in *this* CI executes
 that prompt, since the gates only lint and schema-check it, so a case must be
 readable and followable by a human or an agent working by hand, and must not depend on a runner
 having been invoked. That is not the same as no runner existing: a consumer with Anthropic's
@@ -456,13 +461,15 @@ reference "plugin caching and file resolution"), so after a marketplace update t
 can differ from the enabled copy. Step 3 (exercise) is the definitive as-enabled check because it runs
 against the plugin you actually invoked. Then:
 
-1. **Presence.** Confirm the file `<root>/<skill>/evals/evals.json` exists. The static gate is only a
+1. **Presence.** Confirm a case under `plugins/<plugin>/evals/` tags the skill, or, for a skill not
+   yet converted, that `<root>/<skill>/evals/evals.json` exists. The static gate is only a
    partial signal: `/skill-quality:check <skill>` (`check` is both the skill's leaf name and its
    default action, run with `skills_root` pointed at `<root>` via `/skill-quality:setup`) flags a
    *missing* eval file only for action-router-shaped skills, because its check fires on a `## Actions`
    heading, so a warranted non-router skill (e.g. `debug`) passes `check` without flagging the gap. Rely on the
    direct file check or the coverage snapshot, not a green `check`, to confirm presence.
-2. **Schema + quality lint.** `/skill-quality:check validate-evals <skill>` (same `skills_root`)
+2. **Schema + quality lint.** `/evals:validate plugins/<plugin>/evals` checks suite cases. For a
+   legacy file, `/skill-quality:check validate-evals <skill>` (same `skills_root`)
    validates `evals/evals.json` against the bundled schema, then runs the deterministic
    eval-quality lint (`check-evals-quality.sh`: duplicate case ids/names, unresolvable `files`
    fixtures, empty or vague grading criteria, advisory set-coverage warnings). Still static: it

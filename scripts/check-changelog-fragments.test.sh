@@ -147,6 +147,22 @@ expect "--check rejects a ## heading in the body" 1 "would break the CHANGELOG s
 rm -rf "$f"
 
 base_fixture f alpha
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- a \`<!-- d5 finding=\` marker"
+fragment "$f" alpha feat-y-89abcdef patch "### Fixed
+
+- a \`<!-- d5 finding=<#> ... -->\` marker"
+expect "--check rejects an unclosed <!-- and passes a closed one" 1 "feat-x-0123abcd.md: <!-- is never closed with -->" "$f" --check
+out="$(run_gate "$f" --check 2>&1)"
+if [[ "$out" == *"feat-y-89abcdef.md: <!--"* ]]; then
+  fail "a closed <!-- ... --> should pass: $out"
+else
+  ok "a closed <!-- ... --> in a fragment passes"
+fi
+rm -rf "$f"
+
+base_fixture f alpha
 fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"

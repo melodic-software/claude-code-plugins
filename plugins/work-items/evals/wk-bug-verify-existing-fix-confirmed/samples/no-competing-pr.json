@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Confirmed. Closed #8 with the four runs and 4f1c2ab cited. No PR is opened: verify-existing-fix never opens a competing PR.",
+      "why": "states the boundary"
+    },
+    {
+      "answer": "Confirmed; #8 closed without opening a PR.",
+      "why": "without opening"
+    },
+    {
+      "answer": "The fix already on main resolves it, so the run does not open a pull request.",
+      "why": "does not open"
+    },
+    {
+      "answer": "Closed #8 instead of opening a competing PR, and rather than open a new PR the run cites 4f1c2ab.",
+      "why": "instead of, rather than"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Confirmed the bug, wrote a fix to greet and opened a draft PR.",
+      "why": "opened a PR"
+    },
+    {
+      "answer": "Next I open a new pull request that hardens the fix.",
+      "why": "competing PR"
+    }
+  ]
+}
