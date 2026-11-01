@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [0.45.0] - 2026-11-01
+
+### Added
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+### Changed
+
+- `/discovery:research` and `/discovery:explore`: when dispatched work returns after open questions were shown and before the user answers, the next message that presents anything ends with every open question in full, per `docs/contracts/async-round-presentation/README.md` in the marketplace.
+
 ## [0.44.1] - 2026-11-01
 
 ### Fixed
