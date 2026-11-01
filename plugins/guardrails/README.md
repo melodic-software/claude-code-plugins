@@ -403,7 +403,7 @@ out of scope until such a signal exists.
   weaker evidence about others; it contains no `MultiEdit` or `NotebookEdit`
   entries at all. `NotebookEdit` is covered by the contract suite and the shared
   matcher, not by the sweep; the matcher no longer names the legacy `MultiEdit`.
-  **The ratio considered acceptable for this surface is a false-positive rate
+  **The ratio considered acceptable for this lane is a false-positive rate
   near zero, and the justification is that the cost of a wrong block here is
   unusually low**: the agent gets a stderr line naming `%TEMP%` and reissues
   the write, which is a second of friction,
@@ -1266,7 +1266,7 @@ three PreToolUse processes to one, three PostToolUse processes to one.
 Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md)
 rule 1, widening an always-on hook's matcher states its measured share of the
 fleet budget. `block-windows-drive-tmp` moved from `Bash|PowerShell` to that set
-plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the surface that
+plus `Write|Edit|MultiEdit|NotebookEdit` in **0.30.0**, so the cost that
 changed is the **per-`Write` tool call**, whose ceiling is ≤ 1 s typical /
 ≤ 2 s worst-case.
 
@@ -1455,8 +1455,8 @@ repo-specific policy of their own:
   narrow or switch it off (`block_dangerous_git_enabled`,
   `block_dangerous_git_allow`). The `harness-config` plugin's `audit` skill reads
   it to demote a missing baseline deny pattern to `info` when the family is
-  already blocked by a live hook, citing the manifest and naming the levers as
-  the residual. It is data, never executed, and adds no per-call latency;
+  already blocked by a live hook, citing the manifest and naming the options that
+  narrow or switch it off as the residual. It is data, never executed, and adds no per-call latency;
   `coverage-manifest.test.sh` pins it to the guards it describes.
 
 ## Telemetry (opt-in)
@@ -1505,7 +1505,7 @@ guards behave exactly as before.
 /plugin install guardrails@<marketplace>
 ```
 
-Then verify the runtime prerequisites and live guard surface with
+Then verify the runtime prerequisites and the active guards with
 `/guardrails:check`; `/guardrails:setup apply` resolves anything the
 check reports with guidance. `/guardrails:setup apply install-git-hooks` registers the
 [git hooks](#git-hooks) (commit convention, secrets and paths, flags and references) for this
