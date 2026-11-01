@@ -280,6 +280,62 @@ git -C "$REPO" add notes.md
 expect "a merge: a secret the conflict resolution writes blocks" "1|notes.md:2: secret or credential pattern: GitHub PAT
 $HINT" "$(check "$REPO")"
 
+# A text tool that fails mid-scan (gawk's "fatal error: internal error" on a
+# large merge) blocks the commit instead of leaving content unscanned. Each case
+# fails the calls whose arguments hold its marker, so each site is proved on
+# its own, and the staged change holds a finding that site carries.
+SHIMS="$WORK/shims"
+mkdir "$SHIMS"
+for t in awk grep sed sort cut; do
+  # shellcheck disable=SC2016 # $* and $SHIM_FAIL expand when the shim runs
+  printf '#!/bin/sh\ncase " $* " in\n*"$SHIM_FAIL"*) echo "%s: cmd. line:2: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+    "$t" "$(command -v "$t")" >"$SHIMS/$t"
+  chmod +x "$SHIMS/$t"
+done
+check_failing() { # <repo> <marker> -> "<rc>|<last stderr line>"
+  local err rc
+  err="$(cd "$1" && PATH="$SHIMS:$PATH" SHIM_FAIL="$2" bash "$CHECK" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "${err##*$'\n'}"
+}
+SCAN_ERR='guardrails: the content scan did not finish, so this change was not fully scanned; fix the tool failure named above, then commit again.'
+FAKE_MAC_SHARED="${SL}Users${SL}Shared${SL}cache"
+FAKE_MAC="${SL}Users${SL}alice${SL}projects${SL}demo"
+# shellcheck disable=SC2016 # each marker is literal program text
+for c in \
+  'the changed-line ranges|/^\+\+\+ /|token=%s\n' \
+  'the added-lines filter|want=|token=%s\n' \
+  'the findings filter|match($0, /:[0-9]+: /)|token=%s\n' \
+  'the path findings|tag=|see '"$FAKE_LINUX"' here %.0s\n' \
+  'the macOS Shared re-test|keep=|a '"$FAKE_MAC_SHARED"' b '"$FAKE_MAC"' %.0s\n' \
+  'the secret prefilter grep|-qE|token=%s\n' \
+  'the secret findings sed|(line|token=%s\n' \
+  'the findings sort|-k1,1n|token=%s\n' \
+  'the findings cut|-f3-|token=%s\n'; do
+  IFS='|' read -r label marker body <<<"$c"
+  new_repo
+  # shellcheck disable=SC2059 # body is the fixture format
+  printf "line one\nline two\n$body" "$FAKE_GHP" >"$REPO/notes.md"
+  git -C "$REPO" add notes.md
+  expect "a failing scan tool blocks: $label" "1|$SCAN_ERR" "$(check_failing "$REPO" "$marker")"
+done
+# The library greps send their stderr to /dev/null, so the hook names the tool
+# that failed itself.
+new_repo
+printf 'line one\nline two\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+err="$(cd "$REPO" && PATH="$SHIMS:$PATH" SHIM_FAIL='-qE' bash "$CHECK" 2>&1 >/dev/null)"
+expect "a failing scan tool is named even when its stderr is discarded" yes \
+  "$(grep -qxF 'guardrails: grep exited 2 during the content scan' <<<"$err" && echo yes)"
+new_repo
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/n.bin"
+git -C "$REPO" add n.bin
+expect "a failing scan tool blocks: the NUL-file pass merge" "1|$SCAN_ERR" "$(check_failing "$REPO" 'p2 = 1')"
+new_repo
+printf 'line one\nline two\nclean\n' >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "a scan whose tools all succeed passes through the shims" "0|" "$(check_failing "$REPO" 'no-such-marker')"
+
 # End to end through the plugin's vendored installer and a real commit.
 new_repo
 status="$(node "$INSTALL" copy --scope local --entry pre-commit-content --repo "$REPO")"
