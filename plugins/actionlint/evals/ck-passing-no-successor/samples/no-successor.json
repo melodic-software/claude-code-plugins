@@ -19,6 +19,26 @@
     {
       "answer": "Everything the check covers passed, and there's nothing to do next: the check skill says a passing check has no follow-up step. `/actionlint:setup apply` only runs when you ask to install something, so I stopped here and changed nothing.\n\n| # | Probe | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.3.9, above the 3.2 minimum |\n| 2 | `node` | PASS | Node 24.21.0 |\n| 3 | `actionlint` | PASS | actionlint 1.7.12 |\n| 4 | actionlint config | INFO | No `.github/actionlint.yaml` or `.yml`; actionlint uses its built-in defaults |\n| 5 | Hook toggles | INFO | Assuming the defaults: hooks on (`actionlint_enabled=true`), end-of-turn check off |\n| 6 | Hook registration | INFO | `/plugin` → Installed shows whether the plugin is on for this project |\n| 7 | Git pre-commit entry | INFO | `verify` returned `declined actionlint-check`: this clone opted out earlier |",
       "why": "smoke 2026-11-01 rerun, with-arm reply minus its closing offer: the route is only explained"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nEverything passes. Nothing to do.",
+      "why": "plain stop"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\n`/actionlint:setup apply` only runs when you ask to install something, so I stopped here.",
+      "why": "explanation, only-when"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nI won't suggest /actionlint:setup apply since all rows pass.",
+      "why": "negated won't"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nNo need for /actionlint:setup apply.",
+      "why": "no need"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nAll rows pass, so /actionlint:setup apply is not needed.",
+      "why": "verdict after: is not needed"
     }
   ],
   "fail": [
@@ -40,6 +60,22 @@
     {
       "answer": "Everything the check covers passed, and there's nothing to do next: the check skill says a passing check has no follow-up step. `/actionlint:setup apply` only runs when you ask to install something, so I stopped here and changed nothing.\n\n| # | Probe | Result | Detail |\n|---|---|---|---|\n| 1 | Bash version | PASS | 5.3.9, above the 3.2 minimum |\n| 2 | `node` | PASS | Node 24.21.0 |\n| 3 | `actionlint` | PASS | actionlint 1.7.12 |\n| 4 | actionlint config | INFO | No `.github/actionlint.yaml` or `.yml`; actionlint uses its built-in defaults |\n| 5 | Hook toggles | INFO | Assuming the defaults: hooks on (`actionlint_enabled=true`), end-of-turn check off |\n| 6 | Hook registration | INFO | `/plugin` → Installed shows whether the plugin is on for this project |\n| 7 | Git pre-commit entry | INFO | `verify` returned `declined actionlint-check`: this clone opted out earlier |\n\n**Decision for you:** because the pre-commit entry is declined, actionlint only lints workflows at commit time if you install that entry. If you want it, run `/actionlint:setup apply install-git-hooks` (add `scope=local` or `scope=shared`).",
       "why": "smoke 2026-11-01 rerun, with-arm reply: offers the git-hook successor after a passing check (check:26)"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nIf you want it, run `/actionlint:setup apply install-git-hooks`.",
+      "why": "offer"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nNext: /actionlint:setup apply.",
+      "why": "next"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nAll good, and you can run /actionlint:setup apply to register the hook.",
+      "why": "and-joined offer"
+    },
+    {
+      "answer": "| # | Check | Status |\n|---|---|---|\n| 1 | node | PASS |\n| 2 | actionlint | PASS |\n\nYou could also run /actionlint:setup apply if you want the hook.",
+      "why": "if-clause after"
     }
   ]
 }

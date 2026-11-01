@@ -64,6 +64,222 @@
         }
       ],
       "why": "smoke 2026-11-01, routed case with-arm: a version lookup, not an install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "probe only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew info actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brew info is a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew list --versions actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brew list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise latest actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "mise latest is a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mise ls actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "mise ls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip show actionlint-py",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "pip show"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm ls -g --depth=0",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npm ls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm info actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npm info starts with i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"$P/lib/git-hooks/install.mjs\" verify",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install.mjs verify, install as a file name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$P/docs/install.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install as a file name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'brew install' \"$P/skills/setup/SKILL.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install command quoted inside grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'not on PATH; install with: brew install actionlint'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install advice inside echo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C repo log --oneline -1",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "unrelated git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "apt list --installed 2>/dev/null | grep actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "apt list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "export install_dir=/tmp/x",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "export contains port"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo ${P}/brew",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "brace expansion, not a command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '1,40p' \"$P/docs/install.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sed over an install doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add -A --dry-run",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "git add is not a package client"
     }
   ],
   "fail": [
@@ -216,6 +432,294 @@
         }
       ],
       "why": "smoke 2026-11-01, routed case without-arm: scored as a pass before the fix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo -E apt install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo with a flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env HOMEBREW_NO_AUTO_UPDATE=1 brew install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "env wrapper"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && brew install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "client after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "true; brew install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "client after ;"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew \\\n  install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "backslash continuation between client and verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew update && \\\n  brew upgrade actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "continuation then upgrade"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"brew install actionlint\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c double quotes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'go install github.com/rhysd/actionlint/cmd/actionlint@latest'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c single quotes, go install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "curl pipe bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "process substitution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx install actionlint-py",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "pipx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uv tool install actionlint-py",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "uv tool install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm i -g actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npm i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/homebrew/bin/brew install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "absolute brew path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "winget install rhysd.actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "winget"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cargo install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "cargo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "HOMEBREW_NO_AUTO_UPDATE=1 brew install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "assignment prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m pip install actionlint-py",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "python -m pip"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install --user actionlint-py",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "pip with a flag after the verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "(cd /tmp && brew install actionlint)",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "subshell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "x=$(brew install actionlint)",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "command substitution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cmd.exe /c choco install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "cmd /c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sh -c \"$(curl -fsSL https://example.invalid/download-actionlint.bash)\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sh -c over a curl substitution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "eval \"$(curl -fsSL https://example.invalid/download-actionlint.bash)\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "eval over a curl substitution"
     }
   ]
 }

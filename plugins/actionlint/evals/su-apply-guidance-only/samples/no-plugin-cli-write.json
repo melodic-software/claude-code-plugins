@@ -22,6 +22,54 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin marketplace list",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "marketplace list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'claude plugin install' README.md",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted inside grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'claude plugin install actionlint'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "inside echo"
     }
   ],
   "fail": [
@@ -59,6 +107,78 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin install actionlint@melodic-software",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugin uninstall actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "uninstall"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && claude plugin configure actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude plugins disable actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "plural"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude \\\n  plugin install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "continuation"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "claude --debug plugin install actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag before plugin"
     }
   ]
 }

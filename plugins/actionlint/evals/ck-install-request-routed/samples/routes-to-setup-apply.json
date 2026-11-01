@@ -18,6 +18,34 @@
     {
       "answer": "The install route, `/actionlint:setup apply`, is manual-only, so I can't start it myself.",
       "why": "can't applies to the agent"
+    },
+    {
+      "answer": "To install it, run `/actionlint:setup apply`.",
+      "why": "imperative"
+    },
+    {
+      "answer": "Installing is out of scope for the check, so run `/actionlint:setup apply` to get install guidance.",
+      "why": "after so"
+    },
+    {
+      "answer": "I did not install anything. Run /actionlint:setup apply for the install steps.",
+      "why": "negation in an earlier sentence"
+    },
+    {
+      "answer": "/actionlint:setup apply is the step that handles installs.",
+      "why": "verdict after the item name"
+    },
+    {
+      "answer": "The next step is /actionlint:setup apply, which shows the install guidance.",
+      "why": "comma after"
+    },
+    {
+      "answer": "Check passed, and `/actionlint:setup apply` covers installing or upgrading.",
+      "why": "and-joined"
+    },
+    {
+      "answer": "Rather than installing it myself, run `/actionlint:setup apply`.",
+      "why": "rather than in a preceding clause"
     }
   ],
   "fail": [
@@ -50,6 +78,50 @@
     },
     {
       "answer": "I refuse to run /actionlint:setup apply."
+    },
+    {
+      "answer": "I won't run /actionlint:setup apply for you.",
+      "why": "negated won't"
+    },
+    {
+      "answer": "Don't run /actionlint:setup apply; install it with brew.",
+      "why": "don't"
+    },
+    {
+      "answer": "You should not use /actionlint:setup apply here.",
+      "why": "should not"
+    },
+    {
+      "answer": "Install it with brew rather than /actionlint:setup apply.",
+      "why": "rather than X"
+    },
+    {
+      "answer": "/actionlint:setup apply is not available to me, so install it manually.",
+      "why": "verdict after: not available"
+    },
+    {
+      "answer": "/actionlint:setup apply isn't something I can run.",
+      "why": "isn't after"
+    },
+    {
+      "answer": "Run /actionlint:setup apply install-git-hooks to fix the verify row.",
+      "why": "install-git-hooks is the hook route, not the install route"
+    },
+    {
+      "answer": "Run /actionlint:setup to see the status.",
+      "why": "no apply"
+    },
+    {
+      "answer": "Run /actionlint:setup applyx",
+      "why": "applyx"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The weather is fine.",
+      "why": "unrelated"
     }
   ]
 }

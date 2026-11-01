@@ -8,6 +8,22 @@
     },
     {
       "answer": "actionlint: found at /usr/local/bin/actionlint (PASS)."
+    },
+    {
+      "answer": "actionlint resolves to /usr/local/bin/actionlint.",
+      "why": "resolves"
+    },
+    {
+      "answer": "✅ actionlint found on PATH",
+      "why": "emoji first"
+    },
+    {
+      "answer": "| actionlint | PASS |",
+      "why": "table"
+    },
+    {
+      "answer": "actionlint is still missing from PATH.",
+      "why": "missing"
     }
   ],
   "fail": [
@@ -21,6 +37,22 @@
     },
     {
       "answer": "Everything should be fine now."
+    },
+    {
+      "answer": "I marked it resolved.",
+      "why": "no probe"
+    },
+    {
+      "answer": "actionlint_enabled is true",
+      "why": "toggle"
+    },
+    {
+      "answer": "/actionlint:setup found nothing to do",
+      "why": "slash command name"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }

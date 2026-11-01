@@ -67,6 +67,78 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node && command -v actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "second after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint || echo missing",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "type -P actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "type -P"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp; actionlint --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version after ;"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'command -v actionlint'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "bash -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo which actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sudo which"
     }
   ],
   "fail": [
@@ -109,6 +181,66 @@
         }
       ],
       "why": "path, not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat \"$P/skills/check/SKILL.md\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "read the skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which actionlint-check.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "hook script name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint_enabled",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "toggle name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/.local/bin | grep actionlint",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "ls grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "actionlint .github/workflows",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "a linter run is not a probe"
     }
   ]
 }

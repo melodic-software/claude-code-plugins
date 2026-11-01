@@ -9,6 +9,17 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "check"
+          }
+        }
+      ],
+      "why": "bare check"
     }
   ],
   "fail": [
@@ -26,6 +37,28 @@
         }
       ],
       "why": "another plugin's check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:checkout"
+          }
+        }
+      ],
+      "why": "longer name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "other:check"
+          }
+        }
+      ],
+      "why": "other plugin"
     }
   ]
 }

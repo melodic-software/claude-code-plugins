@@ -8,6 +8,18 @@
     },
     {
       "answer": "| actionlint_enabled | PASS | enabled |"
+    },
+    {
+      "answer": "`actionlint_enabled` is true (default).",
+      "why": "true"
+    },
+    {
+      "answer": "Toggle: actionlint_enabled = unset, so it defaults to on.",
+      "why": "unset"
+    },
+    {
+      "answer": "| actionlint_enabled | false |",
+      "why": "table row"
     }
   ],
   "fail": [
@@ -21,6 +33,22 @@
     },
     {
       "answer": "Hooks are on."
+    },
+    {
+      "answer": "The toggle is on.",
+      "why": "no key"
+    },
+    {
+      "answer": "actionlint_enabled\nis true",
+      "why": "split line"
+    },
+    {
+      "answer": "I did not read actionlint_enabled.",
+      "why": "no value"
+    },
+    {
+      "answer": "",
+      "why": "empty"
     }
   ]
 }
