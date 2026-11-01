@@ -4,8 +4,8 @@
 #
 # `cd <dir> && git ...` matches no permission allow rule, so each one prompts or
 # is refused, while `git -C <abs dir> ...` with absolute paths can match one.
-# This guard denies the shape with that rewrite as the reason; it widens no
-# allow.
+# This guard denies the shape with that rewrite as the reason (a relative write
+# with no git gets the absolute-path rewrite instead); it widens no allow.
 #
 # MATCHED: the command text opens with `cd <word>` (bare, or one single- or
 # double-quoted word) followed by `&&`, `;` or a newline, and a later top-level
@@ -120,7 +120,8 @@ cdp::segment() {
     *) continue ;;
     esac
     [[ "${HOOK_SEG_REDIR_OPAQUE[i]-0}" == 1 ]] && continue
-    cdp::relative_target "${HOOK_SEG_REDIR_OP[i]}" "${HOOK_SEG_REDIR_TARGET[i]-}" && CDP_HIT=redirect
+    # A git segment keeps its git hit: the git reason covers its write too.
+    cdp::relative_target "${HOOK_SEG_REDIR_OP[i]}" "${HOOK_SEG_REDIR_TARGET[i]-}" && CDP_HIT="${CDP_HIT:-redirect}"
   done
   return 0
 }
@@ -137,6 +138,12 @@ if [[ -n "$CDP_CWD" ]]; then
   [[ "$CDP_DIR_N" == "$CDP_CWD_N" ]] && exit 0
 fi
 
-# shellcheck disable=SC2016  # the backticks are literal text in the reason
-echo 'BLOCKED: Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a multi-line commit message, Write the message to a file and use `git commit -F <file>`.' >&2
+# The reason follows the hit: a relative write with no git in its segment gets
+# no git rewrite, which would not apply to it.
+# shellcheck disable=SC2016  # the backticks are literal text in the reasons
+if [[ "$CDP_HIT" == git ]]; then
+  echo 'BLOCKED: Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a multi-line commit message, Write the message to a file and use `git commit -F <file>`.' >&2
+else
+  echo 'BLOCKED: Write to an absolute path, and run the command with its own directory option (for example `make -C <abs path>`) or an absolute path instead of `cd`.' >&2
+fi
 exit 2

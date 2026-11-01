@@ -20,18 +20,25 @@ jq_crlf_free
 unset CLAUDE_PLUGIN_OPTION_BLOCK_CD_PREFIX_ENABLED
 
 REASON='Run `git -C <abs path> ...` with absolute paths instead of `cd`; for a multi-line commit message, Write the message to a file and use `git commit -F <file>`'
+REASON_WRITE='Write to an absolute path, and run the command with its own directory option (for example `make -C <abs path>`) or an absolute path instead of `cd`'
 NL=$'\n'
 
-# deny <label> <command> [guard_invoke option ...]
-deny() {
-  local label="$1" command="$2" via
-  shift 2
+# deny_with <reason> <label> <command> [guard_invoke option ...]
+deny_with() {
+  local reason="$1" label="$2" command="$3" via
+  shift 3
   for via in direct dispatched; do
     guard_invoke --via "$via" --command "$command" --cwd /srv/work/elsewhere "$@"
     assert_exit "$label ($via)" 2 "$GUARD_RC"
-    assert_contains "$label ($via): reason" "$GUARD_ERR" "$REASON"
+    assert_contains "$label ($via): reason" "$GUARD_ERR" "$reason"
   done
 }
+
+# deny <label> <command> [guard_invoke option ...]: denied with the git reason.
+deny() { deny_with "$REASON" "$@"; }
+
+# deny_write <label> <command> [guard_invoke option ...]: denied with the write reason.
+deny_write() { deny_with "$REASON_WRITE" "$@"; }
 
 # allow <label> <command> [guard_invoke option ...]
 allow() {
@@ -52,8 +59,9 @@ deny "git after an unrelated segment" 'cd X && npm ci && git add -A'
 deny "git with an env prefix" 'cd X && GIT_PAGER=cat git log'
 deny "git by path" 'cd X && /usr/bin/git status'
 deny "heredoc commit message" "cd X && git commit -F - <<'EOF'${NL}subject${NL}EOF"
-deny "write to a relative path" 'cd X && make > build.log'
-deny "append to a relative path" 'cd X; npm test >> out/test.log 2>&1'
+deny_write "write to a relative path" 'cd X && make > build.log'
+deny_write "append to a relative path" 'cd X; npm test >> out/test.log 2>&1'
+deny "git writing to a relative path keeps the git reason" 'cd X && git log > out.txt'
 deny "cd to a cwd that differs" 'cd /srv/work/repo && git status' --cwd /srv/work/other
 
 # --- allowed ------------------------------------------------------------------
