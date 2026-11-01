@@ -244,9 +244,11 @@ Sort each remark the user makes while driving into one of two piles:
 
 Write down what the prototype showed, per the shared discipline. For the HTML demo shell, carry
 the filled validation answer set into the durable answer verbatim: the chosen option per question,
-with the cost the driver accepted, is the record of what was actually decided. Then move the
-validated module into production and delete the shell, terminal app or page alike; the module is
-often worth keeping, the shell never is.
+with the cost the driver accepted, is the record of what was actually decided. Then run the
+shared discipline's [evidence step](../../context/discipline.md#evidence-step) over the prototype
+files, which writes either a pushed branch and commit SHA or the local path and
+`not pushed: <reason>` into the note. Then move the validated module into production and delete
+the shell, terminal app or page alike; the module is often worth keeping, the shell never is.
 
 ## Next
 
