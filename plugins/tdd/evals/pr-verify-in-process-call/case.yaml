@@ -8,7 +8,7 @@ graders:
     arm: 'with-only'
   - name: 'asserts-output'
     type: 'regex'
-    pattern: '\boutput[- ]based\b|\b(?:assert|check|verify|compare|expect)\w*\b[^\n]{0,80}?\b(?:returned|return value|result|total|output)\b|\b(?:returned|return value|result|total|output)\b[^\n]{0,80}?\b(?:assert|check|verify|compare|expect)\w*\b'
+    pattern: '\boutput[- ]based\b|\b(?:assert|check|verify|compare|expect)\w*\b[^\n]{0,80}?\b(?:returned|return value|result|(?:the|cart|order|computed|expected)\s+total\b(?!\s*\()|output)\b|\b(?:returned|return value|result|(?:the|cart|order|computed|expected)\s+total\b(?!\s*\()|output)\b[^\n]{0,80}?\b(?:assert|check|verify|compare|expect)\w*\b'
     flags: 'i'
     target: 'last_message'
   - name: 'communication-scope'

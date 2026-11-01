@@ -125,7 +125,7 @@
       "id": "neg-val-03",
       "split": "validation",
       "expect_trigger": false,
-      "request": "This test asserts that calc.Add(2, 3) equals calc.Add(2, 3). Is it tautological, and where should its expected value come from instead?"
+      "request": "Add a CI step that fails the build when any test method in the tests folder has no assertion, and run it once on the current tree."
     },
     {
       "id": "neg-val-04",

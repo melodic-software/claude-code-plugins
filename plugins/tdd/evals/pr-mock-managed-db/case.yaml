@@ -8,7 +8,7 @@ graders:
     arm: 'with-only'
   - name: 'db-real'
     type: 'regex'
-    pattern: '\btestcontainers?\b|(?<!un)managed\s+dependenc|\b(?:use|uses|using|keep|keeps|hit|hits|against|with)\s+(?:a\s+|an\s+|the\s+|your\s+)?real\s+(?:\w+\s+){0,2}?(?:postgres\w*|database|db)\b|\b(?:postgres\w*|database|db)\b[^\n]{0,80}?\b(?:use|keep|run|test|hit)\s+(?:it\s+)?(?:for\s+)?real\b|\b(?:postgres\w*|database|db)\b[^\n|]{0,60}\|[^\n|]*\breal\b|\b(?:postgres\w*|database|db)\b[^\n]{0,20}?(?:[:=→—–-]|->)\s*[*_]*\s*(?:use\s+(?:it\s+|the\s+)?)?real\b'
+    pattern: '\btestcontainers?\b|(?<!un)managed\s+dependenc|(?<!n[''’]t )(?<!not )(?<!never )(?<!without )(?<!than )\b(?:use|uses|using|keep|keeps|hit|hits|against|with)\s+(?:a\s+|an\s+|the\s+|your\s+)?real\s+(?:\w+\s+){0,2}?(?:postgres\w*|database|db)\b|\b(?:postgres\w*|database|db)\b[^\n]{0,80}?\b(?:use|keep|run|test|hit)\s+(?:it\s+)?(?:for\s+)?real\b|\b(?:postgres\w*|database|db)\b[^\n|]{0,60}\|[^\n|]*\breal\b|\b(?:postgres\w*|database|db)\b[^\n]{0,20}?(?:[:=→—–-]|->)\s*[*_]*\s*(?:use\s+(?:it\s+|the\s+)?)?real\b'
     flags: 'i'
     target: 'last_message'
   - name: 'bus-mocked'

@@ -23,6 +23,18 @@
     {
       "answer": "For the CsvRowParser guard, a dedicated test is not worth it: no caller can trip it.",
       "why": "not worth it, named by class"
+    },
+    {
+      "answer": "Yes — test Account.Withdraw: the overdraft limit is a domain rule.\nNo — skip CsvRowParser.Parse: the field-count check only protects array indexing.",
+      "why": "verdict first, then the guard name"
+    },
+    {
+      "answer": "**No** — `CsvRowParser.Parse`'s field-count check only protects indexing.",
+      "why": "bold verdict first"
+    },
+    {
+      "answer": "- Skip: CsvRowParser.Parse. Only our exporter calls it.",
+      "why": "skip first in a list"
     }
   ],
   "fail": [
@@ -53,6 +65,18 @@
     {
       "answer": "Use SUMIF in the spreadsheet.",
       "why": "answer to a different question"
+    },
+    {
+      "answer": "Yes — test CsvRowParser.Parse; no caller sends a short row today, but the guard documents the contract.",
+      "why": "verdict-first yes; a later 'no' is not the verdict"
+    },
+    {
+      "answer": "No harm in testing CsvRowParser.Parse too; add it.",
+      "why": "'no harm' first is not a no verdict"
+    },
+    {
+      "answer": "No — skip Account.Withdraw.\nYes — test CsvRowParser.Parse.",
+      "why": "verdict first, inverted"
     }
   ]
 }

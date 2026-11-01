@@ -23,6 +23,14 @@
     {
       "answer": "For the database, use it for real; nobody else depends on its shape.",
       "why": "use it for real"
+    },
+    {
+      "answer": "Don't mock Postgres: keep a real database behind the repository, and mock the publisher.",
+      "why": "negation before mock, not before keep"
+    },
+    {
+      "answer": "It shouldn't be faked. Run the tests against a real Postgres instance.",
+      "why": "negation in an earlier sentence"
     }
   ],
   "fail": [
@@ -45,6 +53,22 @@
     {
       "answer": "Mock the repository so the tests don't need a real database, and mock the RabbitMQ publisher too.",
       "why": "base-model default that names a real database only to avoid it"
+    },
+    {
+      "answer": "Mock the repository so the tests don't hit a real database, and mock the RabbitMQ publisher too.",
+      "why": "negated hit"
+    },
+    {
+      "answer": "Mock both, without using a real database.",
+      "why": "without using"
+    },
+    {
+      "answer": "Never use a real database in these tests; mock the repository and the publisher.",
+      "why": "never use"
+    },
+    {
+      "answer": "Rather than using a real Postgres database, mock the repository and the bus.",
+      "why": "rather than using"
     }
   ]
 }
