@@ -63,8 +63,8 @@ flagged message, or for a request that ended in a refusal because the flagged ca
 fallback for the model in use. To recover, we use:
 
 - `/model` to switch back to the original model.
-- `/config` > **Switch models when a message is flagged**, choosing to be asked each time (or
-  `switchModelsOnFlag: false`), instead of being switched.
+- the flagged-message fallback setting, set to ask each time instead of switching; where it lives
+  and its values are the pointer below's to state.
 - `/feedback` to report a flag that looks wrong.
 
 Pointer: for which models fall back, to what, and the recovery settings, see
