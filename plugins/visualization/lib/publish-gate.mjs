@@ -60,18 +60,22 @@ export const SECRET_PATTERNS = Object.freeze([
   ["Azure storage account key", new RegExp("Account" + "Key=[A-Za-z0-9+/]{40,}={0,2}")],
   ["Pulumi access token", /\bpul-[0-9a-f]{40}/],
   ["base64-encoded PEM block", new RegExp("LS0tLS1CRUdJ" + "Ti[A-Za-z0-9+/]{20,}")],
-  ["netrc password", /\bmachine\s+\S+\s+login\s+\S+\s+password\s+[^\s"'\\]{8,}/],
+  ["netrc password", /\b(?:machine\s+\S+|default)\s+login\s+\S+\s+password\s+[^\s"'\\]{8,}/],
+  ["netrc password", /^\s*password\s+[^\s"'\\]{8,}\s*$/],
 ]);
 
 /**
- * Credentials in a URL's userinfo: a password of 8 or more characters that is not a
+ * Credentials in a URL's userinfo: a password of 6 or more characters that is not a
  * placeholder (user:password@, <password>, ${PASSWORD}, ***). Not in SECRET_PATTERNS:
  * redaction tests across the tracked tree carry realistic fake connection strings,
  * which this shape cannot tell from real ones, and every scanner importing those
  * patterns would block a change touching them. Callers whose text has no such
  * fixtures (the lane telemetry upserts) check it alongside scanLeak.
  */
-export const URL_CREDENTIALS = Object.freeze(["URL credentials", /:\/\/[^/\s:@]+:(?!password@)[^/\s:@<>{}$*]{8,}@/i]);
+export const URL_CREDENTIALS = Object.freeze([
+  "URL credentials",
+  /:\/\/[^/\s:@]+:(?!password@|<[^>]*>@|\$\{[^}]*\}@|\*+@)[^/\s@]{6,}@/i,
+]);
 
 // The secret patterns read on each pair of adjacent lines joined, so a credential a line break
 // splits still matches. Left out of every pair pass: the OpenAI key (any sk- and 20 token
