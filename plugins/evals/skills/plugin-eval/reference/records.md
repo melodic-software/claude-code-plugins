@@ -47,16 +47,20 @@ re-read the page.
   manifest was left. `features.json` was a dangling link, which the swap removed and restored
   ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
 
-- Read-only `.git` and session tmp directory under `--allow-tools Bash`: a `claude plugin eval` run
-  saw the scratch repo's `.git` as read-only on Claude Code 2.1.310 and 2.1.314, Linux/WSL2,
-  2026-10-24 and 2026-10-29 (`git fetch` failed writing `.git/FETCH_HEAD` with "Read-only file
-  system"). On 2.1.314 the session tmp directory was read-only too: the shell's cwd-tracking write
-  failed, so a Bash call could report exit 1 though its command succeeded. A fresh clone and an
-  out-of-repo copy failed the same way. Claude Code 2.1.302 completed a merge on 2026-10-18. The
-  cause within the CLI is not bisected (UNVERIFIED). Evidence:
-  [#10277](https://github.com/melodic-software/claude-code-plugins/issues/10277),
-  [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: re-run the
-  source-control pull-request-ready cases on the next CLI release.
+- Read-only run root under `/tmp` with `--allow-tools Bash`: on Claude Code 2.1.310, 2.1.314 and
+  2.1.316, Linux/WSL2, a run whose sandbox sat under the default `/tmp` saw the scratch repo's
+  `.git` as read-only (`git fetch` failed on `.git/FETCH_HEAD`, `git merge` on
+  `.git/ORIG_HEAD.lock`, "Read-only file system"), and the shell's cwd-tracking write into the
+  session tmp failed, so a Bash call could report exit 1 though its command succeeded. The kept
+  run's `config/settings.json` names the cause: `sandbox.filesystem.allowWrite` lists the run's
+  `home` and `tmp` directories, and `denyWrite` lists `//tmp`, which covers both and wins, so the
+  whole root, workspace included, is read-only (the workspace part is inferred from the settings,
+  not observed). The same two source-control pull-request-ready cases, run with `TMPDIR` outside
+  `/tmp`, showed no read-only write and both reached `gh pr ready`. Why 2.1.302 completed a merge
+  on 2026-10-18 is unknown. Evidence, 2026-11-01, 2.1.316:
+  [#12070](https://github.com/melodic-software/claude-code-plugins/issues/12070); earlier runs:
+  [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: a release
+  note touching `plugin eval` sandbox paths or `TMPDIR`.
 
 ## Worktrees
 
