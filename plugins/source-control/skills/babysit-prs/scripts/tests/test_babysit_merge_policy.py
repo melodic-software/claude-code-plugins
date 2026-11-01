@@ -9813,5 +9813,182 @@ class LaneIdentity(unittest.TestCase):
         self.assertIsNone(self._run(IDENTITY, IDENTITY, base_error="bad yaml")[0])
         self.assertIsNone(self._run(IDENTITY, IDENTITY, main_raises=True)[0])
 
+
+class ConfigFromTheBaseCheckout(unittest.TestCase):
+    """`read_config_at` takes the config files from the checkout
+    `CONFIG_CHECKOUT_ENV` names when its HEAD is the commit read, as
+    ci-status's hold config checkout is in the merge queue; any other commit,
+    and a file the checkout cannot answer, read through the contents API."""
+
+    def setUp(self) -> None:
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.checkout = tmp / "base-config"
+        self.git(tmp, "init", "-q", str(self.checkout))
+        self.enterContext(
+            mock.patch.dict(
+                os.environ, {policy.CONFIG_CHECKOUT_ENV: str(self.checkout)}
+            )
+        )
+
+    def git(self, root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+            check=True, capture_output=True, text=True,
+            env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, files: dict[str, str]) -> str:
+        for path, text in files.items():
+            (self.checkout / path).parent.mkdir(parents=True, exist_ok=True)
+            (self.checkout / path).write_text(text)
+        self.git(self.checkout, "add", "-A")
+        self.git(self.checkout, "commit", "-q", "-m", "config")
+        return self.git(self.checkout, "rev-parse", "HEAD")
+
+    def test_the_config_reads_from_the_checkout_with_no_contents_read(self) -> None:
+        sha = self.commit(
+            {policy.CONFIG_PATH: PIPELINE, policy.SOURCE_CONTROL_PATH: SOURCE_CONTROL}
+        )
+        gh = GhFake().install(self)
+        config = policy.read_config_at(REPO, sha)
+        self.assertEqual(
+            (config.base_sha, config.rung, config.agent_identity, config.loop_merge),
+            (sha, "C2", IDENTITY, "c2-mechanical"),
+        )
+        self.assertIsNone(config.error)
+        # The team YAML is absent from the commit's tree: absent, not read.
+        self.assertEqual(gh.calls, [])
+
+    def test_another_commit_reads_the_contents_api(self) -> None:
+        self.commit({policy.CONFIG_PATH: "merge:\n  rung: C1\n"})
+        gh = config_fake(self, PIPELINE)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual(config.rung, "C2")
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+
+    def test_a_symlink_in_the_checkout_reads_that_file_through_the_api(self) -> None:
+        self.commit({policy.CONFIG_PATH: PIPELINE, "elsewhere.md": "x\n"})
+        link = self.checkout / policy.SOURCE_CONTROL_PATH
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to("../elsewhere.md")
+        self.git(self.checkout, "add", "-A")
+        self.git(self.checkout, "commit", "-q", "-m", "link")
+        sha = self.git(self.checkout, "rev-parse", "HEAD")
+        gh = GhFake().install(self)
+        endpoint = f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"
+        gh.rest[endpoint] = file_payload(SOURCE_CONTROL)
+        config = policy.read_config_at(REPO, sha)
+        self.assertEqual((config.rung, config.loop_merge), ("C2", "c2-mechanical"))
+        self.assertEqual(gh.calls, [["api", endpoint]])
+
+    def test_a_directory_inside_another_checkout_is_not_taken(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE})
+        inner = self.checkout / "docs"
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(inner)}):
+            self.assertIsNone(policy._config_checkout(sha))
+        self.assertEqual(policy._config_checkout(sha), self.checkout.resolve())
+
+
+class DefaultBranchFromTheEvent(unittest.TestCase):
+    """`DEFAULT_BRANCH_ENV` answers `_default_branch` for the run's own
+    repository with no read; any other repository, or a name that is not a
+    plain branch name, reads `repos/{repo}`."""
+
+    def read(self, env: dict[str, str]) -> tuple[str, list[list[str]]]:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+        with mock.patch.dict(os.environ, env):
+            return policy._default_branch(REPO), gh.calls
+
+    def test_the_event_names_the_branch_with_no_read(self) -> None:
+        env = {policy.DEFAULT_BRANCH_ENV: "main", "GITHUB_REPOSITORY": REPO.upper()}
+        self.assertEqual(self.read(env), ("main", []))
+
+    def test_another_repository_or_a_bad_name_reads_the_api(self) -> None:
+        for env in (
+            {policy.DEFAULT_BRANCH_ENV: "main", "GITHUB_REPOSITORY": "owner/other"},
+            {policy.DEFAULT_BRANCH_ENV: "", "GITHUB_REPOSITORY": REPO},
+            {policy.DEFAULT_BRANCH_ENV: "-main", "GITHUB_REPOSITORY": REPO},
+            {policy.DEFAULT_BRANCH_ENV: "a..b", "GITHUB_REPOSITORY": REPO},
+            {policy.DEFAULT_BRANCH_ENV: "a b", "GITHUB_REPOSITORY": REPO},
+        ):
+            with self.subTest(env):
+                self.assertEqual(self.read(env), ("trunk", [["api", f"repos/{REPO}"]]))
+
+
+class BaseTipsRemembered(unittest.TestCase):
+    """Inside `base_tips_remembered` a branch's tip is read once; outside it
+    `remembered_base_tip` reads every time, as `base_tip` does."""
+
+    def setUp(self) -> None:
+        self.gh = GhFake().install(self)
+        self.endpoint = f"repos/{REPO}/git/ref/heads/main"
+        self.gh.rest[self.endpoint] = {"object": {"sha": SHA}}
+
+    def reads(self) -> int:
+        return self.gh.calls.count(["api", self.endpoint])
+
+    def test_inside_the_block_the_tip_is_read_once(self) -> None:
+        with policy.base_tips_remembered():
+            self.assertEqual(policy.base_tip("owner", "repo", "main"), SHA)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), SHA)
+        self.assertEqual(self.reads(), 1)
+
+    def test_outside_the_block_every_call_reads(self) -> None:
+        with policy.base_tips_remembered():
+            policy.base_tip("owner", "repo", "main")
+        policy.remembered_base_tip("owner", "repo", "main")
+        policy.remembered_base_tip("owner", "repo", "main")
+        self.assertEqual(self.reads(), 3)
+
+
+class CachedPullRequest(unittest.TestCase):
+    """`cached_pull_request` serves a record the caller already read only for
+    the same repository, number and head; anything else is None, so the
+    caller reads it live."""
+
+    def setUp(self) -> None:
+        self.path = pathlib.Path(
+            self.enterContext(tempfile.TemporaryDirectory()), "pull.json"
+        )
+        self.record = {
+            "number": 7,
+            "commits": 2,
+            "base": {"ref": "main", "sha": SHA, "repo": {"full_name": REPO}},
+            "head": {"ref": "feat/x", "sha": "b" * 40},
+        }
+
+    def cached(self, record: Any, head: str = "b" * 40) -> Any:
+        self.path.write_text(
+            json.dumps(record) if not isinstance(record, str) else record
+        )
+        return policy.cached_pull_request(str(self.path), REPO.upper(), 7, head)
+
+    def test_the_same_number_and_head_serve_the_record(self) -> None:
+        self.assertEqual(self.cached(self.record), self.record)
+
+    def test_any_other_record_reads_live(self) -> None:
+        other_repo = {"ref": "main", "sha": SHA, "repo": {"full_name": "owner/other"}}
+        for record, head in (
+            (self.record, "c" * 40),
+            (self.record | {"number": 8}, "b" * 40),
+            (self.record | {"number": "7"}, "b" * 40),
+            (self.record | {"base": other_repo}, "b" * 40),
+            (self.record | {"head": {"sha": "b" * 40}}, "b" * 40),
+            ("{not json", "b" * 40),
+            ([], "b" * 40),
+        ):
+            with self.subTest(record=record, head=head):
+                self.assertIsNone(self.cached(record, head))
+        self.assertIsNone(policy.cached_pull_request(None, REPO, 7, "b" * 40))
+        self.assertIsNone(
+            policy.cached_pull_request(str(self.path) + ".gone", REPO, 7, "b" * 40)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

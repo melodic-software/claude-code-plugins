@@ -7453,5 +7453,78 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
 
+class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
+    """ci-status's merge-queue step runs `evidence --base-sha` with the
+    default branch from the event (`merge_policy.DEFAULT_BRANCH_ENV`) and the
+    pull request record it read (`PULL_ENV`): neither is read again, and the
+    default branch's tip is read once for the config and the trusted list.
+    A record for another head is not taken."""
+
+    def setUp(self) -> None:
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.pull_path = tmp / "lanes-pull.json"
+        self.env = {ve.LISTING_ENV: str(tmp / "verify-listing.json")}
+        self.enterContext(mock.patch.dict(os.environ, self.env))
+        os.environ.pop(run_cache.ENV, None)
+        os.environ.pop(policy.DEFAULT_BRANCH_ENV, None)
+        os.environ.pop(ve.PULL_ENV, None)
+
+    def cli(self, fake: FakeGitHub, env: dict[str, str]) -> tuple[Any, mock.Mock]:
+        config = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
+        out = io.StringIO()
+        live = mock.Mock(return_value=pull())
+        with (
+            mock.patch.dict(os.environ, env),
+            mock.patch.object(
+                policy,
+                "read_config_at",
+                side_effect=lambda repo, sha, file_at=None: dataclasses.replace(
+                    config, base_sha=sha
+                ),
+            ),
+            mock.patch.object(policy, "pull_request", live),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            argv = ["evidence", "--repo", REPO, "--base-sha", MAIN_SHA, str(PR), HEAD]
+            self.assertEqual(ve.main(argv, now=NOW), 0)
+        return json.loads(out.getvalue()), live
+
+    def write_pull(self, head: str) -> None:
+        base = {"ref": "main", "sha": MAIN_SHA, "repo": {"full_name": REPO}}
+        record = pull(base=base, head={"ref": "feat/x", "sha": head})
+        self.pull_path.write_text(json.dumps(record))
+
+    def held(self) -> dict[str, str]:
+        return {
+            policy.DEFAULT_BRANCH_ENV: "main",
+            "GITHUB_REPOSITORY": REPO,
+            ve.PULL_ENV: str(self.pull_path),
+        }
+
+    def test_the_held_reads_are_not_read_again(self) -> None:
+        self.write_pull(HEAD)
+        fake = passing()
+        report, live = self.cli(fake, self.held())
+        self.assertIsNone(report["refusal"])
+        live.assert_not_called()
+        self.assertNotIn(["api", f"repos/{REPO}"], fake.calls)
+        tips = [c for c in fake.calls if c[1:] == [f"repos/{REPO}/git/ref/heads/main"]]
+        self.assertEqual(len(tips), 1)
+        # The trusted list is read, at that one tip.
+        self.assertTrue(
+            any(
+                c[-1].endswith(f"/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}")
+                for c in fake.calls
+            )
+        )
+
+    def test_a_record_for_another_head_reads_the_pull_request_live(self) -> None:
+        self.write_pull(EARLIER)
+        report, live = self.cli(passing(), self.held())
+        self.assertIsNone(report["refusal"])
+        live.assert_called_once_with(REPO, PR)
+
+
 if __name__ == "__main__":
     unittest.main()

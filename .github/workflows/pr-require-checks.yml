@@ -5011,6 +5011,8 @@ jobs:
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/source-control.yaml
+            /.claude/source-control.md
             /.github/scripts/pr-merge/clear-escalations.mjs
             /.github/scripts/pr-merge/enable-auto-merge.mjs
             /.github/scripts/pr-unblock/address-feedback.mjs
@@ -6198,6 +6200,14 @@ jobs:
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # Where the reader takes what this job already holds, each checked
+          # and else read live: the config files at the group's base from the
+          # hold config checkout when its HEAD is that commit, the default
+          # branch from the event, and the pull request from the record this
+          # step read (written below) when it is the same number and head.
+          BABYSIT_CONFIG_CHECKOUT: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+          BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
           # A pull request's author never changes, so the payload's (a re-run

@@ -422,6 +422,9 @@ for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit
   'BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json' \
   'HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json' \
   'BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json' \
+  "BABYSIT_CONFIG_CHECKOUT: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}" \
+  'BABYSIT_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
+  'BABYSIT_VERIFY_PULL: ${{ runner.temp }}/lanes-pull.json' \
   'API_BUDGET_TOKEN: github-token'; do
   if grep -qxF "          $line" <<<"$step"; then
     ok "the step sets $line"
@@ -432,6 +435,25 @@ done
 step_of() { awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW"; }
+# The reader takes the pull request from the record the step writes before it
+# runs, and its config files from the hold config checkout, which must hold
+# every file merge_policy.read_config_at reads.
+if [[ "$step" == *'printf '"'"'%s\n'"'"' "$pull" >"$RUNNER_TEMP/lanes-pull.json"'* ]]; then
+  ok "the step writes the record BABYSIT_VERIFY_PULL names"
+else
+  fail "the step does not write \$RUNNER_TEMP/lanes-pull.json"
+fi
+config_step="$(step_of "Check out the base commit's hold config")"
+config_sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$config_step")"
+config_missing=()
+for path in /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml /.claude/source-control.md; do
+  grep -qxF -- "$path" <<<"$config_sparse" || config_missing+=("$path")
+done
+if ((${#config_missing[@]} == 0)); then
+  ok "the hold config checkout holds every file the reader's config read takes"
+else
+  fail "the hold config checkout lacks: ${config_missing[*]}"
+fi
 base_step="$(step_of "Check out main's Node pin and verdict reader")"
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 if [[ "$base_step" == *'ref: ${{ github.event.repository.default_branch }}'* && "$base_step" == *"persist-credentials: false"* ]]; then
