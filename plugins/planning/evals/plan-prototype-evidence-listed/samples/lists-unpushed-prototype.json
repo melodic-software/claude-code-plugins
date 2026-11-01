@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "### Prototype evidence\n\n| Prototype | Evidence | Left unproven |\n|---|---|---|\n| Invoice approval state machine | branch `spike/invoice-approval-states` at commit `9c41e7a2b05d3f68e1a7c4d29b8f0e35a6c71d24` | Two approvers acting on the same invoice at the same moment |\n| Invoice approval log | `~/spikes/invoice-approval-log`, not pushed: the spike reads a copy of production invoices | How the approvals log is migrated onto the live database |\n",
+      "why": "the second row carries the local path and the not-pushed reason"
+    },
+    {
+      "answer": "Prototype evidence: the approval log spike sits at ~/spikes/invoice-approval-log (not pushed: it reads a copy of production invoices).\n",
+      "why": "prose form of the same row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "### Prototype evidence\n\n| Prototype | Evidence | Left unproven |\n|---|---|---|\n| Invoice approval log | `~/spikes/invoice-approval-log` | How the approvals log is migrated onto the live database |\n",
+      "why": "the local path without the not-pushed reason"
+    },
+    {
+      "answer": "The approvals log follows the spike at ~/spikes/invoice-approval-log, not pushed because it reads production invoices.\n",
+      "why": "no Prototype evidence section"
+    }
+  ]
+}

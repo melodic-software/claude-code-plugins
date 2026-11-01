@@ -88,6 +88,11 @@ failed every Bash call with `Sandbox is required but failed to initialize: Faile
 sockets after 5 attempts`, and a 24-character `<dir>` with the same case and tree ran Bash and
 scored.
 
+Under a run root in `/tmp`, the workspace `.git` and the session tmp are also read-only to Bash,
+and by the run's settings the whole root is, so a case that writes there fails even when its
+sandbox starts: [records.md, Sandbox and credential store](records.md#sandbox-and-credential-store).
+A `TMPDIR` outside the system temp directory avoids that too.
+
 - **Pointer:** [anthropics/claude-code#104631](https://github.com/anthropics/claude-code/issues/104631)
   and [anthropics/claude-code#104797](https://github.com/anthropics/claude-code/issues/104797) for
   the default temp directory (the cause is each reporter's attribution); for a long `$TMPDIR`,
@@ -114,8 +119,11 @@ python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plu
 ```
 
 `<dir>` is the run step's directory: at most 24 characters, outside the system temp directories,
-created first (for example `/run/user/<uid>/ev`). A longer one is untested, and at 63 characters
-no run started a shell sandbox ([Sandbox start](#sandbox-start)).
+created first, on disk (for example `$HOME/.ev` when that path stays within 24 characters). A
+longer one is untested, and at 63 characters no run started a shell sandbox
+([Sandbox start](#sandbox-start)). Not `/run/user/<uid>`: it is a small tmpfs that kept
+`--keep-temp` sandboxes can fill, which fails every eval on the host with ENOSPC and breaks the
+session sockets stored there.
 
 It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
 every link the preflight's `find` lists, or `~/.docker` when that is itself a link, with a copy of

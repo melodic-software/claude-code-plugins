@@ -197,13 +197,15 @@ test("a diff with a line past the review's cap gets no verdict", async () => {
 // split-diff.py on a fixture patch: the chunk files it writes, by name.
 const SPLIT_DIFF = new URL("./split-diff.py", import.meta.url).pathname;
 // With `manifestBytes`, it returns the manifest it wrote (null for none).
-function split(patch, maxBytes, maxChunks, manifestBytes) {
+// With `maxFiles`, it passes the optional seventh argument.
+function split(patch, maxBytes, maxChunks, manifestBytes, maxFiles) {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-chunks-"));
   try {
     writeFileSync(path.join(dir, "diff.patch"), patch);
     mkdirSync(path.join(dir, "out"));
     const manifest = path.join(dir, "manifest.txt");
-    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)], { encoding: "utf8" });
+    const args = [path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)];
+    const run = spawnSync("python3", ["-I", SPLIT_DIFF, ...args, ...(maxFiles === undefined ? [] : [String(maxFiles)])], { encoding: "utf8" });
     const chunks = Object.fromEntries(readdirSync(path.join(dir, "out")).sort().map((name) => [name, readFileSync(path.join(dir, "out", name), "utf8")]));
     if (manifestBytes !== undefined) {
       return { status: run.status, chunks, stderr: run.stderr, manifest: (() => { try { return readFileSync(manifest, "utf8"); } catch { return null; } })() };
@@ -256,6 +258,23 @@ test("a chunk of exactly the cap, and exactly the most chunks, still split", () 
   const [a, b] = [filePatch("a", 100), filePatch("b", 100)];
   assert.deepEqual(split(a, 100, 1), { status: 0, chunks: { "chunk-1.patch": a }, stderr: "" });
   assert.deepEqual(split(a + b, 100, 2).chunks, { "chunk-1.patch": a, "chunk-2.patch": b });
+});
+
+test("with a file cap a chunk also ends at that many files, and without one only bytes cut", () => {
+  const files = ["a", "b", "c", "d", "e"].map((name) => filePatch(name, 50));
+  const [a, b, c, d, e] = files;
+  const all = files.join("");
+  // Five 50-byte files fit one 1000-byte chunk; a cap of 2 cuts at every second file.
+  assert.deepEqual(split(all, 1000, 4).chunks, { "chunk-1.patch": all });
+  assert.deepEqual(split(all, 1000, 4, 15000, 0).chunks, { "chunk-1.patch": all });
+  assert.deepEqual(split(all, 1000, 4, undefined, 2), { status: 0, chunks: { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e }, stderr: "" });
+  // Bytes still cut first: at 100 bytes and a cap of 3, each chunk holds two files.
+  assert.deepEqual(split(all, 100, 4, undefined, 3).chunks, { "chunk-1.patch": a + b, "chunk-2.patch": c + d, "chunk-3.patch": e });
+  // A cap that needs more than the most chunks is too large and writes nothing.
+  const over = split(all, 1000, 2, undefined, 2);
+  assert.equal(over.status, 3);
+  assert.deepEqual(over.chunks, {});
+  assert.match(over.stderr, /3 chunks/);
 });
 
 test("more chunks than the most, or a file larger than one chunk, is too large and writes nothing", () => {
@@ -1137,9 +1156,18 @@ test("the handoff step names its lane and a closed reason, and a handed-off leg 
     assert.equal(/^ {8}if: (.*)$/m.exec(handoff)[1], `${slots.map((k) => `steps.review-${k}.outputs.handoff == 'true'`).join(" || ")} || steps.credential.outputs.present == 'false'`);
     assert.equal(input(handoff, "REASON"), `\${{ steps.credential.outputs.present == 'false' && 'no-key' || ${slots.map((k) => `steps.review-${k}.outputs.handoff-reason`).join(" || ")} }}`);
     assert.ok(index(`Upload chunk ${SLOTS}'s sealed transcript`, job) + 1 === index("Hand the lane on", job));
-    for (const k of slots) assert.match(step(`Report chunk ${k}'s outcome`, job), new RegExp(`&& steps\\.review-${k}\\.outputs\\.handoff != 'true'$`, "m"));
+    // A chunk that handed off still leaves its lane record, marked handoff.
+    for (const k of slots) {
+      const report = step(`Report chunk ${k}'s outcome`, job);
+      assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], `steps.review-${k}.outcome == 'success' || steps.review-${k}.outcome == 'failure'`);
+      assert.equal(input(report, "handoff"), `\${{ steps.review-${k}.outputs.handoff }}`);
+      // A report that throws must not block "Hand the lane on".
+      assert.match(report, /^ {8}continue-on-error: true$/m);
+    }
     assert.match(step("Fail without a verdict", job), /&& steps\.handoff\.outcome != 'success'$/m);
   }
+  // The fallback leg hands nothing on, so its records carry no handoff.
+  for (let k = 1; k <= SLOTS; k++) assert.equal(input(step(`Report chunk ${k}'s outcome`, FB), "handoff"), undefined);
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(step("Hand the lane on"))[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-handoff-"));
   try {
@@ -1171,7 +1199,9 @@ test("every later leg repeats the key leg's steps but for its credential and why
       .replace(/^ {10}# The trigger job's result, only from this run attempt\.\n/m, "")
       .replace(/^ {10}CARRIED(?:_[A-Z]+)?: .*\n/gm, "")
       .replace(/^ {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/m, "")
-      .replace(/\n {10}# Why this leg ran, for the lane's one record\.\n {10}fallback-reason: [^\n]*/, "")
+      .replace(/\n {10}# Why this leg ran, for its lane record\.\n {10}fallback-reason: [^\n]*/, "")
+      // The handoff input, pinned per leg in the handoff test.
+      .replace(/^ {10}handoff: \$\{\{ steps\.review-\d\.outputs\.handoff \}\}\n/m, "")
       .replace(/ && steps\.handoff\.outcome != 'success'|and handed nothing on\n {6}# fails here,|fails here,/g, "");
   const keyNames = STEPS[KEY].map((s) => s.name);
   assert.deepEqual(STEPS[SUB].map((s) => s.name), keyNames);

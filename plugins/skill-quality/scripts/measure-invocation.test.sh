@@ -133,6 +133,24 @@ else
   fail "string expect_trigger should FAIL (rc=$rc): $out"
 fi
 
+out="$(run validate "$TMP/probes" 2>&1)"
+if ! grep -q 'is not from plugin' <<<"$out"; then
+  pass "validate prints no cross-plugin WARN for same-plugin competitors"
+else
+  fail "same-plugin competitors should get no cross-plugin WARN: $out"
+fi
+
+mkdir -p "$TMP/crossplugin/probes"
+jq '.competitors += ["other:rival"]' "$TMP/probes/target.json" >"$TMP/crossplugin/probes/target.json"
+out="$(run validate "$TMP/crossplugin/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: .*target.json (fixture:target): competitor 'other:rival' is not from plugin 'fixture'" <<<"$out" &&
+  ! grep -q 'FAIL:' <<<"$out"; then
+  pass "validate WARNs on a cross-plugin competitor and still passes"
+else
+  fail "cross-plugin competitor should WARN and exit 0 (rc=$rc): $out"
+fi
+
 score_json="$(run score "$TMP/probes" 2>"$TMP/score.err")"
 rc=$?
 printf '%s\n' "$score_json" >"$TMP/score.json"

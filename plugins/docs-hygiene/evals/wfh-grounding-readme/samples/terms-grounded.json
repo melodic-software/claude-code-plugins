@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n# loglet\n\nloglet tails your application's log files and ships every line to a collector: the HTTP endpoint, set by `collector_url`, that receives your log lines.\n\n## How loglet avoids duplicate lines\n\nEvery 5 seconds loglet writes a checkpoint, the byte offset it has read up to in each file, to `/var/lib/loglet/state.json`. After a restart it resumes from the last checkpoint, so no line ships twice.\n\n## Log rotation\n\nloglet keeps a tail set, the list of files it is currently reading. A rotated file stays in the tail set until loglet reads it to the end, then loglet drops it.\n\n## When the collector is busy\n\nWhen the collector answers HTTP 429, loglet buffers up to 64 MiB on disk, then drops the oldest lines.\n\n## Install\n\n```sh\napt install loglet\n```\n\nSet `collector_url` in `/etc/loglet/loglet.toml`.\n````",
+      "why": "each term defined in the sentence that first uses it"
+    },
+    {
+      "answer": "````markdown\n# loglet\n\nThis README assumes you already run a log collector that accepts lines over HTTP.\n\n## Terms\n\n- **Checkpoint**: the byte offset loglet has read up to in each file.\n- **Tail set**: the files loglet is currently reading.\n\n## What loglet does\n\nloglet tails application log files and ships every line to your collector. It writes a checkpoint to `/var/lib/loglet/state.json` every 5 seconds and resumes from it after a restart, so no line ships twice. A rotated file stays in the tail set until loglet reads it to the end, then loglet drops it. If the collector answers 429, loglet buffers up to 64 MiB on disk, then drops the oldest lines.\n\n## Install\n\nRun `apt install loglet`, then set `collector_url` in `/etc/loglet/loglet.toml`.\n````",
+      "why": "collector named as assumed knowledge, other terms in a glossary before use"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "````markdown\n# loglet\n\nloglet tails app log files and ships every line to the collector. On restart it resumes from the last checkpoint, so no line ships twice. A checkpoint is the byte offset per file, written to `/var/lib/loglet/state.json` every 5 seconds.\n\nA rotated file stays in the tail set until loglet reads it to EOF, then loglet drops it. When the collector answers 429, loglet buffers up to 64 MiB on disk, then drops the oldest lines.\n\n## Install\n\nRun `apt install loglet` and set `collector_url` in `/etc/loglet/loglet.toml`.\n````",
+      "why": "notes order kept: checkpoint relied on before its definition, collector and tail set never introduced"
+    },
+    {
+      "answer": "````markdown\n# loglet\n\nloglet ships application logs to the collector and resumes from its checkpoint after a restart, so no line ships twice.\n\n## Install\n\n`apt install loglet`\n\n## Glossary\n\n- **Collector**: the HTTP endpoint at `collector_url` that receives log lines.\n- **Checkpoint**: the byte offset per file, saved every 5 seconds.\n````",
+      "why": "glossary placed after the sentences that rely on the terms"
+    }
+  ]
+}

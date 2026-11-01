@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The audit is read-only. To act on the plan, run `/repo-fleet-hygiene:apply --plan-file /tmp/plan.json` (dry-run first, then `--apply`).",
+      "why": "names the apply verb with the plan file"
+    },
+    {
+      "answer": "## Next\n\n- Run repo-fleet-hygiene:apply on the action plan when you're ready.",
+      "why": "heading and list, unslashed name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Deleted feature/invoice-totals in fleet/alpha and pruned the dead worktree. Both repos are clean.",
+      "why": "did the cleanup by hand"
+    },
+    {
+      "answer": "Run /repo-fleet-hygiene:audit again with --detail for the evidence.",
+      "why": "names only the audit"
+    }
+  ]
+}

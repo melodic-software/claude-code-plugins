@@ -1,5 +1,5 @@
 ---
-description: "Ranked menu of the skills that fit this moment, hiding nothing: Now, Next, Skipped upstream, Later, and a rotating Spotlight, drawn from the full installed catalog, not the truncated in-context listing. Use when: 'what should I run next', 'what are my options', 'what am I forgetting', 'which skill fits here', 'what else could I run', 'show me my options', 'what skills apply now'. Not the one-next-stage router (/session-flow:workflow) or a situation report (/session-flow:orient)."
+description: "Ranked menu of every installed skill that fits this moment (Now, Next, Skipped upstream, Later, Spotlight), hiding nothing. Use when: 'what are my options', 'which skill fits here', 'what am I forgetting'. One next stage: /session-flow:workflow."
 argument-hint: "[topic-slug]"
 user-invocable: true
 disable-model-invocation: false

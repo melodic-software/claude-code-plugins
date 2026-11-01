@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.135.1] - 2026-11-01
+
+### Changed
+
+- The interview skill's page-lane context records the saved-boolean substitution probe: on
+  Claude Code 2.1.312 a saved boolean `true` substitutes into skill content, and an unset key with
+  a `default` stays a literal token
+  ([#6050](https://github.com/melodic-software/claude-code-plugins/issues/6050)).
+
 ## [0.135.0] - 2026-11-01
 
 ### Added

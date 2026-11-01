@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [13.1.2] - 2026-11-01
+
+Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant
+changed.
+
+- **C5 hold (§1).** The autonomy ladder names untrusted provenance (C5) as the one work-class hold
+  no rung, tracked config or invocation argument reaches, matching the unattended merge gate's trust
+  hold. C4 (structural) is described as outside the babysit loop partition's rungs, which admit
+  classes up to C3, rather than as an unconditional floor (#9668).
+
 ## [13.1.1] - 2026-11-01
 
 Patch. Wording only; no topology, escalation-contract mechanism, capability-tier or §4 invariant

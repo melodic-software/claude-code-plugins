@@ -2032,7 +2032,10 @@ LANE_DEFS='
     | [ ($runs[0][$wf] // [])[]
       | select(.status == "completed" and .conclusion != "skipped" and .conclusion != null)
       | select((.created_at | fromdateiso8601) >= $since)
-      | ($texts[(.id | tostring)]) as $t
+      # A leg that handed off leaves its own record, a notice with handoff
+      # true; its class and turns are not those of the run, so its line is
+      # dropped.
+      | ($texts[(.id | tostring)] | if . == null then null else split("\n") | map(select(test("\"handoff\":true") | not)) | join("\n") end) as $t
       | (if $t != null then ($t | tok("activity")) else null end) as $act
       | . + {
           read: ($t != null),
