@@ -1,11 +1,30 @@
 {
   "pass": [
-    { "answer": "A naming bracket is not a documented software-naming technique; this adapts elimination brackets and pairwise scoring to converge.", "why": "both phrasings" },
-    { "answer": "Note: the tournament is an adaptation, borrowed from social-choice scoring.", "why": "adaptation" },
-    { "answer": "This is not an established naming standard, just a way to converge.", "why": "not established" }
+    {
+      "answer": "A naming bracket is not a documented software-naming technique; this adapts elimination brackets and pairwise scoring to converge.",
+      "why": "both phrasings"
+    },
+    {
+      "answer": "Note: the tournament is an adaptation, borrowed from social-choice scoring.",
+      "why": "adaptation"
+    },
+    {
+      "answer": "This is not an established naming standard, just a way to converge.",
+      "why": "not established"
+    },
+    {
+      "answer": "This isn't an established naming technique. It borrows elimination brackets and pairwise voting (Copeland scoring) as a way to converge on one name.",
+      "why": "observed smoke reply: isn't an established technique"
+    }
   ],
   "fail": [
-    { "answer": "Using the standard naming-tournament method, the finalist is `oas-breakwatch`.", "why": "presents it as a standard method" },
-    { "answer": "Finalist: `spec-diff`. Runners-up: `oas-breaks`, `spec-guard`.", "why": "no framing at all" }
+    {
+      "answer": "Using the standard naming-tournament method, the finalist is `oas-breakwatch`.",
+      "why": "presents it as a standard method"
+    },
+    {
+      "answer": "Finalist: `spec-diff`. Runners-up: `oas-breaks`, `spec-guard`.",
+      "why": "no framing at all"
+    }
   ]
 }

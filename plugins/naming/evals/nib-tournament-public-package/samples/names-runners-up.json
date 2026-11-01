@@ -1,9 +1,26 @@
 {
   "pass": [
-    { "answer": "Finalist: `@acme/spec-diff`. Runners-up: `@acme/spec-breaks`, `@acme/spec-guard`. Which do you want?", "why": "runners-up" },
-    { "answer": "Winner `@acme/spec-diff`; runner up `@acme/spec-breaks`.", "why": "singular, spaced" }
+    {
+      "answer": "Finalist: `@acme/spec-diff`. Runners-up: `@acme/spec-breaks`, `@acme/spec-guard`. Which do you want?",
+      "why": "runners-up"
+    },
+    {
+      "answer": "Winner `@acme/spec-diff`; runner up `@acme/spec-breaks`.",
+      "why": "singular, spaced"
+    },
+    {
+      "answer": "| `@acme/spec-diff` | 7 | **Winner.** |\n| `@acme/spec-delta` | 6 | Lost the final. |\n| `@acme/spec-backcompat` | 5 | Out in round 2. |",
+      "why": "observed smoke reply: runners-up in a ranked table without the word"
+    }
   ],
   "fail": [
-    { "answer": "Final answer: `@acme/spec-diff`. I've locked it in.", "why": "one name, no alternatives for the human" }
+    {
+      "answer": "Final answer: `@acme/spec-diff`. I've locked it in.",
+      "why": "one name, no alternatives for the human"
+    },
+    {
+      "answer": "Final answer: `@acme/spec-diff`. Check it with `npm view @acme/spec-diff` first.",
+      "why": "one candidate; a command naming it twice is not a runner-up"
+    }
   ]
 }
