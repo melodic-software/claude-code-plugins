@@ -237,6 +237,17 @@ reads the file itself, through a script where the key names one below.
   the base repository's default branch. The reader runs every step when the key is missing, the
   base is another branch, or the list cannot be trusted. Semantics and the report:
   [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
+- `dossier_branch_prefix`: the prefix of a dossier branch, default `dossier/`. A dossier branch
+  holds an owning work item's docs, exploration notes and draft plan. Its shape is
+  `dossier/<key>-<slug>`: `<key>` is the bound tracker adapter's `branch_ref` for the item (`42` on
+  GitHub, `ENG-123` on Linear), and `<slug>` is the kebab-case title, as in the work branch
+  `/work-items:work` names. One dossier per owning item: a parent or spec container gets its own,
+  and a child item adds its own only when it needs one. Resolution, lowest first: the default,
+  then `dossier_branch_prefix` in `docs/conventions/source-control.yaml`. No `userConfig` option.
+  `/work-items:work` reads it when it names an item's dossier branch. With a tracker bound, the
+  adapter's branch grammar reads `<key>` back from the branch name. Without one, the built-in
+  grammar of `parse-branch-issue.sh` reads a numeric `<key>` under the default prefix, and a
+  tracker key needs a `branch_issue_pattern` that captures it.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 
