@@ -22,6 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy
 import babysit_risk
+import babysit_tracker_binding
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
@@ -1300,7 +1301,7 @@ class LanePathFloorTests(unittest.TestCase):
             "scripts/x.sh",
             "lib/x.sh",
             ".gitleaks.toml",
-            ".work-item-tracker.json",
+            babysit_tracker_binding.LEGACY_PATH,
             ".node-version",
             ".python-version",
             ".gitattributes",

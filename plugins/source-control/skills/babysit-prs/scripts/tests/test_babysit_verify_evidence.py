@@ -4901,7 +4901,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
-        # The tracker's human-gated role label (`.work-item-tracker.json`).
+        # The tracker binding's human-gated role label (`babysit_tracker_binding`).
         self.role_label = mock.Mock(return_value="needs-human")
         patcher = mock.patch.object(postmerge, "_role_label", self.role_label)
         patcher.start()

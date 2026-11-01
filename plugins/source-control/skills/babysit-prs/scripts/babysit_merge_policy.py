@@ -45,6 +45,7 @@ from urllib.parse import quote
 import babysit_dependabot as dependabot
 import babysit_repo_config as repo_config
 import babysit_run_cache as run_cache
+import babysit_tracker_binding as tracker_binding
 import babysit_whole_review as whole_review
 from babysit_classify import (
     actor_kind,
@@ -409,20 +410,33 @@ _FLOOR_ROWS: dict[str, FloorRows] = {}
 
 def floor_paths_in(text: str) -> FloorRows:
     """The `merge.diff-check.floor-paths` rows of a pipeline document, read once
-    per document: `lib/yaml-subset.awk`'s flat records, since the shared reader's
-    `--list` prints scalar items alone. Raises `FloorRowError` on a row the
-    floor cannot use, and `PolicyReadError` when the parser cannot run or
-    rejects the document."""
+    per document from its `yaml_records`, since the shared reader's `--list`
+    prints scalar items alone. Raises `FloorRowError` on a row the floor
+    cannot use, and `PolicyReadError` when the parser cannot run or rejects
+    the document."""
     if text in _FLOOR_ROWS:
         return _FLOOR_ROWS[text]
+    records = {
+        key[len(FLOOR_PATHS_KEY) + 1 :]: value
+        for key, value in yaml_records(text).items()
+        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}.")
+    }
+    _FLOOR_ROWS[text] = rows = floor_rows(records)
+    return rows
+
+
+def yaml_records(text: str) -> dict[str, str]:
+    """A YAML document's `lib/yaml-subset.awk` records: each scalar's dotted
+    key to its value. Raises `PolicyReadError` when the parser cannot run or
+    rejects the document."""
     platform = "win32" if os.name == "nt" else sys.platform
     bash = resolve_bash(os.environ, platform, os.path.isfile)
     if bash is None:
         raise PolicyReadError("no usable bash found to run the shared YAML parser")
     with tempfile.TemporaryDirectory() as tmp:
         document = Path(tmp) / "concern.yaml"
-        document.write_text(text, encoding="utf-8")
         try:
+            document.write_text(text, encoding="utf-8")
             proc = run_command(
                 [bash, "-c", 'LC_ALL=C exec awk -f "$0" "$1"']
                 + [str(PARSER.with_name("yaml-subset.awk")), str(document)],
@@ -433,13 +447,8 @@ def floor_paths_in(text: str) -> FloorRows:
             raise PolicyReadError(f"the shared YAML parser failed: {exc}") from exc
     if proc.returncode != 0:
         raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
-    records = {}
-    for line in proc.stdout.split("\n"):
-        key, _, value = line.partition("\t")
-        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}."):
-            records[key[len(FLOOR_PATHS_KEY) + 1 :]] = value
-    _FLOOR_ROWS[text] = rows = floor_rows(records)
-    return rows
+    pairs = (line.partition("\t") for line in proc.stdout.split("\n") if line)
+    return {key: value for key, _, value in pairs}
 
 
 def _merge_names(text: str, key: str) -> bool:
@@ -2316,29 +2325,24 @@ def _opt_in_refusal(
     return f"opt-in-label:{untrusted}" if untrusted else None
 
 
-TRACKER_CONFIG = ".work-item-tracker.json"
 ADMISSION_ROLE = "autonomous-eligible"
 DEFAULT_ADMISSION_LABEL = "agent-ready"
 
 
 def admission_label(owner: str, name: str, ref: str) -> str:
-    """The tracker's admission role label at `ref` (`agent-ready` unless
-    `.work-item-tracker.json` maps `autonomous-eligible`). Raises
-    `PolicyReadError` when the config cannot be read or parsed."""
-    text = _file_at(owner, name, TRACKER_CONFIG, quote(ref, safe=""))
-    if text is None:
-        return DEFAULT_ADMISSION_LABEL
+    """The tracker binding's admission role label at `ref` (`agent-ready`
+    unless it maps `autonomous-eligible`; `babysit_tracker_binding`). Raises
+    `PolicyReadError` when the binding cannot be read or parsed."""
+    at = quote(ref, safe="")
     try:
-        config = json.loads(text)
-    except ValueError as exc:
-        raise PolicyReadError(f"{TRACKER_CONFIG} at {ref} is not JSON: {exc}") from exc
-    roles = json_object(
-        json_object(json_object(config).get("config")).get("role_labels")
-    )
-    label = roles.get(ADMISSION_ROLE)
-    if isinstance(label, str) and label.strip():
-        return label.strip()
-    return DEFAULT_ADMISSION_LABEL
+        return tracker_binding.role_label(
+            lambda path: _file_at(owner, name, path, at),
+            yaml_records,
+            ADMISSION_ROLE,
+            DEFAULT_ADMISSION_LABEL,
+        )
+    except tracker_binding.BindingError as exc:
+        raise PolicyReadError(f"{exc} (at {ref})") from exc
 
 
 def _vouch_refusal(
