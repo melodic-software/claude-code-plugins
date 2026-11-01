@@ -1,5 +1,25 @@
 # Changelog: docs-hygiene plugin
 
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+### Fixed
+
+- give extract-ssot's verify spoke a resolvable script path
+
 ## [2.0.22] - 2026-10-31
 
 ### Added

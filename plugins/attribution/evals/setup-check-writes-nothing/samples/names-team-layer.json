@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Team layer: docs/conventions/attribution.yaml",
+      "why": "repo-relative"
+    },
+    {
+      "answer": "Config layers: /ws/docs/conventions/attribution.yaml",
+      "why": "absolute"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No config layers; bundled defaults apply.",
+      "why": "missed the file"
+    },
+    {
+      "answer": "Team layer: .claude/attribution.json",
+      "why": "legacy path"
+    }
+  ]
+}

@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.134.0] - 2026-11-01
+
+### Added
+
+- The shared interview server now sends Claude a `fault-spike` event when 3 faults of one kind arrive within 300 seconds. The kinds are page `error`, `rejection` and `api` entries, plus the server's own 5xx answers. After one event, none follows for 600 seconds. The event carries only the server's counts: the fault kind, the count, the window and the threshold. It never carries a fault's message, source, route, fingerprint or pid. Claude handles it like a problem report: it diagnoses the spike and proposes a fix to the owner in the terminal ([#9975](https://github.com/melodic-software/claude-code-plugins/issues/9975)).
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+### Fixed
+
+- The interview's Step 4 Brief gate command now passes `--surface '<data_dir>'` on a page-surface run, so it runs the Intent and Decisions checks. SKILL.md, `context/loop.md` and the checklist template name the flag.
+- With `--surface`, `check-open-questions.sh --procedure --brief` now fails a Brief that lost a line the page export writes under its TLDR or Acceptance criteria.
+- It also fails a Brief whose Decisions repeat an export line or hold a `Q<N>` line the export does not write, such as a decision put back in an earlier form or contradicted by a second line.
+
 ## [0.133.1] - 2026-10-31
 
 ### Fixed
