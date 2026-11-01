@@ -378,19 +378,27 @@ ghpost::segment() {
   [[ -n "$form" ]] || return 0
   [[ -n "$GHPOST_POST" ]] || GHPOST_POST="$form"
   local w rest
-  # A request header (`-H 'Authorization: ...'`) is transport, not posted
-  # content, so its value is not a body word.
+  # A curl or `gh api` request header (`-H 'Authorization: ...'`) is
+  # transport, not posted content, so its value is not a body word. Only the
+  # separate `-H <value>` and `--header=<value>` forms are skipped: a joined
+  # `-H...` word may be a body value and stays.
   local skip=0
   for w in "$@"; do
     if ((skip)); then
       skip=0
       continue
     fi
-    case "$w" in
-    -H | --header) skip=1 ;;
-    -H?* | --header=*) ;;
-    *) GHPOST_TEXTS+=("$w") ;;
-    esac
+    if [[ "$form" == curl || "$form" == gh-api ]]; then
+      case "$w" in
+      -H | --header)
+        skip=1
+        continue
+        ;;
+      --header=*) continue ;;
+      *) ;;
+      esac
+    fi
+    GHPOST_TEXTS+=("$w")
   done
   # A variable or substitution brings its text from elsewhere in the command
   # (`B=...; gh ... --body "$B"`); an unquoted `$(` splits the segment and

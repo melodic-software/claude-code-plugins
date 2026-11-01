@@ -168,12 +168,23 @@ if ((_bgpc_paths)); then
       # out of a body word.
       for _bgpc_f in ${GHPOST_FILES[@]+"${GHPOST_FILES[@]}"}; do
         case "$_bgpc_t" in
-        "$_bgpc_f" | "-"*"=$_bgpc_f" | "@$_bgpc_f" | [!=[:space:]]*"=@$_bgpc_f")
+        # `<path>`, `--flag=<path>`, `@<path>`, joined `-F<path>`/`-d@<path>`,
+        # `k=@<path>` and curl's `k=@<path>;type=...`, `k=<<path>` and
+        # `name@<path>`.
+        "$_bgpc_f" | "-"*"=$_bgpc_f" | "@$_bgpc_f" | "-"?"$_bgpc_f" | "-"?"@$_bgpc_f" | \
+          [!=[:space:]]*"=@$_bgpc_f" | [!=[:space:]]*"=@$_bgpc_f;"* | \
+          [!=[:space:]]*"=<$_bgpc_f" | [!=[:space:]]*"=<$_bgpc_f;"* | [!@[:space:]]*"@$_bgpc_f")
           _bgpc_t=""
           break
           ;;
         *) ;;
         esac
+        # A quoted `$(cat <path>)` or `$(<path>)` inside a body word: cut that
+        # operand only, the file's own text is judged as a `file` body.
+        _bgpc_t="${_bgpc_t//"\$(cat $_bgpc_f)"/}"
+        _bgpc_t="${_bgpc_t//"\$(<$_bgpc_f)"/}"
+        _bgpc_t="${_bgpc_t//"\$(< $_bgpc_f)"/}"
+        _bgpc_t="${_bgpc_t//"\`cat $_bgpc_f\`"/}"
       done
       ;;
     *) ;;
