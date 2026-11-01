@@ -156,11 +156,11 @@ g "$repo" checkout -q main
 g "$repo" merge -q --no-edit pr >/dev/null
 g "$repo" checkout -q pr
 g "$repo" merge -q --ff-only main
-sed -i 's/^echo one$/echo pr/' "$repo/lib/shared.sh"
+sed 's/^echo one$/echo pr/' "$repo/lib/shared.sh" >"$TMP/edit" && cat "$TMP/edit" >"$repo/lib/shared.sh"
 (cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
 g "$repo" commit -qam "pr: first line"
 g "$repo" checkout -q main
-sed -i 's/^echo 5$/echo main/' "$repo/lib/shared.sh"
+sed 's/^echo 5$/echo main/' "$repo/lib/shared.sh" >"$TMP/edit" && cat "$TMP/edit" >"$repo/lib/shared.sh"
 (cd "$repo" && bash scripts/sync-shared-copies.sh) >/dev/null
 g "$repo" commit -qam "main: last line"
 rm -rf "$TMP/disjoint-base"
