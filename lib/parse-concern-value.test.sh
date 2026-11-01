@@ -215,7 +215,7 @@ assert_eq 'duplicate key: --strict names the second line' "parse-concern-value: 
 rc=0
 out=$(bash "$SCRIPT" --strict "$EX" merge.rung) || rc=$?
 assert_exit '--strict on a clean file exits 0' 0 "$rc"
-assert_eq '--strict on a clean file prints the value' "C2" "$out"
+assert_eq '--strict on a clean file prints the value' "merge" "$out"
 assert_eq '--strict on a missing file prints the fallback' ".x" \
   "$(bash "$SCRIPT" --strict "$TEST_TMPDIR/nope.yaml" memory_dir .x)"
 

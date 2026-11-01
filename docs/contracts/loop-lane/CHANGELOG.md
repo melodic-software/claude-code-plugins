@@ -718,7 +718,7 @@ A change to the escalation contract is a major bump per this file's own rule.
 - **Escalation contract (§2), escalation record write.** Every escalation an autonomous lane
   files now also writes a local JSON escalation record at
   `.claude/lane-escalations/<UTC-stamp>-<item>-<lane>.json`, created with the Write tool (never a
-  shell redirect, whose `Bash` event the hook's `Write` matcher never sees), one new file per
+  shell redirect, whose `Bash` event the seam's `Write` matcher never sees), one new file per
   NEWLY filed escalation, since suppression is the marker read a lane already performs before
   escalating, so a standing escalation re-encountered on a later cycle fires no second webhook. The
   record is written **immediately before** the marker comment, and the order is part of the
@@ -739,7 +739,7 @@ A change to the escalation contract is a major bump per this file's own rule.
   `PushNotification` and `slack`-plugin outbound are
   named as optional model-discretionary layers, never the deterministic leg. Fan-out depth on the
   one filed escalation, not a second escalation channel; degradation without a configured hook
-  loses only the out-of-band leg. §2 also records the hook's egress (the POST body is the full
+  loses only the out-of-band leg. §2 also records the seam's egress (the POST body is the full
   hook input, session metadata included, consumer-opted by configuring the hook) and its
   silent-failure mode (empty-string env interpolation plus non-blocking non-2xx), with a
   wire-time verification step.
