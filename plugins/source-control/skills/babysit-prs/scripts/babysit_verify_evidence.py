@@ -402,7 +402,9 @@ LISTING_MISS_PREFIX = "babysit-listing-miss"
 
 class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
-    hold the live count, the one case read again on the same base."""
+    hold the live count: `COUNT_MISSED` (fewer), the one case read again on
+    the same base, or `COUNT_OVER` (more), which goes straight to one whole
+    listing, since no wait removes an entry GitHub no longer counts."""
 
 
 # Fewer than the live count: the pages skipped an artifact, which another
@@ -416,7 +418,9 @@ COUNT_MISSED = _CountMissed()
 COUNT_OVER = _CountMissed()
 # Beside `LISTING_ENV`'s file, a listing from the API that failed in this job
 # after it began a whole listing, with its reason, unless it failed for want of
-# a caller's time (`DEADLINE_UNREADABLE`): the job's later Readers, in this process or another, refuse
+# a caller's time (`DEADLINE_UNREADABLE`) or on a 5xx or network error that
+# outlasted its waits (`_Transient`), either of which a later Reader may not
+# meet: the job's later Readers, in this process or another, refuse
 # on it without paging again (pr-merge's merge job built one Reader per
 # candidate, each paging three whole listings, 825 to 1,015 calls a run on
 # 2026-11-01).
@@ -1181,9 +1185,12 @@ class Reader:
     _listing_error: str | None = None
     # When the whole listings of one `_complete_listing` must end.
     _read_deadline: float | None = None
-    # A whole listing was paged, so a failure not for want of a caller's time
-    # is noted for the job.
+    # A whole listing was paged, so a failure neither for want of a caller's
+    # time nor transient is noted for the job.
     _whole_paged: bool = False
+    # The last `_incremental_page` that read nothing failed on a 5xx, a
+    # network error or a body cut short, after its waits.
+    _page_transient: bool = False
     _runs: dict[int, str] = field(default_factory=dict)
     _started: dict[int, Any] = field(default_factory=dict)
     _created: dict[int, Any] = field(default_factory=dict)
@@ -1285,7 +1292,7 @@ class Reader:
                 listing = self._complete_listing()
             except (_Unreadable, RuntimeError) as exc:
                 self._listing_error = str(exc)
-                if self._whole_paged:
+                if self._whole_paged and not isinstance(exc, _Transient):
                     self._note_failed_listing(self._listing_error)
                 raise _Unreadable(self._listing_error) from exc
         self._artifacts, self._fetched_at = listing, fetched_at
@@ -1437,7 +1444,10 @@ class Reader:
         else:
             cause = "never held"
         noun = "listing" if reads == 1 else "listings"
-        raise _Unreadable(
+        # A top-up page lost to a 5xx or network error is transient: not
+        # noted for the job (`_note_failed_listing`).
+        transient = listing is None and self._page_transient
+        raise (_Transient if transient else _Unreadable)(
             f"repository artifacts: {reads} whole {noun} {cause} "
             "GitHub's live artifact count"
         )
@@ -1449,8 +1459,9 @@ class Reader:
         stage: str = "incremental",
     ) -> list[dict[str, Any]] | _CountMissed | None:
         """Every repository artifact, as the base (`_incremental_base`) and
-        the newest pages read now show them; `COUNT_MISSED` when the pages
-        read but the result does not hold the live count, else None.
+        the newest pages read now show them; when the pages read but the
+        result does not hold the live count, `COUNT_MISSED` for fewer and
+        `COUNT_OVER` for more; else None.
 
         The listing comes newest id first. Pages are read from the first
         until one holds an artifact at or below the base's highest id that
@@ -1463,12 +1474,17 @@ class Reader:
         expired or past its `expires_at` by the first page's `Date` (one with
         no `expires_at` stands unless expired). The
         result must hold exactly the first page's `total_count` artifacts,
-        GitHub's live count: any other count gives `COUNT_MISSED`, and one
-        `LISTING_MISS_PREFIX` line on stderr names `stage`, the counts and
+        GitHub's live count: fewer gives `COUNT_MISSED`, which
+        `_current_listing` reads again on the same base after a wait, and more
+        gives `COUNT_OVER`, which goes straight to one whole listing, since no
+        wait removes an entry GitHub no longer counts; either prints one
+        `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
-        `Date`, or any failed read gives None.
+        `Date`, or any failed read gives None (`_page_transient` says whether
+        the failed read was a 5xx or network error).
         `base` replaces `_incremental_base` and `deadline` its own
         `LISTING_TIMEOUT_SECONDS` (`_complete_listing`'s top-up)."""
+        self._page_transient = False
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1549,7 +1565,9 @@ class Reader:
         """One incremental page's body and headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
         (`_transient`) or its body is cut short; None for any other failure,
-        or once the waits or the time run out."""
+        or once the waits or the time run out, with `_page_transient` set
+        when the last read was one of those."""
+        self._page_transient = False
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
             if left <= 0:
@@ -1565,6 +1583,7 @@ class Reader:
                     env_overrides=self._env(),
                 )
             except (RuntimeError, ValueError, OSError):
+                self._page_transient = False
                 return None
             if proc.returncode == 0:
                 try:
@@ -1572,7 +1591,9 @@ class Reader:
                 except ValueError:
                     pass  # A body cut short: read again.
             elif not _transient((proc.stderr or "").strip()):
+                self._page_transient = False
                 return None
+            self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
                 return None
             _listing_sleep(wait)

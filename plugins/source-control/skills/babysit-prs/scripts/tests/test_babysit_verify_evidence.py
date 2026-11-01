@@ -4481,14 +4481,41 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertIn("timed out", evidence.detail)
         self.assertFalse(self.failed.exists())
 
+    def test_a_top_up_lost_to_a_5xx_is_not_noted_for_the_job(self) -> None:
+        # The top-up's page answers 502 through its waits: this Reader
+        # refuses, and the next one, the blip over, lists and judges.
+        fake = self.fake()
+        fake.page_fail = "gh: Bad Gateway (HTTP 502)"
+        evidence = self.against_the_clock(fake, 0.0)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("could not be checked against", evidence.detail)
+        self.assertFalse(self.failed.exists())
+        fake.page_fail = None
+        evidence = self.against_the_clock(fake, 0.0)
+        self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(fake.full_listings(), 2)
+
+    def test_a_whole_listing_lost_to_a_5xx_is_not_noted_for_the_job(self) -> None:
+        fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        _, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("HTTP 502", evidence.detail)
+        self.assertEqual(fake.listings(), 3)
+        self.assertFalse(self.failed.exists())
+        _, evidence = self.judge(fake)
+        self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(fake.listings(), 4)
+
     def test_a_whole_listing_failure_not_the_callers_is_noted(self) -> None:
         # A timeout of the whole cap's own budget (60 s for five artifacts),
-        # and a top-up page 404 with the caller's time left.
+        # and a top-up page 404, with or without a caller's time left.
         cases: dict[str, tuple[FakeGitHub, float, str, BaseException | None]] = {
             "cap timeout": (self.fake(), 60.0, "", timed_out()),
+            "404": (self.fake(), 0.0, "", None),
             "caller 404": (self.fake(), 0.0, "60", None),
         }
-        cases["caller 404"][0].page_fail = "gh: Not Found (HTTP 404)"
+        for label in ("404", "caller 404"):
+            cases[label][0].page_fail = "gh: Not Found (HTTP 404)"
         for label, (fake, spend, limit, failure) in cases.items():
             with self.subTest(label):
                 self.failed.unlink(missing_ok=True)
