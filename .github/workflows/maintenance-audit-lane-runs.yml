@@ -382,7 +382,7 @@ jobs:
           step-timeout-minutes: 25
           credential: ${{ steps.judge.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.judge.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge.outputs.lane-class }}
+          known-failure-class: ${{ steps.judge.outputs.lane-class }}
 
       # The structured output is untrusted model text: read from the
       # launcher's file and checked by the script, never interpolated into a

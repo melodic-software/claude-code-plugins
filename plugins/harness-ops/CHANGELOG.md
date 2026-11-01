@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.1] - 2026-11-01
+
+### Fixed
+
+- `/harness-ops:morning-brief` prints the `KEY: <role> credit-stop` line for an API-key leg whose lane-outcome record has class `credit-stop`, not only for a run that fell back on one. A key leg that credit-stopped with no fallback leg used to print no KEY line.
+
 ## [5.2.0] - 2026-11-01
 
 ### Added

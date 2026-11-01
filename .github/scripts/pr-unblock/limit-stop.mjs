@@ -44,7 +44,10 @@ function summaryRecord(run) {
   return { failureClass: match[3] ?? "", resets: match[4] ?? "" };
 }
 
-// The lane record classes that stop a run until a reset.
+// The lane record classes that stop a run until a reset. A credit stop is not
+// one: an API key out of credit or at its spend limit does not recover when a
+// usage window resets, so its failed run handles the head like any other
+// failure, and the morning brief's KEY line names the key to rotate.
 const STOP_CLASSES = new Set(["rate-limit", "auth"]);
 
 // The failed `run`'s limit stop as { failureClass, resetsAt } (epoch ms), or

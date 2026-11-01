@@ -24,6 +24,13 @@ the skill must not trigger or be invoked: the converter cannot tell which way
 such a case points, and run-validity.py marks a run INVALID when a required
 Skill call is missing.
 
+Every case's `allowed_tools` is Read, Glob, Grep and Skill, plus the tools its
+skill needs to run, read from the skill's SKILL.md: Bash when the body holds a
+pre-computed context line (!`command`), which runs at load so the slash command
+fails to load without it, or tells Claude to run something through Bash; then
+each tool in the frontmatter's `allowed-tools`, with a `Bash(git *)`-style
+pattern reduced to its tool name. The list keeps that order with no repeats.
+
 A case with expectations and an `expected_output` gets a sample file per
 expectation grader, holding `expected_output` as the one answer it must pass.
 The source describes the intended reply rather than recording one, so the
@@ -96,6 +103,37 @@ KNOWN_KEYS = frozenset(
 # Read-only tools, granted without --allow-tools: the validator's
 # READ_ONLY_TOOLS. Skill must be listed, or no skill can load.
 ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
+
+# A pre-computed context line (!`command`) runs through Bash when the skill
+# loads; without Bash the slash command fails to load and the run ends at 0
+# turns. So does a body that tells Claude to run something through Bash.
+# - Pointer: when what loads a pre-computed line may have changed, fetch
+#   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
+#   observed basis is the #8635 rate-limit-guard run, INVALID at 0 turns.
+# - As of: 2026-11-01
+# - Recheck trigger: that section names a tool other than Bash for the line.
+PRECOMPUTED = re.compile(r"!`[^`\n]+`")
+BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
+# A clause that tells the skill to stay off Bash grants nothing. Only the
+# clause holding the Bash phrase counts, so "lines do not run, so run X through
+# Bash" still grants it.
+NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
+# A hard-wrapped line joins the next unless that line starts a block (blank
+# line, list item, heading, quote or table row).
+WRAP = re.compile(r"[ \t]*\n(?![ \t]*(?:[\n\-*#>|]|\d+\.))[ \t]*")
+
+
+def body_needs_bash(text):
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n", WRAP.sub(" ", text)):
+        for match in BASH_IN_BODY.finditer(sentence):
+            clause = re.split(r"[,:]", sentence[: match.start()])[-1]
+            if not NEGATION.search(clause):
+                return True
+    return False
+
+# One tool in an allowed-tools value; a permission pattern in parentheses after
+# the name is consumed with it, so the words inside are not read as tools.
+TOOL_TOKEN = re.compile(r"([A-Za-z][\w.:-]*)\s*(?:\([^)]*\))?")
 
 # Wording that says the skill must stay quiet. Such a case gets no Skill grader.
 NO_TRIGGER = re.compile(
@@ -175,6 +213,44 @@ def source_files(plugin_dir):
         if os.path.isfile(path):
             found.append((skill, path))
     return found
+
+
+def frontmatter_tools(lines):
+    """Tool names from a SKILL.md frontmatter's allowed-tools, inline or block."""
+    raw = []
+    for index, line in enumerate(lines):
+        if not line.startswith("allowed-tools:"):
+            continue
+        raw.append(line.split(":", 1)[1])
+        for item in lines[index + 1 :]:
+            if not item.lstrip().startswith("- "):
+                break
+            raw.append(item.lstrip()[2:])
+        break
+    return [match.group(1) for match in TOOL_TOKEN.finditer(" ".join(raw))]
+
+
+def skill_tools(plugin_dir, skill):
+    """The case's allowed_tools: the base list plus what the skill needs to run."""
+    try:
+        with open(
+            os.path.join(plugin_dir, "skills", skill, "SKILL.md"), "r", encoding="utf-8"
+        ) as handle:
+            text = handle.read()
+    except (OSError, UnicodeDecodeError):
+        return list(ALLOWED_TOOLS)
+    lines = text.splitlines()
+    front = []
+    if lines and lines[0].strip() == "---":
+        for number, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                front, text = lines[1:number], "\n".join(lines[number + 1 :])
+                break
+    tools = list(ALLOWED_TOOLS)
+    if PRECOMPUTED.search(text) or body_needs_bash(text):
+        tools.append("Bash")
+    tools += frontmatter_tools(front)
+    return list(dict.fromkeys(tools))
 
 
 def read_cases(path, rel):
@@ -260,7 +336,7 @@ def sample_text(data):
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-def plan_case(plugin, skill, case, where):
+def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS):
     """Return (directory name, {relative path: text}, notes) for one case."""
     notes = []
     name = case_dir_name(skill, case, where)
@@ -317,7 +393,7 @@ def plan_case(plugin, skill, case, where):
     if described:
         front.append("description: " + yaml_str(" ".join(described), where))
     front.append("tags: [%s]" % ", ".join(yaml_str(t, where) for t in tags))
-    front.append("allowed_tools: [%s]" % ", ".join(ALLOWED_TOOLS))
+    front.append("allowed_tools: [%s]" % ", ".join(tools))
     if expected:
         front.append("expected_outcome: " + yaml_str(expected, where))
     files_out = {
@@ -386,10 +462,11 @@ def plan(plugin_dir):
             errors.append(str(error))
             continue
         planned = []
+        tools = skill_tools(plugin_dir, skill)
         for number, case in enumerate(cases, start=1):
             where = "%s case %d" % (rel, number)
             try:
-                name, files, notes = plan_case(plugin, skill, case, where)
+                name, files, notes = plan_case(plugin, skill, case, where, tools)
             except Refusal as error:
                 errors.append(str(error))
                 continue
