@@ -1,0 +1,123 @@
+{
+  "skill": "harness-config:audit",
+  "plugin": "harness-config",
+  "skill_dir": "plugins/harness-config/skills/audit",
+  "ranking_note": "Queries written by a fresh agent that saw only the before descriptions of the harness-config skills; frozen before rewrite slice A (#11560); protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings that also read settings, permissions or instruction files: the permission-state and permission-grants audits, the automation-gap audit, the instruction audit and the coordinated pass.",
+  "competitors": [
+    "harness-config:audit-permission-state",
+    "harness-config:audit-permission-grants",
+    "harness-config:audit-automation-gaps",
+    "harness-config:audit-instructions",
+    "harness-config:audit-pass"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just upgraded Claude Code to the newest release. Can you go through my settings.json and tell me if anything in there is outdated or wrong now?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "look over my .mcp.json and the hooks block in my project settings, I want to know if any of it is misconfigured or a security problem"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is my Claude Code configuration still in line with what the official docs say? I set it up months ago and haven't touched it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "review the env vars I set in settings.local.json and the plugins I have enabled, flag anything deprecated or risky"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "go through all my claude settings files, find what's broken, and fix the stuff that can be fixed automatically after asking me"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Something feels off with my Claude Code setup. Can you sanity check the settings, MCP servers and hooks for mistakes?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "are there any keys in my ~/.claude/settings.json that Claude Code doesn't recognize anymore or that are typed wrong?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a correctness and security review of this repo's .claude/settings.json and .mcp.json against current Claude Code documentation."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "my hook config might have drifted from how the docs describe hooks now, can you compare and report what's stale"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We had a Claude Code version bump last week. Check our harness config, MCP setup and enabled plugins for anything that needs updating."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "add a permission so Claude can run npm test without asking me every time"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which allow and deny rules are actually in effect right now once user, project and managed scopes are merged together?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Are we missing any hooks or MCP servers that would automate things we keep doing by hand in this repo?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "our CLAUDE.md and AGENTS.md disagree in a couple of places, find the conflicting instructions"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "my allowed-tools line in a skill's frontmatter keeps getting ignored, why is that grant not working?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run every audit across user, project and plugin scope for this repo and give me one combined findings report I can diff at release."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "set DEBUG=true in my project settings please"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does my skill tell Claude when to stop and when to confirm before deleting things? I think it lacks guardrails."
+    }
+  ]
+}

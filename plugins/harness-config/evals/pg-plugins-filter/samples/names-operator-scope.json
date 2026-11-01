@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The operative rule must go in ~/.claude/settings.json."
+    },
+    {
+      "answer": "Operator setup: add the rule to your user-global settings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Move the rule into .claude/settings.json.",
+      "why": "project scope"
+    }
+  ]
+}

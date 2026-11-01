@@ -1,5 +1,5 @@
 ---
-description: "Read-only report of whether the external tools the skill-quality plugin declares in prerequisites.json resolve, through the shared Node checker. /skill-quality:check lints a skill; this skill checks the plugin's own tools. Use when a skill-quality script stops on a missing tool, or before assuming a lint ran. Does not install."
+description: "Read-only report of whether the external tools the skill-quality plugin declares in prerequisites.json resolve. Use when a skill-quality script stops on a missing tool, or before assuming a lint ran. Linting a skill is /skill-quality:check. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:

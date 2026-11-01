@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Consumer declarations read: CLAUDE.md, Permission exemptions section."
+    },
+    {
+      "answer": "exempt: CLAUDE.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Consumer declarations read: none.",
+      "why": "not named"
+    }
+  ]
+}

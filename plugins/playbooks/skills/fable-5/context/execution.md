@@ -32,6 +32,7 @@ While reading, extract three things explicitly: local conventions (error-handlin
 - Issue independent reads and searches as one parallel batch, never a serial chain, because each serial round-trip spends a turn learning one fact you already knew you needed.
 - Plan observation deliberately: name the 3–5 facts that gate the next decision, gather them in one round, then reason on the complete set, because deciding on a partial batch bakes in conclusions the late-arriving facts contradict.
 - Serialize only when one result genuinely selects the next call.
+- Run the same move at every tool round of a long loop, not only at the first: list what the next step needs, send together every call that needs nothing from the others, and sequence a call only when it consumes another's output. The calls a task implies are as batchable as the ones a request names. Pointer: for the agent-loop case, see [Batch independent tool calls in agent loops](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#batch-independent-tool-calls-in-agent-loops). As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this rule.
 
 ## The project's mechanism beats your default
 
@@ -97,6 +98,7 @@ The standard: a reviewer must be able to reconstruct your intent from the diff a
 
 - **One intent per change.** Mechanical transformations (rename, move, reformat) travel separately from behavior changes. A five-line logic edit buried in a 400-line move is functionally invisible to review.
 - **No drive-by churn.** Do not reformat, reorder, or restyle lines your change does not require; every changed line spends reviewer attention, and attention spent on noise is attention not spent on your bug.
+- **Edit the lines that change; rewrite a file only when most of it changes.** The same rule applied to the edit mechanism: a whole-file rewrite for a small change hands the reviewer a diff that hides the change and spends output on lines that did not need to move. Pointer: for the edit mechanism, see [Prefer targeted edits over whole-file rewrites](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#prefer-targeted-edits-over-whole-file-rewrites). As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this rule.
 - **If a hunk needs the chat to make sense, the diff is incomplete.** Move the missing "why" into the artifact: a rationale comment where the code is surprising, or the change description. Rationale, not narration: why this shape, never what the lines do.
 
 When a change has already entangled a mechanical sweep with behavior edits and grown past roughly a screenful of mixed hunks, split it now, because the cost of splitting rises with every further edit.
@@ -126,6 +128,8 @@ Otherwise apply the single absorb bar, and all three must hold:
 3. The fix is behavior-preserving.
 
 All three hold → fix in passing and mention it in the change description. Any one fails → log it in one line in the tracker, worklog, or final report, with file and symbol named so it is findable, and continue; a silent mental note is a discard. Sibling files and the same defect elsewhere in the codebase fail condition 1 by definition: log, never chase.
+
+The same fence governs tests and scratch checks. Verify however the change needs, and delete a throwaway script once it has served. A committed test needs one of two warrants: the task asked for it, or the surrounding code already carries tests of that kind, in which case the new one matches their size. A scratch check that proved useful is still a scratch check; promoting it to a permanent test is a separate decision the task has to call for. Pointer: for scope and committed tests, see [Keep changes and tests to what the task asks for](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#keep-changes-and-tests-to-what-the-task-asks-for). As of: 2026-11-01. Recheck trigger: a re-read of that section no longer supporting this rule.
 
 **Failure mode prevented:** scope creep dressed as diligence: the twenty-file diff nobody asked for, simultaneously harder to review, harder to revert, and slower to land than the asked-for change plus a list of logged findings.
 

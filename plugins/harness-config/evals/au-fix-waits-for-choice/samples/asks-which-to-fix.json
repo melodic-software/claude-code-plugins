@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| # | ... |\n\nWhich findings would you like me to fix? Reply with numbers, 'all', or 'skip'."
+    },
+    {
+      "answer": "Items 1 and 7 are auto-fixable. Which of these should I fix?"
+    },
+    {
+      "answer": "Tell me which to apply: reply with numbers? or all / skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "I added $schema and moved the deny rule into settings.json. Done.",
+      "why": "applied without asking"
+    },
+    {
+      "answer": "Findings above. Items 1 and 7 could be auto-fixed.",
+      "why": "no question"
+    }
+  ]
+}

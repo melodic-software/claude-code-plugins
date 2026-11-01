@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "1. `StatementReconciler` (RECOMMENDED): says what it does, read-only.\n2. `MismatchFinder`\n3. `LedgerAuditor`\n\nDisqualified: `LedgerSync` (rejected). Blocklisted word: `Helper`. Which one do you want?", "why": "echoes the bare banned word only" }
+  ],
+  "fail": [
+    { "answer": "1. `ReconcileHelper` (RECOMMENDED)\n2. `StatementReconciler`", "why": "compound ending in the banned word" },
+    { "answer": "1. `StatementReconciler`\n2. `HelperReconciler`", "why": "compound starting with the banned word" }
+  ]
+}

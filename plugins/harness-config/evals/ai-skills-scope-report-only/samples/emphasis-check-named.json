@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | 3f2a9c | I28 | .claude/skills/release-notes/SKILL.md:8 | warning | mechanical | ... |"
+    },
+    {
+      "answer": "I28-a forced-compliance emphasis at release-notes/SKILL.md:8."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The all-caps CRITICAL line should be calmer.",
+      "why": "no check id"
+    },
+    {
+      "answer": "I2 and I8 findings only.",
+      "why": "other ids"
+    },
+    {
+      "answer": "Issue I280 tracks this.",
+      "why": "near miss id"
+    }
+  ]
+}

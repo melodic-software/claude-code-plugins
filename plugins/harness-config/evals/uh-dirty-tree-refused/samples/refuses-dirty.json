@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "Refusing: the working tree is dirty."
+    },
+    {
+      "answer": "src/quay/app.py is modified; commit or stash it first."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Snapshot complete; here is the strip plan.",
+      "why": "proceeds"
+    }
+  ]
+}

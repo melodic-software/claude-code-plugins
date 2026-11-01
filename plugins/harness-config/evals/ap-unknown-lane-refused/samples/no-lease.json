@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "a root probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh\" lease acquire --run-dir /opt/claude/plugins/data/harness-config-melodic-software/runs/k/r1 --run-id r1 --plugin-data /opt/claude/plugins/data/harness-config-melodic-software",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "takes a lease"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=\"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-pass/scripts/run-state.sh\"\nbash \"$S\" lease  acquire --run-dir x --run-id r1 --plugin-data /opt/claude/plugins/data/harness-config-melodic-software",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "via a variable"
+    }
+  ]
+}

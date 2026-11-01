@@ -1,5 +1,5 @@
 ---
-description: "Clean stopping point before the machine may go away: sweeps every repo and worktree touched for uncommitted, unpushed, or PR-less work, pushes it, records follow-ups in PR and issue bodies, prunes only the provably safe, and gives a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Gates destructive cleanup."
+description: "Clean stop before the machine goes away: sweep every repo and worktree touched for uncommitted, unpushed or PR-less work, push it, and give a free-and-clear verdict. Use when: 'clean stop', 'safe to shut down', or stopping for the day. Gates destructive cleanup."
 argument-hint: "[--unattended]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Freshness check of a session's working assumptions: PRs, issues and branches a handoff or plan cites, base-branch drift, renamed or drifted skills and plugins, memory files whose subjects landed. Reports drift on facts, not rules. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. To resume, use /session-flow:keep-going."
+description: "Check a session's working assumptions for drift: PRs, issues and branches a handoff or plan cites, base-branch moves, renamed skills. Use when resuming an old plan or handoff: 'is this still current', 'has main moved since'. To resume: /session-flow:keep-going."
 user-invocable: true
 disable-model-invocation: false
 metadata:

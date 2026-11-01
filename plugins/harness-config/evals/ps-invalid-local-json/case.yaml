@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: ps-invalid-local-json
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'stage-ran'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'audit-permission-state/scripts/(?:audit|permission-merge|permission-state)\.sh'
+    min: 1
+  - name: 'names-broken-local'
+    type: 'regex'
+    pattern: 'settings\.local\.json[\s\S]{0,300}?(?:invalid|(?:not|isn[''’]t) valid|malformed|pars(?:e|ing)|(?:could not|couldn[''’]t) be read|unreadable)|(?:invalid|(?:not|isn[''’]t) valid|malformed|pars(?:e|ing)|unreadable)[\s\S]{0,300}?settings\.local\.json'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'marked-incomplete'
+    type: 'regex'
+    pattern: 'incomplete|not a clean bill|partial'
+    target: 'last_message'
+    flags: 'i'
+  - name: 'lists-project-deny'
+    type: 'regex'
+    pattern: 'Read\(\./\.env\)'
+    target: 'last_message'
+  - name: 'no-oracle'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '--oracle|\bclaude\s+-p\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-settings-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
