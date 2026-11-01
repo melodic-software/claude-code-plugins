@@ -67,7 +67,9 @@ Resolve at runtime, never hardcode machine-specific paths:
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
 Score history across sessions names no retro mode. Before reading any mode, stop on a request for
-scores across sessions or a `trends` argument, and name `/session-flow:audit-sessions trends`.
+scores or "how am I doing" across sessions, or on a
+`trends` argument, and name `/session-flow:audit-sessions trends`; "how did I do this session"
+still runs a retro.
 That action reads the history this skill writes and adds delivery metrics; this skill analyzes no
 session for it.
 

@@ -66,7 +66,8 @@ Exits 0, 1 and 2 mean what Step 2 says.
 - **Score history** (read by `trends`): `D/scores/<project-slug>.md`, the file
   `/session-flow:retro` session and quick modes append to. `<project-slug>` is the project's
   absolute path, in its Windows drive form when `pwd -W` gives one, with every character outside
-  `[A-Za-z0-9]` replaced by `-`.
+  `[A-Za-z0-9]` replaced by `-`. When no score file exists at that slug, use the name of the
+  `~/.claude/projects/` directory that holds the current session's JSONL as the slug.
 - **Uninstall deletes the store.** Say so before the first collect on a machine: the store is the
   only lasting copy of these numbers, because Claude Code removes old transcripts on its own
   schedule and a deleted store cannot be rebuilt for sessions already removed.
