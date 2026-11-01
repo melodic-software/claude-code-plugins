@@ -6618,13 +6618,17 @@ done
 # expanding outer string handed to rdt_ps_nested, where `"... '$env:TEMP'"`
 # expanded `$env:TEMP` before the inner single quotes were read. 0 throughout
 # when the command holds a quoting form rdt_ps_walk does not read (a `<#` block
-# comment, an `@"` or `@'` here-string, or a byte outside ASCII, which may be a
-# quote character): the walk can then be out of step with PowerShell's, and a
-# `$` it marks literal may sit inside a string PowerShell expands.
+# comment, an `@"` or `@'` here-string, a byte outside ASCII, which may be a
+# quote character, or a `$(` alongside a `"`, since a `$( ... )` inside a
+# double-quoted string is a full script whose own quotes do not close the
+# string, while the walk closes it at the next `"`): the walk can then be out of
+# step with PowerShell's, and a `$` it marks literal may sit inside a string
+# PowerShell expands.
 rdt_ps_lit_kept=1
 # shellcheck disable=SC2329  # invoked through hook::_c_locale
 rdt_ps_quote_gap() {
-  [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]]
+  [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]] ||
+    [[ "$COMMAND" == *'$('* && "$COMMAND" == *'"'* ]]
 }
 hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
@@ -7246,15 +7250,16 @@ rdt_ps_call_arg() {
 # rdt_ps_nested <text>: PowerShell text a statement runs (an Invoke-Expression
 # string, a pwsh -Command, a decoded -EncodedCommand), walked as statements of
 # its own. A `$` the outer walk read as literal is a `$` again here, because the
-# text expands it when it runs. Text holding a `$` the outer walk did not mark
-# literal may come from an expanding string, which expanded a `$` single-quoted
-# inside it already, so rdt_ps_lit_kept is 0 for its walk (decoded
-# -EncodedCommand text is read the same way, which only refuses more). Nesting depth
+# text expands it when it runs. Nested text is always also read as an expansion
+# (rdt_ps_lit_kept is 0 for its walk): it may come from an expanding string,
+# which expanded a `$` single-quoted inside it already, and the outer string's
+# escapes are gone from it, so it can hold a quoting form rdt_ps_quote_gap never
+# saw in the command (`` <`# `` becomes `<#`, `` @`" `` becomes `@"`). Decoded
+# -EncodedCommand text is read the same way, which only refuses more. Nesting depth
 # and the text read in total are bounded as eval and child shells are in the
 # Bash lane, and the bound refuses.
 rdt_ps_nested() {
-  local __t="$1" rdt_ps_lit_kept=$rdt_ps_lit_kept
-  [[ "$__t" == *'$'* ]] && rdt_ps_lit_kept=0
+  local __t="$1" rdt_ps_lit_kept=0
   [[ -n "$RDT_PS_LIT" ]] && __t="${__t//"$RDT_PS_LIT"/\$}"
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"

@@ -3671,6 +3671,20 @@ expect_both 'PS a here-string keeps the expansion reading' 2 \
 expect_both 'PS a typographic double quote keeps the expansion reading' 2 \
   --tool PowerShell "${RDT_CWD[@]}" \
   --command "iex "$'\xe2\x80\x9c'"echo; Remove-Item -Recurse '\$env:SystemDrive\\' "$'\xe2\x80\x9d'
+# A `$( ... )` inside a double-quoted string is a full script, so a `"` in it
+# does not close the string as the walk reads it.
+expect_both 'PS a quote inside a $( ) subexpression keeps the expansion reading' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" \
+  --command $'iex "$(\'"\'.Length) #\'\nRemove-Item -Recurse \'$env:SystemDrive\\\'\n" #"'
+# Nested text has lost the outer string's escapes, so a quoting form can appear
+# in it that the command itself does not hold; nested text keeps the expansion
+# reading.
+expect_both 'PS an escaped block comment inside an expanding string keeps the expansion reading' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" \
+  --command $'iex "<`# `" #> iex `"echo; Remove-Item -Recurse \'`$env:SystemDrive\\\' `" <`# `" #>"'
+expect_both 'PS an escaped typographic quote inside an expanding string keeps the expansion reading' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" \
+  --command $'iex "iex `u{201C}echo; Remove-Item -Recurse \'`$env:SystemDrive\\\' `u{201D}"'
 # Stay quiet: a literal `$` or stream suffix on a target inside the tree.
 expect_both 'PS single-quoted in-tree target holding a $ allowed' 0 \
   --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build\$old'"
