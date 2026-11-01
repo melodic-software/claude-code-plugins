@@ -2,14 +2,10 @@
   "skill": "skill-quality:check-prerequisites",
   "plugin": "skill-quality",
   "skill_dir": "plugins/skill-quality/skills/check-prerequisites",
-  "ranking_note": "Authored from the before description at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are skill-quality:check (lints a skill: frontmatter, caps, evals.json and the shared listing budget), harness-ops:prerequisites (a fleet-wide report of the external tools every enabled plugin declares), toolchain:check-prerequisites (the same tool check for the toolchain plugin's build and lint tools), instruction-placement:check-prerequisites (the same tool check for the instruction-placement plugin), markdown-format:check (whether markdownlint-cli2 and node resolve for the markdown hook) and evals:validate (static validation of a plugin eval suite before a run). check-prerequisites owns a read-only report of whether the external tools the skill-quality plugin itself declares resolve on this machine, installing nothing.",
+  "ranking_note": "Authored from the before description at commit 408a7cc654e34d620ebd557b2d6943448a4365a1, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Same-plugin competitors only: skill-quality:check (lints a skill: frontmatter, caps, evals.json and the shared listing budget) and skill-quality:setup (first-run configuration). check-prerequisites owns the read-only report of whether the plugin's own declared tools resolve.",
   "competitors": [
     "skill-quality:check",
-    "harness-ops:prerequisites",
-    "toolchain:check-prerequisites",
-    "instruction-placement:check-prerequisites",
-    "markdown-format:check",
-    "evals:validate"
+    "skill-quality:setup"
   ],
   "queries": [
     {
