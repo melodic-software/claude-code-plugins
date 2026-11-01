@@ -46,8 +46,9 @@ survives. Check the model and platform list in the page's opening note before re
 model it excludes, fall back to the request's `system` parameter. Turn-scoped system messages and
 mid-conversation tool changes are each a separate beta, named in that same note.
 
-- **Pointer**: for the model list and the betas, see the page's opening note on
-  [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages);
+- **Pointer**: for the model list and the betas, see the note above the first heading of
+  [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
+  (the page gives that note no anchor of its own);
   for the cache rationale and placement, see
   [When to use a mid-conversation system message](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#when-to-use-a-mid-conversation-system-message),
   [Limitations](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#limitations), and
@@ -168,12 +169,13 @@ binds on resolves at the pointers, never here; the practice is written so one re
 across models.
 
 - **Keep the history append-only.** Send every assistant turn back exactly as returned, thinking
-  blocks included, and add new messages only at the end. Carry a per-turn reminder as a
-  turn-scoped system message, or as a text block after the tool results, and leave earlier copies
-  in place; change instructions or tools with a mid-conversation system message rather than by
-  rewriting `system` or `tools`; let server-side compaction or context editing do any trimming,
-  and when compacting on the client, replace the whole history with one summary plus the new turn.
-  An edit to an earlier turn restarts the cache on every model and, on the models that check the
+  blocks included, and add new messages only at the end. A reminder that holds for one turn goes
+  in as a turn-scoped system message, or as a text block beside that turn's tool results, and
+  every earlier copy stays where it was sent. A new instruction or a tool change goes in as a
+  mid-conversation system message; the top-level `system` and `tools` fields are frozen at
+  session start. Trimming belongs to the server (compaction, context editing); a client-side
+  compaction keeps nothing of the old transcript except its summary. An edit to an earlier turn
+  restarts the cache on every model and, on the models that check the
   prefix, invalidates every later thinking block.
 - **Force a tool only on a model whose row accepts it.** Where the forcing-tool-use table rejects
   `any` and `tool`, name the tool in the prompt under `auto`, use strict tool use for schema-valid
