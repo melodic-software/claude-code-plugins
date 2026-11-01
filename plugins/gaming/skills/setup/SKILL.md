@@ -14,7 +14,7 @@ script's own verbs, then runs `check` again. Windows only.
 
 All provisioning goes through `${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1`
 (below: the script). Its `provision` verbs own download, hash verification, extraction and the
-runtime gate, and its selftest covers them; this body calls them and never restates their logic.
+runtime gate; this body calls them.
 
 ## Resolving paths (do this first)
 
@@ -120,8 +120,7 @@ download nothing, and never call `provision` in any form.
 ## `apply` (idempotent)
 
 Run `check`, then these steps in order; stop before step 1 when step 9 reports another
-directory holding `state\`, since step 1 would start an empty state tree beside it. `<script>` is
-`${CLAUDE_PLUGIN_ROOT}/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1`.
+directory holding `state\`, since step 1 would start an empty state tree beside it.
 
 1. Create the tree:
    `pwsh -NoProfile -Command "New-Item -ItemType Directory -Force -Path '<data-dir>\state','<data-dir>\runtime','<data-dir>\builds','<data-dir>\cache' | Out-Null"`. <!-- portability-ok: Windows paths inside a pwsh argument, not a shell regex -->
@@ -163,8 +162,6 @@ anywhere but the three sources `provision -Runtime` tries.
 - **`VersionInfo.FileVersion` misreads the runtime DLL.** NVIDIA's `nvngx_dlssnr.dll` reports
   `310,8,0,0` there. Read the numeric `FileMajorPart` to `FilePrivatePart` fields, as steps 5 and 7
   do; `refetch` reports the same numeric form.
-- **A probe containing single quotes cannot run from Bash in single quotes.** Run it through the
-  PowerShell tool instead of switching to double quotes, which let Bash expand every `$`.
 
 ## What this skill does NOT do
 
