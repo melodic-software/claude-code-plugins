@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.12.1] - 2026-11-01
+
+### Changed
+
+- `babysit_merge_policy.CARRY_REFUSES` builds each skill `scripts/` glob from the skill's `plugin:skill` name; the globs it holds are unchanged. The `ci --ci` reference's sample context file uses a plain script path for its `feedback_lines` example.
+
 ## [4.12.0] - 2026-11-01
 
 ### Added

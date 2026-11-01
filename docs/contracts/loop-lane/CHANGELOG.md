@@ -5,7 +5,7 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## [13.1.3] - 2026-11-01
+## [14.0.1] - 2026-11-01
 
 Patch. A default changed; no topology, escalation-contract mechanism, capability-tier or §4
 invariant changed.
@@ -13,6 +13,16 @@ invariant changed.
 - **Lane-instance default.** An unset `lane_instance` falls back to a random id made once and kept
   in the plugin data dir, not the machine hostname, which the public telemetry marker published.
   The id stays stable across restarts and distinct per machine.
+
+## [14.0.0] - 2026-11-01
+
+Major: the autonomy ladder's merge authority changes for a work class (§1).
+
+- **C4 at the C3 rungs (§1).** C4 (structural) partitions like C3: the C3 rungs, and the
+  `autopilot` + `--merge c3-this-run` widening, admit it once the `C3-auto-merge` cell is promoted,
+  with its blocking AI review as the gate and no mandatory human review or merge. C5 stays the one
+  class hold. The diff can raise a pull request's recorded class, never lower it, and a diff whose
+  class cannot be read fails closed (#9668, #12068).
 
 ## [13.1.2] - 2026-11-01
 

@@ -3,6 +3,13 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.16] - 2026-11-01
+
+### Changed
+
+- The `manage` description is shorter (888 to 621 characters) and keeps both quoted trigger phrases and every action name. Held-out trigger probes on Opus and Sonnet fired and stayed quiet the same on both versions.
+- The `manage` and `setup` bodies drop marketplace provenance asides, duplicated statements and framing; every safety rule, step and command is unchanged. Their outcome cases showed no loss on Opus and Sonnet.
+
 ## [0.8.15] - 2026-11-01
 
 ### Added
