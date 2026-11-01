@@ -342,7 +342,7 @@ if ! leak="$(tbg_scan "${BASH_SOURCE[0]%/*}/../lib/publish-gate.mjs" <"$BODY_FIL
   exit 17
 fi
 if [[ -n "$leak" ]]; then
-  err "body withheld: it matches the leak-scan rule '$leak' - nothing written; a real credential must be rotated"
+  err "body withheld: $leak - nothing written"
   exit 17
 fi
 

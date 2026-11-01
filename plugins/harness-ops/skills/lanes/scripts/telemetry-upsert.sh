@@ -356,7 +356,7 @@ leak="$(printf '%s' "$new_body" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/pu
   exit 3
 }
 if [[ -n "$leak" ]]; then
-  err "body withheld: it matches the leak-scan rule '$leak'; nothing was written, and a real credential must be rotated"
+  err "body withheld: $leak; nothing was written"
   exit 3
 fi
 

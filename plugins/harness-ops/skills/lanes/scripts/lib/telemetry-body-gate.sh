@@ -17,7 +17,11 @@ unset CDPATH
 # an inherited CLAUDE_PLUGIN_DATA, counts only when its last path segment names
 # PLUGIN (a plugin data dir is <plugin>-<marketplace>), so neither a caller-chosen
 # dir nor another plugin's exported data dir widens it; and never when it is /,
-# the home dir, or an ancestor of the home dir.
+# the home dir, or an ancestor of the home dir. The name is checked again on the
+# canonical path, so a symlink named for PLUGIN that points elsewhere is refused.
+# The home dir is the account's passwd entry, so an overridden HOME cannot move
+# it; $HOME is only the fallback where getent is missing.
+tbg_has_name() { [[ "$2" == "$1" || "$2" == "$1"-* ]]; }
 tbg_safe_dir() {
   local plugin="$1" dir="${2:-${CLAUDE_PLUGIN_DATA:-}}" seg home
   TBG_SAFE=""
@@ -27,7 +31,7 @@ tbg_safe_dir() {
   fi
   seg="${dir%/}"
   seg="${seg##*/}"
-  if [[ "$seg" != "$plugin" && "$seg" != "$plugin"-* ]]; then
+  if ! tbg_has_name "$plugin" "$seg"; then
     TBG_ERR="no safe body dir: --body-dir (or CLAUDE_PLUGIN_DATA) must be this plugin's data dir, whose last segment names $plugin"
     return 1
   fi
@@ -36,7 +40,13 @@ tbg_safe_dir() {
     TBG_ERR="the safe body dir does not exist"
     return 1
   fi
-  home="$(realpath -m -- "${HOME:-/}" 2>/dev/null)" || home="/"
+  if ! tbg_has_name "$plugin" "${TBG_SAFE##*/}"; then
+    TBG_SAFE=""
+    TBG_ERR="no safe body dir: the --body-dir (or CLAUDE_PLUGIN_DATA) resolves to a dir whose last segment does not name $plugin"
+    return 1
+  fi
+  home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6)"
+  home="$(realpath -m -- "${home:-${HOME:-/}}" 2>/dev/null)" || home="/"
   if [[ "$TBG_SAFE" == / || "$home" == "$TBG_SAFE" || "$home" == "$TBG_SAFE"/* ]]; then
     TBG_SAFE=""
     TBG_ERR="the safe body dir must not be /, the home dir, or an ancestor of it"
@@ -98,7 +108,7 @@ tbg_instance() {
   if [[ ! -L "$file" && ! -e "$file" ]]; then
     TBG_INSTANCE="lane-$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
     if tmp="$(mktemp "$TBG_SAFE/.lane-instance.XXXXXX" 2>/dev/null)" &&
-      printf '%s\n' "$TBG_INSTANCE" >"$tmp" && ln -- "$tmp" "$file" 2>/dev/null; then
+      printf '%s\n' "$TBG_INSTANCE" >"$tmp" && ln -T -- "$tmp" "$file" 2>/dev/null; then
       rm -f -- "$tmp"
       return 0
     fi
@@ -123,10 +133,13 @@ tbg_instance() {
   fi
 }
 
-# tbg_scan GATE: read the body on stdin and print the rule it matches, empty when
-# clean: a scanLeak block, its plain-assignment warning, or a findMachine hit (a
-# home path, a fleet or private hostname). GATE is the plugin's generated copy of
-# lib/publish-gate.mjs. Non-zero when the scan cannot run; never prints the match.
+# tbg_scan GATE: read the body on stdin and print why it is withheld, empty when
+# clean: a scanLeak block, its plain-assignment warning or URL userinfo
+# credentials (a credential, which must be rotated), or a findMachine hit (a home path, a fleet or private
+# hostname, which only needs removing). A GitHub-hosted runner's home dir
+# reveals nothing, so it is not a machine path. GATE is the plugin's generated
+# copy of lib/publish-gate.mjs. Non-zero when the scan cannot run; never prints
+# the match.
 tbg_scan() {
   # shellcheck disable=SC2016 # JavaScript, not shell
   node --input-type=module -e 'const { pathToFileURL } = await import("node:url");
@@ -134,6 +147,15 @@ const { readFileSync } = await import("node:fs");
 const gate = await import(pathToFileURL(process.argv[2]).href);
 const bytes = readFileSync(0);
 const { block, warn } = gate.scanLeak(bytes);
-const machine = gate.findMachine(bytes.toString("utf8"));
-process.stdout.write(block ?? (warn ? gate.WARN_ONLY : machine ? machine[0] : ""));' leak-scan "$1" 2>/dev/null
+const text = bytes.toString("utf8");
+const q = String.fromCharCode(39);
+const secret = block ?? (warn ? gate.WARN_ONLY : gate.URL_CREDENTIALS[1].test(text) ? gate.URL_CREDENTIALS[0] : null);
+const machine = secret ? null : gate.findMachine(text.replace(/\/home\/runner\//g, "/"));
+process.stdout.write(
+  secret
+    ? `it matches the leak-scan rule ${q}${secret}${q}; a real credential must be rotated`
+    : machine
+      ? `it names a machine path or hostname (${machine[0]}); remove it`
+      : "",
+);' leak-scan "$1" 2>/dev/null
 }

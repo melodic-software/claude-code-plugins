@@ -166,6 +166,13 @@ FAKE
 chmod +x "$BIN/gh"
 PATH="$BIN:$PATH"
 export PATH
+# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
+# it under the work dir without touching HOME.
+cat >"$BIN/getent" <<'GETENT'
+#!/usr/bin/env bash
+printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
+GETENT
+chmod +x "$BIN/getent"
 
 LANE=work-loop
 INSTANCE=laptop-a
@@ -710,7 +717,7 @@ FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
 printf '%s\ncycle=7 note=%s\n' "$SENT" "$FAKE_TOKEN" >"$WORK/leak.md"
 run "$WORK/leak.md"
 check_rc 17 "$RC" "a body carrying a credential-shaped token is refused (exit 17)"
-if grep -q "leak-scan rule 'GitHub token'" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" <<<"$STDOUT" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
+if grep -q "leak-scan rule 'GitHub token'; a real credential must be rotated" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" "$STDERR" && ! grep -qF -- "$FAKE_TOKEN" <<<"$STDOUT" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
   pass "the leak refusal names the rule, never prints the token, and makes no API call"
 else
   fail "leak refusal: $(grep -c . "$FAKE_GH_ARGV") API calls, stderr: $(sed "s/$FAKE_TOKEN/<token>/" "$STDERR")"
@@ -728,7 +735,7 @@ cp "$GOOD" "$ROOT/elsewhere/body.md"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
   --body-file "$ROOT/elsewhere/body.md" --body-dir "$ROOT/elsewhere" >/dev/null 2>"$STDERR"
 check_rc 16 "$?" "a --body-dir that is not the work-items data dir is refused (exit 16)"
-HOME="$WORK/user" bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
+STUB_PASSWD_HOME="$WORK/user" HOME=/nonexistent-other bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
   --issue "$ISSUE" --body-file "$GOOD" --body-dir "$WORK" >/dev/null 2>"$STDERR"
 check_rc 16 "$?" "a --body-dir that is an ancestor of the home dir is refused (exit 16)"
 if grep -q 'home dir' "$STDERR" && [[ ! -s "$FAKE_GH_ARGV" ]]; then
@@ -775,11 +782,27 @@ FAKE_HOME="/ho""me/alice"
 printf '%s\ncycle=7 worktree=%s/worktrees/app\n' "$SENT" "$FAKE_HOME" >"$WORK/homepath.md"
 run "$WORK/homepath.md"
 check_rc 17 "$RC" "a body naming a home path is withheld (exit 17)"
-if grep -q "leak-scan rule 'home path'" "$STDERR" && ! grep -qF -- "$FAKE_HOME" "$STDERR"; then
+if grep -q "names a machine path or hostname (home path); remove it" "$STDERR" && ! grep -q 'rotate' "$STDERR" && ! grep -qF -- "$FAKE_HOME" "$STDERR"; then
   pass "the home-path refusal names the rule, never the path"
 else
   fail "home-path refusal: $(cat "$STDERR")"
 fi
+
+# A GitHub-hosted runner's home path reveals nothing, so it is not withheld.
+fresh_state
+printf '%s\ncycle=7 log=/ho''me/runner/work/app/app/run.log\n' "$SENT" >"$WORK/runner.md"
+run "$WORK/runner.md"
+check_rc 0 "$RC" "a body naming only the hosted-runner home path is posted"
+
+# The plugin name is checked again on the canonical dir: a symlink named for the
+# plugin that points at another dir is refused.
+fresh_state
+mkdir -p "$ROOT/config"
+cp "$GOOD" "$ROOT/config/body.md"
+ln -s "$ROOT/config" "$ROOT/work-items-x"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
+  --body-file "$ROOT/work-items-x/body.md" --body-dir "$ROOT/work-items-x" >/dev/null 2>"$STDERR"
+check_rc 16 "$?" "a --body-dir symlink named for the plugin but resolving elsewhere is refused (exit 16)"
 
 if ((FAILED == 0)); then
   printf 'all lane-telemetry-upsert tests passed\n'

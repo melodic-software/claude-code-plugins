@@ -192,7 +192,7 @@ SENT_BODY="$SENT"$'\n'"$body"
 leak="$(printf '%s\n' "$SENT_BODY" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs")" ||
   die 3 "the leak scan could not run; nothing written"
 [[ -z "$leak" ]] ||
-  die 3 "body withheld: it matches the leak-scan rule '$leak'; nothing written, and a real credential must be rotated"
+  die 3 "body withheld: $leak; nothing written"
 
 SEND_FILE="$(mktemp)" || die 3 "cannot create a temporary file; nothing written"
 printf '%s\n' "$SENT_BODY" >"$SEND_FILE"

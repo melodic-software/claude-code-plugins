@@ -62,6 +62,13 @@ case "$method $url" in
 esac
 STUB
 chmod +x "$TMP/bin/gh"
+# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
+# it under the work dir without touching HOME.
+cat >"$TMP/bin/getent" <<'GETENT'
+#!/usr/bin/env bash
+printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
+GETENT
+chmod +x "$TMP/bin/getent"
 
 SENT='<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@lap-1 -->'
 PAYLOAD='cycle: 7
@@ -344,7 +351,7 @@ FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
 setup '[]' "cycle: 7 note=$FAKE_TOKEN"
 run
 check "credential-shaped body: exit 3" 3 "$?"
-check "credential-shaped body: names the rule" 1 "$(grep -q "leak-scan rule 'GitHub token'" "$STUB_DIR/err" && echo 1)"
+check "credential-shaped body: names the rule and asks for rotation" 1 "$(grep -q "leak-scan rule 'GitHub token'; a real credential must be rotated" "$STUB_DIR/err" && echo 1)"
 check "credential-shaped body: token never printed" 0 "$(grep -cF -- "$FAKE_TOKEN" "$STUB_DIR/err" "$STUB_DIR/out" | awk -F: '{n+=$NF} END {print n+0}')"
 check "credential-shaped body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 setup '[]' 'cycle: 7 password="hunter2hunter2"'
@@ -358,7 +365,7 @@ mkdir -p "$TMP/elsewhere"
 cp "$STUB_DIR/body.txt" "$TMP/elsewhere/body.txt"
 run_body "$TMP/elsewhere/body.txt" --body-dir "$TMP/elsewhere"
 check "body-dir not naming source-control: exit 3" 3 "$?"
-HOME="$STUB_DIR/user" run_body "$STUB_DIR/body.txt" --body-dir "$STUB_DIR"
+STUB_PASSWD_HOME="$STUB_DIR/user" HOME=/nonexistent-other run_body "$STUB_DIR/body.txt" --body-dir "$STUB_DIR"
 check "body-dir that is a home-dir ancestor: exit 3" 3 "$?"
 check "body-dir that is a home-dir ancestor: names the rule" 1 "$(grep -q 'home dir' "$STUB_DIR/err" && echo 1)"
 check "body-dir refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
@@ -390,8 +397,23 @@ FAKE_HOME="/ho""me/alice"
 setup '[]' "cycle: 7 worktree=$FAKE_HOME/worktrees/app"
 run
 check "home path in body: exit 3" 3 "$?"
-check "home path in body: names the rule" 1 "$(grep -q "leak-scan rule 'home path'" "$STUB_DIR/err" && echo 1)"
+check "home path in body: names the rule" 1 "$(grep -q "names a machine path or hostname (home path); remove it" "$STUB_DIR/err" && echo 1)"
+check "home path in body: no rotation advice" 0 "$(grep -c rotate "$STUB_DIR/err")"
 check "home path in body: path never printed" 0 "$(grep -cF -- "$FAKE_HOME" "$STUB_DIR/err")"
+
+# 23. A GitHub-hosted runner's home path reveals nothing, so it is posted.
+setup '[]' "cycle: 7 log=/ho""me/runner/work/app/app/run.log"
+run
+check "hosted-runner home path: exit 0" 0 "$?"
+
+# 24. The plugin name is checked again on the canonical dir: a symlink named for
+# the plugin that points at another dir is refused.
+setup '[]'
+mkdir -p "$TMP/config"
+cp "$STUB_DIR/body.txt" "$TMP/config/body.txt"
+ln -s "$TMP/config" "$TMP/source-control-x"
+run_body "$TMP/source-control-x/body.txt" --body-dir "$TMP/source-control-x"
+check "symlinked body-dir named for the plugin: exit 3" 3 "$?"
 
 # 16. gh not on PATH: exit 4.
 setup '[]'
