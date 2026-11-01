@@ -36,7 +36,7 @@ permission, secret, token, checkout or script change that lets pull request code
 or another workflow's output reach a credential or a write is a CRITICAL security finding. So is a
 change to what agents may do unattended or to what later reviews judge against: a Claude Code
 settings file (a hook, a permission allow, an environment value), `.mcp.json` (a server), and
-`CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.claude/rules/` or `docs/standards/` text that widens what an agent may do
+`CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.claude/rules/`, `docs/review/` or `docs/standards/` text that widens what an agent may do
 without asking, or loosens a review criterion, is a CRITICAL finding. So is a change that removes
 or narrows a merge hold: a `hold_patterns` or hold-path entry, or a ci-status step that fails a
 held pull request.
