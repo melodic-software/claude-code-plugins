@@ -10,7 +10,7 @@
 {{section_text}}
 
 {{#capture}}
-![{{capture_alt}}]({{capture_path}})
+{{capture_image}}
 
 {{/capture}}
 </details>

@@ -59,10 +59,13 @@ scans it with the rest of the rendered body.
      step 1 read from the PR body, else one per entry point line. `{{section_title}}` is the
      criterion or the entry point, `{{section_text}}` its result. A capture no section claims goes
      in a section titled `Other captures`;
-   - `{{#capture}}` to `{{/capture}}`, repeated per capture in that section: `{{capture_path}}` is
-     its absolute path and `{{capture_alt}}` its file name. The path must hold only ASCII letters,
-     digits and `/._-`, since any other character (a space, a parenthesis, a backslash, a drive
-     colon) can leave the image reference unparsed and publish the local path. Copy a capture
+   - `{{#capture}}` to `{{/capture}}`, repeated per capture in that section: `{{capture_image}}` is
+     the image reference `![<alt>](<path>)`, with `<path>` the capture's absolute path and `<alt>`
+     its file name. The template holds the whole reference as one placeholder because the offline
+     link check reads a placeholder link target as a missing local file. The path must hold only
+     ASCII letters, digits and `/._-`, since any other character (a space, a parenthesis, a
+     backslash, a drive colon) can leave the image reference unparsed and publish the local path.
+     Copy a capture
      whose path holds any other character into a scratchpad directory whose absolute path passes
      the same test, in a subdirectory of its own named for the capture's position in the attach
      list (`1/`, `2/`, ...), so two captures never share a copy path: two `step.png` files from
