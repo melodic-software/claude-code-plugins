@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Read", "input": { "file_path": "/plugins/gaming/skills/setup/SKILL.md" } }], "why": "a read is not a write" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Write", "input": { "file_path": "/ws/LEDGER.md", "content": "# Ledger" } }], "why": "seeds the ledger from check" }
+  ]
+}

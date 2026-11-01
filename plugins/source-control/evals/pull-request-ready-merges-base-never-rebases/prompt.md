@@ -4,6 +4,7 @@ tags: [pull-request, source-control]
 plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 25
+timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: The base is merged, never rebased, and the merge runs before gh pr ready
 ---

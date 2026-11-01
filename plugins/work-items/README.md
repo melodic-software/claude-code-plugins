@@ -6,7 +6,7 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across nine focused skills (plus a setup
+The tracker's capabilities are split across ten focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
 about work items, tickets, issues, tracked work, or what to do next):
 
@@ -19,7 +19,8 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:ship                       # macro map over a spec container: status, shape, next step
 /work-items:ship run #300              # run the container's ready items under its shape (attended)
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
-/work-items:onboard-adapter gitea      # generate an adapter for an unbundled tracker
+/work-items:onboard-adapter youtrack   # generate an adapter for a tracker with no adapter or seed
+/work-items:measure-delivery           # DORA delivery metrics as a weekly team trend
 ```
 
 ## Skills
@@ -34,7 +35,8 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
 | `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
-| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters cover the majors. |
+| `/work-items:measure-delivery` | Read-only report of the five DORA delivery metrics (deployment frequency, change lead time, change fail rate, failed deployment recovery time, deployment rework rate) as a team trend from the default branch's git history, never per person. |
+| `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters and seeds cover the majors. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows, inferring candidate items from the repo and interviewing per item, is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
 
 ## Naming
@@ -82,9 +84,24 @@ adapter, not editing the skills. CONTRACT.md remains the SSOT for verbs.
 
 ## Multi-agent claim protocol
 
-`/work-items:work` and `/work-items:track start` claim an item by **assigning it
-and writing a lease comment**, race-safe at the seam via lease-comment identity,
-so multiple concurrent agents never grab the same item. A session-start
+An item is claimed by **assigning it and writing a lease comment**, race-safe at
+the seam via lease-comment identity, so multiple concurrent agents never grab the
+same item. These skills claim:
+
+- `/work-items:work`, `/work-items:track start` and `/work-items:ship run`,
+  before they execute an item.
+- `/work-items:triage`, before its first write to an item (a comment, label,
+  edge or close), with `--phase triage`, clearing its assignee and releasing the
+  claim after its last write.
+- `/work-items:work-loop`, through the `/work-items:work` and
+  `/work-items:triage` runs it makes.
+- `/work-items:attend-queue`, before it writes to a row, with `--phase triage`,
+  releasing the claim after the row's disposition. Its `[intake]` rows are left
+  to triage's own claim.
+
+A claim lost to another session (exit `7`) skips the item. Read-only listings,
+such as the triage attention view and `/work-items:track stats`, never claim.
+A session-start
 `reclaim` runs idempotently to recover the stale leases of crashed or abandoned
 sessions. Claim assignments always run on the session's own authenticated
 identity, never a shared bot, so the race check stays sound.
@@ -106,10 +123,16 @@ enough that one skill no longer predicts its contents.
   correctness: when it is missing, stop and surface that remediation instead
   of improvising a parse.
 - **The work-item-tracker seam.** The plugin **ships** the seam under
-  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`: the dispatcher, `lib/`, and the `github`,
-  `local-markdown`, `jira`, `gitea`, and `linear` adapters. The consuming repo declares only its
-  active provider, in `.work-item-tracker.json` at the repo root. Run `/work-items:setup` to write
-  that file. A gitignored `.work-item-tracker.local.json` overlay beside it may carry the per-user
+  `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/`: the dispatcher, `lib/`, and two bundled
+  adapters, `github` and `local-markdown`. The `jira`, `gitea`, and `linear` adapters ship as
+  seeds under `seeds/`: `/work-items:setup apply` copies the bound one into the consuming repo,
+  which owns the copy from then on. On a re-run, setup fast-forwards a copy nobody edited and
+  stops with the diff on one somebody did. The consuming repo declares its
+  active provider under the `tracker` key of `<home>/work-items.yaml` in its convention home
+  (default `docs/conventions`). Until `/work-items:setup` writes that key, it writes a legacy
+  repo-root JSON binding, which the seam still reads with a notice. A per-user overlay beside the
+  binding (`work-items.local.yaml` beside the YAML one; the legacy JSON overlay, which setup
+  gitignores, beside the legacy one) may carry the per-user
   lease TTL and the per-provider auth identity: `auth_email` and `auth_env` for jira, `auth_env`
   for linear, and `auth_env` for gitea. A repo
   may add or shadow an adapter consumer-local at
@@ -185,10 +208,25 @@ triage posts an "Objection window until <UTC>" comment beside the brief of each
 item it makes autonomous-eligible; the work-loop lane skips the item until the
 window ends and escalates it if a person replies inside the window.
 
+`triage_stale_reporter_info_days` exists only in the repository file and has no
+default, so it is off until a repository sets it. When it is set, the
+`/work-items:triage` attention view lists each open `needs-reporter-info` item as
+a close candidate if its reporter lacks write access and has not replied for
+that many days since the last triage note. Listing closes nothing. In an attended
+session triage asks once and closes only the candidates the operator says yes
+to. A lane or CI run reports the list and never closes.
+
 `ai_disclaimer` (default `false`) takes the same layers, in the same order:
 when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
+
+`triage_outside_prs` (default `false`) lives only in the repository file. Set it
+to `true` when the repository takes requests as pull requests from outside
+contributors: the `/work-items:triage` attention view then lists those pull
+requests beside the issues. When it is `false`, the view lists only issues. A
+pull request named explicitly, as `/work-items:triage <number>`, is triaged
+either way.
 
 `work_priority_order` lives only in the repository file: a list of `priority:`
 label names, highest first, defaulting to `priority: critical`,
@@ -210,9 +248,15 @@ work_priority_order:
 
 The work skill's "Selection Priority" section says how it is read.
 
+`delivery_deploy_signal` also lives only in the repository file. It sets what
+`/work-items:measure-delivery` counts as a deployment, and its one value, the
+default, is `merge-to-default-branch`: each commit on the default branch's
+first-parent history is a deployment, and one a later commit reverts is a
+failed deployment.
+
 Everything else is project-specific behavior that routes through the consuming
-repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
-the optional `config.role_labels` canonical-role → label remap), its labels
+repo's own surfaces: the bound provider in `<home>/work-items.yaml` (including
+the optional `tracker.config.role_labels` canonical-role → label remap), its labels
 (taxonomy discovery through the adapter), its optional recurring schedule file,
 its optional rejected-concept ledger (`docs/out-of-scope/`, checked at intake),
 and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker

@@ -5,7 +5,9 @@ description: >
   and job-id, and upload only the sealed file as a 7-day artifact for the
   transcript puller. An empty public key skips with a notice; a missing or
   empty execution file uploads nothing; a malformed key or job-id fails the
-  step. Needs node 18 or later on PATH and ../seal-lane-output beside it.
+  step. The plaintext is scanned first (../scan-upload), and a credential in
+  it fails the step with nothing sealed. Needs node 18 or later on PATH,
+  ../seal-lane-output and ../scan-upload beside it, and lib/publish-gate.mjs.
 
 inputs:
   execution-file:
@@ -21,8 +23,18 @@ inputs:
 runs:
   using: composite
   steps:
+    # The plaintext, before the seal: the sealed upload is ciphertext, which
+    # no scan can read. A hit fails here and nothing is sealed or uploaded.
+    - name: Scan the transcript for credentials
+      id: scan
+      shell: bash
+      env:
+        SCAN_PATHS: ${{ inputs.execution-file }}
+      run: node "$GITHUB_ACTION_PATH/../scan-upload/scan-upload.mjs"
+
     - name: Seal the transcript
       id: seal
+      if: steps.scan.outputs.clean == 'true'
       shell: bash
       env:
         EXECUTION_FILE: ${{ inputs.execution-file }}

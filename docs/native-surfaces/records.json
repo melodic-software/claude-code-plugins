@@ -733,6 +733,7 @@
       "reason": "The playbook's chapters defer every current fact (model ID, price, beta boundary, parameter shape) to the bundled claude-api skill by standing rule, and its API prompt-caching chapter names cost-optimize as the automation for the cost levers it describes. The bundled skill resolves live facts and acts (prompt-audit, cost-optimize, hillclimb edit prompts and configuration when asked); the playbook is operating doctrine and mechanisms that outlive any one price, and performs no work. Neither replaces the other.",
       "evidence": [
         "binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb",
+        "skills docs page, Work on Claude API projects (https://code.claude.com/docs/en/skills, fetched 2026-11-01, Claude Code 2.1.316): the subcommand table now also lists api-version, managed-agents-secure and preserved-thinking-migration; cost-optimize and prompt-audit, which this verdict names, are still listed, so the verdict holds",
         "platform docs claude-api-skill page (fetched 2026-09-09): bundled with Claude Code and published in the open-source skills repository",
         "reference/model-adaptation/fable-5-1.md standing rule: 'this chapter carries no model ID, price, or limit. Resolve the current details through the claude-api skill at the moment of use'",
         "reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate"
@@ -744,7 +745,7 @@
       },
       "recheck": {
         "trigger": "a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution",
-        "verified": "2026-09-11"
+        "verified": "2026-11-01"
       },
       "baked": {
         "description_phrase": true,
@@ -3618,7 +3619,7 @@
         "skill": "write-for-agents",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration now reads \"(removed)\"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.314",
       "date": "2026-10-31",
       "fingerprint": {
@@ -3636,7 +3637,7 @@
         "skill": "assess",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.288",
       "date": "2026-10-02",
       "fingerprint": {
@@ -3654,7 +3655,7 @@
         "skill": "route",
         "kind": "skill"
       },
-      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "reason": "/agents now only points to the subagent files (agents docs page, 2026-11-01; registration reads \"(removed)\"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.288",
       "date": "2026-10-02",
       "fingerprint": {

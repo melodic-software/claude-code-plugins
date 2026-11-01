@@ -9,7 +9,7 @@ import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, scoreRun, sh, summarize, untilModelOutcome, UPSTREAM_JOBS, writeData } from "./replay.mjs";
+import { FIXTURES_DIR, judgeLeg, loadCases, REPO_ROOT, replayedTree, scoreRun, sh, summarize, untilModelOutcome, UPSTREAM_JOBS, writeData } from "./replay.mjs";
 import { tempDir } from "../../../../lib/test-tmp.mjs";
 
 const CASES = loadCases();
@@ -102,10 +102,48 @@ test("every case lays out the six data files through the real filters", async ()
       const upstream = read("upstream-jobs.json");
       assert.deepEqual(upstream.jobs, UPSTREAM_JOBS.map((name) => ({ name, conclusion: "success" })), testCase.id);
       assert.ok(Number.isSafeInteger(upstream.run_id) && upstream.run_id > 0, testCase.id);
+      // The replayed head is this checkout's tree plus the fixture's diff, and no
+      // fixture touches explain-change, which test-bash runs through its wrapper.
+      assert.ok(
+        upstream.wrapped_node_suites.some(
+          (entry) => entry.suite === "plugins/review/tests/explain-change.test.mjs" && entry.wrapper === "plugins/review/tests/explain-change.test.sh",
+        ),
+        testCase.id,
+      );
+      // The pr-verify package's own suites run in test-node, with no wrapper.
+      assert.ok(!upstream.wrapped_node_suites.some((entry) => entry.suite === ".github/scripts/pr-verify/upstream-jobs.test.mjs"), testCase.id);
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// The head's tree is the base's with each file the diff adds, deletes or
+// renames moved accordingly, as git lists it after the change.
+test("the replayed head's tree applies the fixture's diff to the base tree", () => {
+  const base = "keep.txt\0x/gone.test.sh\0x/gone.test.mjs\0y/old.js\0";
+  const diff = [
+    "diff --git a/x/gone.test.sh b/x/gone.test.sh",
+    "deleted file mode 100644",
+    "--- a/x/gone.test.sh",
+    "+++ /dev/null",
+    "@@ -1 +0,0 @@",
+    "-exec node --test gone.test.mjs",
+    "diff --git a/z/new.test.sh b/z/new.test.sh",
+    "new file mode 100644",
+    "--- /dev/null",
+    "+++ b/z/new.test.sh",
+    "@@ -0,0 +1 @@",
+    "+exec node --test new.test.mjs",
+    "diff --git a/y/old.js b/y/new.js",
+    "--- a/y/old.js",
+    "+++ b/y/new.js",
+    "@@ -1 +1 @@",
+    "-a",
+    "+b",
+    "",
+  ].join("\n");
+  assert.equal(replayedTree(diff, base), "keep.txt\0x/gone.test.mjs\0y/new.js\0z/new.test.sh\0");
 });
 
 test("the untrusted-requirement case: the lane's comment is context only and the outsider's is dropped", async () => {

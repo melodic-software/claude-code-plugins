@@ -1,0 +1,134 @@
+{
+  "skill": "debugging:debug",
+  "plugin": "debugging",
+  "skill_dir": "plugins/debugging/skills/debug",
+  "ranking_note": "Written by a fresh agent from the before description at commit fab13854328fa1da091cb1600b2df04042b15ba8, before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. The competitor is the sibling skill that reads a captured profile, trace or heap snapshot. Near-misses: neg-train-01, neg-train-02 and neg-val-01 hand over a captured heap snapshot, trace or cpuprofile with no reproduction (analyze-profile's territory), while neg-train-03 and neg-val-02 are already deterministic failing tests with no reproduction gap, which the target says to cycle directly instead of building a loop.",
+  "competitors": [
+    "debugging:analyze-profile"
+  ],
+  "competitor_dirs": {
+    "debugging:analyze-profile": "plugins/debugging/skills/analyze-profile"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The checkout page started returning a 500 after yesterday's deploy and I can't figure out why. Can you dig in?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our CSV export puts dates one day off for users in Australia. No idea where it goes wrong, help me track it down."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Search got really sluggish since last week's release, queries that took 200ms now take 3 seconds. What happened?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The integration suite fails maybe one run in ten on CI with a timeout in the websocket handler, then passes when I rerun it. Can you figure out what's going on?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's a screenshot a customer sent: the cart total shows NaN after applying a coupon. Find out why."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Production logs are full of 'TypeError: cannot read properties of undefined (reading id)' from the webhook worker since this morning. Why is that happening?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I've attached prod.heapsnapshot from the worker that OOMed overnight. We can't get it to happen again locally. What's holding all that memory?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's a Chrome performance trace a customer recorded of the dashboard janking on their machine; we can't make it happen here. Tell me which function is hot, file and line please, no fix needed."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "test_parse_invoice_totals fails with an assertion error every run, expected 120.50 got 120.49. Make it pass."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a dark mode toggle to the settings page and persist the choice in localStorage."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Refactor the OrderService class so payment and shipping logic live in separate modules."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write unit tests for the date formatting helpers in utils/dates.ts."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The login button does nothing on Safari but works fine on Chrome. Help me figure out what's wrong."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "App startup went from 2 seconds to 9 after we bumped dependencies. Track down what made it so much slower."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Every so often a user's uploaded avatar gets saved to someone else's profile. We can't make it happen on purpose. Can you hunt this down?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "According to the logs, the nightly billing job silently skipped about 40 accounts last night. Figure out why."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What does this api-server.cpuprofile show? It was captured during last Tuesday's latency spike, which hasn't recurred since."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "npm test fails on UserRepository.findByEmail returning null, every single time I run it. Fix the code so that test goes green."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review my PR for the rate limiter and point out any issues before I merge."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Upgrade the project from Node 18 to Node 22 and update the CI config to match."
+    }
+  ]
+}

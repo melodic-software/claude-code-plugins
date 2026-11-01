@@ -11,12 +11,17 @@ git config user.email eval@example.invalid
 
 printf '.work/\n' > .gitignore
 printf '# refunds\n\nRefund records and reports.\n' > README.md
-mkdir -p refunds
+mkdir -p refunds docs/conventions
 printf 'def list_refunds(month):\n    return []\n' > refunds/store.py
 : > refunds/__init__.py
-cat > .work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
+cat > docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+YAML
 git add .
 git commit -q -m "chore: scaffold refunds"
 git checkout -q -b refund-export

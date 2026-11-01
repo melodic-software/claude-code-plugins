@@ -211,6 +211,12 @@ runs:
           for config in .shellcheckrc .markdownlint-cli2.jsonc .github/requirements-ci.txt; do
             [ ! -f "$BASE_PATH/$config" ] || { mkdir -p "$dir/$(dirname "$config")" && cp "$BASE_PATH/$config" "$dir/$config"; }
           done
+          # check-changed-skills.sh --merge-base runs the skill checker from
+          # this copy, which sources and reads files beside itself.
+          if [ -d "$BASE_PATH/plugins/skill-quality/scripts" ]; then
+            mkdir -p "$dir/plugins/skill-quality"
+            cp -R "$BASE_PATH/plugins/skill-quality/scripts" "$dir/plugins/skill-quality/"
+          fi
           for check in "${checks[@]}"; do
             script=${check%% *}
             flags=${check#"$script"}
@@ -243,9 +249,9 @@ runs:
         # so the files a script reads beside itself come along. Each runs
         # through a wrapper that starts in the checkout, refuses an argument
         # naming a path outside it (a script may print what it reads), unsets
-        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (under
-        # run-claude-cli an ancestor's /proc/<pid>/environ still holds them;
-        # the write runner's skill settings clear them for all of Bash), and
+        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (no Bash
+        # process above it holds them either: run-claude-cli's steps set
+        # neither, and the write runner's skill settings clear both), and
         # keeps git from loading system, global or hook and fsmonitor
         # programs. As for the
         # checks, <dir> is where the copy is written and <at> where it runs.
@@ -422,7 +428,9 @@ runs:
         # (https://code.claude.com/docs/en/permissions#read-only-commands).
         # A skill that edits reads files with Read, Grep and Glob, so these
         # deny every command that can print a file or the environment,
-        # read-only or a text filter.
+        # read-only or a text filter. Last swept: Claude Code 2.1.316 on
+        # 2026-11-01, no command found; how and when to sweep, and where the
+        # result goes, is docs/conventions/pr-pipeline/README.md#claude-code-cli-releases.
         shell_denied=("Bash(echo *)" "Bash(printf *)" "Bash(cat *)" "Bash(head *)" "Bash(tail *)" "Bash(grep *)" "Bash(find *)" "Bash(env *)" "Bash(printenv *)" "Bash(strings *)" "Bash(od *)" "Bash(xxd *)" "Bash(diff *)" "Bash(sed *)" "Bash(awk *)" "Bash(sort *)" "Bash(cut *)" "Bash(tr *)" "Bash(base64 *)" "Bash(nl *)" "Bash(tac *)" "Bash(rev *)" "Bash(uniq *)" "Bash(fold *)" "Bash(column *)" "Bash(jq *)" "Bash(xargs *)" "Bash(more *)" "Bash(less *)" "Bash(wc *)")
         # run-claude-cli: the CLI runs with --restricted in the checkout and
         # reads nothing outside it, so everything the skill reads is staged

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".work-items/*.md"
+          }
+        }
+      ],
+      "why": "lists the item store"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".work/lanes/*.json"
+          }
+        }
+      ],
+      "why": "looks for the lane config the scope rule reads"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "src/**/*.js"
+          }
+        }
+      ],
+      "why": "lists the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*plugin*"
+          }
+        }
+      ],
+      "why": "explores the checkout"
+    }
+  ]
+}

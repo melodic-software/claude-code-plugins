@@ -13,7 +13,7 @@ metadata:
 
 ## Pre-computed context
 
-Container label (an ERROR line here means `config.container_label` is not a string; fix `.work-item-tracker.json` before continuing): !`jq -r 'if .config.container_label == null then "work-map" elif (.config.container_label | type) == "string" then .config.container_label else "ERROR: config.container_label must be a string (got \(.config.container_label | type))" end' .work-item-tracker.json 2>/dev/null || echo "work-map"`
+Container label (an ERROR line, or no value, means it did not resolve; stop and fix the cause before continuing): !`bash "${CLAUDE_PLUGIN_ROOT}/skills/wayfind/scripts/container-label.sh" 2>/dev/null || true`
 
 Open maps: list them at the start of every action with
 `/work-items:track list --label '<container label>' --state open`, invoked via the Skill tool

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Verify integrity isn't needed here: the changed exe is Steam's own update.", "why": "isn't needed" },
+    { "answer": "You don't need to run Verify integrity.", "why": "don't need" },
+    { "answer": "Skip Verify; offer the refresh instead.", "why": "skip" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Yes, run Verify integrity of game files, then run remove again.", "why": "recommends verify" },
+    { "answer": "The game was updated by Steam since the apply.", "why": "silent on verify" }
+  ]
+}

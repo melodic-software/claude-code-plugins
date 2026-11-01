@@ -5,11 +5,13 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
 import { OUTSIDE_ACTOR_LABEL } from "../../scripts/pr-merge/merge-holds.mjs";
 import { checkPatchRules } from "./patch-rules.mjs";
+import { ownedBranchesFromBase } from "./resolve-config.mjs";
 import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -161,6 +163,8 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-dependency-verdict",
       "fix-ci",
       "apply-patch",
+      "sync-shared-copies",
+      "apply-shared-copies",
       "report-escalation",
     ],
   );
@@ -351,7 +355,30 @@ test("live config: report-escalation follows every pr-unblock activity", () => {
     "apply-dependency-verdict",
     "fix-ci",
     "apply-patch",
+    "sync-shared-copies",
+    "apply-shared-copies",
   ]);
+});
+
+// pr-merge's shared-copy refusal: a script reads the head with no write
+// token, and its push job, under the shared-copies patch-rules row, may only
+// write the branch; needs-human is the select job's to decide (lane-hold.mjs).
+test("live config: sync-shared-copies holds no write token; apply-shared-copies may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.equal(grant("sync-shared-copies").effect, "read");
+  assert.equal(grant("sync-shared-copies").grant.contents, "read");
+  assert.deepEqual(grant("apply-shared-copies"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
+  const sync = selected("pr-unblock", "sync-shared-copies", { mergeable: "clean" });
+  assert.equal(sync.script, ".github/scripts/pr-unblock/sync-shared-copies.sh");
+  const push = selected("pr-unblock", "apply-shared-copies");
+  assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(push.prepare, "apply-patch");
+  assert.deepEqual(push.needs, ["sync-shared-copies"]);
+  for (const activity of ["sync-shared-copies", "apply-shared-copies"]) {
+    assert.equal(selected("pr-unblock", activity, { labels: ["needs-human"] }).applies, true, activity);
+    assert.equal(skipReason("pr-unblock", activity, { labels: ["do-not-merge"] }), "awaiting-human", activity);
+    assert.equal(skipReason("pr-unblock", activity, { draft: true }), "not-applicable", activity);
+  }
 });
 
 test("live config: fix-ci holds no write token and its push job may only write its branch", () => {
@@ -444,10 +471,12 @@ test("live config: resolve-issue still needs the agent-ready label event", () =>
   );
 });
 
-// The run must pass the fragment format check before it reports done.
-test("live config: resolve-issue may run the changelog fragment check", () => {
+// The run must pass the fragment format check and CI's changed-skills gate
+// before it reports done.
+test("live config: resolve-issue runs the changelog fragment and changed-skills checks", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
     "scripts/check-changelog-fragments.sh --check",
+    "scripts/check-changed-skills.sh --merge-base",
   ]);
 });
 
@@ -459,8 +488,8 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
   assert.ok(!leaf.checks.includes("scripts/check-affected.sh --uncommitted"), leaf.checks.join(" | "));
 });
 
-// Code a verify-script runs can read the lane's token from any same-user
-// process's /proc/<pid>/environ, so no listed script runs checkout code.
+// resolve-issue lists no script that runs checkout code; the PR's own CI runs
+// the tests.
 const RUNS_CHECKOUT_CODE = [
   "scripts/run-test-file.sh",
   "plugins/skill-quality/scripts/check-skill.sh",
@@ -725,4 +754,10 @@ test("live config: no live slot resolves an actions permission", () => {
 test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
   const { merge } = resolve(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
   assert.ok(merge["refire-skip-branches"].includes("release/plugins"), JSON.stringify(merge["refire-skip-branches"]));
+});
+
+// The fix-ci dispatcher and context job read the same list from the base.
+test("live config: fix-ci reads the owned branches, the release branch among them, from the base", () => {
+  const branches = ownedBranchesFromBase({ BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) });
+  assert.ok(branches.includes("release/plugins"), JSON.stringify(branches));
 });

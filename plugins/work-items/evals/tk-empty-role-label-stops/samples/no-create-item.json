@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat .work-item-tracker.json"
+            "command": "cat docs/conventions/work-items.yaml"
           }
         },
         {
@@ -22,7 +22,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "jq '.config.role_labels' .work-item-tracker.json"
+            "command": "grep -A2 role_labels docs/conventions/work-items.yaml"
           }
         }
       ],
@@ -50,7 +50,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat .work-item-tracker.json"
+            "command": "cat docs/conventions/work-items.yaml"
           }
         },
         {
@@ -67,7 +67,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "jq . .work-item-tracker.json\n/p/tools/work-item-tracker/work-item-tracker.sh create-item --title t"
+            "command": "cat docs/conventions/work-items.yaml\n/p/tools/work-item-tracker/work-item-tracker.sh create-item --title t"
           }
         }
       ],

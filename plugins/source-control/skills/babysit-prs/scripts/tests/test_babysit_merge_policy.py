@@ -492,6 +492,19 @@ class ReadConfigAt(unittest.TestCase):
         config_fake(self, "merge:\n  rung: C4\n")
         self.assertEqual(policy.read_config_at(REPO, SHA).rung, "off")
 
+    def test_a_rung_name_and_its_code_read_as_the_same_rung(self) -> None:
+        for value, expected in (
+            ("off", "off"),
+            ("merge", "C2"),
+            ("C2", "C2"),
+            ("merge-reviewed", "C3"),
+            ("C3", "C3"),
+        ):
+            with self.subTest(value=value):
+                config_fake(self, f"merge:\n  rung: {value}\n")
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual((config.rung, config.notes), (expected, ()))
+
     def test_a_value_with_a_line_separator_is_a_parse_error(self) -> None:
         for char in ("\u0085", "\u2028", "\x0b", "\x1c"):
             with self.subTest(char=repr(char)):
@@ -626,6 +639,12 @@ class EffectiveRung(unittest.TestCase):
     def test_names_the_input_that_holds_it_off(self) -> None:
         self.assertEqual(self.rung(cap="off").limited_by, "rungCap")
 
+    def test_a_rung_name_ranks_as_its_code(self) -> None:
+        for name, code in (("merge", "C2"), ("merge-reviewed", "C3")):
+            with self.subTest(name=name):
+                self.assertEqual(self.rung(config_rung=name).rung, code)
+                self.assertEqual(self.rung(cap=name).rung, code)
+
 
 class KillSwitch(unittest.TestCase):
     VARS = f"repos/{REPO}/actions/variables"
@@ -701,6 +720,22 @@ class RungCap(unittest.TestCase):
         self.assertEqual(self.cap({"variables": []}, "C2"), "C2")
         self.assertEqual(self.cap({"variables": []}, "C4"), "off")
         self.assertEqual(self.cap({"variables": []}, 500), "off")
+
+    def test_a_rung_name_caps_as_its_code(self) -> None:
+        self.assertEqual(self.cap({"variables": []}, "merge"), "C2")
+        self.assertEqual(self.cap({"variables": []}, "merge-reviewed"), "C3")
+
+    def test_the_lane_value_takes_a_rung_name_or_its_code(self) -> None:
+        for value, expected in (
+            ("merge", "C2"),
+            ("C2", "C2"),
+            ("merge-reviewed", "C3"),
+            ("C3", "C3"),
+            ("merge-verified", "off"),
+        ):
+            with self.subTest(value=value):
+                cap = policy.rung_cap(REPO, authority=policy.PR_MERGE, lane_value=value)
+                self.assertEqual(cap.value, expected)
 
 
 class IsHuman(unittest.TestCase):
@@ -2647,6 +2682,8 @@ class ReadPromotion(unittest.TestCase):
         result, _ = self.run_resolver()
         self.assertTrue(result.promoted("C2"))
         self.assertTrue(result.promoted("C3"))
+        self.assertTrue(result.promoted("merge"))
+        self.assertTrue(result.promoted("merge-reviewed"))
         for other in ("off", None, "C1", "C4", "C5"):
             self.assertFalse(result.promoted(other))
 
@@ -2663,6 +2700,9 @@ class ReadPromotion(unittest.TestCase):
         result, _ = self.run_resolver(payload)
         self.assertTrue(result.promoted("C2"))
         self.assertFalse(result.promoted("C3"))
+        # A rung name needs the cells of the code it stands for.
+        self.assertTrue(result.promoted("merge"))
+        self.assertFalse(result.promoted("merge-reviewed"))
         payload["cells"] = self.CELLS | {"C2-auto-merge": {"effective": "unpromoted"}}
         result, _ = self.run_resolver(payload)
         self.assertFalse(result.promoted("C2"))
