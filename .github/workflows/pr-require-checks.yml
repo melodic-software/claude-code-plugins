@@ -3315,6 +3315,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.bash_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.bash_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3438,7 +3439,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ needs.select-tests.outputs.playwright_cache_key }}
+          key: ${{ env.BROWSER_CACHE_KEY }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3610,6 +3611,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.python_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.python_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3647,7 +3649,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ needs.select-tests.outputs.playwright_cache_key }}
+          key: ${{ env.BROWSER_CACHE_KEY }}
       - name: Install locked plugin test toolchains
         timeout-minutes: 4
         id: toolchains

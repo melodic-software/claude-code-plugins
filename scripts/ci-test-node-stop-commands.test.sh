@@ -71,7 +71,8 @@ import yaml
 
 jobs = yaml.safe_load(open(sys.argv[1]))["jobs"]
 errors = []
-shared = "${{ needs.select-tests.outputs.playwright_cache_key }}"
+shared = "${{ env.BROWSER_CACHE_KEY }}"
+entry = "${{ needs.select-tests.outputs.playwright_cache_key }}"
 if "playwright_cache_key" not in jobs["select-tests"].get("outputs", {}):
     errors.append("select-tests has no playwright_cache_key output")
 
@@ -85,6 +86,8 @@ def step(job, name):
 
 
 for job in ("test-bash", "test-python"):
+    if jobs[job].get("env", {}).get("BROWSER_CACHE_KEY") != entry:
+        errors.append(f"{job}'s env does not set BROWSER_CACHE_KEY to {entry}")
     restore = step(job, "Restore the Playwright browser")
     install = step(job, "Install locked plugin test toolchains")
     save = step(job, "Save the Playwright browser")
