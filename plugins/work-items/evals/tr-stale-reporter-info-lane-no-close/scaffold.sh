@@ -13,11 +13,14 @@ git config user.email eval@example.invalid
 printf '.work/\n' >.gitignore
 printf '# ledger\n\nLedger service.\n' >README.md
 mkdir -p .work-items docs/conventions
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
 cat >docs/conventions/work-items.yaml <<'YAML'
 triage_stale_reporter_info_days: 14
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
 YAML
 cat >.work-items/1.md <<'MD'
 ---
@@ -61,5 +64,5 @@ Reported by lee-m. Some invoice totals are off by a cent; no example given.
 - 2026-01-08T09:00:00Z, triage: Which invoice, and what total did you expect? Please share one
   example that rounds wrong.
 MD
-git add .gitignore README.md .work-item-tracker.json docs .work-items
+git add .gitignore README.md docs .work-items
 git commit -q -m "chore: scaffold ledger"

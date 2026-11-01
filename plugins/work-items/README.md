@@ -126,8 +126,11 @@ enough that one skill no longer predicts its contents.
   seeds under `seeds/`: `/work-items:setup apply` copies the bound one into the consuming repo,
   which owns the copy from then on. On a re-run, setup fast-forwards a copy nobody edited and
   stops with the diff on one somebody did. The consuming repo declares its
-  active provider in `.work-item-tracker.json` at the repo root. Run `/work-items:setup` to write
-  that file. A gitignored `.work-item-tracker.local.json` overlay beside it may carry the per-user
+  active provider under the `tracker` key of `<home>/work-items.yaml` in its convention home
+  (default `docs/conventions`). Until `/work-items:setup` writes that key, it writes a legacy
+  repo-root JSON binding, which the seam still reads with a notice. A per-user overlay beside the
+  binding (`work-items.local.yaml` beside the YAML one; the legacy JSON overlay, which setup
+  gitignores, beside the legacy one) may carry the per-user
   lease TTL and the per-provider auth identity: `auth_email` and `auth_env` for jira, `auth_env`
   for linear, and `auth_env` for gitea. A repo
   may add or shadow an adapter consumer-local at
@@ -244,8 +247,8 @@ work_priority_order:
 The work skill's "Selection Priority" section says how it is read.
 
 Everything else is project-specific behavior that routes through the consuming
-repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
-the optional `config.role_labels` canonical-role → label remap), its labels
+repo's own surfaces: the bound provider in `<home>/work-items.yaml` (including
+the optional `tracker.config.role_labels` canonical-role → label remap), its labels
 (taxonomy discovery through the adapter), its optional recurring schedule file,
 its optional rejected-concept ledger (`docs/out-of-scope/`, checked at intake),
 and its own `CLAUDE.md` / rules for write-identity policy (e.g. routing tracker
