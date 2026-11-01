@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh\" CLAUDE.md services/billing/CLAUDE.md .claude/skills/deploy/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh --count ./CLAUDE.md ./.claude/skills/deploy/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "count form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/claude-eval-x/home/cwd; S=/opt/plugins/harness-config; F=\"CLAUDE.md services/billing/CLAUDE.md .claude/skills/deploy/SKILL.md .claude/skills/release-notes/SKILL.md\"; echo \"--- conflict-scan\"; bash $S/skills/audit-instructions/scripts/conflict-scan.sh $F; echo \"rc=$?\"",
+            "description": "file list in a variable assigned before the script, as the smoke run did"
+          }
+        }
+      ],
+      "why": "files passed through a variable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn 'db:migrate' .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md",
+            "description": "Scan CLAUDE.md and services/billing/CLAUDE.md for conflicts"
+          }
+        }
+      ],
+      "why": "one file; the description names .md files"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat CLAUDE.md && bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-instructions/scripts/conflict-scan.sh CLAUDE.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one file scanned; another .md read before the script"
+    }
+  ]
+}

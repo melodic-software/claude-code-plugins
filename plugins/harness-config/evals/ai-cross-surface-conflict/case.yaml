@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ai-cross-surface-conflict
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: conflict-scan-pair
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:conflict-scan\.sh(?:(?:[^"\\]|\\.)*?\.md\b){2}|\.md\b(?:[^"\\]|\\.)*?\.md\b(?:[^"\\]|\\.)*?conflict-scan\.sh)'
+    min: 1
+  - name: names-both-sites
+    type: regex
+    pattern: 'services/billing/CLAUDE\.md[\s\S]{0,800}?deploy/SKILL\.md|deploy/SKILL\.md[\s\S]{0,800}?services/billing/CLAUDE\.md'
+    target: 'last_message'
+  - name: names-entity
+    type: regex
+    pattern: 'db:migrate'
+    target: 'last_message'
+  - name: no-instruction-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-instruction-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:(?:CLAUDE|AGENTS)\.md"|\.claude/(?:skills|rules|agents)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: conflict-reported
+    type: llm
+    criteria: 'PASS only if the reply reports, as a conflict between two files, that .claude/skills/deploy/SKILL.md tells Claude to run `pnpm db:migrate` from services/billing while services/billing/CLAUDE.md forbids running `pnpm db:migrate` in that package, and does not say it edited either file. FAIL if the pair is not reported, is reported as two unrelated single-file findings, or the reply says a file was changed.'

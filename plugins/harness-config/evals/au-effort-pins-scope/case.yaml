@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: au-effort-pins-scope
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: pin-check-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'check-effort-pins\.sh'
+    min: 1
+  - name: no-engine
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'audit-engine\.sh'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-drift-fixer
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'fix-plugin-drift\.sh'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:settings(?:\.local)?\.json|\.mcp\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
