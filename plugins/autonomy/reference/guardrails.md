@@ -75,13 +75,13 @@ The matrix's merge-policy column describes **standing** authority: promotion-gat
 require a recorded, team-tracked adoption before auto-merge is eligible. Separately, the
 `source-control` babysit-loop lane defines **one named per-invocation exception**: an argument
 line that types both the literal `autopilot` tier keyword and `--merge c3-this-run` widens
-*that single invocation's* merge dimension up to and including C3, still bounded by the
-unconditional C4/C5 human-merge floor.
+*that single invocation's* merge dimension up to and including C3, still bounded by the C5
+untrusted-provenance hold.
 
 This exception is not a matrix promotion and is never persisted. The next invocation without
 the pair reverts to the tracked `babysit_loop_merge` resolution. No config layer supplies either
 token; both must appear on the invocation line. The full contract (baseline adoption requirement,
-mutual exclusivity with safer `--merge` values, and the C4/C5 ceiling) lives in the `source-control`
+mutual exclusivity with safer `--merge` values, and the C5 hold) lives in the `source-control`
 plugin's config-resolution reference, at `reference/config-resolution.md` inside that plugin.
 
 ## Permission posture
