@@ -297,10 +297,8 @@ Read in this order. Stopping early at any step is the finding.
    for a plugin file it could not read, so the fact belongs in the hub. The exceptions that turn a
    denial into a warning (a denial the environment makes in both arms, such as a user-scope read of
    `~/.claude/standards`; a denial in a case whose denial-free runs scored the same; an invocation
-   probe's denial), how a Bash denial's paths are read, gating an A/B pass, the 0-turn
-   `context: fork` run the gate does not fail, and how it reads an invocation probe's misses and
-   tools are in
-   [reading-results.md, Denials](reference/reading-results.md#denials).
+   probe's denial), Bash denial paths, A/B gating, the 0-turn `context: fork` run the gate passes,
+   and invocation-probe misses and tools: [reading-results.md, Denials](reference/reading-results.md#denials).
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
