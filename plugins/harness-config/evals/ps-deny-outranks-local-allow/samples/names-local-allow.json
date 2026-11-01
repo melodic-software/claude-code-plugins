@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "The allow in .claude/settings.local.json is inert."
+    },
+    {
+      "answer": "`inert allow scopes=local` (.claude/settings.local.json)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Your local file allows git push.",
+      "why": "no file"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "local settings (.claude/settings.local.json): invalid-json, contributed no rules"
+    },
+    {
+      "answer": "The local file failed to parse: .claude/settings.local.json"
+    },
+    {
+      "answer": "**`.claude/settings.local.json` isn't valid JSON, so it adds no rules.**",
+      "why": "smoke reply line: contraction"
+    },
+    {
+      "answer": "`.claude/settings.local.json` couldn't be read as JSON, so it adds no rules.",
+      "why": "contraction of 'could not be read'"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Local scope: settings.local.json is absent.",
+      "why": "reported as absent"
+    },
+    {
+      "answer": "Local scope: .claude/settings.local.json adds no rules.",
+      "why": "no parse failure reported"
+    }
+  ]
+}

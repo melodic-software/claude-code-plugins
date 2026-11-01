@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-grants/scripts/permission-rule-check.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "full run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-grants/scripts/permission-rule-check.sh\" plugins",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "passes the filter"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/claude/plugins/cache/melodic-software/harness-config/0.60.0/skills/audit-permission-grants/scripts/permission-rule-check.sh --count plugins",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "filter after a flag"
+    }
+  ]
+}

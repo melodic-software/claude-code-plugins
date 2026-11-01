@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "deny: Read(./.env) (project)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "allow: Bash(pytest)",
+      "why": "deny missing"
+    }
+  ]
+}

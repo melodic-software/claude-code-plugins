@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/repo-fleet-hygiene:audit --plan-file plan.json` first, then rerun apply with that path.",
+      "why": "slash command"
+    },
+    {
+      "answer": "**Step 1:** repo-fleet-hygiene:audit writes the action plan.",
+      "why": "bold, unslashed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Rerun /repo-fleet-hygiene:apply with --plan-file.",
+      "why": "names only apply"
+    },
+    {
+      "answer": "Run an audit of the fleet first.",
+      "why": "generic audit, no skill"
+    }
+  ]
+}

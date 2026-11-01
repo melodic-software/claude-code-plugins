@@ -3,6 +3,12 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.10] - 2026-11-01
+
+### Changed
+
+- `audit` drops citation text that changed no behavior: a sentence about how it cites the worktree skill's record, a second link to the discovery method in Phase 1, and a pointer to a marketplace-internal doc that consumer repos do not have. Measured with no loss on Opus 5.5 and Sonnet 5.5.
+
 ## [0.10.9] - 2026-10-25
 
 ### Changed

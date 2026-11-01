@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "| P3 | warning | plugins/quay-tools/settings.json | self-granted permissions are inert |"
+    },
+    {
+      "answer": "plugins/quay-tools/settings.json declares permissions, which a plugin cannot grant itself."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The quay-tools plugin looks fine.",
+      "why": "no file named"
+    }
+  ]
+}

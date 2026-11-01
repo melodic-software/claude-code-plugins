@@ -73,7 +73,7 @@ The invoked mechanic's own contract already owns each, and this exception does n
   (`babysit-prs/reference/orchestration.md`, Merge Conflict Resolution), which integrates
   **merge-only and never rebases**, because rebasing a PR branch needs the force-push babysit-prs forbids
   cross-tier. This dispatch never resolves a conflict itself and never rebases.
-- **C4/C5 PRs.** Already excluded at the rung partition (`SKILL.md` Cycle shape, step 3), including
+- **C4 and C5 PRs.** Already excluded at the rung partition (`SKILL.md` Cycle shape, step 3), including
   the provenance-derived C5 override and the diff-derived C4 veto, and they escalate normally.
 
 ## After the dispatch

@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "kept: Bash(pytest), Bash(ruff check .)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Bash(pytest) carries over.",
+      "why": "ruff missing"
+    }
+  ]
+}
