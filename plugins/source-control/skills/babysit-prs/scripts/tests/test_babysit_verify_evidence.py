@@ -4253,12 +4253,15 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
 
     def test_an_id_the_region_pages_omit_is_dropped_only_on_a_404(self) -> None:
         # GitHub deleted 500 early; the region's page shows it gone. A 404
-        # for 500 drops it (incremental); a 502, or no id reads left, keeps
-        # it, and the over-count takes the one whole listing.
-        for label, fail, cap, mode in (
-            ("404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental"),
-            ("502", {f"artifacts/{500}"}, ve.NEAR_EXPIRY_ID_READ_CAP, "full"),
-            ("cap", set(), 0, "full"),
+        # for 500 drops it (incremental), after a 502 too; a 502 through the
+        # read's waits fails the incremental read, and no id reads left keeps
+        # 500: either way the over-count takes the one whole listing.
+        attempts = 1 + len(ve.LISTING_WAITS)
+        for label, fail, cap, mode, reads in (
+            ("404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental", 1),
+            ("502-404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental", 2),
+            ("502", {"artifacts/500"}, ve.NEAR_EXPIRY_ID_READ_CAP, "full", attempts),
+            ("cap", set(), 0, "full", 0),
         ):
             with self.subTest(label):
                 for path in (self.saved, self.failed):
@@ -4270,12 +4273,29 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
                 self.write_carry(base)
                 fake = self.fake(base=[a for a in base if a["id"] != 500])
                 fake.fail = fail
-                with mock.patch.object(ve, "NEAR_EXPIRY_ID_READ_CAP", cap):
-                    reader, evidence = self.judge(fake)
+                blipped = [label != "502-404"]
+
+                def page(args: list[str], **kwargs: Any) -> Any:
+                    if not blipped[0] and args[-1].endswith("/artifacts/500"):
+                        blipped[0] = True
+                        fake.calls.append(args)
+                        failed = subprocess.CompletedProcess(
+                            args, 1, "", "gh: Bad Gateway (HTTP 502)"
+                        )
+                        return failed, {}
+                    return fake(args, **kwargs), {"date": DATE}
+
+                with (
+                    mock.patch.object(ve, "NEAR_EXPIRY_ID_READ_CAP", cap),
+                    mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+                    mock.patch.object(ve, "gh_api_with_headers", side_effect=page),
+                ):
+                    reader = ve.Reader(REPO, "main", now=NOW)
+                    evidence = reader.evidence(PR, HEAD, pull())
                 self.assertIsNone(evidence.refusal, evidence.detail)
                 self.assertEqual(reader.listing_mode, mode)
                 by_id = [c for c in fake.calls if c[-1].endswith("/artifacts/500")]
-                self.assertEqual(len(by_id), 0 if cap == 0 else 1)
+                self.assertEqual(len(by_id), reads)
 
     def climbing(self, missing: int) -> tuple[ve.Reader, FakeGitHub]:
         """A carry whose phantoms above the near-expiry 500 outnumber the
@@ -4839,6 +4859,36 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         fake.page_fail = None
         evidence = self.against_the_clock(fake, 0.0)
         self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(fake.full_listings(), 2)
+
+    def test_a_5xx_on_a_top_up_id_read_is_not_noted_for_the_job(self) -> None:
+        # No carry, so a whole listing, which lists 650 (expiring in 30
+        # minutes); GitHub then drops it early. The top-up's page 1 stops at
+        # 1000, keeping 650, one over the live count; the page near expiry
+        # omits it, and its read by id answers 502 through its waits: this
+        # Reader refuses, transient, and the next one, the blip over, lists.
+        old, soon = self.base_at - timedelta(days=2), LISTED_AT + timedelta(minutes=30)
+        dropping = dated("pr-merge-gate-cursor", 3, 650, old, expires=soon)
+        fake = self.fake(dropping)
+        listed = fake.listed
+
+        def drops_during_the_listing() -> list[dict[str, Any]]:
+            items = listed()
+            fake.artifacts = [a for a in fake.artifacts if a is not dropping]
+            return items
+
+        fake.listed = drops_during_the_listing  # type: ignore[method-assign]
+        fake.fail = {"artifacts/650"}
+        reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("could not be checked against", evidence.detail or "")
+        self.assertEqual(reader.listing_mode, "full")
+        by_id = [c for c in fake.calls if c[-1].endswith("/artifacts/650")]
+        self.assertEqual(len(by_id), 1 + len(ve.LISTING_WAITS))
+        self.assertFalse(self.failed.exists())
+        fake.fail = set()
+        _, again = self.judge(fake)
+        self.assertIsNone(again.refusal, again.detail)
         self.assertEqual(fake.full_listings(), 2)
 
     def test_a_top_up_read_after_a_5xx_with_no_date_is_noted(self) -> None:

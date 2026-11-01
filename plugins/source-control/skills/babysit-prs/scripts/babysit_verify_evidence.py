@@ -154,10 +154,11 @@ the lowest id those pages hold, less those expired or past `expires_at` by the
 first page's `Date`. GitHub can delete an artifact up to an hour before its
 `expires_at`, in no expiry order (`EARLY_DELETION_LEAD`), so when that holds
 more than the live count the pages around the kept entries near expiry are
-read again and decide every id they span (`Reader._near_expiry`), at a few
-pages a group whatever the repository's total and at most
-`NEAR_EXPIRY_PAGE_CAP` a listing; a count those pages do not settle goes to
-the one whole listing. Such a listing could hide a FAIL by leaving it out, so
+read again and decide every id they span, an id they omit by its own read
+(`Reader._near_expiry`), at a few pages a group whatever the repository's
+total and at most `NEAR_EXPIRY_PAGE_CAP` a listing; a count those pages do not
+settle goes to the one whole listing, and a page or id read still failing on a
+5xx after `LISTING_WAITS` fails the listing as transient. Such a listing could hide a FAIL by leaving it out, so
 it is kept only when it holds exactly the first page's `total_count`, GitHub's
 live count of the repository's artifacts. Across 17 first-page reads on
 2026-10-27 that count moved by exactly the uploads since the last read less
@@ -405,9 +406,11 @@ EARLY_DELETION_LEAD = timedelta(hours=2)
 NEAR_EXPIRY_PAGE_CAP = 24
 # The most artifacts `Reader._near_expiry` reads by id for one listing, its
 # incremental read and top-up together: each id its pages did not show is
-# dropped only on a 404. It drops at most the listing's surplus over the live
-# count, which was 31 to 34 in the three over-counts behind #11903's refusal;
-# the largest (judgment on that data). Past it the over-count stands.
+# dropped only on a 404 or an expired record. It drops at most the listing's
+# surplus over the live count, which was 31 to 34 in the three over-counts
+# behind #11903's refusal; the largest (judgment on that data). Past it the
+# over-count stands. Both caps reset with each listing the Reader reads, as
+# after `refresh()`; pr-require-checks.yml's cold_cost counts them once.
 NEAR_EXPIRY_ID_READ_CAP = 34
 # The waits between incremental reads on one base. A count that misses the
 # live total can stay off for longer than an immediate re-read takes, while a
@@ -1664,7 +1667,8 @@ class Reader:
     ) -> tuple[list[dict[str, Any]], int] | None:
         """`listing` with the ids around its entries from `start` on that
         expire within `EARLY_DELETION_LEAD` of `server_now` decided by the
-        pages that hold them now, and the pages read; None for a failed read.
+        pages that hold them now, and the pages read; None for a failed page
+        read or an id read that stays transient past its waits.
 
         Such entries are grouped where they lie within a page of each other.
         Each group is read from the page its top entry would be on with
@@ -1673,12 +1677,13 @@ class Reader:
         reaches its top id, then down until a page reaches its bottom id or
         ends the listing; those pages add every id they hold. An id of
         `listing` from the lowest to the highest they hold that they do not
-        show is dropped only when its own read answers 404
-        (`_artifact_gone`): pages read one at a time skip the entry at a
-        boundary when an artifact above it is deleted between reads (#10486).
+        show is dropped only when its own read answers 404 or shows it
+        expired (`_artifact_gone`): pages read one at a time skip the entry at
+        a boundary when an artifact above it is deleted between reads (#10486).
         A group it cannot bracket within those pages, a read past
         `NEAR_EXPIRY_PAGE_CAP` or `NEAR_EXPIRY_ID_READ_CAP` for this listing,
-        or an id read with any other answer leaves `listing` as it was."""
+        or an id read with any other answer that is not transient leaves
+        `listing` as it was."""
         size = LISTING_PAGE_SIZE
         limit = server_now + EARLY_DELETION_LEAD
         near = [
@@ -1743,7 +1748,8 @@ class Reader:
             self._artifact_reads += 1
             answer = self._artifact_gone(a["id"], deadline)
             if answer is None:
-                return listing, reads
+                # A transient answer fails the read, as a lost page does.
+                return None if self._page_transient else (listing, reads)
             if answer:
                 gone.add(a["id"])
         merged = {a["id"]: a for a in listing if a["id"] not in gone} | decided
@@ -1751,24 +1757,15 @@ class Reader:
 
     def _artifact_gone(self, artifact_id: int, deadline: float) -> bool | None:
         """Whether GitHub no longer holds the artifact: True on a 404 or an
-        expired record, False on a live one, None for any other answer."""
-        left = deadline - _listing_clock()
-        if left <= 0:
-            return None
-        try:
-            proc, _ = gh_api_with_headers(
-                ["api", f"repos/{self.repo}/actions/artifacts/{artifact_id}"],
-                timeout_seconds=left,
-                env_overrides=self._env(),
-            )
-        except (RuntimeError, ValueError, OSError):
-            return None
-        if proc.returncode != 0:
-            return True if gh_http_status(proc.stderr or "") == 404 else None
-        try:
-            record = json_object(json.loads(proc.stdout))
-        except ValueError:
-            return None
+        expired record, False on a live one, None for any other answer, with
+        `_page_transient` set when it was transient past its waits
+        (`_api_object`)."""
+        read = self._api_object(
+            f"repos/{self.repo}/actions/artifacts/{artifact_id}", deadline
+        )
+        if not isinstance(read, tuple):
+            return True if read == 404 else None
+        record = read[0]
         if record.get("id") != artifact_id or not isinstance(
             record.get("expired"), bool
         ):
@@ -1778,11 +1775,24 @@ class Reader:
     def _incremental_page(
         self, page: int, deadline: float
     ) -> tuple[dict[str, Any], dict[str, str]] | None:
-        """One incremental page's body and headers, read again after
+        """One incremental page's body and headers (`_api_object`); None for
+        any failure."""
+        read = self._api_object(
+            f"repos/{self.repo}/actions/artifacts"
+            f"?per_page={LISTING_PAGE_SIZE}&page={page}",
+            deadline,
+        )
+        return read if isinstance(read, tuple) else None
+
+    def _api_object(
+        self, path: str, deadline: float
+    ) -> tuple[dict[str, Any], dict[str, str]] | int | None:
+        """The JSON object at `path` and its headers, read again after
         `LISTING_WAITS` while time is left when the read fails transiently
-        (`_transient`) or its body is cut short; None for any other failure,
-        or once the waits or the time run out, with `_page_transient` set
-        when the last read was one of those."""
+        (`_transient`) or its body is cut short; the HTTP status of any other
+        failed answer (None without one), or None once the waits or the time
+        run out, with `_page_transient` set when the last read was one of
+        those."""
         self._page_transient = False
         for wait in (*LISTING_WAITS, None):
             left = deadline - _listing_clock()
@@ -1790,11 +1800,7 @@ class Reader:
                 return None
             try:
                 proc, headers = gh_api_with_headers(
-                    [
-                        "api",
-                        f"repos/{self.repo}/actions/artifacts"
-                        f"?per_page={LISTING_PAGE_SIZE}&page={page}",
-                    ],
+                    ["api", path],
                     timeout_seconds=left,
                     env_overrides=self._env(),
                 )
@@ -1809,9 +1815,11 @@ class Reader:
                 else:
                     self._page_transient = False
                     return body, headers
-            elif not _transient((proc.stderr or "").strip()):
-                self._page_transient = False
-                return None
+            else:
+                detail = (proc.stderr or "").strip()
+                if not _transient(detail):
+                    self._page_transient = False
+                    return gh_http_status(detail)
             self._page_transient = True
             if wait is None or deadline - _listing_clock() - wait <= 0:
                 return None
