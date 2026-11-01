@@ -33,6 +33,10 @@
     {
       "answer": "**My pick:** neither. Choose from the menu by feel.",
       "why": "refuses both of the writer's options"
+    },
+    {
+      "answer": "How I'd choose: by feel. Open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "a bare guide keyed to feelings"
     }
   ],
   "fail": [
@@ -84,6 +88,14 @@
     {
       "answer": "Neither of yours works. The answer is \"grease\".",
       "why": "refuses theirs, then crowns one"
+    },
+    {
+      "answer": "How I'd choose: grease.",
+      "why": "a bare single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** grease, it keeps the car in the song.",
+      "why": "a bare single pick after a bold heading"
     }
   ]
 }

@@ -24,6 +24,10 @@
     {
       "answer": "**How I'd choose:** _if_ the verse should stay unresolved, the assonance row; if it should land, the mosaic row.",
       "why": "an inline conditional guide keyed to rows"
+    },
+    {
+      "answer": "How I'd choose: by feel. Open ending, the assonance row; closed ending, the mosaic row.",
+      "why": "a bare guide keyed to feelings"
     }
   ],
   "fail": [
@@ -62,6 +66,14 @@
     {
       "answer": "Here is the menu. I'd go with the mosaic row: *been so slow*.",
       "why": "a plain I'd-go-with pick still fails"
+    },
+    {
+      "answer": "How I'd choose: grease.",
+      "why": "a bare single pick on the choosing-guide line"
+    },
+    {
+      "answer": "**How I'd choose:** grease, it keeps the car in the song.",
+      "why": "a bare single pick after a bold heading"
     }
   ]
 }

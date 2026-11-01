@@ -85,6 +85,10 @@
     {
       "answer": "Syllables tell you how many notes you'd need, not how long the line sits in the ear. The stresses do that: 4, 4, 3, 4, so line 3 is lighter than it looks.",
       "why": "contrasts syllables with stresses without the word 'measure'"
+    },
+    {
+      "answer": "The raw syllable count says nothing about balance.",
+      "why": "restored: the expected outcome's clause asks only that the raw count be denied as the measure"
     }
   ],
   "fail": [
