@@ -13,8 +13,8 @@ metadata:
 
 One bounded, ordered pass over a target repository's Claude Code **instruction** surface, coordinated
 across three scopes and resumable mid-run. It **adds no criteria of its own**: every check is
-delegated to the plugin that owns it. What it contributes is what invoking those skills by hand
-yields none of: a three-scope inventory before any check runs, a run-time-derived exclusion set,
+delegated to the plugin that owns it. What it adds over invoking those skills by hand: a
+three-scope inventory before any check runs, a run-time-derived exclusion set,
 stable finding identity, suppression memory, incremental persistence and resume, and one human gate
 for the pass. All of it is specified in [reference/run-contract.md](reference/run-contract.md).
 
@@ -115,8 +115,7 @@ rather than queues. All specified in
 read the lease, then read the partial's lane records and carry forward every lane whose input digest
 is unchanged.
 
-**Do not derive the run directory or hand-write the lease.** `scripts/run-state.sh` does both, which
-is what makes this phase a mechanism rather than a description of one:
+**Do not derive the run directory or hand-write the lease.** `scripts/run-state.sh` does both:
 
 ```bash
 S="${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh"
@@ -219,19 +218,18 @@ granularity the pass can actually dispatch, since it invokes skills and never re
 finer lane is unbuildable, not merely inconvenient: per-lane persistence, input digests, and
 selective resume all key on something the pass can re-invoke on its own.
 
-So the split falls out of the delegated interfaces rather than being asserted over them: a skill
+So the split follows the delegated interfaces: a skill
 taking a **surface-class filter** yields one lane per filter value it is given, and a skill taking
 only an action verb yields **one lane** covering everything it audits. Where a skill runs its whole
 catalog per invocation, the lane carries that whole catalog; the pass never splits a catalog it
 cannot address. Extending a delegated interface to accept a finer filter is a change to that skill,
 and until it lands the lane stays at the coarser grain.
 
-**What earns a lane, stated as a criterion rather than a list.** A skill is dispatched when it
-produces findings **over surfaces the Phase 1 inventory already enumerates**, keyed to a site this
-pass can anchor. That is what makes its rows joinable with the inventory, suppressible under this
-pass's identity, and comparable across runs. `harness-config:audit-automation-gaps` fails the
-criterion in both halves and is routed out: it is forward-looking, proposing automation that does not
-exist, so it has no inventoried surface to report over and no site to anchor a finding at.
+**What earns a lane.** A skill is dispatched when it produces findings **over surfaces the Phase 1
+inventory already enumerates**, keyed to a site this pass can anchor. That is what makes its rows
+joinable with the inventory, suppressible under this pass's identity, and comparable across runs.
+`harness-config:audit-automation-gaps` fails both halves and is routed out: proposing automation that
+does not exist, it has no inventoried surface to report over and no site to anchor a finding at.
 
 **Lane ids are what `--lanes` names**, one per lane in
 [reference/lane-catalog.md](reference/lane-catalog.md), plus one per surface-class value for the
@@ -389,8 +387,7 @@ Before the headline, the inline message names what waits on the operator: the pa
 the `/doctor` handoff when Phase 4 produced one, and any lane that stopped fenced or unverified.
 
 Every run also emits, in **one line**, how many `OPINION`-tier checks were
-available, how many were not run, and the argument that enables them (`--opinion`). Without it the
-tier ships unreachable.
+available, how many were not run, and the argument that enables them (`--opinion`).
 
 **Overlap notes are emitted here and never merge the findings they name.** Where two catalogs
 independently flag the same site, the note names **both** `finding_id`s and leaves both findings

@@ -11,13 +11,12 @@ metadata:
 
 ## Purpose
 
-Audit whether the instructions you have written for Claude Code are still earning their context cost
-against **current** model capability. As models improve, prior-model-era scar tissue accretes:
-workarounds for mistakes the model no longer makes, prescriptive step lists that now constrain more
-than they help, bare prohibitions, and show-your-thinking directives. This skill sweeps the
-locally-owned instruction surfaces, cites each finding to current official prompting doctrine, tiers
-it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
-diff, so instruction surfaces shrink as models get better instead of only ever growing.
+Audit whether the instructions written for Claude Code still earn their context cost against
+**current** model capability. As models improve, instructions accrete workarounds for mistakes the
+model no longer makes, prescriptive step lists that now constrain more than they help, bare
+prohibitions, and show-your-thinking directives. This skill sweeps the locally-owned instruction
+surfaces, cites each finding to current official prompting doctrine, tiers it by how confident the
+evidence can be, and packages proposed removals or rewrites as a human-gated diff.
 
 The check catalog, covering the checks I1–I42, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
@@ -167,8 +166,7 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   out-of-session run, or a custom/gateway deployment ID that matches no documented pattern.
   Normalization stops in that case by aborting the run with an error that names the exact
   argument to pass (`--target-model <version>`), a non-interactive abort, never a mid-run prompt,
-  and never a silent guess that a family alias means its newest version, which would misfire the
-  exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
+  and never a silent guess that a family alias means its newest version. When the ambiguous value is a documented
   family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
   user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5-5`;
