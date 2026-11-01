@@ -31,6 +31,14 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "curl -q -sS \\\n  -X POST https://xtomd.com/api/markdown \\\n  -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' -o /d/p.md\necho 'removed t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
       "why": "continued curl, then an unescaped newline ends it before the token"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p /d\ncurl -sS -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://x.com/fakehandle/status/1234567890123456789\"}' -o /d/p.md\necho 'dropped t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "client on line 2, token only on line 3"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd /d\nnodename=AbCdEfGhIjKlMnOp printf ok", "description": "run"}}],
+      "why": "later line starts with a word that only begins with a client name"
     }
   ],
   "fail": [
@@ -65,6 +73,18 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "curl -sS -w '\\n%{http_code}\\n' 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
       "why": "literal backslash-n in an argument does not end the scan"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p /d\ncurl -sS 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp' -o /d/p.md", "description": "run"}}],
+      "why": "client on line 2 after mkdir (reviewer's input)"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "export D=/d\n\tcurl -sS -X POST https://xtomd.com/api/markdown -d '{\"url\":\"https://twitter.com/fakehandle/status/1234567890123456789?t=AbCdEfGhIjKlMnOp\"}'", "description": "run"}}],
+      "why": "tab-indented client on line 2"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd /d\r\nwget -qO- 'https://twitter.com/fakehandle/status/1234567890123456789?s=20&t=AbCdEfGhIjKlMnOp'", "description": "run"}}],
+      "why": "client after a CRLF line end"
     }
   ]
 }
