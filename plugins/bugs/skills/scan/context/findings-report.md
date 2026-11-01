@@ -11,7 +11,7 @@ route the operator picks), a `**Needs you**:` line directly under the title name
 number and the choice it needs. Omit the line when nothing waits.
 
 One paragraph under the title (after any `**Needs you**:` line), before the first finding: mode, effort level, scope class, lens
-count, the model and effort the hunters and gates were each dispatched with, the file count, whether the hotspot ranking ran, the
+count, the model and effort the hunters and gates were each dispatched with, the gates' execution permission (`execute: allowed` or `execute: none`), the file count, whether the hotspot ranking ran, the
 cursor rung, and the candidate counts (raw, after triage, gated). A reader who sees only this
 paragraph knows how narrow or wide the sample was.
 
@@ -84,7 +84,8 @@ Rules:
 - A finding without a verbatim evidence quote does not go in the report. There is no "needs
   confirmation" tier for scan findings. The gate already decided.
 - `reproduced` findings state the command that was run and what it showed. `verified-by-reading`
-  findings state why no cheap check existed.
+  findings state why no check was run: execution not permitted on this run, or no cheap check
+  existed.
 - No patch, no diff, no "change line X to Y". The fix location is a pointer; the fixer decides.
 
 ## Refuted candidates (retained tail)

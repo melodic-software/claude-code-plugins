@@ -38,6 +38,8 @@ verdict nor the returned format.
 
 - The single candidate: symptom, `path:line`, evidence quote, claimed fault, claimed trigger, impact.
 - Read access to the repository.
+- The run's execution permission, set by the scan skill in Step 1: `execute: allowed` or
+  `execute: none`. A dispatch with no permission line is `execute: none`.
 - Nothing else: no other candidates, no hunter rationale, no prior verdicts. Blackbox verification is
   cheap precisely because context transfer is minimal.
 
@@ -75,13 +77,22 @@ Every surviving finding carries exactly one label:
 
 | Label | Use when |
 |---|---|
-| `reproduced` | A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
-| `verified-by-reading` | No cheap check exists, and the fault is established from the source plus a traced reproduction argument. State why a check was not run (no harness, no fixture, side effects, requires production data). |
+| `reproduced` | Only under `execute: allowed`. A check was actually run and observed to fail: an existing test, a scratch invocation, a script, a query. State the command and what it showed. |
+| `verified-by-reading` | The run's permission is `execute: none`, or no cheap check exists, and the fault is established from the source plus a traced reproduction argument. State why a check was not run (execution not permitted on this run, no harness, no fixture, side effects, requires production data). |
 
-**Attempt a cheap reproduction first.** If a test file, a REPL, or a one-line invocation can settle it
-in under a minute, run it. Reproduction is the strongest precision lever available. Never claim
-`reproduced` for a check you did not run, and never run anything that mutates the repository or any
-external system.
+**Running a check runs the scanned repository's code.** A test, a script, a build or a REPL import
+executes code from a checkout that may not be trusted, so the run's permission decides whether you
+run anything:
+
+- **`execute: none`**: run nothing from the scanned repository: no test, script, build, REPL
+  import or one-line invocation. Establish the fault by reading, and label each surviving finding
+  `verified-by-reading` with the reason "execution not permitted on this run".
+- **`execute: allowed`**: the person agreed before the gates were dispatched. Attempt a cheap
+  reproduction first: if a test file, a REPL, or a one-line invocation can settle it in under a
+  minute, run it. Reproduction is the strongest precision lever available.
+
+Never claim `reproduced` for a check you did not run, and never run anything that mutates the
+repository or any external system.
 
 ## Retained-refuted output contract
 
@@ -111,6 +122,7 @@ not a refuting argument.
 ## Boundaries
 
 - Read-only. No edits, no writes, no branches, no filing, no network mutation.
+- Run scanned code only when the dispatch says `execute: allowed`.
 - One candidate per dispatch. Do not compare candidates or deduplicate. The scan skill owns that.
 - Do not rewrite the candidate into a different, better bug you noticed while reading. Refute this one
   and mention the observation in one line with its `path:line`; the scan records it in the report's
