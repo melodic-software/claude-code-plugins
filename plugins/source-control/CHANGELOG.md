@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.11.0] - 2026-11-01
+
+### Added
+
+- The post-merge check (`babysit_postmerge.py`) settles a lane merge it judged verified. A check whose read was complete lists, in its report's `settle`, each of the agent identity's merges that is verified with no red, superseded or flaked full run and no running canary in its window and no empty record listing behind it. `--settle-from <report>` then posts the identity's `<!-- babysit-merge-settled sha=<merge commit> -->` comment on each one's pull request. A later check counts a merge that carries that marker, unedited and written by the identity, as verified without reading its runs or its `pr-merge-dispatched-<id>` artifact. The same author and edit checks as the pin comment decide whether a marker counts. The marker is read in the same batched comment query as the pins, and the run listings start at the earliest merge not yet settled, so a settled merge no longer fails once its record's 30-day retention ends; a merge never settled still depends on it. A failed post is a warning and changes no verdict, and the next check lists the merge again.
+
+## [4.10.1] - 2026-11-01
+
+### Fixed
+
+- The pr-merge gate's verdict read (`babysit_verify_evidence.py` `Reader.evidence`, provisional) no longer refuses `verify:missing` for a pass uploaded after the run's saved artifact listing was read. When that refusal still stands on the saved listing, the reader reads the head's two pass names by exact name (`pr-verify-<pr>-<head>-pass` and `-pass-notes`), two requests and no listing. A pass found there is judged with the saved listing in memory, and an allow stays provisional, so the gate judges it again on a listing of its own that must hold the live count. A failed read, a pass whose run does not count, or none found leaves `verify:missing`. Each find prints one `babysit-late-pass` line.
+
 ## [4.10.0] - 2026-11-01
 
 ### Added

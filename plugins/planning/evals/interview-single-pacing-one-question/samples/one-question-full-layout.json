@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Round 2, one question at a time. Decided: production quality, at-least-once delivery, receivers deduplicate on `event_id`.\n\nQ4: **What happens to an event after its last failed attempt?**\nContext: the sender makes one POST today and drops the event when it fails (user, round 2). At-least-once delivery means a dropped event breaks the guarantee (user, round 1).\nMy recommendation: move it to a dead-letter table that an operator can replay.\nOrigin: new (ours)\nBasis: verified, user, round 1 (at-least-once delivery)\nAlternatives:\n- (a) Drop it and log. Simplest, but breaks at-least-once delivery (user, round 1; origin: new (ours))\n- (b) Keep retrying forever. Never loses an event, but a dead receiver grows the queue without bound (origin: new (ours))\n\nIs there something else that would change this recommendation?",
+      "why": "one question in full layout, closing probe, no header, index or preview"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q4: What happens to an event after its last failed attempt?\nMy recommendation: a dead-letter table. Basis: verified, user, round 1. Alternatives: (a) drop and log.\n\nQ5: How many attempts? My recommendation: five. Basis: verified, user, round 1. Alternatives: (a) three.\n\nIs there something else that would change these recommendations?",
+      "why": "asks two questions in one reply"
+    },
+    {
+      "answer": "Q4: What happens to an event after its last failed attempt?\nMy recommendation: a dead-letter table. Basis: verified, user, round 1. Alternatives: (a) drop and log.\n\nComing up next: Q5 attempt count (five), Q6 delay (backoff from 30 seconds), Q7 who is alerted (#webhooks), Q8 alert contents (endpoint, last status, events waiting). Feel free to answer those now too.",
+      "why": "previews the other four decisions for the user to answer in the same reply"
+    }
+  ]
+}

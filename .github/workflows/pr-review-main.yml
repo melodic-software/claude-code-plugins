@@ -685,7 +685,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
 
       - name: Upload chunk 1's sealed transcript
         if: always() && steps.review-1.outputs.execution-file != ''
@@ -752,7 +752,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
 
       - name: Upload chunk 2's sealed transcript
         if: always() && steps.review-2.outputs.execution-file != ''
@@ -819,7 +819,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
 
       - name: Upload chunk 3's sealed transcript
         if: always() && steps.review-3.outputs.execution-file != ''
@@ -886,7 +886,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
 
       - name: Upload chunk 4's sealed transcript
         if: always() && steps.review-4.outputs.execution-file != ''
@@ -1502,7 +1502,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1572,7 +1572,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1642,7 +1642,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -1712,7 +1712,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2321,7 +2321,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-1.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-1.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-1.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-1.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2390,7 +2390,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-2.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-2.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-2.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2459,7 +2459,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-3.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-3.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-3.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
@@ -2528,7 +2528,7 @@ jobs:
           step-timeout-minutes: 22
           credential: ${{ steps.review-4.outputs.credential }}
           max-turns: ${{ steps.models.outputs.max-turns }}
-          known-failure-class: ${{ steps.review-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.review-4.outputs.lane-class }}
+          known-failure-class: ${{ steps.review-4.outputs.lane-class }}
           # Why this leg ran, for the lane's one record.
           fallback-reason: ${{ matrix.reason == 'credit-stop' && 'credit-stop' || matrix.reason == 'auth' && 'auth' || matrix.reason == 'limit-stop' && 'limit-stop' || matrix.reason == 'no-key' && 'no-key' || '' }}
 
