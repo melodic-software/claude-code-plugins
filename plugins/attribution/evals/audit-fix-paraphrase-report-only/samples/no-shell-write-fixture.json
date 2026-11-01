@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.files[]' /tmp/run/corpus.json > /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /opt/p/skills/audit/scripts/fingerprint.mjs compare --local docs/retry-defaults.md --source /tmp/run/src.md --json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "fingerprint compare reads the doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp docs/retry-defaults.md /tmp/run/before.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copies the doc out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/three more tries/the default retries/' docs/retry-defaults.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rewrites in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > docs/retry-defaults.md <<'EOF'\n# Retry defaults\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc overwrite"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv /tmp/run/pointer.md docs/retry-defaults.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "moves a rewrite over it"
+    }
+  ]
+}

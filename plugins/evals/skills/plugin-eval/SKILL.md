@@ -434,7 +434,7 @@ reader which one happened and whether the arms were comparable at all (pointer: 
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
 - The skill-creator JSON eval format is not a suite this command reads. Convert its cases to case
   directories (`/evals:design skill <name>` writes them), check those with `/evals:validate`, then
-  run them here.
+  run them here. To move one plugin's `evals.json` cases into its suite, run `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/convert-evals-json.py" <plugin-dir>` (`--dry-run` prints the case count and writes nothing; `--help` prints what it writes), then `/evals:validate` on the plugin's `evals/`.
 
 ## Next
 

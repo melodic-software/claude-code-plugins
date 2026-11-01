@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "attribution:audit",
+            "args": "docs"
+          }
+        }
+      ],
+      "why": "qualified name with args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "attribution:setup"
+          }
+        }
+      ],
+      "why": "wrong skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "ai-slop:audit"
+          }
+        }
+      ],
+      "why": "another plugin's audit"
+    }
+  ]
+}

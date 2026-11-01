@@ -184,7 +184,8 @@ bash_needs${TAB}\${{ steps.plan.outputs.bash_needs }}
 python_legs${TAB}\${{ steps.plan.outputs.python_legs }}
 python_plan${TAB}\${{ steps.plan.outputs.python_plan }}
 python_needs${TAB}\${{ steps.plan.outputs.python_needs }}
-node_packages${TAB}\${{ steps.plan.outputs.node_packages }}"
+node_packages${TAB}\${{ steps.plan.outputs.node_packages }}
+playwright_cache_key${TAB}\${{ steps.playwright_key.outputs.key }}"
 # The data reads that are not env entries: each sharded test lane sizes its
 # matrix from its `<lane>_legs`. A leg reads its suites from the plan and fails
 # on none, so an unset value falls back to one leg that fails loud.
