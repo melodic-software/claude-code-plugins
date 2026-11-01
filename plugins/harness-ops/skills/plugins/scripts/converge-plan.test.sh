@@ -84,7 +84,8 @@ jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P
   --arg gone "$P_GONE" --arg homedir "$P_HOME" '
   def rec($s; $v; $p; $present; $home; $wt):
     {scope: $s, version: $v, projectPath: $p, projectPathPresent: $present,
-     projectPathIsHome: $home, linkedWorktree: $wt, label: null};
+     projectPathIsHome: $home, linkedWorktree: $wt, label: null,
+     projectEnabledEntry: (if $present != true or $home then null elif $p == $commit then "false" else "absent" end)};
   def user($v): {scope: "user", version: $v, projectPath: null, projectPathPresent: null,
                  projectPathIsHome: null, linkedWorktree: null, label: null};
   {marketplace: {name: "mk"},
@@ -168,6 +169,28 @@ assert_eq "worktree + committed enable: uninstall is not the default" "false" \
   "$(jq -r '.groups[0].rows[0].default' <<<"$WT_PLAN")"
 assert_eq "worktree + committed enable: carries the warning" "removes a committed enabledPlugins entry" \
   "$(jq -r '.groups[0].rows[0].warning' <<<"$WT_PLAN")"
+
+# The committed-enable state comes from the report's projectEnabledEntry, never
+# from a read of the settings file: here the file on disk holds no entry while
+# the report says the tracked file holds an explicit false.
+SHADOW="$TEST_TMPDIR/shadow"
+tracked_repo "$SHADOW" '{}'
+entry_plan() {
+  jq -n --arg p "$SHADOW" --argjson e "$1" '
+    {marketplace: {name: "mk"}, catalog_versions: {"nu@mk": "1.2.0"}, installed: [],
+     divergences: [{id: "nu@mk", versionsMatch: false, scopes: [
+       {scope: "user", version: "1.2.0", projectPath: null, projectPathPresent: null,
+        projectPathIsHome: null, linkedWorktree: null, label: null, projectEnabledEntry: null},
+       ({scope: "project", version: "1.0.0", projectPath: $p, projectPathPresent: true,
+         projectPathIsHome: false, linkedWorktree: false, label: null}
+        + (if $e == "missing" then {} else {projectEnabledEntry: $e} end))]}]}' >"$TEST_TMPDIR/entry-report.json"
+  "$SCRIPT" --from "$TEST_TMPDIR/entry-report.json" | jq -r '.groups[] | select(.projectPath != null) | .rows[0].strategy'
+}
+assert_eq "an explicit committed false in the report defaults to update" "update" "$(entry_plan '"false"')"
+assert_eq "an explicit committed true in the report defaults to update" "update" "$(entry_plan '"true"')"
+assert_eq "no entry in the report keeps the uninstall default" "uninstall" "$(entry_plan '"absent"')"
+assert_eq "an unreadable settings file counts as a committed enable" "update" "$(entry_plan '"unreadable"')"
+assert_eq "a report without the field counts as a committed enable" "update" "$(entry_plan '"missing"')"
 
 # Usage and shape errors.
 "$SCRIPT" --from "$TEST_TMPDIR/missing.json" >/dev/null 2>&1

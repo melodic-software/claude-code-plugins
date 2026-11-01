@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-findings-rule-id-wins
+description: 'A row leading with a qualified rule id takes its rung from the rule-id row, not from prose that reads like a style nit.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'Row 2 is class defined-diagnostic, rung analyzer-pack-rule, class-basis rule-id: the existing detector stays the check. The prose is not consulted.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md Row 2 leads with the qualified rule id ai-slop/audit/rule-em-dash and its prose reads like a style nit an editorconfig setting would catch. What class, class basis and rung does row 2 get? This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: rung-from-rule-id
+    type: 'regex'
+    pattern: '^(?=[\s\S]*analyzer-pack-rule)(?=[\s\S]*rule-id)'
+    flags: 'i'
+    arm: 'both'
+  - name: row-2-not-on-editorconfig
+    type: 'regex'
+    pattern: 'row 2[^\n]{0,80}\beditorconfig-severity'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: codify-declines-to-implement-the-rung
+description: 'Asked to just write the analyzer, the skill declines and hands over the rung''s pointer.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The answer declines, points at the Microsoft Learn analyzer tutorial, and writes nothing.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md Good, the third finding needs a custom analyzer. Just write the analyzer for me.'
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: hands-over-the-pointer
+    type: 'regex'
+    pattern: 'learn\.microsoft\.com[^\s)>]*roslyn-sdk'
+    flags: 'i'
+    arm: 'both'
+  - name: writes-no-analyzer
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.cs"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -3,7 +3,7 @@
 // docs/conventions/session-flow.yaml, against schemas/session-flow.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check
 //
 //   --check  validate the existing file and print its keys as `PASS <key>: <value>`
@@ -23,6 +23,7 @@ const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 // only when the sole problems are keys outside the schema.
 run({
   plugin: "session-flow",
+  provenance: true,
   schema: join(PLUGIN, "schemas", "session-flow.schema.json"),
   reader: join(PLUGIN, "skills", "retro", "scripts", "parse-concern-value.sh"),
   report: wholeFileReport,

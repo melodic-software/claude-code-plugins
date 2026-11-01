@@ -47,7 +47,7 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
    pass together: each version on each target model, with and without the plugin, the same
    `--runs`, judge and threshold, and `--keep-temp`. For triggering, emit cases from the held-out
    probes with `/skill-quality:check measure-invocation` `emit-plugin-eval` and run them with
-   `--ablation none`. Write any exclusion rule (a case the harness cannot run, say) before reading a
+   `--ablation none --disallow-tools Read Glob Grep`. Write any exclusion rule (a case the harness cannot run, say) before reading a
    number, and apply it to both versions. Then, per suite and model:
    - `/evals:plugin-eval` must judge each result VALID.
    - Read its two-version noise report, after against before, at the protocol's margin.
