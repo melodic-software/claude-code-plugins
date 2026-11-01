@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1] - 2026-11-01
+
+### Changed
+
+- The pressure-test skill description is shorter (876 to 742 characters). Held-out trigger probes on Opus showed no lost trigger and no new false trigger. Frozen trigger probes for pressure-test and explore-directions are added.
+
 ## [0.21.0] - 2026-11-01
 
 ### Added
