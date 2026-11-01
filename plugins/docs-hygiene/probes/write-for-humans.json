@@ -1,0 +1,125 @@
+{
+  "skill": "docs-hygiene:write-for-humans",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/write-for-humans",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the agent-doc sibling, the AI-tell audit, the commit skill, the Claude Code changelog skill, the compress skill, the terseness corrector and the skill-authoring playbook.",
+  "competitors": [
+    "docs-hygiene:write-for-agents",
+    "ai-slop:audit",
+    "source-control:commit",
+    "harness-ops:changelog",
+    "docs-hygiene:compress",
+    "discipline:tighten-your-output",
+    "playbooks:skill-authoring"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a README for this library that a first-time user can follow."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draft a design doc proposing we move job scheduling onto a queue."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn this list of merged changes into notes for our users about the new version."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a page explaining how to rotate the API signing key."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our getting-started page mixes a lesson with a full option table. Which kind of document should it be?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Add a changelog entry for the new --dry-run flag."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a tutorial that walks a beginner through building their first plugin."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This user guide sounds like a chatbot produced it; rewrite it so a person could have written it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a page on why we chose event sourcing for the ledger."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Put together a proposal document for deprecating the v1 API."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a rule to CLAUDE.md so the agent always runs the linter before committing."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan our docs folder for em dashes and other AI-writing tells and report them."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Commit these changes with a good message."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What changed in the latest Claude Code release?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut this existing doc by a third without dropping any directive."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Your last answer was way too wordy; tighten it."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the reference file our review subagent loads before it runs."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me write the SKILL.md for a new deploy skill."
+    }
+  ]
+}

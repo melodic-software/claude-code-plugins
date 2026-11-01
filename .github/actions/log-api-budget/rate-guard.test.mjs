@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { apiLimits, apiLimitsOrBuiltIn, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
@@ -275,7 +275,7 @@ test("graphql 200 with RATE_LIMITED latches graphql", async () => {
   assert.equal(gh.sent.length, 1);
 });
 
-test("without readable rate-limit defaults the latch still stops, and says the floor is unchecked", async () => {
+test("without readable rate-limit defaults the latch still stops, and plans to its built-in defaults", async () => {
   const lines = [];
   const latch = createRateLimitLatch({
     now: () => NOW,
@@ -290,7 +290,37 @@ test("without readable rate-limit defaults the latch still stops, and says the f
   const fetch = latch.guard(gh.fetch);
   await fetch(URL_A);
   await assert.rejects(fetch(URL_B), RateLimitStop);
-  assert.ok(lines.some((line) => line.includes("read floor is not checked")));
+  assert.ok(lines.some((line) => line.includes("plans to its built-in defaults")));
+});
+
+test("without readable rate-limit defaults the read floor is still checked", async () => {
+  const lines = [];
+  const latch = createRateLimitLatch({
+    now: () => NOW,
+    log: (line) => lines.push(line),
+    fail: () => {},
+    stopFile: null,
+    limits: () => {
+      throw new Error("ENOENT");
+    },
+  });
+  const low = [200, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "450", "x-ratelimit-reset": "1792751600" }];
+  const fetch = latch.guard(fakeGitHub([low]).fetch);
+  await fetch(URL_A);
+  assert.equal(latch.belowFloor(URL_A), true);
+  assert.ok(lines.some((line) => /under its read floor left/.test(line)));
+});
+
+test("apiLimitsOrBuiltIn plans an unreadable rate-limits.json to the built-in defaults, with a warning", () => {
+  const lines = [];
+  const limits = apiLimitsOrBuiltIn({ resolvedPath: "", defaultsPath: "/nonexistent/rate-limits.json", log: (line) => lines.push(line) });
+  assert.deepEqual(limits, apiLimits({ resolvedPath: "" }));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::warning::rate-limits\.json could not be read \(ENOENT\); planning to the built-in defaults/);
+});
+
+test("the built-in defaults are the values rate-limits.json ships", () => {
+  assert.deepEqual(apiLimits({ resolvedPath: "", defaultsPath: null }), apiLimits({ resolvedPath: "" }));
 });
 
 // The process-wide stop, end to end in a child process: createGitHub trips the
@@ -436,7 +466,7 @@ test("the guard keeps a reading of each answer under API_BUDGET_TOKEN, and none 
       for (const url of [URL_A, URL_A, URL_B]) {
         await guarded(url);
       }
-      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core\n404 5000 4989 11 1792751600 core\n500 na na na na na\n");
+      assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4990 10 1792751600 core repos/{repo}/pulls/{n}\n404 5000 4989 11 1792751600 core repos/{repo}/pulls/{n}\n500 na na na na na repos/{repo}/issues/{n}\n");
     } finally {
       for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
         if (value === undefined) delete process.env[key];

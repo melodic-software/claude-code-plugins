@@ -1,5 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: plugins/planning/shared/schema/event.schema.json
 """Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
@@ -794,6 +795,46 @@ class TestRevise(DirCase):
         rc, out, err = self.op("revise", id="Q1", alternatives=["a:One", "b:Two"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestContextField(DirCase):
+    """The question's context block sits next to facts and holds the same reference bar."""
+
+    WARNING = "context carries no link, file:line or judgment label"
+
+    def test_a_question_carries_context_and_unreferenced_context_warns(self):
+        q = question("Q4", context="The cache is shared by every job today.")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q4")["context"], "The cache is shared by every job today.")
+        self.assertIn(f"Q4 {self.WARNING}", err)
+
+    def test_referenced_context_is_quiet(self):
+        q = question("Q4", context="The cache is shared (`ci/cache.yml:12`).")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.WARNING, err)
+        self.assertNotIn("names a local file", err)
+
+    def test_context_linking_a_branch_warns(self):
+        link = "https://github.com/o/r/blob/main/a.py#L1"
+        q = question("Q4", context=f"The cache is shared ([a.py]({link})).")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 context links a repo file by branch", err)
+
+    def test_revise_context_records_the_change(self):
+        rc, out, err = self.op("revise", id="Q1", context="Jobs share it ([ci](https://example.com/ci#cache)).")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["context"], "Jobs share it ([ci](https://example.com/ci#cache)).")
+        self.assertIn("context", q["history"][-1]["changed"])
+        rc, out, err = self.op("revise", id="Q1", context="Jobs share it.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q1 {self.WARNING}", err)
+
+    def test_context_over_the_shared_cap_is_refused(self):
+        self.assert_refused("add", "--file", self.file("q.json", question("Q4", context="x" * 4001)))
 
 
 class TestSharedQuestionShape(DirCase):
@@ -2986,14 +3027,45 @@ class TestReviseSetsAsideOwn(DirCase):
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
-    def test_accept_and_alt_answers_are_not_set_aside(self):
-        for kind in ("accept", "alt"):
+    def test_alt_and_defer_answers_are_not_set_aside(self):
+        for kind in ("alt", "defer"):
+            self.write_doc(base_doc())
             self.answer(kind)
             rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
-            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_of_the_old_recommendation_is_set_aside(self):
+        for kind in ("accept", "hedged"):
+            self.write_doc(base_doc())
+            self.answer(kind, "if it holds" if kind == "hedged" else "")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
+            self.assertEqual(rc, 0, out + err)
+            q = self.q("Q1")
+            self.assertEqual(q["setAsideSeq"], 1)
+            self.assertEqual(q["asideRecommendation"]["text"], "Yes. It keeps things simple.")
+            self.assertEqual(q["asideRecommendation"]["seq"], 1)
+            self.assertIsNone(self.latest())
+            self.assertIn(self.OPEN, self.status())
+
+    def test_an_accept_survives_a_revision_to_the_same_recommendation(self):
+        self.answer("accept")
+        rec = {**self.REC, "rec": "Yes. It keeps things simple."}
+        rc, out, err = self.op("revise", id="Q1", **rec, seq=1)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_an_accept_after_the_revision_counts(self):
+        self.answer("accept")
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="accept")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "accept")
+        self.assertNotIn("asideRecommendation", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
 
     def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
         sys.path.insert(0, str(HERE))
@@ -3002,7 +3074,7 @@ class TestReviseSetsAsideOwn(DirCase):
         snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
         self.answer("own", "arrived after the guard read")
         q = self.q("Q1")
-        r.set_aside_own(snapshot, self.doc(), q)
+        r.set_aside_answer(snapshot, self.doc(), q, "Use the lock.")
         self.assertNotIn("setAsideSeq", q)
 
     def test_a_terminal_own_answer_is_set_aside_too(self):
@@ -3677,6 +3749,43 @@ class TestEmojiMarkersValue(unittest.TestCase):
         for value, want in cases:
             with self.subTest(value=value):
                 self.assertIs(self.markers_after(value), want)
+
+
+class TestQuestionPacingValue(unittest.TestCase):
+    """`--pacing` records single for single in any case, round for anything else, and nothing without the flag."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="iv-pacing-"))
+        cls.addClassCleanup(shutil.rmtree, cls.tmp, ignore_errors=True)
+        cls.dir = cls.tmp / "data"
+        cls.dir.mkdir()
+        (cls.dir / "questions.json").write_text(
+            json.dumps(base_doc()), encoding="utf-8"
+        )
+        cls.addClassCleanup(run_round, cls.dir, "stop")
+
+    def pacing_after(self, *flag):
+        rc, out, err = run_round(self.dir, "ensure-running", "--port", "0", *flag)
+        self.assertEqual(rc, 0, f"{flag!r}: {out}{err}")
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        return doc["meta"].get("questionPacing")
+
+    def test_every_value_form(self):
+        self.assertIsNone(self.pacing_after())
+        cases = [
+            ("single", "single"),
+            (" SINGLE ", "single"),
+            ("round", "round"),
+            ("", "round"),
+            ("${user_config.question_pacing}", "round"),
+            ("one at a time", "round"),
+        ]
+        for value, want in cases:
+            with self.subTest(value=value):
+                self.assertEqual(self.pacing_after("--pacing", value), want)
+        self.assertEqual(self.pacing_after("--pacing", "single"), "single")
+        self.assertEqual(self.pacing_after(), "single")
 
 
 class TestRoundStamp(DirCase):

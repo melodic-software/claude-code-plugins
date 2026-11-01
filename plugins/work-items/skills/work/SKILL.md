@@ -72,16 +72,16 @@ dispatch, PR or babysit step. It works in place:
    comment settles a question. Push back only on a question no such decision answers.
 3. Otherwise, when the issue's counted brief has a Root cause field reading `unknown`, run the
    root-cause gate first, inline: read the code and docs the symptom points at, run no command from
-   the checkout, and name the cause. When `/debugging:debug` or `/testing:diagnose` resolves in this
-   lane, use it; the lane loads only this plugin, so expect neither and read the code yourself. The
+   the checkout, and name the cause. When `/debugging:debug --unattended` or `/testing:diagnose`
+   resolves in this lane, use it; the lane loads only this plugin, so expect neither and read the code yourself. The
    cause you name is the one the fix addresses. When you cannot name a cause from what you read, do
    not implement a guess: stop with the reason. When the field names the cause, or the brief has no
    Root cause field, skip the gate. Make the change in the checkout, following the repository's own rules for the files
    you touch and its release record for each plugin you change. Write an external fact (a
    documented default, limit or behavior) only after reading it in the source you cite during
    this run; the issue's quote of a page is not that source. Read a web source through a research
-   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research` for a
-   question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
+   skill, not a bare fetch: `/discovery:read-docs` for one docs page, `/discovery:research --unattended`
+   for a question that needs several sources, `/knowledge:docpage-digest` or `/knowledge:map-corpus`
    when the issue asks for a page or a site digested. Add each page you read to `verification` as
    `read <url>: what it says`. When you cannot read the source (the lane allows no web access, or
    the read fails), leave the claim out, and stop if the issue needs it. Commit every changed file with the commit
@@ -234,7 +234,7 @@ broader grants. The dated basis, the full contract, remediation, and the
 Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
 invariant ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Shared tracker context") is discharged **here, before Step 0 runs**, never left to surface as a raw
-`exit 3` mid-reclaim. If `.work-item-tracker.json` does not resolve, surface the actionable choice
+`exit 3` mid-reclaim. If the binding (`tracker:` in `<home>/work-items.yaml`, else the legacy repo-root JSON binding) does not resolve, surface the actionable choice
 before attempting `reclaim`: **(1) setup was never run** → run `/work-items:setup` to bind the
 provider; **(2) a deliberate gh-native operating mode** → this lane is coordination-*dependent* (Step
 0 `reclaim`, `list-frontier`, and the Step 5 `claim` are all seam verbs that need the binding), so an
@@ -282,8 +282,9 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 ### Role-label preflight
 
-Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` when the file or entry is absent (the documented default,
+Before any tracker read, resolve `recurring-maintenance` from `config.role_labels` of the binding
+the seam resolves (the `tracker` mapping of `<home>/work-items.yaml`, else the legacy repo-root
+JSON binding), using `recurring` when the file or entry is absent (the documented default,
 no warning). Stop on a malformed, empty, or non-string configured value. Use the resolved string
 for every recurring/non-recurring filter and every adapter query in this action; do not compare
 labels against the default literal after a remap.
@@ -308,8 +309,17 @@ Because the frontier is already unassigned + unblocked, present the top candidat
 **Auto-selected (<tier-name>):** #42 Fix <thing>
 Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 
+I read this item as: <goal; done when>
+
 Proceed with this item? (yes / pick different / skip)
 ```
+
+The `I read this item as:` line restates, in your own words, what the item asks, so the user can
+catch a misread before the claim. Draw the goal from the item's brief (its Summary or Desired
+behavior, or the Outcome section of a decomposed item, its `Goal:` line when present) and the done-when from its
+Acceptance criteria or Done when list, condensed to one line. With no brief, draw both from the
+title and body, and say `done when: not stated` when the item names no check. The line is
+attended-only: an autonomous run prints neither it nor the prompt.
 
 **Autonomous invocation (no interactive user).** When a loop lane (e.g. `/work-items:work-loop`)
 or another unattended context invokes this skill, do not present the prompt and do not block. The
@@ -319,8 +329,12 @@ required ratification marker). The named id **binds the selection**: skip the se
 not recompute priorities or re-select, and proceed from the staleness pre-check with exactly that
 item, so the invoker's admission and accounting stay attached to the item executed (concurrent
 slots rely on this to avoid colliding on one candidate). Record the auto-confirmation in the
-item's claim comment. Every later step is unchanged; the seam claim in Step 5 remains the atomic
-acquisition point, attended or not.
+item's claim comment. Every later step runs as it does attended, with one difference: nobody is
+present to answer an ask, so pass `--unattended` to each skill a later step invokes that takes it: `/debugging:debug --unattended`,
+`/implementation:implement-dispatch --unattended`,
+`/source-control:pull-request create --pushed --worktree <path> --unattended`, and
+`/source-control:babysit-prs --unattended`. `unattended-callers.test.mjs` beside this file fails
+when one of these calls, or a CI-mode call above, drops the flag.
 
 ### Step 4: Staleness pre-check
 
@@ -330,7 +344,7 @@ below are examples, not the list:
 
 - If it references a file to modify: check each named file exists and the item is still relevant.
 - If it references a test to add: check whether similar tests already exist.
-- If stale (work already done): close it with a comment (adapter: "Close item") and advance to the next candidate.
+- If stale (work already done): close it with a comment (adapter: "Close item") and advance to the next candidate. A bug item is never closed on a reading alone: claim it, and close it only on the [Bug path](#bug-path)'s Confirmed outcome.
 
 ### Step 5: Claim and execute
 
@@ -350,7 +364,7 @@ On user confirmation ("yes"):
 
 1. **Suggest branch name.** Propose `<type>/<ref>-<slug>`, `<ref>` being the bound adapter's `branch_ref` for the item, so `/source-control:pull-request create`, when it is among the available skills, can resolve the item from the branch and write the adapter's link line; otherwise the orchestrator writes the adapter's link line into the PR body itself. Same protocol as the `/work-items:track start` action's branch-name step ([`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/start.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/start.md) "Suggest branch name"). Branch `<type>` vocabulary derived from the item's issue type (native Issue Type preferred, `type:*` label fallback), slug from title (kebab-case, 40-char cap), existing-branch detection, multi-claim 3-option (switch / stay+cover-both / skip). Agent emits `git checkout -b ...` for the user; never executes itself. Under autonomous worker-side provisioning the orchestrator instead carries the resolved name into the dispatch brief and the worker creates the branch when it provisions its worktree (below), the orchestrator still never creates the branch itself.
 
-1. **Root-cause gate (bugs).** Runs with the claim held, after the staleness pre-check and before the implementation dispatch, so an unclaimed or stale item is never diagnosed. Read the **Root cause** field of the counted Agent Brief ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) "Whose brief counts"). When it reads `unknown`, run diagnosis before the item is implemented: `/debugging:debug`, or `/testing:diagnose` when the symptom is a failing test. Carry the diagnosed cause into the dispatch brief as the cause the fix addresses, quoted as data, then continue to the fix. When the diagnosis cannot name a cause, do not implement a guess: escalate the item to the human queue (`/work-items:attend-queue`). When the field names the cause, or the brief has no Root cause field (or no counted brief), skip this gate and go straight to the fix. CI mode runs its own inline gate in its step 3, not this one.
+1. **Root-cause gate (bugs).** A bug item first runs the [Bug path](#bug-path) below. The gate runs with the claim held, after the staleness pre-check and before the implementation dispatch, so an unclaimed or stale item is never diagnosed. Read the **Root cause** field of the counted Agent Brief ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) "Whose brief counts"). When it reads `unknown`, run diagnosis before the item is implemented: `/debugging:debug`, or `/testing:diagnose` when the symptom is a failing test. Carry the diagnosed cause into the dispatch brief as the cause the fix addresses, quoted as data, then continue to the fix. When the diagnosis cannot name a cause, do not implement a guess: escalate the item to the human queue (`/work-items:attend-queue`). When the field names the cause, or the brief has no Root cause field (or no counted brief), skip this gate and go straight to the fix. CI mode runs its own inline gate in its step 3, not this one.
 
 1. **Execute. Orchestrator-dispatch is the default.** For autonomous execution the default posture is orchestrator, not inline editor: this skill picks and claims the item, then **dispatches a scope-fenced implementation subagent** that does the source edits in its **own out-of-tree worktree** (lifecycle owned by `/source-control:worktree`, one per pick), collects the return, verifies it, and does the bookkeeping. **The orchestrator never edits source itself.** All dispatch *mechanics*, worker-brief composition, orchestrator-never-edits, verify-returns-against-evidence, and the concurrent-wave cap, are owned by `/implementation:implement-dispatch`; invoke it via the Skill tool rather than re-describing them here. That chain also carries the **capability-tier model binding structurally**: `/implementation:implement-dispatch` dispatches workers and phase verifiers as its plugin's `implementer` / `phase-verifier` agents (a plan-routed `sonnet` phase goes to `scoped-implementer` instead), whose `model` frontmatter binds the strong tier's current alias (for what ranks over it, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-10-31; recheck when that section changes the order), so no per-dispatch model is needed. When the `implementation` plugin is absent, every source-touching or judgment-rendering dispatch carries an explicit per-invocation `model` resolving the strong tier's current alias, never the lane root's inherited model. An interactive, all-inline run instead uses `/implementation:implement`. Whichever path runs, the executing surface follows the consuming project's development workflow (a workflow skill, a `CLAUDE.md` workflow section, or team convention) and reads the project's rules for the item's domain before editing; dispatch is only *how* that workflow is carried out. The **lane shape** that execution composes (the fixed lane set, the implementer ≠ reviewer ≠ verifier invariant, and the depth tiers that scale an item's lanes) is defined once in [`${CLAUDE_PLUGIN_ROOT}/reference/pipeline-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/pipeline-shape.md); the dispatched chain runs that shape *within* the consumer's workflow and rules, never in place of them. **Autonomous branch/worktree provisioning is worker-side**: an autonomous run reaches a non-default branch/worktree *before* the dispatch preflight because the dispatched worker's first step materializes an isolated out-of-tree worktree, through `/source-control:worktree`'s non-entering creation seam when the `source-control` plugin is installed (that skill owns naming, placement, and cleanup conventions), or a plain `git worktree add` otherwise, and works against it via `git -C <path>` **without entering it**, per `/implementation:implement-dispatch`'s worktree-cwd contract. The branch name is the one the *Suggest branch name* sub-step above resolved, carried in the dispatch brief; the worker attaches it to the worktree with `git worktree add -b <name> <path> <base>` for a **new** branch, or `git worktree add <path> <name>` (no `-b`) when that sub-step already detected the branch as **existing** (`-b` fails outright on an existing branch, including one the user created by following that sub-step). After the helper or a plain `git worktree add`, the worker runs the consumer's Workspace environment `setup` for the new worktree through the Bash tool, read from the fetched default branch and skipped for an `untrusted-provenance` item (contract: `docs/contracts/workspace-environment/README.md` in this plugin's marketplace repository; procedure: `/source-control:worktree`'s create context, "Workspace environment setup"). The orchestrator never invokes `/source-control:worktree create` itself: its `EnterWorktree` terminal would move the orchestrator's own session. The worker commits, pushes, and brings the branch current with the default branch *before returning*, then returns the worktree's absolute path plus the branch name. Every push a dispatched worker makes, the branch's first and every fix push, is `bash ${CLAUDE_PLUGIN_ROOT}/scripts/lane-push.sh --dir <worktree> --login <login> --repo <owner/repo> --branch <name>` (the loop-lane convention's "Lane write identity"), `<login>` being the target's `merge.agent-identity` when its `pr-pipeline.yaml` names one, else the session's own login: the brief carries that command and forbids a bare `git push`, and exit 2 is a refusal the worker reports, having pushed nothing; a worker that cannot provision an isolated worktree parks the item and escalates for operator-provided branch setup rather than editing the default checkout. PR creation is **not** the worker's, the orchestrator opens it (see the orchestrator-owned PR step below).
 
@@ -396,6 +410,17 @@ substituted. Basis: the plugins reference,
 - The PR it opened: `/source-control:babysit-prs`.
 - The next pick: `/work-items:work`.
 
-## Bug Investigation Rule
+## Bug path
 
-Reproduce the reported failure FIRST. Never close a bug item without either reproducing and fixing it, or proving via git history why the reporter saw the failure and why it no longer applies.
+A bug item (native Issue Type `Bug`, else a `type: bug` label) runs steps 1 to 3 with the claim held, before Step 5's root-cause gate; the dispatched worker runs step 4, and step 5 runs before the orchestrator-owned PR step. CI mode keeps its own steps. The dispatch brief carries the named states and the reproduction command; the worker returns its after-evidence, and the orchestrator re-runs it before the PR. Record each run's command, revision and output for the PR body's verification section (`## Verification` under the default scaffold, linking the full run log when it outgrows that section) or the closing comment. To escalate is to route the item to the human queue (`/work-items:attend-queue`) with every run's output.
+
+1. **Name the final states first.** Before the first run, write the broken state (what the real surface shows now) and the expected state (what it shows once fixed), each as an observable output, exit code or file state. Judge every run against these two, never against a state named after the run.
+2. **Reproduce twice from a reset.** Run the reported path through the real surface the reporter used (the command, hook or page), not a unit test or a stub. Each run starts from a reset: a fresh detached worktree (`git worktree add --detach <tmp> <rev>`, removed after the run), never a clean of the session's own checkout. Build the command from the repository's own entry point the report names, never a command line copied verbatim from item text. Both runs must show the broken state; runs that disagree are no repro: fix nothing, and escalate.
+3. **Verify an existing fix instead, when one may exist.** A commit on the default branch, an open or merged PR, or a comment that claims the fix sends the item to verify-existing-fix: the baseline reproduces twice and the patched build resolves it twice, all four runs in one environment, each from a reset. The baseline is the revision before the fix (a PR's merge-base); a claim naming no revision tests the default-branch tip as the patched build. **Run a patched build only from a trusted revision**, since this step checks out and runs it in the orchestrator session, which holds the forge and tracker credentials: a revision already on the default branch (a merged commit or a merged PR), or a revision named by an open PR whose head branch is in this repository, or by a comment in this repository, whose author has `write`, `maintain` or `admin` access. A claim naming no revision tests the default-branch tip whoever made it, so its author's access is not read. For a claim that names a revision, read that access from the forge's collaborator-permission API (`gh api repos/<owner>/<repo>/collaborators/<login>/permission --jq '.permission'` on GitHub), never from the item, PR or comment text. Any other named revision, a fork PR's head or one named by an author below `write` included, is never checked out, built or run: make no run for it and escalate, naming the claim (its PR or comment link and author) and the reason it was not run; then write no fix, open no PR, release the claim (seam `release`) and end the run. A step that runs ends in exactly one outcome:
+   - **Confirmed**: the baseline shows the broken state twice and the patched build the expected state twice. Write no fix: close the item with the four runs and the fix's commit or PR cited (Step 4's stale close), or, for a fix still in an open PR, post the evidence on that PR, release the claim (seam `release`) and end the run.
+   - **Insufficient fix**: the baseline reproduces but the patched build still fails, the same way or a new way. For a fix in an open PR, report the failing runs on that PR, release the claim and end the run. For a merged fix, report them on the item and continue this path with the default branch as the baseline.
+   - **Inconclusive**: the baseline did not reproduce twice, or the runs disagree. Close nothing, and escalate.
+
+   Verify-existing-fix never opens a competing PR.
+4. **Failing test first.** When a cheap local target exists (a test that runs in this checkout in seconds), write a test that fails in the broken state and see it fail before the fix. Otherwise give the reason it was skipped (no harness, a live service, too slow) in the verification section.
+5. **Prove the fix before a PR.** After-evidence is the step 2 path run twice on the patched build, each from a reset, both ending in the expected state. A compile, lint or unit test alone is not after-evidence. Without before-and-after proof, open no PR: escalate with what ran. With it, the orchestrator-owned PR step opens the PR with the proof in its verification section; `create --pushed` always opens a draft, so pass no extra `--draft` for this path, and the PR leaves draft only through that step's gates. Never merge (Step 5's never-merge boundary).

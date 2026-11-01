@@ -368,7 +368,8 @@ session by `CLAUDE_CODE_REMOTE`, the only entrypoint variable it branches on.
 ## Prerequisites
 
 - **`jq`, required for correctness.** Absent, the script stops at the entry point with
-  `ERROR: jq required` and exit 2. Report the environment gap; do not report a clean bill.
+  `ERROR: jq required` and exit 2, followed by the install command for the platform when it finds
+  one. Report the environment gap and that install line; do not report a clean bill.
 - **`reg` (Windows) and `defaults` (macOS), required for an optional feature.** Absent, that one
   managed surface is `skipped` with a visible notice and everything else still runs.
 

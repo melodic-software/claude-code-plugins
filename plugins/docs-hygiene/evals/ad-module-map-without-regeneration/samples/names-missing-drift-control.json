@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "docs/agents/module-map.md \u2014 verdict: convert-to-pointer  [audience: agent]\n\n| Factor | Reading |\n|---|---|\n| Derivable? | yes \u2014 the import lines in src/*/index.ts |\n| Drift risk | high \u2014 a new import silently falsifies it |\n\nVerdict rationale: a cache is only safe with drift control, and nothing regenerates or rechecks this map, so it demotes. Point AGENTS.md at the import lines instead (`grep -rn \"from \\\"\\.\\./\" src`).\n\ndocs/agents/module-map.md: convert-to-pointer"
+    },
+    {
+      "answer": "It is correct today, but there is no command that regenerates it and no recheck trigger, so the first new import makes it lie. Six small files are cheap to grep.\n\n`docs/agents/module-map.md`: **delete** (and drop the AGENTS.md line that points at it)"
+    },
+    {
+      "answer": "Keeping it as a cache only works if something keeps it in sync; without a generator or a check, it is an unmaintained copy.\n\ndocs/agents/module-map.md: replace with a one-line pointer to `src/*/index.ts` imports"
+    },
+    {
+      "answer": "Nobody updates it when a module is added, so it will drift."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "placeOrder awaits ship before email; reorder them if you want the customer email first."
+    },
+    {
+      "answer": "docs/agents/module-map.md: keep \u2014 accurate and saves agents time."
+    },
+    {
+      "answer": "docs/agents/module-map.md: delete \u2014 derivable from the imports.",
+      "why": "verdict without the drift-control reason"
+    }
+  ]
+}

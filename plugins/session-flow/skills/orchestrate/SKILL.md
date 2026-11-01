@@ -109,7 +109,9 @@ told:
    (`docs/contracts/execution-target/README.md` in the marketplace repository).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
-   degrades with depth and platforms cap it, so never author a tree that needs a specific or deep
+   degrades with depth and platforms cap it (for the cap, see
+   <https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents>, as of 2026-10-31; recheck when
+   that section changes the default or the setting), so never author a tree that needs a specific or deep
    nesting level.
 6. SURFACE DRIFT, the moment you notice a stale reference, broken citation, or convention
    conflict adjacent to your task, flag it in one line; don't fix it silently, don't deep-dive.
@@ -134,8 +136,8 @@ told:
    on both. Work that changes code, verifies a change, or is likely to hit edge cases is excluded
    from the lower effort: pick its level from model-config's effort table
    (<https://code.claude.com/docs/en/model-config#choose-an-effort-level>, as of 2026-10-02;
-   recheck when that section is renamed or moved or its table columns change), never below
-   medium. A premium fan-out outside the hard stages is a per-stage decision to justify
+   recheck when that section is renamed or moved or its table columns change), and, as this
+   repository's own floor, never below medium. A premium fan-out outside the hard stages is a per-stage decision to justify
    explicitly, never a default to inherit. Pointer for both cost judgments (delegating bulk work,
    tuning effort per subtask):
    <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work>
@@ -152,8 +154,10 @@ never label a claim "known" / "from memory" / "obvious".
 
 **Priming addendum (current session only).** As the main session, not a spawned non-fork worker,
 you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
-lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
-(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
+lead session; the docs do not state whether a fork of the lead can drive one; see
+[agent teams: architecture](https://code.claude.com/docs/en/agent-teams#architecture) and
+[limitations](https://code.claude.com/docs/en/agent-teams#limitations), as of 2026-10-31; recheck
+when either changes who can lead a team) and dynamic workflows (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
 placeholder, resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
 passes no `effort` and the agent's definition pins none, so its gap from what a subtask needs IS

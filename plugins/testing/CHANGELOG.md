@@ -3,6 +3,30 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-01
+
+### Fixed
+
+- `/testing:cleanup`'s classifier and skeptic briefs let the subagent search with read-only `grep`, `rg` or `find` through Bash when the session has no Grep or Glob tool, so a search can still back a citation. The subagent stays read-only and runs no other command ([#11815](https://github.com/melodic-software/claude-code-plugins/issues/11815)).
+
+- `/testing:audit` now claims a C# file that holds a test attribute (`[Fact]`, `[Theory]`, `[Test]`, `[TestCase]` or a `TestMethod`), even when its name matches none of the C# adapters' name patterns, so files like `DiscountSpecs.cs` and `CalculatorTestsExtra.cs` are scanned. `/testing:cleanup` on such a folder now gets past its file-claim check. Adapters can declare this with the new `claim_by_content` field, which takes `files` globs and `any_regex` patterns ([#11816](https://github.com/melodic-software/claude-code-plugins/issues/11816)).
+
+## [2.0.2] - 2026-10-31
+
+### Added
+
+- Outcome eval cases for `audit`, `check`, `cleanup`, `diagnose`, `plan`, `run-e2e`, `test-value` and `write`, and frozen trigger-probe sets for every model-invoked skill.
+
+### Changed
+
+- Model-invoked skill bodies and their spoke files rewritten to the skill criteria in fewer words, with descriptions unchanged; `write` states more plainly that refactoring waits for a green run and that each `Refactor checkpoint:` line is repeated in the summary, and `check-visual-parity` that a kept mismatch needs a `pixel_tolerance` entry in `docs/conventions/testing.yaml`.
+
+## [2.0.1] - 2026-10-31
+
+### Fixed
+
+- `/testing:cleanup` no longer says `model: opus` keeps its classifier off the session's model, and `/testing:audit` and the test judge point at the upstream model section.
+
 ## [2.0.0] - 2026-10-31
 
 ### Changed

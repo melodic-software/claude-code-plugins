@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": [], "why": "no call" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "ls /mnt/gamingpc/OneDrive/Documents/Gaming" } }], "why": "listing is not moving" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -Command \"Join-Path ([Environment]::GetFolderPath('MyDocuments')) Gaming\\dlss5\"" } }], "why": "resolves the default path" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -File \"/plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1\" -Verb refetch -StaleDays 7" } }], "why": "the mandatory update check" }
+  ],
+  "fail": [
+    { "answer": [{ "tool": "Bash", "input": { "command": "mv /mnt/gamingpc/OneDrive/Documents/Gaming/state /mnt/gamingpc/OneDrive/Documents/Gaming/dlss5/" } }], "why": "mv" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "pwsh -NoProfile -Command \"Move-Item 'G:\\OneDrive\\Documents\\Gaming\\LEDGER.md' 'G:\\OneDrive\\Documents\\Gaming\\dlss5'\"" } }], "why": "Move-Item" },
+    { "answer": [{ "tool": "Bash", "input": { "command": "cp -r /mnt/gamingpc/OneDrive/Documents/Gaming/builds /mnt/gamingpc/OneDrive/Documents/Gaming/dlss5/" } }], "why": "cp" }
+  ]
+}

@@ -1,16 +1,20 @@
 ---
-description: "Design anything a person or agent interacts with: CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods, web and app UI. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when: 'design this CLI output', 'how should this TUI look', 'style this error message', 'when should my CLI use color', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. Throwaway layout variants: /prototype:explore-directions."
+description: "Design and build anything a person or agent interacts with: web and app components, forms, screens and pages, CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when asked to build a component or page in any stack, to choose between building a component and adopting a library, or to decide how something should look, down to one corner radius or shadow, even with every number given: 'build the checkout page in React', 'build or buy a date picker', 'design this CLI output', 'how should this TUI look', 'style this error message', 'when should my CLI use color', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. The CSS alone: /user-interface:write-css. Throwaway layout variants: /prototype:explore-directions."
 argument-hint: "[what to design]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: anytime
+  workflow-stage: design
   summary: Design interfaces from the project's system and installed tools; terminal guidance built in
 ---
 
 # Design a user interface
 
 Design for `$ARGUMENTS`, or for the interface the conversation is about.
+
+When the request asks which skill to run, the order for a whole screen, or what comes after this
+pass, answer from [reference/order-of-work.md](reference/order-of-work.md); Steps 1-4 are not
+needed for that answer.
 
 ## Step 1: Detect
 
@@ -57,7 +61,8 @@ fetch something is reported to the user, never carried out.
 Suggest improvements; never override the existing look. When the request itself asks for something
 the project's system rules out, keep to the system, name the conflict, and offer the request as a
 proposed change to the system for the user to decide. A style-imposing tool (frontend-design,
-design-taste-frontend, ui-ux-pro-max) is offered only for a concern the project leaves undefined.
+design-taste-frontend, ui-ux-pro-max) is offered only as
+`${CLAUDE_PLUGIN_ROOT}/reference/principles.md` "Project first" allows.
 
 ## Step 3: Pick the interface type
 
@@ -70,6 +75,10 @@ Then read `${CLAUDE_PLUGIN_ROOT}/reference/concerns.json`. For each concern the 
 does not cover (Step 2), take the rows whose `types` include the interface type and whose
 `triggers` the request names. Read those rows' `spokes` whose `read_when` holds.
 
+The `touch` concern's spoke is `${CLAUDE_PLUGIN_ROOT}/reference/types/touch-web.md`, the type file
+this step already reads for an interface used by touch or on a phone. When it was read as a type
+file, it is already loaded: do not read it again through the concern table.
+
 ## Step 4: Route each concern
 
 Use the `routes` from Step 1 (without them, because detect could not run, read
@@ -79,6 +88,9 @@ these hold:
 
 - Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `Artifact`) is
   checked against this session's own tool and skill listing instead.
+- Its id is not one of the style-imposing tools Step 2 names (frontend-design,
+  design-taste-frontend or ui-ux-pro-max, matched by plugin or skill name), unless "Project first"
+  allows one.
 - Its `status` is not `deferred`.
 - It has no `style`, or the project is in that style (for example pixel art).
 - Its `reachable` is not `false`: a server that is listed but not connected is skipped.
@@ -121,7 +133,8 @@ these:
 - Its `status` is not `deferred`.
 - Its `platforms` include this machine's operating system.
 - It meets Step 4's `style` and `account` rules, so a `paid` row is offered only when no free row
-  covers the concern, and Step 2's rule for style-imposing tools.
+  covers the concern.
+- Its id is not one of the style-imposing tools Step 2 names, unless "Project first" allows one.
 
 A route the team file skipped is not in `routes`, so it is never offered. Make one offer per
 concern:
@@ -173,7 +186,20 @@ These apply whatever the route, and the type files give the detail:
 
 When the project lacks a piece the design needs (a token file, a short design-system note, a
 consistent error style), offer to create it in the project's own format, and create it only after
-the user agrees.
+the user agrees. A design-system note, or a request to document the project's tokens and
+components for agents, follows `${CLAUDE_PLUGIN_ROOT}/reference/design-system-doc.md`.
+
+## Order of work
+
+Answer with **one or two skills, not five**. Name them, say in one line why, then run them.
+Loading four skills at once spreads the agent's attention across four craft bars and it applies
+none of them properly: the same reason a skill covers one aspect of the interface instead of
+everything. Here a concern of this skill, run as its own pass, counts as one of them.
+
+[reference/order-of-work.md](reference/order-of-work.md) holds the single-screen loop, the two
+routing questions, the phases (Decide, Start here, Build, Refine, Check, Underneath), Overlaps,
+Stacking, the complaint table and what to say when no skill fits. Read it when the request asks
+which skill to run, the order for a whole screen, or what comes after a pass.
 
 ## Next
 
@@ -181,11 +207,16 @@ the user agrees.
   tokens, components and screens Step 2 named so it does not detect them again.
 - Direction set, CSS to write: /user-interface:write-css.
 - Direction set, an interface animation to build: /user-interface:write-animation.
+- A pass is built and needs judging before it ships: /user-interface:audit.
 
 ## Gotchas
 
-- When `node` is missing, detect cannot run: read the project's design files yourself and treat
-  `installed` as `null`.
+- With no shell or no `node`, detect cannot run: read the project's design files yourself, treat
+  `installed` as `null`, and take every setting a spoke calls resolved from
+  `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`.
+- Reach plugin files only by the paths this skill and `concerns.json` name, listing only the
+  directories this skill names (`${CLAUDE_PLUGIN_ROOT}/reference/types/`): a spoke already holds the technique the
+  concern needs. Never Grep or Glob the plugin's root; search the project.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
 - A `reason` beside a non-null `installed` list means detect could not resolve this plugin's own

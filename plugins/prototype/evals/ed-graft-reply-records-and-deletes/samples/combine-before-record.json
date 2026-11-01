@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Your reply takes parts of B and C, so this is a combine. Which variant is the base for it: B (Cards) or C (Map)?",
+      "why": "asks for the base as one question"
+    },
+    {
+      "answer": "Base: B (Cards). Dropped as not portable: C's map canvas.\n\n| # | Pair | Feature | Cards today | Choice |\n|---|---|---|---|---|\n| 1 | C to B | Region filter: a select narrows parcels by region | No filter | Add |\n\nAnything else about how Cards should work? Reply with row numbers, `m` for a mode.",
+      "why": "combine matrix keyed by variant pair"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recorded the graft in docs/decisions/ui-shipments.md (B's cards, C's region filter, A skipped) and deleted the mockup.",
+      "why": "records and deletes before the combine matrix (the base behavior)"
+    },
+    {
+      "answer": "I'll build B's delivery-date cards with C's region filter on one page and record it.",
+      "why": "rebuilds the merge from prose"
+    }
+  ]
+}

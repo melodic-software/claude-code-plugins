@@ -98,7 +98,7 @@ the reviewer to confirm the description still names that intent, or to restore t
   editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
   provenance rests on reviewing the diff and on the skill's own content tests.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
-  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
+  action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a plugin suite case lists the skill's directory name in a one-line `tags: [...]`, or a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
 - Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
   inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
@@ -219,7 +219,9 @@ configuration is needed:
 
 ## Evals schema + quality lint
 
-`validate-evals` checks a skill's `evals/evals.json` against the bundled
+A skill's new evals are `case.yaml` cases in its plugin's `evals/` directory, written by
+`/evals:design` and checked by `/evals:validate`. `validate-evals` checks the skill-creator file a
+skill may still carry, `evals/evals.json`, against the bundled
 `reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
 grading criterion: `expected_output`, `expectations`, or `assertions` (a case that cannot be
 graded is not an eval); the rich form adds `name` (kebab-case) and `files`. Any case may add

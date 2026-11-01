@@ -3,6 +3,32 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.18] - 2026-11-01
+
+### Changed
+
+- Check 14 accepts a plugin suite case as a skill's evals: under `--require-evals`, a skill with no `evals/evals.json` passes when a case under its plugin's `evals/` tags it, in its `prompt.md` front matter (where the evals.json converter writes the tag) or in a single-file `case.yaml`. Converting a plugin's evals no longer fails the next change to one of its skills.
+
+- The plugin description calls the `evals.json` schema check and lint legacy, for per-skill files not yet converted, and points new eval cases at the plugin suite format that `/evals:validate` checks.
+- `/skill-quality:check validate-evals` no longer says check 14 fails a skill whose only evals are suite cases; under `--require-evals` it passes when a case in the plugin's `evals/` lists the skill's directory name in a one-line `tags: [...]`. The README's check 14 line says the same.
+- `/skill-quality:check`'s description calls the `validate-evals` target a legacy `evals/evals.json` and points new cases at `/evals:validate`, so the listing no longer steers authors to write the JSON file.
+
+### Fixed
+
+- `measure-invocation.sh emit-plugin-eval` README and `reference/invocation-probes.md` add `Agent` to the probe run line, now `--disallow-tools Read Glob Grep Agent`. After the skill loaded, the agent handed the task to a subagent that outlived the 300-second run timeout, and those timed-out runs made every probe side INVALID.
+
+## [0.31.17] - 2026-11-01
+
+### Fixed
+
+- `measure-invocation.sh emit-plugin-eval` README and `reference/invocation-probes.md` run the emitted probe cases with `--disallow-tools Read Glob Grep`. In the empty run workspace the agent otherwise searched outside it, and those denied calls made every probe run INVALID.
+
+## [0.31.16] - 2026-10-31
+
+### Changed
+
+- `/skill-quality:check validate-evals` says it reads only the skill-creator file a skill may still carry, and points new evals at `case.yaml` cases in the plugin's `evals/` directory, written by `/evals:design` and checked by `/evals:validate`. The plugin's first eval case, `ve-new-evals-route-to-suite`, covers that pointer.
+
 ## [0.31.15] - 2026-10-30
 
 ### Changed

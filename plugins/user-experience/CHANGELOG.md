@@ -3,6 +3,33 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-11-01
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+## [0.3.2] - 2026-11-01
+
+### Changed
+
+- The config cascade skips the setup writer's top-level `written_against` and `provenance` keys, so
+  neither reaches `values`, a layer's errors or a userConfig name.
+
+## [0.3.1] - 2026-10-31
+
+### Fixed
+
+- The `evaluator` agent's model and effort pins carry their reasons, and the effort pin points at the upstream effort table with an as-of date and recheck trigger.
+
+## [0.3.0] - 2026-10-31
+
+### Added
+
+- `/user-experience:structure` now checks navigation depth (three levels as a point to review, with the too-flat trade-off), labels against people's own words and search data, tabs, content inventories, empty states, destructive-action placement and the first-value onboarding step, and sits at the design stage of the workflow.
+
+- The user-experience plugin has an eval case that each error state in a mapped flow names a specific recovery action.
+
 ## [0.2.14] - 2026-10-31
 
 ### Fixed

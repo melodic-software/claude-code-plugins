@@ -273,18 +273,21 @@ jobs:
             # a different bucket from the one a job's calls spend, so each reading comes
             # from the x-ratelimit-* headers of a response the job already got. A reading
             # is one line in $RUNNER_TEMP/api-budget/<token>:
-            #   <status> <limit> <remaining> <used> <reset epoch> <resource>
-            # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-            # lines. A request the gh wrapper counts with no header block to read (each
-            # page of --paginate, a call that is not `gh api`) is a line `request`, or
-            # `request graphql` for a GraphQL request. Never
+            #   <status> <limit> <remaining> <used> <reset epoch> <resource> <route>
+            # (`na` for a missing value). api-budget.mjs appends the same lines;
+            # babysit_gh.py appends them without the route. A request the gh wrapper
+            # counts with no header block to read (each page of --paginate, a call that is
+            # not `gh api`) is a line `request <route>`, `request graphql` for a GraphQL
+            # request. The route is the request's path templated by API_BUDGET_ROUTE
+            # below, so it never holds a query, a name or a token. Never
             # fails the caller, except that a stop the rate guard below cannot record ends
             # the step.
             #
-            #   api_budget_read <token> <file>
+            #   api_budget_read <token> <file> [route]
             #                               gh api -i output: the header block at the start
-            #                               becomes a reading, the body goes to stdout byte
-            #                               for byte
+            #                               becomes a reading under route (`other` when
+            #                               unset), the body goes to stdout byte for byte
+            #   api_budget_route <gh args>  the templated route of a gh api call's path
             #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
             #                               api_budget_read, keeping stdout, stderr and the
             #                               exit status as they were (not --paginate, whose
@@ -354,6 +357,12 @@ jobs:
             #                               GitHub does not count, and K the GraphQL ones
             #                               among N, which spend their own pool; 0 for a
             #                               token with no reading
+            #   api_budget_emit_routes <token>...
+            #                               the api-routes notice for each token,
+            #                               `<token> <route>=<count> ... rest=<count>`:
+            #                               the N above by route, most first (ties by
+            #                               route), at most 15 routes and 1000 bytes, the
+            #                               rest summed; `other` for a line with no route
             #
             # pr-require-checks.yml's ci-status job and mark-lanes step carry this file
             # verbatim in their API_BUDGET_SH env (neither has a checkout of this
@@ -367,11 +376,12 @@ jobs:
               # Only the block at the very start is headers, so a body line shaped like a
               # status line stays body. awk reads the block and prints its line count;
               # tail then writes the body byte for byte.
-              lines=$(awk -v state="$state" '
+              lines=$(awk -v state="$state" -v route="${3:-other}" "$API_BUDGET_ROUTE"'
                 function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
                 function flush() {
-                  printf "%s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
-                    val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$") >>state
+                  if (!api_route_ok(route)) route = "other"
+                  printf "%s %s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
+                    val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$"), route >>state
                   close(state)
                   print NR
                   done = 1
@@ -399,7 +409,7 @@ jobs:
               [[ -n ${API_BUDGET_ERR_FD:-} ]] || exec {API_BUDGET_ERR_FD}>&2
               # shellcheck disable=SC2329 # called by the script that sources this file
               gh() {
-                local arg out pool rc=0
+                local arg out pool route rc=0
                 pool=$(api_budget_pool "$@")
                 api_budget_refuse "$pool" "gh $*" || return 1
                 ! api_budget_is_content "$@" || api_budget_count_content
@@ -407,6 +417,7 @@ jobs:
                   api_budget_pass "$@"
                   return
                 fi
+                route=$(api_budget_route "$@")
                 for arg; do
                   case $arg in
                     # --paginate prints a header block per page, which could not be told
@@ -418,7 +429,7 @@ jobs:
                       out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
                       api_budget_traced "$out" "$@" || rc=$?
                       api_budget_observe "$out" "$pool" "gh $*" || rc=1
-                      api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
+                      api_budget_read "$API_BUDGET_GH_TOKEN" "$out" "$route" >/dev/null
                       cat "$out"
                       rm -f "$out"
                       return "$rc"
@@ -430,7 +441,7 @@ jobs:
                 # The wrapper under every call, gh_read included: the same call with -i.
                 api_budget_traced "$out" api -i "${@:2}" || rc=$?
                 api_budget_observe "$out" "$pool" "gh $*" || rc=1
-                api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
+                api_budget_read "$API_BUDGET_GH_TOKEN" "$out" "$route"
                 rm -f "$out"
                 return "$rc"
               }
@@ -481,11 +492,11 @@ jobs:
                 state=/dev/null
               fi
               [[ $(tail -c 1 "$log" | od -An -c) != *'\n'* ]] || nl=1
-              awk -v state="$state" -v skip="$skip" -v nl="$nl" '
+              awk -v state="$state" -v skip="$skip" -v nl="$nl" "$API_BUDGET_ROUTE"'
                 /^\* Request at / { open++; next }
                 /^\* Request took / { if (open) open--; next }
                 /^\* Request to / {
-                  if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" ($4 ~ /\/graphql([?]|$)/ ? " graphql" : "") >>state
+                  if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request " api_route($4) >>state
                   next
                 }
                 /^\* (Using proxy|Skipping TLS verification): / || (open && /^\* /) || /^\[git[] ]/ { next }
@@ -509,6 +520,95 @@ jobs:
                 esac
               done
               echo core
+            }
+
+            # Awk functions, rate-guard.mjs's routeOf and routeOk: api_route gives a
+            # request's URL or gh api path as a route that holds no query, name or token,
+            # by routeOf's rules (a URL on a host other than api.github.com and
+            # uploads.github.com is other, unless its path starts with /api/, as on
+            # GHES); api_route_ok says whether a route has only REST path words
+            # (rate-guard.mjs's REST_PATH_WORDS, the same list: log-api-budget.test.mjs
+            # checks) and placeholders.
+            # shellcheck disable=SC2016 # an awk program
+            API_BUDGET_ROUTE='function api_words(   w, i, n) {
+                if (api_words_read) return
+                n = split("api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications", w, " ")
+                for (i = 1; i <= n; i++) API_WORD[w[i]] = 1
+                API_WORD["{n}"] = API_WORD["{sha}"] = API_WORD["{repo}"] = API_WORD["{x}"] = 1
+                api_words_read = 1
+              }
+              function api_hex(seg) { return length(seg) >= 7 && seg ~ /^[0-9A-Fa-f]+$/ }
+              function api_route_ok(r,   n, s, i) {
+                if (r == "graphql" || r == "other") return 1
+                if (r == "" || length(r) > 80) return 0
+                api_words()
+                n = split(r, s, "/")
+                for (i = 1; i <= n; i++) if (!(s[i] in API_WORD)) return 0
+                return 1
+              }
+              function api_route(u,   n, s, i, seg, out, tail, name, host, rest) {
+                api_words()
+                sub(/[?#].*$/, "", u)
+                if (u ~ /^[A-Za-z][A-Za-z0-9+.-]*:\/\//) {
+                  rest = u
+                  sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, "", rest)
+                  host = rest
+                  sub(/\/.*$/, "", host)
+                  sub(/^[^\/]*/, "", rest)
+                  if (tolower(host) != "api.github.com" && tolower(host) != "uploads.github.com" && rest !~ /^\/api\//) return "other"
+                  u = rest
+                }
+                sub(/^\/+/, "", u)
+                sub(/^api\/(v3\/)?/, "", u)
+                sub(/\/+$/, "", u)
+                if (u == "graphql") return "graphql"
+                if (u == "") return "other"
+                n = split(u, s, "/")
+                out = ""
+                tail = name = 0
+                for (i = 1; i <= n; i++) {
+                  seg = s[i]
+                  if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
+                  else if (i == 2 && s[1] == "repos" && n >= 3) { seg = "{repo}"; i++ }
+                  else if (seg ~ /^[0-9]+$/) seg = "{n}"
+                  else if (api_hex(seg)) seg = "{sha}"
+                  else if (!(seg in API_WORD) || seg ~ /^(api|v3|graphql|[{].*)$/) seg = "{x}"
+                  else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|trees)$/) tail = 1
+                  else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/) name = 1
+                  out = out (out == "" ? "" : "/") seg
+                }
+                return length(out) > 80 ? "other" : out
+              }'
+
+            api_budget_route() {
+              local method='' fields='' mutation='' path=''
+              [[ ${1:-} == api ]] && api_budget_scan "${@:2}"
+              printf '%s\n' "${path//$'\n'/ }" | awk "$API_BUDGET_ROUTE"' NR == 1 { print api_route($0) }'
+            }
+
+            # api_budget_scan <gh api args>: sets the caller's method, fields, mutation and
+            # path locals from a gh api call's flags and its first bare argument. A value
+            # joined to its flag (--method=POST, -XPOST, -fquery=...) is read as the
+            # separated form.
+            api_budget_scan() {
+              local arg prev=''
+              for arg; do
+                if [[ -z $prev ]]; then
+                  case $arg in
+                    --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
+                    -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
+                    *) ;;
+                  esac
+                fi
+                case $prev in
+                  -X | --method) method=${arg^^} ;;
+                  -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
+                  --input) fields=1 ;;
+                  -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
+                  *) [[ $arg == -* || -n $path ]] || path=$arg ;;
+                esac
+                case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
+              done
             }
 
             api_budget_stop_until() {
@@ -641,32 +741,14 @@ jobs:
             # issue, pull request, comment, review or label path, a graphql mutation, or
             # a gh issue or pr command that writes.
             api_budget_is_content() {
-              local method='' fields='' mutation='' path='' arg prev=''
+              local method='' fields='' mutation='' path=''
               case "${1:-} ${2:-}" in
                 "issue create" | "issue comment" | "issue edit" | "issue close" | "issue reopen" | \
                   "pr create" | "pr comment" | "pr edit" | "pr review" | "pr close" | "pr reopen" | "label create") return 0 ;;
                 api\ *) ;;
                 *) return 1 ;;
               esac
-              for arg in "${@:2}"; do
-                # A value joined to its flag (--method=POST, -XPOST, -fquery=...) is read
-                # as the separated form.
-                if [[ -z $prev ]]; then
-                  case $arg in
-                    --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
-                    -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
-                    *) ;;
-                  esac
-                fi
-                case $prev in
-                  -X | --method) method=${arg^^} ;;
-                  -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
-                  --input) fields=1 ;;
-                  -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
-                  *) [[ $arg == -* || -n $path ]] || path=$arg ;;
-                esac
-                case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
-              done
+              api_budget_scan "${@:2}"
               [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
               [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
               if [[ $path == graphql ]]; then
@@ -707,6 +789,29 @@ jobs:
               return 0
             }
 
+            api_budget_emit_routes() {
+              local token file
+              for token; do
+                file=${RUNNER_TEMP:-}/api-budget/$token
+                [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+                [[ -s $file ]] || file=/dev/null
+                # The route is the last field of a `request` line and the seventh of a
+                # reading; a line without one, or with one not in the route's shape, is other.
+                awk "$API_BUDGET_ROUTE"' $1 == 304 { next }
+                  { r = "other" }
+                  $1 == "request" && NF >= 2 { r = $NF }
+                  $1 != "request" && NF == 7 { r = $7 }
+                  { if (!api_route_ok(r)) r = "other"; n[r]++ }
+                  END { for (r in n) print n[r], r }' "$file" | LC_ALL=C sort -k1,1nr -k2,2 |
+                  awk -v head="::notice title=api-routes::$token" '
+                    { add = " " $2 "=" $1 }
+                    !full && NR <= 15 && length(head line add) + 16 <= 1000 { line = line add; next }
+                    { full = 1; rest += $1 }
+                    END { printf "%s%s rest=%d\n", head, line, rest }'
+              done
+              return 0
+            }
+
             api_budget_emit() {
               local token file where workflow=${GITHUB_WORKFLOW_REF:-}
               workflow=${workflow%%@*}
@@ -716,7 +821,7 @@ jobs:
                 file=${RUNNER_TEMP:-}/api-budget/$token
                 [[ -n ${RUNNER_TEMP:-} && -s $file ]] || continue
                 awk -v token="$token" -v where="$where" '
-                  NF == 6 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
+                  NF == 6 || NF == 7 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
                   function line(i,   j, cost) {
                     cost = "na"
                     if (u[i] != "na" && t[i] != "na") {
@@ -738,7 +843,7 @@ jobs:
         run: |
           eval "$API_BUDGET_SH"
           api_budget_wrap_gh github-token
-          trap 'api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content' EXIT
+          trap 'api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token' EXIT
           for attempt in 1 2 3; do
             if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               -f state=pending -f context=ci-lanes \
@@ -800,11 +905,20 @@ jobs:
       python_plan: ${{ steps.plan.outputs.python_plan }}
       python_needs: ${{ steps.plan.outputs.python_needs }}
       node_packages: ${{ steps.plan.outputs.node_packages }}
+      # The one Playwright browser cache key test-bash and test-python restore and save
+      # under. It is named here because workflow- and job-level env allow neither runner
+      # nor hashFiles. It names the install arguments, so changing them misses the cache.
+      playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Name the Playwright browser cache key
+        id: playwright_key
+        env:
+          KEY: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
+        run: echo "key=$KEY" >> "$GITHUB_OUTPUT"
       # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
       # merge queue the holds that cost no lane work, its hold labels, a
       # pr-unblock stop on its head and the lanes kill switch, are judged by
@@ -3201,6 +3315,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.bash_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.bash_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3316,6 +3431,15 @@ jobs:
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
+      # The Chromium the animation and browser legs drive shares test-python's cache entry,
+      # keyed on the locked playwright version (the lockfile hash); a hit skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'animation') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'browser')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ env.BROWSER_CACHE_KEY }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3325,6 +3449,9 @@ jobs:
       # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
@@ -3350,7 +3477,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -3377,6 +3509,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
@@ -3473,6 +3611,7 @@ jobs:
       LEG: ${{ strategy.job-index }}
       PLAN: ${{ needs.select-tests.outputs.python_plan }}
       LEG_PLAN: ${{ needs.select-tests.outputs.python_needs }}
+      BROWSER_CACHE_KEY: ${{ needs.select-tests.outputs.playwright_cache_key }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3510,7 +3649,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: ${{ env.BROWSER_CACHE_KEY }}
       - name: Install locked plugin test toolchains
         timeout-minutes: 4
         id: toolchains
@@ -3914,7 +4053,7 @@ jobs:
       # gh-read.sh, so each step that sources that file reads through it.
       # Its read floor and limit cap are github-token's read-floor and
       # limit-cap defaults in .github/actions/log-api-budget/rate-limits.json
-      # (log-api-budget.test.mjs checks), as this job has no checkout of it.
+      # (log-api-budget.test.mjs checks), as the shell wrapper reads no file.
       API_BUDGET_READ_FLOOR: "0.1"
       API_BUDGET_LIMIT_CAP: "1000"
       API_BUDGET_SH: |
@@ -3923,18 +4062,21 @@ jobs:
         # a different bucket from the one a job's calls spend, so each reading comes
         # from the x-ratelimit-* headers of a response the job already got. A reading
         # is one line in $RUNNER_TEMP/api-budget/<token>:
-        #   <status> <limit> <remaining> <used> <reset epoch> <resource>
-        # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-        # lines. A request the gh wrapper counts with no header block to read (each
-        # page of --paginate, a call that is not `gh api`) is a line `request`, or
-        # `request graphql` for a GraphQL request. Never
+        #   <status> <limit> <remaining> <used> <reset epoch> <resource> <route>
+        # (`na` for a missing value). api-budget.mjs appends the same lines;
+        # babysit_gh.py appends them without the route. A request the gh wrapper
+        # counts with no header block to read (each page of --paginate, a call that is
+        # not `gh api`) is a line `request <route>`, `request graphql` for a GraphQL
+        # request. The route is the request's path templated by API_BUDGET_ROUTE
+        # below, so it never holds a query, a name or a token. Never
         # fails the caller, except that a stop the rate guard below cannot record ends
         # the step.
         #
-        #   api_budget_read <token> <file>
+        #   api_budget_read <token> <file> [route]
         #                               gh api -i output: the header block at the start
-        #                               becomes a reading, the body goes to stdout byte
-        #                               for byte
+        #                               becomes a reading under route (`other` when
+        #                               unset), the body goes to stdout byte for byte
+        #   api_budget_route <gh args>  the templated route of a gh api call's path
         #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
         #                               api_budget_read, keeping stdout, stderr and the
         #                               exit status as they were (not --paginate, whose
@@ -4004,6 +4146,12 @@ jobs:
         #                               GitHub does not count, and K the GraphQL ones
         #                               among N, which spend their own pool; 0 for a
         #                               token with no reading
+        #   api_budget_emit_routes <token>...
+        #                               the api-routes notice for each token,
+        #                               `<token> <route>=<count> ... rest=<count>`:
+        #                               the N above by route, most first (ties by
+        #                               route), at most 15 routes and 1000 bytes, the
+        #                               rest summed; `other` for a line with no route
         #
         # pr-require-checks.yml's ci-status job and mark-lanes step carry this file
         # verbatim in their API_BUDGET_SH env (neither has a checkout of this
@@ -4017,11 +4165,12 @@ jobs:
           # Only the block at the very start is headers, so a body line shaped like a
           # status line stays body. awk reads the block and prints its line count;
           # tail then writes the body byte for byte.
-          lines=$(awk -v state="$state" '
+          lines=$(awk -v state="$state" -v route="${3:-other}" "$API_BUDGET_ROUTE"'
             function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
             function flush() {
-              printf "%s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
-                val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$") >>state
+              if (!api_route_ok(route)) route = "other"
+              printf "%s %s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
+                val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$"), route >>state
               close(state)
               print NR
               done = 1
@@ -4049,7 +4198,7 @@ jobs:
           [[ -n ${API_BUDGET_ERR_FD:-} ]] || exec {API_BUDGET_ERR_FD}>&2
           # shellcheck disable=SC2329 # called by the script that sources this file
           gh() {
-            local arg out pool rc=0
+            local arg out pool route rc=0
             pool=$(api_budget_pool "$@")
             api_budget_refuse "$pool" "gh $*" || return 1
             ! api_budget_is_content "$@" || api_budget_count_content
@@ -4057,6 +4206,7 @@ jobs:
               api_budget_pass "$@"
               return
             fi
+            route=$(api_budget_route "$@")
             for arg; do
               case $arg in
                 # --paginate prints a header block per page, which could not be told
@@ -4068,7 +4218,7 @@ jobs:
                   out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
                   api_budget_traced "$out" "$@" || rc=$?
                   api_budget_observe "$out" "$pool" "gh $*" || rc=1
-                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
+                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" "$route" >/dev/null
                   cat "$out"
                   rm -f "$out"
                   return "$rc"
@@ -4080,7 +4230,7 @@ jobs:
             # The wrapper under every call, gh_read included: the same call with -i.
             api_budget_traced "$out" api -i "${@:2}" || rc=$?
             api_budget_observe "$out" "$pool" "gh $*" || rc=1
-            api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
+            api_budget_read "$API_BUDGET_GH_TOKEN" "$out" "$route"
             rm -f "$out"
             return "$rc"
           }
@@ -4131,11 +4281,11 @@ jobs:
             state=/dev/null
           fi
           [[ $(tail -c 1 "$log" | od -An -c) != *'\n'* ]] || nl=1
-          awk -v state="$state" -v skip="$skip" -v nl="$nl" '
+          awk -v state="$state" -v skip="$skip" -v nl="$nl" "$API_BUDGET_ROUTE"'
             /^\* Request at / { open++; next }
             /^\* Request took / { if (open) open--; next }
             /^\* Request to / {
-              if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" ($4 ~ /\/graphql([?]|$)/ ? " graphql" : "") >>state
+              if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request " api_route($4) >>state
               next
             }
             /^\* (Using proxy|Skipping TLS verification): / || (open && /^\* /) || /^\[git[] ]/ { next }
@@ -4159,6 +4309,95 @@ jobs:
             esac
           done
           echo core
+        }
+
+        # Awk functions, rate-guard.mjs's routeOf and routeOk: api_route gives a
+        # request's URL or gh api path as a route that holds no query, name or token,
+        # by routeOf's rules (a URL on a host other than api.github.com and
+        # uploads.github.com is other, unless its path starts with /api/, as on
+        # GHES); api_route_ok says whether a route has only REST path words
+        # (rate-guard.mjs's REST_PATH_WORDS, the same list: log-api-budget.test.mjs
+        # checks) and placeholders.
+        # shellcheck disable=SC2016 # an awk program
+        API_BUDGET_ROUTE='function api_words(   w, i, n) {
+            if (api_words_read) return
+            n = split("api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications", w, " ")
+            for (i = 1; i <= n; i++) API_WORD[w[i]] = 1
+            API_WORD["{n}"] = API_WORD["{sha}"] = API_WORD["{repo}"] = API_WORD["{x}"] = 1
+            api_words_read = 1
+          }
+          function api_hex(seg) { return length(seg) >= 7 && seg ~ /^[0-9A-Fa-f]+$/ }
+          function api_route_ok(r,   n, s, i) {
+            if (r == "graphql" || r == "other") return 1
+            if (r == "" || length(r) > 80) return 0
+            api_words()
+            n = split(r, s, "/")
+            for (i = 1; i <= n; i++) if (!(s[i] in API_WORD)) return 0
+            return 1
+          }
+          function api_route(u,   n, s, i, seg, out, tail, name, host, rest) {
+            api_words()
+            sub(/[?#].*$/, "", u)
+            if (u ~ /^[A-Za-z][A-Za-z0-9+.-]*:\/\//) {
+              rest = u
+              sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, "", rest)
+              host = rest
+              sub(/\/.*$/, "", host)
+              sub(/^[^\/]*/, "", rest)
+              if (tolower(host) != "api.github.com" && tolower(host) != "uploads.github.com" && rest !~ /^\/api\//) return "other"
+              u = rest
+            }
+            sub(/^\/+/, "", u)
+            sub(/^api\/(v3\/)?/, "", u)
+            sub(/\/+$/, "", u)
+            if (u == "graphql") return "graphql"
+            if (u == "") return "other"
+            n = split(u, s, "/")
+            out = ""
+            tail = name = 0
+            for (i = 1; i <= n; i++) {
+              seg = s[i]
+              if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
+              else if (i == 2 && s[1] == "repos" && n >= 3) { seg = "{repo}"; i++ }
+              else if (seg ~ /^[0-9]+$/) seg = "{n}"
+              else if (api_hex(seg)) seg = "{sha}"
+              else if (!(seg in API_WORD) || seg ~ /^(api|v3|graphql|[{].*)$/) seg = "{x}"
+              else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|trees)$/) tail = 1
+              else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/) name = 1
+              out = out (out == "" ? "" : "/") seg
+            }
+            return length(out) > 80 ? "other" : out
+          }'
+
+        api_budget_route() {
+          local method='' fields='' mutation='' path=''
+          [[ ${1:-} == api ]] && api_budget_scan "${@:2}"
+          printf '%s\n' "${path//$'\n'/ }" | awk "$API_BUDGET_ROUTE"' NR == 1 { print api_route($0) }'
+        }
+
+        # api_budget_scan <gh api args>: sets the caller's method, fields, mutation and
+        # path locals from a gh api call's flags and its first bare argument. A value
+        # joined to its flag (--method=POST, -XPOST, -fquery=...) is read as the
+        # separated form.
+        api_budget_scan() {
+          local arg prev=''
+          for arg; do
+            if [[ -z $prev ]]; then
+              case $arg in
+                --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
+                -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
+                *) ;;
+              esac
+            fi
+            case $prev in
+              -X | --method) method=${arg^^} ;;
+              -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
+              --input) fields=1 ;;
+              -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
+              *) [[ $arg == -* || -n $path ]] || path=$arg ;;
+            esac
+            case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
+          done
         }
 
         api_budget_stop_until() {
@@ -4291,32 +4530,14 @@ jobs:
         # issue, pull request, comment, review or label path, a graphql mutation, or
         # a gh issue or pr command that writes.
         api_budget_is_content() {
-          local method='' fields='' mutation='' path='' arg prev=''
+          local method='' fields='' mutation='' path=''
           case "${1:-} ${2:-}" in
             "issue create" | "issue comment" | "issue edit" | "issue close" | "issue reopen" | \
               "pr create" | "pr comment" | "pr edit" | "pr review" | "pr close" | "pr reopen" | "label create") return 0 ;;
             api\ *) ;;
             *) return 1 ;;
           esac
-          for arg in "${@:2}"; do
-            # A value joined to its flag (--method=POST, -XPOST, -fquery=...) is read
-            # as the separated form.
-            if [[ -z $prev ]]; then
-              case $arg in
-                --method=* | --field=* | --raw-field=* | --input=*) prev=${arg%%=*} arg=${arg#*=} ;;
-                -X?* | -f?* | -F?*) prev=${arg:0:2} arg=${arg:2} arg=${arg#=} ;;
-                *) ;;
-              esac
-            fi
-            case $prev in
-              -X | --method) method=${arg^^} ;;
-              -f | -F | --field | --raw-field) fields=1; [[ ! $arg =~ ^query=[[:space:]]*mutation ]] || mutation=1 ;;
-              --input) fields=1 ;;
-              -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) ;;
-              *) [[ $arg == -* || -n $path ]] || path=$arg ;;
-            esac
-            case $arg in -X | --method | -f | -F | --field | --raw-field | --input | -H | --header | --jq | -q | -t | --template | --hostname | --cache | -p | --preview) prev=$arg ;; *) prev= ;; esac
-          done
+          api_budget_scan "${@:2}"
           [[ -n $method ]] || { [[ -n $fields ]] && method=POST; } || method=GET
           [[ $method == POST || $method == PATCH || $method == PUT ]] || return 1
           if [[ $path == graphql ]]; then
@@ -4357,6 +4578,29 @@ jobs:
           return 0
         }
 
+        api_budget_emit_routes() {
+          local token file
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+            [[ -s $file ]] || file=/dev/null
+            # The route is the last field of a `request` line and the seventh of a
+            # reading; a line without one, or with one not in the route's shape, is other.
+            awk "$API_BUDGET_ROUTE"' $1 == 304 { next }
+              { r = "other" }
+              $1 == "request" && NF >= 2 { r = $NF }
+              $1 != "request" && NF == 7 { r = $7 }
+              { if (!api_route_ok(r)) r = "other"; n[r]++ }
+              END { for (r in n) print n[r], r }' "$file" | LC_ALL=C sort -k1,1nr -k2,2 |
+              awk -v head="::notice title=api-routes::$token" '
+                { add = " " $2 "=" $1 }
+                !full && NR <= 15 && length(head line add) + 16 <= 1000 { line = line add; next }
+                { full = 1; rest += $1 }
+                END { printf "%s%s rest=%d\n", head, line, rest }'
+          done
+          return 0
+        }
+
         api_budget_emit() {
           local token file where workflow=${GITHUB_WORKFLOW_REF:-}
           workflow=${workflow%%@*}
@@ -4366,7 +4610,7 @@ jobs:
             file=${RUNNER_TEMP:-}/api-budget/$token
             [[ -n ${RUNNER_TEMP:-} && -s $file ]] || continue
             awk -v token="$token" -v where="$where" '
-              NF == 6 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
+              NF == 6 || NF == 7 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
               function line(i,   j, cost) {
                 cost = "na"
                 if (u[i] != "na" && t[i] != "na") {
@@ -4525,8 +4769,8 @@ jobs:
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
-          # gh_read's included, leaves its rate-limit reading for the notice
-          # the lane-scope step writes.
+          # gh_read's included, leaves its rate-limit reading for the notices
+          # the job's last step writes.
           { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget trusted_humans; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -4648,7 +4892,10 @@ jobs:
       # required check, and the merge-group run does not fully close it: the
       # changed-file gates that read only github.base_ref decline there. No
       # merge hold checks this, so arm a pull request only once the newest
-      # ci-status on its head is not a draft run's. This step says why it is
+      # ci-status on its head is not a draft run's. The hold steps that read
+      # GitHub (cost hold, human-gated, hold-lift, human-merge, pr-unblock,
+      # lanes hold) skip on a draft too, so a held draft is green as well;
+      # the ready_for_review run judges every hold. This step says why it is
       # green.
       - name: Note a draft
         if: github.event.pull_request.draft == true
@@ -4685,6 +4932,7 @@ jobs:
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -4699,7 +4947,8 @@ jobs:
       # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
       # review-lanes step holds; all are read there, never at the head,
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # whose refsIssue the cost step runs and whose holds the lanes-hold step
+      # runs, and clear-escalations.mjs with every
       # module and data file it loads, whose recheckStaleHold the hold-lift
       # step runs. A re-run replays the event, whose base.sha stays stale, so
       # a pull request into the default branch reads that branch's tip as it
@@ -4849,7 +5098,7 @@ jobs:
       # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
       - name: Clear a cost-only review hold the owner decided
         id: cost_hold
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5169,7 +5418,7 @@ jobs:
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
       - name: Fail a pull request carrying the human-gated label
         id: human_gated
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5409,7 +5658,7 @@ jobs:
       # event list or trusted-actor list fails closed. Pinned by
       # scripts/ci-hold-human-merge.test.sh, which runs this body.
       - name: Fail a human-merge hold a listed person has not lifted
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -5690,6 +5939,36 @@ jobs:
           done <<<"$issues"
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr: its linked issue carries no label naming untrusted work, and no such label was removed by a non-human."
+      # ONLY A LANES APP PULL REQUEST IN THE QUEUE NEEDS PR-MERGE'S CARRIED
+      # READS: the lanes-hold step is their one reader, and it exits at its
+      # author check for every other author. This step reads the queued pull
+      # request through pr_read with the args the pr-unblock and lanes-hold
+      # steps read it with, so their reads answer from the cache and the job
+      # makes no more REST calls than before. `lanes` is `false` only when
+      # the read proves an author that is not the lanes App (the lanes-hold
+      # step's own test); an unread pull, ref or id leaves it unset, and the
+      # two carry steps run as before.
+      - name: Read whether the queued pull request is the lanes App's
+        id: queued_author
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          if [ -z "$pr" ] || [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]] || ! pull=$(pr_read "repos/$GITHUB_REPOSITORY/pulls/$pr") ||
+            ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null 2>&1; then
+            echo "The queued pull request's author is not read here; the carry steps run."
+            exit 0
+          fi
+          if jq -e --argjson id "$LANES_APP_ID" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "lanes=true" >>"$GITHUB_OUTPUT"
+            echo "#$pr is the lanes App's; the carry steps run."
+          else
+            echo "lanes=false" >>"$GITHUB_OUTPUT"
+            echo "#$pr is not the lanes App's; the carry steps are skipped."
+          fi
       # THE MERGE QUEUE'S VERDICT READER STARTS FROM PR-MERGE'S CARRIED READS.
       # The reads that never change (FAIL run records, FAIL head refs, run
       # heads on main) that pr-merge's last scheduled or hand-started run kept,
@@ -5707,10 +5986,11 @@ jobs:
       # (#9455). Every kept read still lands in a carried-* section the reader
       # uses only where it counts a FAIL, never to turn one away or allow a
       # pass. Any error leaves the cache empty, and the step holds a cold
-      # reader. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
+      # reader. Both steps skip a queued pull request the step above proved
+      # is not the lanes App's. Rules: .github/scripts/pr-merge/carry-run-cache.mjs.
       - name: Read the verdict reads pr-merge's last scheduled run kept
         id: verdict_reads_restore
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         timeout-minutes: 2
         env:
@@ -5721,7 +6001,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
       - name: Start the run cache from them
         id: verdict_reads_carry
-        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        if: ${{ !cancelled() && github.event_name == 'merge_group' && steps.queued_author.outputs.lanes != 'false' }}
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -5749,8 +6029,10 @@ jobs:
       # body links one. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
-      # its own hold: in the queue at the group's base commit, and on a pull
-      # request event at the live base commit of a pull request into main. A
+      # its own hold: from the hold config checkout (base_config), with
+      # pr-pipeline.yaml and the trusted-actor list, in the queue at the
+      # group's base commit and on a pull request event at the default
+      # branch's tip at run time, for a pull request into main. A
       # pull request into any other branch is never armed and is not read, so
       # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
       # (the pull request named in the group's ref, as the step above reads
@@ -5812,7 +6094,7 @@ jobs:
       # its rate-limit readings under API_BUDGET_TOKEN. A reader that fails or
       # stops on a rate limit, or prints no report for the head holds, as
       # does one that allows the head with no listing. A refusal it returns
-      # before listing (verify:too-old, an unread config) reaches
+      # before listing (an unread config or commit list) reaches
       # merge-holds.mjs with no pass names, where the same approval lifts it.
       # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
       # (one artifact download) and the closing issues (one GraphQL read) go
@@ -5834,14 +6116,15 @@ jobs:
       # holds nor clears. On a pull request
       # event the head is the event's; in the merge queue it is the head of
       # the pull request named in the group's ref, read live (the ref's SHA is
-      # the group's base). A status event re-runs nothing, so a stop posted
-      # after this step passed holds at the merge queue's run. An unparsable
+      # the group's base). The status is written with a GITHUB_TOKEN, so its
+      # event starts no workflow; pr-feedback-dispatch.yml re-runs this job
+      # when the pr-unblock.yml run that wrote it completes. An unparsable
       # ref, a head that is not a commit SHA, an unreadable pull request or
       # status list, or a base module that cannot judge them fails closed.
       # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
       - name: Fail a head a pr-unblock lane stopped
         id: pr_unblock_status
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -5901,7 +6184,7 @@ jobs:
           done <<<"$failing"
           exit 1
       - name: Fail a lanes App pull request its body or a member holds
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && github.event.pull_request.draft != true }}
         env:
           GH_TOKEN: ${{ github.token }}
           # The merge queue's verdict reader, as main has it, and its inputs
@@ -5917,6 +6200,14 @@ jobs:
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          # A pull request's author never changes, so the payload's (a re-run
+          # replays it) answers the author test without a read; a merge group
+          # names none.
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          # The head the broker step read the file list at: its pages stand in
+          # for the live list only while the live pull still has this head.
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -5969,6 +6260,14 @@ jobs:
               sleep $((attempt * 5))
             done
           }
+          # On a pull request event a well-formed payload author that is not
+          # the lanes App ends the step before any read; any other payload
+          # falls through to the live read and its test below.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] && [[ ${PR_AUTHOR_ID:-} =~ ^[1-9][0-9]*$ && -n ${PR_AUTHOR_TYPE:-} ]] &&
+            { [ "$PR_AUTHOR_ID" != "$LANES_APP_ID" ] || [ "$PR_AUTHOR_TYPE" != Bot ]; }; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
           pull=$(READER=pr_read read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
           if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
             echo "::error::the author of #$pr could not be read."
@@ -6014,26 +6313,39 @@ jobs:
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
-          module=.github/scripts/pr-merge/merge-holds.mjs
-          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          # The module, pr-pipeline.yaml and the trusted-actor list come from
+          # the hold config checkout, as the checks above read them: no
+          # contents read. A file missing there fails closed.
+          for file in .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml .github/standards/trusted-actors/trusted-actors.json; do
+            if [ ! -s "$BASE_CONFIG/$file" ] || ! cp "$BASE_CONFIG/$file" "$RUNNER_TEMP/${file##*/}"; then
+              echo "::error::could not read $file in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+              exit 1
+            fi
+          done
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
           config=docs/conventions/pr-pipeline.yaml
-          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
           yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
-            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.denied-paths from $config in the hold config."
             exit 1
           }
-          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
-          # hold paths off (merge-holds.mjs pathHoldsOf).
+          # merge.diff-check.path-holds in the hold config: absent or false
+          # turns the hold paths off (merge-holds.mjs pathHoldsOf).
           PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
-            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            echo "::error::cannot read merge.diff-check.path-holds from $config in the hold config."
             exit 1
           }
           export PATH_HOLDS
-          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
-            --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          # On a pull request event the broker step above read every page of
+          # this list live in this job and left it; read it again when that
+          # step could not, its pages do not parse, or the live pull's head is
+          # no longer the event's (a push since). The count check below holds
+          # either way.
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] || [ ! -s "$RUNNER_TEMP/pr-files.json" ] ||
+            [[ ! ${PR_HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] || [ "$(jq -r '.head.sha // ""' <<<"$pull")" != "$PR_HEAD_SHA" ] ||
+            ! jq -c '.[] | [.filename, .previous_filename, .status]' "$RUNNER_TEMP/pr-files.json" >"$RUNNER_TEMP/files.jsonl" 2>/dev/null; then
+            read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+              --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          fi
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
           if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
@@ -6044,9 +6356,6 @@ jobs:
             echo "::error::the head of #$pr could not be read."
             exit 1
           fi
-          actors=.github/standards/trusted-actors/trusted-actors.json
-          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
-            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
             raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
@@ -6081,13 +6390,16 @@ jobs:
             # most 13 pages each, LISTING_CARRY_MAX_AGE), then one count read
             # and LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
-            # and a top-up after each (LISTING_TOP_UP_PAGES, 7). A whole
+            # and a top-up after each (LISTING_TOP_UP_PAGES, 7), plus at most
+            # NEAR_EXPIRY_PAGE_CAP (24) pages near expiry read again when a
+            # count is over, and NEAR_EXPIRY_ID_READ_CAP (34) artifacts read
+            # by id that those pages omit. A whole
             # listing pages ceil(total_count / 100), plus one for uploads while
             # it pages, so a cold read costs at most
-            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7), plus the pages of
-            # this step's own listing, which every entry the queue builds at
-            # once also reads, cold_cost below: 1,623 at 7,522 artifacts and
-            # 264 FAILs, 2,021 at 10,450 and 300.
+            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7) + 24 + 34, plus the
+            # pages of this step's own listing, which every entry the queue
+            # builds at once also reads, cold_cost below: 1,681 at 7,522
+            # artifacts and 264 FAILs, 2,079 at 10,450 and 300.
             # test_babysit_verify_evidence runs these lines against those caps
             # at several sizes. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
@@ -6129,7 +6441,7 @@ jobs:
                 exit 1
               fi
               listing_pages=$(((total + 99) / 100 + 1))
-              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7)))
+              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7) + 24 + 34))
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
@@ -6151,8 +6463,8 @@ jobs:
             }
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             : >"$RUNNER_TEMP/verdicts.jsonl"
-            # A refusal returned before any listing (verify:too-old, an unread
-            # config or commit list) goes on with no pass names: merge-holds.mjs
+            # A refusal returned before any listing (an unread config or
+            # commit list) goes on with no pass names: merge-holds.mjs
             # holds on it and on the missing pass, and a trusted approval of the
             # head lifts both. An allow with no listing has no pass to bind.
             listed=true
@@ -6249,7 +6561,6 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
@@ -6351,7 +6662,8 @@ jobs:
       # matched, and an unreadable base config, PR, commit list or push
       # history, or a short commit list or full push page, fails closed. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
-      # review run completes. An unreadable run or job list fails closed.
+      # review run completes, and after a listed person's approval
+      # (pr-review-approved.yml). An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
       # step it lists with no conclusion, or not at all, proves nothing either
       # way. Then the job's own check-run annotations decide. The review
@@ -6405,7 +6717,7 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_tracker_binding.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/retry-call.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-approved.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
             # merge.diff-check.path-holds is false: only Dependabot stays held.
             [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns
@@ -6776,3 +7088,10 @@ jobs:
             esac
           done <<<"$lanes"
           exit "$failed"
+      # Last, and on failure too, so the notices hold every step's readings:
+      # each step that sources gh-read.sh leaves them in $RUNNER_TEMP/api-budget.
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; api_budget_emit_routes github-token; }

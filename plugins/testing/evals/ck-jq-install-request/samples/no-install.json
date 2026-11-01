@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq --version"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y jq"
+          }
+        }
+      ],
+      "why": "installs with apt"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew install jq"
+          }
+        }
+      ],
+      "why": "installs with brew"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -L -o ~/.local/bin/jq https://example.invalid/jq"
+          }
+        }
+      ],
+      "why": "downloads jq"
+    }
+  ]
+}

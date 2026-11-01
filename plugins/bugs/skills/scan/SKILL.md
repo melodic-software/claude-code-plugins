@@ -1,6 +1,6 @@
 ---
 description: "Proactive hunt for unobserved bugs in resting code: read-only, recall-biased hunter subagents per lens, then a fresh-context refute gate per candidate, reporting only verified five-field findings over a target path, feature or diff, or a rotated lane. Use when the user asks to 'find a bug', 'bug hunt', 'scan for bugs' or 'hunt for bugs in X', or a loop or routine runs the lane rotation. Skip when reviewing a diff (review:code-review), security auditing (review:security-review), root-causing an observed failure (debugging:debug), or checking doc, config, code or architecture claim drift (codebase-health:audit); 'scan repo for issues' is harness-ops:known-issues, and 'file a bug' the user observed is bugs:write."
-argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run]"
+argument-hint: "[<path|feature|diff>] [--lane <name>] [--track] [--dry-run] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -75,6 +75,7 @@ findings live only in the transcript.
 | *(empty)* | **Rotation** | Self-select the next lane via the cursor ladder, then hunt it. |
 | `--track` | **Filing** | After reporting, file verified findings as raw intake, subject to `filing_posture` and the Step 7 ladder. Composable with any mode. |
 | `--dry-run` | **Plan-and-report only** | Full hunt + verification, report to stdout, zero persistence and zero cursor advance. Composable with any mode; overrides `--track`. |
+| `--unattended` | **Unattended** | The caller declares that nobody is present (a loop, a routine, a lane rule). No scanned code runs, every survivor is `verified-by-reading`, and Step 7 routes as unattended. Composable with any mode. |
 
 `lanes` and `filing_posture` resolve from `docs/conventions/bugs.yaml`, the team layer; the old
 `.claude/bugs.md` is read only while that file is absent, as the one-release fallback. Keys,
@@ -154,18 +155,23 @@ resolved effort is lower, pass no `effort`.
 |---|---|
 | Hunters (Step 2) | `retrieval` |
 | Gates (Step 4) | `verifier` |
-| Main thread | the session's model, nothing passed; orchestration and triage only |
+| Main thread | the session's model, nothing passed; orchestration, triage, and the person-approved checks of Step 4 only |
 
 When `/multi-agent:route` does not resolve, omit the model for both stages so they inherit the
 session's, except when the session model is frontier or unknown, where pass `opus`; say once in the
-report that enabling the multi-agent plugin makes this routing configurable. With no role map, gates
-pass no `effort` either. Pointer: for the per-spawn
+report that enabling the multi-agent plugin makes this routing configurable. The `opus` fallback is
+this skill's stand-in for the fan-out guard `/multi-agent:route` applies: it keeps a wide fan-out
+off the frontier tier; which model the alias then runs on is the harness's call (model pointer
+below). With no role map, gates pass no `effort` either. Pointer: for the per-spawn
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
 As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
 
 Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
 `session` when none was. A dispatch the harness rejects means the role map names an alias this
-session cannot use: report it rather than substitute one.
+session cannot use: report it rather than substitute one. The metadata names the model asked for,
+not proof of the model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
+one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of: 2026-10-31. Recheck
+trigger: that section changes how an alias resolves or how a blocked value is handled.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope:
 
@@ -260,12 +266,19 @@ scanned-source framing in [`context/verification-gate.md`](context/verification-
 hunter that found a candidate never grades it. The gate's default stance is **refute**: it must construct the concrete
 input path that triggers the fault, or the candidate dies. **If uncertain, it is NOT a finding.**
 
-Survivors are labeled `reproduced` (a check was actually run) or `verified-by-reading` (established
-from the source, with the reproduction argument stated). Refuted candidates are **retained with
-their refuting argument**: some kills are wrong, a human can overturn one, and the record stops the
-same dead candidate resurfacing. A gate's one-line side observation goes to the side observations.
+Hunters and gates run none of the scanned repository's code; a gate may propose a check instead.
+Under `--unattended` no proposed check runs, and every survivor is labeled `verified-by-reading`.
+On an attended run, ask the person before **each** proposed check, showing its exact command, and
+run only the checks they approve; the rules are in
+[`context/verification-gate.md`](context/verification-gate.md) "Running the scanned repository's
+code". Survivors are labeled `reproduced` (an approved check ran and showed the predicted failure)
+or `verified-by-reading` (established from the source, with the reproduction argument stated).
+Refuted candidates are **retained with their refuting argument**: some kills are wrong, a human
+can overturn one, and the record stops the same dead candidate resurfacing. A gate's one-line side
+observation goes to the side observations.
 
-**Done when** every candidate carries a verdict and a label or a refuting argument.
+**Done when** every candidate carries a verdict and a label or a refuting argument, and on an
+attended run each proposed check was approved and run, declined, or left unanswered.
 
 ### Step 5. Assemble and dedupe the report
 
@@ -327,9 +340,9 @@ tracker item and an unattended run never strands work in a transcript:
 | interactive | **local**: its fix stays inside one plugin or module, changes no documented contract, and has an existing test file to extend | fix it now, in this session and branch, through `/implementation:implement` (or the project's own fix lane) |
 | interactive | non-local, or needs a design decision | file it with `--track`, or ask the operator |
 | any | security-relevant | file it, and route to the `/review:security-review` lane, which owns that surface |
-| unattended (a loop, a routine, a lane rule that passes `--track`) | any | file it; nobody is present to fix it, and the tracker is the only durable output |
+| unattended (`--unattended`: a loop, a routine, a lane rule) | any | file it; nobody is present to fix it, and the tracker is the only durable output |
 
-"Unattended" is declared by the caller, never inferred from the environment. Recommend the route;
+"Unattended" is declared by the caller with `--unattended`, never inferred from the environment. Recommend the route;
 do not auto-invoke it. A finding worth root-causing first goes to `/debugging:debug`. With nothing
 verified, say so and name the lane and rung, so the next run rotates on.
 
@@ -344,7 +357,7 @@ verified, say so and name the lane and rung, so the next run rotates on.
 
 - **The hunter never grades itself.** Collapse Steps 2 and 4 into one agent and precision collapses
   with them: a model re-checking its own work rubber-stamps it.
-- **A cheaper hunter is fine; a cheaper gate is not.** The gate's reproduction is the whole
+- **A cheaper hunter is fine; a cheaper gate is not.** The gate's reproduction argument is the whole
   precision claim, so it stays on the `verifier` role whatever the hunters ran on, and no scope
   class lowers its stance.
 - **Triage merges and drops; it never confirms.** Every candidate that survives triage still faces

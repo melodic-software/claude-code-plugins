@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/user-interface:design` on the layout first: its `web-layout` concern covers hierarchy, spacing and alignment, the usual cause when a screen looks off and you can't say why. Look at the result, then take the material concern (forms, if the page is mostly fields), and run `/user-interface:audit` before it ships.",
+      "why": "layout pass first, one concern now, later steps presented as coming after it"
+    },
+    {
+      "answer": "One skill for now: the design skill's layout and spacing pass (hierarchy, spacing, alignment). If the layout turns out right but unfinished, the next pass is layout stability; don't run both at once.",
+      "why": "layout pass first, a single skill now, the follow-up kept for later"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Start with `/user-interface:audit` on the settings page; it will rank what is wrong with the layout, and then you can fix the findings.",
+      "why": "leads with a review instead of the layout pass"
+    },
+    {
+      "answer": "Run the layout pass in `/user-interface:design`, and at the same time run typography, color, forms, `/user-interface:write-css` and `/user-interface:audit` so everything is covered in one go.",
+      "why": "near miss: layout comes first, but five more skills and concerns run at the same time"
+    },
+    {
+      "answer": "Try `/prototype:explore-directions` to build three settings page layouts and pick the one you like.",
+      "why": "throwaway variants first, though the complaint is a layout that feels off"
+    }
+  ]
+}

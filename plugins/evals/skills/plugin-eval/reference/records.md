@@ -30,16 +30,22 @@ re-read the page.
 - Docker credential store: the refusal hit all 60 runs of one pass at Claude Code 2.1.289 under
   WSL2, observed 2026-10-04. Docker Desktop's WSL integration links `contexts` and `features.json`
   into `/mnt/c`. The `~/.docker/bin` exemption on macOS is from the 2.1.293 changelog entry. Docs
-  lag: neither the plugin-evals page nor the sandboxing page covers the refusal as of 2026-10-10,
-  and the current refusal wording is not captured here: it needs a macOS or WSL2 host. Recheck:
-  re-run one `Bash`-granting case on a host with such a link.
+  lag: neither the plugin-evals page nor the sandboxing page covers the refusal as of 2026-10-10.
+  The refusal on 2.1.316 under WSL2, 2026-11-01, is recorded on
+  [#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378): it names the link
+  under `contexts` in the store under `$HOME`. Recheck: re-run one `Bash`-granting case on a host
+  with such a link after a release note touches sandbox credential exclusion.
 - Link swap (`scripts/docker-links.py`): it swaps every link the preflight's `find` lists, and the
   store itself when that is a link, rather than only the links the CLI is thought to check, since
   which names the CLI exempts was read from one 2.1.314 binary and failed independent
   verification. Pointer: <https://code.claude.com/docs/en/changelog>, the release notes on sandbox
   credential exclusion. As of 2026-10-30. Recheck: a docs page documents the check or its exempt
   names, or a release note touches them. The fixture suite (`test_docker_links.py`) proves the
-  swap and restore on a temporary `HOME`; no host run on WSL2 has been recorded yet.
+  swap and restore on a temporary `HOME`. Host run on 2.1.316 under WSL2, 2026-11-01, against
+  Docker Desktop's own `~/.docker`: one `Bash`-granting case scored 1/1 with Bash returning no
+  error, both links (`contexts`, `features.json`) listed the same before and after, and no
+  manifest was left. `features.json` was a dangling link, which the swap removed and restored
+  ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
 
 - Read-only `.git` and session tmp directory under `--allow-tools Bash`: a `claude plugin eval` run
   saw the scratch repo's `.git` as read-only on Claude Code 2.1.310 and 2.1.314, Linux/WSL2,
@@ -105,6 +111,12 @@ Kept traces (`--keep-temp`):
   `plugins/planning/reference/artifact-protocol.md`, with no `Read` denied, verified 2026-10-04.
   At that version a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded
   with no grant.
+- 2.1.316, one with-arm run each of this plugin's `grading-method-choice`: copied to a directory
+  named `evals`, the `Read` of `skills/methodology/reference/grading.md` was denied with the text
+  above and listed in `permission_denials`; copied to `evals-plugin`, the same `Read` succeeded,
+  verified 2026-10-31. The run's sandbox settings listed the plugin root under `denyRead`. Every
+  denial above is this plugin, whose directory is named `evals` like the default eval directory,
+  so the earlier entries do not show a version boundary.
 
 For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of
 2026-10-02. Recheck: re-run one case with `--keep-temp` and read the with-arm trace.
@@ -119,8 +131,18 @@ For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant
 - A usage or rate limit not marked partial, `kept local` versus publishing, and `init` needing a
   terminal: the plugin-evals page's troubleshooting entry for a usage or rate limit, its HTML-report
   section, and its "Write a case manually" and CI sections, verified 2026-09-13.
-- A headless `-p` session that backgrounded the CLI call exited and killed the run (empty `out/`,
-  no JSON), observed 2026-09-13 and 2026-10-04.
+- A headless `-p` session that backgrounded the CLI call exited, and the run ended unfinished
+  (2026-09-13: empty `out/`, no JSON; 2026-10-04: three runs partial, interrupted, INVALID),
+  seen on the versions current then. Which way those runs backgrounded the call is not
+  recorded, so they do not show why the runs died.
+- 2.1.316, a host probe on a throwaway one-case plugin, 2026-10-31: a `claude -p` session told to
+  start the command through the Bash tool with `run_in_background`, answer at once and not wait,
+  stayed open until the command ended. A `claude plugin eval` run (one case, two runs, 12 s)
+  exited 0 with `partial: false` and wrote its results JSON; a `sleep 120` stand-in wrote its
+  marker. A shell-level `(sleep 60; ...) &` inside a foreground Bash call got no wait: the
+  session answered and exited about a minute before the child wrote its marker. That arm was a
+  stand-in, not `claude plugin eval`. No arm tested a time limit. Recheck: re-run the three arms
+  on a release that touches background tasks or `-p` exit.
 
 ## Cost anchors
 

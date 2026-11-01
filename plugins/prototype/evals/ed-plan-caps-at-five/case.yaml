@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-plan-caps-at-five
+description: "Base step 1: a request for eight variants is capped at five, and each variant gets a direction name and an axis, in a plan written before any code."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "Before any file is written, the reply gives a plan line naming the route, the host, the variant keys and the states, plans at most five variants and says why it stops at five, and gives each variant a name describing its direction (never 'Option A') with the axis it diverges on."
+execution:
+  prompt: "/prototype:explore-directions pricing page for our SaaS product. I want 8 different variants. Show me the plan before you build anything."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

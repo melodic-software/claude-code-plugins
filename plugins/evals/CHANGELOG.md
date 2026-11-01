@@ -1,5 +1,77 @@
 # Changelog: evals
 
+## [0.13.3] - 2026-11-01
+
+### Fixed
+
+- `run-validity.py` takes `--measured-fire <case>` (repeatable) for a should-trigger case whose
+  firing is the quantity a comparison measures, such as the base side of a change that makes a
+  skill fire. The skill-fired check reports that case's misses as a measured rate, as it does for
+  an invocation probe, instead of marking the whole file INVALID; every other check is unchanged.
+  `reading-results.md` says when to pass it
+  ([#11979](https://github.com/melodic-software/claude-code-plugins/issues/11979)).
+
+## [0.13.2] - 2026-11-01
+
+### Fixed
+
+- `run-validity.py` warns, rather than fails, on a denied call other than Skill that every run of a case was denied in both arms, unless it is aimed at, under or above the plugin's directory, so an outcome pass whose skill reads a user-scope path such as `~/.claude/standards` is no longer INVALID for a denial the environment makes with or without the plugin
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+- `run-validity.py` no longer fails a run at 0 turns as "never started" when its trace holds assistant messages, so a slash-invoked `context: fork` skill that ran in a forked session passes `session started`
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+
+- `plugin-eval`'s headless stay-attached step no longer says a `-p` session that backgrounds the
+  CLI always ends the run. It keeps the foreground instruction, warns that a shell `&` gets no
+  wait, says a command started with the Bash tool's `run_in_background` holds a `-p` run open
+  until it exits or reaches its time limit, and points at the upstream sections on both. `records.md` now labels the old observations as seen on those versions and
+  records the 2026-10-31 probe on 2.1.316
+  ([#7022](https://github.com/melodic-software/claude-code-plugins/issues/7022)).
+
+- `/evals:plugin-eval`, `/evals:methodology` and `/evals:design` descriptions now name the jobs their eval cases showed the model answering without the skill: planning headless eval runs, judging whether an eval delta or validity verdict can be shared, writing a success criterion, and writing test cases for an LLM feature. `methodology` keeps its claude-api routing clause first and now says what it is preferred for: before a suite or its criteria exist.
+
+- `run-validity.py` adds a `probe tools` check: it warns when an invocation-probe run could call Read, Glob, Grep or Agent, and names the emitted README's `--disallow-tools Read Glob Grep Agent` run line. A probe run whose trace has no init tools list is a warning, and when no probe run's list can be read the check is UNCHECKED, which makes the run INVALID. A probe run without that line was failing on denied searches and subagent timeouts with no pointer to the cause. `reading-results.md` now states how the gate reads invocation probes.
+
+- `plugin-eval`'s `records.md` records the first WSL2 host run of the Docker link swap against
+  Docker Desktop's own store, and points at the captured refusal wording instead of saying it is
+  missing ([#8378](https://github.com/melodic-software/claude-code-plugins/issues/8378)).
+
+## [0.13.1] - 2026-11-01
+
+### Fixed
+
+- `plugin-eval` preflight prints an `eval_tmpdir` field and refuses before any spend when the `TMPDIR` directory the run step will use is longer than 24 characters and a case requests `Bash` or `PowerShell`. 24 characters is the longest length measured to work; at 63, the shell sandbox's Unix sockets could not be created, so every shell call failed while the run still exited 0 and scored ([#11740](https://github.com/melodic-software/claude-code-plugins/issues/11740)).
+- `run-validity.py` names a `session started` failure in its verdict as a harness failure whose score measures the harness, not the skill, and the `read` action reports such a run that way instead of as the skill's result.
+- `reference/sandboxes.md` gives the 24-character bound for `<dir>` in the Docker link swap and Sandbox start sections, with the socket names and measurements behind it.
+
+## [0.13.0] - 2026-11-01
+
+### Added
+
+- `skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's
+  skill-creator `evals.json` cases into `claude plugin eval` cases under the plugin's `evals/`:
+  a `prompt.md` with the prompt and expected outcome, a `case.yaml` with one `llm` grader per
+  expectation, and a `skill-fired` grader with sample answers where the prompt is natural
+  language and no expectation reads as the skill staying quiet. Each expectation grader gets
+  the case's `expected_output` as a must-pass sample, labeled for a person to confirm before
+  judge calibration, and `narration: true` carries over as a tag and a `description` line.
+  It prints the plugin's case count (`--dry-run` writes nothing), removes each converted
+  `evals.json`, and refuses, writing nothing, when a case directory already exists.
+
+## [0.12.0] - 2026-10-31
+
+### Changed
+
+- `/evals:design skill <name>` writes `case.yaml` cases in the eval directory of the plugin that ships the skill, one directory per case with a `prompt.md` and samples for each deterministic grader, and checks them with `/evals:validate`. It no longer writes a skill-creator `evals/evals.json`. A case's difficulty is a `hard` or `routine` tag, and its source and why it is hard go in its `description`. A new case, `de-skill-target-suite`, covers the skill target.
+- `/evals:validate`, `/evals:plugin-eval`, `/evals:methodology` and the README treat the suite layout as the one eval format for a skill. A skill-creator JSON eval file is converted to case directories and then validated, no longer routed to `/skill-quality:check validate-evals`.
+
+## [0.11.5] - 2026-10-31
+
+### Fixed
+
+- `plugin-eval` no longer says a target after `--json` is swallowed: on current Claude Code `--json` takes an optional path. A target after `--tag` or `--allow-tools` still is, and the CLI then loads every suite under the working directory; the `target-before-json` case now tests that.
+- `plugin-eval` records that with-arm reads under a plugin directory named `evals` are denied while the same copy under another name reads its spokes, and tells a run to copy such a plugin under another name.
+- The `va-unknown-timeout-key` case no longer grants Bash, so no case in the suite needs it.
+
 ## [0.11.4] - 2026-10-31
 
 ### Fixed

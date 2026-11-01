@@ -8,7 +8,7 @@ Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin
 
 - [ ] Step 1: Survey before you ask. Read existing context, the topic's memory slice, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only). If intent already crisp from survey, route to direct synthesis (skip Q&A loop)
-- [ ] Step 2: Drive the frontier-rounds loop. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` asks only its one problem question); order rounds by blast radius; restate decided/open after each round
+- [ ] Step 2: Drive the frontier-rounds loop. Before the first decision question, the `## Terminology matrix` below is agreed. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` asks only its one problem question); order rounds by blast radius; restate decided/open after each round
 - [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`, not a ship-it exit). Once no open question remains on the frontier, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, coined terms, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2; every item is recorded in `## Assumption sweep` below with its disposition (`context/assumption-sweep.md`)
 - [ ] Step 3: Recognize the stop condition. The open-question register grades clean (`check-open-questions.sh` exits 0; skipped only when the run asked no question at all and so wrote no register), no question is left to ask (every unknown the task depends on resolved or captured as a named assumption) AND user has confirmed the restated shared understanding, which opens with the register recap and cites the `--procedure` check's exit code (`me`/`auto`; `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest)
 - [ ] Step 4: Persist the contract. Engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in, so the session can continue elsewhere at any round boundary with nothing lost)
@@ -28,9 +28,17 @@ One line: what the user disclosed at intake about where they start (SKILL.md Sta
 
 - <the user's starting-point disclosure>
 
+## Terminology matrix
+
+One row per term the rounds rely on, built and agreed with the user before the first decision question; a later round that adds a term adds a `proposed` row and gets it agreed. Status: `proposed` | `agreed`. With no such term, replace the table with `none`. Rules: `context/loop.md` "Terminology matrix". Replace the example row with this run's terms.
+
+| Term | Definition | Source | Status |
+|---|---|---|---|
+| head SHA | the commit the PR branch points at | user, round 1 | agreed |
+
 ## Open-question register
 
-**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
+**Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `discussing` (the user asked to talk it through; blocks like `open`; `context/loop.md` "Discussing") | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.
 
 Each `Commits you to:` part of a recommendation is a row of its own with `(part of Q<N>)` in the question field, numbered right after its headline when asked with it, and at the next free id when registered after later ids exist. Resolution rules: `context/loop.md` "Commitment rows"; late numbering: "Commitment rows written after later ids exist". On the page surface, the parts are the question's `commits` entries instead (see `context/loop.md` "Commitment parts on the page"). The page exports each row's resolution as named fields and every older grammar still imports (`context/surface.md` "Start and stop").
 
@@ -54,6 +62,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure
 
 # Step 4, right after writing the Brief (engineering sessions only).
+# On a page-surface run, add: --surface '<data_dir>'
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <memory_dir>/<topic-slug>/PLAN.md

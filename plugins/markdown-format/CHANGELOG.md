@@ -3,6 +3,21 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-11-01
+
+### Fixed
+
+- The git hook check now fails, naming the tool and saying the change was not fully checked, when git or awk fails while it lists the changed lines or filters findings to them. A crashed awk run used to leave every finding filtered out and the hook passing.
+- A push over a remote commit this clone has not fetched is checked from its merge-base with the default branch, with a notice saying to fetch, instead of failing on the missing object.
+
+- The markdown-check git hook now fails, naming the tool and saying the change was not fully checked, when sed fails while it turns markdownlint's output into findings. A crashed sed used to leave no findings to block on and the commit passing.
+
+## [0.16.0] - 2026-11-01
+
+### Changed
+
+- The `Stop` row now checks the Markdown in the uncommitted changes by default and reports what it finds to you. With `markdown_format_end_of_turn` unset, its new default, a turn that ends with markdownlint findings shows them in a warning (exit 0 with a `systemMessage`) and the turn ends; Claude does not see them. `true` keeps the hand-back: the findings exit 2 and Claude keeps working, at most once per turn. `false` runs no check. The option no longer declares `default: false`, and its launcher gate is now `--run-if-unset-or-true`, so a user who never set it gets the report. ([#11502](https://github.com/melodic-software/claude-code-plugins/issues/11502))
+
 ## [0.15.11] - 2026-10-30
 
 ### Changed

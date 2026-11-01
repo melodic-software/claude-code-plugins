@@ -1,5 +1,5 @@
 ---
-description: "Design an evaluation suite for an LLM-based application or a Claude Code skill: interview for measurable success criteria, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt', 'evals for an LLM feature built on the Messages API', 'which eval route each part of a repo takes'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing evals.json (use /skill-quality:check validate-evals when installed), and not for running or scoring a suite, which is /evals:plugin-eval and the CLI it guides."
+description: "Design an evaluation suite or test cases for an LLM-based application or a Claude Code skill: interview for measurable success criteria before any case is written, pick a grading method per criterion, and scaffold a criteria doc plus eval cases into the consumer repo. Use when: writing test cases for an LLM feature or prompt, 'design evals', 'create an eval suite', 'scaffold evals', 'write evals for my skill', 'define success criteria for this app', 'set up LLM testing', 'build a test set for my prompt', 'evals for an LLM feature built on the Messages API', 'which eval route each part of a repo takes'. Not for eval-design theory questions (use /evals:methodology), not for statically validating an existing suite (use /evals:validate) or a skill-creator JSON eval file, and not for running or scoring a suite, which is /evals:plugin-eval and the CLI it guides."
 argument-hint: "<app|skill <name>|plugin <path>>"
 user-invocable: true
 disable-model-invocation: false
@@ -21,8 +21,8 @@ linked below are background for a human reader.
 
 - **`app`** (or a path/description of an LLM-powered feature): evals for the consumer's own
   LLM-based application behavior.
-- **`skill <name>`**: evals for a consumer-authored Claude Code skill, emitted as
-  `evals/evals.json` next to that skill.
+- **`skill <name>`**: evals for a consumer-authored Claude Code skill, emitted as `case.yaml`
+  cases in the eval directory of the plugin that ships it.
 - **`plugin <path>`**: behavioral cases for a whole Claude Code plugin, measured against a
   no-plugin baseline. This target is not scaffolded here: hand it to `claude plugin eval init`,
   which interviews for the cases and graders and writes them in the layout its own runner reads.
@@ -116,9 +116,9 @@ case.
   behavior. Never pick a case only because today's model fails it.
 - Write the reason down before the case lands. If no one can say why a case is hard, mark it
   `routine` or drop it.
-- Every skill-eval case carries `difficulty` (`hard` or `routine`), `source` (where it came from:
-  an observed failure, a rewritten transcript, a documentation example, the consumer's own
-  writing) and, for a `hard` case, `why_hard`.
+- Every skill-eval case carries its difficulty as a `hard` or `routine` tag, and its source (where
+  it came from: an observed failure, a rewritten transcript, a documentation example, the
+  consumer's own writing) and, for a `hard` case, why it is hard, in its `description`.
 
 - **Pointer**: for task design checks on a case set, see
   [eval-audit.md section 1](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md#1-task-design).
@@ -141,7 +141,7 @@ Check the repository's visibility before any transcript text becomes a case:
 ### Input approval
 
 Every input is approved by the consumer before it is written. This covers every suite this skill
-writes (a skill's `evals.json`, an app's `cases.jsonl`).
+writes (a skill's `case.yaml` cases, an app's `cases.jsonl`).
 
 1. Write the candidate cases as a JSON array to a scratch file outside the repository.
 2. Format: `${user_config.review_format}`. If it renders empty, as the literal placeholder text,
@@ -174,24 +174,31 @@ writes (a skill's `evals.json`, an app's `cases.jsonl`).
 [grading.md](../methodology/reference/grading.md). Honor an existing
 consumer eval layout when one is already present. Extend, don't rename.
 
-**Target = skill:** emit `<skills-root>/<skill>/evals/evals.json` with `skill_name` and
-`evals[]` of `{id, name (kebab-case), prompt, expected_output, expectations[], difficulty, source,
-why_hard}` (`why_hard` on `hard` cases), covering
-trigger/routing, the happy path, at least one refusal/guardrail, and one anti-pattern the skill
-must not exhibit. When the `skill-quality` plugin is installed, validate with
-`/skill-quality:check validate-evals <skill>` (its bundled schema is the contract);
-otherwise state that the file follows the marketplace's evals schema and validation was skipped.
+**Target = skill:** emit one case directory per case, `<eval-dir>/<kebab-case-name>/`, in the
+eval directory of the plugin that ships the skill. Each holds a `case.yaml` carrying the fields it
+requires plus `description`, `tags`, `expected_outcome` and `graders`; a `prompt.md` whose body is
+the prompt and which carries no frontmatter, so each field has one source; and a
+`samples/<grader-name>.json` for each deterministic grader. `expected_outcome` is the case's
+golden answer and each grader checks one expectation; follow the
+[case authoring checklist](../plugin-eval/reference/case-authoring.md). Cover trigger/routing (a
+natural-language prompt with a `tool_used` `Skill` grader), the happy path, at least one
+refusal/guardrail, and one anti-pattern the skill must not exhibit. When the skill sits in no
+plugin, wrap it in a directory carrying a minimal `.claude-plugin/plugin.json` and write the cases
+in that directory's eval directory. Validate the written cases with `/evals:validate <eval-dir>`.
+Leave an existing skill-creator eval file for the skill as it is unless the consumer asks to
+convert it; the overwrite rule below applies.
 
-This file is `skill-creator`'s format, which `claude plugin eval` does not read. To measure the same
-skill against a no-plugin baseline instead, wrap it in a directory carrying a minimal
-`.claude-plugin/plugin.json` and run `claude plugin eval init` there; the two suites coexist and
-neither is a migration of the other. Say which one the consumer is asking for before scaffolding.
+- **Pointer**: for the eval directory, the case layout and the `case.yaml` required fields, see
+  [Eval suite reference](https://code.claude.com/docs/en/plugin-evals#eval-suite-reference) and
+  [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields).
+- **As of**: 2026-10-31
+- **Recheck trigger**: either section changes the default eval directory, the files a case
+  directory holds, or the fields `case.yaml` requires.
 
-An `evals/evals.json` case grades the skill's output only and has no no-skill arm. That answers
-"does the output meet these expectations". A baseline arm is required when the claim is
-comparative: the skill improves on what the model does without it, or the claim covers a whole
-plugin (its skills, agents and hooks together). Route those to `claude plugin eval` through
-`/evals:plugin-eval`; its with/without delta is the answer. Whether the skill fires is not a
+`claude plugin eval` runs each case with the plugin and again without it. The with arm answers
+"does the output meet these expectations"; the with/without delta answers a comparative claim (the
+skill improves on what the model does without it, or the claim covers a whole plugin: its skills,
+agents and hooks together). `/evals:plugin-eval` reads that delta. Whether the skill fires is not a
 delta question: the no-plugin arm has no skill to invoke, so read it from the with-arm
 `tool_used: Skill` indicator, which is unscored.
 
@@ -239,17 +246,16 @@ agreement rate and every disagreement in the criteria doc.
 ## What this skill does NOT do
 
 - **Does not run or score a suite.** Scaffolding is where this skill stops; the grader check grades
-  a handful of sample outputs and nothing more. A plugin suite is run
-  by `claude plugin eval`, which `/evals:plugin-eval` guides; an `evals/evals.json` is run by
-  Anthropic's `skill-creator` plugin when the consumer has it, or by the consumer's own tooling for
-  an app suite.
+  a handful of sample outputs and nothing more. A skill or plugin suite is run by
+  `claude plugin eval`, which `/evals:plugin-eval` guides; an app suite is run by the consumer's own
+  tooling.
 - Does not overwrite an existing criteria doc or eval suite without showing the diff and getting
   explicit confirmation.
 - Does not invent baselines. A target with no anchor is recorded as provisional.
 
 ## Next
 
-- Scaffolded an `evals/evals.json`: `/skill-quality:check validate-evals <skill>`.
+- Scaffolded a skill's cases: `/evals:validate <eval-dir>`, then `/evals:plugin-eval` to run them.
 - Routed a plugin target to `claude plugin eval init`: `/evals:plugin-eval`.
 
 ## Gotchas

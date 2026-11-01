@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| file | browser | yes | stdio | docker | ghcr.io/acme/browser-mcp:1.4 | mutable-tag | ghcr.io/acme | no | - |",
+      "why": "mutable-tag"
+    },
+    {
+      "answer": "browser uses a tag, which is not `exact`: WARN.",
+      "why": "mentions exact only in prose"
+    },
+    {
+      "answer": "search-index is pinned by digest; browser is not.",
+      "why": "contrast line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| file | browser | yes | stdio | docker | ghcr.io/acme/browser-mcp:1.4 | exact | ghcr.io/acme | no | - |",
+      "why": "exact cell"
+    },
+    {
+      "answer": "browser is not mutable once tagged 1.4.",
+      "why": "negated mutable"
+    },
+    {
+      "answer": "Yes: browser is pinned to 1.4.",
+      "why": "called pinned"
+    },
+    {
+      "answer": "| browser | P1 Floating version | PASS | |",
+      "why": "P1 PASS"
+    }
+  ]
+}

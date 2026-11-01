@@ -3,6 +3,31 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-11-01
+
+### Added
+
+- `/education:illustrate` pages take the explainer's title as their `<title>`, so a published explainer is named for its subject, not "Explainer".
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5).
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+## [0.21.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
 ## [0.20.13] - 2026-10-31
 
 ### Changed

@@ -54,8 +54,10 @@
 // A pass-only round is the exception: when pr-verify passed the PR's current
 // head, pr-feedback-dispatch.yml sends pr-unblock.yml with verify-pass-head,
 // and the select job lists in run.json's stale_notes the open fail-note
-// threads from earlier heads (address-feedback.mjs staleVerifyNotes), with no
-// thread for a model. This job then resolves each one still open and stale
+// threads from earlier heads (address-feedback.mjs staleVerifyNotes), and
+// those at the passing head when its superseded_head names that head (the
+// merge gate's reader found the FAIL there superseded), with no thread for a
+// model. This job then resolves each one still open and stale
 // while the PR head is the passing one, and posts no reply and no round
 // marker, and skips pass-only. The job token cannot resolve a thread; the
 // lane token can.
@@ -184,6 +186,7 @@ export function parseRun(text) {
       (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
     "run.json holds a malformed stale_notes list",
   );
+  check(run.superseded_head === undefined || (run.stale_notes !== undefined && SHA.test(String(run.superseded_head))), "run.json holds a malformed superseded_head");
   check(
     run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
     "run.json holds a malformed reviewed_heads list",
@@ -496,12 +499,13 @@ export const PASS_ONLY_SKIP = "pass-only";
 
 // A pass-only round: the select job listed the fail-note threads a pr-verify
 // pass at its head left stale, and no model ran. Each one still open and still
-// stale (staleVerifyNotes) is resolved while the PR head is the passing one;
+// stale (staleVerifyNotes, at the head too when run.json's superseded_head
+// names it) is resolved while the PR head is the passing one;
 // a failed resolve is logged, the rest are tried, and the job then fails so
 // a re-run tries again. Nothing is posted and no round is counted.
 async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
   const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
-  const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha));
+  const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha, { supersededHead: run.superseded_head }));
   const failed = [];
   let resolved = 0;
   for (const id of run.stale_notes) {
@@ -660,7 +664,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // review lane re-marks its one marker on this round's fix push. A run.json
     // from before the select job recorded them reads the markers now.
     const heads = run.reviewed_heads && new Set(run.reviewed_heads);
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads });
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads, log });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));

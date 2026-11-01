@@ -1,0 +1,300 @@
+{
+  "skill": "user-interface:design",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/design",
+  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. user-interface:write-animation builds one animation, so a request to animate a menu (neg-train-06) goes there. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here. Build-a-component probes (pos-*-build-*) cover the build triggers #11423 adds; competitors there are the same-plugin neighbors a UI request could reach (styling code, animation, review, naming, plugin settings) plus prototype:explore-directions. Shape probes (pos-*-shape-*) ask what one radius or shadow should be, including a question that gives every number, which the model otherwise answers without loading the skill.",
+  "competitors": [
+    "planning:design",
+    "prototype:explore-directions",
+    "user-interface:write-css",
+    "user-interface:audit",
+    "session-flow:recommend-skills",
+    "user-interface:write-animation",
+    "user-interface:glossary",
+    "user-interface:setup"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What props should our shared Button take? Right now people pass colors and padding straight in."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Tabs component takes one big config array. Should it be split into parts like Tabs.List and Tabs.Panel instead?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do I let the date input work with its own internal state but also be driven from a parent form when needed?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Agents keep inventing a ghost variant on our buttons. How should the component's variants be set up so that stops?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which headless library should our React app build its dialogs and menus on? We don't have one yet."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Select only takes value and onChange, so teams that just want it to work have to wire state up. What should the API be?"
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Lay out the parts and props for an Accordion component other teams will reuse across the app."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a DESIGN.md for this repo so coding agents use our tokens and existing components."
+    },
+    {
+      "id": "pos-train-09",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This settings page layout feels off. Which skill should I run on it first, and what comes after?"
+    },
+    {
+      "id": "pos-train-build-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Build a pricing table component in React with three tiers, a monthly/yearly toggle, and the middle plan highlighted as recommended."
+    },
+    {
+      "id": "pos-train-build-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a Svelte file upload widget: drag and drop zone, a progress bar per file, and a way to remove a file before it finishes. Can you make it?"
+    },
+    {
+      "id": "pos-train-build-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make me a plain HTML signup page for our newsletter, just an email field, a short pitch and a privacy note. No framework."
+    },
+    {
+      "id": "pos-train-build-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create a Vue 3 date range picker for the reports screen, two months side by side, presets like last 7 days and last 30 days."
+    },
+    {
+      "id": "pos-train-build-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put together an account settings screen in Next.js with tabs for profile, password and notifications. Use our existing Button and Input from src/components/ui."
+    },
+    {
+      "id": "pos-train-10",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our `migrate` command just dumps raw log lines. I want it to show each step with a status marker, a final summary, and stay readable when piped to a file."
+    },
+    {
+      "id": "pos-train-11",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What should the order history table show when a user has zero orders, when the fetch fails, and while it's still loading? Right now it's just blank."
+    },
+    {
+      "id": "pos-train-12",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should we write our own data grid with sorting and column resizing or pull in something like AG Grid or TanStack Table? We're on React with Tailwind."
+    },
+    {
+      "id": "pos-train-shape-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our product tiles have 12px corners and the thumbnail image inside each one, inset by 8px, also has 12px corners. It looks slightly off but I can't say why. What should the thumbnail's corners be?"
+    },
+    {
+      "id": "pos-train-shape-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Every surface in our admin app uses the same drop shadow, so the dropdown menu over a card doesn't look like it's floating above it. How should the shadows differ between the card and the menu?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should the public interface of our payments SDK look like before we write the plan?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Help me model the types for order states so illegal transitions can't compile."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where should the boundary sit between the scheduler package and the worker pool?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mock up three different layouts for the pricing page so I can compare them."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Let's work out what the repository interface for the orders module should expose."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Animate the menu opening from its trigger."
+    },
+    {
+      "id": "neg-train-07",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The footer links in footer.css wrap onto two lines at 768px. Fix the CSS so they stay on one row, don't touch the markup."
+    },
+    {
+      "id": "neg-train-08",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a fade and slight scale-up when the toast notification appears."
+    },
+    {
+      "id": "neg-train-09",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Look over the UI changes on my branch and tell me if anything is broken for keyboard users. Don't change anything."
+    },
+    {
+      "id": "neg-train-10",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What's it called when the header shrinks and sticks to the top as you scroll down?"
+    },
+    {
+      "id": "neg-train-11",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which config layer is setting the user-interface plugin's default stack to tailwind? I never set that."
+    },
+    {
+      "id": "neg-train-12",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me three quick throwaway layouts for the analytics overview so I can flip between them and pick one."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the props on the new Card we're adding to the design system before other teams start using it."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should our link-styled button render a real anchor tag, and how do consumers swap the element it renders?"
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our Input uses isDisabled and handleChange while Select uses disabled and onChange. Help me make the component props consistent."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is it fine for our design-system Modal to take title, body and footerButtons as props, or is there a better shape?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Document our components so agents stop making up their own variants of them."
+    },
+    {
+      "id": "pos-validation-build-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build me a kanban board component in React for our task tracker: columns for each status, cards you can drag between columns, a count per column, and an empty-column state. We use TypeScript and CSS modules."
+    },
+    {
+      "id": "pos-validation-build-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you make the onboarding wizard in our SvelteKit app? Three steps (workspace name, invite teammates, pick a plan), a progress indicator, back and next buttons, and an inline error if a step fails to save."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We need a searchable combobox for the country field on our shipping form. Should I build one on top of our existing Popover and Listbox primitives or just pull in Downshift? Accessibility and matching our tokens matter more than bundle size here."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My Go CLI `syncctl status` currently dumps everything as one wall of text. I want it to show each remote as a row with a colored state (ok / drifting / failed), a summary line at the bottom, and degrade cleanly when piped or when NO_COLOR is set. How should the output be laid out?"
+    },
+    {
+      "id": "pos-validation-shape-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "On mobile our bottom sheet has big rounded top corners and a 1px hairline border, and the list rows inside it have their own rounded backgrounds. The edges where they meet look clumsy. What radius and border treatment would make them sit together?"
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Design the event contract the billing service publishes to its consumers."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the CSS for the card's hover and focus states."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Talk me through how to split this monorepo's shared code into packages."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review the UI changes on my branch for problems before I merge them."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Here's the stylesheet for our sidebar. Can you rewrite it to use container queries instead of the media queries, and swap the hardcoded hex values for our existing CSS custom properties? Don't touch the markup.\n\n.sidebar { width: 280px; background: #f4f4f6; }\n@media (max-width: 900px) { .sidebar { width: 100%; } }"
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a fade-and-slide-in transition to the toast notifications when they appear, about 200ms, and make sure it respects prefers-reduced-motion."
+    }
+  ]
+}

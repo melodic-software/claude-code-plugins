@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Put them in `tests/unit/orders/test_order_mapper.py`: docs/testing.md puts unit tests for pure code under tests/unit/<package>/, and the mapper opens no database session."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Next to the existing one: `tests/test_order_mapper.py`.",
+      "why": "follows the stray file"
+    },
+    {
+      "answer": "`tests/integration/orders/test_order_mapper.py`",
+      "why": "wrong layer"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "OUT=$(mktemp \"${TMPDIR:-/tmp}/fc-scrape-XXXXXX\"); echo \"$OUT\"\nfirecrawl scrape \"https://docs.contoso-platform.example/guides/rate-limits\" \\\n  --format markdown \\\n  -o \"$OUT\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the skill's multi-line example with line continuations"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape \"https://docs.contoso-platform.example/guides/rate-limits?lang=en&v=2\" -o /tmp/fc-scrape-a1b2c3",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "query string with & in the URL"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits --output=/tmp/fc-scrape-a1b2c3",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "--output="
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits -o\"/tmp/fc-scrape-a1b2c3\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "-o with no space"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v firecrawl && firecrawl --status",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "status probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "OUT=$(mktemp \"${TMPDIR:-/tmp}/fc-map-XXXXXX\") && firecrawl map https://docs.contoso-platform.example -o \"$OUT\" && echo \"$OUT\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "map with -o in an && chain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape \"https://docs.contoso-platform.example/guides/rate-limits\" --format markdown",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "scrape streamed to stdout"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits | head -200",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "piped to head"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "OUT=$(mktemp \"${TMPDIR:-/tmp}/fc-XXXXXX\"); firecrawl search \"contoso rate limits\" --limit 5",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "-o-less search after a mktemp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx firecrawl-cli scrape https://docs.contoso-platform.example/guides/rate-limits",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "package form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits && echo -o done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "-o belongs to the next command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if command -v firecrawl; then firecrawl scrape https://docs.contoso-platform.example/guides/rate-limits; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "guarded by a shell conditional or loop (Codex on #11939)"
+    }
+  ]
+}

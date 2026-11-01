@@ -1,5 +1,61 @@
 # Changelog: docs-hygiene plugin
 
+## [2.2.0] - 2026-11-01
+
+### Added
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+## [2.1.1] - 2026-11-01
+
+### Fixed
+
+- `audit-derivability` no longer says every subagent other than `Explore` and `Plan` loads the
+  launch-loaded files. Spot-tests still use `Explore` or `Plan`, now labeled as this skill's choice,
+  and which types load those files is left to a links-only Sources record pointing at the sub-agents
+  sections. The sweep model fallback is labeled as the skill's stand-in for `/multi-agent:route`
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+### Fixed
+
+- give extract-ssot's verify spoke a resolvable script path
+
+## [2.0.22] - 2026-10-31
+
+### Added
+
+- Outcome eval cases for `audit-derivability`, `audit-encapsulation`, `audit-noise`, `audit-progressive-disclosure`, `extract-ssot`, `rename-references`, `write-for-agents` and `write-for-humans`, and frozen trigger-probe sets for every model-invoked skill.
+
+### Changed
+
+- Tightened the model-invoked skill bodies and their spokes to the skill criteria, with no rule removed; `extract-ssot` is unchanged. `compress compare` now says to print the labeler's rows and literal `VERDICT:` line verbatim, and `rename-references` says to run every sweep through the Grep tool, reading a file only to confirm a hit.
+
+## [2.0.21] - 2026-10-31
+
+### Added
+
+- `/docs-hygiene:write-for-agents` has an eval case that a rule worded too weakly is strengthened and kept, not deleted, and the hard limit beside it survives.
+
+### Changed
+
+- `/docs-hygiene:write-for-agents` gains "Be strict with precise words": replace vague words with numbers or conditions, keep firm words for hard limits no hook enforces, and write no all-caps emphasis.
+
 ## [2.0.20] - 2026-10-31
 
 ### Fixed

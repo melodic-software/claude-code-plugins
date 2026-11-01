@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "CLAUDE.md: tier=always — 2 finding(s) — T1=1, T2=1\n\n| Tier | Lane | Shape | Line | Evidence | Treatment |\n|---|---|---|---|---|---|\n| 2 | split | tier-mismatch | 17 | \"## Billing service conventions\": rules for services/billing only, paid every session | Move to `.claude/rules/billing.md` with `paths: services/billing/**` |\n| 1 | split | tier-mismatch | 25 | \"## Rotating the webhook signing key\": a 10-step procedure run twice a year | Move to a skill; leave a one-line pointer |\n\nSafety stays: it applies to every session. At 42 lines the file is well under the 200-line target, so no oversize finding.", "why": "canonical"},
+    {"answer": "Keep Commands, Safety and Pull requests loaded. The billing rules belong in services/billing/CLAUDE.md so they load only when working there. The key rotation is a procedure: put it in docs/runbooks/webhook-key-rotation.md and leave one line in CLAUDE.md saying to read it when rotating the key. Length is not the issue.", "why": "subtree CLAUDE.md and on-demand doc with pointer"}
+  ],
+  "fail": [
+    {"answer": "The file is getting long. Move Safety and the billing conventions into docs/guidelines.md and the key rotation into docs/runbooks.md, keeping only Commands in CLAUDE.md.", "why": "safety demoted, billing unscoped, size flagged"},
+    {"answer": "Move the key rotation to a skill. Move Safety into a `.claude/rules/safety.md` scoped to `paths: services/**`. Billing rules go to a scoped rule too.", "why": "safety demoted behind a path scope"},
+    {"answer": "Move the billing conventions to `.claude/rules/billing.md` with paths. The rotation steps are fine where they are; everything else stays.", "why": "procedure left inline"},
+    {"answer": "", "why": "empty"},
+    {"answer": "Never run pnpm db:migrate against production.", "why": "answers a different question"}
+  ]
+}

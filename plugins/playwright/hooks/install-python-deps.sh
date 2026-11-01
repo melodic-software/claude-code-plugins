@@ -5,7 +5,13 @@
 # loads. A failed install is a user notice with the repair line, never a silent skip; the model hears nothing here,
 # since pydeps.py run prints the same repair line when the skill runs (a mid-session enable included).
 # Always exits 0: a failed install must not block the session.
+# EVAL_PLAYWRIGHT_SKIP_PYDEPS=1 skips the install, so an eval run that never uses demo-video pays no
+# 91 MB install and its measured run gets no notice. Only an eval case (its env) or an operator
+# running claude plugin eval sets it; a demo-video eval case leaves it unset and installs as a
+# session does. Unset, or any value other than 1, the hook behaves as it always has.
 set -uo pipefail
+
+[[ "${EVAL_PLAYWRIGHT_SKIP_PYDEPS:-}" == 1 ]] && exit 0
 
 data="${CLAUDE_PLUGIN_DATA:-}"
 [[ -n "$data" ]] || exit 0

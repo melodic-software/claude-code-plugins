@@ -3,6 +3,33 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-11-01
+
+### Changed
+
+- `/playwright:demo-video` posts a video that is verification evidence through `/source-control:pull-request evidence` when that skill is available, so the evidence step's verdict gate, leak scan and one-comment rule apply to it. A demo a person asked for, or evidence when the step is not available, still posts with `gh pr comment --attach` locally or as an Actions artifact link in CI ([#11392](https://github.com/melodic-software/claude-code-plugins/issues/11392)).
+
+- The `playwright` skill description is shorter (559 to 333 characters), measured with no loss of triggering on held-out probes; the `check` and `demo-video` descriptions are unchanged.
+
+### Fixed
+
+- The SessionStart hook `hooks/install-python-deps.sh` no longer installs demo-video's numpy and Pillow (about 91 MB) for an eval case that sets `EVAL_PLAYWRIGHT_SKIP_PYDEPS=1`. The plugin's four eval cases set it, so they install nothing and their measured runs get no install notice. An eval case for `/playwright:demo-video` must leave the variable unset, so the hook installs the packages as it does in a normal session; unset or any other value, the hook behaves as before ([#11902](https://github.com/melodic-software/claude-code-plugins/issues/11902)).
+
+## [0.15.1] - 2026-11-01
+
+### Fixed
+
+- The frame-capture script in `reference/running-code.md` reported `property` as `undefined` for a
+  Web Animations API animation, which has neither a CSS transition's `transitionProperty` nor a CSS
+  animation's `animationName`. It now falls back to the properties the animation's keyframes
+  animate.
+
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- `/playwright:playwright` gains an animation capture recipe: install the page clock before navigation and step it for script-driven motion, hold page-load entrances with an init script, seek each of the target's declarative animations from its own start and resume them afterward, report each animation's target, property, values, timing and progress, and measure long frames in a separate full-speed pass with no clock. A local page is served from `127.0.0.1` on a free port instead of a `file:` URL.
+
 ## [0.14.8] - 2026-10-30
 
 ### Changed

@@ -962,13 +962,17 @@ export function authorAdmitted(issue, humans, appId) {
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
 }
 
+// Whether status: confirmed is the issue's only status label and agent-ready is
+// off, whether admission parked it there or a person confirmed it. Pure.
+export const confirmedOnly = (labels) =>
+  labels.includes(CONFIRMED) && !labels.some((label) => label === AGENT_READY || (label?.startsWith("status:") && label !== CONFIRMED));
+
 // Whether admission parked the issue at status: confirmed, which is also
 // triage's verified status: no other status, no agent-ready, and the lanes
 // App's admission comment. `labels` are its label names, `comments` its
 // comments. Pure.
 export const admissionParked = (labels, comments, appId) =>
-  labels.includes(CONFIRMED) &&
-  ![NEEDS_DECISION, READY, AGENT_READY].some((label) => labels.includes(label)) &&
+  confirmedOnly(labels) &&
   Number.isInteger(appId) &&
   comments.some((comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
 
@@ -2156,22 +2160,25 @@ async function deferredAhead(github, repository, issue) {
   }
 }
 
-// How far before a status read an admission may be missing from the search
-// check-wip-cap counts: admissionsSince reads back this far.
+// How far before a status read admissionsSince reads back. A run that claimed
+// before check-wip-cap's queued read may add agent-ready after it, so the
+// window starts well before the read; an admission the read already counted
+// may count again, which only defers it to the hourly sweep.
 export const RACE_WINDOW_MS = 10 * 60_000;
 
 // The open issues that entered admission at or after `since` (ms since the
-// epoch), [{number, at}], earliest first. Each one carries agent-ready or
-// admission-deferred in the issues listing (not the search check-wip-cap
-// reads). `at` is its newest admission-deferred add at or after `since`, the
-// claim admit() makes, else its first agent-ready add then (an admission
+// epoch), [{number, at}], earliest first. Each one carries admission-deferred
+// or agent-ready in the issues listing, read in that order: admit() adds
+// agent-ready before it removes its claim, so an issue gone from the first
+// listing is in the second. `at` is its newest admission-deferred add at or
+// after `since`, the claim admit() makes, else its first agent-ready add then (an admission
 // that made no claim), or null when its events show no add of either label
 // at all yet; one whose adds all predate `since` is left out. A failed read
 // throws.
 export async function admissionsSince(github, repository, since) {
   const stamp = new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z");
   const listed = new Set();
-  for (const label of [AGENT_READY, DEFERRED]) {
+  for (const label of [DEFERRED, AGENT_READY]) {
     for (const item of await paginate(github, `/repos/${repository}/issues?labels=${encodeURIComponent(label)}&state=open&since=${stamp}`)) {
       if (!item?.pull_request && Number.isSafeInteger(item?.number)) {
         listed.add(item.number);

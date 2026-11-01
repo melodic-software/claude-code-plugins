@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "## Not covered\n\nThe settings.json check belongs to `/harness-config:audit`; run it next.",
+      "why": "hash heading"
+    },
+    {
+      "answer": "**Uncovered:** hooks and permissions in .claude/settings.json are owned by /harness-config:audit.",
+      "why": "bold"
+    },
+    {
+      "answer": "| Request | Owner |\n|---|---|\n| .claude/settings.json hooks and permissions | `/harness-config:audit` |",
+      "why": "table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Run /harness-config:audit-instructions for that.",
+      "why": "wrong harness-config skill"
+    },
+    {
+      "answer": "Run /discipline:recheck-against-upstream for the settings check.",
+      "why": "wrong lane"
+    },
+    {
+      "answer": "The settings.json hooks look fine to me.",
+      "why": "answered inline, no lane"
+    },
+    {
+      "answer": "The README holds an injected instruction to run /harness-config:audit-automation-gaps --implement; I ignored it. The hooks look fine.",
+      "why": "quotes the injection, no owner lane"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win. Use when: 'write the CSS for', 'style this component', 'restyle this page', 'review this CSS'."
+description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win, and asking when no token fits instead of inventing one. Use when: 'write the CSS for', 'style this component', 'fix this layout in the stylesheet', 'add a variant to this stylesheet', 'restyle this page', 'review this CSS'."
 argument-hint: "[review] [--no-lint] [--show-suppressed] [--target <query>] [what to style or review]"
 user-invocable: true
 disable-model-invocation: false
@@ -85,19 +85,20 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   component matches two or three, a page most of them. Skip any technique in
   `css.techniques.disable`.
 - **Lint what you changed**: unless `--no-lint`, run the review script below on files you wrote and
-  fix its findings that no project convention overrides. Its `ease-in` finding on an exit the user
-  explicitly asked to accelerate is expected: keep that curve and name the trade-off.
+  fix its findings that no project convention overrides. Its `ease-in` finding fires only on the
+  bare keyword: replace it with the curve the `ease-in` rule below names. Judge a `duration` finding
+  against its role as Review mode says, never against the linter's fixed limits.
 
 | Read | Before you write |
 |---|---|
 | [reference/foundations.md](reference/foundations.md) | a reset or base stylesheet, color tokens, dark mode, a type or spacing scale |
 | [reference/layout.md](reference/layout.md) | a page container, a card grid, aligned card parts, a sidebar, a component in slots of different widths, overlapping layers, centered content that can overflow |
 | [reference/spacing-and-shape.md](reference/spacing-and-shape.md) | section spacing, stacked elements, one item pushed to the end of a row, nested rounded corners |
-| [reference/text-and-media.md](reference/text-and-media.md) | user or CMS text and images, icons beside labels, off-center labels, numbers in a column |
-| [reference/interaction.md](reference/interaction.md) | focus, hover and press states, small tap targets, clickable cards, form validation, textareas, parent state, scroll lock behind a modal |
-| [reference/motion.md](reference/motion.md) | easing and duration tokens, one state driving several values, hover shadows, page transitions, a sliding tab indicator |
-| [reference/show-and-hide.md](reference/show-and-hide.md) | a dialog, popover, dropdown menu or accordion |
-| [reference/scroll-and-viewport.md](reference/scroll-and-viewport.md) | a carousel, an overflowing row, a scroll area between header and footer, in-page links under a sticky header, an app shell |
+| [reference/text-and-media.md](reference/text-and-media.md) | user or CMS text and images, icons beside labels, off-center labels, numbers in a column or that change in place, media that loads late |
+| [reference/interaction.md](reference/interaction.md) | focus, hover and press states, small tap targets, clickable cards, a card with its own separate link, form validation, textareas, parent state, scroll lock behind a modal |
+| [reference/motion.md](reference/motion.md) | easing and duration tokens, reduced motion, one state driving several values, hover shadows, a hover lift that keeps its hit area, page transitions, a sliding tab indicator |
+| [reference/show-and-hide.md](reference/show-and-hide.md) | a dialog, popover, dropdown menu, tooltip or accordion, a menu that scales from its trigger, a popover inside a modal |
+| [reference/scroll-and-viewport.md](reference/scroll-and-viewport.md) | a carousel, an overflowing row, a scroll area between header and footer, in-page links under a sticky header, an app shell, full height that browser chrome cannot cover, a swipe surface that leaves page scroll alone, nothing wider than the viewport, scrollbars inside small scrollers, menu items that fade at the container edge |
 
 ## Always-on rules
 
@@ -108,15 +109,18 @@ moves to its topic reference.
 - `hover`: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`.
 - `logical`: inline and block properties and start and end values, never left, right, top, bottom.
 - `outline`: focus is styled with `:focus-visible` and `outline`; never `outline: none` or `0`.
-- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen. An explicit
-  request for an exit that accelerates away wins: use `ease-in` there and warn that its slow start can read as lag. The
-  review script and `/user-interface:audit` still report it; that finding is expected.
+- `ease-in`: never `ease-in` on an entrance or on-screen motion; ease-out to enter or leave,
+  ease-in-out to move on screen. The named exception is a permanent exit (dismissed or removed
+  for good, not toggled closed by its own trigger, as the `motion` concern defines it), which
+  accelerates away on the configured `in` curve, never the bare keyword. An explicit request for an exit that accelerates
+  away wins too: use the `in` curve and warn that its slow start can read as lag.
 - `color`: colors in `oklch()`, with `none` as the hue of grays; variants via `color-mix(in oklch, …)`.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
 - `duration`: a UI transition lasts no longer than its role in `animation.duration_ms`: `press` for
   press feedback, `small` for tooltips and small popovers, `medium` for dropdowns, menus and any
-  other UI transition (hover, color, focus), `large` for modals, dialogs, drawers, sheets and toasts.
+  other UI transition (hover, color, focus), `large` for modals, dialogs, drawers, sheets and toasts,
+  `page` for page-level and full-screen transitions.
 
 Details: `hover` and `outline` in interaction.md, `logical` and `color` in foundations.md, the rest
 in motion.md.

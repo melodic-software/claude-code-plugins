@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Unanswered from last round:\n\nQ5: How many reruns should one PR get before the pr-merge lane stops rerunning?\nContext: a rerun (one more pass of both AI reviews on the PR's new head SHA, the commit the PR branch points at) fires on every new head SHA, per question Q2, what triggers a rerun.\nMy recommendation: three.\nChecked against: no new required status checks (C1); a review re-runs only when the head SHA changes (C2)\nAlternatives:\n- (a) No R-cap (no limit on reruns per PR). Never misses a review, but a busy PR reruns without end.",
+      "why": "every code carries its plain name"
+    },
+    {
+      "answer": "Q6: Should a force-push that keeps the same tree reset the rerun limit?\nContext: reruns stay advisory (Q3: does a rerun block the merge? no).\nChecked against: scoped change, one plugin and no shared workflow edits",
+      "why": "a code with a colon and its name, constraints in words"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {
+      "answer": "Q5: How many reruns per PR?\nMy recommendation: three.\nChecked against: C1, C2",
+      "why": "bare constraint ids on the Checked against line"
+    },
+    {
+      "answer": "Q6: Should a force-push reset the R-cap?\nMy recommendation: no.",
+      "why": "a bare coined term"
+    },
+    {
+      "answer": "Q7: What does the lane do when a rerun finds a new blocking issue?\nContext: this rests on Q3 and on C1.\nMy recommendation: post it in the PR comment.",
+      "why": "bare earlier answer and constraint ids"
+    },
+    {
+      "answer": "Here is the plan: keep reruns advisory and cap them at three.",
+      "why": "no question asked"
+    }
+  ]
+}

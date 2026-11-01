@@ -287,10 +287,17 @@ jobs:
             >"$RUNNER_TEMP/pr-unblock-dispatched.json"
           echo "name=pr-unblock-dispatched-${RUN_IDS// /-}" >>"$GITHUB_OUTPUT"
 
+      - name: Scan the upload for credentials
+        id: scan-upload
+        if: >-
+          always() && steps.record.outputs.name != '' && steps.record.outcome == 'success'
+        uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
+        with:
+          path: ${{ runner.temp }}/pr-unblock-dispatched.json
+
       - name: Record the dispatched runs
         if: >-
-          always() && steps.record.outputs.name != ''
-          && steps.record.outcome == 'success'
+          (always() && steps.record.outputs.name != '' && steps.record.outcome == 'success') && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.record.outputs.name }}

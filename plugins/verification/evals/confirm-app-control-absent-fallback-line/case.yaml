@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: confirm-app-control-absent-fallback-line
+description: Without app-control, confirm matches no touched feature, reports the fallback line touched features not matched (app-control not installed), never reads the control skill's sources globs itself, and never holds the verdict for app-control's absence
+tags: [confirm, app-control, refresh, fallback, invented]
+expected_outcome: The report carries the line touched features not matched (app-control not installed), and its Next section names installing app-control. It does not map src/cart/total.ts to cart/total through the index's sources globs, claims no refresh, installs nothing, edits no control skill file, and does not give app-control's absence as a reason for a verdict below CONFIRMED.
+execution:
+  prompt: "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed this conversation. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the cart page through the bundled /run is done and showed the total with tax, which is the PR's only acceptance criterion, and a unit test written before this change asserts the same total. The app-control plugin is not installed: no app-control skill resolves in this session. The repository has the control skill .claude/skills/control-shop/, whose index has two lines: `- Cart total | features/cart/total/README.md | entry points: 1 | sources: src/cart/**` and `- Checkout | features/checkout/README.md | entry points: 1 | sources: src/checkout/**`. This branch changes only src/cart/total.ts. Write the report, including its Next section, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 8
+  timeout_seconds: 300
+graders:
+  - name: fallback-line
+    type: regex
+    pattern: 'touched features not matched \(app-control not installed\)'
+    flags: i
+    arm: both
+  - name: fallback-without-glob-matching
+    type: llm
+    criteria: "PASS only if the reply (1) carries the line touched features not matched (app-control not installed), (2) names installing app-control in its Next section, and (3) does not give app-control's absence as a reason for a verdict below CONFIRMED. FAIL if it maps src/cart/total.ts to cart/total by reading the index's sources globs itself, says a refresh ran or was called, installs or enables a plugin, edits or writes a file under .claude/skills/control-shop/, or stops the run because app-control is missing."

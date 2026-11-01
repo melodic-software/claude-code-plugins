@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "src/lab/divider/DividerLab.jsx"
+      ],
+      "why": "lab tool"
+    }
+  ]
+}

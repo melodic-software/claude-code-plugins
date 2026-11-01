@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Important | `{copied ? <CheckIcon /> : <CopyIcon />}` at `CodeBlock.tsx:19` | add `<span role=\"status\" className=\"sr-only\">{copied ? \"Copied\" : \"\"}</span>` inside the wrapper, always rendered | An inline confirmation that appears with no live region is silent for a screen reader (`accessibility` concern); verified from code |",
+      "why": "names the silent confirmation and fixes it with a status region present before the message"
+    },
+    {
+      "answer": "- `CodeBlock.tsx:19`: the check icon is the only sign the copy worked, so VoiceOver users hear nothing. Keep an empty `<div aria-live=\"polite\" class=\"sr-only\">` mounted with the block and set its text to \"Code copied\" in `copy()`.",
+      "why": "prose finding with an always-mounted polite live region"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Important | `{copied ? <CheckIcon /> : <CopyIcon />}` at `CodeBlock.tsx:19` | `{copied && <span role=\"status\">Copied</span>}` | The confirmation is silent for screen readers |",
+      "why": "near miss: a status role, but mounted together with its first message, so nothing is announced"
+    },
+    {
+      "answer": "Change the button's label while copied: `aria-label={copied ? \"Copied\" : \"Copy code\"}`. That tells screen reader users it worked.",
+      "why": "only swaps the aria-label, no live region"
+    },
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` at `CodeBlock.tsx:18` | `aria-label=\"Copy code\"` | No accessible name |",
+      "why": "does not mention the silent confirmation"
+    }
+  ]
+}

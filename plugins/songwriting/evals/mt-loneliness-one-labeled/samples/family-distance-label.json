@@ -13,6 +13,10 @@
     },
     {
       "answer": "**The bed yawns on my side.** A verbal metaphor, family distance: close. Keep the distance in the verb; a closer image would tip into cliche."
+    },
+    {
+      "answer": "**The comparison:** evenings compared to the verb \"idle.\" This is a **verbal metaphor**, meaning the comparison sits in the verb. It's a medium-distance pairing: a stretch of time put next to an engine.",
+      "why": "label before the word distance"
     }
   ],
   "fail": [
@@ -34,6 +38,10 @@
     {
       "answer": "Rhymes for 'alone': phone, stone, known.",
       "why": "a different question"
+    },
+    {
+      "answer": "*The evenings idle in the drive.* A verbal metaphor that keeps its distance from cliche.",
+      "why": "distance with no label"
     }
   ]
 }

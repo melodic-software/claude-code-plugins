@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-mining-window-repository-setting
+description: 'review_mining_prs resolves from the team file and is reported with its layer; encode_policy is gone.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The answer reports review_mining_prs: 40 from docs/conventions/corrections.yaml and uses no encode policy.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify reviews My own review_mining_prs option is 30. The settings reader printed {"min_occurrences":2,"layer":"defaults","path":null,"ratchet_offer":{"value":true,"layer":"defaults","path":null},"review_mining_prs":{"value":40,"layer":"team","path":"docs/conventions/corrections.yaml"}}. How many pull requests does this run read, and where did that come from? This run has no forge access: the review-comments read''s output is in review-comments.jsonl, so read that file instead of calling the read. This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: reports-value-and-layer
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\b40\b)(?=[\s\S]*docs/conventions/corrections\.yaml)'
+    flags: 'i'
+    arm: 'both'
+  - name: no-encode-policy
+    type: 'regex'
+    pattern: 'encode_policy:'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

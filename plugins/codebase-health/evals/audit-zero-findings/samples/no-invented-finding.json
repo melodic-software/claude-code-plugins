@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Needs you: none\n\nNo findings. All claims verified as correct.",
+      "why": "clean prose"
+    },
+    {
+      "answer": "Needs you: none\n\n| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n\nNo findings.",
+      "why": "header-only table"
+    },
+    {
+      "answer": "| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| — | — | — | — | No findings | — |",
+      "why": "placeholder row"
+    },
+    {
+      "answer": "No errors or warnings. Severity column uses error/warning/info when a finding exists.",
+      "why": "severity words in prose"
+    },
+    {
+      "answer": "## Verified non-issues\n\n- README.md:7 Node 20+: package.json engines.node",
+      "why": "verified list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Severity | Category | File:Line | Description | Verification |\n|---|----------|----------|-----------|-------------|-------------|\n| 1 | info | doc-drift | `README.md:8` | Could mention npm ci | Read README |",
+      "why": "invented info row"
+    },
+    {
+      "answer": "1. **warning** · doc-drift · README.md:10: test folder could be named tests/",
+      "why": "invented list item"
+    },
+    {
+      "answer": "- error: config-drift in package.json, version not pinned",
+      "why": "invented config-drift"
+    }
+  ]
+}

@@ -3,6 +3,120 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.135.0] - 2026-11-01
+
+### Added
+
+- `scripts/check-round-codes.sh` flags a ledger id or session-shorthand term with no name beside it in a drafted round. The interview runs it before each terminal round is shown and keeps each round as `round-<N>.md` in the topic's memory slice.
+- The interview page shows a question's `context` field under Context, above the recommendation. `revise` takes `context`, and `add`, `add-round` and `revise` warn when a context carries no link, `file:line` or `judgment` label.
+- Eval cases `interview-context-unfamiliar-term-upstream` and `interview-coded-terms-round-answerable`.
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+- Eval cases `late-return-restates-every-open-question-in-full` and `held-question-release-restates-every-open-question-in-full`.
+
+- `/planning:interview` rounds group their questions under topic headers when a round spans several topics, and every round ends with an index table (`Q`, one-line recommendation, basis, main alternative) so the user can answer by exception or by topic.
+- A `discussing` register status: when the user asks to talk a question through, its row moves to `discussing`, and the question is asked again afterwards with the recommendation revised old → new → why. `scripts/check-open-questions.sh` accepts `discussing`, counts it in `open=` and exits 1 on it as it does on `open`.
+- A `Held:` line in the round header names each question held for an in-flight lookup and what it waits on. A held question gets its register row when the line first names it.
+- Every recommendation carries an `Origin:` line, and every alternative an `origin:` note: the user, a named source with its link, or new (ours).
+- A `question_pacing` user setting: `round` (default) or `single`, which asks the same frontier one question per message in the terminal lane.
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+- The `/planning:interview` page ends a round's first question with a round index table: `Q`, a one-line recommendation, the basis and the main alternative, one row per question not held for research.
+- The page's round header card shows a `Held:` line that names each question still held for research, from this round or an earlier one, and what it waits on.
+- `round.sh ensure-running --pacing` records the `question_pacing` setting as `meta.questionPacing`, and the page start command passes it. Under `single` pacing the session posts the round's questions one at a time, the page shows no round index, and each later question carries the `Held:` line.
+
+### Changed
+
+- `/planning:interview` opens every question with a `Context:` block holding what the decision rests on: the problem, what the source says or ships, what exists today and the gap, and each term defined inline, one claim per line with a link or `file:line` (or a `judgment` label). The one-line context cap is gone. `Basis:` names which Context sources the recommendation rests on, each alternative is its own bullet stating what it gains and what it costs, and an open question shown again keeps its Context, recommendation, basis and alternatives.
+- Rounds show every code with its plain name and define each session term inline in each question that uses it; `Checked against:` names constraints in words. Before the first decision question, the interview agrees a terminology matrix with the user, kept in the ledger's new `## Terminology matrix` section.
+- `/planning:audit-answers` hands each validator the question's Context block as the evidence the answer rested on.
+
+- `/planning:interview`: when a dispatched agent's or background task's output lands after a round was shown, the next message that presents a question ends with every open question in full, the changed one marked, in place of a one-line pointer for the untouched questions. Questions that do not wait on a pending result are still asked without waiting. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace.
+- `context/recommendation-basis.md`: the re-emit rule defers to the same contract when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user (recommendation-basis 3.0.0).
+
+- `/planning:wayfind` reads its container label from `tracker.config.container_label` in `<home>/work-items.yaml`, the convention home's work-items file, through the new `skills/wayfind/scripts/container-label.sh`. The script uses the plugin's own copies of the convention-home resolver and the YAML subset parser, so wayfind no longer needs `jq`. An absent or empty key still gives `work-map`, and a non-string value still stops wayfind with an `ERROR:` line. A repository whose binding is still the legacy root JSON file gets `work-map` from wayfind until it moves the binding under `tracker:` in `<home>/work-items.yaml`.
+
+### Fixed
+
+- With `--surface`, `check-open-questions.sh --procedure --brief` now fails a Brief that lost any line the page export writes, in every section but Decisions (which keeps its own count check): a dropped restated Problem, Goal, Constraints, Out-of-scope or Deferred line no longer passes.
+- It also fails a Brief whose Constraints hold a `Q<N>` line the export does not write there, such as a Decisions line repeated as a constraint.
+
+- The interview page's Notes panel keeps its send message (for example "Queued, Claude is busy") when a state push redraws the panel. Before, the message went blank as soon as the next push arrived, often before it could be read. "Queued, Claude is busy" drops off once Claude is no longer busy with the earlier wake. A failed send clears the message, and so does leaving the Notes panel.
+
+- The interview page keeps keyboard focus on a choice when a state push redraws the choices. Before, focus fell back to the page whenever Claude's next update arrived while a choice had focus, for example right after Answer again, so the arrow keys stopped moving between the choices.
+
+## [0.134.2] - 2026-11-01
+
+### Fixed
+
+- The interview's Gates block, in the first 20,000 bytes of its SKILL.md, now also states the confirmation gate and the Step 4 `--brief` Brief cross-check command, each pointing at its full rule. A compaction re-attaches only the start of a skill, so before this a compacted session could lose both gates ([#9864](https://github.com/melodic-software/claude-code-plugins/issues/9864)).
+
+## [0.134.1] - 2026-11-01
+
+### Fixed
+
+- `/planning:interview` names the `resolve-convention-home.sh` command in its EARS spoke and has it run before any `AGENTS.md`, `CLAUDE.md` or `authoring-formats/README.md` read for `acceptance_criteria_format`, so a repository whose pointer line names a non-default convention home gets its own format instead of the default path's.
+
+- `align.test.sh` now fails under `CI=true` when node is missing or when `align.js` skips for want
+  of playwright-core or a Chromium, as the UI suites already do, so a CI leg without a browser no
+  longer reports the page alignment check green. Local runs still skip green
+  ([#8498](https://github.com/melodic-software/claude-code-plugins/issues/8498)).
+
+## [0.134.0] - 2026-11-01
+
+### Added
+
+- The shared interview server now sends Claude a `fault-spike` event when 3 faults of one kind arrive within 300 seconds. The kinds are page `error`, `rejection` and `api` entries, plus the server's own 5xx answers. After one event, none follows for 600 seconds. The event carries only the server's counts: the fault kind, the count, the window and the threshold. It never carries a fault's message, source, route, fingerprint or pid. Claude handles it like a problem report: it diagnoses the spike and proposes a fix to the owner in the terminal ([#9975](https://github.com/melodic-software/claude-code-plugins/issues/9975)).
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+### Fixed
+
+- The interview's Step 4 Brief gate command now passes `--surface '<data_dir>'` on a page-surface run, so it runs the Intent and Decisions checks. SKILL.md, `context/loop.md` and the checklist template name the flag.
+- With `--surface`, `check-open-questions.sh --procedure --brief` now fails a Brief that lost a line the page export writes under its TLDR or Acceptance criteria.
+- It also fails a Brief whose Decisions repeat an export line or hold a `Q<N>` line the export does not write, such as a decision put back in an earlier form or contradicted by a second line.
+
+## [0.133.1] - 2026-10-31
+
+### Fixed
+
+- The interview surface now sets aside an accept when the session revises the recommendation the
+  user accepted. `reply --rec` and `revise --rec` set aside a counted accept or hedged accept
+  whose recommendation the revision changes, and record the accepted text. The question reads
+  open until the user accepts again: the page shows it as needing reconfirmation and quotes the
+  accepted text, and `export-ledger` writes an open row whose `aside::` names that text, never the
+  revised one. `import-ledger` restores such a row still set aside. Before this, the export and
+  the page recorded the revised text as the user's answer
+  ([#11584](https://github.com/melodic-software/claude-code-plugins/issues/11584)).
+
+## [0.133.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview product <idea>` stress-tests a product or feature idea one question at a time against twenty product principles and ends in a verdict; `/planning:prd` and `/planning:brainstorm` point to it.
+
+### Changed
+
+- `/planning:design` names `/user-interface:design` as the next step when the contract being designed is a UI component's props API.
+
+## [0.132.5] - 2026-10-31
+
+### Fixed
+
+- The interview page's Decide list now fades its top or bottom edge when rows are scrolled out of view past that edge. With every row in view, it shows no fade. The Rec row clamps to four lines, so a long recommendation no longer fills the list. When the clamp cuts the text, a Read all button opens the whole recommendation in a dialog ([#11649](https://github.com/melodic-software/claude-code-plugins/issues/11649)).
+
 ## [0.132.4] - 2026-10-31
 
 ### Fixed

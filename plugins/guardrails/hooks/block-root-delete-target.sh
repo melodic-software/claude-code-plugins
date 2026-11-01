@@ -61,6 +61,12 @@
 # is established. A decoder sink asks no path question: it is refused
 # outright.
 #
+# GIT CLEAN IS NOT JUDGED HERE. block-dangerous-git owns a forced `git clean`
+# and blocks it outside the exceptions that guard documents. This guard has no
+# `git clean` arm, so one guard decides the command; the name appears below
+# only in the refusal messages that tell the agent not to retry a delete with
+# it.
+#
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
 # remove what the find's start points hold, so each start point is judged as
@@ -744,7 +750,13 @@
 #     `builtin` is not in the launcher table. A literal directory is collapsed
 #     lexically, so `cd link/..` is read as `cd .`.
 #   * A difference from the user-level destructive-removal engine, on purpose:
-#     an unresolvable expansion is left alone rather than refused. Like the
+#     an unresolvable expansion is left alone rather than refused. This was
+#     measured (#9770): over one operator's recorded corpus, refusing an
+#     operand that still holds an expansion (`rm -rf "$X/build"`) fired on 900
+#     of 5,926 delete-shaped commands that this guard otherwise passed, and in
+#     at least 145 of them the target, with the value the command itself assigned
+#     substituted, sat inside an allowed root. A blocking check ships with zero
+#     false positives (ADR 0080), so the refusal stays out. Like the
 #     engine, the git toplevel itself, `.git`, another worktree's root and
 #     another session's scratchpad are refused even inside an allowed root,
 #     and every target is judged against the payload cwd's tree, so an
@@ -1023,7 +1035,7 @@ rdt_block() {
   outside-tree)
     printf -v msg '%s\n' \
       "BLOCKED: recursive delete of $target, outside the working tree, the temp directories, the session scratchpad and the roots in block_root_delete_target_allowed_roots." \
-      'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
+      'Fix: delete only strictly under one of those (put scratch work under the working tree, for example a gitignored .work/), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
       'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).'
     ;;
   protected-tree)
@@ -6026,63 +6038,91 @@ rdt_strip_tail_to() {
 
 # --- A variable the command itself sets to a literal --------------------------
 #
-# `S=/tmp/x; mkdir -p "$S/a"; rm -rf "$S"` deletes `/tmp/x`, so its operand is
+# `S=/tmp/x; mkdir -p "$S/a"; rm -rf $S` deletes `/tmp/x`, so its operand is
 # judged as `/tmp/x` through every arm below (`X=/ && rm -rf "$X"` is still a
-# root). The binding is read only when the command, blanks trimmed, OPENS with
+# root). The binding is read only from a statement, blanks trimmed, that is
 #   NAME=LITERAL SEP
-# with SEP one `&&`, `;` or newline, so the assignment runs first, in this
-# shell, every time; LITERAL is plain characters (RDT_LIT_CH), bare or wholly
-# quoted, not led by `-`. Nothing after it may change NAME: the rest of the
-# command holds no other `NAME=`, `NAME+=`, `NAME:=` or `NAME[`, and the command
-# holds no word or syntax that can set a variable out of sight
-# (RDT_LIT_FORBID_RE: a builtin that assigns by name, bash's or zsh's
-# (`foreach`, `vared`, `print -v`, `zparseopts`, `integer`, ...), a function
-# definition, arithmetic, a `{NAME}>` redirection). Every `$NAME` in the command is a whole
-# double-quoted word, `"$NAME"` or `"$NAME/..."` with a plain suffix inside the
-# quotes: an unquoted `$NAME` binds nothing, since an inherited IFS can split
-# it, and neither does `${NAME}`. Those words aside, the rest of the command
-# holds no quote, backslash, `$`, backtick, glob or brace character, so a
-# builtin can only be spelled the way RDT_LIT_FORBID_RE reads it. NAME is no
-# name the shell gives a meaning (RDT_LIT_SPECIAL_RE). Anything else binds
-# nothing, and the variable blocks as a bare variable (#9779).
+# with SEP one `&&`, `;` or newline, so it is an assignment of its own, not a
+# prefix to a command; LITERAL is plain characters (RDT_LIT_CH), bare or wholly
+# quoted, not led by `-`. The statement opens the command, or every statement
+# before it is joined by `;` or newline and holds no `&&`, `||`, `|`, `&`, `#`,
+# `<<`, `!`, `(`, `)`, `{`, `}`, quote, backslash, `$`, backtick or glob
+# character and no word that opens a compound command (RDT_LIT_RESERVED_RE), at
+# most RDT_LIT_MAX_STMTS of them: so the assignment runs, in this shell, before
+# anything after it, and no use of NAME comes before it. Nothing after it may
+# change NAME: the rest of the command holds no other `NAME=`, `NAME+=`,
+# `NAME:=` or `NAME[`, and the command holds no word or syntax that can set a
+# variable out of sight (RDT_LIT_FORBID_RE: a builtin that assigns by name,
+# bash's or zsh's (`foreach`, `vared`, `print -v`, `zparseopts`, `integer`,
+# ...), a function definition, arithmetic, a `{NAME}>` redirection). Every use
+# of NAME is a whole word, `$NAME`, `$NAME/...`, `${NAME}` or `${NAME}/...` with
+# a plain suffix, bare or wholly double-quoted. Those words aside, the rest of
+# the command holds no quote, backslash, `$`, backtick, glob or brace
+# character, so a builtin can only be spelled the way RDT_LIT_FORBID_RE reads
+# it. NAME is no name the shell gives a meaning (RDT_LIT_SPECIAL_RE). Anything
+# else binds nothing, and the variable blocks as a bare variable (#9779).
 # rdt_check_operand substitutes the literal only in the top-level parse, never
-# in a child shell's operand or a substitution body. Residual: a shell function
-# or alias the session defined before this command could still set NAME.
+# in a child shell's operand or a substitution body.
+# Residuals: a shell function or alias the session defined before this command
+# could still set NAME, or make it readonly so the assignment fails and the
+# next statement runs with the old value. And an unquoted use splits on IFS:
+# LITERAL holds no blank or glob character and the command cannot set IFS, but
+# an IFS set before the command runs (a BASH_ENV file holding `IFS=/`) splits
+# `$S` with S=/tmp/a into an empty word, `tmp` and `a`, so `rm -rf $S/x` would
+# delete relative to the working directory.
 RDT_LIT_CH='[A-Za-z0-9_.@%+,:/-]'
+RDT_LIT_RESERVED_RE='(^|[[:space:];])(if|then|elif|else|while|until|do|case|repeat)([[:space:];]|$)'
+RDT_LIT_MAX_STMTS=64
 RDT_LIT_FORBID_RE='(^|[^A-Za-z0-9_])(declare|typeset|local|readonly|export|set|shopt|setopt|alias|trap|printf|read|mapfile|readarray|eval|source|function|IFS|unset|for|select|getopts|let|wait|coproc|enable|compgen|foreach|vared|zparseopts|zstat|stat|integer|float|private|print|sysread|sysopen|strftime|zstyle|zformat|zregexparse|zselect|getln|zmodload|autoload)([^A-Za-z0-9_]|$)|(^|[;&|({[:space:]])\.([[:space:]]|$)|\(\)|\$\{!|<<<|\(\(|\$\[|\{[A-Za-z_][A-Za-z0-9_]*\}[<>]'
 RDT_LIT_SPECIAL_RE='^(_.*|.*PATH|.*path|BASH.*|ZSH.*|zsh.*|LC_.*|COMP.*|READLINE.*|HIST.*|hist.*|PROMPT.*|prompt|R?PS[0-9]|dis_.*|IFS|HOME|PWD|OLDPWD|ENV|SHELL|SHELLOPTS|SHLVL|POSIXLY_CORRECT|GLOBIGNORE|EXECIGNORE|FIGNORE|fignore|TMPDIR|TMPPREFIX|DIRSTACK|dirstack|FUNCNAME|FUNCNEST|GROUPS|UID|EUID|GID|EGID|PPID|RANDOM|SRANDOM|SECONDS|LINENO|EPOCHSECONDS|EPOCHREALTIME|epochtime|OPTARG|OPTIND|REPLY|reply|MAPFILE|mapfile|PIPESTATUS|pipestatus|status|argv|ARGC|ARGV0|ERRNO|errnos|signals|options|parameters|commands|functions|aliases|builtins|modules|history|historywords|jobstates|jobtexts|jobdirs|nameddirs|userdirs|funcstack|funcfiletrace|funcsourcetrace|functrace|match|mbegin|mend|MATCH|MBEGIN|MEND|psvar|watch|sysparams|langinfo|terminfo|termcap|widgets|keymaps|patchars|reswords|USERNAME|LOGNAME|TTY|HOST|HOSTNAME|NULLCMD|READNULLCMD|TRY_BLOCK_ERROR|TRY_BLOCK_INTERRUPT|WORDCHARS|ZDOTDIR|LANG|TERM|TMOUT)$'
 RDT_LIT_NAME=""
 RDT_LIT_VAL=""
-rdt_lit_shape() {
-  local c="$COMMAND" ch="$RDT_LIT_CH" lit n t re
+# rdt_lit_bind <text>: binds RDT_LIT_NAME and RDT_LIT_VAL when <text> opens
+# with the assignment statement and the rest of it keeps NAME as assigned.
+rdt_lit_bind() {
+  local c="$1" ch="$RDT_LIT_CH" lit n t u re
   lit="(${ch}+|'${ch}+'|\"${ch}+\")"
   re="^([A-Za-z_][A-Za-z0-9_]*)=${lit}[[:blank:]]*(&&|;|"$'\n'")"
-  c="${c#"${c%%[![:space:]]*}"}"
-  c="${c%"${c##*[![:space:]]}"}"
-  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE && "$c" =~ $re ]] || return 0
+  [[ "$c" =~ $re ]] || return 1
   n="${BASH_REMATCH[1]}"
   lit="${BASH_REMATCH[2]}"
   t="${c#"${BASH_REMATCH[0]}"}"
-  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 0
-  # The opening assignment is the only one.
+  [[ "$n" =~ $RDT_LIT_SPECIAL_RE ]] && return 1
+  # This assignment is the last one.
   re="(^|[^A-Za-z0-9_])${n}(\\[|\\+?=|:=)"
-  [[ "$t" =~ $re ]] && return 0
-  # Every `$NAME` is a whole double-quoted word. Each one found is replaced by
-  # a blank, keeping the characters around it, so a neighbor still matches.
-  re="(^|[[:space:];&|(])\"\\\$${n}(/${ch}*)?\"([[:space:];&|)]|\$)"
+  [[ "$t" =~ $re ]] && return 1
+  # Every use of NAME is a whole word. Each one found is replaced by a blank,
+  # keeping the characters around it, so a neighbor still matches.
+  u="\\\$(${n}|\\{${n}\\})(/${ch}*)?"
+  re="(^|[[:space:];&|(])(\"${u}\"|${u})([[:space:];&|)]|\$)"
   while [[ "$t" =~ $re ]]; do
-    t="${t/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]} ${BASH_REMATCH[3]}"}"
+    t="${t/"${BASH_REMATCH[0]}"/"${BASH_REMATCH[1]} ${BASH_REMATCH[7]}"}"
   done
   # What is left reads as bash reads it: no quote, escape, expansion, glob or
   # brace that could spell a builtin RDT_LIT_FORBID_RE names some other way
   # (`pri''ntf`, `rea\d`, `${P}ntf`, `builtin pri?tf`) or write NAME inside an
   # array subscript or `[[ ]]`. A `$NAME` this loop did not take is caught too.
-  [[ "$t" == *[\\\'\"\$\`*?[{}]* ]] && return 0
+  [[ "$t" == *[\\\'\"\$\`*?[{}]* ]] && return 1
   [[ "$lit" == [\'\"]* ]] && lit="${lit:1:${#lit}-2}"
   # A value rm would read as an option is not a path.
-  [[ "$lit" == -* ]] && return 0
+  [[ "$lit" == -* ]] && return 1
   RDT_LIT_NAME="$n"
   RDT_LIT_VAL="$lit"
+}
+rdt_lit_shape() {
+  local c="$COMMAND" stmt re i
+  re="^[^;"$'\n'"]*[;"$'\n'"][[:space:]]*"
+  c="${c#"${c%%[![:space:]]*}"}"
+  c="${c%"${c##*[![:space:]]}"}"
+  [[ "$TOOL_NAME" != "PowerShell" && ! "$c" =~ $RDT_LIT_FORBID_RE ]] || return 0
+  for ((i = 0; i <= RDT_LIT_MAX_STMTS; i++)); do
+    rdt_lit_bind "$c" && return 0
+    # Step over one statement that can neither skip nor hide what follows.
+    [[ "$c" =~ $re ]] || return 0
+    stmt="${BASH_REMATCH[0]}"
+    [[ "$stmt" == *[\&\|#\(\)\\\'\"\$\`*?[{}!]* || "$stmt" == *'<<'* || "$stmt" =~ $RDT_LIT_RESERVED_RE ]] && return 0
+    c="${c#"$stmt"}"
+  done
 }
 rdt_lit_shape
 
@@ -6095,6 +6135,7 @@ rdt_check_operand() {
   if [[ -n "$RDT_LIT_NAME" ]] && ((rdt_depth == 1 && rdt_in_subst == 0)); then
     case "$w" in
     "\$$RDT_LIT_NAME" | "\$$RDT_LIT_NAME"/*) w="$RDT_LIT_VAL${w#"\$$RDT_LIT_NAME"}" ;;
+    "\${$RDT_LIT_NAME}" | "\${$RDT_LIT_NAME}"/*) w="$RDT_LIT_VAL${w#"\${$RDT_LIT_NAME}"}" ;;
     *) ;;
     esac
   fi
@@ -6614,6 +6655,24 @@ for rdt_b in $'\002' $'\003' $'\004' $'\005' $'\006' $'\007' $'\010' $'\013' \
     break
   fi
 done
+# 1 while a literal `$` reaches the command as written; 0 inside text that an
+# expanding outer string handed to rdt_ps_nested, where `"... '$env:TEMP'"`
+# expanded `$env:TEMP` before the inner single quotes were read. 0 throughout
+# when the command holds a quoting form rdt_ps_walk does not read (a `<#` block
+# comment, an `@"` or `@'` here-string, a byte outside ASCII, which may be a
+# quote character, or a `$(` or `${` alongside a `"`, since a `$( ... )` inside
+# a double-quoted string is a full script whose own quotes do not close the
+# string, and a `${name}` inside one reads its name to the first `}`, past any
+# `"`, while the walk closes the string at the next `"`): the walk can then be
+# out of step with PowerShell's, and a `$` it marks literal may sit inside a
+# string PowerShell expands.
+rdt_ps_lit_kept=1
+# shellcheck disable=SC2329  # invoked through hook::_c_locale
+rdt_ps_quote_gap() {
+  [[ "$COMMAND" == *'<#'* || "$COMMAND" == *'@"'* || "$COMMAND" == *"@'"* || "$COMMAND" == *[![:ascii:]]* ]] ||
+    [[ ( "$COMMAND" == *\$\(* || "$COMMAND" == *\$\{* ) && "$COMMAND" == *'"'* ]]
+}
+hook::_c_locale rdt_ps_quote_gap && rdt_ps_lit_kept=0
 
 # rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
 # when the token is not a unique prefix of one. Token includes the leading
@@ -6695,11 +6754,12 @@ rdt_ps_cmd_split_to() {
 # as RDT_PS_LIT (#6626). A word whose every `$` is literal is judged as the
 # path it names (provenance 4), after a trailing Win32 stream suffix
 # (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is dropped, because that
-# suffix names the file or directory before it. That literal reading only
-# ADDS a judgment: the word is still judged the way it was before #6626, with
-# every `$` read as an expansion, so a target refused then (`'$env:TEMP'`,
-# `'$HOME\x'`) is refused still. A word holding any `$` PowerShell expands is
-# read only the old way.
+# suffix names the file or directory before it. Such a word is read only that
+# way, so `'$env:TEMP'` and `'$HOME\x'` name the paths they spell, unless an
+# expanding outer string held it (rdt_ps_lit_kept is 0): then it is also judged
+# with every `$` read as an expansion, since the outer string expanded them
+# before the inner single quotes were read. A word holding any `$` PowerShell
+# expands is read only as an expansion.
 rdt_ps_operand() {
   local w="$1" lit="" re_stream
   [[ -z "$RDT_PS_LIT" && "$w" == *'$'* ]] && rdt_block "control-bytes" "$w"
@@ -6713,6 +6773,10 @@ rdt_ps_operand() {
         [[ "$lit" =~ ^[A-Za-z]$ ]] && lit+=":"
       fi
       lit="${lit//"$RDT_PS_LIT"/\$}"
+      if ((rdt_ps_lit_kept)); then
+        rdt_check_operand "$lit" 4
+        return 0
+      fi
     fi
     w="${w//"$RDT_PS_LIT"/\$}"
   fi
@@ -6886,9 +6950,10 @@ rdt_ps_ri_check() {
       *) ;;
       esac
     else
-      # Matched with every `$` as written, literal or not, as before #6626.
+      # A literal `$(` (`'$(x)'`) names a path, not a subexpression, unless an
+      # expanding outer string held it (rdt_ps_operand).
       __vm="$__v"
-      [[ -n "$RDT_PS_LIT" ]] && __vm="${__v//"$RDT_PS_LIT"/\$}"
+      [[ -n "$RDT_PS_LIT" ]] && ((!rdt_ps_lit_kept)) && __vm="${__v//"$RDT_PS_LIT"/\$}"
       case "$__vm" in
       /s | /s/q | /q/s | /sq | /qs) ;;
       '('* | '$('*) rdt_block "pipeline-target" "$__vm" ;;
@@ -7227,10 +7292,16 @@ rdt_ps_call_arg() {
 # rdt_ps_nested <text>: PowerShell text a statement runs (an Invoke-Expression
 # string, a pwsh -Command, a decoded -EncodedCommand), walked as statements of
 # its own. A `$` the outer walk read as literal is a `$` again here, because the
-# text expands it when it runs. Nesting depth and the text read in total are
-# bounded as eval and child shells are in the Bash lane, and the bound refuses.
+# text expands it when it runs. Nested text is always also read as an expansion
+# (rdt_ps_lit_kept is 0 for its walk): it may come from an expanding string,
+# which expanded a `$` single-quoted inside it already, and the outer string's
+# escapes are gone from it, so it can hold a quoting form rdt_ps_quote_gap never
+# saw in the command (`` <`# `` becomes `<#`, `` @`" `` becomes `@"`). Decoded
+# -EncodedCommand text is read the same way, which only refuses more. Nesting depth
+# and the text read in total are bounded as eval and child shells are in the
+# Bash lane, and the bound refuses.
 rdt_ps_nested() {
-  local __t="$1"
+  local __t="$1" rdt_ps_lit_kept=0
   [[ -n "$RDT_PS_LIT" ]] && __t="${__t//"$RDT_PS_LIT"/\$}"
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"

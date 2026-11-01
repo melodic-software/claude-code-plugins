@@ -3,6 +3,51 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-11-01
+
+### Added
+
+- `/review:explain-change` digest pages take the digest's title as their `<title>`, so a published digest is named for its change, not "Change Digest".
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5).
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+### Changed
+
+- `/review:fanout`: when a surface returns after findings were presented for a decision and before the user answers, the next message that presents findings ends with every open finding in full, per `docs/contracts/async-round-presentation/README.md` in the marketplace.
+
+## [2.1.1] - 2026-11-01
+
+### Fixed
+
+- The `code-reviewer`, `brief-reviewer`, `ci-log-auditor`, `doc-drift-detector` and
+  `architecture-guardian` agents no longer claim their `model: opus` pin always reviews on a model
+  at least as capable as the one that produced the work. The pin is stated as this repository's
+  choice to keep judgment fan-out off the frontier tier, and each points at the subagent model
+  order for what it resolves to. The pins are unchanged.
+  `fanout` run-everything mode points at the values the Agent `model` parameter takes and labels
+  the cross-vendor reviewer as this repository's design choice, and `quality-gate` downstream mode
+  points at the subagent nesting rule ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+- Two eval cases check that `setup apply` passes a key the operator accepts at the plugin default as
+  `--default <key>`, and a value the operator chose as `<key>=<value>` even when it equals the
+  default, and that the written file records `default` or `chosen` to match.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer, so `ratchet_offer`, `downstream_probe` and `fanout_diversity` fall back to their defaults for that session. Update everyone sharing a repository before anyone
+  writes the file.
+
 ## [2.0.8] - 2026-10-31
 
 ### Changed

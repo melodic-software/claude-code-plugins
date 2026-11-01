@@ -10,11 +10,16 @@ git config user.name eval
 
 printf '.work/\n' >.gitignore
 printf '# widget\n\nA small widget library.\n' >README.md
-mkdir -p docs
+mkdir -p docs/conventions
 printf '# Setup\n\nInstall with:\n\n    pip install widgit\n' >docs/setup.md # spellchecker:disable-line
-cat >.work-item-tracker.json <<'JSON'
-{"schema_version": "1.0", "provider": "local-markdown", "config": {"lease_ttl_hours": 24, "storage_dir": ".work-items"}}
-JSON
+cat >docs/conventions/work-items.yaml <<'YAML'
+tracker:
+  schema_version: "1.0"
+  provider: local-markdown
+  config:
+    lease_ttl_hours: 24
+    storage_dir: .work-items
+YAML
 
 mkdir -p .work-items
 # spellchecker:off

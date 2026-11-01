@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "**Blocked.**\n\n## accessibility\n\n| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` with only an icon at `CodeBlock.tsx:17` | `<button aria-label=\"Copy code\" onClick={copy}>` | Screen readers announce \"button\" with no name (`accessibility`); verified from code |",
+      "why": "the report table with its four columns in order"
+    },
+    {
+      "answer": "Blocked\n\n|Severity|Before|After|Why|\n|---|---|---|---|\n|Important|icon swap only|`role=\"status\"` region|No one hears the copy succeed|",
+      "why": "the same header written without spaces"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Blocked.**\n\n| Severity | Issue | Fix |\n| --- | --- | --- |\n| Blocking | The copy button has no name | `aria-label=\"Copy code\"` |",
+      "why": "near miss: a severity table, but without the Before, After and Why columns"
+    },
+    {
+      "answer": "**Blocked.**\n\n**Blocking**\n\nBefore: `<button onClick={copy}>`\nAfter: `<button aria-label=\"Copy code\" onClick={copy}>`\nWhy: the button has no accessible name.",
+      "why": "a stacked Before:/After: list instead of a table"
+    }
+  ]
+}

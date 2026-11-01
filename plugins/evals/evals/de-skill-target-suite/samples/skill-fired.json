@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design",
+            "args": "skill deploy-notes"
+          }
+        }
+      ],
+      "why": "qualified name, the shape real runs record"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        }
+      ],
+      "why": "after a sibling skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:validate"
+          }
+        }
+      ],
+      "why": "a sibling evals skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "the bundled design skill, not evals:design"
+    }
+  ]
+}

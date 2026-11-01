@@ -1,5 +1,5 @@
 ---
-description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money: FAIL for what the binary rejects at load, WARN for documented authoring mistakes, and an offline check of each deterministic grader against the case's sample answers. Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
+description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money: FAIL for what the binary rejects at load, WARN for documented authoring mistakes, and an offline check of each deterministic grader against the case's sample answers. Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator JSON eval format."
 argument-hint: "[eval-dir]"
 user-invocable: true
 disable-model-invocation: false
@@ -67,7 +67,8 @@ its header carries; this list follows them.
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two paid types, with no
 deterministic grader beside them), a tool in `allowed_tools` that the operator must grant with
-`--allow-tools`, `file_exists` in a case that requests no write tool (so nothing it could match is
+`--allow-tools`, a case naming a skill (leading `/<plugin>:<skill>` or a tag) whose SKILL.md has a
+pre-computed context line while `allowed_tools` lacks Bash, `file_exists` in a case that requests no write tool (so nothing it could match is
 ever created), and a `prompt.md` key the binary loads but the reference page does not list, which
 can change without notice (the script's `UNDOCUMENTED_PROMPT_KEYS`, under its own drift record).
 The judge-only rule is this skill's own pairing heuristic, not a rejection the binary makes; the
@@ -153,10 +154,10 @@ reads files and never invokes anything. `/evals:plugin-eval` preflight owns that
 
 ## Boundary
 
-This validator reads only the `prompt.md` / `case.yaml` / `graders/*.md` layout. The skill-creator
-`evals/evals.json` format belongs to `/skill-quality:check validate-evals <skill>` when the
-`skill-quality` plugin is installed; where it is not, that file goes unvalidated, since pointing
-this validator at an `evals.json` reports only that the directory holds no cases.
+This validator reads only the `prompt.md` / `case.yaml` / `graders/*.md` layout, the format
+`/evals:design` writes for a skill. Pointed at a skill-creator JSON eval file, it reports only that
+the directory holds no cases. Convert that file's cases to this layout (`/evals:design skill <name>`
+writes them), then validate the case directories.
 
 ## Next
 

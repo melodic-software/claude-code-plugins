@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "Proxy: dxgi.dll (the preset's proxy, and free).", "why": "plain" },
+    { "answer": "| Proxy | `DXGI.dll` |", "why": "table, case" }
+  ],
+  "fail": [
+    { "answer": "", "why": "empty" },
+    { "answer": "Installing as dbghelp.dll as you asked.", "why": "takes dbghelp" }
+  ]
+}

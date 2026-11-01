@@ -18,11 +18,10 @@ invocation:
 - Uncommitted .md files (sample, first 10; empty = none matched or the probe returned nothing), `git status --porcelain | grep -E '\.md"?$' | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+bounds nothing: the Bash tool returns the full output into context before anything can be decided.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+separate body Bash calls, not pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
 contains git. The dated record for that composition claim is the
 [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
@@ -30,16 +29,16 @@ contains git. The dated record for that composition claim is the
 
 ## Purpose
 
-Agent-facing instruction markdown, `CLAUDE.md`/`AGENTS.md`, `.claude/rules/`, skill/agent/command
-bodies, their bundled spokes, has a load cost set by its **tier**: always-loaded content is paid
+Agent-facing instruction markdown (`CLAUDE.md`/`AGENTS.md`, `.claude/rules/`, skill/agent/command
+bodies, their bundled spokes) has a load cost set by its **tier**: always-loaded content is paid
 every session, invocation-loaded content recurs for the rest of the session once triggered, and
-on-demand content is free until read. This skill audits both directions of that economy: content
-that should move DOWN a tier (split opportunities), and existing hub/spoke structures whose
-pointers no longer let an agent pull exactly the file it needs (structure defects). It is a
-read-only classifier: findings carry treatment guidance; the author applies every edit.
+on-demand content is free until read. This skill audits both directions: content that should move
+DOWN a tier (split opportunities), and hub/spoke structures whose pointers no longer let an agent
+pull exactly the file it needs (structure defects). It is a read-only classifier: findings carry
+treatment guidance; the author applies every edit.
 
-Full tier tables, official numbers, split triggers, and pointer-quality criteria: read
-[context/tier-model.md](context/tier-model.md) when adjudicating any finding that needs the exact
+Read [context/tier-model.md](context/tier-model.md) for the full tier tables, official numbers,
+split triggers, and pointer-quality criteria when adjudicating a finding that needs the exact
 threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborated vs community).
 
 ## Finding shapes and treatments
@@ -54,9 +53,9 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 | structure | `deep-nesting` | Spoke-to-spoke chain, required reading more than one level from the hub (documented partial-read failure) | 2; 1 when the chain is the only path to required content | Re-link the deep target directly from the hub, or flatten |
 | structure | `missing-toc` | Reference file >300 lines with no TOC = definite; 100–300 lines with none = awareness only, citing the source conflict on the TOC threshold | 1 (>300) / 3 (100–300) | Add a TOC at top (or a grep recipe for lookup-shaped content) |
 
-Thresholds are advisory and tier-calibrated, never hard gates; consuming repos refine them via
-their own `CLAUDE.md` / rules. There is deliberately **no** "should have spokes" shape: disclosure
-is a scaling tool, and a small single-file skill is never flagged for lacking spokes.
+Thresholds are advisory and tier-calibrated, never hard gates; consuming repos refine them in
+their own `CLAUDE.md` / rules. There is deliberately **no** "should have spokes" shape: a small
+single-file skill is never flagged for lacking spokes.
 
 ## Action router
 
@@ -65,17 +64,16 @@ is a scaling tool, and a small single-file skill is never flagged for lacking sp
 | `<target>` (default) | empty → uncommitted `.md` files from git; file path → single file; dir path → recursive batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on the targets; map its facts onto the shapes table via the judgment rules below |
 | `audit [target]` | same target rules | explicit form of the default; same behavior |
 
-One action. Author hand-edits driven by audit output cover the workflow.
+One action; the author hand-edits from the audit output.
 
-**Facts vs judgment.** `detect.sh` is a fact emitter, not an adjudicator: it emits per-file size
-and heading facts, load-tier classification (path + frontmatter heuristic; `unknown` is yours to
-classify), a pointer inventory with source-line context, orphan-spoke records, and spoke-to-spoke
-`chain` records. The judgment layer owns: concern-mixing (from the heading census + content),
-whole-conversation relevance of always-loaded sections, when-clause quality (a `pointer` record's
-`ctx` shows the surrounding line. Judge whether it carries a condition and intent), and whether a
-`chain` is a required reading path (finding) or a legitimate cross-reference (not one). In a repo
-with no Claude Code configuration the tier model degrades gracefully: most files classify
-on-demand/unknown and the split lane still applies.
+**Facts vs judgment.** `detect.sh` emits facts, not verdicts: per-file size and heading facts,
+load-tier classification (path + frontmatter heuristic; `unknown` is yours to classify), a pointer
+inventory with source-line context, orphan-spoke records, and spoke-to-spoke `chain` records. The
+judgment layer owns: concern-mixing (from the heading census + content), whole-conversation
+relevance of always-loaded sections, when-clause quality (judge whether a `pointer` record's `ctx`,
+the surrounding line, carries a condition and intent), and whether a `chain` is a required reading
+path (finding) or a legitimate cross-reference (not one). In a repo with no Claude Code
+configuration most files classify on-demand/unknown and the split lane still applies.
 
 ## Auto-detect default
 
@@ -104,10 +102,10 @@ sibling divergences it owns.
   `## Descriptions`); the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
   compaction re-attach budgets) are cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
-  than trusted. Consensus language is reserved for independently corroborated claims;
-  community-sourced signals are labeled as such and stay advisory.
+  than trusted. Reserve consensus language for independently corroborated claims; label
+  community-sourced signals as such and keep them advisory.
 - **Small-corpus guard.** Never flag a file for NOT using progressive disclosure when its content
-  fits comfortably at its tier; splitting a 60-line file buys nothing.
+  fits comfortably at its tier.
 - **Skip surfaces.** `CHANGELOG.md`, `evals/fixtures/`, `vendor/` trees, YAML frontmatter, and
   fenced code blocks are never findings surfaces.
 - **Ownership check.** Before proposing any treatment, grep the repo for the target path near
@@ -136,8 +134,7 @@ sibling divergences it owns.
 ```
 
 `upstream` is a disposition shown in the Treatment cell, not a tier: a Tier 1/2 finding on an
-upstream-owned file keeps its tier. A Tier 3 row's Treatment cell is only `awareness only` and
-never carries a treatment.
+upstream-owned file keeps its tier. A Tier 3 row's Treatment cell is only `awareness only`.
 
 Batch aggregate at end:
 
@@ -159,16 +156,16 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 - Ownership is usually stated outside the audited targets. A file that looks local may be synced
   or vendored; grep the repo, not just the target.
-- The SKILL.md line cap and the 200-line CLAUDE.md target are **ceilings, not targets**; we treat *approaching* the cap as the split
-  trigger, and a well-split hub sits far below it (about 30 lines is common). Size alone under the
-  cap never fires `oversize`.
+- The SKILL.md line cap and the 200-line CLAUDE.md target are **ceilings, not targets**; *approaching*
+  the cap is the split trigger, and a well-split hub sits far below it (about 30 lines is common).
+  Size alone under the cap never fires `oversize`.
 - Invocation-loaded is **cheap to have, not cheap to use**: once a skill body loads, every line
-  recurs for the session, so mutually-exclusive content inside one body defeats the tier and
-  fires `mixed-concerns` even when the file is "small enough".
+  recurs for the session, so mutually-exclusive content inside one body fires `mixed-concerns`
+  even when the file is "small enough".
 - A `chain` record is a candidate, not a verdict. Sibling cross-references between spokes that
   are alternates (not required reading) are legitimate.
 - An unresolved pointer (`resolved=no`) is upstream breakage worth surfacing, but rename sweeps
-  belong to `/docs-hygiene:rename-references`, not here.
+  belong to `/docs-hygiene:rename-references`.
 - The TOC bands exist because two Anthropic sources disagree on the TOC threshold (the Agent
   Skills best-practices page and skill-creator, both under Sources); never present either source's
   number as the single official rule.

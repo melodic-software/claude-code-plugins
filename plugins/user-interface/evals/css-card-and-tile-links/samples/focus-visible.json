@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".card-cta:focus-visible, .tile-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }",
+      "why": "each link keeps its own ring"
+    },
+    {
+      "answer": ".tile-link:focus-visible { outline: 2px solid transparent; }\n.tile:has(.tile-link:focus-visible) { outline: 2px solid currentColor; outline-offset: 2px; }",
+      "why": "the tile draws the ring, the link's own made transparent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".tile-link:focus { outline: none; }",
+      "why": "ring removed with no replacement"
+    },
+    {
+      "answer": ".card-cta:focus-visible { outline: 2px solid currentColor; }\n.tile-link:focus-visible { outline: 0; }",
+      "why": "near miss: the card link keeps a ring, the tile link loses it"
+    }
+  ]
+}

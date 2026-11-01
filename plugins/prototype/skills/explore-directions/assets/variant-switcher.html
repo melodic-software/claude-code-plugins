@@ -8,13 +8,20 @@
   data-state, which component libraries (Radix, Headless UI) set on their own open/closed parts.
   Keys 1-N and the left and right arrows switch variants (wrapping around), the state button and
   the up and down arrows step through the current variant's states (wrapping around, kept across a
-  variant switch), R replays the current variant's entrance, and keys are ignored while a field has
-  focus or a modifier is held. The up and down arrows still scroll the page when the variant has
-  fewer than two states. The switcher keeps what it shows in memory only, so the page works from
-  file:// under the mockup's CSP (inline style and script, nothing remote). It reads the variant
-  and state elements once, when it runs, so render them before it: in the markup or a plain
-  inline script above it, never a module script or a DOMContentLoaded listener. Add
-  data-position="top" to the nav when a variant occupies the bottom center.
+  variant switch), R replays the current variant's entrance, W flips demo and worst content, S
+  steps the motion speed, and keys are ignored while a field has focus or a modifier is held. The
+  up and down arrows still scroll the page when the variant has fewer than two states. The
+  switcher keeps what it shows in memory only, so the page works from file:// under the mockup's
+  CSP (inline style and script, nothing remote). It reads the variant and state elements once,
+  when it runs, so render them before it: in the markup or a plain inline script above it, never a
+  module script or a DOMContentLoaded listener. Add data-position="top" to the nav when a variant
+  occupies the bottom center.
+  Worst content: mark the ordinary set data-content-set="demo" and the breaking set
+  data-content-set="worst"; the Demo/Worst button appears only when the page has both, and a script
+  that renders content reads document.documentElement.dataset.vsContent ("demo" or "worst").
+  Replay and the speed button appear only when a variant declares a CSS animation or transition, or
+  carries data-motion. Speed slows CSS animations, CSS transitions and Web Animations; motion a
+  script drives frame by frame (requestAnimationFrame, timers) is not slowed.
   Switching and replay remount a variant from a copy of its markup, so listeners attached to
   elements inside it are lost: wire variant interactions with listeners delegated from document.
   Chrome, not a contestant: leave its look alone.
@@ -26,8 +33,10 @@
   <button type="button" class="vs-item vs-step" data-step="1" aria-label="Next variant">&rarr;</button>
   <span class="vs-divider vs-state-part" aria-hidden="true"></span>
   <button type="button" class="vs-item vs-state vs-state-part"></button>
-  <span class="vs-divider" aria-hidden="true"></span>
-  <button type="button" class="vs-item vs-replay" aria-label="Replay the variant (R)">&#8635;</button>
+  <span class="vs-divider vs-extra" aria-hidden="true"></span>
+  <button type="button" class="vs-item vs-extra vs-content" aria-pressed="false" aria-label="Show worst content (W)">Demo</button>
+  <button type="button" class="vs-item vs-extra vs-speed" aria-label="Motion speed (S)">1&times;</button>
+  <button type="button" class="vs-item vs-extra vs-replay" aria-label="Replay the variant (R)">&#8635;</button>
 </nav>
 <style>
   .vs {
@@ -48,7 +57,7 @@
     user-select: none;
     -webkit-user-select: none;
   }
-  .vs[hidden] { display: none; }
+  .vs[hidden], .vs [hidden] { display: none; }
   .vs[data-position="top"] { inset-block-end: auto; inset-block-start: 24px; }
   .vs-items { display: contents; }
   .vs-highlight {
@@ -76,6 +85,7 @@
     background: transparent;
     color: rgb(255 255 255 / 0.6);
     font: inherit;
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: color 150ms ease-out;
   }
@@ -83,11 +93,12 @@
     .vs-item:hover { color: rgb(255 255 255 / 0.9); }
   }
   .vs-item:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); outline-offset: 2px; }
-  .vs-item[aria-current="true"] { color: #fff; }
+  .vs-item[aria-current="true"], .vs-item[aria-pressed="true"] { color: #fff; }
   .vs-divider { inline-size: 1px; block-size: 16px; margin: 0 4px; background: rgb(255 255 255 / 0.14); }
   .vs-state { color: #fff; }
-  .vs-state-part[hidden] { display: none; }
   [data-variant][hidden], [data-screen-state][hidden] { display: none !important; }
+  :root:not([data-vs-content="worst"]) [data-content-set="worst"],
+  :root[data-vs-content="worst"] [data-content-set="demo"] { display: none !important; }
 </style>
 <script>
   (() => {
@@ -96,10 +107,29 @@
     const highlight = nav.querySelector(".vs-highlight");
     const stateButton = nav.querySelector(".vs-state");
     const stateParts = nav.querySelectorAll(".vs-state-part");
+    const contentButton = nav.querySelector(".vs-content");
+    const speedButton = nav.querySelector(".vs-speed");
+    const replayButton = nav.querySelector(".vs-replay");
     const variants = [...document.querySelectorAll("[data-variant]")];
     if (variants.length === 0) { nav.hidden = true; return; }
+    const root = document.documentElement;
+    const speeds = [1, 0.5, 0.25];
     let current = 0;
     let stateKey = null;
+    let speed = 0;
+
+    const hasContent = !!document.querySelector('[data-content-set="demo"]') && !!document.querySelector('[data-content-set="worst"]');
+    const hasMotion = variants.some((v) => v.matches("[data-motion]") || v.querySelector("[data-motion]") ||
+      [v, ...v.querySelectorAll("*")].some((el) => {
+        const s = getComputedStyle(el);
+        return s.animationName.split(",").some((n) => n.trim() !== "none") ||
+          s.transitionDuration.split(",").some((d) => Number.parseFloat(d) > 0);
+      }));
+    contentButton.hidden = !hasContent;
+    speedButton.hidden = !hasMotion;
+    replayButton.hidden = !hasMotion;
+    nav.querySelector(".vs-divider.vs-extra").hidden = !hasContent && !hasMotion;
+    root.dataset.vsContent = "demo";
 
     const items = variants.map((v, i) => {
       const b = document.createElement("button");
@@ -116,11 +146,28 @@
       highlight.style.transform = `translateX(${el.offsetLeft}px) scaleX(${el.offsetWidth / 100})`;
     }
 
+    // Applies the speed to every running animation outside the switcher itself.
+    function applySpeed() {
+      for (const a of document.getAnimations()) {
+        const target = a.effect && a.effect.target;
+        if (target && nav.contains(target)) continue;
+        if (a.playbackRate !== speeds[speed]) a.playbackRate = speeds[speed];
+      }
+    }
+
+    // Animations created later start at full speed, so a slowed page re-applies the speed each frame.
+    function watchSpeed() {
+      if (speeds[speed] === 1) return;
+      applySpeed();
+      requestAnimationFrame(watchSpeed);
+    }
+
     // Replacing the element with a fresh copy restarts its entrance animations.
     function remount(i) {
       const fresh = variants[i].cloneNode(true);
       variants[i].replaceWith(fresh);
       variants[i] = fresh;
+      if (speeds[speed] !== 1) applySpeed();
     }
 
     // Queried on each use, since remounting replaces the state elements.
@@ -163,9 +210,27 @@
       place();
     }
 
+    function flipContent() {
+      const worst = root.dataset.vsContent !== "worst";
+      root.dataset.vsContent = worst ? "worst" : "demo";
+      contentButton.textContent = worst ? "Worst" : "Demo";
+      contentButton.setAttribute("aria-pressed", String(worst));
+      replay();
+    }
+
+    function stepSpeed() {
+      const wasSlow = speeds[speed] !== 1;
+      speed = (speed + 1) % speeds.length;
+      speedButton.textContent = `${speeds[speed]}×`;
+      applySpeed();
+      if (!wasSlow) watchSpeed();
+    }
+
     nav.querySelectorAll(".vs-step").forEach((b) => b.addEventListener("click", () => show(current + Number(b.dataset.step))));
     stateButton.addEventListener("click", () => stepState(1));
-    nav.querySelector(".vs-replay").addEventListener("click", replay);
+    replayButton.addEventListener("click", replay);
+    contentButton.addEventListener("click", flipContent);
+    speedButton.addEventListener("click", stepSpeed);
     window.addEventListener("resize", place);
 
     document.addEventListener("keydown", (e) => {
@@ -178,7 +243,9 @@
       else if (e.key === "ArrowLeft") show(current - 1);
       else if (e.key === "ArrowDown") { if (!stepState(1)) return; }
       else if (e.key === "ArrowUp") { if (!stepState(-1)) return; }
-      else if (e.key === "r" || e.key === "R") replay();
+      else if ((e.key === "r" || e.key === "R") && hasMotion) replay();
+      else if ((e.key === "w" || e.key === "W") && hasContent) flipContent();
+      else if ((e.key === "s" || e.key === "S") && hasMotion) stepSpeed();
       else return;
       e.preventDefault();
     });

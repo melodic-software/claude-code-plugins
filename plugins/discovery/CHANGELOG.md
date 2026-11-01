@@ -1,5 +1,50 @@
 # Changelog: discovery plugin
 
+## [0.45.0] - 2026-11-01
+
+### Added
+
+- The bundled view builder (`lib/view-builder.mjs`) takes an optional `title` and writes it into the page's `<title>` as escaped plain text, with whitespace collapsed and the text cut to 80 characters (rendered-views rule 5). Pages built without one keep their template's title.
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+### Changed
+
+- `/discovery:research` and `/discovery:explore`: when dispatched work returns after open questions were shown and before the user answers, the next message that presents anything ends with every open question in full, per `docs/contracts/async-round-presentation/README.md` in the marketplace.
+
+## [0.44.1] - 2026-11-01
+
+### Fixed
+
+- The parent contract's deny-rule pointer now names the sub-agents section on disabling specific
+  subagents, and `discovery:researcher`'s `high` pin points at the section that says what overrides
+  it. The explorer agent points at where the built-in `Explore` model is stated instead of asserting it, the deep tier says
+  its `maxConcurrent` clamp is the plugin's own cap, and `setup` no longer says every env var waits
+  for the next session, and points at where a settings-file `env` value's timing is stated
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [0.44.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+## [0.43.1] - 2026-10-31
+
+### Changed
+
+- `/discovery:research` judges a practitioner source by proof of shipped work (something they built that people use), falls back to a hard-to-join employer, and never treats followers or likes as authority.
+
 ## [0.43.0] - 2026-10-31
 
 ### Added

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "const enter = { type: \"spring\", duration: 0.4, bounce: 0 };\nconst snapBack = { type: \"spring\", duration: 0.4, bounce: 0.2 };",
+      "why": "no bounce on the entrance, a little on release"
+    },
+    {
+      "answer": "const enter = { type: \"spring\", duration: 0.4, bounce: 0 };\nconst snapBack = enter;",
+      "why": "no bounce on either"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "const enter = { type: \"spring\", duration: 0.4, bounce: 0.3 };\nconst snapBack = { type: \"spring\", duration: 0.4, bounce: 0.3 };",
+      "why": "the event-driven entrance overshoots"
+    },
+    {
+      "answer": "const enter = { type: \"spring\", duration: 0.4, bounce: 0 };\nconst snapBack = { type: \"spring\", duration: 0.6, bounce: 0.5 };",
+      "why": "near miss: the release bounce is too large"
+    }
+  ]
+}

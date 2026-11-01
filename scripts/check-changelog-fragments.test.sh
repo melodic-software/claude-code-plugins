@@ -147,6 +147,22 @@ expect "--check rejects a ## heading in the body" 1 "would break the CHANGELOG s
 rm -rf "$f"
 
 base_fixture f alpha
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- a \`<!-- d5 finding=\` marker"
+fragment "$f" alpha feat-y-89abcdef patch "### Fixed
+
+- a \`<!-- d5 finding=<#> ... -->\` marker"
+expect "--check rejects an unclosed <!-- and passes a closed one" 1 "feat-x-0123abcd.md: <!-- is never closed with -->" "$f" --check
+out="$(run_gate "$f" --check 2>&1)"
+if [[ "$out" == *"feat-y-89abcdef.md: <!--"* ]]; then
+  fail "a closed <!-- ... --> should pass: $out"
+else
+  ok "a closed <!-- ... --> in a fragment passes"
+fi
+rm -rf "$f"
+
+base_fixture f alpha
 fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"
@@ -590,9 +606,9 @@ run_wrapped() { # <label> <want-rc> <needle> <status> <gh-rc> <want-reading>
   fi
 }
 run_wrapped "--check-required exempts verified Dependabot commits through the gh wrapper and records its reading" 0 \
-  "Dependabot-only change to plugins/alpha/" '200 OK' 0 "200 5000 4990 10 1900000000 core"
+  "Dependabot-only change to plugins/alpha/" '200 OK' 0 "200 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
 run_wrapped "--check-required does not exempt when the wrapped signature lookup fails" 1 \
-  "MISSING FRAGMENT" '404 Not Found' 1 "404 5000 4990 10 1900000000 core"
+  "MISSING FRAGMENT" '404 Not Found' 1 "404 5000 4990 10 1900000000 core repos/{repo}/commits/{sha}"
 rm -rf "$f"
 
 base_fixture f alpha

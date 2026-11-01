@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": ".page-header {\n  padding: 16px 24px;\n  border-bottom: 1px solid #e5e7eb;\n}\n",
+      "why": "border"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".page-header {\n  padding: 16px 24px;\n}\n",
+      "why": "unchanged"
+    }
+  ]
+}

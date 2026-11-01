@@ -3,6 +3,29 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-11-01
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+### Fixed
+
+- `batch-simplify` labels its routing fallbacks, `opus` for a frontier or unknown session model at
+  effort `medium` for simplifiers and the same model at `high` for repo-mode verifiers, as this
+  skill's stand-in for the `/multi-agent:route` role map, not an upstream default
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [0.34.1] - 2026-11-01
+
+### Fixed
+
+- The `acr-dir-batch-skips` eval case's `markdown-skipped` grader opened with Python's `\A`, which
+  the JavaScript engine that runs it reads as a literal `A`. It now opens with `(?<![\s\S])`, a
+  start-of-input anchor in both engines, so every sample passes or fails as it states.
+
+- The `acr-dir-batch-skips` eval's `markdown-skipped` grader now anchors at the start of the answer with `(?<![\s\S])` instead of `\A`. JavaScript, which runs the grader, reads `\A` as a literal `A`, so `/evals:validate` reported a FAIL for the case.
+
 ## [0.34.0] - 2026-10-31
 
 ### Changed

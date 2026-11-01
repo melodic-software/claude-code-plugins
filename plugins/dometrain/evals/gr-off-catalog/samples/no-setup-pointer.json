@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Use =SUMIFS(B:B, A:A, \"paid\").",
+      "why": "plain answer"
+    },
+    {
+      "answer": "## Formula\n\n**=SUMIF(A:A,\"paid\",B:B)**",
+      "why": "heading and bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Dometrain tools are not available; run /dometrain:setup. Meanwhile: =SUMIF(A:A,\"paid\",B:B)",
+      "why": "nags about setup"
+    },
+    {
+      "answer": "| Next | dometrain:setup |",
+      "why": "table form"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh list-items --state open"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n claim /p/skills/triage/SKILL.md"
+          }
+        }
+      ],
+      "why": "listing and a read of the skill"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/tools/work-item-tracker/work-item-tracker.sh claim \"local-markdown:local/markdown#1\" --phase triage"
+          }
+        }
+      ],
+      "why": "claims a listed item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "TRACKER=/p/tools/work-item-tracker/work-item-tracker.sh; \"$TRACKER\" claim \"$ID\" --phase triage"
+          }
+        }
+      ],
+      "why": "claims through variables"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/tools/work-item-tracker/adapters/local-markdown/claim.sh local-markdown:local/markdown#2"
+          }
+        }
+      ],
+      "why": "calls the adapter claim directly"
+    }
+  ]
+}

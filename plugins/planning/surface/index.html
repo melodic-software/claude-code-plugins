@@ -621,7 +621,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -641,14 +641,31 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const roundOf = q => (S.doc.rounds || []).find(x => (x.stage || "") === (q.stage || "") && x.round === (q.round || 1));
   const SWEEP = "Sweep: reconciling earlier answers";
   const sweepChip = q => (roundOf(q) || {}).kind === "sweep" ? '<span class="chip plain" title="' + SWEEP + '">Sweep</span>' : "";
-  function roundRestateCard(q){ // the round's restate, pinned above the round's first question
-    const stage = q.stage || "", round = q.round || 1, r = roundOf(q);
-    if (!r || !r.restate) return "";
-    const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
-    if (!first || first.id !== q.id) return "";
+  const roundQs = q => S.doc.questions.filter(x => (x.stage || "") === (q.stage || "") && (x.round || 1) === (q.round || 1)).sort(byIdCmp);
+  const roundHead = q => { const r = roundOf(q), first = roundQs(q)[0]; return r && r.restate && first && first.id === q.id ? r : null; }; // the round's header and index sit on its first question only
+  const single = () => (S.doc.meta || {}).questionPacing === "single";
+  function heldLine(q){ // every question of the stage still held for research, up to this round, and what each waits on
+    const held = S.doc.questions.filter(x => (x.stage || "") === (q.stage || "") && (x.round || 1) <= (q.round || 1) && stateOf(x) === "wait").sort(byIdCmp);
+    return held.length ? '<p id="roundHeld"><b>Held:</b> ' + held.map(x => refHtml(x.id) + " waiting on " + lineHtml(x.waitsOn || "research")).join("; ") + "</p>" : "";
+  }
+  function roundRestateCard(q){ // the round's restate, pinned above the round's first question, with the Held line; under single pacing every later question carries the Held line too
+    const r = roundHead(q), round = q.round || 1;
+    if (!r) { const hl = single() ? heldLine(q) : ""; return hl ? '<section class="blk roundrestate">' + hl + "</section>" : ""; }
     const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
     const head = r.kind === "sweep" ? SWEEP + " (round " + round + ")" : "Where round " + round + " starts";
-    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + mdHtml(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + mdHtml(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + heldLine(q) + "</section>";
+  }
+  function basisCell(q){ // the first sentence of the basis's first line past a bare outcome label, its inline markdown kept
+    const lines = String(q.basis || "").split("\n").map(s => s.replace(/^\s*(?:[-*>]\s*)+/, "").trim()).filter(Boolean);
+    const line = lines.find(s => !/^\**(?:basis\s*:\s*)?(?:verified|judgment)\**\s*[.:]?$/i.test(s)) || lines[0] || "";
+    return line.split(/(?<=[.!?])\s/)[0];
+  }
+  function roundIndex(q){ // closes the round's first question: one row per question asked now (a held one is on the Held line), so the user can answer by exception; single pacing has no index
+    const qs = roundHead(q) && !single() ? roundQs(q).filter(x => live(x) && !["prop", "wait"].includes(stateOf(x))) : [];
+    if (!qs.length) return "";
+    const alt = x => { const a = altsOf(x)[0]; return a ? "(" + a.key + ") " + a.text : ""; };
+    return '<section class="blk" id="roundIndex"><h4>Round index</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Q</th><th>Recommendation</th><th>Basis</th><th>Main alternative</th></tr></thead><tbody>' +
+      qs.map(x => "<tr><td>" + refHtml(x.id) + "</td><td>" + lineHtml(firstLine(x.recommendation)) + "</td><td>" + lineHtml(basisCell(x)) + "</td><td>" + lineHtml(alt(x)) + "</td></tr>").join("") + "</tbody></table></div></section>";
   }
   function reconcilesHtml(q){ // each earlier answer a sweep question reconciles, beside the question
     const ids = (q.reconciles || []).filter(id => Q[id]);
@@ -713,6 +730,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
+  function asideRec(q, d){ // the recommendation a set-aside accept was given against, when a revision set it aside (exporters.aside_rec)
+    const a = q.asideRecommendation;
+    return a && d && d.aside && a.decidedAt === d.updatedAt && (a.seq ?? null) === (d.seq ?? null) ? a.text : "";
+  }
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
@@ -802,6 +823,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
   function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
     const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
+    if (st === "open" && asideRec(q, decisionOf(q))) return "Reconfirm"; // a revised recommendation set the user's accept aside
     return LABEL[st] + (n ? ", " + n + " to confirm" : "");
   }
   const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
@@ -1430,6 +1452,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let facts = String(q.facts || "").replace(/\r/g, "");
     const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
     if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
+    if (String(q.context || "").trim()) h += '<section class="blk" id="qContext"><h4>Context</h4>' + mdHtml(q.context) + "</section>"; // what drives the decision, read before the recommendation
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' + // the Rec row under Decide carries the whole recommendation (#5815), so the card does not repeat it
       (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
     if (q.commits && q.commits.length) {
@@ -1450,7 +1473,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
       (more ? '<div class="dpanel" id="more" role="region" aria-labelledby="moreBtn"' + (moreOpen ? "" : " hidden") + ">" + more + "</div>" : "") + "</div>";
-    h += threadHtml(q);
+    h += roundIndex(q) + threadHtml(q);
     el.innerHTML = h;
     el.scrollTop = opts.top ? 0 : top;
     if (opts.animate) { el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter"); }
@@ -1472,7 +1495,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
     const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
-    $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
+    const was = asideRec(q, d);
+    $("cur").innerHTML = was // the accepted text changed: the earlier accept waits on the user's reconfirmation
+      ? '<span class="aside-why" id="reconfirm">Needs your reconfirmation: Claude revised the recommendation after you chose ' + LABEL[d.decision] + ". You accepted: <q>" + esc(trunc(was, 120)) + "</q>" + (d.text ? ", with the note <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ". It no longer counts until you accept again.</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
+      : d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision
@@ -1691,10 +1717,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     setHtml($("sumRest"), h);
     restoreFocus(f);
   }
-  function focusKey(){ // the focused control, by id or by its data attributes within the nearest region with an id
+  function focusKey(){ // the focused control, by id or by its data attributes (a radio by name and value) within the nearest region with an id
     const a = document.activeElement; if (!a || a === document.body || !a.closest) return null;
     if (a.id) return {s: "#" + CSS.escape(a.id), start: a.selectionStart, end: a.selectionEnd};
-    const attrs = [...a.attributes].filter(x => x.name.startsWith("data-")).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
+    const attrs = [...a.attributes].filter(x => x.name.startsWith("data-") || (a.type === "radio" && (x.name === "name" || x.name === "value"))).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
     return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs, pin: !!a.closest(".sec.pin")} : null;
   }
   function restoreFocus(f){
@@ -1814,6 +1840,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (log.length ? '<details id="actLog"' + (open ? " open" : "") + '><summary>Log (' + log.length + ")</summary>" + rows(log) + "</details>" : "");
     if (un.size) { markSeen(); renderHeader(); renderRail(); }
   }
+  const noteToastText = () => S.noteToast + (S.noteQueued.some(s => !isHandled(s)) ? queued() : ""); // the busy note lasts only while the wake it reported is in flight: S.noteQueued holds the seqs that wake was handling when the note was sent
   function renderNotes(body){
     const nt = noteThread(), draft = lsGet("noteDraft", "");
     S.noteSeen = Date.now(); lsSet("noteSeen", S.noteSeen);
@@ -1832,7 +1859,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
       '<div class="nthread">' + (nt.length ? nt.map(noteHtml).join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
-      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast"></div>';
+      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast">' + esc(noteToastText()) + "</div>"; // held in state, so a re-render on a state push keeps it
     const ta = $("noteText"), nk = noteBox(ta, "send"); ta.nextElementSibling.append(nk.count); Kit.grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
@@ -1871,7 +1898,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("keysBody").innerHTML = KEYS.map(([k, t]) => "<kbd>" + esc(k) + "</kbd><span>" + esc(t) + "</span>").join("");
     $("keysDlg").showModal();
   }
-  function showFly(p){ S.fly = p; lsSet("fly", p); renderFly(); renderHeader(); }
+  function showFly(p){ if (p !== "notes") { S.noteToast = ""; S.noteQueued = []; } S.fly = p; lsSet("fly", p); renderFly(); renderHeader(); }
   const openPanel = p => showFly(S.fly === p ? null : p);
   function focusHead(){ const h = $("qhead"); if (h) { h.tabIndex = -1; h.focus(); } }
 
@@ -2289,8 +2316,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   async function sendNote(){
     const ta = $("noteText"); if (!ta) return;
     const text = ta.value.trim();
-    if (!text) { $("noteToast").textContent = "Write a note first."; return; }
-    if (await sendFree("note", text)) { lsSet("noteDraft", null); if (S.fly === "notes") renderFly(); const t = $("noteToast"); if (t) t.textContent = "Sent. Claude's reply lands here." + queued(); }
+    const say = (msg, q) => { if (S.fly !== "notes") { msg = ""; q = []; } S.noteToast = msg; S.noteQueued = q || []; const t = $("noteToast"); if (t) t.textContent = noteToastText(); }; // a send that finishes after the panel closed holds nothing
+    if (!text) { say("Write a note first."); return; }
+    const inFlight = pending().filter(delivered).map(e => e.seq); // the wake in flight before this note, never the note itself
+    if (await sendFree("note", text)) { lsSet("noteDraft", null); if (S.fly === "notes") renderFly(); say("Sent. Claude's reply lands here.", queued() ? inFlight : []); }
+    else say(""); // a failed send must not leave the last send's toast standing
   }
   const carried = q => String(lsGet("draft:" + q.id, null) || "").trim(); // what a single Accept would send: the note typed on it
   function openedRev(q){ // the revision the user last opened q at, with the decisions made since

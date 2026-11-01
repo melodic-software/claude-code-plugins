@@ -168,8 +168,10 @@ ACTIVITY_CAP = 200
 # Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section). A new or changed short label takes the shared question shape's cap.
+# restatement section). A new or changed short label and a context take the shared question
+# shape's caps.
 TEXT_CAP = 20000
+CONTEXT_CAP = 4000
 SHORT_SHAPE = {
     "$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/short"
 }
@@ -461,14 +463,23 @@ def checked_alts(q, alts):
     return alts
 
 
-def set_aside_own(r, doc, q):
-    """A recommendation revision answers the user's own text, so a counted `own` decision stops
-    counting (the same stamps as a user hold, without the hold). Accept, alt and defer stay."""
+def set_aside_answer(r, doc, q, rec):
+    """A recommendation revision to `rec` sets aside the counted decision it outdates (the same
+    stamps as a user hold, without the hold): an `own` answer, which the revision answers, and an
+    accept or hedged accept of a different recommendation, which records the text it accepted in
+    asideRecommendation. Alt and defer stay."""
     latest = exporters.latest_decision(q, r.get("responses", {}))
-    if latest and latest.get("decision") == "own":
-        q.update(
-            setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1
-        )
+    said = (latest or {}).get("decision")
+    old = q.get("recommendation") or ""
+    if said in exporters.CARRIES and old and old != rec:
+        q["asideRecommendation"] = {
+            "text": old,
+            **({"seq": latest["seq"]} if "seq" in latest else {}),
+            "decidedAt": latest["updatedAt"],
+        }
+    elif said != "own":
+        return
+    q.update(setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1)
 
 
 def checked_list(doc, ids):
@@ -735,11 +746,11 @@ def warn_bare_issue_refs(doc, label, value):
         )
 
 
-def warn_branch_source_links(label, facts):
-    """Warn once when facts links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
+def warn_branch_source_links(label, facts, field="facts"):
+    """Warn once when facts or context links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
     if facts and BRANCH_SOURCE_LINK.search(facts):
         warn(
-            f"{label} facts links a repo file by branch (blob/<branch>); "
+            f"{label} {field} links a repo file by branch (blob/<branch>); "
             "pin the source link to a commit SHA (blob/<sha>/...)"
         )
 
@@ -817,13 +828,13 @@ def warn_bare_file_ref(qid, field, text):
         )
 
 
-def warn_unreferenced_facts(qid, facts):
-    """Warn when a facts field holding more than its `Checked against:` line carries no link,
-    file:line or judgment label, so no claim in it can be checked."""
+def warn_unreferenced_facts(qid, facts, field="facts"):
+    """Warn when a facts or context field holding more than its `Checked against:` line carries
+    no link, file:line or judgment label, so no claim in it can be checked."""
     rest = CHECKED_AGAINST.sub("", facts or "")
     if rest.strip() and not FACTS_REFERENCE.search(rest):
         warn(
-            f"{qid} facts carries no link, file:line or judgment label; cite the source of "
+            f"{qid} {field} carries no link, file:line or judgment label; cite the source of "
             "each factual claim, or label a claim with none Judgment"
         )
 
@@ -834,7 +845,9 @@ def lint_questions(doc, qs):
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
         warn_branch_source_links(q["id"], q.get("facts"))
+        warn_branch_source_links(q["id"], q.get("context"), "context")
         warn_unreferenced_facts(q["id"], q.get("facts"))
+        warn_unreferenced_facts(q["id"], q.get("context"), "context")
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -860,7 +873,7 @@ def lint_questions(doc, qs):
             ("recommendation", rec),
         ):
             warn_bare_file_ref(q["id"], field, text)
-        for field in ("title", "recommendation", "basis"):
+        for field in ("title", "context", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
                 if tok not in ids and tok not in seen:
@@ -1351,7 +1364,7 @@ def op_reply(d, doc, a):
             "pass revised `alternatives` in the same op",
         )
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
-        set_aside_own(snapshot, doc, q)
+        set_aside_answer(snapshot, doc, q, a.rec)
         if q.get("recommendation") or not q.get("proposed"):
             # An accepted proposal's first recommendation revises nothing.
             q["previousRecommendation"] = q.get("recommendation", "")
@@ -1412,6 +1425,7 @@ def op_revise(d, doc, a):
     for field, val, cap in (
         ("title", a.title, LINE_CAP),
         ("rec", a.rec, LINE_CAP),
+        ("context", a.context, CONTEXT_CAP),
         ("facts", a.facts, TEXT_CAP),
         ("basis", a.basis, TEXT_CAP),
         ("why", a.why, TEXT_CAP),
@@ -1445,11 +1459,14 @@ def op_revise(d, doc, a):
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     warn_branch_source_links(a.id, a.facts)
+    warn_branch_source_links(a.id, a.context, "context")
     warn_unreferenced_facts(a.id, a.facts)
+    warn_unreferenced_facts(a.id, a.context, "context")
     changed = []
     for field, val in (
         ("title", a.title),
         ("short", a.short),
+        ("context", a.context),
         ("facts", a.facts),
         ("basis", a.basis),
     ):
@@ -1457,7 +1474,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
-        set_aside_own(snapshot, doc, q)
+        set_aside_answer(snapshot, doc, q, a.rec)
         if q.get("recommendation") or not q.get("proposed"):
             # An accepted proposal's first recommendation revises nothing.
             q["previousRecommendation"] = q.get("recommendation", "")
@@ -1591,6 +1608,8 @@ def op_record_terminal(d, doc, a):
     if q.get("setAsideRev") == doc["rev"] + 1:
         # A user hold earlier in this same write: this answer came after it, so it counts.
         q["setAsideRev"] = doc["rev"]
+    # A terminal record carries no seq, so a stale accepted text could match it by time alone.
+    q.pop("asideRecommendation", None)
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
         "accept": "Accepted",
@@ -2135,6 +2154,7 @@ OP_ARGS = {
             "id": None,
             "title": None,
             "short": None,
+            "context": None,
             "facts": None,
             "basis": None,
             "rec": None,
@@ -2997,6 +3017,23 @@ def record_emoji_markers(d, want):
     save(d, doc)
 
 
+def pacing_value(value):
+    """single (any case) means single; anything else, an unexpanded token included, means round."""
+    return "single" if value.strip().lower() == "single" else "round"
+
+
+def record_question_pacing(d, want):
+    """meta.questionPacing through the normal write path; writes only on a change.
+    want None keeps the recorded value, and a file without one reads as round."""
+    if want is None:
+        return
+    doc = load(d)
+    if doc["meta"].get("questionPacing") == want:
+        return
+    doc["meta"]["questionPacing"] = want
+    save(d, doc)
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         exit_with(
@@ -3007,6 +3044,8 @@ def cmd_ensure_running(d, a):
     with sidecar_lock(d):
         flag = a.emoji_markers
         record_emoji_markers(d, None if flag is None else emoji_flag(flag))
+        pacing = a.pacing
+        record_question_pacing(d, None if pacing is None else pacing_value(pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
         # The settings layers use --user-settings, else the user file the live server applies. The
@@ -3432,6 +3471,11 @@ def main(argv=None):
         help="record meta.emojiMarkers in questions.json: true, 1, yes or on mean true, "
         "any other value means false; without the flag the recorded value stays, and a new "
         "file records false",
+    )
+    s.add_argument(
+        "--pacing",
+        help="record meta.questionPacing in questions.json: single means single, any other "
+        "value means round; without the flag the recorded value stays",
     )
     s.set_defaults(fn=cmd_ensure_running)
 

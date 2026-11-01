@@ -1,5 +1,69 @@
 # Changelog: session-flow plugin
 
+## [3.2.0] - 2026-11-01
+
+### Added
+
+- The bundled setup writer, `lib/setup-apply.mjs`, takes `--state`, which prints the repository's state (`init`, `migrate` or `configure`) and the path that shows it, and writes nothing. It can also migrate values from a retired settings file that a `retirements.yaml` record names, printing any value it cannot carry and leaving that file in place. This plugin's setup names no such record yet, so its own writes are unchanged.
+
+### Changed
+
+- `context/recommendation-basis.md`: when the evidence that changes a pending recommendation is dispatched work that returned while open items wait on the user, the message ends with every open item in full, the moved one marked, in place of the one-line list of unchanged recommendations. The rule is `docs/contracts/async-round-presentation/README.md` in the marketplace (recommendation-basis 3.0.0).
+
+### Fixed
+
+- The `af-unknown-token-stops` eval case's `rejects-bad-token` grader now accepts the stop reply
+  "`--apply-fixes` isn't an argument this skill accepts", which `/session-flow:audit-friction`
+  gives, so a correct stop no longer scores 0.50.
+
+- The `rr-routes-never-codifies` eval case now also fails a run that calls Edit on CLAUDE.md,
+  CLAUDE.local.md or a `.claude/rules/` file. The eval denies writes under `.claude/`, so an Edit
+  of the existing rule file left it unchanged and the run still passed every grader.
+
+## [3.1.1] - 2026-11-01
+
+### Fixed
+
+- `orchestrate`'s gotchas no longer tell you to read a depth rejection's error text, since a
+  subagent at the depth limit may get no error; they point at the sub-agents depth section.
+  `reconcile` no longer says every spawned subagent owns a task list, and points at the
+  tools-reference section on task-tracking tools in subagents
+  ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
+## [3.1.0] - 2026-11-01
+
+### Added
+
+- `setup` now records `written_against` and a per-key `provenance:` map in the settings file it
+  writes. `apply` takes `--default <key>` for a value left at the plugin default. When the plugin
+  changes a default, `check` lists it, and a write updates a `default` value and keeps a `chosen`
+  one. The schema declares both keys.
+
+### Changed
+
+- An older version of this plugin cannot read a settings file that holds these keys: its `check`
+  exits 1 with no PASS line, its `apply` refuses the file, and skills reading a setting through
+  `check` drop the whole repository layer. Update everyone sharing a repository before anyone
+  writes the file.
+
+## [3.0.2] - 2026-10-31
+
+### Fixed
+
+- `/session-flow:audit-sessions` now counts a merge conflict only when a shell call runs `git merge`, `rebase`, `pull`, `cherry-pick`, `revert`, `am`, or `stash pop` or `apply`, and its result shows the conflict text. Before, any tool result with that text counted, including a `cat`, a `grep`, a Read or a CI log ([#11601](https://github.com/melodic-software/claude-code-plugins/issues/11601)).
+
+## [3.0.1] - 2026-10-31
+
+### Changed
+
+- `/session-flow:workflow` stage definitions route unsettled users to UX research before the PRD, design a new user-facing flow and its screens before the technical design, and add an interface review to the review of a diff that changes a user interface, each through an installed capability (for example `/user-experience:shape`, `/user-experience:structure`, `/user-interface:design`, `/user-interface:audit`) with an inline fallback.
+
+### Fixed
+
+- **Friction events for one tool call count once.** Each `denied` and `prompt-approved` event the audit-sessions collector stores now carries the call's `tool_use_id`. A session keeps one such event per call and kind, so a repeated result record no longer adds a second event to the counts or the shape tally. The friction block counts the skipped records in `duplicates_dropped`, and `/session-flow:audit-friction`'s `mine` reports their total, so you can trace where the repeats come from.
+
+- `/session-flow:orchestrate`, `/session-flow:keep-going` and the observer docs point at the upstream sections behind their claims, and the effort floor and the cross-vendor advisor preference are labeled as this repository's judgment.
+
 ## [3.0.0] - 2026-10-31
 
 ### Changed

@@ -7,7 +7,8 @@
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot or a listed review bot opened
 //           in a review on a head a review lane's marker confirms, when
-//           every comment is the bot's,
+//           every comment is the bot's (a listed bot's only behind a trusted
+//           person's `@codex` request, requestSkip),
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes
@@ -28,7 +29,9 @@
 //           the label on and no review lane holds the PR (gate-source.mjs),
 //           and on an adopted owner PR only as prHold lets fix-ci work it.
 //           On an adopted owner PR a body line starting `Hold:` skips
-//           awaiting-human.
+//           awaiting-human. An untaken thread whose stop on this head is
+//           already in the session-builder queue (sessionQueued) skips
+//           awaiting-session instead of escalating again.
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -44,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
-import { retryRung, stopSkip } from "./escalation-routes.mjs";
+import { retryRung, ROUTES, stopSkip } from "./escalation-routes.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -205,15 +208,17 @@ export function quote(lines, summary = (count) => `What it wrote (${count} lines
 // The ids of the unresolved threads (listThreads) a pr-verify FAIL's notes
 // opened on a head other than `head`: the first comment is
 // github-actions[bot]'s, opens with VERIFY_NOTE_MARKER, and was posted on
-// another commit (its original commit, which a later push does not move). A
-// pass at `head` supersedes them: post-verify-notes finds them, and
-// publish-feedback.mjs resolves them as the lanes App.
-export function staleVerifyNotes(threads, head) {
+// another commit (its original commit, which a later push does not move), or
+// on `head` itself when `supersededHead` is `head`: the merge gate's reader
+// found the FAIL there superseded (babysit_verify_evidence.py
+// `supersededAtHead`). A pass at `head` supersedes them: post-verify-notes
+// finds them, and publish-feedback.mjs resolves them as the lanes App.
+export function staleVerifyNotes(threads, head, { supersededHead } = {}) {
   return threads
     .filter((thread) => {
       const root = thread.root?.nodes?.[0];
       const commit = root?.originalCommit?.oid ?? "";
-      return thread.isResolved === false && root?.author?.databaseId === MARKER_AUTHOR_ID && firstLine(root.body) === VERIFY_NOTE_MARKER && SHA.test(commit) && commit !== head;
+      return thread.isResolved === false && root?.author?.databaseId === MARKER_AUTHOR_ID && firstLine(root.body) === VERIFY_NOTE_MARKER && SHA.test(commit) && (commit !== head || supersededHead === head);
     })
     .map((thread) => thread.id);
 }
@@ -686,6 +691,165 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
   return authors;
 }
 
+// A `@codex` mention in any case, as a whole handle: the request that asks
+// chatgpt-codex-connector[bot] for a review. Code spans and fences count, as
+// the bot answers a mention there.
+export const CODEX_MENTION = /(?:^|[^\w@/.-])@codex(?![\w-])/i;
+// What counts as an untrusted request: `@codex` after any character, so a
+// form the bot may also answer (`x.@codex`) never slips past (fail closed).
+const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
+
+// Why the `@codex` request behind a listed bot's review is not a trusted
+// person's, or null when it is. Anyone can comment `@codex` on a public repository, so a
+// request is looked for in the window from the same bot's previous review to
+// this one (`authorId`'s review submitted at `submittedAt`): `mentions` are
+// the PR's issue comments, review comments and review bodies, each
+// { authorId, createdAt, editedAt, body }, and `reviews` its reviews, each
+// { authorId, submittedAt }. The listed bots' own text never counts (Codex's
+// review names `@codex review` in its help text). Any untrusted request in the
+// window, by creation or last edit, fails it; so does none from a trusted
+// person (an automatic review, or a request answered earlier), or an
+// unreadable review time.
+//
+// With no `@codex` comment the review is automatic, asked for by whoever
+// triggered it: the PR's author on opening, or the actor of a ready-for-review
+// event (`triggers`, readTriggers). Which one cannot be told apart, so every
+// such event in the window must be a trusted person's or the lanes App's
+// (`appId`, APP_SENDER_ID); one by anyone else, github-actions[bot] included,
+// fails it. An event with no readable time is not counted, and unreadable
+// triggers (null) fail the check. Our own bots (the lanes App and
+// github-actions[bot], whose review lanes edit their marker in place) are
+// exempt from the edited and deleted comment rules, never trusted by them.
+export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), appId }) {
+  const ourBot = (id) => id === appId || id === MARKER_AUTHOR_ID;
+  const at = Date.parse(submittedAt ?? "");
+  // Unreadable triggers (readTriggers' null) leave edits and deletions unseen.
+  if (Number.isNaN(at) || triggers === null) {
+    return { reason: "codex-request-not-found" };
+  }
+  const since = Math.max(...reviews.filter((review) => review.authorId === authorId).map((review) => Date.parse(review.submittedAt ?? "")).filter((time) => time < at));
+  const within = (time) => time > since && time <= at;
+  const untrusted = (requester, via) => ({ reason: "codex-request-untrusted", requester, via });
+  let trusted = false;
+  for (const mention of mentions) {
+    if (reviewerIds.includes(mention.authorId)) {
+      continue;
+    }
+    const body = String(mention.body ?? "");
+    const created = Date.parse(mention.createdAt ?? "");
+    // A review body's edit time comes from GraphQL (readTriggers' reviewEdits).
+    const edited = Date.parse((mention.reviewId === undefined ? mention.editedAt : triggers.reviewEdits?.[mention.reviewId]) ?? "");
+    if (trustedHumans.has(mention.authorId)) {
+      trusted ||= CODEX_MENTION.test(body) && within(created);
+    } else if (ANY_CODEX_MENTION.test(body) && (Number.isNaN(created) || within(created) || within(edited))) {
+      return untrusted(mention.authorId, "@codex request");
+    } else if (!ourBot(mention.authorId) && created <= at && edited > created && edited > since) {
+      // Edited since the window opened: it may have held a request then.
+      return untrusted(mention.authorId, "edited comment");
+    }
+  }
+  for (const deletion of triggers.deletions ?? []) {
+    const id = deletion.authorId;
+    if (!(Date.parse(deletion.at ?? "") <= since) && !trustedHumans.has(id) && !ourBot(id) && !reviewerIds.includes(id)) {
+      return untrusted(id, "deleted comment");
+    }
+  }
+  const events = [{ via: "opening of the pull request", ...triggers.opened }, ...triggers.ready.map((event) => ({ via: "ready-for-review event", ...event }))];
+  for (const event of events) {
+    if (!within(Date.parse(event.at ?? ""))) {
+      continue;
+    }
+    if (!trustedHumans.has(event.actorId) && event.actorId !== appId) {
+      return { reason: "codex-request-untrusted", requester: event.actorId, via: event.via };
+    }
+    trusted = true;
+  }
+  return trusted ? null : { reason: "codex-request-not-found" };
+}
+
+// The PR history codexRequest reads besides its comments: the events that
+// start an automatic review (the PR's opening, by its author, and each
+// ready-for-review event of its REST issue timeline), and from
+// REQUEST_HISTORY_QUERY each deleted comment's author and time and each
+// review's last edit time. `pull` is the REST pull request when the caller
+// already read it. A failed read is null, which codexRequest fails closed on.
+export async function readTriggers({ api, pr, pull }) {
+  try {
+    const [read, timeline, history] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr), api.listRequestHistory(pr)]);
+    return {
+      opened: { actorId: read?.user?.id, at: read?.created_at },
+      ready: timeline.filter((event) => event?.event === "ready_for_review").map((event) => ({ actorId: event.actor?.id, at: event.created_at })),
+      deletions: history.deletions,
+      reviewEdits: history.reviewEdits,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// The deleted comments (CommentDeletedEvent: who wrote each, when it went)
+// and each review's last edit time, which REST does not give. More than one
+// page of either throws, so codexRequest fails closed.
+export const REQUEST_HISTORY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $pr) {
+      timelineItems(itemTypes: [COMMENT_DELETED_EVENT], first: 100) {
+        pageInfo { hasNextPage }
+        nodes { ... on CommentDeletedEvent { createdAt deletedCommentAuthor { ... on User { databaseId } ... on Bot { databaseId } } } }
+      }
+      reviews(first: 100) { pageInfo { hasNextPage } nodes { databaseId lastEditedAt } }
+    }
+  }
+}`;
+export function requestHistoryOf(data) {
+  const pull = data?.repository?.pullRequest;
+  if (!pull || pull.timelineItems.pageInfo.hasNextPage || pull.reviews.pageInfo.hasNextPage) {
+    throw new Error("the pull request's comment deletions or reviews run past one page");
+  }
+  return {
+    deletions: pull.timelineItems.nodes.map((node) => ({ authorId: node.deletedCommentAuthor?.databaseId, at: node.createdAt })),
+    reviewEdits: Object.fromEntries(pull.reviews.nodes.filter((node) => node.lastEditedAt).map((node) => [node.databaseId, node.lastEditedAt])),
+  };
+}
+
+// Whether any of `authorIds` is a listed bot's, so readTriggers is worth a read.
+export const anyListed = (authorIds, reviewerIds = []) => reviewerIds.length > 0 && authorIds.some((id) => reviewerIds.includes(id));
+
+// Why a thread threadAuthors accepted (`authors`) is not worked for want of a
+// trusted `@codex` request (codexRequest), or null. Only a thread no trusted
+// person directed is checked, at each listed bot's comment (`comments`, each
+// { authorId, review: { authorId, submittedAt } }). The select step and the
+// reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
+export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, appId }) {
+  if (authors.some((author) => author.direction === true)) {
+    return null;
+  }
+  for (const comment of comments) {
+    if (reviewerIds.includes(comment.authorId)) {
+      const submittedAt = comment.review?.authorId === comment.authorId ? comment.review.submittedAt : undefined;
+      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, appId });
+      if (skip) {
+        return skip;
+      }
+    }
+  }
+  return null;
+}
+
+// The log line for a requestSkip answer: ids and a fixed reason, never a body.
+export const requestSkipLine = (id, skip) =>
+  `skip thread ${id}: ${skip.reason} (${
+    skip.reason === "codex-request-untrusted"
+      ? `the ${skip.via} behind the bot's review came from account ${skip.requester}, not on the trusted-actor list`
+      : "no trusted @codex request, and no readable opening or ready-for-review event, since the bot's previous review"
+  })`;
+
+// The `@codex` request candidates of a PR's REST rows, for codexRequest.
+export const restMentions = ({ issueComments = [], reviewComments = [], reviews = [] }) => [
+  ...[...issueComments, ...reviewComments].map((row) => ({ authorId: row.user?.id, createdAt: row.created_at, editedAt: row.updated_at, body: row.body })),
+  ...reviews.map((review) => ({ authorId: review.user?.id, createdAt: review.submitted_at, reviewId: review.id, body: review.body })),
+];
+
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
 // finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's,
 // github-actions[bot]'s for a verifier note or a lane comment, or the trusted
@@ -709,10 +873,15 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 // marker-confirmed head (any head for a thread carrying
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
-// review bot's comment is tagged `listed`, from its account id alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+// review bot's comment is tagged `listed`, from its account id alone. A
+// thread requestSkip refuses (no trusted `@codex` request behind a listed
+// bot's review, read from `issueComments`, the review comments and the
+// reviews) is left alone, its reason logged.
+export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set(), issueComments = [], triggers = null, log = () => {} }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
+  const mentions = restMentions({ issueComments, reviewComments, reviews });
+  const reviewTimes = reviews.map((review) => ({ authorId: review.user?.id, submittedAt: review.submitted_at }));
   const kept = [];
   for (const thread of threads) {
     if (thread.isResolved || thread.comments.totalCount > THREAD_COMMENT_CAP) {
@@ -740,6 +909,23 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
     if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
       continue;
     }
+    const skip = requestSkip({
+      authors,
+      comments: rows.map((row) => {
+        const own = reviewsById.get(row.pull_request_review_id);
+        return { authorId: row.user?.id, review: own && { authorId: own.user?.id, submittedAt: own.submitted_at } };
+      }),
+      reviews: reviewTimes,
+      mentions,
+      triggers,
+      reviewerIds,
+      trustedHumans,
+      appId,
+    });
+    if (skip) {
+      log(requestSkipLine(thread.id, skip));
+      continue;
+    }
     kept.push({
       id: thread.id,
       path: rows[0].path,
@@ -763,6 +949,24 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
   return kept;
 }
 
+// Whether this head's address-feedback stop sits in the session-builder
+// queue: the lanes App's lane-stopped comment for the activity (one, edited in
+// place, report-escalation.sh) names `headSha` and a reason whose
+// escalation-routes.json entry names a `label` the PR carries (needs-session).
+const LANE_STOPPED = `<!-- pr-unblock:lane-stopped activity=${ACTIVITY} -->`;
+export function sessionQueued({ labels = [], issueComments, headSha, isLanesApp }) {
+  const names = new Set(labels.map((label) => label.name));
+  return issueComments.some((comment) => {
+    const body = String(comment.body ?? "").replaceAll("\r\n", "\n");
+    if (!isLanesApp(comment.user) || firstLine(body) !== LANE_STOPPED) {
+      return false;
+    }
+    const reason = /^- Reason: `([^`]*)`$/m.exec(body)?.[1] ?? "";
+    const label = Object.hasOwn(ROUTES, reason) ? ROUTES[reason].label : undefined;
+    return /^- Head: `([0-9a-f]{40})`$/m.exec(body)?.[1] === headSha && typeof label === "string" && names.has(label);
+  });
+}
+
 export async function select({
   api,
   pr,
@@ -776,6 +980,7 @@ export async function select({
   maxRounds = DEFAULT_MAX_ROUNDS,
   adoption = NO_ADOPTION,
   ci = async () => undefined,
+  log = () => {},
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -830,6 +1035,9 @@ export async function select({
     trustedHumans,
     requesters: gated ? fixers : null,
     fixers,
+    issueComments,
+    triggers: anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null,
+    log,
   });
   // An unresolved thread the lane does not take (a reviewer it does not
   // trust, a review on an older head, a reply it already gave) would block
@@ -852,6 +1060,11 @@ export async function select({
     // is resolved. Any other person's PR still escalates.
     if (untaken && owner) {
       return { decision: "skip", skipReason: "not-applicable", threads: kept };
+    }
+    // A stop already queued for a session builder on this head stands down:
+    // escalating again would only re-post it. A new head escalates afresh.
+    if (untaken && sessionQueued({ labels: pull.labels, issueComments, headSha, isLanesApp })) {
+      return { decision: "skip", skipReason: "awaiting-session", threads: kept };
     }
     return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
@@ -954,6 +1167,7 @@ export function runRecord(file, reviewedHeads, ci) {
       ...(t.named_paths ? { named_paths: t.named_paths } : {}),
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
+    ...(file.superseded_head ? { superseded_head: file.superseded_head } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
     ...(ci ? { ci } : {}),
   };
@@ -963,7 +1177,7 @@ export function runRecord(file, reviewedHeads, ci) {
 // The kept threads of a PR as they are now: the reply job's re-read, judged
 // against `heads` (the select job's reviewed heads) when given, else the
 // markers as they are now.
-export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads }) {
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads, log = () => {} }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -971,10 +1185,11 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
     api.listThreads(pr),
   ]);
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr }) : null;
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers, issueComments, triggers, log }),
   };
 }
 
@@ -1173,6 +1388,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         after = page.pageInfo.endCursor;
       }
     },
+    listRequestHistory: async (pr) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr })),
     // The entries of the tree at `${sha}:${dir}`, none when it is no tree.
     async listTree(sha, dir) {
       const object = (await graphql(TREE_QUERY, { owner, name, expression: `${sha}:${dir}` })).repository.object;
@@ -1393,6 +1609,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),
+      log,
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
@@ -1402,10 +1619,16 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     // stay off. With nothing to resolve (as on a rerun after the notes were
     // resolved by hand), the full select runs for `stop-resolved` alone, so
     // report-stop-status can clear a stop an earlier attempt left; no
-    // `proceed` or `resolve-only`, so no model or reply job starts.
+    // `proceed` or `resolve-only`, so no model or reply job starts. With
+    // VERIFY_SUPERSEDED_HEAD at the head (the dispatcher's verifier read found
+    // the FAIL there superseded), that FAIL's notes are stale too, and
+    // run.json names the head for the reply job's re-check.
     need(env, ["THREAD_FILE", "RUN_FILE"]);
     if (!SHA.test(env.VERIFY_PASS_HEAD)) {
       throw new Error("VERIFY_PASS_HEAD is not a commit id");
+    }
+    if (env.VERIFY_SUPERSEDED_HEAD && !SHA.test(env.VERIFY_SUPERSEDED_HEAD)) {
+      throw new Error("VERIFY_SUPERSEDED_HEAD is not a commit id");
     }
     if (!env.DISPATCHER_RUN_ID) {
       throw new Error("only a dispatcher run sends a pr-verify pass head");
@@ -1414,10 +1637,11 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       log(`skip: the PR head ${env.HEAD_SHA} is not ${env.VERIFY_PASS_HEAD}, which pr-verify passed`);
       return 0;
     }
-    const stale = staleVerifyNotes(await client.listThreads(pr), env.HEAD_SHA);
-    log(`pass-only: ${stale.length} open fail-note thread(s) from an earlier head`);
+    const superseded = env.VERIFY_SUPERSEDED_HEAD === env.HEAD_SHA;
+    const stale = staleVerifyNotes(await client.listThreads(pr), env.HEAD_SHA, { supersededHead: superseded ? env.HEAD_SHA : undefined });
+    log(`pass-only: ${stale.length} open fail-note thread(s) from an earlier head${superseded ? " or this one, whose FAIL a pass superseded" : ""}`);
     if (stale.length > 0) {
-      const file = { version: 1, repository: env.GITHUB_REPOSITORY, pr, head_sha: env.HEAD_SHA, pr_paths: [], threads: [], stale_notes: stale };
+      const file = { version: 1, repository: env.GITHUB_REPOSITORY, pr, head_sha: env.HEAD_SHA, pr_paths: [], threads: [], stale_notes: stale, ...(superseded ? { superseded_head: env.HEAD_SHA } : {}) };
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(file, null, 2)}\n`);
       writeFileSync(env.RUN_FILE, runRecord(file));
       output("resolve-only", "true");

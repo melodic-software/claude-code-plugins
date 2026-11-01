@@ -86,6 +86,12 @@ a regular file). `apply` is the fix.
    node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" ratchet_offer=false
    ```
 
+   Pass a key the operator accepts at the plugin default as `--default <key>` instead of
+   `<key>=<value>`, so a later change to that default reaches it; `<key>=<value>` records the
+   team's choice, which the script never changes. The script also records `written_against` and
+   `provenance:`, so a file with no record, or one written against another plugin version, shows a
+   diff even when no value changes.
+
    The script checks each value against the schema, refuses a key given twice, validates the
    existing file, and validates the whole resulting document before it writes. In the existing
    file it overwrites only a value outside the key's values, an empty value or null; it refuses a

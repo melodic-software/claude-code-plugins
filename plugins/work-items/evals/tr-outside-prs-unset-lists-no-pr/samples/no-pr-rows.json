@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: triage_outside_prs=false (default)\n\n| Bucket | Item |\n|---|---|\n| unlabeled | #31 CSV export drops the last row |",
+      "why": "issue only"
+    },
+    {
+      "answer": "| unlabeled | #31 CSV export drops the last row |\n\nOutside-PR intake is off, so no [PR] rows: #32 is not listed.",
+      "why": "mentions the prefix in prose, lists no PR row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Bucket | Item |\n|---|---|\n| unlabeled | [issue] #31 CSV export drops the last row |\n| unlabeled | [PR] #32 Add a cache layer to the export |",
+      "why": "PR table row"
+    },
+    {
+      "answer": "Unlabeled:\n- [issue] #31 CSV export drops the last row\n- [PR] #32 Add a cache layer to the export",
+      "why": "PR list line"
+    },
+    {
+      "answer": "[PR] #32 Add a cache layer to the export",
+      "why": "bare PR line"
+    },
+    {
+      "answer": "| Item | Type | Title |\n|---|---|---|\n| #31 | issue | CSV export drops the last row |\n| #32 | PR | Add a cache layer to the export |",
+      "why": "PR row through a type column"
+    },
+    {
+      "answer": "1. [issue] #31 CSV export drops the last row\n2. [PR] #32 Add a cache layer to the export",
+      "why": "numbered list"
+    },
+    {
+      "answer": "- `[PR]` #32 Add a cache layer to the export",
+      "why": "prefix in backticks"
+    }
+  ]
+}

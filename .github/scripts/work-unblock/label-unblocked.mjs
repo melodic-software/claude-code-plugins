@@ -6,7 +6,9 @@
 // repository's blocker: closed there by a listed human), no hold label, and
 // not already agent-ready. Issues it would label are taken oldest
 // opened first (owner Q95). Every fact is read from the API now, never from the event
-// payload. No model.
+// payload, except the closed issue's labels: one carrying SWEEP_LABEL is the
+// marker, and a listed human closing it runs the sweep below at once, not the
+// close path. No model.
 //
 // Each new agent-ready is paced: at or over the issue lane's queued cap, or
 // with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
@@ -223,10 +225,12 @@
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
-//   GITHUB_EVENT_NAME      `issues` (a close) or `schedule` (the sweep)
+//   GITHUB_EVENT_NAME      `issues` (a close) or `schedule` (the sweep); a
+//                          close of an issue labeled SWEEP_LABEL runs the
+//                          sweep too
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
-//                          issue number and sender are read; on `schedule`
-//                          it is not read
+//                          sender and issue number, labels and close time
+//                          are read; on `schedule` it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
@@ -351,6 +355,15 @@ export const LOOKBACK_HOURS = 3;
 export const SWEEP_MARGIN_MIN = 15;
 // How long an agent-ready issue may sit with no run working on it.
 export const STRANDED_HOURS = 3;
+// The marker issue's label: a listed human closing an issue that carries it
+// runs the sweep at once instead of waiting for the schedule (the hub reopens
+// and closes it after a rate-limit breaker clears). That sweep re-fires at
+// once only issues the kill switch stopped at broker-check; one stopped at a
+// token mint still waits limits.reset-clamp-min. A second kick is one more
+// sweep: runs queue one at a time, and a re-fired issue's newer label holds it.
+// The only copy of the name; work-unblock.yml's header names it in prose and
+// reads nothing.
+export const SWEEP_LABEL = "work-unblock-sweep";
 // The one comment per issue that says it keeps being re-fired on a backoff,
 // edited in place on each re-fire; it reads as a re-fire record timed by its
 // last edit.
@@ -472,12 +485,12 @@ async function refusal(args) {
         })
       : [];
   const kept = lapsed.some(({ kind }) => kind === "held");
-  const reason = !open ? "not open" : held ? `held by ${held}` : lapsed.length > 0 ? lapsed.map((item) => item.reason).join("; ") : await readiness({ ...args, base, lower });
+  const reason = !open ? "not open" : held ? `held by ${held}` : lapsed.length > 0 ? lapsed.map((item) => item.reason).join("; ") : await readiness({ ...args, base, lower, current });
   const stale = kept || lapsed.some(({ kind }) => kind === "not-ready") ? [] : lapsed;
   return { reason, held: open && Boolean(held), kept, stale, deferred: lower.includes(DEFERRED_LABEL), confirmed: parkedBesideReady(lower), current };
 }
 
-async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
+async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower, current }) {
   if (lower.includes(LABEL)) {
     return `already ${LABEL}`;
   }
@@ -496,6 +509,12 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   );
   if (pending.length > 0) {
     return `${pending.length} blocker(s) not closed by a listed human or a merge`;
+  }
+  // The lane skips an umbrella while a sub-issue is open (check-blockers.mjs),
+  // so its parent slices wait for them instead of taking a run that does nothing.
+  const subs = await openSubIssues(github, base, current);
+  if (subs.length > 0) {
+    return `an umbrella waiting on open ${subs.map((sub) => `sub-issue #${sub.number}`).join(", ")}`;
   }
   // Removing the label by hand stops the lane until a person adds it back,
   // or the App or a listed human marks the issue `status: ready` again.
@@ -2092,16 +2111,16 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    const sweep = env.GITHUB_EVENT_NAME === "schedule";
-    const event = sweep ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
-    if (!sweep && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
+    const scheduled = env.GITHUB_EVENT_NAME === "schedule";
+    const event = scheduled ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (!scheduled && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
       throw new Error("this runs only on an issue closing or on the schedule");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");
       return 0;
     }
-    if (!sweep) {
+    if (!scheduled) {
       // A bot's close (the lanes App's, or a PR merge a bot ran) is skipped
       // cleanly: the broker refuses it, and the hourly sweep picks it up.
       if (event.sender?.type === "Bot") {
@@ -2116,6 +2135,15 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     const repo = env.GITHUB_REPOSITORY;
     const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
+    // A listed human's close of the marker issue (its labels read from the
+    // payload) runs the sweep, not the close path: it blocks nothing.
+    const kick = !scheduled && labelNames(event.issue).some((name) => name.toLowerCase() === SWEEP_LABEL);
+    const sweep = scheduled || kick;
+    if (kick) {
+      const closedAt = Date.parse(event.issue.closed_at);
+      const closed = Number.isFinite(closedAt) ? ` closed=${new Date(closedAt).toISOString()}` : "";
+      console.log(`::notice title=work-unblock::sweep-kick marker=#${Number(event.issue.number)}${closed} started=${new Date(now).toISOString()}`);
+    }
     if (sweep) {
       const latch = budgetLatch("github-token");
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, latch }) : null;

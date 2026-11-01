@@ -163,6 +163,18 @@ function stage(overrides) {
   return { status: result.status, stdout: result.stdout, args, allowed, denied, prompt, plugins, jobEnv, env };
 }
 
+// #8595: the lanes run the latest CLI, so the comment above shell_denied
+// records the last swept version and points at the release procedure.
+test("the shell deny set names its last swept CLI version and a procedure heading that exists", () => {
+  const action = readFileSync(ACTION, "utf8");
+  const comment = /((?:^ *#.*\n)+) *shell_denied=\(/m.exec(action)?.[1] ?? "";
+  assert.match(comment.replace(/\n *# */g, " "), /Last swept: Claude Code \d+\.\d+\.\d+ on \d{4}-\d{2}-\d{2}/);
+  const anchor = /README\.md#([a-z0-9-]+)/.exec(comment)?.[1];
+  assert.equal(anchor, "claude-code-cli-releases");
+  const readme = readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline/README.md"), "utf8");
+  assert.match(readme, /^## Claude Code CLI releases$/m);
+});
+
 test("an issue lane's prompt names the issue before the activity's args", () => {
   const { status, prompt, args } = stage({ SKILL: "work-items:work", ISSUE_NUMBER: "77" });
   assert.equal(status, 0);
@@ -334,6 +346,24 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
     rmSync(path.join(base, ".shellcheckrc"));
     rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
     rmSync(path.join(base, ".github", "requirements-ci.txt"));
+  }
+});
+
+// check-changed-skills.sh --merge-base runs the checker beside its scripts/
+// copy, never the checkout's.
+test("a listed check's copy carries the base's skill-quality scripts", () => {
+  const scripts = path.join(base, "plugins", "skill-quality", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "check-skill.sh"), "#!/usr/bin/env bash\necho base checker\n", { mode: 0o755 });
+  writeFileSync(path.join(scripts, "metadata-registry.txt"), "category\n");
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+    assert.equal(status, 0);
+    const copy = path.join(checksDir, "plugins", "skill-quality", "scripts");
+    assert.equal(readFileSync(path.join(copy, "check-skill.sh"), "utf8"), "#!/usr/bin/env bash\necho base checker\n");
+    assert.equal(readFileSync(path.join(copy, "metadata-registry.txt"), "utf8"), "category\n");
+  } finally {
+    rmSync(path.join(base, "plugins", "skill-quality"), { recursive: true });
   }
 });
 
@@ -1048,7 +1078,8 @@ test("web-access with any domain allows every fetch, search and the research ski
     assert.ok(allowed.includes(rule), `${rule} in ${allowed.join(" | ")}`);
   }
   assert.deepEqual(plugins, ["work-items@melodic-software", "discovery@melodic-software", "knowledge@melodic-software"]);
-  assert.match(args, /\/discovery:research/);
+  // A lane run has nobody to answer an ask, so the prompt passes --unattended.
+  assert.match(args, /\/discovery:research --unattended/);
 });
 
 // pr-run-activity.md, "Skill activities": for `any` only, the two docs
@@ -1686,6 +1717,37 @@ test("run-claude-cli: a ci-context skill that hands on a patch keeps the ci-cont
   assert.equal(run.status, 0, run.stdout);
   assert.ok(run.allowedTools.includes("Bash"), "ci-context keeps its own tool set");
   assert.ok(!run.preamble.includes(UNCOMMITTED_SENTENCE), run.preamble);
+});
+
+// ci-ci.md, "A digest pin the pull request moved": a ci-context skill's
+// verify-scripts are staged as base copies under .lane/verify, denied to the
+// file tools, and named in the preamble as the only copy to run. Its Bash is
+// bare, so the plain-command rule of a patch skill's verify prompt stays out.
+test("run-claude-cli: a ci-context skill's verify-scripts are staged base copies the preamble names as the only copy to run", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-launch-verify-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  const scripts = path.join(base, "plugins", "vtest", "skills", "audit", "scripts");
+  mkdirSync(scripts, { recursive: true });
+  writeFileSync(path.join(scripts, "scan.sh"), "echo scan\n");
+  const run = launch({ RESOLVED: launchResolved({ ...PATCH, "verify-scripts": [VERIFY] }), PREPARE: "ci-context", CI_DIR: ciDir, SKILL: "source-control:pull-request" });
+  assert.equal(run.status, 0, run.stdout);
+  const lane = `${WORKSPACE}/.lane`;
+  assert.equal(readFileSync(path.join(run.stageDir, "verify", VERIFY), "utf8"), "echo scan\n");
+  assert.ok(readFileSync(path.join(run.stageDir, "verify", "bin", "scan"), "utf8").includes(`copy=${lane}/verify/${VERIFY}\n`));
+  for (const rule of ["Edit(./.lane/verify/**)", "Write(./.lane/verify/**)", "NotebookEdit(./.lane/verify/**)"]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  assert.ok(run.allowedTools.includes("Bash"), "ci-context keeps its bare Bash");
+  assert.ok(run.preamble.includes(`with the script's own arguments: ${lane}/verify/bin/scan. Run one of these scripts only through its wrapper, never the checkout's copy.`), run.preamble);
+  assert.doesNotMatch(run.preamble, /Bash runs only the wrappers/);
+});
+
+test("prepare: ci-context with verify-scripts on claude-code-action fails red", () => {
+  const ciDir = mkdtempSync(path.join(root, "ci-cca-verify-"));
+  writeFileSync(path.join(ciDir, "context.json"), "{}");
+  const run = stage({ PREPARE: "ci-context", CI_DIR: ciDir, EFFECT: "read", CAN_COMMIT: "false", SKILL: "source-control:pull-request", RESOLVED: launchResolved({ ...PATCH, "verify-scripts": [VERIFY] }) });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /::error::ci-context: verify-scripts stage on run-claude-cli only/);
 });
 
 // web-access on the launcher: `any` only, with the research plugins staged

@@ -406,8 +406,8 @@ mints nothing. `collect-base-activity` fails red on a path outside that name set
 the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
 reviews, linked issues) only from that file, never through the API. Existing skills are not yet
 adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
-known residual. The skill gets the App token as `github_token` in the write file, and the job's
-read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sources user`, so no
+known residual. The skill gets the App token as `github_token` in the write file; the read file
+runs the skill on run-claude-cli, whose steps pass it no GitHub token. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; and `resolve-config`'s `claude-args` for the
@@ -438,7 +438,8 @@ starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets nei
 sentence says to leave every change uncommitted for the runner to collect; a
 `prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
-`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
+`checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` and
+`plugins/skill-quality/scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
 `CHECK_DATA_ROOT` naming the checkout, `GH_TOKEN` and `GITHUB_TOKEN` unset, and the same git config
 pins as a verify-script's wrapper, makes the copy read-only and denies `Edit` and `Write` on
@@ -454,9 +455,9 @@ read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, 
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
-own environment (in the write runner no Bash process holds the token, since the skill's settings
-clear it; under run-claude-cli, code the script runs can still read the job's token from the
-wrapper's or the Bash shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+own environment (no Bash process above it holds the token either: in the write runner the skill's
+settings clear it, and the read runner's run-claude-cli steps set neither `GH_TOKEN` nor
+`GITHUB_TOKEN`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
 `check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
 `.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
@@ -467,10 +468,11 @@ each as its own command, and that the run inspects files with Read, Grep and Glo
 with Edit or Write, never with `cd`, `;`, `&&`, a pipe or an interpreter one-liner; when
 `git-mv-rm.sh` is listed, it names that wrapper for a rename or a removal.
 Any other arguments match, so a listed script that changes files or runs checkout code must limit
-itself, or hand the run a power it may hold. Code a listed script runs can read the token from
-any same-user process's `/proc/<pid>/environ`, so `resolve-issue` lists no script that runs
+itself, or hand the run a power it may hold. `resolve-issue` lists no script that runs
 checkout code: not `scripts/run-test-file.sh`, and not skill-quality's `check-skill.sh`, which runs
-each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. It lists skill-quality's
+each checked skill's `scripts/*.test.sh` and the checkout's markdownlint. Its check
+`scripts/check-changed-skills.sh --merge-base` runs the base copy of `check-skill.sh` over the
+skills the change touches, untracked ones included, with both of those skipped. It lists skill-quality's
 `check-evals-quality.sh` (bash and jq over `evals.json` files), and `scripts/git-mv-rm.sh`, which
 limits itself, refusing (exit 2) an argument that is absolute,
 has a `..` segment, starts with `-` or `:`, or resolves through a link to outside the checkout, including
@@ -751,11 +753,14 @@ the first. `resolve-issue-handoff` needs `admit`, since it reads that secret's p
    (`fix-docs`, `resolve-issue`) or with `prepare: review-threads` (`address-feedback`, which also gets the
    review-thread tool: [`prepare: review-threads`](#prepare-review-threads)), and fails red on
    any other prepare mode, and on `checks`, `self-checks` or `verify-scripts` outside the
-   no-prepare patch skill. That skill's check and verify-script wrappers are the ones
-   [Skill activities](#skill-activities) describes, staged for `.lane/checks` and `.lane/verify`,
-   which the run job makes read-only after the copy, named there in their `Bash` rules and the
-   preamble, and denied to `Edit`, `Write` and `NotebookEdit`. An issue lane's skill also gets
-   `.lane/git/git-read`, read-only and denied to the file tools, as its one way to git:
+   no-prepare patch skill, `verify-scripts` under `prepare: ci-context` excepted: that skill's Bash
+   is bare, so its wrappers get no rule of their own, and the preamble tells the skill to run those
+   scripts only through them: an instruction, not a rule. That skill's check and verify-script
+   wrappers are the ones [Skill activities](#skill-activities) describes, staged for
+   `.lane/checks` and `.lane/verify`, which the run job makes read-only after the copy, named
+   there in their `Bash` rules and the preamble, and denied to `Edit`, `Write` and
+   `NotebookEdit`. An issue lane's skill also gets `.lane/git/git-read`, read-only and denied to
+   the file tools, as its one way to git:
    `Bash(<workspace>/.lane/git/git-read *)` runs only `git status`, `diff`, `log` and `show`, with
    no system, global, fsmonitor, hook, pager, external-diff or textconv program, and refuses
    `--output`, `--no-index`, `--orderfile`, their prefixes, `-O` alone or in a bundle of short
@@ -866,9 +871,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    else `unexpected-path-staged`), the credential scan and the blob caps, and escalates
    `unresolved-conflict` when a conflicted path still in the tree holds conflict markers, or
    `workflow-staged` when the tree's `.github/workflows/` differs from the head's unless it is
-   exactly the base's, no head workflow is dropped, and the PR's own diff against every merge base
-   touches no workflow. The base-side changes the merge brings pass through untouched. It lists
-   the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
+   exactly the base's and the PR's own diff against every merge base touches no workflow. The
+   base-side changes the merge brings, a workflow the base deleted or renamed included, pass
+   through untouched. It lists the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
    refuses before any write when more than `max-blobs` blobs neither parent holds would be
    uploaded, re-reads the holds and the draft state, uploads only those blobs, builds the tree on
    the head's tree and fails unless it hashes to the merge tree, creates
@@ -945,7 +950,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
-   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. A
+   thread holding a `review-threads.reviewer-ids` bot's comment and no such human's direction is
+   kept only when a `human` on that list wrote the `@codex` request behind that bot's review, and
+   no one else wrote one, since the bot's previous review. With no such request, the review is
+   automatic: the pull request's opening and each ready-for-review event since then must be by
+   such a `human` or the lanes App. Otherwise the thread is left alone, logged
+   `codex-request-untrusted` or `codex-request-not-found`. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
    `direction: true` the replies after the escalation, or with no escalation every human comment
    from the first such fix request on,
@@ -954,8 +965,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
-   (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
-   only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
+   (routed to a failing status and the `needs-session` queue) while any review thread is
+   unresolved, and skips `not-applicable` only when none is. While the PR carries `needs-session`
+   and the lanes App's address-feedback lane-stopped comment names this head with a reason routed
+   to it, an unresolved thread skips `awaiting-session` instead, so the stop stands without a
+   second escalation. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
    unresolved thread, so such a head reaches this step once: its lane-stopped check then ends the
    head, which a reply job's skip does not release. A failed reply job with no escalation reason
    (its lane token, a script error) stops as `feedback-publish-failed`, which `pr-unblock.yml`
@@ -1459,7 +1473,13 @@ its fallback call on the role's OAuth token after the key call hands off
    read-only, denies Edit and Write there and on the staged plugin, and grants the skill Bash,
    Edit, Write and Agent with the web tools denied: the job holds no write token, and the skill
    reruns the failing checks. The launcher's preamble names the file, since run-claude-cli takes
-   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)).
+   no system prompt ([Two calls on one credential each](#two-calls-on-one-credential-each)). Each
+   of the activity's `verify-scripts` is staged as its base copy behind a wrapper under
+   `.lane/verify`, read-only and denied to the file tools, and the preamble tells the skill to run
+   those scripts only through the wrappers. Nothing enforces that: Bash, Edit and Write stay open,
+   so the skill could run the checkout's copy or edit a digest by hand. The controls are review of
+   the patch and apply-patch's `ci-context` patch rules, which refuse workflow, settings and
+   similar paths but admit a test file.
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
@@ -1838,12 +1858,12 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
 - Environment inheritance, no root needed. claude-code-action puts `CLAUDE_CODE_OAUTH_TOKEN` and
   the token it was given (as `GH_TOKEN` and `GITHUB_TOKEN`) in Claude's environment, so every Bash
   child of Claude inherits them and can read them from its own environment or from
-  `/proc/<ancestor>/environ`. The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
+  `/proc/<ancestor>/environ`. The write file's skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
   strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
   Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
-  `GH_TOKEN` and `GITHUB_TOKEN`, so in the read file a subprocess still holds the job
-  `GITHUB_TOKEN`. The write file's skill step sets both to empty in its settings' `env`, so no Bash
-  process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
+  `GH_TOKEN` and `GITHUB_TOKEN`. The read file runs its skill on run-claude-cli, not this action,
+  and its run-claude-cli steps set neither token. The write file's skill step sets both to empty
+  in its settings' `env`, so no Bash process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
   servers, commit signing among them, get it from their own config `env`. The action installs
   bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
   when it is missing.

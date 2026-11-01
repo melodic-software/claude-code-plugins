@@ -24,7 +24,8 @@
 //   github-actions[bot], name that head;
 // - an unresolved review thread exists that address-feedback would work:
 //   every comment is the reviewer bot's or a listed review bot's
-//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
+//   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids; a listed
+//   bot's only behind a trusted person's `@codex` request, requestSkip), a trusted
 //   person with write access
 //   asked the lane to fix it (isFixRequest), in a bot's thread or one a
 //   trusted person opened, or a trusted person answered the
@@ -58,12 +59,15 @@
 // counts only check runs started after the pr-verify run was created
 // (notesSince, read back from the API) and skips the head's handled record.
 // A pr-verify pass whose post-verify-notes job found an open fail-note
-// thread from an earlier head names its head in VERIFY_PASS_HEAD_SHA instead.
+// thread names its head in VERIFY_PASS_HEAD_SHA instead.
 // That dispatch is a pass-only round (input verify-pass-head): it runs no
-// model and posts no address-feedback check, its reply job resolves those
-// threads as the lanes App, so neither the review markers, a workable thread,
+// model and posts no address-feedback check, its reply job resolves the
+// threads from an earlier head as the lanes App, so neither the review markers, a workable thread,
 // the human gate (a needs-human PR dispatches here whoever applied the label)
-// nor the head's check runs decide it; the hold labels still skip it. It only
+// nor the head's check runs decide it; the hold labels still skip it. Those at
+// the passing head it resolves only when the merge gate's reader, in the same
+// read as the FAIL cap, found the FAIL there superseded (input
+// verify-superseded-head; babysit_verify_evidence.py `supersededAtHead`). It only
 // resolves notes a later pr-verify pass superseded, and the needs-human label
 // it leaves on still blocks the merge. A pass-only round goes only to lanes
 // App PRs: on a PR a person opened, verify-notes.mjs holds a fail with a label
@@ -141,7 +145,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -149,7 +153,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyCapReader } from "./verify-cap.mjs";
+import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -231,8 +235,10 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 
 // threadAuthors' answer for an unresolved thread, read in full, that the select
 // job keeps: it accepts the thread and its review is on a marker-confirmed
-// head (onReviewedHead). `heads` is reviewedHeads of the PR's issue comments.
-function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set() }) {
+// head (onReviewedHead), unless requestSkip finds no trusted `@codex` request
+// behind a listed bot's review in `mentions` and `reviews` (its reason goes to
+// `log`). `heads` is reviewedHeads of the PR's issue comments.
+function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set(), mentions = [], reviews = [], triggers = null, log = () => {} }) {
   if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
     return null;
   }
@@ -256,7 +262,46 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
       review: review && { user: { id: review.author?.databaseId }, commit_id: review.commit?.oid },
       heads,
     });
-  return kept ? authors : null;
+  if (!kept) {
+    return null;
+  }
+  const skip = requestSkip({
+    authors,
+    comments: nodes.map((node) => ({
+      authorId: node.author?.databaseId,
+      review: node.pullRequestReview && { authorId: node.pullRequestReview.author?.databaseId, submittedAt: node.pullRequestReview.submittedAt },
+    })),
+    reviews,
+    mentions,
+    triggers,
+    reviewerIds,
+    trustedHumans,
+    appId,
+  });
+  if (skip) {
+    log(requestSkipLine(thread.id, skip));
+    return null;
+  }
+  return authors;
+}
+
+// The `@codex` request candidates and review times requestSkip reads, from
+// the PR's issue comments (REST), its threads (THREADS_QUERY) and, only when
+// an unresolved thread holds a listed bot's comment, one read of its reviews.
+async function requestEvidence({ api, number, pull, comments, threads, reviewerIds }) {
+  const listed = threads.some((thread) => thread.isResolved === false && anyListed(thread.comments.nodes.map((node) => node.author?.databaseId), reviewerIds));
+  if (!listed) {
+    return { mentions: [], reviews: [], triggers: null };
+  }
+  const [reviews, triggers] = await Promise.all([api.listReviews(number), readTriggers({ api, pr: number, pull })]);
+  return {
+    triggers,
+    mentions: [
+      ...restMentions({ issueComments: comments, reviews }),
+      ...threads.flatMap((thread) => thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, createdAt: node.createdAt, editedAt: node.lastEditedAt, body: node.body }))),
+    ],
+    reviews: reviews.map((review) => ({ authorId: review.user?.id, submittedAt: review.submitted_at })),
+  };
 }
 
 export const hasWorkableThread = (threads, options) => threads.some((thread) => keptAuthors(thread, options) !== null);
@@ -344,7 +389,8 @@ export async function dispatchFeedback({
   requestSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
-  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  // verify-cap.mjs verifyReader's { cap, supersededAtHead }, or
+  // verifyCapReader's cap refusal alone, or null.
   verifyCapped = () => null,
 }) {
   const skip = (why) => {
@@ -462,7 +508,8 @@ export async function dispatchFeedback({
     // job will not keep (a reviewer the lane does not act on, a review of an
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
-    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers });
+    const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
+    const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log });
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
     }
@@ -548,9 +595,11 @@ export async function dispatchFeedback({
   // and nothing sends it again, so a cap that could not be read (#11354)
   // does not hold it.
   // A round sent for pr-verify's FAIL at this head (notesSince) expects the
-  // reader's FAIL refusal there.
-  const expected = !passOnly && notesSince !== null ? [VERIFY_FAIL] : [];
-  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  // reader's FAIL refusal there, and so does a pass-only round: its pass may
+  // meet a same-head FAIL it did not supersede, whose notes stay open.
+  const expected = passOnly || notesSince !== null ? [VERIFY_FAIL] : [];
+  const read = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
+  const { cap: capped, supersededAtHead } = read !== null && typeof read === "object" ? read : { cap: read, supersededAtHead: false };
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
@@ -575,6 +624,9 @@ export async function dispatchFeedback({
       activity: settings.activity,
       "dispatcher-run-id": String(runId),
       ...(passOnly ? { "verify-pass-head": head } : {}),
+      // The gate's reader found the FAIL at this head superseded, so the
+      // round resolves that FAIL's notes too (address-feedback.mjs select).
+      ...(passOnly && supersededAtHead === true ? { "verify-superseded-head": head } : {}),
     },
   };
   let workflowRunId;
@@ -1012,13 +1064,13 @@ const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $af
     pullRequest(number: $number) {
       reviewThreads(first: 100, after: $after) {
         nodes {
-          isResolved
+          id isResolved
           comments(first: 100) {
             nodes {
               author { login ... on Bot { databaseId } ... on User { databaseId } }
               createdAt body lastEditedAt
               editor { ... on Bot { databaseId } ... on User { databaseId } }
-              pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } }
+              pullRequestReview { author { ... on Bot { databaseId } ... on User { databaseId } } commit { oid } submittedAt }
             }
             pageInfo { hasNextPage }
           }
@@ -1111,6 +1163,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // carrying the human-gated label only.
     listReviewComments: (number, since) => pages(`${repo}/pulls/${number}/comments?since=${encodeURIComponent(since)}&per_page=100`),
     listReviews: (number) => pages(`${repo}/pulls/${number}/reviews?per_page=100`),
+    // The REST issue timeline, for a listed bot's automatic review
+    // (address-feedback.mjs readTriggers).
+    listTimeline: (number) => pages(`${repo}/issues/${number}/timeline?per_page=100`),
+    listRequestHistory: async (number) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr: number })),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;
@@ -1281,9 +1337,10 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
-    // The gate's reader for the FAIL-cap skip (verify-cap.mjs), when the
-    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
-    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined),
+    // The gate's reader for the FAIL-cap skip and a pass-only round's
+    // superseded FAIL (verify-cap.mjs), when the workflow names it in
+    // VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyReader(env, { log }) : undefined),
     now,
     log,
   };

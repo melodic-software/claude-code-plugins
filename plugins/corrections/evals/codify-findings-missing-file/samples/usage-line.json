@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "usage: /corrections:codify findings <findings-file>"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Which file?"
+    }
+  ]
+}

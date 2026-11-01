@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "You can run `/design team inbox empty state` yourself.",
+      "why": "offer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I will build an HTML mockup.",
+      "why": "no offer"
+    }
+  ]
+}

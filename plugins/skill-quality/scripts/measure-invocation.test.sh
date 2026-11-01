@@ -214,6 +214,12 @@ else
   fail "emit-plugin-eval prompt.md lacks the four-tool allowed_tools line"
 fi
 
+if grep -qF -- '--disallow-tools Read Glob Grep Agent' "$emit_dir/README.md"; then
+  pass "emit-plugin-eval README runs the cases without the search tools or subagents"
+else
+  fail "emit-plugin-eval README run line lacks --disallow-tools Read Glob Grep Agent"
+fi
+
 if run emit-plugin-eval "$TMP/probes" "$emit_dir" >/dev/null 2>&1; then
   fail "emit-plugin-eval into a non-empty dir should refuse"
 else

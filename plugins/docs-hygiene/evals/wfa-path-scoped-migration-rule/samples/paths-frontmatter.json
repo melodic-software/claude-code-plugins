@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "````markdown\n---\npaths:\n  - \"db/migrations/**\"\n---\n\n# Migrations\n\nOnce a migration is merged to main, leave it unchanged and write a new migration for any further change:\nstaging and production have already applied it, and `make migrate-verify` compares checksums of applied\nfiles, so an edited file fails every later deploy.\n````\n\n- Location and SQL format: visible in the tree.\n- Naming: `make migration` fills the timestamp.\n- Clean SQL, be careful: no-ops.\n- Down file: CI enforces it.",
+      "why": "block list form"
+    },
+    {
+      "answer": "````markdown\n---\npaths: [\"db/migrations/**/*.sql\"]\n---\n\n- Add a new migration rather than editing one already merged to main. Deployed databases already applied\n  it, and the `migrate-verify` checksum check fails every deploy after an edit.\n\n```sql\n-- wrong: editing 20260114093000_add_invoice_status.sql after merge\n```\n````\n\nCut: location, naming, style, down-file and be-careful lines (derivable or enforced).",
+      "why": "inline array form, inner sql fence"
+    },
+    {
+      "answer": "````markdown\n---\ndescription: Migration rule\npaths: \"**/migrations/**\"\n---\n\nMerged migrations are immutable: write another migration instead. Checksum verification of applied files\nfails the deploy otherwise.\n````",
+      "why": "scalar form after another key"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Migrations in this repo are created with `make migration name=...`.",
+      "why": "different question"
+    },
+    {
+      "answer": "````markdown\n---\nglobs: db/migrations/**\n---\n\nNever edit a merged migration; write a new migration. `make migrate-verify` checks checksums.\n````",
+      "why": "Cursor globs key"
+    },
+    {
+      "answer": "````markdown\n# Migrations\n\nNever edit a merged migration; write a new migration instead, since the checksum check fails deploys.\n````",
+      "why": "no frontmatter: always loaded"
+    },
+    {
+      "answer": "```markdown\n---\npaths:\n  - \"db/migrations/**\"\n---\n\nWrite a new migration instead of editing a merged one; the checksum check fails deploys.\n```",
+      "why": "three-backtick fence, not the asked form"
+    }
+  ]
+}

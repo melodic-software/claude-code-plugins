@@ -3,6 +3,21 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.9] - 2026-11-01
+
+### Changed
+
+- Five songwriting eval graders now accept forms real runs used and the graders rejected: `ran-syllable-count` takes a `datamuse.sh` path held in a shell variable and run as `$S syllables`; `raw-count-not-balance` takes "this method measures line length in stressed syllables ... not balanced", "syllable counts are the wrong measure", "the syllable count misleads" and "doesn't measure balance in syllables"; `family-distance-label` takes "medium-distance"; `finder-question-lists` takes "What is this loneliness like?" as the first list; and `no-single-winner` no longer flags a "How I'd choose:" guide. Each has pass samples from the runs and new fail samples.
+
+## [1.7.8] - 2026-11-01
+
+### Fixed
+
+- `object-writing` no longer says the `object-writer` pin never lands on the session's model; it
+  points at where alias resolution is stated. The premium-tier sentence now points at the Pricing page instead of
+  stating a price ratio, and the cheaper tier for mechanical legs is labeled as this skill's
+  judgment ([#6916](https://github.com/melodic-software/claude-code-plugins/issues/6916)).
+
 ## [1.7.7] - 2026-10-31
 
 ### Fixed

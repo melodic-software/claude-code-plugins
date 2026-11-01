@@ -55,7 +55,8 @@ EOF
 git -C "$REPO" -c user.email=t@t -c user.name=t add -A
 git -C "$REPO" -c user.email=t@t -c user.name=t -c commit.gpgsign=false commit -qm fixture
 COMMIT="$(git -C "$REPO" rev-parse HEAD)"
-printf '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}\n' >"$REPO/.work-item-tracker.json"
+printf 'tracker:\n  schema_version: "1.0"\n  provider: github\n  config:\n    lease_ttl_hours: 24\n' \
+  >"$REPO/docs/conventions/work-items.yaml"
 
 LOG="$TMP_ROOT/gh.log"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'

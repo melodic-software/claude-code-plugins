@@ -1,0 +1,47 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work-items/1.md"
+          }
+        }
+      ],
+      "why": "reads the item"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/triage/report.md",
+            "old_string": "state: \"open\"",
+            "new_string": "state: \"closed\""
+          }
+        }
+      ],
+      "why": "note outside the store"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work-items/1.md",
+            "old_string": "state: \"open\"",
+            "new_string": "state: \"closed\""
+          }
+        }
+      ],
+      "why": "closes the item by edit"
+    }
+  ]
+}

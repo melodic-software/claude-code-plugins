@@ -14,11 +14,17 @@ The deletion test governs every line, in the description, the body, a reference 
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
 never justify a deletion by character count alone, and never keep a line because it is short
 (per the `claude-api` skill's prompt audit, as of 2026-10-06; recheck when that audit's
-cruft criterion changes).
+cruft criterion changes). Explaining what the agent already knows doesn't just waste space, it
+dilutes the lines that actually matter, because the agent's attention is spread across everything
+you wrote. The agent already knows how to write decent CSS or React; it doesn't know the nuances,
+like increasing the duration of an animation if the object is larger. Domain expertise is what
+belongs in a skill: not how to add padding to a button, but adding a subtle scale down when a
+button is pressed, or preloading a font in React with `ReactDOM`.
 
 The deletion test proposes; the evals decide. Whether a model needs a line cannot be read off the
 text: a rule's stated reason can carry behavior, and a plausible explanation for a regression can
-be wrong. A cut to an existing skill ships only when its evals show no loss
+be wrong. Unsure whether a line matters? Run the skill with the line and without it, and compare
+the two versions with `/evals:plugin-eval`. A cut to an existing skill ships only when its evals show no loss
 ([Measurement](#measurement)).
 
 ## Frontmatter
@@ -73,13 +79,30 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
 - **Degrees of freedom.** A judgment task gets the goal and the constraints, each written as what
   to do, not a step script. A fragile or mandatory sequence gets the exact command (a bundled
   script) and an instruction not to alter it; only such a sequence earns a copyable checklist.
-  Decide per section. When a skipped gate is costly, a hook is the escalation, charged to the
-  hook budget (`docs/contracts/hook-budget/README.md`).
-- **State the action.** At every level, write the instruction as the action. A reason earns a
-  place beside it in two cases: a required step that reads as optional without one, and a narrow
-  rule that would otherwise be applied everywhere. Background that changes no action (how the rule
-  came about, who was bothered) is left out. When a rule stated this way is still missed, test a
-  reasoned wording against it ([Measurement](#measurement)).
+  Decide per section. Why: agents are probabilistic, so the same question asked twice gets two
+  different answers; a skill prevents that to some degree by forcing the same process when coming
+  up with the answer, and for a judgment task the goal and the constraints are that process. The
+  outputs still differ, as every context does, but the reasoning is yours. When a skipped gate is
+  costly, a hook is the escalation, charged to the hook budget
+  (`docs/contracts/hook-budget/README.md`).
+- **State the action.** At every level, write the instruction as the action, and give its reason
+  unless the rule's wording already shows why. With enough expertise in a topic, almost every
+  taste decision has a logical reason, so a judgment rule can carry one too. When a rule doesn't
+  cover a situation, the agent has to guess; a rule without reasoning is applied blindly, including in
+  places where it shouldn't be, while a rule with reasoning can be applied more broadly, because
+  the agent can extend the logic to cases you never wrote down. The reason matters most for a
+  required step that reads as optional without one, and for a narrow rule that would otherwise be
+  applied everywhere. Background that changes no action (how the rule came about, who was
+  bothered) is left out. When a rule stated this way is still missed, test a reasoned wording
+  against it ([Measurement](#measurement)). An example of the form:
+
+  ```text
+  Bad:  Start scale animations from 0.95.
+  Good: Start scale animations from 0.95, not 0. Elements appearing from nothing feel
+        unnatural, real objects always have a visible shape. The higher the initial value,
+        the more gentle and elegant the entrance.
+  ```
+
 - **Choose leading words on purpose.** Prefer a term the model already holds (TDD, tautological,
   tracer bullet, a loop that goes red) over a spelled-out description. Keep a chosen term only
   when a with-and-without comparison (`/evals:plugin-eval --baseline`) shows it moves behavior.
@@ -90,18 +113,27 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   touches. Judgment sections take the concise style in full.
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
-  splitting it: every extra model-invoked skill adds a description to the always-loaded listing
-  (a user-invoked one stays out of it). Split only when the parts change independently or answer
-  different requests.
+  splitting it. Depth costs nothing until it's used (a file read then meets the deletion test like
+  the body), while every extra model-invoked skill adds a description to the always-loaded listing (a user-invoked one stays out of it). Split only when the parts
+  change independently or answer different requests.
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
-  machine-read output, a default with a release line otherwise. Where style matters, give a few
-  labeled input/output pairs and a line naming the rule. Name a default tool, and an escape hatch
+  machine-read output, a default with a release line otherwise. Give a few diverse, canonical
+  examples that portray the expected behavior, not a laundry list of edge cases that tries to
+  state every possible rule; where style matters, make them labeled input/output pairs and add a
+  line naming the rule. Name a default tool, and an escape hatch
   only with its trigger.
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
   slashes only. State each dependency's install command, kept local to the project.
+- In this marketplace, a file several plugins share (a script or a reference page) stays a plain
+  copy in each plugin, because an installed plugin sees only its own directory (ADR 0019).
+  Register each copy in `scripts/shared-copies.txt`, the one shared-copies record, edit only the
+  canonical it names, and generate the copies with `scripts/sync-shared-copies.sh`. Copies at the
+  same path in two or more plugins also need their cluster listed in
+  `scripts/cross-plugin-source-registry.txt`, or the cross-plugin drift check fails them as
+  unregistered.
 - Name MCP tools fully: `mcp__<server>__<tool>`, or `mcp__plugin_<plugin>_<server>__<tool>` for a
   plugin-bundled server.
 - Keep a gotchas surface (`## Gotchas` or a gotchas spoke) and a `## Next` section per
@@ -114,6 +146,19 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   each task to the file it needs, so a large skill is sound when the agent loads only what the
   work in front of it calls for. Never cut to reach a line count.
 
+## Stack-specific tools
+
+A skill whose job needs a tool tied to the project's stack (a formatter, linter, test runner or
+build tool) takes these steps in order:
+
+1. Detect what the project already uses, from its manifests, lockfiles and config. When a tool for
+   the job is there, use it as configured, without an interview: the project has already chosen.
+2. Otherwise research the current options live (`/discovery:research`), since a tool list written
+   into the skill goes stale between releases.
+3. Interview the user to choose among the researched options.
+4. Write the chosen setup into the project (its config file or manifest entry), not into the
+   skill, so the next run finds it at step 1.
+
 ## Reference files
 
 - One level deep: every reference file links from SKILL.md (our rule, following the platform best
@@ -122,7 +167,7 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   connection.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
   `<skill-dir>/scripts/<name>`. `scripts/check-spoke-plugin-root.sh` gates the plugin-root
-  variable in this marketplace.
+  and skill-dir variables in this marketplace.
 - A long spoke opens with a `## Contents` block; `/skill-quality:check` warns when a spoke over
   its own line setting lacks one.
 - A spoke is free until read and then costs like the body: the deletion test applies in full.
@@ -159,7 +204,11 @@ reads it. A key nothing reads is cut.
 ## Measurement
 
 **Authoring a new skill.** Write the evals before the body: note what Claude gets wrong without
-the skill, build cases for those gaps, measure a baseline, write the minimum that passes. Test in
+the skill, build cases for those gaps, measure a baseline, write the minimum that passes. Draw
+that minimum from the expert's written knowledge: dump what is known about the topic into a
+document (a plain note will do), then have an agent extract from it only what the cases show
+Claude lacks, under this page, and refine it from the expert's feedback, since agents are the ones
+consuming the skills. Test in
 a fresh session (the authoring session knows what the text leaves out), once without the skill and
 once with it. Score triggering and output separately. Read the test transcript for these signals:
 files read out of order, a reference never followed, one file read repeatedly (promote it), a
@@ -197,9 +246,24 @@ never copy a case's text and never use held-back cases.
    what a run regenerates: cases emitted from probes, judge-calibration suites, run results, or
    copies of the plugin made for the run.
 
+**Cutting text.** Run Anthropic's skill-creator as it ships (`/skill-creator:skill-creator`); no
+skill here wraps it, because a wrapper restates upstream behavior that then drifts (the
+precedence rule at the top of this page). Cut text from a shipped skill by this route: make the cut
+(by hand or with `/docs-hygiene:compress`), label what it changed with
+`/docs-hygiene:compress compare`, then run the skill's cases with the removed text and without it
+(`/evals:plugin-eval --baseline <before.json> --margin <m>`). The cut ships only under step 6's
+non-inferiority rule; otherwise the removed text stays. A cut to a description also re-measures
+triggering on the probes (steps 3 and 4).
+
+**Re-auditing shipped skills.** On each model release, re-audit every shipped skill against this
+page on the new model, since a line the previous model needed may now fail the deletion test. Each
+cut the re-audit proposes takes the cutting-text route above, tested with and without the removed
+text.
+
 Re-run on any change: a description change re-measures triggering, a body change re-measures
-output (`/evals:plugin-eval` for a plugin suite). `evals/evals.json` follows the runner's shape;
-`/skill-quality:check validate-evals <skill>` checks it.
+output (`/evals:plugin-eval` for a plugin suite). A skill's cases are `case.yaml` cases in its
+plugin's `evals/` directory (`/evals:design skill <name>` writes them); `/evals:validate` checks
+them before a run.
 
 **Pre-share checklist.** Each row is mechanical (a `/skill-quality:check` check decides it),
 judgment (a reviewer reads) or attestation (the author states it).
@@ -214,10 +278,12 @@ judgment (a reviewer reads) or attestation (the author states it).
 - Scripts: `scripts/*.test.sh` pass (mechanical, check 7); no committed cache or build artifacts
   (mechanical, check 13); injected `!` commands portable with a fallback (mechanical, checks 19
   and 20); output names what the script did, including on failure (judgment).
-- Evals and testing: `evals/evals.json` present (mechanical, check 14) and valid
-  (`validate-evals`); fresh-session baseline captured (attestation); models exercised, from
-  `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill run under a `model` override or
-  inside a subagent names every target model, or says which are untested (attestation).
+- Evals and testing: suite cases present (judgment) and valid (`/evals:validate`); under
+  `--require-evals`, check 14 passes when a suite case lists the skill's directory name in a
+  one-line `tags: [...]` (mechanical); fresh-session baseline captured
+  (attestation); models exercised, from `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill
+  run under a `model` override or inside a subagent names every target model, or says which are
+  untested (attestation).
 
 Close with `/skill-quality:check <skill>`: it answers the mechanical rows, and its WARN lines are
 the reviewer's reading list for the rest.
@@ -264,6 +330,12 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
 - **Skill-creator**, <https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md>
   (eval modes, description voice). As of 2026-10-06. Recheck: its eval modes or frontmatter
   voice change.
+- **Skill-creator reasons**,
+  [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
+  As of 2026-10-29. Recheck: that section moves or changes its guidance on explaining the why.
+- **Context engineering post**,
+  [The anatomy of effective context](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents#the-anatomy-of-effective-context).
+  As of 2026-10-29. Recheck: that section moves or changes its guidance on examples.
 - **Vendored playbook**, `vendor/upstream-skill.md`, maintained by `/playbooks:update`. Drift check
   2026-10-07: frontmatter version 1.0.0 matches upstream; content SHA256 differs (vendored copy
   7b0923d8…, upstream 05b4e6b7…), sync pending. Recheck: the next `/playbooks:update` run.

@@ -6,7 +6,7 @@ graders:
   - name: ran-syllable-count
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?datamuse\.sh(?:\\")?\s+syllables\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:datamuse\.sh(?:\\")?\s+syllables\b|\b([A-Za-z_]\w*)=(?:\\"|'')?[^\s"'';\\]*datamuse\.sh(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\bdo|\bthen)\s*(?:\\")?\$\{?\1\}?(?:\\")?\s+syllables\b)'
     min: 1
   - name: changed-line-marker
     type: regex

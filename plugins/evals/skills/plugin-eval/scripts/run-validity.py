@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """run-validity - decide whether a `claude plugin eval` run's score may count.
 
-    run-validity <aggregate-result.json> --runs N [--scaffolded]
+    run-validity <aggregate-result.json> --runs N [--scaffolded] [--measured-fire CASE]...
 
 --runs is the run count the eval was invoked with (its --runs, else the case
 default). --scaffolded records that the eval was invoked with --scaffold, which
-the result file does not record. Reads the result file, each case's case.yaml,
+the result file does not record. --measured-fire names a should-trigger case
+whose firing is the quantity a comparison measures, such as the base side of a
+change that makes a skill fire; the skill-fired check reports its misses as a
+measured rate, as for an invocation probe, and every other check is unchanged. Reads the result file, each case's case.yaml,
 and, where each run's tracePath resolves, the kept trace (`--keep-temp`). A
 relative tracePath or suite root is read relative to the result file. Prints
 one line per check, detail lines indented under it:
@@ -30,12 +33,20 @@ one line per check, detail lines indented under it:
                       or more Bash calls had every one fail with no output; each
                       means the run measured a session that never ran, or ran with
                       no working shell. A failed call that printed output ran in a
-                      working shell, whatever its exit code
+                      working shell, whatever its exit code. A 0-turn run whose
+                      trace holds assistant messages ran in a forked session (a
+                      slash-invoked `context: fork` skill) and passes
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
-                      it then left the score unchanged. A with-arm denial aimed
-                      at or under the plugin's directory (suite.root or a
+                      it then left the score unchanged, or when every run of
+                      its case in both arms was denied the same named call
+                      other than Skill (tool and target) with no absolute path
+                      at, under or above the plugin's directory, since the
+                      environment then denied it with or without the plugin,
+                      such as a user-scope read of ~/.claude. Otherwise a
+                      with-arm denial aimed at or under the plugin's
+                      directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
                       no absolute path or no known plugin directory, is
                       a FAIL; in an invocation-probe case a denial of a named
@@ -45,9 +56,15 @@ one line per check, detail lines indented under it:
                       held; a should-fire miss with a denial takes the rules
                       above
     skill fired       every with-arm run of a should-trigger case fired the skill;
-                      in an invocation-probe case a miss is the trigger rate it
-                      measures, reported per case and overall as a warning
-    models            the model and judge model, where the result or traces
+                      in an invocation-probe case, or one named by
+                      --measured-fire, a miss is the trigger rate it measures,
+                      reported per case and overall as a warning
+    probe tools       no invocation-probe run's session could call Read, Glob,
+                      Grep or Agent, which the emitted README removes with
+                      --disallow-tools; one that could is a warning naming that
+                      run line. A probe run whose init tools list cannot be read
+                      is a warning; none readable is UNCHECKED
+    models           the model and judge model, where the result or traces
                       carry them; runs that disagree are a FAIL
     judge votes       a split llm judge vote is a warning
     ceiling           a case whose without-arm is already 1.00 is a warning and
@@ -127,6 +144,7 @@ LINE_TYPE, LINE_SUBTYPE = "type", "subtype"
 TRACE_INIT = ("system", "init")  # type, subtype of the line carrying the model
 TRACE_MODEL = "model"
 TRACE_RESULT = "result"  # type of the closing line
+TRACE_ASSISTANT = "assistant"  # type of a model message line, a forked session's too
 TRACE_RESULT_ERROR = "is_error"
 TRACE_DENIALS = "permission_denials"  # on the result line
 DENIAL_TOOL, DENIAL_ID, DENIAL_INPUT = "tool_name", "tool_use_id", "tool_input"
@@ -144,6 +162,10 @@ EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's 
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
+# A Glob with no path searches where its pattern points: the guard checks the
+# directory the pattern's literal part names, cut at its first glob character.
+GLOB_TOOL, GLOB_PATTERN = "Glob", "pattern"
+GLOB_CHAR = re.compile(r"[*?\[{]")
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 # A word the shell would expand, or a path packed after another character (/a,/b).
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
@@ -167,6 +189,10 @@ MAX_TURNS_ERROR = re.compile(
     r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
 )
 TRACE_ERRORS = "errors"  # on the result line
+TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
+# Tools emit-plugin-eval's README removes from a probe run with --disallow-tools.
+# The init line names the Agent tool Task.
+PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
 
 # case.yaml's context.scaffold_script, in block or flow form, read without a
 # YAML parser. Any uncommented mention of scaffold_script outside these shapes,
@@ -632,10 +658,17 @@ def check_errors(runs, root):
     return PASS, "no run errored or aborted", [], None
 
 
+def assistant_messages(run):
+    """How many assistant messages the run's trace holds, 0 with no trace."""
+    return sum(1 for line in run.trace or [] if line.get(LINE_TYPE) == TRACE_ASSISTANT)
+
+
 def check_started(runs):
     """A run at 0 turns that check_errors passes, or one whose trace shows the
-    sandbox failing to start, scored a session that never ran or had no shell."""
-    details, failed = [], set()
+    sandbox failing to start, scored a session that never ran or had no shell.
+    A 0-turn run whose trace holds assistant messages ran in a forked session
+    (a slash-invoked `context: fork` skill), which the turn count leaves out."""
+    details, failed, forked = [], set(), []
     for r in runs:
         if (
             is_number(r.row.get(RUN_TURNS))
@@ -644,8 +677,15 @@ def check_started(runs):
             and not r.row.get(RUN_ABORTED)
             and not trace_errored(r)
         ):
-            details.append("%s: 0 turns and no run error" % r.where)
-            failed.add(r)
+            messages = assistant_messages(r)
+            if messages:
+                forked.append(
+                    "%s: 0 turns, and its trace holds %s (%s)"
+                    % (r.where, plural(messages, "assistant message"), r.trace_path)
+                )
+            else:
+                details.append("%s: 0 turns and no run error" % r.where)
+                failed.add(r)
         reason = shell_failure(r)
         if reason:
             details.append("%s: %s (%s)" % (r.where, reason, r.trace_path))
@@ -655,10 +695,17 @@ def check_started(runs):
         return (
             FAIL,
             "%s never started or had no sandbox" % count,
-            details,
-            "%s never started or had no sandbox" % count,
+            details + forked,
+            "harness failure: %s never started or had no sandbox, so the score"
+            " measures the harness, not the skill" % count,
         )
-    return PASS, "every run took a turn and no trace shows a sandbox failure", [], None
+    summary = "every run took a turn and no trace shows a sandbox failure"
+    if forked:
+        summary = (
+            "every run ran and no trace shows a sandbox failure; %s at 0 turns ran"
+            " in a forked session its trace holds" % plural(len(forked), "run")
+        )
+    return PASS, summary, forked, None
 
 
 def check_rows(cases, runs_wanted, arms):
@@ -725,10 +772,21 @@ def bash_paths(command):
     return paths + (None,) if unresolved or not paths else paths
 
 
+def glob_root(pattern):
+    """The directory a Glob pattern names before its first glob character: the
+    pattern itself when it holds none, else the directory its literal part ends
+    in, so /p/plug* gives /p, an ancestor of /p/plugin. None for a non-string."""
+    if not isinstance(pattern, str):
+        return None
+    match = GLOB_CHAR.search(pattern)
+    return pattern if match is None else os.path.dirname(pattern[: match.start()])
+
+
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
-    the paths it targets: a Bash call's rooted arguments, else the target path or
-    None, the tool's name, the tool_use_id)."""
+    the paths it targets: a Bash call's rooted arguments, else the target path, a
+    path-less Glob's pattern root (glob_root) or None, the tool's name, the
+    tool_use_id, the (tool, target) pair that names the same call in another run)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -750,17 +808,19 @@ def denials(run):
         name, tool_input = call or calls.get(use_id, (None, {}))
         path = next((tool_input[k] for k in TARGET_KEYS if k in tool_input), None)
         target = path if path is not None else next(iter(tool_input.values()), "")
-        paths = (
-            bash_paths(tool_input.get(BASH_COMMAND))
-            if name == BASH_TOOL
-            else (path if isinstance(path, str) else None,)
-        )
+        if name == BASH_TOOL:
+            paths = bash_paths(tool_input.get(BASH_COMMAND))
+        elif path is None and name == GLOB_TOOL:
+            paths = (glob_root(tool_input.get(GLOB_PATTERN)),)
+        else:
+            paths = (path if isinstance(path, str) else None,)
         out.append(
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
                 paths,
                 name,
                 use_id,
+                (name, json.dumps(target)),
             )
         )
     return out
@@ -812,7 +872,7 @@ def same_as_clean(run, found, runs, roots):
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
-        inside(path, roots) for _, paths, _, _ in found[run] for path in paths
+        inside(path, roots) for _, paths, _, _, _ in found[run] for path in paths
     ):
         return False
     siblings = [
@@ -829,6 +889,27 @@ def same_as_clean(run, found, runs, roots):
     )
 
 
+def in_every_run(run, found, runs, roots):
+    """True when every denial in run names a call that every run of its case, in
+    both arms, was also denied, and none is aimed at, under or above the plugin's
+    directory. The without-arm runs lack the plugin, so a call denied in every
+    run of both arms is the environment's, such as a user-scope read a skill's
+    contract asks for, and cannot move the delta. Each run of the case needs a
+    readable trace. A Skill denial, or one naming no tool, never qualifies: in
+    the with-arm it may have kept the plugin's own skill from loading."""
+    case_runs = [r for r in runs if r.case is run.case]
+    both_arms = {r.arm for r in case_runs} == set(ARMS)
+    if not both_arms or any(r not in found for r in case_runs):
+        return False
+    if any(
+        name in (None, SKILL_TOOL) or any(rooted(p) and inside(p, roots) for p in paths)
+        for _, paths, name, _, _ in found[run]
+    ):
+        return False
+    held = [{key for _, _, _, _, key in found[r]} for r in case_runs]
+    return all(all(key in keys for keys in held) for _, _, _, _, key in found[run])
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -841,13 +922,13 @@ def probe_denial(run, found, runs, root):
     has denial-free with-arm runs and every one of them held too. A denial naming
     no tool may have been the Skill call."""
     if not is_probe(run.case, root) or not all(
-        name is not None and name != SKILL_TOOL for _, _, name, _ in found[run]
+        name is not None and name != SKILL_TOOL for _, _, name, _, _ in found[run]
     ):
         return False
     if graded_call_made(run, root):
         at, first = graded_call_at(run, root)
         return first is not None and all(
-            at.get(use_id, -1) > first for _, _, _, use_id in found[run]
+            at.get(use_id, -1) > first for _, _, _, use_id, _ in found[run]
         )
     if skill_graders(run.case, root)[0]:
         return False
@@ -881,10 +962,12 @@ def check_denials(runs, roots, root):
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, runs, root) or same_as_clean(r, found, runs, roots)
+        if probe_denial(r, found, runs, root)
+        or same_as_clean(r, found, runs, roots)
+        or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _, _, _ in found[r]]
+    details = [line for r in denied for line, _, _, _, _ in found[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
@@ -898,7 +981,9 @@ def check_denials(runs, roots, root):
             " its graded Skill call, or holding as every denial-free run of its"
             " should-not-fire case held; or a run scoring the same as its case's"
             " denial-free runs in the same arm with no with-arm denial inside the"
-            " plugin): %s" % ", ".join(warned_cases)
+            " plugin; or a run denied only named calls other than Skill that every"
+            " run of its case was denied in both arms, none inside the plugin): %s"
+            % ", ".join(warned_cases)
         )
     if failed:
         reason = "%s in the traces" % plural(
@@ -930,9 +1015,9 @@ def check_denials(runs, roots, root):
     return PASS, "no denied tool call in %s" % plural(len(traced), "trace"), [], None
 
 
-def check_fired(cases, runs, root):
+def check_fired(cases, runs, root, measured_fire=frozenset()):
     unfired, unread, controls, unknown, checked = [], [], [], [], 0
-    measured = {}  # invocation-probe case name -> [fired, with-arm runs]
+    measured = {}  # invocation-probe or --measured-fire case name -> [fired, with-arm runs]
     for case in cases:
         requiring, _ = skill_graders(case, root)
         if is_control(case, root):
@@ -941,7 +1026,7 @@ def check_fired(cases, runs, root):
         if not requiring:
             unknown.append(case.get(CASE_NAME))
             continue
-        probe = is_probe(case, root)
+        probe = is_probe(case, root) or case.get(CASE_NAME) in measured_fire
         for r in runs:
             if r.case is not case or r.arm != "with":
                 continue
@@ -966,10 +1051,11 @@ def check_fired(cases, runs, root):
         notes.append("no skill-fired grader, so not checked: %s" % ", ".join(unknown))
     fired = sum(f for f, _ in measured.values())
     probed = sum(n for _, n in measured.values())
+    label = "measured cases" if set(measured) & measured_fire else "invocation probes"
     if measured:
         notes.append(
-            "invocation probes fired in %d of %s, the measured rate, not gated"
-            % (fired, plural(probed, "with-arm run"))
+            "%s fired in %d of %s, the measured rate, not gated"
+            % (label, fired, plural(probed, "with-arm run"))
         )
     rates = [
         "measured: case %s fired in %d of %s" % (name, f, plural(n, "with-arm run"))
@@ -979,7 +1065,7 @@ def check_fired(cases, runs, root):
     tail = ("; " + "; ".join(notes)) if notes else ""
     fired_in = "fired in %s" % plural(checked, "with-arm run")
     if measured and not checked:
-        fired_in = "no should-trigger case outside the invocation probes"
+        fired_in = "no should-trigger case outside the %s" % label
     if unfired:
         return (
             FAIL,
@@ -1004,7 +1090,7 @@ def check_fired(cases, runs, root):
             fired_in + tail,
             rates,
             (
-                "invocation probes fired in %d of %s" % (fired, plural(probed, "run"))
+                "%s fired in %d of %s" % (label, fired, plural(probed, "run"))
                 if rates
                 else None
             ),
@@ -1015,6 +1101,85 @@ def check_fired(cases, runs, root):
         PASS,
         "fired in all %s of should-trigger cases%s"
         % (plural(checked, "with-arm run"), tail),
+        [],
+        None,
+    )
+
+
+def check_probe_tools(runs, root):
+    """An invocation-probe run whose session could call a tool the emitted README
+    removes ran without that run line: in its empty workspace those calls are
+    denied, and a subagent it dispatches outlives the run's timeout. Warns, and
+    names the fix, since the denial and error checks already judge the runs. A
+    probe run with no trace, no init line or no tools list on it is unread: none
+    read is UNCHECKED, some unread a warning."""
+    found = {}  # the removable tools a run could call -> the runs that could
+    probes, unread = 0, []
+    for r in runs:
+        if not is_probe(r.case, root):
+            continue
+        probes += 1
+        tools = next(
+            (
+                line.get(TRACE_TOOLS)
+                for line in r.trace or []
+                if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
+            ),
+            None,
+        )
+        if not isinstance(tools, list):
+            unread.append(r)
+            continue
+        extra = ", ".join(t for t in tools if t in PROBE_REMOVED_TOOLS)
+        if extra:
+            found.setdefault(extra, []).append(r)
+    if not probes:
+        return PASS, "no invocation-probe case", [], None
+    unread_details = [
+        "%s: no init tools list (%s)" % (r.where, r.trace_path or "no trace")
+        for r in unread
+    ]
+    if len(unread) == probes:
+        return (
+            UNCHECKED,
+            "no invocation-probe run's init tools list could be read",
+            unread_details,
+            "probe tools unchecked in %s with no readable init tools list"
+            % plural(len(unread), "run"),
+        )
+    summary, reasons = [], []
+    if found:
+        summary.append(
+            "%s of invocation-probe cases could call %s; run the emitted README's"
+            " line, --disallow-tools Read Glob Grep Agent, so a probe run cannot be"
+            " denied a search or outlive its timeout in a subagent"
+            % (
+                plural(sum(len(rs) for rs in found.values()), "run"),
+                "/".join(PROBE_REMOVED_TOOLS),
+            )
+        )
+        reasons.append(
+            "invocation probes ran without --disallow-tools Read Glob Grep Agent"
+        )
+    if unread:
+        summary.append(
+            "%s with no readable init tools list" % plural(len(unread), "probe run")
+        )
+        reasons.append("probe tools unread in %s" % plural(len(unread), "run"))
+    if summary:
+        return (
+            WARN,
+            "; ".join(summary),
+            [
+                "%s: %s, first %s" % (tools, plural(len(rs), "run"), rs[0].where)
+                for tools, rs in found.items()
+            ]
+            + unread_details,
+            "; ".join(reasons),
+        )
+    return (
+        PASS,
+        "no invocation-probe run could call Read, Glob, Grep or Agent",
         [],
         None,
     )
@@ -1162,6 +1327,13 @@ def main(argv=None):
         action="store_true",
         help="the eval was invoked with --scaffold",
     )
+    parser.add_argument(
+        "--measured-fire",
+        action="append",
+        default=[],
+        metavar="CASE",
+        help="a should-trigger case whose firing is the quantity compared (repeatable)",
+    )
     args = parser.parse_args(argv)
     if args.runs < 1:
         sys.stderr.write("error: --runs must be 1 or more\n")
@@ -1212,8 +1384,8 @@ def main(argv=None):
     if unresolved:
         lines.append(
             "traces: %d of %d tracePaths do not resolve (the run needs --keep-temp, and its"
-            " directories must still exist); permission denials and the trace model are"
-            " unchecked for those runs" % (len(unresolved), len(runs))
+            " directories must still exist); permission denials, probe tools and the"
+            " trace model are unchecked for those runs" % (len(unresolved), len(runs))
         )
         lines += [
             "  %s: %s" % (r.where, r.trace_path or "no tracePath") for r in unresolved
@@ -1223,7 +1395,8 @@ def main(argv=None):
     later = [
         ("session started", check_started(runs)),
         ("permission denials", check_denials(runs, plugin_roots, root)),
-        ("skill fired", check_fired(cases, runs, root)),
+        ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
+        ("probe tools", check_probe_tools(runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),
         ("ceiling", check_ceiling(cases, arms)),

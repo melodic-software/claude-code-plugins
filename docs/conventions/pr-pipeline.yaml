@@ -90,7 +90,9 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/workflows/, and writes replies to a file.
-    args: comments --ci
+    # --unattended: nobody is present to answer an ask (live-config.test.mjs
+    # fails a lane call of a skill that takes it without it).
+    args: comments --ci --unattended
     # Before any model turn pr-unblock.yml's address-feedback-select job, which
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
@@ -169,7 +171,7 @@ activities:
     # checkout and upstream release notes, runs no command, and leaves a fix
     # to npm or pip manifest and lock files outside .github/ uncommitted;
     # patch-rules.json's dependency-review row lands no other fix.
-    args: dependency --ci
+    args: dependency --ci --unattended
     # Before any model turn pr-unblock.yml's review-dependency-select job,
     # which runs only base code, skips a pull request Dependabot did not open
     # or one sorted `auto`, hands it to a person once
@@ -238,12 +240,16 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
     # edits .github/workflows/, and reports each check fixed or escalated.
-    args: ci --ci
+    args: ci --ci --unattended
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
     # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
     # read runner gives the skill that file, Bash, Edit and Write.
     prepare: ci-context
+    # The re-pin script for the digest pins a PR's own diff moved: the skill
+    # is told to run its base copy. Bash, Edit and Write stay open, so review
+    # of the patch, not this list, controls what a re-pin changes.
+    verify-scripts: [plugins/planning/scripts/repin-digests.sh]
     # Runs head code, so no write token: the change leaves as a patch.
     effect: read
     applied-by:
@@ -278,6 +284,48 @@ activities:
       # producer's base-code job read a lane escalation that lets it pass.
       labels-absent: [do-not-merge, "security: outside-actor"]
       draft: [false]
+  sync-shared-copies:
+    # Regenerates a lanes App pull request's shared-library copies after
+    # pr-merge refused its head as shared-copy-sources-changed. No model:
+    # pr-unblock.yml's sync-shared-copies-select job, which runs only base
+    # code, merges the pinned default branch tip into the head and runs this
+    # script, which runs the base's scripts/sync-shared-copies.sh and
+    # scripts/lib from outside the checkout and refuses a head that changes
+    # them or a write the base-tip scripts/shared-copies.txt does not list as
+    # a copy. apply-shared-copies pushes its patch.
+    script: .github/scripts/pr-unblock/sync-shared-copies.sh
+    # Writes nothing itself: its patch leaves as an artifact.
+    effect: read
+    gating: advisory
+    # Reads PR head files.
+    reads-untrusted: true
+    inputs: [pr, base-sha, head-sha]
+    applies-when:
+      # The human-gated label holds it in the select job unless pr-merge's
+      # shared-copy refusal at the head put it on (lane-hold.mjs).
+      labels-absent: [do-not-merge, "security: outside-actor"]
+      draft: [false]
+  apply-shared-copies:
+    # Merges the base tip sync-shared-copies-select pinned into the head it
+    # gated, applies the regenerated copies to the clean merge (none when the
+    # merge already holds current copies), and pushes
+    # one merge commit with the head and that base as parents, without
+    # force. A script, no model, and it runs no head code; patch-rules.json's
+    # shared-copies row admits only copies the base-tip
+    # scripts/shared-copies.txt lists, and a head that moved since skips.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the merge to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the select job wrote from head files.
+    reads-untrusted: true
+    inputs: [pr, head-sha, base-sha]
+    applies-when:
+      # As sync-shared-copies: the write runner keeps the human-gated label a
+      # hold unless the select job read pr-merge's shared-copy refusal.
+      labels-absent: [do-not-merge, "security: outside-actor"]
+      draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either leaves the change in the
     # working tree, or stops and says why. The runner adds `--issue <number>`.
@@ -293,7 +341,10 @@ activities:
     # the lane branch with the base's scripts/ code and the branch's scripts/
     # data files, and report-outcome stops a done
     # run whose checks failed or did not run, whatever the outcome file says.
-    checks: ["scripts/check-changelog-fragments.sh --check"]
+    # check-changed-skills.sh --merge-base runs CI's changed-skills gate over
+    # the skills the change touches, with the base's check-skill.sh and each
+    # skill's script tests skipped, so it runs no checkout code.
+    checks: ["scripts/check-changelog-fragments.sh --check", "scripts/check-changed-skills.sh --merge-base"]
     # Runs the diff-scoped lint checks a push would face (markdown,
     # shellcheck, exec bits, changelog fragments, plugin validation) in the
     # run, so the skill fixes what they report before it commits and the PR
@@ -307,10 +358,12 @@ activities:
     # read-only copy of the base. A script that changes files, runs code from
     # the checkout or reaches the network hands the run that power, so list
     # one only when it limits that itself. Each script starts with GH_TOKEN
-    # and GITHUB_TOKEN unset, but code it runs can still read the job's
-    # read-only token from any same-user process's /proc/<pid>/environ,
-    # so no script here runs checkout code: run-test-file.sh and
-    # check-skill.sh are left out, and the PR's own CI runs the tests.
+    # and GITHUB_TOKEN unset, and no Bash process above it holds either:
+    # the read runner's run-claude-cli steps set neither token. No script here
+    # runs checkout code: run-test-file.sh and check-skill.sh are left out,
+    # and the PR's own CI runs the tests. check-skill.sh runs only inside the
+    # check-changed-skills.sh check above, from the base copy with script
+    # tests and markdownlint skipped.
     # git-mv-rm.sh renames and removes paths inside the checkout.
     # sync-shared-copies.sh regenerates registered shared-library copies
     # inside the checkout: it reads the registry and canonicals there and
@@ -653,9 +706,15 @@ lanes:
       # Runs after fix-ci, in its own job with its own token.
       - activity: apply-patch
         needs: [fix-ci]
+      # Started by pr-unblock-dispatch.yml for lanes App PRs pr-merge refused
+      # as shared-copy-sources-changed at their head.
+      - activity: sync-shared-copies
+      # Runs after sync-shared-copies, in its own job with its own token.
+      - activity: apply-shared-copies
+        needs: [sync-shared-copies]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
+        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch, sync-shared-copies, apply-shared-copies]
   pr-merge:
     stage: merge
     slots:
@@ -690,8 +749,11 @@ models:
     review:
       model: opus
       max-turns: 60
+    # Both review lanes judge work the code-fix and standard profiles write
+    # (opus), with no objective signal on the head when the model is chosen:
+    # docs/plugin-philosophy.md, Model tiers, rules 3 and 4.
     pr-review:
-      model: sonnet
+      model: opus
       effort: high
       max-turns: 75
     triage:
@@ -848,6 +910,13 @@ limits:
   # Admissions per hour the queued cap never falls below, so a day with no
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
+  # Stranded issues work-unblock's hourly sweep re-fires per run. The SLOTS
+  # queues in work-resolve-issue.yml pace the API quota (3 runs at once, the
+  # rest wait without a runner), so this only needs to cover about two hours
+  # of slot capacity: below that the slots sit idle after each sweep while
+  # stranded issues wait for the next one; far above it, queued runs go stale
+  # on a lane workflow change.
+  restarts-per-run: 10
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
   # graphql, owner-token, content-creation). limit-cap sets each pool's planned
   # budget, the header's x-ratelimit-limit at most the cap (github-token:
@@ -965,10 +1034,12 @@ branch-cleanup:
   max-deletes-per-run: 25
 
 merge:
-  # The lane treats every PR the lanes App opened for one closing issue as
-  # class C2 (plugins/autonomy/reference/guardrails/work-classes.md) and reads
-  # no `work-class:` label. Its merge criterion is the verifier verdict below.
-  rung: C2
+  # The rung is a pacing cap: off merges nothing without a human; merge lets
+  # the merge authority merge; merge-reviewed also needs AI review to be
+  # blocking on the local babysit lane. C2 and C3 are accepted aliases for
+  # merge and merge-reviewed. The lane reads no `work-class:` label: its merge
+  # criterion is the verifier verdict below.
+  rung: merge
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
   # The Apps whose touch holds a trust-gate path change for a person in
@@ -995,8 +1066,10 @@ merge:
   lane-prs: native
   # Head branches a workflow owns and rebuilds. pr-merge's re-fire step
   # (.github/scripts/pr-merge/refire-refused.mjs) never pushes an empty commit
-  # to a pull request from one: release-publish-plugins.yml rebuilds
-  # release/plugins, and run 41065454536's push there answered 422.
+  # to a pull request from one, and pr-unblock never runs fix-ci on one
+  # (skip `owned-branch`): release-publish-plugins.yml rebuilds
+  # release/plugins, and pushes there answered 422 (run 41065454536's re-fire,
+  # runs 41308756974 and 41312571464's fix-ci).
   refire-skip-branches: [release/plugins]
   # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
   # head (lane PRs under lane-prs native are not listed). Must be true at a
@@ -1049,7 +1122,10 @@ merge:
   # reruns the PR's checks, verifier and reviews, so a path main changes often
   # (scripts/**, these YAML files) costs more reruns than the ejections it
   # saves. Workflow files are left out: the lane
-  # token holds no workflows permission to push them into a PR branch.
+  # token holds no workflows permission to push them into a PR branch. A
+  # lanes App PR refused for stale shared copies (shared-copy-sources-changed)
+  # is answered by pr-unblock's sync-shared-copies activity, which merges main
+  # and regenerates them with main's tooling.
   check-inputs:
     - scripts/shared-copies.txt
     - scripts/docs-only-paths.txt
@@ -1353,6 +1429,8 @@ merge:
       - glob: ".github/workflows/pr-refine.yml"
         class: gate
       - glob: ".github/workflows/pr-require-checks.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-approved.yml"
         class: gate
       - glob: ".github/workflows/pr-review-hosted.yml"
         class: gate

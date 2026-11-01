@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: bg-save-output-harvests
+description: "Head contract (new skill), save-output action: harvest reads the saved config file, wires it into the real artifact, removes the tool and its route, and keeps the saved config."
+tags: [build-generator, hard]
+runs: 3
+expected_outcome: "The agent reads src/config/torn-edge.json, makes ReportCover use the saved values (importing the config, or a static export made from it), removes the /lab/torn-edge route from src/App.jsx and deletes the src/lab tool, and leaves src/config/torn-edge.json unchanged."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:build-generator save-output src/config/torn-edge.json"
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 50
+  timeout_seconds: 900

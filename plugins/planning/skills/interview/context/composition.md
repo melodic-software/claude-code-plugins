@@ -8,6 +8,7 @@ otherwise do the step inline or name it to the user.
 |---|---|---|
 | Pre-task fuzzy intent or lock-the-brief | **`/planning:interview`** (this) | Produces PLAN.md Brief |
 | Idea stage: a half-formed idea, no settled problem or direction | `/planning:brainstorm` | Upstream entry; explores approaches and writes a `## Handoff` block to `<memory_dir>/<topic-slug>/brainstorm.md` that seeds the Brief (SKILL.md "Intake the starting point") |
+| A product or feature idea to stress-test before building it ("should I build this") | `/planning:interview product` (this skill's `product` action) | Recommend, never auto-switch; [`product.md`](product.md) runs one question per turn from the twenty principles and ends in a verdict, not a Brief |
 | Product intent fuzzy (whose problem, what success) | `/planning:prd` | Upstream of `/planning:interview`; PRD answers *what for whom and why*; its Problem and Assumptions seed the Brief ([`loop.md`](loop.md) "Constraint ledger") |
 | Territory unfamiliar to the user | `/discovery:blindspot` (if enabled) | Before round 1; surfaces the user's unknowns so they can assess options |
 | A question rests on why something was built this way | `/discovery:trace-intent` (if enabled) | Recovers the original rationale from evidence outside the code before a recommendation leans on it |

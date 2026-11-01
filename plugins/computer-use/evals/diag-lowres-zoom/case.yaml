@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: diag-lowres-zoom
+graders:
+  - name: recommends-zoom
+    type: regex
+    pattern: '(?<!browser )(?<!editor )(?<!page )(?<!app )(?<!app''s )(?<!text )(?<!font )(?<!Ctrl\+)\bzoom(?:ing)?\b(?!\s+(?:level|to\s+\d|percent|out)\b)'
+    flags: 'i'
+    target: last_message
+  - name: fixed-budget
+    type: regex
+    pattern: '\bpixel budget\b|\bmegapixels?\b|\b1\.2\s?MP\b|\bno (?:[\w-]+ ){0,2}(?:setting|knob|option|toggle|control)\b|\bnot (?:tunable|configurable|adjustable)\b|\b(?:fixed|automatic(?:ally)?)\b[^\n.]{0,40}\b(?:downscaled|downscales|downscaling|downscale|budget|target|size)\b|\b(?:downscaled|downscales|downscaling|downscale)\b[^\n.]{0,40}\b(?:fixed|automatic(?:ally)?)\b|\b(?:can''t|cannot|can not) (?:be )?(?:changed|configured|tuned|adjusted|raised)\b'
+    flags: 'i'
+    target: last_message
+  - name: says-dont-lower
+    type: regex
+    pattern: '\b(?:don''t|do[\s*_]+not|never|shouldn''t|should[\s*_]+not|no need to|avoid|wouldn''t|would[\s*_]+not|not)\b[^\n.]{0,30}\b(?:lower|lowering|drop|dropping|reduce|reducing|decrease|decreasing|change|changing)\b[^\n.]{0,40}(?:\bresolution\b|\b1280\s*[x×]\s*720\b)|\b(?:lower|lowering|drop|dropping|reduce|reducing|smaller monitor)\b[^\n.]{0,60}\b(?:won''t|will not|doesn''t|does not|wouldn''t|would not|isn''t|is not)\b[^\n.]{0,20}\b(?:help|sharpen|improve|make|buy|give|fix|worth)\b|\b(?:only|just) (?:removes|throws away|loses|discards)\b|\bno sharper\b|\bkeep (?:your |the )?(?:native |current |display )?(?:resolution|2560\s*[x×]\s*1440)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-lower-advice
+    type: regex
+    pattern: '(?<!not )(?<!not\*\* )(?<!not\* )(?<!n''t )(?<!n''t\*\* )(?<!never )(?<!avoid )(?<!against )(?<!instead of )(?<!rather than )(?<!no need to )(?<!whether to )(?<!I )(?<!we )\b(?:try(?:ing)?|set(?:ting)?|drop(?:ping)?|lower(?:ing)?|switch(?:ing)?|chang(?:e|ing)|reduc(?:e|ing))\b(?: (?:it|down|the display|your display|the resolution|your resolution|the screen|your screen|display resolution))*\s+to\s+(?:1280\s*[x×]\s*720|720p|1024\s*[x×]\s*768|1366\s*[x×]\s*768|1600\s*[x×]\s*900|a lower resolution)(?![^\n.]{0,40}\b(?:won''t|will not|wouldn''t|would not|doesn''t|does not|only|just)\b)|(?:^|[.!?]\s+|^[ \t]*(?:[-*]|\d+\.)[ \t]+)(?:\*\*)?(?:lower|reduce|drop|decrease)\s+(?:your|the)\s+(?:display |screen |monitor )?resolution\b|\b(?:you (?:should|could|can|might)|I''d (?:recommend|suggest)|I would (?:recommend|suggest)|recommend|suggest|try|consider)\s+(?:lowering|reducing|dropping|decreasing|to lower|to reduce|to drop)\s+(?:your|the)\s+(?:display |screen |monitor )?resolution\b'
+    flags: 'im'
+    match: not_contains
+    target: last_message
+  - name: reads-screenshots-spoke
+    type: tool_used
+    tool: 'Read'
+    input_match: '"file_path"\s*:\s*"(?:[^"\\]|\\.)*?screenshots-and-zoom\.md"'
+    arm: 'with-only'

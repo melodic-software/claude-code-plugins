@@ -60,6 +60,13 @@ APPROVE_RE = re.compile(
 POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\b|\bwatch\s", re.S)
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
+# A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
+# or `--flag[=value]` global options.
+CONFLICT_COMMAND_RE = re.compile(
+    r"\bgit(?:\.exe)?[\"']?"
+    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|\S+)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+|--[\w-]+(?:=\S+)?))*\s+"
+    r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
+)
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
 # MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
 # versions carry MultiEdit calls, and they must still count as file-tool calls.
@@ -310,7 +317,8 @@ class FrictionScan:
             self.max_tool_wait_s = max(self.max_tool_wait_s, wait)
             self.perf["tool_waits_gt5m"] += wait > TOOL_WAIT_S
         text = transcript_reader.tool_result_text(record)
-        if CONFLICT_RE.search(text[:20000]):
+        command = tool_input.get("command") if name in SHELL_TOOLS else None
+        if isinstance(command, str) and CONFLICT_COMMAND_RE.search(command) and CONFLICT_RE.search(text[:20000]):
             self.perf["merge_conflicts"] += 1
         permission = transcript_reader.permission_event(record)
         for denial in self.next_calls.pop(use_id, ()):

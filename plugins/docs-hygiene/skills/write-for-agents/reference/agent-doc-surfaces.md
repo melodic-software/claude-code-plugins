@@ -1,14 +1,13 @@
 # Agent-consumed surfaces: what loads, when, and how much
 
-Read this when deciding how a file you are writing will actually reach an agent: whether it
-auto-loads, at what moment, and under what size behavior. Write differently for an always-loaded
-surface (every line is a per-session tax) than for an on-demand one (cost only when the trigger
-fires).
+Read this to decide how a file you are writing reaches an agent: whether it auto-loads, at what
+moment, and under what size behavior. Write differently for an always-loaded surface (every line
+is a per-session tax) than for an on-demand one (cost only when the trigger fires).
 
-The table sorts each surface into a load class: always loaded at session start, loaded on demand,
-or loaded per invocation. That class is what changes how you write. Exact load order, size limits,
-opt-in variables, version floors and per-surface conditions are upstream specifics; read them at the
-pointers below the table when a write depends on one.
+The table sorts each surface into a load class: session start, on demand, or per invocation. That
+class changes how you write. Exact load order, size limits, opt-in variables, version floors and
+per-surface conditions are upstream specifics; read them at the pointers below the table when a
+write depends on one.
 
 ## Claude Code surfaces
 
@@ -24,7 +23,7 @@ pointers below the table when a write depends on one.
 | User rules | `~/.claude/rules/*.md` | Session start; load order relative to project rules: the user-rules pointer below. We keep the two consistent rather than rely on either ranking above the other |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
 | `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it at the same pointer rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both, and its availability, which moves, at the AGENTS.md pointer below. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
@@ -39,18 +38,18 @@ pointers below the table when a write depends on one.
 
 Load-semantics facts that change how you write:
 
-- More specific scopes land later in context; we treat contradictions between scopes as a defect
-  to remove, not a precedence to rely on (how scopes interact: the pointers below).
-- Content that loads on demand (nested CLAUDE.md, `paths:`-gated rules) may be absent right after
-  `/compact` until it loads again, so a constraint that must hold post-compaction belongs on a
-  surface that survives it.
-- We use block-level HTML comments in CLAUDE.md as maintainer notes that cost no context (which
+- More specific scopes land later in context; treat contradictions between scopes as a defect to
+  remove, not a precedence to rely on (how scopes interact: the pointers below).
+- On-demand content (nested CLAUDE.md, `paths:`-gated rules) may be absent right after `/compact`
+  until it loads again, so a constraint that must hold post-compaction belongs on a surface that
+  survives it.
+- Use block-level HTML comments in CLAUDE.md as maintainer notes that cost no context (which
   comments are stripped: the load-order pointer below).
 - MEMORY.md loads only its head, so put what must load first; keep CLAUDE.md short for adherence,
-  and treat the 200-line target as ours to grade with (the target's source is the CLAUDE.md size
-  pointer below; `/docs-hygiene:audit-progressive-disclosure` runs the grading).
-- These surfaces are context, not enforcement, so a rule that must be mechanically guaranteed
-  belongs in a hook or permission policy, not prose.
+  and treat the 200-line target as ours to grade with (its source: the CLAUDE.md size pointer
+  below; `/docs-hygiene:audit-progressive-disclosure` runs the grading).
+- These surfaces are context, not enforcement: a rule that must be mechanically guaranteed belongs
+  in a hook or permission policy, not prose.
 
 ### Surface pointers
 
@@ -89,8 +88,7 @@ Load-semantics facts that change how you write:
 ### Load triggers
 
 We describe nested CLAUDE.md and `paths:`-gated rules as loading when Claude works with a file they
-cover, not only when it reads one, and we keep the list of tools and commands that count out of this
-file.
+cover, not only when it reads one; the list of tools and commands that count stays out of this file.
 
 - **Pointer**: when a placement depends on exactly which tool calls or shell commands trigger the
   load, fetch <https://code.claude.com/docs/en/memory#how-claude-md-files-load> (nested CLAUDE.md)
@@ -110,8 +108,8 @@ what attaches a subdirectory AGENTS.md.
 
 ## CLI prompt appends
 
-These are invocation flags, not memory files. Treat each as per-invocation instruction text: one
-appends a file to the main system prompt, and two append text to subagent system prompts. Before
+These are invocation flags, not memory files: treat each as per-invocation instruction text. One
+appends a file to the main system prompt; two append text to subagent system prompts. Before
 relying on one, read its mode restriction, version floor, fork exception and whether it combines
 with its sibling at the pointer.
 
@@ -131,8 +129,8 @@ a flag combines with its own file form; read both before relying on either.
 
 ## Other-ecosystem analogues
 
-For repos whose docs serve multiple agent harnesses. Names and auto-read semantics only;
-verify a vendor's current behavior before relying on details.
+For repos whose docs serve several agent harnesses. Names and auto-read semantics only; verify a
+vendor's current behavior before relying on details.
 
 | Convention | File(s) | Auto-read |
 |---|---|---|

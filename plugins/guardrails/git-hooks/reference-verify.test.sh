@@ -227,6 +227,19 @@ expect "with two pushed refs changing one file, each is read from its own tip" "
     "$clean_tip" "$ZERO" "$bogus_tip" "$ZERO" | push_lines)"
 expect "with the clean ref alone, nothing blocks" "0|" \
   "$(printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" | push_lines)"
+# This entry sets its own EXIT trap; a lib awk that fails while listing the
+# changed lines must still fail the push, though the push adds no finding.
+mkdir -p "$WORK/shims"
+# shellcheck disable=SC2016 # $* expands when the shim runs
+printf '#!/bin/sh\ncase " $* " in\n*"/^\\+\\+\\+ /"*) echo "awk: fatal error: internal error" >&2; exit 2 ;;\nesac\nexec %s "$@"\n' \
+  "$(command -v awk)" >"$WORK/shims/awk"
+chmod +x "$WORK/shims/awk"
+err="$(cd "$REPO" && printf 'refs/heads/clean %s refs/heads/clean %s\n' "$clean_tip" "$ZERO" |
+  PATH="$WORK/shims:$PATH" bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+expect "a lib awk that fails while listing the changed lines fails the push" \
+  "1|reference-verify.sh: awk exited 2 while listing the changed lines, so this change was not fully checked; fix that failure, then push again" \
+  "$?|$(grep -F 'reference-verify.sh: awk exited' <<<"$err")"
+expect "the failing push still leaves no worktree behind" 1 "$(git -C "$REPO" worktree list | wc -l | tr -d ' ')"
 
 new_repo
 # shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
@@ -277,6 +290,36 @@ commit_all move-cites
 expect "a line the move adds to the moved doc is judged, at that line" \
   "1|docs/new/README.md:24: stale-path-verify: cited path(s) in docs/new/README.md were deleted from this repo:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+# A stage that crashes while it lists or merges a copy's lines fails the push.
+# The shims fail the SHIM_NTH call (default 1) whose arguments hold SHIM_FAIL;
+# the copy awk runs the lib's program text, so it is the second such call.
+mkdir -p "$WORK/fail-shims"
+for t in awk git; do
+  # shellcheck disable=SC2016 # $* and the SHIM_ variables expand when the shim runs
+  printf '#!/bin/sh\ncase " $* " in\n*"$SHIM_FAIL"*)\n  c=$(($(cat "$SHIM_COUNT" 2>/dev/null || echo 0) + 1)); echo "$c" >"$SHIM_COUNT"\n  if [ "$c" -eq "${SHIM_NTH:-1}" ]; then echo "%s: fatal error: internal error" >&2; exit 2; fi ;;\nesac\nexec %s "$@"\n' \
+    "$t" "$(command -v "$t")" >"$WORK/fail-shims/$t"
+  chmod +x "$WORK/fail-shims/$t"
+done
+push_failing() { # <marker> <nth> <ref> <local-sha> <remote-sha> -> "<rc>|<the tool-failed line>"
+  local err rc
+  rm -f "$WORK/shim-count"
+  err="$(cd "$REPO" && printf '%s %s %s %s\n' "$3" "$4" "$3" "$5" |
+    PATH="$WORK/fail-shims:$PATH" SHIM_FAIL="$1" SHIM_NTH="$2" SHIM_COUNT="$WORK/shim-count" \
+      bash "$CHECK" origin "$WORK/r$n.git" 2>&1 >/dev/null)"
+  rc=$?
+  printf '%s|%s' "$rc" "$(grep -F 'reference-verify.sh: ' <<<"$err")"
+}
+tip="$(git -C "$REPO" rev-parse HEAD)"
+expect "a git diff that fails while listing a copy's lines fails the push" \
+  "1|reference-verify.sh: git exited 2 while listing the lines a copy adds, so this change was not fully checked; fix that failure, then push again" \
+  "$(push_failing '--diff-filter=C --src-prefix' 1 refs/heads/main "$tip" "$pushed")"
+expect "an awk that fails while listing a copy's lines fails the push" \
+  "1|reference-verify.sh: awk exited 2 while listing the lines a copy adds, so this change was not fully checked; fix that failure, then push again" \
+  "$(push_failing 'path ~ /^b' 2 refs/heads/main "$tip" "$pushed")"
+# shellcheck disable=SC2016 # the marker is the awk program's literal text
+expect "an awk that fails while merging a copy's lines fails the push" \
+  "1|reference-verify.sh: awk exited 2 while merging the lines a copy adds into the changed lines, so this change was not fully checked; fix that failure, then push again" \
+  "$(push_failing 'copy[$0] = 1' 1 refs/heads/main "$tip" "$pushed")"
 
 # The verifiers judge the pushed tip's tree, not the checkout. Each case below
 # pushes a branch while main, which differs from it, is checked out.
@@ -418,6 +461,9 @@ printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/topic.
 commit_all topic-bogus
 expect "after merging main, a line the branch adds is still judged" "1|topic.sh:3: ${FLAG_FINDING/in run.sh/in topic.sh}" \
   "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+expect "an awk that fails while narrowing to the branch's lines fails the push" \
+  "1|reference-verify.sh: awk exited 2 while narrowing the changed lines to the branch, so this change was not fully checked; fix that failure, then push again" \
+  "$(push_failing 'NR == FNR { n++; p[n]' 1 refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 git -C "$REPO" checkout -q main
 
 new_repo

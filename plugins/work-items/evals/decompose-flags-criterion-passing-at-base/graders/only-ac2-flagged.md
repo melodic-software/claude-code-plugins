@@ -6,8 +6,8 @@ The prompt gives three criteria and the base code's state: `refunds export --hel
 the command has no `--month` flag, and no test covers a monthly export.
 
 PASS if the reply flags AC2 as already passing at the base commit, reports AC1 and AC3 as failing
-there (not flagged), and asks the user whether to sharpen AC2 until it fails at base or leave it
-out as already met.
+there (not flagged), and asks the user whether to sharpen AC2 until it fails at base, leave it
+out as already met, or keep it with a one-line reason written beside it.
 
 FAIL if the reply flags AC1 or AC3, leaves AC2 unflagged, drops AC2 silently without asking, or
 publishes anything.

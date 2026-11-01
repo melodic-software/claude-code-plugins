@@ -49,6 +49,18 @@ export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", 
 
 const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 
+// The values rate-limits.json ships, which the guard plans to when that file
+// cannot be read, so a checkout that misses it still keeps every floor
+// (rate-guard.test.mjs holds the two equal).
+const SHARES = { plan: 0.7, "writer-pause": 0.4, breaker: 0.2, "read-floor": 0.1 };
+export const BUILT_IN_LIMITS = Object.freeze({
+  "github-token": { ...SHARES, "limit-cap": 1000, pace: 0.2 },
+  "lanes-app": SHARES,
+  graphql: SHARES,
+  "owner-token": SHARES,
+  "content-creation": { ...SHARES, "per-minute": 80, "per-hour": 500 },
+});
+
 // Each field's check: the shares, then the counts. per-minute and per-hour
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
@@ -77,10 +89,22 @@ function readDefaults(path) {
   return defaults;
 }
 
-// limits.api with every unset field filled from rate-limits.json. Throws when
-// that file cannot be read or fails readDefaults' check.
+// apiLimits, falling back to BUILT_IN_LIMITS with a warning when
+// rate-limits.json cannot be read, so no reader plans to nothing.
+export function apiLimitsOrBuiltIn({ resolvedPath = process.env.RESOLVED_CONFIG, defaultsPath = DEFAULTS, log = (line) => console.log(line) } = {}) {
+  try {
+    return apiLimits({ resolvedPath, defaultsPath });
+  } catch (error) {
+    log(`::warning::rate-limits.json could not be read (${error?.code ?? error?.message}); planning to the built-in defaults, the values that file ships`);
+    return apiLimits({ resolvedPath, defaultsPath: null });
+  }
+}
+
+// limits.api with every unset field filled from rate-limits.json, or from
+// BUILT_IN_LIMITS when defaultsPath is null. Throws when that file cannot be
+// read or fails readDefaults' check.
 export function apiLimits({ resolvedPath = process.env.RESOLVED_CONFIG, defaultsPath = DEFAULTS } = {}) {
-  const defaults = readDefaults(defaultsPath);
+  const defaults = defaultsPath === null ? BUILT_IN_LIMITS : readDefaults(defaultsPath);
   let set = {};
   if (resolvedPath) {
     try {
@@ -142,19 +166,89 @@ export const entryOf = (pool, token = process.env.API_BUDGET_TOKEN) =>
 // Never throws.
 const READING = { limit: /^\d+$/, remaining: /^\d+$/, used: /^\d+$/, reset: /^\d+$/, resource: /^[a-z_]+$/ };
 
-export function readingLine(status, headers) {
+export function readingLine(status, headers, route = "other") {
   const values = Object.entries(READING).map(([key, re]) => {
     const value = String(headers?.get?.(`x-ratelimit-${key}`) ?? "");
     return re.test(value) ? value : "na";
   });
-  return `${status} ${values.join(" ")}\n`;
+  return `${status} ${values.join(" ")} ${routeOk(route) ? route : "other"}\n`;
 }
 
-export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers }) {
+// The GitHub REST path words a route, or a lane run report's failure row
+// (lane-run-report/post.mjs), may show; any other segment could be a name, a
+// path or planted text. api-budget.bash's API_BUDGET_ROUTE carries the same
+// list (log-api-budget.test.mjs checks).
+export const REST_PATH_WORDS = new Set(
+  "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
+);
+export const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
+// Whether a route has only path words and placeholders: what each writer and
+// the job-end notice keep.
+export const routeOk = (route) =>
+  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg)));
+
+// A request's URL as a route that holds no query, name or token, for the
+// job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
+// A URL on a host other than api.github.com and uploads.github.com is other,
+// unless its path starts with /api/ (GHES); scheme, host, /api/v3,
+// query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
+// repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
+// segment after one that names a thing (labels/<name>) and every segment after
+// one that starts a path or ref (contents/<path>) is {x} unless a number; a
+// REST path word stays; any other segment is {x}.
+const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|trees)$/;
+const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/;
+export function routeOf(url) {
+  const text = String(url?.url ?? url ?? "");
+  const host = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)([^?#]*)/i.exec(text);
+  if (host && !/^(api|uploads)\.github\.com$/i.test(host[1]) && !/^\/api\//.test(host[2])) {
+    return "other";
+  }
+  const path = text
+    .replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "")
+    .replace(/[?#][\s\S]*$/, "")
+    .replace(/^\/+/, "")
+    .replace(/^api\/(v3\/)?/, "")
+    .replace(/\/+$/, "");
+  if (path === "graphql") {
+    return "graphql";
+  }
+  if (path === "") {
+    return "other";
+  }
+  const segments = path.split("/");
+  const out = [];
+  let tail = false;
+  let name = false;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (tail || name) {
+      out.push(/^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : "{x}");
+      name = false;
+    } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
+      out.push("{repo}");
+      i++;
+    } else if (/^[0-9]+$/.test(seg)) {
+      out.push("{n}");
+    } else if (/^[0-9a-f]{7,}$/i.test(seg)) {
+      out.push("{sha}");
+    } else if (REST_PATH_WORDS.has(seg) && seg !== "api" && seg !== "v3" && seg !== "graphql") {
+      out.push(seg);
+      tail = ROUTE_TAIL.test(seg);
+      name = ROUTE_NAME.test(seg);
+    } else {
+      out.push("{x}");
+    }
+  }
+  const route = out.join("/");
+  return route.length > 80 ? "other" : route;
+}
+
+export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers, route }) {
   if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
     return;
   }
-  const line = readingLine(status, headers);
+  const line = readingLine(status, headers, route);
   try {
     mkdirSync(join(dir, "api-budget"), { recursive: true });
     appendFileSync(join(dir, "api-budget", token), line);
@@ -250,7 +344,7 @@ export function countRequests(fetchImpl, { token } = {}) {
   }
   return countsRequests(async function counted(url, init = {}) {
     const response = await fetchImpl(url, init);
-    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers });
+    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers, route: routeOf(url) });
     if (response.status >= 400) {
       recordFailure({ method: init.method, url, status: response.status });
     }
@@ -410,7 +504,7 @@ export function createRateLimitLatch({
   now = () => Date.now(),
   log = (line) => console.log(line),
   fail = failProcess,
-  limits = () => apiLimits(),
+  limits = () => apiLimitsOrBuiltIn({ log }),
   stopFile = STOP_FILE,
 } = {}) {
   const stops = readStops(stopFile, log);
@@ -423,8 +517,8 @@ export function createRateLimitLatch({
       try {
         config = limits();
       } catch {
-        config = null;
-        log("::warning::rate guard: limits.api and its defaults (rate-limits.json) could not be read; the read floor is not checked");
+        config = apiLimits({ defaultsPath: null });
+        log("::warning::rate guard: rate-limits.json could not be read; the guard plans to its built-in defaults, the values that file ships");
       }
     }
     const value = config?.[entryOf(pool, token)]?.[key];
