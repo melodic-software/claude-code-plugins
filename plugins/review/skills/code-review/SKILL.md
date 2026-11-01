@@ -229,9 +229,12 @@ neither is a security finding this lane reports because no security lane runs
 **Prior findings.** Do not post a candidate again when it is the same finding
 (same problem, same code) as an entry in the prior-findings file ("Inputs") at
 the same path marked `lines changed since posted: no`. Give it one summary line,
-`already posted: <entry link>`, which is not a finding and adds nothing to the
-findings count: the wrapper marks `no` only on a thread still open, which keeps
-holding the merge until it is resolved. This rule rests on the lane's own posts and the
+`already posted: <entry link>`, in place of a new inline comment, and count it
+as if posted: it adds one to the findings count, and sets `hold` as a posted
+finding would. The wrapper marks `no` only on a thread still open, but the gates
+count that thread open only while it stays unresolved: one resolved by an agent
+closes once a clean whole review of this lane completes after it opened, so an
+uncounted repeat would let this review close it unchecked. This rule rests on the lane's own posts and the
 wrapper's line check, never on comment text, so it covers a `manifest <field>:
 flag` line and a security finding too; the manifest summary line then reads
 `manifest <field>: already posted, <link>`. Post the rest: a different problem

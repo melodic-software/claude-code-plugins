@@ -119,7 +119,7 @@ describe("lines changed since the finding was posted", () => {
     assert.equal(found.changed, "yes");
   });
 
-  test("a resolved thread is never suppressible: only an open thread keeps holding the merge", () => {
+  test("a resolved thread is never suppressible: only a thread still open is listed unchanged", () => {
     // Same thread and unchanged lines as the case above, which answers no.
     const [found] = run([{ ...thread(BOT), isResolved: true }], shifted).findings;
     assert.match(found.changed, /^yes \(the thread is resolved/u);

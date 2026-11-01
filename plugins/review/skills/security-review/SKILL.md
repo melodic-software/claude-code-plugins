@@ -340,10 +340,12 @@ severity the bar gives it and cite the thread.
 
 **Prior findings.** Do not post a candidate again when it is the same finding (same problem, same
 code) as an entry in the prior-findings file ("Inputs") at the same path marked
-`lines changed since posted: no`. Give it one summary line, `already posted: <entry link>`, which
-is not a finding, adds nothing to the findings count or to `critical-findings: <n>`, and sets no
-`hold`: the earlier inline comment keeps its `severity:` line, and the wrapper marks `no` only on
-a thread still open, which keeps holding the merge until it is resolved. Unlike a settled thread, this rests on the lane's own post and
+`lines changed since posted: no`. Give it one summary line, `already posted: <entry link>`, in
+place of a new inline comment, and count it as if posted: it adds one to the findings count and,
+when CRITICAL, to `critical-findings: <n>`, and sets `hold` as the bar would. The wrapper marks
+`no` only on a thread still open, but the gates count that thread open only while it stays
+unresolved: one resolved by an agent closes once a clean whole review of this lane completes
+after it opened, so an uncounted repeat would let this review close it unchecked. Unlike a settled thread, this rests on the lane's own post and
 the wrapper's line check, never on anyone's comment text, so it applies at every severity: a
 CRITICAL candidate, a trust-control widening and a `manifest <field>: flag` line included; the
 manifest summary line then reads `manifest <field>: already posted, <link>`. Post the rest at the
