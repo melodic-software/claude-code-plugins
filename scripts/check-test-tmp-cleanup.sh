@@ -9,13 +9,10 @@
 #
 # The rule: a suite whose non-comment lines mention `mktemp` and none of whose
 # non-comment lines match `trap ... EXIT` leaves its fixtures behind on every
-# run, and on an early exit or a failed assertion. An offender is a fail unless
-# it is listed in scripts/test-tmp-cleanup-baseline.txt, the known offenders.
-# The baseline is a ratchet: an entry whose file is gone or no longer offends
-# is a fail too, so the list only shrinks. Fix a suite by adding the trap, then
-# delete its baseline line. Never add a suite to the baseline: give it the trap
-# instead. The match is lexical: `trap ... EXIT` inside a string a suite runs
-# in a child shell also counts, so a passing suite still needs its own trap.
+# run, and on an early exit or a failed assertion. Any offender is a fail: fix
+# a suite by adding the trap. The match is lexical: `trap ... EXIT` inside a
+# string a suite runs in a child shell also counts, so a passing suite still
+# needs its own trap.
 #
 # A JS suite offends when a non-comment line passes os.tmpdir() to mkdtemp or
 # mkdtempSync and the file never registers a removal that runs on failure too:
@@ -29,7 +26,7 @@
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one finding per line on stderr, the clean-run statement on
 # stdout. Exit: 0 clean, 1 any offender, 2 environment or usage (git or awk
-# missing, bad argument, unreadable baseline).
+# missing, bad argument).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -49,13 +46,6 @@ for tool in git awk; do
     exit 2
   fi
 done
-
-BASELINE="${TEST_TMP_CLEANUP_BASELINE:-scripts/test-tmp-cleanup-baseline.txt}"
-# shellcheck source=lib/read-list.sh
-. "$SCRIPT_DIR/lib/read-list.sh" || exit 2
-baseline=()
-# shellcheck disable=SC2310  # the non-zero return IS the handled case
-read_list::into baseline "$BASELINE" --comments inline || exit 2
 
 # offends <file>: true when the file mentions mktemp and has no EXIT trap,
 # ignoring comment lines. fixture_tree::build installs its own EXIT trap that
@@ -83,45 +73,26 @@ offends_js() {
   ' "$1"
 }
 
-in_baseline() {
-  local one
-  for one in ${baseline+"${baseline[@]}"}; do
-    [[ "$one" == "$1" ]] && return 0
-  done
-  return 1
-}
-
 findings=()
 tracked=()
 while IFS= read -r -d '' path; do
   tracked+=("$path")
-  # shellcheck disable=SC2310  # offends and in_baseline only test; nothing inside can fail the script
-  if offends "$path" && ! in_baseline "$path"; then
+  # shellcheck disable=SC2310  # offends only tests; nothing inside can fail the script
+  if offends "$path"; then
     findings+=("$path: mktemp without a trap ... EXIT; add the trap")
   fi
 done < <(git ls-files -z -- '*.test.sh')
 js_tracked=0
 while IFS= read -r -d '' path; do
   js_tracked=$((js_tracked + 1))
-  # shellcheck disable=SC2310  # offends_js and in_baseline only test; nothing inside can fail the script
-  if offends_js "$path" && ! in_baseline "$path"; then
+  # shellcheck disable=SC2310  # offends_js only tests; nothing inside can fail the script
+  if offends_js "$path"; then
     findings+=("$path: a folder under os.tmpdir() with no removal that runs on failure, or never bound to a name; use tempDir from lib/test-tmp.mjs")
   fi
 done < <(git ls-files -z -- '*.test.mjs' '*.test.js' '*.test.cjs')
 
-for entry in ${baseline+"${baseline[@]}"}; do
-  if [[ ! -f "$entry" ]]; then
-    findings+=("$entry: $BASELINE lists it, but the file does not exist; remove the entry")
-    continue
-  fi
-  # shellcheck disable=SC2310  # offends only tests; nothing inside can fail the script
-  if ! offends "$entry" && ! offends_js "$entry"; then
-    findings+=("$entry: $BASELINE lists it, but it no longer offends; remove the entry")
-  fi
-done
-
 if ((${#findings[@]} == 0)); then
-  printf 'check-test-tmp-cleanup: %d tracked *.test.sh and %d JS tests checked; every temp-folder user removes it or is baselined.\n' "${#tracked[@]}" "$js_tracked"
+  printf 'check-test-tmp-cleanup: %d tracked *.test.sh and %d JS tests checked; every temp-folder user removes it.\n' "${#tracked[@]}" "$js_tracked"
   exit 0
 fi
 
