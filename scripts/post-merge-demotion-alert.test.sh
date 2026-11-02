@@ -94,7 +94,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   case "${args[i]}" in
     --jq) filter="${args[i + 1]}"; i=$((i + 1)) ;;
     -X) method="${args[i + 1]}"; i=$((i + 1)) ;;
-    -f) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
+    -f | -F) fields+=("${args[i + 1]}"); i=$((i + 1)) ;;
     -H) i=$((i + 1)) ;;
     --paginate|api) ;;
     *) endpoint="${args[i]}" ;;
@@ -114,6 +114,10 @@ if [[ "$method" == PUT && "${STUB_LOCK_FAIL:-}" == 1 && "$endpoint" == */lock ]]
   exit 1
 fi
 if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
+  exit 1
+fi
+# STUB_FIX_POST_FAIL fails the write of a fix issue.
+if [[ "$method" == POST && "${STUB_FIX_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q '^body=<!-- post-merge-fix '; then
   exit 1
 fi
 # STUB_REVERT_POST_FAIL fails the write of a revert record.
@@ -335,7 +339,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_FIX_POST_FAIL="${FIX_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -1267,25 +1271,7 @@ fi
 quiet "a failed pull_request run files nothing" "$FULL" pull_request failure main o/r
 quiet "a failed merge_group run files nothing" "$FULL" merge_group failure main o/r
 quiet "a dispatched canary run files nothing" "$CANARY" workflow_dispatch failure main o/r
-# A green scheduled attempt 1 files nothing; it closes each open full-run
-# record of this workflow's at an earlier commit, and no canary record.
-ATTEMPT=1 ANCESTRY=behind run_step "$FULL" schedule success main o/r "$SHA" \
-  "[$(issue 7 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(issue 8 "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(issue 9 "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->")]"
-if [[ "$RC" -eq 0 && "$(grep -c '^PATCH repos/o/r/issues/[0-9]*$' <<<"$LOG")" -eq 2 ]] &&
-  grep -qx 'PATCH repos/o/r/issues/7' <<<"$LOG" && grep -qx 'PATCH repos/o/r/issues/8' <<<"$LOG" &&
-  grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
-  ! grep -qE '^POST repos/o/r/issues$|issues/9' <<<"$LOG"; then
-  ok "a green scheduled run closes the full-run records main cleared, never a canary record, and files nothing"
-else
-  fail "close cleared: rc=$RC log='$LOG' out='$OUT'"
-fi
-ATTEMPT=1 ANCESTRY=diverged run_step "$FULL" schedule success main o/r "$SHA" \
-  "[$(issue 7 "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH) ' <<<"$LOG"; then
-  ok "a green run off the record's history closes nothing"
-else
-  fail "close off history: rc=$RC log='$LOG'"
-fi
+quiet "a successful scheduled run files nothing" "$FULL" schedule success main o/r
 ATTEMPT=1 run_step "$CANARY" push success main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$OUT" == *"names a pull request it reverts: no revert record"* && "$OUT" == *"no canary record to file"* ]] &&
   ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$' <<<"$LOG"; then
@@ -1562,8 +1548,9 @@ if [[ "$RC" -eq 0 && "$(fixes)" -eq 0 && "$(dispatches)" -eq 0 && -n "$c_line" &
   "$c_line" -lt "$p_line" &&
   "$(cat "$TMP_ROOT/stub/post.$c_line")" == "body=This check failed on main again at \`$SHA\`. Merge range: \`89abcdef0123..0123456789ab\`, listed on demotion record #$r. Run: https://github.com/o/r/actions/runs/4242/attempts/2" &&
   "$(cat "$TMP_ROOT/stub/post.$p_line")" == $'state=open\nstate_reason=reopened' ]] &&
-  ! grep -qE '^DELETE |issues/60/lock' <<<"$LOG"; then
-  ok "a closed fix issue for the check is reopened with the new range, keeps agent-ready, and is not sent to intake again"
+  [[ "$(grep -n '^DELETE ' <<<"$LOG")" == "$((p_line + 1)):DELETE repos/o/r/issues/60/labels/needs-human" ]] &&
+  ! grep -q 'issues/60/lock' <<<"$LOG"; then
+  ok "a closed fix issue is reopened with the new range, drops needs-human, keeps agent-ready, and is not sent to intake again"
 else
   fail "closed fix issue: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -1571,7 +1558,8 @@ fi
 JOBS="$(job 1 test-bash 'Run the bash tests'), $(job 2 lint-shell ShellCheck)" PATCH_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" \
   "[$(issue 60 "<!-- post-merge-fix check=test-bash -->" '' closed completed)]"
 if [[ "$RC" -ne 0 && "$(fixes)" -eq 1 && "$(dispatches)" -eq 1 && "$OUT" == *"::error::could not reopen fix issue #60 for test-bash"* ]] &&
-  grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)"; then
+  grep -qF -- "- #60 (\`test-bash\`) could not be reopened" "$TMP_ROOT/stub/post.$(grep -n '^POST repos/o/r/issues/9[0-9]*/comments$' <<<"$LOG" | tail -1 | cut -d: -f1)" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx 'POST repos/o/r/issues/60/labels' <<<"$LOG" | cut -d: -f1)"; then
   ok "a failed reopen fails the job, names the issue on the record, and the other checks still file"
 else
   fail "reopen failure: rc=$RC log='$LOG' out='$OUT'"
@@ -1623,10 +1611,23 @@ JOBS="$(job 1 test-bash 'Run the bash tests')" LOCK_FAIL=1 run_step "$FULL" sche
 record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
 note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
 if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" ]] &&
-  grep -q -- "could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line"; then
-  ok "a failed lock sends nothing to intake and names the issue on the record"
+  grep -q -- "could not be locked, so it was not sent to intake triage" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$(grep -nx "POST repos/o/r/issues/$(fix_number 1)/labels" <<<"$LOG" | cut -d: -f1)" &&
+  ! grep -qx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG"; then
+  ok "a failed lock sends nothing to intake, labels the fix issue needs-human and names it on the record"
 else
   fail "lock failure: rc=$RC log='$LOG' out='$OUT'"
+fi
+JOBS="$(job 1 test-bash 'Run the bash tests')" FIX_POST_FAIL=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+record_n=$((900 + $(grep -n '^POST repos/o/r/issues$' <<<"$LOG" | head -1 | cut -d: -f1)))
+note_line="$(grep -n "^POST repos/o/r/issues/$record_n/comments$" <<<"$LOG" | cut -d: -f1)"
+label_line="$(grep -nx "POST repos/o/r/issues/$record_n/labels" <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -ne 0 && "$(dispatches)" -eq 0 && -n "$note_line" && -n "$label_line" ]] &&
+  grep -qF -- "- no fix issue could be filed for \`test-bash\`" "$TMP_ROOT/stub/post.$note_line" &&
+  grep -qx 'labels\[\]=needs-human' "$TMP_ROOT/stub/post.$label_line"; then
+  ok "a fix issue that could not be filed labels the record needs-human and names the check on it"
+else
+  fail "fix file failure: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # A gate title is any step's annotation text: the fix issue names the job only.
@@ -2043,5 +2044,60 @@ refused "a run a person dispatched, which raises its own workflow_run event, is 
   "$(attempt_run '.actor.login = "a-human"')"
 refused "an answer for another run id is refused" workflow_dispatch 4242 41898282 'github-actions[bot]' \
   "$(attempt_run '.id = 4243')"
+
+# --- The close-cleared job ----------------------------------------------------
+# A green attempt 1 of a scheduled full run closes each open schedule or
+# dispatch record either filer opened before the run, at a commit behind its
+# head, and never edited; never a canary record.
+CLOSE_NAME='Close the records main cleared'
+awk -v name="      - name: $CLOSE_NAME" '$0 == name { on = 1; next }
+  on && /^        run: \|$/ { body = 1; next }
+  body && /^          / { print substr($0, 11); next }
+  body && /^[[:blank:]]*$/ { print ""; next }
+  body { exit }' "$WORKFLOW" >"$TMP_ROOT/close.sh"
+# rec <n> <created_at> <first line>
+rec() {
+  jq -n --argjson n "$1" --arg t "$2" --arg body "$3" \
+    '{number: $n, state: "open", created_at: $t, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}'
+}
+# run_close <issues-json> [lastEditedAt]
+run_close() {
+  rm -rf "$TMP_ROOT/stub"
+  mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
+  printf '%s\n' "$1" >"$TMP_ROOT/stub/issues.json"
+  printf '%s\n' "${PIPELINE:-}" >"$TMP_ROOT/stub/pipeline.yaml"
+  jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
+  : >"$TMP_ROOT/stub/log"
+  OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_SHA="$SHA" RUN_URL="$RUN_URL" RUN_CREATED=2026-10-17T16:26:00Z \
+    bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/close.sh" 2>&1)" && RC=0 || RC=$?
+  LOG="$(cat "$TMP_ROOT/stub/log")"
+}
+closed() { grep -x 'PATCH repos/o/r/issues/[0-9]*' <<<"$LOG" | sed 's#.*/##' | paste -sd ' '; }
+BEFORE=2026-10-17T10:00:00Z
+if [[ ! -s "$TMP_ROOT/close.sh" ]]; then
+  fail "no '$CLOSE_NAME' step with a run: | body"
+fi
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(rec 8 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(rec 9 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->"), $(rec 10 2026-10-17T17:00:00Z "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == "7 8" ]] &&
+  grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
+  grep -q 'issues?state=open&creator=github-actions%5Bbot%5D' <<<"$LOG" &&
+  grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG"; then
+  ok "close-cleared closes both filers' full-run records created before the run, never a canary or later record"
+else
+  fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
+fi
+ANCESTRY=diverged run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
+  ok "close-cleared closes no record whose commit is off the run's history"
+else
+  fail "close off history: rc=$RC log='$LOG'"
+fi
+run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]" 2026-10-17T11:00:00Z
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
+  ok "close-cleared leaves an edited record open"
+else
+  fail "close edited: rc=$RC log='$LOG' out='$OUT'"
+fi
 
 test_harness::report

@@ -1094,11 +1094,16 @@ the rules that only tighten in
   work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
   the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
   a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
-  `dispatch`) with no label, since it clears itself (below), and the next green scheduled run
-  closes it as completed; it labels a canary or revert record `needs-human`, since only a person's
-  close clears one. `babysit_postmerge.py --remediate` labels every record it files `needs-human`:
-  the lanes App's issue starts intake triage on its own, and that label keeps admission off it.
-  A fix or quarantine issue not delivered to intake triage gets `needs-human` too.
+  `dispatch`) with no label, since it clears itself (below); it labels a canary or revert record
+  `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
+  every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
+  that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
+  alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
+  or post-merge-failure, that either filer opened before that run was created, at a commit behind
+  its head, and that was never edited; closing it is the record's state only, and the merge gate
+  still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
+  `needs-human`, and the record does when no fix issue could be filed; a fix issue reopened on a
+  repeat failure drops `needs-human` again, so it goes straight back to agents.
   It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,

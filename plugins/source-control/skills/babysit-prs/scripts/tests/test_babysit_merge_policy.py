@@ -870,15 +870,20 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     return gh
 
 
+# The clock `read_demotion` reads green-run spans up to: four spans after the
+# record's creation.
+NOW = policy.datetime.fromisoformat("2026-11-02T12:00:00Z")
+
+
 def later_spans() -> list[str]:
     """The green listings of every `GREEN_SPAN` after the first one, from the
-    record's creation up to now."""
+    record's creation up to `NOW`."""
     start = policy.datetime.fromisoformat("2026-10-12T10:00:00Z")
     stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
     out = []
     for span in range(1, policy.GREEN_SPANS):
         since = start + span * policy.GREEN_SPAN
-        if since > policy.datetime.now(policy.UTC):
+        if since > NOW:
             break
         for event in ("schedule", "workflow_dispatch"):
             out.append(
@@ -888,7 +893,9 @@ def later_spans() -> list[str]:
 
 
 def read_demotion() -> Any:
-    return policy.read_demotion(REPO, agent_identity=IDENTITY, permission=HUMANS)
+    return policy.read_demotion(
+        REPO, agent_identity=IDENTITY, permission=HUMANS, now=NOW
+    )
 
 
 class ReadDemotion(unittest.TestCase):

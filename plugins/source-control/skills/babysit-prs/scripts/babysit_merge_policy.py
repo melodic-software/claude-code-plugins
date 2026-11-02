@@ -1863,14 +1863,13 @@ class _GreenMain:
                 )
         return found
 
-    def listed(self, since: datetime) -> Iterator[dict[str, Any]]:
+    def listed(self, since: datetime, now: datetime) -> Iterator[dict[str, Any]]:
         """The green full runs on main created since `since`, oldest first,
         one `GREEN_SPAN` at a time up to now, kept as newer-green.bash and
         `babysit_postmerge._Context.superseded` keep them: attempt 1, this
         repository's main, and a schedule or the lane's github-actions[bot]
         dispatch (a person dispatching until a run passes is no recovery).
         More than `GREEN_SPANS` spans raises."""
-        now = datetime.now(UTC)
         for span in range(GREEN_SPANS):
             start = since + span * GREEN_SPAN
             if start > now:
@@ -1930,7 +1929,10 @@ class _GreenMain:
 
 
 def _recovered_at(
-    issue: dict[str, Any], human: Callable[[Any], bool], green: _GreenMain
+    issue: dict[str, Any],
+    human: Callable[[Any], bool],
+    green: _GreenMain,
+    now: datetime,
 ) -> datetime | None:
     """When main went green again past a red-main record: the creation of
     the earliest green full run
@@ -1943,7 +1945,7 @@ def _recovered_at(
     if marker is None or _edits_refusal(issue, human):
         return None
     created = _time(issue.get("createdAt"))
-    for run in green.listed(created):
+    for run in green.listed(created, now):
         if _time(run.get("created_at")) <= created:
             continue
         head = str(run["head_sha"])
@@ -1958,6 +1960,7 @@ def read_demotion(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    now: datetime | None = None,
 ) -> Demotion:
     """Whether a demotion record holds the rung off.
 
@@ -1985,6 +1988,8 @@ def read_demotion(
     created: list[datetime] = []
     cleared: list[datetime] = []
     green = _GreenMain(owner, name)
+    # One clock for every record's green-run spans (`_GreenMain.listed`).
+    clock = now or datetime.now(UTC)
     try:
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
@@ -2023,7 +2028,7 @@ def read_demotion(
             recovered = None
             if hold in RECOVERABLE_HOLDS:
                 try:
-                    recovered = _recovered_at(issue, human, green)
+                    recovered = _recovered_at(issue, human, green, clock)
                 except PolicyReadError:
                     recovered = None
             if hold and recovered is None:

@@ -10,10 +10,12 @@ name: post-merge-demotion-alert
 # lane work: it is not sent to intake triage, since the fix issues below carry
 # the work. A schedule or dispatch record carries no label: it clears itself
 # once main is green at a later commit (babysit_merge_policy.py
-# `_recovered_at`), and the next green scheduled run closes it
-# (close_cleared). A canary record is labeled needs-human, since only a
-# person's close clears it. Any fix issue or quarantine issue not delivered
-# to intake gets needs-human. A record
+# `_recovered_at`). A canary record is labeled needs-human, since only a
+# person's close clears it. A fix issue or quarantine issue not delivered to
+# intake gets needs-human; the record does when no fix issue could be filed.
+# The close-cleared job closes, on a green attempt 1 of a scheduled full run,
+# each open schedule or dispatch record (either filer's) created before that
+# run, at a commit behind its head, and never edited. A record
 # that already exists gets a comment naming the run attempt instead. Records
 # the agent identity filed are not read here, so one (signal, SHA) can hold a
 # record from each filer; both hold the rung off. This workflow merges,
@@ -23,8 +25,8 @@ name: post-merge-demotion-alert
 # demotes. When every merge in the failing range was enqueued by someone else
 # (a person, a release App), the issue's first line is `<!-- post-merge-failure
 # sha=<S> signal=<name> -->` instead, and no reader treats it as a demotion. A
-# full-run one carries no label, its fix issues fix main, and close_cleared
-# closes it too; a canary one is labeled needs-human on purpose, since a
+# full-run one carries no label, its fix issues fix main, and the close-cleared
+# job closes it too; a canary one is labeled needs-human on purpose, since a
 # canary files no fix issue and nothing else clears it. Anything the lookup cannot prove demotes.
 #
 # A push to main that reverts a pull request the lanes App put in the merge
@@ -318,41 +320,6 @@ jobs:
           # api-budget notice (.github/actions/log-api-budget).
           # shellcheck source=/dev/null
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
-          # close_cleared: a green attempt 1 of a scheduled full run on main
-          # closes every open schedule or dispatch record this workflow filed
-          # at a commit the run's head is ahead of, as completed. The record
-          # is a state marker: babysit_merge_policy.py `_recovered_at` still
-          # decides whether it holds, and a record this closes but main has
-          # not cleared holds all the same (closed-by-non-human).
-          close_cleared() {
-            local open n first sha status
-            open="$(gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/issues?state=open&creator=github-actions%5Bbot%5D&per_page=100" \
-              --jq '.[] | select(.pull_request == null) | [.number, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; ""))] | @tsv')" || {
-              echo "::warning::could not read the open records: none closed"
-              return 0
-            }
-            while IFS=$'\t' read -r n first; do
-              if [[ ! "$n" =~ ^[1-9][0-9]*$ ||
-                ! "$first" =~ ^\<!--\ (babysit-merge-demotion|post-merge-failure)\ sha=([0-9a-f]{40})\ signal=(schedule|dispatch)\ --\>$ ]]; then
-                continue
-              fi
-              sha="${BASH_REMATCH[2]}"
-              # RUN_SHA...sha is behind when the record's commit is in the
-              # run's history and earlier.
-              status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$sha" --jq .status)" || status=''
-              if [[ "$status" != behind ]]; then
-                continue
-              fi
-              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$n/comments" \
-                -f body="Main is green at \`$RUN_SHA\`, a later commit: $RUN_URL/attempts/$RUN_ATTEMPT" >/dev/null &&
-                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$n" -f state=closed -f state_reason=completed >/dev/null; then
-                echo "closed #$n: main is green at ${RUN_SHA:0:12}"
-              else
-                echo "::warning::could not close #$n"
-              fi
-            done <<<"$open"
-          }
           case "$RUN_WORKFLOW:$RUN_EVENT" in
             pr-require-checks:schedule) signal=schedule ;;
             pr-require-checks:workflow_dispatch) signal=dispatch ;;
@@ -391,10 +358,6 @@ jobs:
                 passed='' quiet=1
               else
                 echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
-                if [[ "$signal" == schedule && "$RUN_ATTEMPT" == 1 && "$RUN_BRANCH" == main &&
-                  "$RUN_REPO" == "$GITHUB_REPOSITORY" && "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-                  close_cleared
-                fi
                 exit 0
               fi
               ;;
@@ -1170,6 +1133,9 @@ jobs:
               if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$fix_number/comments" -f body="$note" >/dev/null &&
                 gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$fix_number" -f state=open -f state_reason=reopened >/dev/null; then
                 echo "reopened fix issue #$fix_number for $check"
+                # An earlier delivery failure's needs-human comes off, so the
+                # reopened issue goes back to agents; absent, nothing to drop.
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$fix_number/labels/needs-human" >/dev/null 2>&1 || true
               else
                 echo "::error::could not reopen fix issue #$fix_number for $check"
                 undelivered+=("#$fix_number (\`$check\`) could not be reopened")
@@ -1319,3 +1285,85 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+  # A green attempt 1 of a scheduled full run on main closes the records main
+  # has cleared. The record is a state marker: babysit_merge_policy.py
+  # `_recovered_at` still decides whether it holds, and a record this closes
+  # that main has not cleared holds all the same (closed-by-non-human).
+  close-cleared:
+    name: Close the records main cleared
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.name == 'pr-require-checks'
+      && github.event.workflow_run.event == 'schedule'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.run_attempt == 1
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # read merge.agent-identity on main
+      issues: write # comment on and close a cleared record
+    steps:
+      - name: Close the records main cleared
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
+        run: |
+          # Each open schedule or dispatch record, demotion or post-merge-failure,
+          # that github-actions[bot] or merge.agent-identity filed, created before
+          # this run, at a commit behind its head (RUN_SHA...sha is behind), and
+          # never edited (`_recovered_at` reads its SHA from the body), is closed
+          # as completed. A failed read closes nothing.
+          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
+            exit 1
+          fi
+          identity="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
+            sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
+          filers=(github-actions%5Bbot%5D)
+          if [[ "$identity" =~ ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\[bot\]$ ]]; then
+            filers+=("${identity%\[bot\]}%5Bbot%5D")
+          fi
+          declare -A seen=()
+          for filer in "${filers[@]}"; do
+            if ! open="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&creator=$filer&per_page=100" \
+              --jq '.[] | select(.pull_request == null) | [.number, .created_at, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; ""))] | @tsv')"; then
+              echo "::warning::could not read $filer's open records: none of them closed"
+              continue
+            fi
+            while IFS=$'\t' read -r n created first; do
+              if [[ ! "$n" =~ ^[1-9][0-9]*$ || -n "${seen[$n]+x}" ||
+                ! "$first" =~ ^\<!--\ (babysit-merge-demotion|post-merge-failure)\ sha=([0-9a-f]{40})\ signal=(schedule|dispatch)\ --\>$ ]]; then
+                continue
+              fi
+              seen[$n]=1
+              sha="${BASH_REMATCH[2]}"
+              if [[ ! "$created" < "$RUN_CREATED" ]]; then
+                continue
+              fi
+              status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$sha" --jq .status)" || status=''
+              if [[ "$status" != behind ]]; then
+                continue
+              fi
+              # shellcheck disable=SC2016 # GraphQL variables, not shell ones
+              edited="$(gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){lastEditedAt}}}' \
+                -f o="${GITHUB_REPOSITORY%%/*}" -f r="${GITHUB_REPOSITORY#*/}" -F n="$n" \
+                --jq '.data.repository.issue | if . == null then "unread" else (.lastEditedAt // "never") end')" || edited=unread
+              if [[ "$edited" != never ]]; then
+                echo "#$n was edited or could not be read: left open"
+                continue
+              fi
+              if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$n/comments" \
+                -f body="Main is green at \`$RUN_SHA\`, a later commit: $RUN_URL" >/dev/null &&
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$n" -f state=closed -f state_reason=completed >/dev/null; then
+                echo "closed #$n: main is green at ${RUN_SHA:0:12}"
+              else
+                echo "::warning::could not close #$n"
+              fi
+            done <<<"$open"
+          done

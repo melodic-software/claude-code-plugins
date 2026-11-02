@@ -11,7 +11,7 @@ import process from "node:process";
 import { test } from "node:test";
 
 const text = readFileSync(new URL("../../workflows/post-merge-demotion-alert.yml", import.meta.url), "utf8");
-const job = text.slice(text.indexOf("\n  report-red-main:\n"));
+const job = text.slice(text.indexOf("\n  report-red-main:\n"), text.indexOf("\n  close-cleared:\n"));
 
 test("the report job runs only after the alert, for a failed full run on main", () => {
   assert.match(job, /\n {4}needs: \[alert\]\n/);
@@ -251,4 +251,41 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   assert.deepEqual(mismatches, [], "the job if and the file step disagree on these workflow_run events");
   assert.ok(acted.includes("acts") && acted.includes("exits"), "the cases cover both outcomes");
   assert.equal(admits({ event_name: "workflow_dispatch", repository: "o/r", wr: {} }, C, F), true, "a dispatch always runs");
+});
+
+// The close-cleared job runs only on a green attempt 1 of a scheduled full
+// run on this repository's main, an event the alert job never acts on, and
+// holds only contents: read and issues: write.
+test("close-cleared runs only on a green scheduled attempt 1 on main, with a narrow token", () => {
+  const closer = text.slice(text.indexOf("\n  close-cleared:\n"));
+  const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(closer);
+  assert.ok(folded, "close-cleared has a folded if:");
+  const js = folded[1]
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/github\.event\.workflow_run\./g, "ctx.wr.")
+    .replace(/github\./g, "ctx.")
+    .replace(/([!=])=/g, "$1==");
+  const admits = new Function("ctx", `return (${js});`);
+  const base = { name: "pr-require-checks", event: "schedule", conclusion: "success", run_attempt: 1, head_branch: "main", head_repository: { full_name: "o/r" } };
+  const ctx = (wr, event_name = "workflow_run") => ({ event_name, repository: "o/r", wr: { ...base, ...wr } });
+  assert.equal(admits(ctx({})), true);
+  for (const [field, value] of [
+    ["name", "post-merge-detect-silent-revert"],
+    ["event", "workflow_dispatch"],
+    ["conclusion", "failure"],
+    ["run_attempt", 2],
+    ["head_branch", "feature"],
+    ["head_repository", { full_name: "fork/r" }],
+  ]) {
+    assert.equal(admits(ctx({ [field]: value })), false, `${field}=${JSON.stringify(value)} is not admitted`);
+  }
+  assert.equal(admits(ctx({}, "workflow_dispatch")), false, "a dispatch never runs it");
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(closer)[1];
+  assert.deepEqual(Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]])), {
+    contents: "read",
+    issues: "write",
+  });
 });
