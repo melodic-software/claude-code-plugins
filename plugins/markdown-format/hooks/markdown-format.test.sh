@@ -303,7 +303,7 @@ git -C "$REPO_OK" add a.md
 MARKER="$(cd "$REPO_OK" && env -u CLAUDECODE -u AI_AGENT CLAUDE_PLUGIN_DATA="$DATA" bash "$PLUGIN_ROOT/git-hooks/markdown-check.sh" 2>&1 >/dev/null |
   sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
 expect "the pre-commit entry names an approval marker in the git directory" yes \
-  "$([[ "$MARKER" == "$REPO_OK"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
+  "$([[ "$MARKER" == "$(cd "$REPO_OK" && pwd -P)"/.git/markdown-format/trust-approvals/md-* ]] && echo yes)"
 OUT=$(fire "$(payload Edit "$REPO_OK/a.md")" CLAUDE_PLUGIN_DATA="$OTHER")
 expect "unapproved: silent and the file untouched" "0|$NO_NL" "$?|$OUT$(cat "$REPO_OK/a.md")"
 mkdir -p "$MARKER"

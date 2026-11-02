@@ -1280,15 +1280,14 @@ the rules that only tighten in
   the chunk count, each chunk's bytes and `manifest_paths`, the files the manifest names, and the
   verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
   CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
-  bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
+  bytes and 1000 lines at most), and a verdict is written only when
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
   (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
-  leg, which reviews every chunk again. A diff
-  line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
-  the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
-  `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
-  whole diff) for a person as `long-line-review:<path>`,
-  and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
+  leg, which reviews every chunk again. Read may cut a long line short, so a diff line over 1800
+  bytes (`babysit_risk.LONG_LINE_BYTES`) continues on lines that start `\ continued:`, never cut
+  inside a UTF-8 character, as pr-verify's `chunk-diff.sh` folds; the prompt says each such line
+  is the rest of the line before it and adds no line to the file's numbering. Every byte reaches a
+  whole Read, and the binder counts no verdict whose recorded `max_line_bytes` is past the cap. The diff is
   `--no-renames`, so a renamed file is reviewed whole. Only when that patch is over the size cap
   does a file moved unchanged (git's 100% similarity) show as its rename lines alone, and even then
   a move into or out of a lane source (`lane_source`), one that changes the file mode or moves a
@@ -1304,9 +1303,9 @@ the rules that only tighten in
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled
   `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head. A designed stop (a
-  binary file, a patch over the chunk cap or a line over 1800 bytes) leaves the leg green with no
+  binary file or a patch over the chunk cap) leaves the leg green with no
   verdict, and the record job posts it on the head as the same check run titled
-  `verdict=none reason=<too-large|binary|long-line|chunk-failed>`, so each stop is a countable
+  `verdict=none reason=<too-large|binary|chunk-failed>`, so each stop is a countable
   record; it posts nothing else. `chunk-failed` is a chunked review one of whose chunks failed,
   left no result or skipped a part: no chunk's counts bind, and that leg still fails. A stop
   counts no CRITICAL finding and never binds a lane: with no verdict the lanes stay unbound as
@@ -2325,9 +2324,11 @@ pass (`verify:spec-changed`) when the issue is now linked the other way. The mod
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. One of
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
-judgment was started by, each with its name and conclusion, read with the job's own token: the
-verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
+judgment was started by, each with its name, conclusion and job page URL, read with the job's own
+token: the verifier judges from it whether the suites that cover the changed files ran, and runs no
+test or eval itself. A suite's job that concluded `success` on the judged head settles a done-when
+"X exits 0" item and any "not run" or "likely fails" doubt about it; the diff is still judged for
+a test that cannot fail or was weakened. Its `wrapped_node_suites` lists each Node suite in the judged head's tree that has a
 sibling `.test.sh`, which CI runs only through that wrapper in `test-bash`
 (`scripts/plan-test-lanes.sh`), so a skipped `test-node` does not read as that suite unrun. A
 label or body-edit re-run skips `select-tests` and every suite, so its list is no
