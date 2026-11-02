@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.3] - 2026-11-02
+
+### Changed
+
+- Three `qg-security-search-sqli` eval graders no longer fail a review that names the SQL injection and its fix when the reply also says "No findings file written". That line appears when the session cannot write the reviewer's findings file, and the graders' no-findings exclusion matched it as a verdict. `gives-parameterized-fix` also accepts "Bind a parameter" as the fix.
+
 ## [2.5.2] - 2026-11-02
 
 ### Changed
