@@ -3,6 +3,11 @@
 // enable-auto-merge jobs. A scheduled run's first attempt proceeds: nobody
 // starts it. A re-run keeps its event, so a later attempt of a scheduled run
 // proceeds only when the account that started this attempt is a listed human.
+// pr-verify's wake (pr-verify.yml wake-pr-merge) proceeds too: a
+// workflow_dispatch's first attempt, on main, whose actor is
+// github-actions[bot] (GITHUB_ACTIONS_BOT_ID) and that names one pull request
+// (DISPATCH_PR); a re-run of it still needs a listed human, and any other
+// bot's run stops.
 // Any other run proceeds only when its actor (ACTOR_ID) and the account that
 // started this attempt are each a listed human. Both are matched by id, since
 // a login can be released and registered by someone else; the attempt's
@@ -18,6 +23,8 @@
 //   GITHUB_RUN_ID        this run
 //   GITHUB_RUN_ATTEMPT   this run attempt
 //   GITHUB_EVENT_NAME    this run's event
+//   GITHUB_REF           this run's ref
+//   DISPATCH_PR          a PR-scoped dispatch's pull request (inputs.pr)
 //   TRUSTED_ACTORS_PATH  trusted-actors.json from the default branch tip
 //   STOP_NOTICE          what the notice says happens instead when it stops
 //   GITHUB_OUTPUT        receives proceed=true or proceed=false
@@ -29,12 +36,22 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, loadTrustedList, REPOSITORY, readRerunner } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,15}$/;
+// github-actions[bot]'s account id (GET /users/github-actions%5Bbot%5D).
+export const GITHUB_ACTIONS_BOT_ID = "41898282";
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
+// pr-verify's PR-scoped dispatch, which a GITHUB_TOKEN starts.
+export const verdictWake = (env) =>
+  env.GITHUB_EVENT_NAME === "workflow_dispatch" &&
+  env.GITHUB_RUN_ATTEMPT === "1" &&
+  env.GITHUB_REF === "refs/heads/main" &&
+  env.ACTOR_ID === GITHUB_ACTIONS_BOT_ID &&
+  NUMBER.test(env.DISPATCH_PR ?? "");
+
 export async function main({ env = process.env, actions } = {}) {
   const schedule = env.GITHUB_EVENT_NAME === "schedule";
-  let proceed = schedule && env.GITHUB_RUN_ATTEMPT === "1";
+  let proceed = (schedule && env.GITHUB_RUN_ATTEMPT === "1") || verdictWake(env);
   let rerunner;
   if (!proceed) {
     try {

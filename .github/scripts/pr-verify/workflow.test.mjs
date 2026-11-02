@@ -100,6 +100,12 @@ const glob = (pattern) => {
   return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
 };
 const REPO = "melodic-software/claude-code-plugins";
+// Each verdict job's outputs for wake-pr-merge: the verdict only once it uploaded.
+const WAKE_OUTPUTS = [
+  "      # For wake-pr-merge: the pull request, and the verdict once it uploaded.",
+  "      pr-number: ${{ steps.pr.outputs.pr-number }}",
+  "      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}",
+];
 // A job output read from each chunk's step, chunk 1's id being `first`.
 const chainOf = (build, first) => [first, ...SLOTS.slice(1).map((k) => `${first}-${k}`), `${first}-spec`].map(build).join(" || ");
 // Every leg check of a job left no clean handoff: "&& steps.<leg>-k.outcome != 'success'" for each slot and the spec.
@@ -391,6 +397,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       "      credential-present: ${{ steps.credential.outputs.present }}",
       `      key-leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "key-leg")} }}`,
       "      reads: ${{ steps.carry.outputs.reads }}",
+      ...WAKE_OUTPUTS,
       "",
     ].join("\n"),
   );
@@ -402,10 +409,12 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
       `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
       `      handoff-reason: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`,
       `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
+      ...WAKE_OUTPUTS,
       "",
     ].join("\n"),
   );
-  assert.doesNotMatch(jobText(FB), /^ {4}outputs:/m);
+  // The fallback job's only outputs are wake-pr-merge's.
+  assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, ""].join("\n"));
   for (const id of JOBS) {
     assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
   }
@@ -943,4 +952,65 @@ test("the report steps only record, so a broken one cannot stop the judgment", (
     }
   }
   assert.doesNotMatch(text, /steps\.report/);
+});
+
+// Issue #12445 (owner design, 2026-11-02): after the verdict jobs, one job
+// holding only actions: write starts a PR-scoped pr-merge run on a pass or
+// pass-notes that uploaded, and nothing else.
+const WAKE = "wake-pr-merge";
+test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write", () => {
+  const job = jobText(WAKE);
+  assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription, check-intent-fallback\]$/m);
+  const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
+  assert.equal(
+    gate,
+    [
+      "!cancelled() && github.ref == 'refs/heads/main' &&",
+      `(${JOBS.flatMap((id) => ["pass", "pass-notes"].map((v) => `needs.${id}.outputs.verdict == '${v}'`)).join(" || ")})`,
+    ].join(" "),
+  );
+  const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
+  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write"]);
+  // No checkout, no model, no other action; outputs reach only env.
+  assert.doesNotMatch(job, /uses: /);
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(job)[1];
+  assert.doesNotMatch(script, /\$\{\{/);
+  assert.match(job, /^ {8}continue-on-error: true$/m);
+});
+
+const wake = (env) => {
+  const job = jobText(WAKE);
+  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(job)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("wake-pr-merge-");
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  const args = path.join(dir, "args");
+  writeFileSync(args, "");
+  writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "$@" >>'${args}'\n`, { mode: 0o755 });
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t", ...env },
+    encoding: "utf8",
+  });
+  return { status: run.status, stdout: run.stdout, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
+};
+
+test("wake-pr-merge dispatches pr-merge on main for the passing job's pull request", () => {
+  for (const [env, pr] of [
+    [{ KEY_PR: "41", KEY_VERDICT: "pass" }, "41"],
+    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes" }, "42"],
+    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass" }, "43"],
+  ]) {
+    const run = wake(env);
+    assert.equal(run.status, 0);
+    assert.deepEqual(run.gh, [`workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`]);
+    assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=${pr} `));
+  }
+});
+
+test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request number it cannot read", () => {
+  for (const env of [{ KEY_PR: "41", KEY_VERDICT: "fail" }, { KEY_PR: "41" }, { KEY_PR: "", KEY_VERDICT: "pass" }, { KEY_PR: "41; x", KEY_VERDICT: "pass" }, { KEY_PR: "041", KEY_VERDICT: "pass" }]) {
+    const run = wake(env);
+    assert.equal(run.status, 0, JSON.stringify(env));
+    assert.deepEqual(run.gh, [], JSON.stringify(env));
+  }
 });

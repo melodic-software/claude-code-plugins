@@ -54,8 +54,10 @@ name: pr-verify
 # two chunks or more also needs a final judge, with no diff, over the spec and every
 # chunk's result (spec-prompt.md): an item no chunk delivers fails the head,
 # and with no output from that judge there is no verdict.
-# The job tokens can only read. Every script and local action comes from the
-# main checkout in .base; the Claude actions are ci-workflows', at main.
+# The judging jobs' tokens can only read. Every script and local action comes from the
+# main checkout in .base; the Claude actions are ci-workflows', at main. After
+# them, wake-pr-merge, holding only actions: write, starts a PR-scoped
+# pr-merge run on a pass or pass-notes verdict that uploaded.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
 # self-repository advice (`$/...`) is ignored on those lines, as in
@@ -107,6 +109,9 @@ jobs:
       credential-present: ${{ steps.credential.outputs.present }}
       key-leg-clean: ${{ steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean || steps.key-leg-5.outputs.clean || steps.key-leg-6.outputs.clean || steps.key-leg-7.outputs.clean || steps.key-leg-8.outputs.clean || steps.key-leg-9.outputs.clean || steps.key-leg-10.outputs.clean || steps.key-leg-11.outputs.clean || steps.key-leg-12.outputs.clean || steps.key-leg-spec.outputs.clean }}
       reads: ${{ steps.carry.outputs.reads }}
+      # For wake-pr-merge: the pull request, and the verdict once it uploaded.
+      pr-number: ${{ steps.pr.outputs.pr-number }}
+      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1893,6 +1898,7 @@ jobs:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
+        id: upload-verdict
         if: >-
           (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -1961,6 +1967,9 @@ jobs:
       handoff: ${{ steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' || steps.judge-5.outputs.handoff == 'true' || steps.judge-6.outputs.handoff == 'true' || steps.judge-7.outputs.handoff == 'true' || steps.judge-8.outputs.handoff == 'true' || steps.judge-9.outputs.handoff == 'true' || steps.judge-10.outputs.handoff == 'true' || steps.judge-11.outputs.handoff == 'true' || steps.judge-12.outputs.handoff == 'true' || steps.judge-spec.outputs.handoff == 'true' }}
       handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason || steps.judge-5.outputs.handoff-reason || steps.judge-6.outputs.handoff-reason || steps.judge-7.outputs.handoff-reason || steps.judge-8.outputs.handoff-reason || steps.judge-9.outputs.handoff-reason || steps.judge-10.outputs.handoff-reason || steps.judge-11.outputs.handoff-reason || steps.judge-12.outputs.handoff-reason || steps.judge-spec.outputs.handoff-reason }}
       leg-clean: ${{ steps.sub-leg.outputs.clean || steps.sub-leg-2.outputs.clean || steps.sub-leg-3.outputs.clean || steps.sub-leg-4.outputs.clean || steps.sub-leg-5.outputs.clean || steps.sub-leg-6.outputs.clean || steps.sub-leg-7.outputs.clean || steps.sub-leg-8.outputs.clean || steps.sub-leg-9.outputs.clean || steps.sub-leg-10.outputs.clean || steps.sub-leg-11.outputs.clean || steps.sub-leg-12.outputs.clean || steps.sub-leg-spec.outputs.clean }}
+      # For wake-pr-merge: the pull request, and the verdict once it uploaded.
+      pr-number: ${{ steps.pr.outputs.pr-number }}
+      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -3715,6 +3724,7 @@ jobs:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
+        id: upload-verdict
         if: >-
           (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -3778,6 +3788,10 @@ jobs:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
       actions: read # the upstream run, and verdicts already uploaded
+    outputs:
+      # For wake-pr-merge: the pull request, and the verdict once it uploaded.
+      pr-number: ${{ steps.pr.outputs.pr-number }}
+      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -5271,6 +5285,7 @@ jobs:
           path: ${{ runner.temp }}/pr-verify-verdict/verdict.json
 
       - name: Upload the verdict
+        id: upload-verdict
         if: >-
           (!cancelled() && steps.verdict.outcome == 'success' && (steps.verdict.outputs.verdict != 'fail' || steps.fail-index.outcome == 'success')) && steps.scan-upload.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -5306,3 +5321,62 @@ jobs:
         run: |
           echo "::error::the judgment left no verdict for this head"
           exit 1
+
+  # Wakes pr-merge for this one pull request once a verdict job uploaded a
+  # pass or pass-notes, so a lanes App pull request is armed now rather than
+  # at pr-merge's next scheduled run (every 30 minutes, the backstop). The
+  # dispatch starts a PR-scoped run of main's pr-merge.yml (inputs.pr), which
+  # arms only that pull request and only if every rule allows; it filters the
+  # author itself, since nothing here names it. A GITHUB_TOKEN's
+  # workflow_dispatch creates a run, as github-actions[bot], which pr-merge's
+  # who step admits for this case alone (who.mjs verdictWake). The job holds
+  # only actions: write, runs no model, checks out nothing, and passes the
+  # verdict jobs' outputs through env, checked in bash. A failed dispatch
+  # only warns: the run's verdict stands, and the schedule arms it.
+  wake-pr-merge:
+    needs: [check-intent, check-intent-subscription, check-intent-fallback]
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && (needs.check-intent.outputs.verdict == 'pass'
+      || needs.check-intent.outputs.verdict == 'pass-notes'
+      || needs.check-intent-subscription.outputs.verdict == 'pass'
+      || needs.check-intent-subscription.outputs.verdict == 'pass-notes'
+      || needs.check-intent-fallback.outputs.verdict == 'pass'
+      || needs.check-intent-fallback.outputs.verdict == 'pass-notes')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # start pr-merge.yml on main for this pull request
+    steps:
+      - name: Wake pr-merge for this pull request
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEY_PR: ${{ needs.check-intent.outputs.pr-number }}
+          KEY_VERDICT: ${{ needs.check-intent.outputs.verdict }}
+          SUB_PR: ${{ needs.check-intent-subscription.outputs.pr-number }}
+          SUB_VERDICT: ${{ needs.check-intent-subscription.outputs.verdict }}
+          FB_PR: ${{ needs.check-intent-fallback.outputs.pr-number }}
+          FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          pr=''
+          # One job per run judges; the first pass in job order names the PR.
+          for leg in KEY SUB FB; do
+            verdict_var=${leg}_VERDICT pr_var=${leg}_PR
+            if [[ ${!verdict_var:-} =~ ^(pass|pass-notes)$ ]]; then
+              pr=${!pr_var:-} verdict=${!verdict_var}
+              break
+            fi
+          done
+          if [[ ! $pr =~ ^[1-9][0-9]{0,15}$ ]]; then
+            echo "::warning::wake-pr-merge: the passing job named no pull request number; nothing woken"
+            exit 0
+          fi
+          if gh workflow run pr-merge.yml -R "$GITHUB_REPOSITORY" --ref main -f pr="$pr"; then
+            echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict pr-merge dispatched"
+          else
+            echo "::warning::wake-pr-merge: the pr-merge dispatch for #$pr failed; its next scheduled run arms it"
+          fi
