@@ -17,7 +17,7 @@
       "description": "Per setting, whether the team chose the value or it was filled at the plugin default. The writer owns it; it is not a setting."
     },
     "ratchet_offer": {
-      "description": "Unused: no skill in this plugin reads it.",
+      "description": "Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml).",
       "type": "boolean",
       "default": true
     },

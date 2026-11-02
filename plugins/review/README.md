@@ -197,7 +197,8 @@ findings location in your `CLAUDE.md`/rules overrides the default path.
 
 Three settings, each set per user through the option below or per repository in
 `docs/conventions/review.yaml` (written by `/review:setup apply`). `ratchet_offer` is unused: no
-skill in this plugin reads it. `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
+skill in this plugin reads it; to keep ratchet offers off, set `ratchet_offer` on the corrections
+plugin (its plugin option or `docs/conventions/corrections.yaml`). `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
 whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
@@ -215,7 +216,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `connected_page_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONNECTED_PAGE_GUARD_ENABLED` | Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page. |
-| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | Unused: no skill in this plugin reads it. |
+| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml). |
 | `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 | `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 
