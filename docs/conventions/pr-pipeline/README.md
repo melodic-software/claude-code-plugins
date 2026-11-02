@@ -2416,8 +2416,8 @@ head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
 the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
-pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
-the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+pr-merge lane decides lane authorship. Any other author's passing or hold-only run is skipped
+before the model runs, with the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges every
 trusted actor's: a `User` or `Bot` whose account id is on the trusted-actor list (never matched
 by login), whose pull requests the pr-merge lane adopts (Eligibility, above); any other author's
