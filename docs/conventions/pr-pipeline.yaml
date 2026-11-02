@@ -879,9 +879,11 @@ models:
       unknown: probe-first
   # An issue's state, as its Work status org issue field, read by field and
   # option id. A state's name is its option's name on GitHub. Collapsing an
-  # issue's labels takes the first state in order whose label it carries; one
-  # with none takes the last. A value the field holds that no option maps fails
-  # the read. Nothing reads or writes the field from here yet.
+  # issue's labels takes the first state in order one of whose labels it
+  # carries; one with none takes the last, needs-triage. A value whose latest
+  # setter is neither a listed human nor the lanes App reads as none; a
+  # trusted value no option maps fails the read. Nothing reads or writes the
+  # field from here yet.
   issue-status:
     field-id: 48484079
     options:
@@ -894,18 +896,29 @@ models:
       "86380003": ready
       "86380004": deferred
       "86380005": needs-human
-    # The label each state collapses from. agent-ready and needs-human are the
-    # tracker's autonomous-eligible and human-gated role labels.
+    # The labels each state collapses from. agent-ready and needs-human are
+    # the tracker's autonomous-eligible and human-gated role labels;
+    # needs-owner-decision is also a hold label of its own (admission-rules).
     labels:
-      needs-triage: needs-triage
-      needs-reporter-info: "status: needs-info"
-      needs-owner-decision: "status: needs-decision"
-      needs-spec: needs-spec
-      agent-ready: agent-ready
-      confirmed: "status: confirmed"
-      ready: "status: ready"
-      deferred: admission-deferred
-      needs-human: needs-human
+      needs-triage:
+        - needs-triage
+      needs-reporter-info:
+        - "status: needs-info"
+      needs-owner-decision:
+        - "status: needs-decision"
+        - needs-owner-decision
+      needs-spec:
+        - needs-spec
+      agent-ready:
+        - agent-ready
+      confirmed:
+        - "status: confirmed"
+      ready:
+        - "status: ready"
+      deferred:
+        - admission-deferred
+      needs-human:
+        - needs-human
     order:
       - needs-human
       - needs-owner-decision

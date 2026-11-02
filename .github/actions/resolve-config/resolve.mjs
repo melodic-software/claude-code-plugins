@@ -335,7 +335,7 @@ function checkModels(models, activities) {
     }
   }
   if (models["issue-status"] !== undefined) {
-    checkStatus(models["issue-status"]);
+    checkStatus(models["issue-status"], models["issue-dimensions"]);
   }
 }
 

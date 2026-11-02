@@ -379,29 +379,57 @@ for (const [why, dims, code] of [
 const STATUS = {
   "field-id": 7,
   options: { 71: "needs-triage", 72: "agent-ready", 73: "needs-human" },
-  labels: { "needs-triage": "needs-triage", "agent-ready": "agent-ready", "needs-human": "needs-human" },
+  labels: { "needs-triage": ["needs-triage"], "agent-ready": ["agent-ready"], "needs-human": ["needs-human", "hitl"] },
   order: ["needs-human", "agent-ready", "needs-triage"],
 };
-const statusModels = (status) => ({ profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", "issue-status": status });
+const statusModels = (status, dims) => ({
+  profiles: { p: { model: "opus", "max-turns": 5 } },
+  "default-profile": "p",
+  "issue-status": status,
+  ...(dims === undefined ? {} : { "issue-dimensions": dims }),
+});
+const assertStatusRejected = (fn, code, text) =>
+  assert.throws(fn, (error) => {
+    assert.ok(error instanceof Rejection, `expected a Rejection, got ${error}`);
+    assert.equal(error.code, code, error.message);
+    assert.ok(error.message.includes(text), error.message);
+    return true;
+  });
 
 test("issue-status: a block with every state labeled and ordered once loads", () => {
   assert.equal(fixtureSlot(withModels(statusModels(STATUS))).applies, true);
 });
 
-for (const [why, status, code] of [
-  ["a missing option id", { ...STATUS, options: { 71: "needs-triage", 72: "agent-ready" } }, "undefined-status"],
-  ["two option ids for one state", { ...STATUS, options: { ...STATUS.options, 74: "agent-ready" } }, "undefined-status"],
-  ["a state with no label", { ...STATUS, labels: { "needs-triage": "needs-triage", "agent-ready": "agent-ready" } }, "undefined-status"],
-  ["one label for two states", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "agent-ready" } }, "undefined-status"],
-  ["an order missing a state", { ...STATUS, order: ["needs-human", "agent-ready"] }, "undefined-status"],
-  ["an order naming a state twice", { ...STATUS, order: ["needs-human", "agent-ready", "agent-ready"] }, "undefined-status"],
-  ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config"],
-  ["no field id", { options: STATUS.options, labels: STATUS.labels, order: STATUS.order }, "invalid-config"],
+// DIMS with the complexity an unset field reads as, so it loads.
+const LOADING_DIMS = { ...DIMS, complexity: { low: 1, medium: 1.5 } };
+const twoStates = { "needs-triage": ["needs-triage"], "agent-ready": ["agent-ready"] };
+for (const [why, status, code, text, dims] of [
+  [
+    "a state no option maps",
+    { ...STATUS, options: { 71: "needs-triage", 72: "agent-ready" }, order: ["agent-ready", "needs-triage"] },
+    "undefined-status",
+    "names `needs-human`, which no option maps",
+  ],
+  ["two option ids for one state", { ...STATUS, options: { ...STATUS.options, 74: "agent-ready" } }, "undefined-status", "maps two options to `agent-ready`"],
+  ["a state with no label", { ...STATUS, labels: twoStates }, "undefined-status", "gives `needs-human` no label"],
+  ["a label under two states", { ...STATUS, labels: { ...STATUS.labels, "needs-human": ["Agent-Ready"] } }, "undefined-status", "lists `agent-ready` twice"],
+  ["an order missing a state", { ...STATUS, order: ["agent-ready", "needs-triage"] }, "undefined-status", "every mapped state once"],
+  ["an order naming a state twice", { ...STATUS, order: ["needs-human", "agent-ready", "agent-ready", "needs-triage"] }, "undefined-status", "every mapped state once"],
+  ["an order not ending on needs-triage", { ...STATUS, order: ["needs-human", "needs-triage", "agent-ready"] }, "undefined-status", "must end on `needs-triage`"],
+  ["a field id one dimension uses", { ...STATUS, "field-id": 2 }, "undefined-status", "is a models.issue-dimensions field", LOADING_DIMS],
+  ["an empty label list", { ...STATUS, labels: { ...STATUS.labels, "needs-human": [] } }, "invalid-config", "labels"],
+  ["a label given as a string", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "needs-human" } }, "invalid-config", "labels"],
+  ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config", "options"],
+  ["no field id", { options: STATUS.options, labels: STATUS.labels, order: STATUS.order }, "invalid-config", "field-id"],
 ]) {
   test(`issue-status: ${why} is rejected`, () => {
-    assertRejected(() => fixtureSlot(withModels(statusModels(status))), code);
+    assertStatusRejected(() => fixtureSlot(withModels(statusModels(status, dims))), code, text);
   });
 }
+
+test("issue-status: a field id no dimension uses loads beside issue-dimensions", () => {
+  assert.equal(fixtureSlot(withModels(statusModels(STATUS, LOADING_DIMS))).applies, true);
+});
 
 test("issue-status: one option id written twice is rejected", () => {
   const files = withModels(statusModels(STATUS));
