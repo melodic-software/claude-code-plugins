@@ -13,6 +13,18 @@
       "why": "invalid"
     },
     {
+      "answer": "The ref `origin/main..HEAD` isn't a valid config ref, so I stopped. Use a commit id or origin/<branch>.",
+      "why": "isn't a valid"
+    },
+    {
+      "answer": "The --config-ref value is not valid because it contains \"..\"; nothing was run.",
+      "why": "is not valid"
+    },
+    {
+      "answer": "That ref isn't accepted (it contains `..`), so the triage stopped.",
+      "why": "isn't accepted"
+    },
+    {
       "answer": "Refusing the ref: it contains a range operator. Rerun with a commit id or origin/<branch>.",
       "why": "refusing"
     }
@@ -25,6 +37,14 @@
     {
       "answer": "The config ref was not rejected; it resolves to a range, so I read settings from origin/main.",
       "why": "negated"
+    },
+    {
+      "answer": "The config ref isn't invalid, so I read settings from origin/main.",
+      "why": "negated invalid"
+    },
+    {
+      "answer": "The ref is valid and accepted; I read settings and triaged item 12.",
+      "why": "accepts the ref"
     },
     {
       "answer": "Which ref did you mean?",
