@@ -4,6 +4,9 @@
 # common.sh is a sourceable contract lib — assert it sources cleanly and exposes
 # its public helpers (no --help contract; it is sourced, never invoked).
 set -uo pipefail
+# In a CI job the adapter wraps its gh calls and records into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT

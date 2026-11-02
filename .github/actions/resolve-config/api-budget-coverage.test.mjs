@@ -7,8 +7,9 @@
 // action. A job calls GitHub when a step:
 //   - runs `gh api|issue|pr|run|workflow|release|label|search|repo`, or
 //     handoff-evidence.sh or dispatcher-current.sh;
-//   - runs a repository script (scripts/ or .github/scripts/, .sh or .bash)
-//     whose own text does any of those;
+//   - runs a repository script (scripts/ or .github/scripts/, .sh or .bash,
+//     or any repository .sh or .bash a step env variable names and the step
+//     runs as `bash "$NAME"` or `"$NAME"`) whose own text does any of those;
 //   - uses resolve-config or check-trusted-trigger.
 // It does not see GitHub calls made from Node or Python (an api-budget.mjs
 // caller, babysit_gh.py), through a script a script runs or a scripts/lib file
@@ -74,6 +75,10 @@ const GH_ACTION = /\/actions\/(?:resolve-config|check-trusted-trigger)$/;
 const SCRIPT =
   /(?:^|[\s"'])(?:\.base\/)?((?:\.github\/)?scripts\/[\w./-]+\.(?:sh|bash))\b/g;
 const WRAP = /\bapi_budget_wrap_gh\b/;
+// Running a script a step env variable names: `bash "$NAME"`, `sh "$NAME"`, or
+// "$NAME" as the command. Sourcing it (`. "$NAME"`) is not running it.
+const ENV_SCRIPT =
+  /(?:^[ \t]*|[;&|({][ \t]*|\b(?:bash|sh)[ \t]+)"?\$\{?([A-Z_][A-Z0-9_]*)\}?"?(?=[\s;&|)]|$)/gm;
 // Sourcing api-budget.bash by a literal path, or by "$NAME" from the step env.
 const LIB_SOURCE =
   /(?:^|[\s;{(])(?:\.|source) +(?:["']?([\w./-]*api-budget\.bash)\b|"\$\{?([A-Z_][A-Z0-9_]*)\}?")/gm;
@@ -98,10 +103,15 @@ const detector = ({ read, exists }) => {
       .split(" ")[0]
       .match(GH_ACTION)?.[0]
       .slice("/actions/".length);
+  const envScripts = ({ run = "", env = {} }) =>
+    [...run.matchAll(ENV_SCRIPT)]
+      .map(([, name]) => /^(?:\.base\/)?([\w./-]+\.(?:sh|bash))$/.exec(env[name] ?? "")?.[1])
+      .filter((path) => path && exists(path));
   const scriptsOf = (step) =>
-    [...(step.run ?? "").matchAll(SCRIPT)]
-      .map(([, path]) => path)
-      .filter((path) => GH_CALL.test(read(path)));
+    [
+      ...[...(step.run ?? "").matchAll(SCRIPT)].map(([, path]) => path),
+      ...envScripts(step),
+    ].filter((path) => GH_CALL.test(read(path)));
   // A script run as its own process gets no gh() a step defines: it wraps its
   // own calls by sourcing a wrapper file that exists and defines
   // api_budget_wrap_gh.
@@ -350,6 +360,34 @@ test("covered() names each missing piece", () => {
       ],
     }),
     ['step "Env" calls gh without api_budget_wrap_gh'],
+  );
+  // A script a step env variable names is judged like a literal one when the
+  // step runs it, and not when the step only sources or reads it.
+  assert.deepEqual(
+    covered({
+      steps: [
+        { env: { S: ".base/scripts/bare.sh" }, run: 'out="$(bash "$S" x)"' },
+        LOG,
+      ],
+    }),
+    ["scripts/bare.sh does not wrap its gh calls"],
+  );
+  assert.deepEqual(
+    covered({ steps: [{ env: { S: "scripts/bare.sh" }, run: '"$S" x' }, LOG] }),
+    ["scripts/bare.sh does not wrap its gh calls"],
+  );
+  assert.deepEqual(
+    covered({
+      steps: [{ env: { S: ".base/scripts/wraps.sh" }, run: 'bash "$S"' }, LOG],
+    }),
+    [],
+  );
+  assert.equal(
+    fixture.stepCallsGitHub({
+      env: { S: "scripts/bare.sh" },
+      run: 'cat "$S"\n. "$S"',
+    }),
+    false,
   );
   // Sourcing a self-wrapping script defines gh() in the step's shell.
   assert.deepEqual(
