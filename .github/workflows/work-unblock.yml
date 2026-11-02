@@ -24,6 +24,8 @@ name: work-unblock
 # close run; the broker would refuse that mint. The hourly sweep covers it: a
 # scheduled run applies the same rules to every issue a listed human or a
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
+# Each work-resolve-issue run that finishes, unless it ran no job, runs the
+# same sweep at once, so a freed slot admits the next deferred issue then.
 #
 # A listed human closing the marker issue, the one labeled
 # `work-unblock-sweep` (SWEEP_LABEL in the script), runs that sweep at once
@@ -84,6 +86,11 @@ on:
   # Off the top of the hour, at a minute no other schedule here uses.
   schedule:
     - cron: "47 * * * *"
+  # A finished issue lane run may free a slot, so the sweep runs at once and
+  # admits the next deferred issue instead of waiting for the hour.
+  workflow_run:
+    workflows: [work-resolve-issue]
+    types: [completed]
 
 permissions: {}
 
@@ -136,10 +143,15 @@ jobs:
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
     # skip: the broker would refuse it, and the sweep picks it up. The broker
-    # mints for the sweep only from main.
+    # mints for the sweep only from main. A finished work-resolve-issue run
+    # sweeps whatever its conclusion, since a failed or cancelled run can free
+    # room too; a skipped one, from a label other than agent-ready, ran no job.
     if: >-
       (github.event_name == 'schedule' && github.ref == 'refs/heads/main')
       || (github.event_name == 'issues' && github.event.sender.type != 'Bot')
+      || (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+      && github.event.workflow_run.conclusion != 'skipped')
     # One run at a time across the repository, so two runs cannot each admit
     # the queued cap's whole room. The rest wait in line and are never
     # cancelled (`queue: max`).
@@ -187,7 +199,8 @@ jobs:
       # Anything else, or a failed read, stops here quietly, before the token
       # request. The script makes the same check again. A scheduled sweep has
       # no closer, and its actor is whoever last changed the schedule, so it
-      # skips this check.
+      # skips this check; so does a sweep a finished work-resolve-issue run
+      # starts, whose re-run the broker allows only to a listed human.
       - name: Check who closed the issue
         id: who
         if: steps.kill.outputs.proceed == 'true' && github.event_name == 'issues'
@@ -205,7 +218,7 @@ jobs:
         id: config
         if: >-
           steps.kill.outputs.proceed == 'true'
-          && (github.event_name == 'schedule' || steps.who.outputs.proceed == 'true')
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_run' || steps.who.outputs.proceed == 'true')
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
@@ -234,8 +247,9 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: label-unblocked
-          # A scheduled sweep names no issue; any close, the marker's included,
-          # names its issue, which the broker needs on an issues event.
+          # A sweep (scheduled or after an issue lane run) names no issue; any
+          # close, the marker's included, names its issue, which the broker
+          # needs on an issues event.
           issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
