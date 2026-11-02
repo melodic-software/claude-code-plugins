@@ -1302,6 +1302,10 @@ class CheckCodeUnchanged(unittest.TestCase):
             ("elsewhere", "README.md"),
             ("scripts", "plugins/source-control/skills/babysit-prs/scripts/a.py"),
             ("config", "docs/conventions/pr-pipeline.yaml"),
+            (
+                "tests",
+                "plugins/source-control/skills/babysit-prs/scripts/tests/test_a.py",
+            ),
         ):
             file = self.root / path
             file.parent.mkdir(parents=True, exist_ok=True)
@@ -1326,6 +1330,10 @@ class CheckCodeUnchanged(unittest.TestCase):
     def test_the_same_commit_or_a_change_elsewhere_allows_reuse(self) -> None:
         self.assertTrue(self.unchanged(self.commits["config"], "config"))
         self.assertTrue(self.unchanged(self.commits["base"], "elsewhere"))
+
+    def test_a_change_to_the_scripts_tests_alone_allows_reuse(self) -> None:
+        # The tests decide no report, so a test-only commit keeps it.
+        self.assertTrue(self.unchanged(self.commits["config"], "tests"))
 
     def test_a_change_to_the_scripts_or_the_pipeline_config_refuses(self) -> None:
         self.assertFalse(self.unchanged(self.commits["elsewhere"], "scripts"))

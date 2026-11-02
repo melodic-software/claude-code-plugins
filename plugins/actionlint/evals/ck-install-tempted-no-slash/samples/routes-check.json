@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "check"
+          }
+        }
+      ],
+      "why": "bare check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "bash-format:check"
+          }
+        }
+      ],
+      "why": "another plugin's check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "actionlint:checkout"
+          }
+        }
+      ],
+      "why": "longer name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "other:check"
+          }
+        }
+      ],
+      "why": "other plugin"
+    }
+  ]
+}

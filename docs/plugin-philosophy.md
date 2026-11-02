@@ -104,8 +104,15 @@ Keep plugins horizontally decoupled:
   argument, or an optional namespaced skill invocation.
 - Native manifest `dependencies` are reserved for hard requires: a plugin genuinely broken without
   its collaborator. Optional collaboration stays presence-gated with a documented fallback. The
-  first versioned dependency brings the `{name}--v{version}` release-tag step
-  (`claude plugin tag --push`) with it.
+  first versioned dependency brings a release-tag step with it.
+  - **Pointer**: when a plugin here gains its first versioned dependency, read
+    [release a plugin that others depend on](https://code.claude.com/docs/en/plugins/dependencies#release-a-plugin-that-others-depend-on)
+    for who tags which repository, and
+    [create a release tag](https://code.claude.com/docs/en/plugins/dependencies#create-a-release-tag)
+    for the tag name and the command that makes it, live.
+  - **As of**: 2026-11-01
+  - **Recheck trigger**: either section changes who must create the tag, the tag format, or the
+    command that creates it.
 - Every plugin remains useful alone. If an optional collaborator is absent, use a documented fallback
   or report the missing optional capability clearly.
 - Every cross-plugin reference is therefore either declared (the `dependencies` array above, which
@@ -855,6 +862,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Repository standards index | [`docs/contracts/standards/`](contracts/standards/README.md) |
 | Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/contracts/enforcement-ladder/`](contracts/enforcement-ladder/README.md), with generated plugin copies |
 | PR scope budget for agent-authored improvement PRs | [`docs/contracts/pr-scope-budget/`](contracts/pr-scope-budget/README.md) |
+| Type discipline: the type rules design, implementation and review apply | [`docs/contracts/type-discipline/`](contracts/type-discipline/README.md), with generated plugin copies |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
@@ -945,7 +953,7 @@ the main checkout's root, so the install enables the plugin for every session th
 worktree. Outside a git repository the file stays in the folder you ran from.
 
 - **Pointer:** [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
-  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference).
+  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference#claude-plugin-commands).
   Observed for `plugin install --scope local` on Claude Code 2.1.289, WSL2, during the
   install-and-test run in melodic-software/claude-code-plugins#6318, reported in #6375.
 - **As of:** 2026-10-04.

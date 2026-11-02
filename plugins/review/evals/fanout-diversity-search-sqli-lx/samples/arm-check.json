@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "fanout_diversity: lens (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [codex, security-reviewer@high, architecture-guardian@high, code-reviewer@high, doc-drift-detector@session]. Returned no result: [].",
+      "why": "repository layer read, per-concern leaves ran, Codex in the Ran list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "fanout_diversity: lens (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: []. codex: not installed, skipped.",
+      "why": "Codex did not run"
+    },
+    {
+      "answer": "fanout_diversity: lens (default)\n\n## Surfaces\n\nRan: [codex, security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the repository layer was not read"
+    }
+  ]
+}

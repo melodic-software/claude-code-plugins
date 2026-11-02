@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\ndotnet test --filter \"FullyQualifiedName~OrderServiceTests\"\n```",
+      "why": "fenced command"
+    },
+    {
+      "answer": "Run `dotnet test --filter FullyQualifiedName~MyApp.Tests.OrderServiceTests`.",
+      "why": "inline code"
+    },
+    {
+      "answer": "| Command |\n|---|\n| dotnet test --filter \"ClassName=MyApp.Tests.OrderServiceTests\" |",
+      "why": "table row with ClassName"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Open Test Explorer, right-click OrderServiceTests and choose Run.",
+      "why": "no command"
+    },
+    {
+      "answer": "dotnet test -- xunit.methodDisplay=method",
+      "why": "a dotnet test command without a filter"
+    }
+  ]
+}

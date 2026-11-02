@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "I unrolled it through Thread Reader App (step 2), since curl is missing for step 1. The thread has 6 posts:\n\n1. ...",
+      "why": "prose"
+    },
+    {
+      "answer": "**Source:** `threadreaderapp.com` unroll of the root post.",
+      "why": "bold label and code span"
+    },
+    {
+      "answer": "| Step | Result |\n|---|---|\n| xtomd | skipped: curl not installed |\n| ThreadReaderApp | page returned an error |",
+      "why": "table, failure reported"
+    },
+    {
+      "answer": "- Tried *Thread Reader* for the unroll; the host could not be reached from here.\n- Send me the other post URLs and I will read them one by one.",
+      "why": "list with emphasis, fetch failed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "X shows a login wall, so I can't read this thread without an account.",
+      "why": "the likely no-plugin answer"
+    },
+    {
+      "answer": "Here is the thread, fetched with xtomd: 1/ ...",
+      "why": "wrong source named"
+    }
+  ]
+}

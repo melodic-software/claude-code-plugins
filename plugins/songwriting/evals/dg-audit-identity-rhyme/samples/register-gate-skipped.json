@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter and §8 Pre-lock filter: run.\n\n**Line:** \"I'll never feel that same delight\"\n\n**Stress & meter**\n- Stressed syllables on strong beats: pass. i'll NEV-er FEEL that SAME de-LIGHT, four stresses like line 1.\n- Greedy spots: pass.\n\n**Rhyme stability**\n- Identity check: fail. light / de-LIGHT keep the same l before the stressed vowel, so this is identity, not rhyme. The ear hears the same word twice.\n- Cliche pair: fail. light / delight is a stock pair.\n\n**Image specificity**\n- Rusty's-collar image before the telling line: fail. \"feel that same delight\" names a feeling; line 1's kitchen light already shows it.\n\n**Register**: skipped. No voiceprint exists for you yet, so I can't judge this against your own style; I'm not ruling on register.\n\nDominant: the identity at the line's end. Fix it, accept it with a reason, or come back after another pass. Which?"
+    },
+    {
+      "answer": "Voiceprint: none on disk, register gate skipped."
+    },
+    {
+      "answer": "Register: skipped, there's no record of your style to judge against.",
+      "why": "no voiceprint word"
+    },
+    {
+      "answer": "I skipped the register check since you have no style reference yet.",
+      "why": "skip before register"
+    },
+    {
+      "answer": "Register: skipping, no voiceprint on file yet.",
+      "why": "skipping form"
+    },
+    {
+      "answer": "Skipping register: there's no voiceprint for you.",
+      "why": "skipping before register"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The register is too formal for a country ballad; \"delight\" sounds Victorian.",
+      "why": "rules on register instead of skipping"
+    },
+    {
+      "answer": "Identity check: fail. Cliche: fail. Stress: pass.",
+      "why": "never mentions the register gate"
+    },
+    {
+      "answer": "Stress: pass. Identity check: fail, light / delight is an identity. Cliche: fail. No voiceprint exists, but the register is too formal for a country ballad; delight sounds Victorian.",
+      "why": "names the missing voiceprint, then rules on register anyway"
+    },
+    {
+      "answer": "You have no voiceprint yet. Register: too formal, delight sounds Victorian.",
+      "why": "mentions the voiceprint without skipping the gate"
+    },
+    {
+      "answer": "No voiceprint on file, so going by the genre: \"delight\" reads too formal for this register.",
+      "why": "names the missing voiceprint, then rules by genre"
+    },
+    {
+      "answer": "Register: I won't skip this one, \"delight\" is too formal.",
+      "why": "refuses to skip the gate"
+    },
+    {
+      "answer": "Register: I'm not skipping this, \"delight\" is too formal.",
+      "why": "negated skipping"
+    }
+  ]
+}

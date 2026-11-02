@@ -3368,11 +3368,20 @@ const CREDENTIALS = {
   "Azure client secret": ` abc1Q~${"x".repeat(32)}`,
   "Cloudflare API token": `${"cfut"}_${"A".repeat(40)}`,
   "upload token": `${"pgup"}_${"A".repeat(20)}`,
+  "npm token": `${"npm"}_${"Ab1".repeat(12)}`,
+  "Google API key": `${"AI"}za${"Fake_-9".repeat(5)}`,
+  "JSON Web Token": `${"eyJ"}hbGciOiJub25lIn0.${"eyJ"}zdWIiOiJGQUtFIn0.${"x".repeat(24)}`,
+  "Docker registry auth": `{"${"au"}th":"${"QUJD".repeat(5)}"}`,
+  "Azure storage account key": `Account${"Key"}=${"QUJD".repeat(11)}==`,
+  "Pulumi access token": `${"pul"}-${"0a".repeat(20)}`,
+  "base64-encoded PEM block": `${"LS0tLS1CRUdJ"}Ti${"A".repeat(24)}`,
+  "netrc password": `machine api.example.com login fakeuser pass${"word"} fakepassword1`,
 };
 const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
 test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
   const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
-  const blocking = SECRET_PATTERNS.map(([label]) => label).filter((label) => label !== "password or secret assignment");
+  // A label with two patterns (netrc password) needs one sample.
+  const blocking = [...new Set(SECRET_PATTERNS.map(([label]) => label))].filter((label) => label !== "password or secret assignment");
   assert.deepEqual(Object.keys(CREDENTIALS).toSorted(), blocking.toSorted(), "one sample per blocking label");
   for (const [label, sample] of Object.entries(CREDENTIALS)) {
     const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));
@@ -6384,7 +6393,9 @@ function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {
 // passed on as fallback-ready, in the step after its read.
 function assertFallbackPresence(job) {
   assert.deepEqual(stepSecrets(withoutPresenceChecks(job)), [], "no secret value");
-  const presence = job.steps.at(-1);
+  // The last step logs the job's api budget.
+  assert.equal(job.steps.at(-1).uses.split(" ")[0], "./.base/.github/actions/log-api-budget");
+  const presence = job.steps.at(-2);
   assert.equal(presence.id, "fallback");
   assert.deepEqual(presence.env, { PRESENT: "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}" });
   assert.equal(job.outputs["fallback-ready"], "${{ steps.fallback.outputs.ready }}");
@@ -6397,7 +6408,7 @@ function assertHandoffEvidenceJob(job) {
   assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
   assert.equal(checkout.with.path, ".base");
   assert.equal(checkout.with["persist-credentials"], false);
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   // A file path, not a cone directory: cone mode would check out no file.
   assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
   const read = job.steps.find((step) => step.id === "posted");
@@ -7113,7 +7124,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  assert.equal(handoff.steps.length, 3);
+  assert.equal(handoff.steps.length, 4);
   assert.deepEqual(handoff.steps[0], workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0], "the same sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
@@ -7766,7 +7777,7 @@ test("work-resolve-issue.yml: resolve-issue-stale reads the stale stop from the 
   assert.deepEqual(job.needs, ["admit", ...STALE_CALLS]);
   assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
   const [checkout, read] = job.steps;
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh stale");
   assert.equal(read.env.CALLS, STALE_CALLS.join(" "));

@@ -1,0 +1,10 @@
+fixture: empty-ratings
+source_case: guard-removal-empty-ratings
+defect:
+  location: ratings.py:2
+  summary: "average_rating drops its early return for an empty reviews list while folding into one expression"
+  failure: "a product with no reviews (Cable tray in products.json) now divides by zero, so average_rating raises ZeroDivisionError and the product page fails"
+axis: spec
+not_defects:
+  - "product_page.py or products.json changed on this branch (only ratings.py changed)"
+  - "a product with reviews now gets a different average (the sum, division and rounding are unchanged for a non-empty list)"

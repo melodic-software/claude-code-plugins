@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | average_rating no longer handles an empty reviews list: Cable tray in products.json has no reviews, so the division by len(reviews) raises ZeroDivisionError and the product page fails. | Restore the early return |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the empty list and the ZeroDivisionError at CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | ratings.py:2 | code-reviewer | The one-line expression is harder to read; consider splitting it. | Split the expression |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "treats the change as style and misses the empty input"
+    }
+  ]
+}

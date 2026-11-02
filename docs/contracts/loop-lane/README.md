@@ -869,6 +869,18 @@ prompt never assumes a fresh one, and what carries forward also degrades, since 
 summarizes earlier history in place rather than preserving it (the `harness-ops:lanes` skill owns the
 mechanism).
 
+**Forge writes converge on rerun.** Every step that writes to the forge (a label, comment, branch or
+pull request) leaves the same forge state when it runs again after a stop at any point: it reads
+the current forge state first, compares it with the state it is meant to leave, and writes only the
+difference. The reason is that lanes restart and are re-dispatched: a budget hit, an expiry, a
+crash or a later dispatch reruns a step whose earlier run may have stopped partway, and a step
+that writes from what an earlier run intended rather than what the forge holds now duplicates a
+comment or undoes a later change. Restart adoption under "Instance-collision detection" below and
+§2 "Escalation record write" (its "One record per newly filed escalation" rule) are cases of this
+rule (pstack's `make-operations-idempotent` principle). Reading first covers a rerun that follows a
+stop, not two runs that overlap; §7 "Confirm-then-record" and [`posting-lanes.md`](posting-lanes.md)
+own that case.
+
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly, because a running loop
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets (the
@@ -914,8 +926,8 @@ another's. The marker therefore carries a lane-instance suffix, the lane-type ma
 MARKER="<lane-marker>@<lane_instance>"
 ```
 
-`<lane_instance>` is resolved from launch config, defaulting to the sanitized lowercased machine
-hostname when unset (headless-config floor: never block on an interview, log the assumption). It
+`<lane_instance>` is resolved from launch config, defaulting to a random id made once and kept in
+the plugin data dir when unset (never the hostname, which the public marker would publish) (headless-config floor: never block on an interview, log the assumption). It
 must be **stable across restarts**, since durable state is precisely what survives a `/loop` expiry
 or a cycle-budget relaunch, and **distinct across concurrently running instances**, so two lanes on one
 machine must each be given an explicit id. It is operator-supplied text interpolated into a shell

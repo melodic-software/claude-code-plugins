@@ -307,7 +307,7 @@ block, re-read at every cycle start:
 ```json
 {"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
- "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"melo-lap-001",
+ "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"lane-3e7a91c4",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
  "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,"demotion_events":0,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
@@ -455,11 +455,10 @@ is a manual-restart state, per the convention. A forge rate-limit error ends the
 
 ## Spoke paths
 
-The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Substitute that path for the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+The `reference/` files write `<plugin-root>` for `${CLAUDE_PLUGIN_ROOT}` and `<plugin-data>` (the
+upsert's `--body-dir`) for `${CLAUDE_PLUGIN_DATA}`. Substitute those paths before running a command
+or writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}`
+token in them would reach the Bash tool unsubstituted, with no such variable to expand. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 

@@ -18,8 +18,8 @@ export async function main({
 } = {}) {
   let registration;
   try {
-    const { configPath, environment } = parseRegistrationArgs(argv);
-    registration = bindRegistration(loadConfig(configPath, { projectDir }), environment);
+    const { configPath, environment, write } = parseRegistrationArgs(argv);
+    registration = bindRegistration(loadConfig(configPath, { projectDir }), environment, { write });
   } catch (error) {
     if (error instanceof UsageError || error instanceof ConfigError) {
       stderr.write(`sql-server: ${error.message}\n`);
@@ -28,16 +28,19 @@ export async function main({
     throw error;
   }
   const executor = createExecutor(registration);
+  // The write principal gets its own pool, so a read never runs as it.
+  const writeExecutor = registration.write ? createExecutor({ ...registration, auth: registration.write.auth }) : undefined;
   const server = createServer({
     databases: registration.databases,
     executor,
+    writeExecutor,
     serverInfo: { name: 'sql-server', version },
     log: (line) => stderr.write(`${line}\n`),
   });
   try {
     await serveStdio(server, { input, output });
   } finally {
-    await executor.close?.();
+    await Promise.all([executor.close?.(), writeExecutor?.close?.()]);
   }
   return 0;
 }

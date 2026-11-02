@@ -31,7 +31,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the session-flow hooks skip their work, fetch-docs.sh exits before reading anything so /session-flow:retro reads a docs page with WebFetch instead, and /session-flow:retro codify reviews cannot read review comments.",
+      "degrade": "Without jq, the session-flow hooks skip their work, and fetch-docs.sh exits before reading anything so /session-flow:retro reads a docs page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
@@ -42,7 +42,6 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:retro",
         "skill:recall"
       ],
       "detect": {
@@ -50,7 +49,7 @@
           "gh"
         ]
       },
-      "degrade": "Without gh, /session-flow:retro codify reviews cannot read pull request review comments; every other retro mode and codify input still works. /session-flow:recall skips closed unmerged pull requests and says so.",
+      "degrade": "Without gh, /session-flow:recall skips closed unmerged pull requests and says so.",
       "install": {
         "docs": "https://cli.github.com/",
         "brew": "gh",
