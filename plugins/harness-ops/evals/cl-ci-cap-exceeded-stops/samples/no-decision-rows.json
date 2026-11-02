@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "The range 2.1.250..2.1.261 holds 12 releases, which exceeds the replay cap of 10, so `diff` stops here.\n\nRecommended: run a docs-conformance recheck of the components against the current docs, then set the read marker in docs/upstream/claude-code.md to 2.1.261 and diff only from there."
+    },
+    {
+      "answer": "**Cap exceeded** (12 releases / cap 10). I did not explore or research the items.\n\nNext: a docs conformance recheck of the components, then move the marker to `2.1.261`."
+    },
+    {
+      "answer": "Twelve releases is past the replay cap, so replaying them costs more than it returns.\n\n- Recheck the components against the current docs.\n- Then set the read marker at the newest published release (2.1.261) and run `diff` from there."
+    },
+    {
+      "answer": "| Line | Value |\n|---|---|\n| range | 2.1.250..2.1.261 (12 releases) |\n| cap | exceeded |",
+      "why": "status table"
+    },
+    {
+      "answer": "No decision rows were produced: no correct, adopt or replace lens was assigned.",
+      "why": "prose lens words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Owner surface | Lens | Items | Required sentence | Action needed |\n|---|---|---|---|---|---|\n| 1 | evals | adopt | 2.1.261-001 | x | y |",
+      "why": "scope-gate table"
+    },
+    {
+      "answer": "| Owner surface | Lens |\n|---|---|",
+      "why": "header only"
+    },
+    {
+      "answer": "| plugins/evals | **correct** | 2.1.255-002 |",
+      "why": "row with a lens cell"
+    }
+  ]
+}
