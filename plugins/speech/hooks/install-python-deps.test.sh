@@ -307,8 +307,8 @@ else
 fi
 
 # Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
-# shape holds under OSTYPE=msys and, paired, not elsewhere. Letter case, 8.3 names and .EXE suffixes need a Windows
-# file system: the real Git Bash case covers them.
+# shape holds under OSTYPE=msys and, paired, not elsewhere. Mounts, 8.3 names and .EXE suffixes need a Windows file
+# system: the real Git Bash case covers them. No case here covers a letter-case difference.
 # windows_form <path> -> the path with backslashes.
 windows_form() { printf '%s' "${1//\//\\}"; }
 target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"

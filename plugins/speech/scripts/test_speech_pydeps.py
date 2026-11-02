@@ -313,6 +313,23 @@ class ReadyStamp(unittest.TestCase):
         self.assertEqual(self.pydeps.run(self.data, [str(script), '3'], self.lock), 3)
         self.assertFalse(self.stamp.exists())
 
+    def test_a_failed_run_with_a_stamp_prints_the_repair_line(self):
+        # A stamped set that stops importing fails the skill's script; the hook skipped the probe, so the run says
+        # how to repair it. Without a stamp a failing script is the script's own business.
+        script = self.tmp / 'fail.py'
+        script.write_text('import sys\nsys.exit(1)\n', encoding='utf-8')
+        self.install_here()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(self.pydeps.run(self.data, [str(script)], self.lock), 1)
+        self.assertEqual(err.getvalue(), '')
+        self.stamped()
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(self.pydeps.run(self.data, [str(script)], self.lock), 1)
+        self.assertIn(self.pydeps.repair_line(self.data), err.getvalue())
+        self.assertFalse(self.stamp.exists())
+
     def test_check_drops_the_stamp_when_a_row_fails(self):
         self.stamped()
         with contextlib.redirect_stdout(io.StringIO()), mock.patch.object(self.pydeps, 'CHECK_TOOLS', {}):

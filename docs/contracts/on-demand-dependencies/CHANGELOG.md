@@ -13,7 +13,8 @@ or adopter is a minor bump; wording is a patch.
   files, not strings ([#12258](https://github.com/melodic-software/claude-code-plugins/issues/12258)).
 - **Rule P3**: the load probe runs on the hook's full path, in the repair install and in `check`.
 - **Rule P4**: a stamped set that breaks surfaces at skill time; the launcher and `check` drop the
-  stamp so the next session start rebuilds. The residual hole, a candidate symlink repointed to an
+  stamp so the next session start rebuilds, and a failed launcher run with a stamp present prints
+  the repair line. The residual hole, a candidate symlink repointed to an
   older interpreter file, is stated.
 
 ## [2.3.0] - 2026-10-04

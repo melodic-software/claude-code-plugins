@@ -249,8 +249,12 @@ def run(data, script_args, requirements=REQUIREMENTS):
                          f'{repair_line(data)}\n')
         return 2
     code = subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
-    if code:
+    if code and ready_stamp(data).exists():
+        # The hook trusted the stamp and skipped the load probe, so the set may no longer import.
         drop_ready_stamp(data)
+        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, the next Claude Code '
+                         'session start re-probes them and rebuilds them, or run now: '
+                         f'{repair_line(data)}\n')
     return code
 
 

@@ -174,17 +174,18 @@ the hook emits a notice on both channels (`systemMessage` and `additionalContext
 is the installer run in the foreground with the same interpreter and data directory (POSIX shell,
 or Windows PowerShell 5.1 on Windows, as in Rule 3). The hook exits
 0, so a failed install never blocks the session, and it leaves no partial directory. A launcher run
-with no installed set prints the same line and exits 2.
-
-A stamped set that breaks surfaces when a skill runs, not at session start: the launcher prints the
-repair line for a missing set and drops the ready stamp, as it does when a script exits non-zero
-and as `check` does when a row fails, so the next session start probes and rebuilds. One hole
-remains: a candidate symlink repointed to an interpreter file older than the stamp passes both the
-resolution and the newer-file checks, and the hook keeps trusting the stamp until a failed skill
-run drops it. Neither falls back to another interpreter's
+with no installed set prints the same line and exits 2. Neither falls back to another interpreter's
 packages, installs on its own, or reports a partial result as complete. In an interactive session
 the agent offers to run the repair line and runs it on the user's yes, per
 [When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
+
+A stamped set that breaks surfaces when a skill runs, not at session start. The launcher drops the
+ready stamp and prints the repair line both for a missing set and when a script exits non-zero
+while the stamp is present, since a set that stops importing fails the script; the script's own
+exit code stands. `check` drops the stamp when a row fails. Either way the next session start
+probes and rebuilds. One hole remains: a candidate symlink repointed to an interpreter file older
+than the stamp passes both the resolution and the newer-file checks, and the hook keeps trusting
+the stamp until a failed skill run drops it.
 
 ## Exceptions
 
