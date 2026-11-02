@@ -857,6 +857,71 @@ class GuardLaunchMonitorTests(unittest.TestCase):
             self.assertIsNone(self.run_monitor())
         self.assertFalse((elsewhere / "session-1.seen").exists())
 
+    def symlink_tmp_marker_dir(self) -> Path:
+        elsewhere = Path(self.tmp.name) / "elsewhere"
+        elsewhere.mkdir()
+        try:
+            self.tmp_marker_dir().symlink_to(elsewhere, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("this host cannot create a directory symlink")
+        return elsewhere
+
+    def foreign_tmp_marker_dir(self):
+        """An own tmp marker directory, with ``os.getuid`` reporting another uid."""
+        if not hasattr(os, "getuid"):
+            self.skipTest("this host has no uid to compare")
+        self.tmp_marker_dir().mkdir()
+        return mock.patch.object(monitor.os, "getuid", return_value=os.getuid() + 1)
+
+    def test_a_warned_marker_in_a_symlinked_tmp_directory_does_not_silence(self) -> None:
+        elsewhere = self.symlink_tmp_marker_dir()
+        (elsewhere / "session-1.warned").write_text("1", encoding="utf-8")
+        self.write_transcript([_record(exit_code=3, duration_ms=33)])
+        with mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIn("exitCode: 3", self.run_monitor())
+        self.assertEqual(
+            ["session-1.warned"], sorted(p.name for p in elsewhere.iterdir())
+        )
+
+    def test_a_warned_marker_in_a_foreign_tmp_directory_does_not_silence(self) -> None:
+        with self.foreign_tmp_marker_dir():
+            (self.tmp_marker_dir() / "session-1.warned").write_text("1", encoding="utf-8")
+            self.write_transcript([_record(exit_code=3, duration_ms=33)])
+            with mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+                self.assertIn("exitCode: 3", self.run_monitor())
+
+    def test_a_cursor_in_a_symlinked_tmp_directory_does_not_move_the_read(self) -> None:
+        elsewhere = self.symlink_tmp_marker_dir()
+        self.write_transcript([_record(exit_code=3, duration_ms=33), _filler_line(200)])
+        size = self.transcript_path.stat().st_size
+        cursor = f"b{size}\n{self.transcript_path}\n"
+        (elsewhere / "session-1.cursor").write_text(cursor, encoding="utf-8")
+        sizes, patch = self.scanned_sizes()
+        with patch, mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIn("exitCode: 3", self.run_monitor())
+        self.assertEqual([size], sizes)
+
+    def test_a_cursor_in_a_foreign_tmp_directory_does_not_move_the_read(self) -> None:
+        self.write_transcript([_record(exit_code=3, duration_ms=33), _filler_line(200)])
+        size = self.transcript_path.stat().st_size
+        sizes, patch = self.scanned_sizes()
+        with self.foreign_tmp_marker_dir():
+            (self.tmp_marker_dir() / "session-1.cursor").write_text(
+                f"b{size}\n{self.transcript_path}\n", encoding="utf-8"
+            )
+            with patch, mock.patch.object(
+                monitor, "_resolve_data_root", return_value=None
+            ):
+                self.assertIn("exitCode: 3", self.run_monitor())
+        self.assertEqual([size], sizes)
+
+    def test_a_clean_scan_writes_no_cursor_into_a_symlinked_tmp_directory(self) -> None:
+        elsewhere = self.symlink_tmp_marker_dir()
+        self.write_transcript([_filler_line(200)])
+        with mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIsNone(self.run_monitor())
+        self.assertEqual([], list(elsewhere.iterdir()))
+
     def test_empty_stdin_exits_0_silently(self) -> None:
         stderr = io.StringIO()
         with mock.patch.object(monitor.sys, "stdin", io.StringIO("")):
