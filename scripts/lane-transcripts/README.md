@@ -51,6 +51,11 @@ a record. A zip must hold exactly `transcript.json.gz.sealed`. A record that doe
 key, the artifact's run id and its job id (moved, tampered with, or sealed under a rotated key) is
 counted as `sealed_mismatch` and skipped. The summary line counts each kind.
 
+Two outcomes fail the pull and leave the last success where it was, so the 5-day alert can fire:
+400 pages read without reaching the cutoff (`page-cap`), and a window where records failed to open
+and none opened or was already held (`key-mismatch`: the vault key and the repository variable
+differ).
+
 ## Retention
 
 Every pull, and `prune`, applies it in this order:
@@ -72,9 +77,10 @@ From the repository root, on WSL (`az` is the Windows binary, so it reads the ke
 `\\wsl.localhost` path; `$XDG_RUNTIME_DIR` is memory-backed):
 
 ```bash
-umask 077 && { node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 | gh variable set LANE_TRANSCRIPT_PUBLIC_KEY -R melodic-software/claude-code-plugins; } 3>"$XDG_RUNTIME_DIR/lane-transcript.key" && az keyvault secret set --vault-name kv-melo-github-prod --name lane-transcript-private-key --file "$(wslpath -w "$XDG_RUNTIME_DIR/lane-transcript.key")" -o none; rm -f "$XDG_RUNTIME_DIR/lane-transcript.key"
+umask 077 && node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 3>"$XDG_RUNTIME_DIR/lane-transcript.key" >"$XDG_RUNTIME_DIR/lane-transcript.pub" && az keyvault secret set --vault-name kv-melo-github-prod --name lane-transcript-private-key --file "$(wslpath -w "$XDG_RUNTIME_DIR/lane-transcript.key")" -o none && gh variable set LANE_TRANSCRIPT_PUBLIC_KEY -R melodic-software/claude-code-plugins <"$XDG_RUNTIME_DIR/lane-transcript.pub"; rm -f "$XDG_RUNTIME_DIR/lane-transcript.key" "$XDG_RUNTIME_DIR/lane-transcript.pub"
 ```
 
+The variable is set only after the private key is stored, so CI never seals to a key nobody holds.
 `-o none` matters: `az keyvault secret set` otherwise prints the stored value. To rotate, run the
 same line; transcripts sealed under the old key count as `sealed_mismatch` until they expire.
 

@@ -39,7 +39,7 @@ const HOUR = 60 * 60 * 1000;
 const ARTIFACT_DAYS = 7;
 const OVERLAP = 6 * HOUR;
 const PER_PAGE = 100;
-const MAX_PAGES = 200;
+export const MAX_PAGES = 400;
 const MAX_SEALED = 64 * 1024 * 1024;
 const MAX_PLAIN = 256 * 1024 * 1024;
 
@@ -47,6 +47,8 @@ const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OW
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome SUBTYPE] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
 
 export class UsageError extends Error {}
+// A failed pull whose message names a kind and a count, never a value.
+export class PullError extends Error {}
 
 export function parseArgs(argv) {
   const [command, ...rest] = argv;
@@ -103,7 +105,11 @@ export function pull({ sink, repo, recipient, deps, log }) {
   writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
 
   let done = false;
-  for (let page = 1; page <= MAX_PAGES && !done; page++) {
+  let page = 0;
+  while (!done) {
+    // Paging past the cap without reaching the cutoff would record a success
+    // that skipped the oldest artifacts, so it fails and the window stays.
+    if (++page > (deps.maxPages ?? MAX_PAGES)) throw new PullError(`page-cap: ${deps.maxPages ?? MAX_PAGES} pages did not reach the last pull's cutoff`);
     const { artifacts = [] } = json(deps.gh(["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`]));
     if (artifacts.length < PER_PAGE) done = true;
     for (const artifact of artifacts) {
@@ -127,6 +133,9 @@ export function pull({ sink, repo, recipient, deps, log }) {
       }
     }
   }
+  // Every candidate sealed to another key and none opened: the vault key does
+  // not match the repository variable, which must alert, not pass.
+  if (tally.sealed_mismatch > 0 && tally.pulled === 0 && tally.known === 0) throw new PullError(`key-mismatch: ${tally.sealed_mismatch} transcript(s) did not open for this key and none did`);
   const pruned = prune(sink, now);
   writeState(sink, { ...readState(sink), last_success_at: new Date(now).toISOString(), last_error: null, last_tally: tally });
   log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}`);
@@ -230,7 +239,7 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     return 0;
   } catch (error) {
     // A kind, never a value: a failed gh call names its exit status only.
-    const kind = error?.status !== undefined ? `a gh or unzip call exited ${error.status}` : error?.name ?? "error";
+    const kind = error instanceof PullError ? error.message : error?.status !== undefined ?`a gh or unzip call exited ${error.status}` : error?.name ?? "error";
     try {
       writeState(sink, { ...readState(sink), last_error: kind });
     } catch {

@@ -121,6 +121,31 @@ test("a pull stops paging at artifacts older than the last successful pull, less
   assert.ok(!deps.calls.some((c) => c.includes("page=2")), deps.calls.join("\n"));
 });
 
+test("a pull that hits the page cap before the cutoff fails and keeps the last success", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  mkdirSync(sink, { recursive: true });
+  const last = iso(NOW - 3 * 86400_000);
+  writeFileSync(paths(sink).state, JSON.stringify({ last_success_at: last }));
+  const full = () => Array.from({ length: 100 }, (_, i) => ({ ...artifact(5000 - i, { record: sealed(publicLine) }), name: "other-artifact" }));
+  const deps = { ...fakeDeps([full(), full(), full()]), maxPages: 2 };
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /pull failed: page-cap: 2 pages/);
+  assert.equal(JSON.parse(readFileSync(paths(sink).state, "utf8")).last_success_at, last);
+});
+
+test("a pull where every transcript fails to open for the key fails, so the stale alert can fire", () => {
+  const { privateText } = generate();
+  const other = generate();
+  const sink = sinkDir();
+  const deps = fakeDeps([[artifact(21, { record: sealed(other.publicLine) }), artifact(22, { jobId: "judge", record: sealed(other.publicLine, { jobId: "judge" }) })]]);
+  const result = run(["pull", "--sink", sink], { env: { LANE_TRANSCRIPT_PRIVATE_KEY: privateText }, deps });
+  assert.equal(result.code, 1);
+  assert.match(result.err, /pull failed: key-mismatch: 2 transcript/);
+  assert.equal(JSON.parse(readFileSync(paths(sink).state, "utf8")).last_success_at, undefined);
+});
+
 test("a pull with no key, or a malformed one, fails naming the kind only", () => {
   for (const key of [undefined, "", "not-a-key"]) {
     const result = run(["pull", "--sink", sinkDir()], { env: key === undefined ? {} : { LANE_TRANSCRIPT_PRIVATE_KEY: key }, deps: fakeDeps([[]]) });
