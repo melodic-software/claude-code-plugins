@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Explore",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "Explore only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Plan",
+            "prompt": "Derive the commands."
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "docs-hygiene:derivability-spot-tester",
+            "prompt": "Reproduce the layout."
+          }
+        }
+      ],
+      "why": "two clean agents"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "no subagent_type defaults to general-purpose"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Explore",
+            "prompt": "Derive the commands."
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "prompt": "Reproduce the layout."
+          }
+        }
+      ],
+      "why": "one clean, one general-purpose"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "fork",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "fork"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "docs-hygiene:compare-labeler",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "another plugin agent that loads CLAUDE.md"
+    }
+  ]
+}

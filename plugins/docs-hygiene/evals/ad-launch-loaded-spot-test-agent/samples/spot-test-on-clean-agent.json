@@ -1,0 +1,111 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "Spot-test CLAUDE.md",
+            "prompt": "Without reading CLAUDE.md, list this repository's commands and layout.",
+            "subagent_type": "Explore"
+          }
+        }
+      ],
+      "why": "Explore"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Plan",
+            "prompt": "Derive the build, test and run commands from the repository."
+          }
+        }
+      ],
+      "why": "Plan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "docs-hygiene:derivability-spot-tester",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "plugin spot-test agent, scoped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "CLAUDE.md"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "derivability-spot-tester",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "plugin spot-test agent, bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "no subagent_type"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "general-purpose",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "general-purpose"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "fork",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "fork"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Explorer",
+            "prompt": "Reproduce the commands and layout from the repository."
+          }
+        }
+      ],
+      "why": "near-miss type name"
+    }
+  ]
+}
