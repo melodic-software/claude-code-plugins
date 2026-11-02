@@ -34,7 +34,7 @@
 # It never falls back to Claude Code's in-repo `.claude/worktrees/`, whose nested
 # placement is what the nesting invariant forbids. That claim is owned, measured
 # and dated in exactly one place and is not restated here:
-# skills/worktree/SKILL.md § "The nesting invariant, dated measurement". The data dir is
+# skills/worktree/reference/nesting-invariant.md § "The nesting invariant, dated measurement". The data dir is
 # never read from the environment — see the resolution block.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
@@ -671,7 +671,7 @@ reference/worktree-root-convention.md.
 Not falling back to the in-repo .claude/worktrees/ default: a worktree nested
 inside a checkout can pick up that checkout's path-scoped rules as well as its
 own. Measurement, disputed arms and expiry:
-skills/worktree/SKILL.md "The nesting invariant, dated measurement".
+skills/worktree/reference/nesting-invariant.md "The nesting invariant, dated measurement".
 EOF
     exit 3
   fi
@@ -851,7 +851,7 @@ on the same drive as the repo on Windows — then retry.
 Not creating inside a checkout or a git directory: from there a worktree can
 pick up the enclosing checkout's path-scoped rules as well as its own, and a
 git-directory placement mixes the worktree into git metadata. Measurement and
-expiry: skills/worktree/SKILL.md "The nesting invariant, dated measurement".
+expiry: skills/worktree/reference/nesting-invariant.md "The nesting invariant, dated measurement".
 EOF
     exit 3
   fi

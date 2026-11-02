@@ -493,7 +493,7 @@ invariant, dated measurement".
 `worktreeroot.path` git config key, then the `worktree_root` plugin option, then the plugin data
 dir. The hook blocks only the nesting class: a conforming target passes with no advisory, and a
 target it cannot resolve statically (dynamic path, prior `cd`, unreadable payload) always passes.
-The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/SKILL.md`
+The nesting invariant's measurement, disputed arms and expiry live in `skills/worktree/reference/nesting-invariant.md`
 "The nesting invariant, dated measurement".
 
 **`worktree_add_claim_gate_enabled`.** Only the parsed add target is claimed, not every currently

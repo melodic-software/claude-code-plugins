@@ -23,7 +23,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OWNER_REL="skills/worktree/SKILL.md"
+OWNER_REL="skills/worktree/reference/nesting-invariant.md"
 SELF_REL="skills/worktree/nesting-invariant-ssot.test.sh"
 
 # How long the owner's dated "expired, pending re-probe" marker is honored. Past
@@ -72,7 +72,7 @@ fi
 
 # 3. The owner carries what a pointer promises the reader will be there.
 assert_contains "the owner carries the anchor every pointer cites" \
-  "$owner_text" "### The nesting invariant, dated measurement"
+  "$owner_text" "# The nesting invariant, dated measurement"
 assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-09-30**"
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
@@ -179,7 +179,7 @@ if [[ "$owner_text" =~ $marker_pattern ]]; then
   else
     fail "expired-stamp marker is within $MARKER_MAX_AGE_DAYS days of today" \
       "marked within $MARKER_MAX_AGE_DAYS days of $today" \
-      "marked $marker_date; run fixtures/nesting-invariant-probe.sh under an authenticated CLI and refresh SKILL.md, or re-date the marker on purpose"
+      "marked $marker_date; run fixtures/nesting-invariant-probe.sh under an authenticated CLI and refresh reference/nesting-invariant.md, or re-date the marker on purpose"
   fi
 elif [[ "$owner_text" == *"Stamp status: expired"* ]]; then
   fail "expired-stamp marker carries its date" \
@@ -239,7 +239,7 @@ elif [[ -n "$expiry_version" ]]; then
   else
     fail "installed Claude Code is past the version arm but the owner has no fresh dated expired marker" \
       "before $expiry_version, or a marker within $MARKER_MAX_AGE_DAYS days in the owner" \
-      "installed=$installed_version — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
+      "installed=$installed_version — run fixtures/nesting-invariant-probe.sh and refresh reference/nesting-invariant.md"
   fi
 fi
 
@@ -260,7 +260,7 @@ if [[ -n "$expiry_date" ]]; then
     pass "today ($today) is past the $expiry_date arm and the owner's dated marker is fresh"
   else
     fail "nesting-invariant stamp date arm is still fresh (today < $expiry_date)" \
-      "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh SKILL.md"
+      "fresh (today before $expiry_date)" "EXPIRED (today=$today) — run fixtures/nesting-invariant-probe.sh and refresh reference/nesting-invariant.md"
   fi
 
   # Red path: a synthetic post-expiry "today" must be detected. A comparison
