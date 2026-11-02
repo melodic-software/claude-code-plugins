@@ -83,6 +83,8 @@ if grep -q '^warning: ' <<<"$contracts"; then
   exit 1
 fi
 bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
+# Before the catalog, which groups by the category this generates.
+node "$SCRIPT_DIR/generate-marketplace.mjs" --check || exit 1
 node "$SCRIPT_DIR/generate-catalog.mjs" --check || exit 1
 # The cheatsheet generator imports scripts/cheatsheet-config.mjs from the tree it
 # checks; a byte-identical copy is this script's own code.

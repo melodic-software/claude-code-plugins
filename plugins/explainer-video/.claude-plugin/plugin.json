@@ -15,5 +15,8 @@
     "math",
     "typst",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "visual-arts"
+  }
 }

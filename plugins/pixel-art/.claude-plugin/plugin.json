@@ -17,6 +17,9 @@
     "game-assets",
     "skill"
   ],
+  "metadata": {
+    "category": "visual-arts"
+  },
   "userConfig": {
     "output_dir": {
       "type": "directory",

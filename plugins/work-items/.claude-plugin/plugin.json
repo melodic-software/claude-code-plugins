@@ -15,8 +15,12 @@
     "github",
     "issues",
     "triage",
-    "orchestration"
+    "orchestration",
+    "skill"
   ],
+  "metadata": {
+    "category": "project-management"
+  },
   "userConfig": {
     "decompose_container_publish": {
       "type": "boolean",

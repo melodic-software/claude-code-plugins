@@ -22,8 +22,12 @@
     "marketplace",
     "dashboard",
     "performance",
-    "diagnostics"
+    "diagnostics",
+    "skill"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "registry_dir": {
       "type": "string",

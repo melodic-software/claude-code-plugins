@@ -17,6 +17,9 @@
     "canvas",
     "skill"
   ],
+  "metadata": {
+    "category": "visual-arts"
+  },
   "userConfig": {
     "playwright_core": {
       "type": "directory",

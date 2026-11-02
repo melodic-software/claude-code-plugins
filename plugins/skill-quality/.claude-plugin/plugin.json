@@ -16,6 +16,9 @@
     "evals",
     "audit"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "skills_root": {
       "type": "directory",

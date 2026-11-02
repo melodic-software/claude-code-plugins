@@ -15,8 +15,14 @@
     "quality-gate",
     "ci",
     "agents",
-    "skill"
+    "skill",
+    "doc-drift",
+    "ci-audit",
+    "fanout"
   ],
+  "metadata": {
+    "category": "quality"
+  },
   "userConfig": {
     "connected_page_guard_enabled": {
       "type": "boolean",

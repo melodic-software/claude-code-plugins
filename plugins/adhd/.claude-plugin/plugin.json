@@ -29,5 +29,8 @@
     "working-memory",
     "decision-table",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "personal"
+  }
 }

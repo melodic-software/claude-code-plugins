@@ -15,5 +15,8 @@
     "effort",
     "fan-out",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "workflow"
+  }
 }

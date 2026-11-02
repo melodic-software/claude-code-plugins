@@ -12,6 +12,10 @@
     "documentation",
     "library-docs",
     "api-reference",
-    "tooling"
-  ]
+    "tooling",
+    "skill"
+  ],
+  "metadata": {
+    "category": "discovery"
+  }
 }
