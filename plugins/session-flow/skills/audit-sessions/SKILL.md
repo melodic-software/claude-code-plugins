@@ -1,5 +1,5 @@
 ---
-description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix, plus retro score trends. Use when: 'audit my sessions', 'which sessions burned the most tokens', 'show trends', or corrections keep repeating. One session's retro: /session-flow:retro."
+description: "Audit every Claude Code session on this machine for wasted time and tokens against a reference baseline, routing each finding to its fix, plus session score trends over time. Use when: 'audit my sessions', 'which sessions burned the most tokens', 'show trends', or corrections keep repeating. One session's retro: /session-flow:retro."
 argument-hint: "[sweep|trends…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
