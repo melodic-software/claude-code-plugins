@@ -183,9 +183,12 @@ A stamped set that breaks surfaces when a skill runs, not at session start. The 
 ready stamp and prints the repair line both for a missing set and when a script exits non-zero
 while the stamp is present, since a set that stops importing fails the script; the script's own
 exit code stands. `check` drops the stamp when a row fails. Either way the next session start
-probes and rebuilds. One hole remains: a candidate symlink repointed to an interpreter file older
-than the stamp passes both the resolution and the newer-file checks, and the hook keeps trusting
-the stamp until a failed skill run drops it.
+probes and rebuilds. Two cases outlive the stamp's checks, since the hook cannot learn which
+interpreter a name runs without starting it: a candidate symlink repointed to an interpreter file
+older than the stamp, and a version-manager shim (pyenv, asdf, mise) whose selected version
+changed, which leaves the shim's path and file time as they were. In both, the hook keeps trusting
+the stamp until the first skill run, which finds no set for the new interpreter, prints the repair
+line and drops the stamp.
 
 ## Exceptions
 
