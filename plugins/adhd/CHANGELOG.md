@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-11-02
+
+### Added
+
+- **`/adhd:clarify` styles its decision page from the shared chrome reference.** The plugin now ships `reference/html-chrome.html`, a byte-identical copy of the rendered-views chrome reference, and the artifact or local HTML file takes its palette, type stacks, radii and accessibility floor (link and focus contrast, color-scheme and reduced-motion behavior) from it instead of a look invented per page.
+
 ## [0.8.0] - 2026-10-31
 
 ### Added

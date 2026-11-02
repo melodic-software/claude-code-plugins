@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.1] - 2026-11-02
+
+### Fixed
+
+- `attend-queue` states that its plain-flip refusal holds for an item carrying `provenance: signal` whatever its `work-class:` label says, so a signal-filed item a person classed as `work-class: scoped` still stays human-gated. A new eval case covers it.
+
 ## [7.0.0] - 2026-11-02
 
 ### Changed
