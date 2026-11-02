@@ -116,7 +116,7 @@ Where the forge's update is unavailable or refuses (a fork head, a session that 
 endpoint), merge locally and push the same way:
 
 ```bash
-git fetch "$REMOTE" "$BASE" && git merge "$REMOTE/$BASE" &&
+git fetch "$REMOTE" "$BASE" && git merge --no-stat "$REMOTE/$BASE" &&
   bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"
 ```
 
