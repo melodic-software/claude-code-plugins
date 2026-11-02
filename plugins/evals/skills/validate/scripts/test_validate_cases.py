@@ -908,7 +908,9 @@ class SkillBashGrant(ValidatorTestCase):
         return self.validate_without_node()
 
     def test_slash_skill_with_a_precomputed_line_warns_without_bash(self):
-        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        self.skill(
+            "setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
         result = self.bash_case("Read, Glob, Grep, Skill")
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertIn(
@@ -919,12 +921,16 @@ class SkillBashGrant(ValidatorTestCase):
         self.assertIn("the run ends at 0 turns", result.stdout)
 
     def test_a_tag_names_the_skill_too(self):
-        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        self.skill(
+            "setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
         result = self.bash_case("Read", prompt_line="Is node there?", tags="[setup]")
         self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
 
     def test_no_warning_with_bash_or_without_a_precomputed_line(self):
-        self.skill("setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n")
+        self.skill(
+            "setup", "---\ndescription: x\n---\n\n- `node`: !`command -v node`\n"
+        )
         self.assertNotIn("pre-computed", self.bash_case("Read, Skill, Bash").stdout)
         self.assertNotIn("pre-computed", self.bash_case("Read, 'Bash(node *)'").stdout)
         self.skill("setup", "---\ndescription: x\n---\n\nRead the doc.\n")
@@ -1289,7 +1295,9 @@ class JavaScriptSyntax(ValidatorTestCase):
             with self.subTest(label):
                 self.setUp()
                 self.case(
-                    "c", prompt=CLEAN_PROMPT, graders={"my-grader": regex_grader(pattern)}
+                    "c",
+                    prompt=CLEAN_PROMPT,
+                    graders={"my-grader": regex_grader(pattern)},
                 )
                 result = self.validate()
                 self.assert_fail(result, 'grader "my-grader"', token, "Python-only")
@@ -1397,6 +1405,32 @@ class JavaScriptSyntax(ValidatorTestCase):
         self.assertIn("samples not checked", result.stdout)
         self.samples("c", "g", passing=["123"], failing=["abc"])
         self.assert_fail(self.validate(), "under JavaScript")
+
+    @unittest.skipUnless(HAS_NODE, "node is not installed")
+    def test_an_input_match_is_graded_by_javascript(self):
+        # `[^]` is any character in JavaScript and an unterminated class in `re`,
+        # so only the JavaScript pass can grade these samples.
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "g": "---\ntype: tool_used\ntool: Bash\n"
+                'input_match: \'"command":"[^]*?curl\'\nmax: 0\nmin: 0\n---\n'
+            },
+        )
+        bash_curl = [{"tool": "Bash", "input": {"command": "ls && curl x"}}]
+        read_curl = [{"tool": "Read", "input": {"command": "curl x"}}]
+        self.samples("c", "g", passing=[[], read_curl], failing=[bash_curl])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("samples not checked", result.stdout)
+        self.samples("c", "g", passing=[bash_curl], failing=[read_curl])
+        result = self.validate()
+        self.assert_fail(
+            result,
+            'must-pass sample 1 fails grader "g" under JavaScript (1 matches)',
+            'must-fail sample 1 passes grader "g" under JavaScript (0 matches)',
+        )
 
     def test_without_node_only_the_token_check_runs(self):
         self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})

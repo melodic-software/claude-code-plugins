@@ -1,0 +1,12 @@
+{
+  "no-token-shell": [
+    {
+      "use": "command_position"
+    },
+    "(?:curl|wget|xh|http|python3?|node)\\b",
+    {
+      "use": "token_argument"
+    },
+    "AbCdEfGhIjKlMnOp"
+  ]
+}
