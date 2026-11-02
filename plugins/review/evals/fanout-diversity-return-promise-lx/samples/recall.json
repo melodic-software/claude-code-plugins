@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/users.js:9 | code-reviewer | loadProfile now only forwards findUser; the route could call findUser directly. | Consider inlining loadProfile |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/return-await\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/users.js:9 | code-reviewer | Without the await, loadProfile hands the route a pending Promise instead of the user, so `if (!user)` never sees a missing user. | Restore the await |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "an IMPORTANT finding raises the decoy, which the async return and the route's await rule out"
+    }
+  ]
+}
