@@ -55,8 +55,9 @@ export function renderItems(handoffs, budget) {
 }
 
 // Files a release's handoffs as one issue, found again by its release marker
-// in any state. An open issue missing some keys gets them appended in one
-// update; a closed one is left alone.
+// in any state. An open issue missing some keys, in its body and comments,
+// gets them appended in one update, or in one comment when the body would
+// pass the limit; a closed one is left alone.
 export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
   if (!handoffs.length) return "no handoffs; nothing filed";
   const marker = releaseMarker(release);
@@ -70,13 +71,40 @@ export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
     return `filed ${handoffs.length} handoffs as one issue`;
   }
   if (issue.state !== "open") return `the release issue #${issue.number} is closed; nothing filed`;
-  const have = new Set(keysIn(issue.body));
+  const comments = await listComments(api, repo, issue.number);
+  const have = new Set([issue.body, ...comments.map((c) => c?.body ?? "")].flatMap(keysIn));
   const missing = handoffs.filter((h) => !have.has(h.key));
   if (!missing.length) return `the release issue #${issue.number} already holds every handoff`;
   const base = `${issue.body.trimEnd()}\n\n`;
-  const body = base + renderItems(missing, ISSUE_BODY_MAX - base.length);
-  await api(`/repos/${repo}/issues/${issue.number}`, { method: "PATCH", body: { title: releaseTitle(release, have.size + missing.length), body } });
+  const items = renderItems(missing, Number.POSITIVE_INFINITY);
+  if (base.length + items.length > ISSUE_BODY_MAX) {
+    // The body is full: the missing items go in one comment instead.
+    const head = `${marker}\n\n`;
+    const body = head + renderItems(missing, ISSUE_BODY_MAX - head.length);
+    await api(`/repos/${repo}/issues/${issue.number}/comments`, { method: "POST", body: { body } });
+    return `commented ${missing.length} handoffs on the full release issue #${issue.number}`;
+  }
+  await api(`/repos/${repo}/issues/${issue.number}`, {
+    method: "PATCH",
+    body: { title: releaseTitle(release, have.size + missing.length), body: base + items },
+  });
   return `appended ${missing.length} handoffs to the release issue #${issue.number}`;
+}
+
+const COMMENT_PAGES = 10;
+
+// Every comment the release issue holds, read a full page at a time up to
+// COMMENT_PAGES pages; more than that, or an answer that is not a list,
+// throws so no key is filed twice.
+async function listComments(api, repo, number) {
+  const all = [];
+  for (let page = 1; page <= COMMENT_PAGES; page++) {
+    const batch = await api(`/repos/${repo}/issues/${number}/comments?per_page=100&page=${page}`);
+    if (!Array.isArray(batch)) throw new Error(`the comments on #${number} did not come back as a list`);
+    all.push(...batch);
+    if (batch.length < 100) return all;
+  }
+  throw new Error(`#${number} has more comments than ${COMMENT_PAGES} pages hold`);
 }
 
 function output(name, value) {

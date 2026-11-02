@@ -168,12 +168,20 @@ test("the planned commits are read oldest first with their files, and a merge co
 const REPO = "o/r";
 const REL = "2.1.300";
 const handoff = (n, over = {}) => ({ key: `changelog:${REL}..${REL}:adopt:plugins/x/${n}.sh`, kind: "adopt", title: `adopt ${n}`, body: `body ${n}\nline two`, ...over });
-// A fake API: answers the search with `items` and records every call.
-const issueApi = (items = []) => {
+// A fake API: answers the search with `items`, a comment read with the page of
+// `comments` it asks for (or `comments` itself when not a list), and records every call.
+const issueApi = (items = [], comments = []) => {
   const calls = [];
   const api = async (path, opts = {}) => {
-    calls.push({ path, method: opts.method ?? "GET", body: opts.body });
-    return path.startsWith("/search/issues") ? { items } : {};
+    const method = opts.method ?? "GET";
+    calls.push({ path, method, body: opts.body });
+    if (path.startsWith("/search/issues")) return { items };
+    if (method === "GET" && path.includes("/comments?")) {
+      if (!Array.isArray(comments)) return comments;
+      const page = Number(path.match(/page=(\d+)$/)[1]);
+      return comments.slice((page - 1) * 100, page * 100);
+    }
+    return {};
   };
   return { api, calls, writes: () => calls.filter((c) => c.method !== "GET") };
 };
@@ -257,4 +265,41 @@ test("an issue for another release does not count as this release's issue", asyn
   const f = issueApi([{ number: 7, state: "open", body: `${releaseMarker("2.1.30")}\n` }]);
   await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
   assert.equal(f.writes()[0].method, "POST");
+});
+
+test("missing items that would push the body past the limit go in one comment instead", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1, { body: "a".repeat(60000) })], 65536)}`;
+  const f = issueApi([{ number: 7, state: "open", body }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2, { body: "b".repeat(10000) })], api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, `/repos/${REPO}/issues/7/comments`);
+  assert.equal(writes[0].method, "POST");
+  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
+  assert.ok(!writes[0].body.body.includes(handoffMarker(handoff(1).key)));
+  assert.ok(writes[0].body.body.length <= 65536);
+});
+
+test("a key already in a comment, past the first page, is not added again", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const comments = [...Array.from({ length: 100 }, () => ({ body: "noise" })), { body: renderItems([handoff(2)], 65536) }];
+  const f = issueApi([{ number: 7, state: "open", body }], comments);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2), handoff(3)], api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].method, "PATCH");
+  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(3).key)));
+  assert.ok(!writes[0].body.body.includes(handoffMarker(handoff(2).key)));
+  assert.equal(f.calls.filter((c) => c.path.includes("/comments?")).length, 2);
+});
+
+test("a comment read that fails, or runs past the page cap, files nothing", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const hs = [handoff(1), handoff(2)];
+  const bad = issueApi([{ number: 7, state: "open", body }], { message: "Server Error" });
+  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: bad.api }), /not come back as a list/);
+  assert.equal(bad.writes().length, 0);
+  const many = issueApi([{ number: 7, state: "open", body }], Array.from({ length: 1000 }, () => ({ body: "" })));
+  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: many.api }), /more comments/);
+  assert.equal(many.writes().length, 0);
 });
