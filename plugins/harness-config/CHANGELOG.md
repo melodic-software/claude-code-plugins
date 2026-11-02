@@ -5,6 +5,15 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.5.0] - 2026-11-02
+
+### Changed
+
+- `/harness-config:audit` now detects a declared unattended-push lane from
+  `docs/conventions/source-control.yaml`: a `babysit_loop_merge` above `human-only` there, or any
+  `babysit_loop_*` key without it (the `c2-mechanical` baseline). The YAML wins over the
+  `.claude/source-control.md` H2, which is still read for one release when the YAML sets no rung.
+
 ## [2.4.11] - 2026-11-02
 
 ### Changed
