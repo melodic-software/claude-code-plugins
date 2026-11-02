@@ -1,0 +1,10 @@
+fixture: vacuous-slug-test
+source_case: none
+defect:
+  location: test/slug.test.js:15
+  summary: "the new accent test calls assert.ok(slugify(title), expected), which passes the expected slug as the failure message and checks only that the slug is truthy"
+  failure: "the test passes for any non-empty slug, main's cr-me-br-l-e for Crème brûlée included, so it cannot catch the accent bug coming back"
+axis: standards
+not_defects:
+  - "slugify still keeps accents (it normalizes to NFD and strips the combining marks)"
+  - "slugify's output for a plain ASCII title changed (NFD leaves ASCII as it is)"

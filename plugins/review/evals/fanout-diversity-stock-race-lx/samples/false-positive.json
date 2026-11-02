@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | Two concurrent reservations of the last unit both pass the check across the awaited confirmSku and both write 0, overselling it. | Check the stock after the await |\n| 2 | SUGGESTION | low | src/warehouse.js:10 | code-reviewer | recordReservation ignores the response status. | Check res.ok |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | Two concurrent reservations of the last unit both pass the check and oversell it. | Check the stock after the await |\n| 2 | CRITICAL | medium | src/inventory.js:9 | architecture-guardian | reserve became async, so every caller that does not await it now gets a pending promise instead of the new stock level. | Await reserve in every caller |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims callers break because reserve became async"
+    }
+  ]
+}
