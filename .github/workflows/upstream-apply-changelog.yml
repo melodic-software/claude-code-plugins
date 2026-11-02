@@ -447,6 +447,7 @@ jobs:
         id: check
         env:
           IN: ${{ runner.temp }}/scan-in
+          OUT: ${{ runner.temp }}/scan-out
           RELEASE: ${{ needs.gate.outputs.release }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
         run: |
@@ -492,6 +493,16 @@ jobs:
               count=$((count + 1))
             done <"$IN/heads.txt"
           fi
+          # What push and publish get: the plan, and a bundle rebuilt from
+          # the planned heads only, never the model's bundle with whatever
+          # else it carries.
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          cp "$IN/plan.json" "$OUT/plan.json"
+          if ((count)); then
+            mapfile -t refs < <(sed 's|^|refs/scan/|' "$IN/heads.txt")
+            git -C .base bundle create --quiet "$OUT/branches.bundle" "^$BASE_SHA" "${refs[@]}" >/dev/null 2>&1 || { echo "::error::the planned heads did not bundle"; exit 1; }
+          fi
           echo "branches=$count" >>"$GITHUB_OUTPUT"
 
       - name: Scan the plan for credentials
@@ -506,15 +517,14 @@ jobs:
         with:
           path: ${{ runner.temp }}/scan-in/diffs.txt
 
+      # The plan and the rebuilt bundle, scan-out's only files.
       - name: Upload the plan and the branches
         id: upload
         if: steps.scan-plan.outputs.clean == 'true' && steps.scan-diffs.outputs.clean == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: upstream-apply-changelog-plan-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/scan-in/plan.json
-            ${{ runner.temp }}/scan-in/branches.bundle
+          path: ${{ runner.temp }}/scan-out/
           retention-days: 1
           if-no-files-found: error
 
