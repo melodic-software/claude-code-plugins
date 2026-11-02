@@ -225,6 +225,28 @@ test("a run and attempt already in the log is not reported twice", async () => {
   assert.deepEqual(w.writes, []);
 });
 
+test("a human decision already in the log for a run and attempt is not reported twice", async () => {
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    issues: [LOG],
+    comments: [logged(HEAD, "human", "2026-10-20T11:30:00Z", 500)],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.deepEqual(w.writes, []);
+});
+
+test("a fix-forward decision already in the log for a run and attempt is not reported twice", async () => {
+  const w = world({
+    merges: [{ sha: HEAD, number: 101, by: LANES }],
+    issues: [LOG],
+    comments: [logged(HEAD, "fix-forward", "2026-10-20T11:30:00Z", 500)],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.deepEqual(w.writes, []);
+});
+
 test("three auto-revert decisions in the last day reach the cap, and the next culprit fixes forward", async () => {
   const w = world({
     merges: [{ sha: HEAD, number: 101, by: LANES }],
