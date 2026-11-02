@@ -1373,10 +1373,11 @@ hd_row "a body holding \$(date) is allowed" 0 "cat <<EOF${NL}today: \$(date)${NL
 hd_row "a body holding \$HOME is allowed" 0 "cat <<EOF${NL}home: \$HOME${NL}EOF"
 hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm -rf /)${NL}EOF"
 # No guard reads `${x@P}` or `$[1 + 2]`, so those rows hold whether or not the
-# body is scanned; the two rows whose top-level verdict is a refusal are the
-# ones that can fail.
+# body is scanned; the rows whose top-level verdict is a refusal are the ones
+# that can fail. `${ echo }; rm -rf /; }` pins the `${ ` command-substitution
+# frame: a `${` frame that ended at the first `}` would let the delete through.
 # shellcheck disable=SC2016  # literal shell text under test
-for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}'; do
+for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo }; rm -rf /; }'; do
   cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"
   hd_top=$RC
   cap_run "$(tool_payload Bash "cat <<EOF${NL}$hd_expr${NL}EOF")" "${BASH_ROW_ARGS[@]}"
