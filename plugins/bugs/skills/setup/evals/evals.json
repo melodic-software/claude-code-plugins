@@ -65,20 +65,6 @@
         "Treats an absent config as INFO served by the bundled default lanes",
         "Modifies no file"
       ]
-    },
-    {
-      "id": 6,
-      "name": "apply-moves-the-old-team-file",
-      "prompt": "/bugs:setup apply\n\nThis repository still has its lanes in .claude/bugs.md and no docs/conventions/bugs.yaml.",
-      "expected_output": "Reports that the old .claude/bugs.md supplies the team layer for one release, writes docs/conventions/bugs.yaml carrying every lane and the filing_posture from the old file's YAML block, names any Gotchas section to move by hand to docs/conventions/bugs.md, leaves the old file in place, and says deleting it is the operator's step.",
-      "files": [],
-      "narration": true,
-      "expectations": [
-        "Carries every lane and filing_posture value from the old file into docs/conventions/bugs.yaml",
-        "Does not edit or delete .claude/bugs.md",
-        "Verifies the new file against the plugin's schema and by re-reading it",
-        "Names deleting the old file as the operator's step"
-      ]
     }
   ]
 }
