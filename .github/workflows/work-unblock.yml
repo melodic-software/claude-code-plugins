@@ -87,8 +87,9 @@ on:
   schedule:
     - cron: "47 * * * *"
   # A finished issue lane run may free a slot, so the sweep runs at once and
-  # admits the next deferred issue instead of waiting for the hour.
-  workflow_run:
+  # admits the next deferred issue instead of waiting for the hour. It runs
+  # main's code only, for a same-repository run, and reads no artifact.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
     workflows: [work-resolve-issue]
     types: [completed]
 
