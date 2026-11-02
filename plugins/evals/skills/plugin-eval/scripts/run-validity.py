@@ -1096,8 +1096,9 @@ def shell_words(command):
     as in read NAME, printf -vNAME, ((NAME=1)) or E="$((NAME=1))". Every other
     expansion stays as written. lead marks each command's first word and each
     assignment, whose first piece names a command or a variable, not a path.
-    simple numbers the simple command a word belongs to, None for one that reads
-    a pipe (after |) or follows a ), whose words are the compound's redirects.
+    simple numbers the simple command a word belongs to, None for a BASH_READERS
+    command reading a pipe (after |) or one that follows a ), whose words are the
+    compound's redirects.
     None when the command does not parse."""
     tokens = shell_tokens(command)
     if tokens is None:
@@ -1110,7 +1111,8 @@ def shell_words(command):
             simple.append(value)
             continue
         lead = at_command
-        number = count if at_command and not piped else None
+        verb = next(("".join(t for t, _ in p) for p in simple if not assignment(p)), None)
+        number = count if at_command and not (piped and verb in BASH_READERS) else None
         alone = bool(simple) and at_command and all(assignment(p) for p in simple)
         sure = alone and recording and depth == 0 and certain and value in KEEPS_ASSIGNMENT
         for parts in simple:
@@ -1161,7 +1163,8 @@ def bash_paths(command):
     word naming no file (2>&1, 2>/dev/null) is dropped first. A word UNRESOLVED
     matches, a relative path with a slash or any word that is neither rooted, a
     flag nor the command or variable name opening a lead word (cwd-relative, so
-    possibly the plugin), a simple command that does not read a pipe and names
+    possibly the plugin), a simple command other than a BASH_READERS one reading a
+    pipe that names
     no rooted argument outside a redirect (ls, make: it works in the working
     directory, so possibly the plugin), a path OWN_PROCESS matches, no rooted
     word, or a command that does not parse adds None, which inside() counts as

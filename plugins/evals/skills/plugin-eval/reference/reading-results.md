@@ -53,7 +53,8 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   or `${NAME}` counts as the value of an earlier `NAME=<literal>` in the same command when that
   assignment is a command of its own that always runs in the top-level shell. A command that
   names no absolute argument, a redirect's file or a prefix assignment's value aside (`ls`,
-  `PYTHONPATH=/x pytest`), also adds no path.
+  `PYTHONPATH=/x pytest`, `cat /x | ls`), also adds no path, unless it is `cat`, `head`, `wc`,
+  `grep` or `sed` reading a pipe.
 - Two kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the

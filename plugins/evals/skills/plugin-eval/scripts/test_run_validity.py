@@ -1950,6 +1950,9 @@ class BashPathsTest(unittest.TestCase):
             ("cat /proc/v; ls > /tmp/x", ("/proc/v", "/tmp/x", None)),
             ("PYTHONPATH=/opt/lib pytest -q", ("/opt/lib", None)),
             ("TMPDIR=/tmp make", ("/tmp", None)),
+            ("cat /proc/v | ls", ("/proc/v", None)),
+            ("cat /proc/v | find -type f", ("/proc/v", None)),
+            ("cat /proc/v | wc -l", ("/proc/v",)),
         ):
             self.assertEqual(self.paths(command), paths, command)
 
