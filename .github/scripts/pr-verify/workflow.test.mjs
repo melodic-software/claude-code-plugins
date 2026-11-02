@@ -958,7 +958,7 @@ test("the report steps only record, so a broken one cannot stop the judgment", (
 // PR-scoped pr-merge run on a pass or pass-notes that uploaded, and nothing
 // else.
 const WAKE = "wake-pr-merge";
-test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write", () => {
+test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write and pull-requests: read", () => {
   const job = jobText(WAKE);
   assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription, check-intent-fallback\]$/m);
   const gate = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1].replace(/\s+/g, " ").trim();
@@ -970,7 +970,7 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
     ].join(" "),
   );
   const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
-  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write"]);
+  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read"]);
   // No checkout, no model, no other action; outputs reach only env.
   assert.doesNotMatch(job, /uses: /);
   const script = /\n {8}run: \|\n([\s\S]*)$/.exec(job)[1];
@@ -986,7 +986,12 @@ const wake = (env) => {
   mkdirSync(bin);
   const args = path.join(dir, "args");
   writeFileSync(args, "");
-  writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho "$@" >>'${args}'\n`, { mode: 0o755 });
+  // The stand-in answers an author read with GH_AUTHOR, or fails it when that is unset.
+  writeFileSync(
+    path.join(bin, "gh"),
+    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
+    { mode: 0o755 },
+  );
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
     env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t", ...env },
     encoding: "utf8",
@@ -1013,4 +1018,22 @@ test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request n
     assert.equal(run.status, 0, JSON.stringify(env));
     assert.deepEqual(run.gh, [], JSON.stringify(env));
   }
+});
+
+test("wake-pr-merge wakes only a lanes App pull request when it can read the author", () => {
+  const read = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type)"`;
+  const dispatch = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+  const pass = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+  // The lanes App's pull request: read, then woken.
+  assert.deepEqual(wake({ ...pass, GH_AUTHOR: "7 Bot" }).gh, [read, dispatch]);
+  // Another author, or the App's id on a User: read, nothing woken.
+  for (const author of ["9 User", "7 User", "8 Bot"]) {
+    const run = wake({ ...pass, GH_AUTHOR: author });
+    assert.equal(run.status, 0, author);
+    assert.deepEqual(run.gh, [read], author);
+    assert.match(run.stdout, /not a lanes App pull request; nothing woken/, author);
+  }
+  // A failed read, or no usable lanes App id: woken anyway, pr-merge filters.
+  assert.deepEqual(wake(pass).gh, [read, dispatch]);
+  for (const id of ["", "x"]) assert.deepEqual(wake({ ...pass, LANES_APP_ID: id, GH_AUTHOR: "9 User" }).gh, [dispatch], id);
 });
