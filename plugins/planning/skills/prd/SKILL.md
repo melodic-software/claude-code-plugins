@@ -153,7 +153,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md sits beside the topic's `PLAN.md` and design artifacts.
 
 When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
 
@@ -186,13 +186,13 @@ Each tier's template in [`context/templates.md`](context/templates.md) sets whic
 
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
 
-**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The nine required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
+**Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled, else apply it inline. The nine required sections, the tier's depth, and every metric, threshold and open question stay.
 
-**Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
+**Non-goals graduation edge.** A non-goal that is a permanent rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger, one file per concept at `docs/out-of-scope/<concept>.md`, which gains a "Prior requests" entry each time the concept resurfaces, so the ledger answers later proposals instead of relitigating them. Create the file on the first permanent rejection; with no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where, and at how few seams, the feature is tested) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
+Test seams (where, and at how few, the feature is tested) are not a PRD concern: `/planning:design` sketches them as a design thread and `/planning:plan`'s Test strategy sets the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above.
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above. Resolve `medium` first per [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md) "Other optional views": `terminal` skips the offer.
 
 ### Step 6. Hand off
 
@@ -209,7 +209,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down).
+Two behaviors apply when this PRD writes verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion).
 
 ### Coverage prompt. Always on, asked once
 

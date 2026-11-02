@@ -105,10 +105,9 @@ came from, not by who wrote it down.
   that has read any K2 text (a diff, an issue, a fetched page) writes K2, whatever the
   output looks like, and its page is built from the checked-in template and runtime
   (see K2 is builder-only).
-- **The class rules bind every emitter now.** The grandfathered surfaces (see Wave-1
-  adoption and grandfathered surfaces) are bound too, including the minimum content
-  security policy on a K0 or K1 page; only their ladder and `medium` are grandfathered.
-  A lane whose authoring context holds K2 text emits the markdown record or terminal
+- **The class rules bind every emitter**, including the minimum content security policy
+  on a K0 or K1 page (see Wave-1 adoption and grandfathered surfaces for each emitter's
+  `medium` handling). A lane whose authoring context holds K2 text emits the markdown record or terminal
   output, or a page built by the shared builder (`lib/view-builder.mjs`, report or
   interactive profile) or by `lib/html-escape.mjs`, never a page with model-written
   markup or script.
@@ -364,8 +363,10 @@ fact that decided the outcome, rather than silently printing a dead file path.
 
 ## Default ladder and its reconciliation
 
-The shipped default ladder for existing emitting surfaces stays **published artifact,
-then local file, then terminal**, exactly as those surfaces and their evals ship today.
+The shipped default ladder for the existing emitting surfaces that publish
+(`adhd:clarify`, `visualization:visualize`) stays **published artifact, then local file,
+then terminal**, exactly as those surfaces and their evals ship today; the other existing
+emitters keep the local default each one ships.
 Two sentences reconcile this with the local-first residence decision:
 
 1. Local-first governs NEW rendered-view lanes and any operator's personal environment:
@@ -373,8 +374,9 @@ Two sentences reconcile this with the local-first residence decision:
    `CLAUDE_CODE_DISABLE_ARTIFACT=1` environment variable, or a `permissions.deny`
    `Artifact` rule) are the sanctioned day-one flip that turns every ladder local, with
    zero plugin changes.
-2. The existing emitting surfaces are grandfathered on the shipped ladder until the
-   priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
+2. An existing emitting surface keeps its shipped ladder only as its default: each one
+   reads `medium` from the argument and the cascade first (see Wave-1 adoption and
+   grandfathered surfaces).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
 lane (`/review:explain-change`) ships `medium: artifact` as its default. Its page is
@@ -566,14 +568,34 @@ sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page lo
 `hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
 untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
 
-Current emitters, grandfathered on their shipped ladder and `medium` only, since the
-content-class rules bind them now (see Content classes):
-`architecture:improve`, `education:teach` (topic mode),
-`prototype:explore-directions`, `prototype:pressure-test`,
-`machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),
-`planning:interview` (and planning's other rendered views, except the plan and brainstorm views below),
-`overengineering:audit`, `ai-briefing:generate`,
-`visualization:visualize`.
+Emitters that resolve `medium` from the argument, then the cascade, and publish nothing themselves.
+None has a `medium` option, so no
+plugin dial sits between the argument and the cascade. Each names the source of `medium`, or
+"shipped default", and keeps its shipped behavior when no layer sets one:
+
+- `architecture:improve`: `terminal` skips the HTML report and leaves the candidate artifact;
+  every other value writes the local report.
+- `education:teach` (topic mode): `terminal` writes `lesson.md`; `file` keeps the host-aware
+  format choice and drops the artifact-share offer; `artifact` and `hosted` keep the offer.
+- `prototype:explore-directions`: the mockup stays a local file at every value; `terminal` and
+  `file` drop the design-canvas offer, since the canvas is published.
+- `prototype:pressure-test`: `terminal` picks the terminal app; `file`, `artifact` and `hosted`
+  override nothing, so the audience routing still picks the shell, and an HTML demo stays a local
+  file. An explicit shell request still wins.
+- `planning:interview`'s read-only decision table, `planning:prd`'s pitch view and
+  `planning:design`'s topology view (`plugins/planning/reference/rendered-view.md`, "Other optional
+  views"): `terminal` writes no file; every other value writes the local file.
+- `overengineering:audit`: `terminal` drops the offer to render the findings through
+  `visualization:visualize`; `file` keeps the offer and passes `file` to it; a value from the
+  `--medium` argument keeps the offer and passes that value to it; every other value keeps the
+  offer and leaves the rung to `visualization:visualize`.
+- `ai-briefing:generate`: only `--format` selects HTML or PPTX, so no layer starts the build; the
+  briefing stays markdown under every layer.
+
+`visualization:visualize` reads the argument, its `medium` option and the cascade (the Wave-1
+adopter above). `machine-health:audit` writes no model-written view: its report is markdown, and
+its decision page is on the shared builder (below). Every surface the grandfathered list named has
+left it, and the list is empty.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
 its page with a checked-in builder: `education:teach` (codebase mode),
@@ -806,7 +828,4 @@ which is another cost of copying.
   (`/review:explain-change` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
-- It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is
-  priced and tracked separately, gated on the userConfig smoke test. The content-class
-  rules already bind them.
 - It does not vendor the 31 corpus templates: see Template vendoring posture.

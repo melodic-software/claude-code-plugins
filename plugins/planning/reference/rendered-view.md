@@ -97,6 +97,23 @@ curl is missing; the copied reply still closes the loop.
 
 With no session listening, the page says so and its copy and save controls still work.
 
+## Other optional views
+
+The interview's read-only decision table, the PRD pitch view and the design topology view are written
+by the session, not the builder, and are only ever local files. Before writing one, resolve `medium`:
+a medium the reader names in the request decides; otherwise read the layers as step 3 above does
+(planning has no `medium` option, so no rung sits between the request and the layers). Then:
+
+- `terminal`: write no file. The interview renders the same table inline as a fenced markdown table;
+  the PRD and design steps skip the view.
+- `file`, `artifact` or `hosted`: write the local file. These views are never published, so say that a
+  publishing value was read as `file`.
+- `auto`, an empty value or no value: the skill's shipped default. Any other value is reported and read
+  as `auto`.
+
+Name the source of `medium` with the view or its absence: the request, the layer's path, or "shipped
+default". The interview's `page` surface follows the `surface` option, not `medium`.
+
 ## Data shapes
 
 Every field is plain text. List order is the numbering in the record.

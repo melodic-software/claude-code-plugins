@@ -182,8 +182,10 @@ reopening"): show it as closed and never offer it as an active workspace.
 
 ## Action Router
 
-Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguous, detect from the
-conversation.
+Before parsing, remove a `--medium <value>` pair from `$ARGUMENTS`, wherever it appears, and keep
+the value for the lesson-format step ([context/lessons.md](context/lessons.md) "Lesson format",
+step 0); the action, topic and concept never include it. Then parse `$ARGUMENTS`: first token =
+action, remainder = args. If empty or ambiguous, detect from the conversation.
 
 | Action | Purpose | Detail |
 |--------|---------|--------|

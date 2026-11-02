@@ -200,6 +200,20 @@
         "Lists the protected out-of-repo FLAG-FOR-HUMAN row individually and ranks it first",
         "Writes no file"
       ]
+    },
+    {
+      "id": 15,
+      "name": "terminal-medium-drops-rendered-view-offer",
+      "prompt": "/overengineering:audit ci-lanes (Fixture: on branch feat/ci-trim; the visualization plugin is installed; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument was given. The walk finds two CI lanes that duplicate each other's checks.)",
+      "expected_output": "Writes the findings artifact and the inline terminal summary as usual. Resolves medium before the rendered-view offer, reads medium: terminal from the user-global layer, and makes no offer to render the artifact through visualization:visualize, because the two report layers are the whole report. The terminal summary names ~/.claude/rendered-views.md as the source of the medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes the findings artifact and the inline terminal summary",
+        "Resolves medium from the rendered-views layers before the rendered-view offer",
+        "Does not offer a rendered view through visualization:visualize and builds no HTML file",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
     }
   ]
 }

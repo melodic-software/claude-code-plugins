@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default), toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Builds a self-contained HTML mockup by default, or runs on the real stack behind one route on request; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
-argument-hint: "[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [scope]"
+argument-hint: "[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,8 +10,8 @@ metadata:
   summary: Throwaway UI variations answering what should this look like
 ---
 
-**Arguments.** `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [scope]`. e.g.,
-/prototype:explore-directions settings page
+**Arguments.** `[vary [<variant>]|combine [<base>]|controls [<variant>]] [--unattended] [--medium <value>] [scope]`. e.g.,
+/prototype:explore-directions settings page. `--medium <value>`: [reference/medium.md](reference/medium.md).
 
 | Invocation | Behavior |
 | --- | --- |
@@ -222,7 +222,7 @@ Constraints:
 
 ### Design-canvas alternative (bundled `design` skill, run by the person)
 
-When the intent selector lands on the HTML mockup substrate, tell the user before building that
+When the intent selector lands on the HTML mockup substrate and `medium` allows it (resolve it first per [reference/medium.md](reference/medium.md)), tell the user before building that
 the design canvas is an alternative they can run themselves; this skill builds the HTML mockup
 either way and never invokes `design`. Read [reference/design-canvas.md](reference/design-canvas.md)
 before making the offer: it holds the two options, the lifecycle difference the offer names, the
@@ -432,7 +432,7 @@ the intent selector lands on the HTML mockup substrate:
   the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
 **Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
-`/design`. Before building, tell the user: If /design is available in your session (gate basis:
+`/design`. Unless `medium` resolved to `terminal` or `file` ([reference/medium.md](reference/medium.md)), which drops this offer and the unattended record of it, tell the user before building: If /design is available in your session (gate basis:
 the verification record in [reference/design-canvas.md](reference/design-canvas.md)), you
 can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
 State the lifecycle difference with it; the design-canvas subsection above carries the offer

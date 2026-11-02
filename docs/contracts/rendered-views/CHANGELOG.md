@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The grandfathered emitters resolve `medium`, 2026-11-02
+
+- **No emitter is grandfathered on its ladder or `medium`.** `architecture:improve`,
+  `education:teach` (topic mode), `prototype:explore-directions`, `prototype:pressure-test`,
+  planning's interview decision table, PRD pitch view and design topology view, and
+  `overengineering:audit` read `medium` from the argument, then the three `rendered-views` layers,
+  and keep their shipped behavior when no layer sets it. None publishes a page itself. Each one's
+  row implications are under Wave-1 adoption and grandfathered surfaces.
+- **`ai-briefing:generate` keeps `--format` as its only selector.** No layer starts its HTML or
+  PPTX build.
+- **Two stale rows are removed.** `machine-health:audit` writes no model-written view, and
+  `visualization:visualize` already reads the argument, its `medium` option and the cascade.
+
 ## The shared builder writes the page title, 2026-11-01
 
 - **Rule 5 allows one builder-written title.** `buildView()` takes an optional `title` and
