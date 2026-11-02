@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: cl-ci-adopt-is-handoff
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reports-plan-path
+    type: regex
+    pattern: '^[ \t>*-]*`?ci-plan:`?[ \t]*`?[^\s`]*ci-plan\.json'
+    flags: 'm'
+    target: last_message
+  - name: reports-planned
+    type: regex
+    pattern: '^[ \t>*-]*`?status:`?[ \t]*`?planned\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-ask
+    type: tool_used
+    tool: 'AskUserQuestion'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-branch-or-push
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\s+(?:-C\s+\S+\s+)?(?:switch\s+-c|checkout\s+-b|commit|push)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: adopt-row-is-handoff
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: the ci-plan.json the run wrote has status planned, an empty branches list, and a handoff of kind adopt on plugins/mcp-kit/scripts/reconnect-servers.sh naming item 2.1.284-001 and the problem the script solves (reconnecting failed MCP servers one at a time); reconnect-servers.sh is unchanged; and the run neither moved the read marker nor wrote a ledger file. FAIL otherwise.'
