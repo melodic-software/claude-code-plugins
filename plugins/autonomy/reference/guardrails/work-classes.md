@@ -155,8 +155,8 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   predicate passes again over only the evidence after the latest contrary event against it or a
   prerequisite, the publisher the operator runs records a `re-earned` event, and the evaluator
   honors it while every contrary event in the cell's epoch, its prerequisites' included, was
-  both dated and first published at or before the `re-earned` event's `since`. A dependent cell needs its own `re-earned` event;
-  its prerequisite's does not revive it.
+  both dated and first published (where recorded) at or before the `re-earned` event's `since`.
+  A dependent cell needs its own `re-earned` event; its prerequisite's does not revive it.
   Only a demotion record's label and routing depend on whether its evidence can clear without a
   person: a record that clears once main is green at a later commit carries no human-gated
   label, unless its filer needs one to keep intake admission off it (the lanes App's

@@ -147,6 +147,12 @@ the gate restarts its window at every demotion record it reads (`--window-start`
 the publisher never reads leaves every re-earn before that restart, so each cell stays
 unpromoted.
 
+A fresh `--out` directory, or a `--since` moved earlier, stamps every event the run finds for the
+first time with that run's time, so re-earns wait until enough merges land after that run. A run
+whose clock is behind the previous publish's `generated_at` is refused, and a new stamp always
+falls at least a second after it. An event a file from before `discovered` holds without one
+counts, for the publisher's window, as found at that file's `generated_at`.
+
 Publication requirements:
 
 - An operator-side publisher writes the file. The lane and any agent working in the target

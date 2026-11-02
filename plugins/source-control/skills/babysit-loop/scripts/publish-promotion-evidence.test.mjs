@@ -888,9 +888,10 @@ test("a published re-earn the next run no longer derives is kept; a dropped cont
 });
 
 // A revert found late, dated before the window: the next run restarts the window at that run.
-const runAt = (now, pulls, extra = {}, prior = []) =>
-  run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)], ...extra }, { now: new Date(now), prior, through: "2026-10-31T00:00:00Z" });
+const runAt = (now, pulls, extra = {}, prior = [], priorGeneratedAt = null) =>
+  run({ pulls, workflowRuns: verifiedEach(pulls), demotionIssues: [demotionIssue(7301, DEMOTED)], ...extra }, { now: new Date(now), prior, priorGeneratedAt, through: "2026-10-31T00:00:00Z" });
 const fileOf = (out) => JSON.parse(readFileSync(join(out, "evidence.json"), "utf8"));
+const generatedOf = (out) => JSON.parse(readFileSync(join(out, "evidence.meta.json"), "utf8")).generated_at;
 
 test("a contrary event found after a re-earn, dated before its since, restarts the window at the run that found it", () => {
   const out = mkdtempSync(join(base, "out-"));
@@ -901,25 +902,25 @@ test("a contrary event found after a re-earn, dated before its since, restarts t
   assert.deepEqual(r1.events, gateEvents(DEMOTED, ...ALL).map((e) => ({ ...e, discovered: "2026-08-10T00:04:31Z" })));
   publish(out, r1.events, r1.through, new Date("2026-08-10T00:04:30.500Z"));
   // Twenty merges after that run re-earn C2, counted from the demotion's discovery.
-  const r2 = runAt("2026-09-21T00:00:00Z", [early, ...first], {}, fileOf(out));
+  const r2 = runAt("2026-09-21T00:00:00Z", [early, ...first], {}, fileOf(out), generatedOf(out));
   const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: "2026-08-10T00:04:31Z" };
   assert.deepEqual(r2.events.filter((e) => e.event === "re-earned"), [reearn]);
-  publish(out, r2.events, r2.through);
+  publish(out, r2.events, r2.through, new Date("2026-09-21T00:00:00Z"));
   // A git revert of the early merge, committer-dated 2026-08-06, appears on the next run.
   const revert = {
     history: [early, ...first].map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)),
     commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${early.graph.mergeCommit.oid}.`, committer: { date: "2026-08-06T00:00:00Z" } } }],
   };
-  const r3 = runAt("2026-09-22T00:00:00Z", [early, ...first], revert, fileOf(out));
+  const r3 = runAt("2026-09-22T00:00:00Z", [early, ...first], revert, fileOf(out), generatedOf(out));
   assert.deepEqual(r3.events.find((e) => e.event === "reverted-merge"), { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-08-06T00:00:00Z", discovered: "2026-09-22T00:00:00Z" });
   assert.equal(r3.events.some((e) => e.event === "re-earned"), false);
-  publish(out, r3.events, r3.through);
+  publish(out, r3.events, r3.through, new Date("2026-09-22T00:00:00Z"));
   // The old re-earn is kept, and its since now precedes the revert's discovery: the checker voids it.
   assert.deepEqual(fileOf(out).filter((e) => e.event === "re-earned"), [reearn]);
   // Twenty merges after 2026-09-22 re-earn C2 again from there.
   const second = Array.from({ length: 20 }, (_, i) => pr(1001 + i, new Date(Date.UTC(2026, 8, 23 + i)).toISOString().replace(".000Z", "Z"), { labels: [MECHANICAL] }));
   const all = [early, ...first, ...second];
-  const r4 = runAt("2026-10-20T00:00:00Z", all, { ...revert, history: all.map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)) }, fileOf(out));
+  const r4 = runAt("2026-10-20T00:00:00Z", all, { ...revert, history: all.map((p) => p.graph.mergeCommit.oid).concat(shaOf(999)) }, fileOf(out), generatedOf(out));
   assert.deepEqual(r4.events.filter((e) => e.event === "re-earned"), [{ cell: "C2-auto-merge", event: "re-earned", at: "2026-10-12T00:00:00Z", since: "2026-09-22T00:00:00Z" }]);
 });
 
@@ -928,4 +929,26 @@ test("publishing a changed discovered time on a published event is refused", () 
   publish(out, [{ ...A, discovered: "2026-09-03T00:00:00Z" }], THROUGH);
   assert.throws(() => publish(out, [{ ...A, discovered: "2026-09-04T00:00:00Z" }], THROUGH), (error) => error instanceof PublishError && /refusing.*discovered time of 1/.test(error.message));
   assert.throws(() => publish(out, [A], THROUGH), (error) => error instanceof PublishError && /refusing.*discovered time of 1/.test(error.message));
+});
+
+test("a run whose clock is behind the previous publish is refused, and its stamps land after that publish", () => {
+  const out = mkdtempSync(join(base, "out-"));
+  publish(out, [A], THROUGH, new Date("2026-09-10T00:00:00.200Z"));
+  assert.throws(
+    () => publish(out, [A, B], THROUGH, new Date("2026-09-09T00:00:00Z")),
+    (error) => error instanceof PublishError && /refusing.*before the previous publish's generated_at/.test(error.message),
+  );
+  // Stamped one second past the previous publish's whole-second stamp (00:00:01Z), not at the
+  // behind clock's 2026-08-10.
+  const behind = runAt("2026-08-10T00:00:00Z", [], {}, [], "2026-09-10T00:00:00.200Z");
+  assert.deepEqual(behind.events.map((e) => e.discovered), ["2026-09-10T00:00:02Z", "2026-09-10T00:00:02Z", "2026-09-10T00:00:02Z"]);
+});
+
+test("a published event with no discovered time counts as found at the previous publish", () => {
+  // A file from before `discovered`: the demotion's three events, last published 2026-08-15.
+  const result = runAt("2026-09-21T00:00:00Z", c2Merges(20, 1), {}, gateEvents(DEMOTED, ...ALL), "2026-08-15T00:00:00Z");
+  assert.deepEqual(result.events.filter((e) => e.event !== "re-earned"), gateEvents(DEMOTED, ...ALL));
+  assert.deepEqual(result.events.filter((e) => e.event === "re-earned"), [{ cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: "2026-08-15T00:00:00Z" }]);
+  // Without that bound the window would start at the demotion's at.
+  assert.equal(runAt("2026-09-21T00:00:00Z", c2Merges(20, 1), {}, gateEvents(DEMOTED, ...ALL)).events.find((e) => e.event === "re-earned").since, DEMOTED);
 });

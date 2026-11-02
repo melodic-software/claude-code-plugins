@@ -10,9 +10,9 @@
 // evidence source, written to a fresh temporary directory outside the checkout and every
 // worktree root and removed on exit, with one gate-failure event per promotable cell at that
 // instant appended, so a cell stays unpromoted until the source holds a `re-earned` event for it
-// whose `since` is at or after that instant (the publisher counts one from the demotion record's
-// creation). An empty or malformed value, or a source that cannot be read as a JSON array, fails
-// closed.
+// whose `since` is at or after that instant (the publisher's `since` is the later of the demotion
+// record's creation and its discovery, so it never precedes the restart). An empty or malformed
+// value, or a source that cannot be read as a JSON array, fails closed.
 //
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads

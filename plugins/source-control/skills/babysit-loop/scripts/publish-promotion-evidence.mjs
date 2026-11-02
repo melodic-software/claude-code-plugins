@@ -549,7 +549,7 @@ function demotionRecords(gh, owner, name, filers, since) {
   return out;
 }
 
-export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh, prior = null, now = new Date() }) {
+export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh, prior = null, priorGeneratedAt = null, now = new Date() }) {
   const gate = new Set(gateChecks ?? []);
   if (gate.size === 0) throw new PublishError("at least one --gate-check naming the post-merge gate is required");
   const sinceMs = instant(since, "--since");
@@ -815,8 +815,14 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   const sorted = [...events.values()].sort(byInstant);
+  // The previous publish's generated_at: a stamp is never at or before one the prior file holds,
+  // even when this run's clock is behind (publish() then refuses), and an event that file holds
+  // with no `discovered` was first published no later than then.
+  const priorGeneratedMs = priorGeneratedAt === null ? Number.NaN : instant(priorGeneratedAt, "the previous generated_at");
   if (Array.isArray(prior)) {
-    const found = isoSeconds(Math.ceil(now.getTime() / 1000) * 1000);
+    const ceilSecond = (msValue) => Math.ceil(msValue / 1000) * 1000;
+    const floor = Number.isNaN(priorGeneratedMs) ? -Infinity : ceilSecond(priorGeneratedMs) + 1000;
+    const found = isoSeconds(Math.max(ceilSecond(now.getTime()), floor));
     const published = new Map(prior.filter((e) => e && typeof e === "object").map((e) => [eventKey(e), e]));
     for (const e of sorted) {
       const before = published.get(eventKey(e));
@@ -828,7 +834,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     repo,
     since,
     through: new Date(throughMs).toISOString(),
-    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0)].sort(byInstant),
+    events: [...sorted, ...reEarned(tracked, sorted, reviewers.size > 0, priorGeneratedMs)].sort(byInstant),
     unresolvedReverts,
     gateFailures,
     unclassedAutonomous: [...details.values()]
@@ -908,13 +914,16 @@ function report(counted, events, reviewsMeasured) {
 // event found after a re-earn was published starts a new window after that run, and the checker
 // voids the earlier re-earn. A re-earn is not contrary.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
-const knownAt = (event) => Math.max(Date.parse(event.at), event.discovered === undefined ? -Infinity : Date.parse(event.discovered));
+// A published event with no `discovered` (written before the field existed) counts as found at the
+// previous publish's generated_at, the latest it can have been first published.
+const knownAt = (event, priorGeneratedMs) =>
+  Math.max(Date.parse(event.at), event.discovered !== undefined ? Date.parse(event.discovered) : Number.isNaN(priorGeneratedMs) ? -Infinity : priorGeneratedMs);
 
-function reEarned(counted, contrary, reviewsMeasured) {
+function reEarned(counted, contrary, reviewsMeasured, priorGeneratedMs = Number.NaN) {
   const out = [];
   for (const cell of CELLS) {
     const against = [cell, ...(PROMOTION_DEPENDENCIES[cell] ?? [])];
-    const times = contrary.filter((e) => against.includes(e.cell)).map(knownAt);
+    const times = contrary.filter((e) => against.includes(e.cell)).map((e) => knownAt(e, priorGeneratedMs));
     if (times.length === 0) continue;
     const sinceMs = Math.ceil(Math.max(...times) / 1000) * 1000;
     const after = counted.filter((r) => Date.parse(r.mergedAt) > sinceMs).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.number - b.number);
@@ -970,6 +979,12 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (priorMeta?.sha256 !== sha256(previous)) {
       throw new PublishError(`refusing to publish: ${file} does not match the sha256 in its sidecar ${metaFile} (missing, unreadable or different)`);
     }
+    // A clock behind the previous publish could stamp a `discovered` at or before a published
+    // re-earn's `since`.
+    const previousAt = typeof priorMeta.generated_at === "string" ? Date.parse(priorMeta.generated_at) : Number.NaN;
+    if (Number.isNaN(previousAt) || now.getTime() < previousAt) {
+      throw new PublishError(`refusing to publish: this run's time ${now.toISOString()} is before the previous publish's generated_at ${JSON.stringify(priorMeta.generated_at)} in ${metaFile}, or that value does not parse`);
+    }
     const byKey = new Map(events.map((event) => [eventKey(event), event]));
     const missing = prior.filter((event) => !byKey.has(eventKey(event)));
     const dropped = missing.filter((event) => event?.event !== "re-earned");
@@ -1023,6 +1038,16 @@ function publishedEvents(outDir) {
   }
 }
 
+// The previous sidecar's generated_at, or null when there is none to read.
+function publishedGeneratedAt(outDir) {
+  try {
+    const at = JSON.parse(readIfPresent(join(outDir, "evidence.meta.json")) ?? "null")?.generated_at;
+    return typeof at === "string" ? at : null;
+  } catch {
+    return null;
+  }
+}
+
 function main() {
   let values;
   try {
@@ -1050,6 +1075,7 @@ function main() {
     const result = collect({
       now,
       prior: values.out ? publishedEvents(values.out) : null,
+      priorGeneratedAt: values.out ? publishedGeneratedAt(values.out) : null,
       repo: values.repo,
       since: values.since,
       through: values.through ?? new Date().toISOString(),
