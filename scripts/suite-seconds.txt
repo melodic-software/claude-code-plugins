@@ -527,7 +527,6 @@ plugins/repo-hygiene/skills/clean/scripts/resolve-clean-action.test.sh 1
 plugins/repo-hygiene/skills/clean/scripts/scan.test.sh 1
 plugins/retro-audio/scripts/audio.test.sh 1
 plugins/retro-audio/scripts/test_audio.py 1
-plugins/review/skills/audit-enforceability/scripts/emit-stubs.test.sh 1
 plugins/review/skills/fanout/scripts/diff-vs-base.test.sh 1
 plugins/review/tests/change-set-block.test.sh 1
 plugins/review/tests/explain-change-chrome.test.sh 1
