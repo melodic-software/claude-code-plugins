@@ -336,6 +336,7 @@ it. This plugin has no `medium` option.
 | `terminal`, from any source | None: the report is the whole deliverable. |
 | `file` | Offered; when taken, passes `file` to `visualization:visualize`, so nothing is published. |
 | Any other value from `--medium` | Offered; when taken, passes that value to `visualization:visualize`. |
+| `artifact` or `hosted` from the team layer (`<root>/.claude/rendered-views.md`) | Offered; when taken, passes `file` to `visualization:visualize` and says a team layer cannot publish. |
 | Any other layer value, or none | Offered; `visualization:visualize` picks the rung from the same layers. |
 
 A value outside the five is reported and takes the last row. Name the source of `medium` after the
