@@ -1,0 +1,20 @@
+ ▝▝   ▝▝   Opus 5.5 · Claude Max
+
+ You've used 42% of your weekly limit · resets Jan 7, 9am (Etc/UTC) · /usage-credits to keep using Claude Co… ▔
+   Settings  Status   Config   Usage   Stats
+
+   Version:           2.1.316
+   Session name:      /rename to add a name
+   Session ID:        00000000-0000-4000-8000-000000000000
+   Session kind:      interactive
+   cwd:               /home/<user>/project
+   Login method:      Claude Max account
+   Organization:      Example Org
+   Email:             user@example.com
+   Cloud sessions:    GitHub connected
+
+   Model:             Default (Opus 5.5 · Best for everyday, complex tasks)
+   Setting sources:
+   Auto mode server:  Enabled
+
+   Esc to cancel

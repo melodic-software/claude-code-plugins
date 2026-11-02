@@ -11,6 +11,17 @@
 //   node driver.mjs doctor [--deps-dir <dir>]
 //   node driver.mjs ready --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>] [--session <name>] [--deps-dir <dir>]
 //   node driver.mjs log <prompt> --plugin-dir <dir> --out <path.jsonl> [--timeout <ms>]
+//   node driver.mjs plugins [<changed file>...]
+//
+// `screenshot` and `record` never capture the live terminal: the holder reads
+// its cells, hides every `## Mask` match in SKILL.md and every signed-in
+// account value, redraws the masked cells in a second terminal, captures that
+// one, and writes the text it drew beside the capture as `<path>.txt`. A frame
+// that does not redraw exactly fails the verb with nothing written.
+//
+// `plugins` prints the plugin directory of each changed file, once each, at
+// most `maxEntryPoints` of them; with no file it prints the configured
+// `pluginDir`.
 //
 // The terminal engine lives in one process, so `launch` starts a detached
 // holder that owns the session and listens on a local socket in a 0700
@@ -48,7 +59,7 @@ import {
 } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { StringDecoder } from 'node:string_decoder';
 import { parseArgs } from 'node:util';
@@ -93,12 +104,17 @@ export const UNSET_VARS = [
   'CLAUDE_CODE_USE_ANTHROPIC_AWS',
 ];
 
+/** The environment Claude Code runs in: `env` with the credential variables cleared. */
+function launchEnv(env) {
+  const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
+  for (const name of UNSET_VARS) delete childEnv[name];
+  return childEnv;
+}
+
 /** The Claude Code command line and environment; pure, so it tests with no packages installed. */
 export function buildLaunch(config, env) {
   if (!config?.pluginDir) throw new UsageError('launch needs --plugin-dir <dir>');
-  const childEnv = { ...env, CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '1', CLAUDE_CODE_HIDE_CWD: '1' };
-  for (const name of UNSET_VARS) delete childEnv[name];
-  return { argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir], env: childEnv };
+  return { argv: ['claude', ...LAUNCH_FLAGS, '--plugin-dir', config.pluginDir], env: launchEnv(env) };
 }
 
 // Print-mode flags, and the init event's key source that Ready requires to be "none".
@@ -410,6 +426,256 @@ function request(session, verb, args = {}) {
   });
 }
 
+// ---- config and changed plugins ----
+
+const CONFIG_DIR = join(HERE, '..', 'config');
+
+/** config/defaults.json, then config/local.json over it. */
+export function readConfig(dir = CONFIG_DIR) {
+  const layer = (name) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, name), 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') return {};
+      throw new UsageError(`config/${name} is not valid JSON`);
+    }
+  };
+  const config = { ...layer('defaults.json'), ...layer('local.json') };
+  if (!Number.isInteger(config.maxEntryPoints) || config.maxEntryPoints < 1) {
+    throw new UsageError('config maxEntryPoints must be a whole number above 0');
+  }
+  return config;
+}
+
+/** The plugin directory (the nearest one holding .claude-plugin/plugin.json) of each changed file, once each, in order. */
+export function changedPlugins(files, root = process.cwd()) {
+  const dirs = [];
+  for (const file of files) {
+    if (isAbsolute(file) || file.split(/[\\/]/).includes('..')) throw new UsageError(`a changed file must be a path inside the repository: ${file}`);
+    for (let dir = dirname(file); dir !== '.' && dir !== dirname(dir); dir = dirname(dir)) {
+      if (existsSync(join(root, dir, '.claude-plugin', 'plugin.json'))) {
+        if (!dirs.includes(dir)) dirs.push(dir);
+        break;
+      }
+    }
+  }
+  return dirs;
+}
+
+/** Each changed plugin to launch, at most maxEntryPoints, since each one drives at least one entry point. */
+function plugins(files, config = readConfig()) {
+  const dirs = files.length ? changedPlugins(files) : [config.pluginDir].filter(Boolean);
+  if (!files.length && !dirs.length) throw new UsageError('plugins got no changed file and config sets no pluginDir');
+  if (files.length && !dirs.length) console.error('no changed file is inside a plugin; launch nothing');
+  for (const dir of dirs.slice(config.maxEntryPoints)) console.error(`blocked: maxEntryPoints reached: ${dir}`);
+  return { text: dirs.slice(0, config.maxEntryPoints).join('\n'), status: 0 };
+}
+
+// ---- masks: what a capture hides ----
+
+const SKILL_FILE = join(HERE, '..', 'SKILL.md');
+const MASK_CHAR = '*'; // drive's credential pattern takes no value made of it
+const BOX = /[─-╿]/;
+const MIRROR_READY = 'ccd-mirror-ready';
+const MIRROR_MS = 5000;
+const FRAME_MS = 250;
+
+/** The `- <label> | <regex>` lines under SKILL.md's `## Mask`, as case-insensitive regular expressions. */
+export function readMasks(text) {
+  const masks = [];
+  let inside = false;
+  let fence = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) fence = !fence;
+    else if (fence) continue;
+    else if (line.startsWith('## ')) inside = line.trim() === '## Mask';
+    else if (inside) {
+      const m = /^- ([^|]*[^|\s])\s*\|\s*(\S.*)$/.exec(line);
+      if (m) masks.push({ label: m[1].trim(), pattern: new RegExp(m[2].trimEnd(), 'gi') });
+    }
+  }
+  if (!masks.length) throw new Error('SKILL.md ## Mask holds no mask line; capture nothing');
+  return masks;
+}
+
+/**
+ * The signed-in account's email and organization name from `claude auth status`.
+ * The output is never echoed, so no value reaches a log or an error message.
+ */
+export function accountValues(env = process.env) {
+  const run = spawnSync('claude', ['auth', 'status', '--json'], {
+    env: launchEnv(env),
+    encoding: 'utf8',
+    timeout: 30_000,
+    shell: process.platform === 'win32',
+  });
+  if (run.error) throw new Error('claude auth status did not run; cannot read the signed-in account to mask it');
+  let status;
+  try {
+    status = JSON.parse(run.stdout);
+  } catch {
+    throw new Error('claude auth status printed no JSON; cannot read the signed-in account to mask it');
+  }
+  const values = [status?.email, status?.orgName].filter((v) => typeof v === 'string' && v.trim());
+  return [...new Set(values)];
+}
+
+const unitsOf = (cell) => cell.char.length;
+
+/**
+ * Hides each mask match within a screen row, and each value anywhere on the screen
+ * ignoring case, whitespace, `|` and box drawing, so a value wrapped across rows or
+ * split by a border is still hidden. Returns the masked rows of cells and their text.
+ */
+export function maskCells(cells, masks, values = []) {
+  const byRow = new Map();
+  for (const cell of cells) {
+    const copy = { ...cell, link: '', link_id: '' };
+    if (!byRow.has(copy.y)) byRow.set(copy.y, []);
+    byRow.get(copy.y).push(copy);
+  }
+  const rows = [...byRow.keys()].sort((a, b) => a - b).map((y) => byRow.get(y).sort((a, b) => a.x - b.x));
+  const hide = new Set();
+  for (const row of rows) {
+    const text = row.map((c) => c.char).join('');
+    const at = row.flatMap((c) => Array(unitsOf(c)).fill(c));
+    for (const { pattern } of masks) {
+      for (const m of text.matchAll(pattern)) for (let i = m.index; i < m.index + m[0].length; i++) hide.add(at[i]);
+    }
+  }
+  let flat = '';
+  const stream = [];
+  for (const cell of rows.flat()) {
+    if (!cell.char || /\s/.test(cell.char) || cell.char === '|' || BOX.test(cell.char)) continue;
+    const low = cell.char.toLowerCase();
+    flat += low;
+    for (let i = 0; i < low.length; i++) stream.push(cell);
+  }
+  for (const value of values) {
+    const needle = value.toLowerCase().replace(/[\s|]/g, '');
+    if (!needle) continue;
+    for (let i = flat.indexOf(needle); i >= 0; i = flat.indexOf(needle, i + 1)) {
+      for (let k = i; k < i + needle.length; k++) hide.add(stream[k]);
+    }
+  }
+  // A masked cell loses its style too: a meter's colored cells show its level without any text.
+  const blank = (cell) => {
+    Object.assign(cell, { char: MASK_CHAR, fg: 'default', bg: 'default' });
+    for (const [name] of ATTRS) cell[name] = false;
+  };
+  for (const row of rows) {
+    row.forEach((cell, i) => {
+      if (!hide.has(cell) || cell.char === '') return;
+      blank(cell);
+      for (let j = i + 1; row[j]?.char === ''; j++) blank(row[j]); // keep a wide glyph's columns
+    });
+  }
+  return { rows, text: rows.map((row) => row.map((c) => c.char).join('')).join('\n') };
+}
+
+const color = (value, base) => {
+  if (typeof value === 'number') return [`${base};5;${value}`];
+  const hex = /^#([0-9a-f]{6})$/i.exec(value ?? '')?.[1];
+  if (!hex) return [];
+  const n = Number.parseInt(hex, 16);
+  return [`${base};2;${n >> 16};${(n >> 8) & 255};${n & 255}`];
+};
+const ATTRS = [
+  ['bold', 1],
+  ['dim', 2],
+  ['italic', 3],
+  ['underline', 4],
+  ['blink', 5],
+  ['inverse', 7],
+  ['invisible', 8],
+  ['strike', 9],
+];
+const sgr = (cell) => {
+  const parts = ['0', ...ATTRS.filter(([name]) => cell[name]).map(([, code]) => String(code))];
+  return `\x1b[${[...parts, ...color(cell.fg, 38), ...color(cell.bg, 48)].join(';')}m`;
+};
+
+/** The escape sequence that draws masked rows of cells, colors and attributes kept, links dropped. */
+export function renderFrame(rows) {
+  let out = '\x1b[0m\x1b[2J';
+  for (const row of rows) {
+    if (!row.length) continue;
+    out += `\x1b[${row[0].y + 1};1H`;
+    let last = '';
+    for (const cell of row) {
+      if (cell.char === '') continue;
+      const style = sgr(cell);
+      if (style !== last) out += style;
+      last = style;
+      out += cell.char;
+    }
+  }
+  return `${out}\x1b[0m`;
+}
+
+const settled = (text) =>
+  text
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .join('\n')
+    .trimEnd();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The second terminal draws only what the holder writes to it, cursor hidden.
+const MIRROR_JS = `process.stdin.setRawMode(true);process.stdin.on('data',(d)=>process.stdout.write(d));process.stdout.write('\\x1b[?25l${MIRROR_READY}');`;
+
+async function openMirror(ctx, size) {
+  const mirror = ctx.TuiTest.ephemeral(`${COMPONENT}-mirror`);
+  try {
+    await mirror.run(process.execPath, ['-e', MIRROR_JS], { cols: size.cols, rows: size.rows });
+    await mirror.getByText(MIRROR_READY).first().wait({ state: 'visible', timeout: MIRROR_MS });
+  } catch (err) {
+    await mirror.closeQuiet().catch(() => {});
+    throw err;
+  }
+  return mirror;
+}
+
+/** The live screen, masked. */
+async function maskedFrame(t, ctx) {
+  ctx.mask ??= { masks: readMasks(readFileSync(SKILL_FILE, 'utf8')), values: accountValues(ctx.env) };
+  const size = await t.getSize();
+  const { rows, text } = maskCells(await t.cells(0, 0, size.cols, size.rows), ctx.mask.masks, ctx.mask.values);
+  return { size, text, draw: renderFrame(rows) };
+}
+
+/** Draws a masked frame in the mirror and waits until the mirror shows exactly its text. */
+async function show(mirror, frame) {
+  await mirror.write(frame.draw);
+  const want = settled(frame.text);
+  for (const deadline = Date.now() + MIRROR_MS; settled(await mirror.text()) !== want; await sleep(50)) {
+    if (Date.now() > deadline) throw new Error('the masked frame did not redraw; nothing captured');
+  }
+}
+
+const removeCapture = (path) => {
+  rmSync(path, { force: true });
+  rmSync(`${path}.txt`, { force: true });
+};
+
+/** Redraws the next masked frame while a recording runs; a failure ends in record stop's error. */
+async function syncFrame(t, ctx, rec) {
+  if (rec.busy || rec.error) return;
+  rec.busy = true;
+  try {
+    const frame = await maskedFrame(t, ctx);
+    if (frame.draw !== rec.last) {
+      await show(rec.mirror, frame);
+      rec.last = frame.draw;
+      if (rec.frames.at(-1) !== frame.text) rec.frames.push(frame.text);
+    }
+  } catch (err) {
+    rec.error = err;
+  } finally {
+    rec.busy = false;
+  }
+}
+
 // ---- holder: owns the terminal session (internal verb `serve`) ----
 
 const HANDLERS = {
@@ -423,15 +689,57 @@ const HANDLERS = {
     if (keys?.length) await t.press(...keys);
     return 'typed';
   },
-  screenshot: async (t, { path }) => {
-    await t.screenshot(path);
+  screenshot: async (t, { path }, ctx) => {
+    const frame = await maskedFrame(t, ctx);
+    const mirror = await openMirror(ctx, frame.size);
+    try {
+      await show(mirror, frame);
+      await mirror.screenshot(path);
+      writeFileSync(`${path}.txt`, `${settled(await mirror.text())}\n`);
+    } catch (err) {
+      removeCapture(path);
+      throw err;
+    } finally {
+      await mirror.closeQuiet().catch(() => {});
+    }
     return path;
   },
-  'record-start': async (t, { path }) => {
-    await t.startRecording(path);
+  'record-start': async (t, { path }, ctx) => {
+    if (ctx.recording) throw new Error('a recording is running; run record stop first');
+    const frame = await maskedFrame(t, ctx);
+    const mirror = await openMirror(ctx, frame.size);
+    const rec = { mirror, path, frames: [frame.text], last: frame.draw };
+    try {
+      await show(mirror, frame); // the first recorded frame is already masked
+      await mirror.startRecording(path);
+    } catch (err) {
+      await mirror.closeQuiet().catch(() => {});
+      removeCapture(path);
+      throw err;
+    }
+    rec.timer = setInterval(() => syncFrame(t, ctx, rec), FRAME_MS);
+    ctx.recording = rec;
     return `recording: ${path}`;
   },
-  'record-stop': async (t) => t.stopRecording(),
+  'record-stop': async (t, _args, ctx) => {
+    const rec = ctx.recording;
+    if (!rec) throw new Error('no recording is running');
+    ctx.recording = undefined;
+    clearInterval(rec.timer);
+    while (rec.busy) await sleep(20);
+    try {
+      await syncFrame(t, ctx, rec);
+      const out = await rec.mirror.stopRecording();
+      if (rec.error) throw rec.error;
+      writeFileSync(`${rec.path}.txt`, `${rec.frames.map(settled).join('\n\n')}\n`);
+      return out;
+    } catch (err) {
+      removeCapture(rec.path);
+      throw err;
+    } finally {
+      await rec.mirror.closeQuiet().catch(() => {});
+    }
+  },
 };
 
 /** Whether Claude Code has exited; a state read that fails is not taken as an exit. */
@@ -455,6 +763,7 @@ async function serve(opts) {
   for (const name of UNSET_VARS) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
+  const ctx = { TuiTest, env: launch.env };
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
@@ -469,6 +778,7 @@ async function serve(opts) {
       try {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
+          await ctx.recording?.mirror.closeQuiet().catch(() => {});
           await terminal.closeQuiet();
           free(); // before the reply, so a launch right after stop finds the session free
           conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => process.exit(0));
@@ -476,7 +786,7 @@ async function serve(opts) {
         }
         const handler = HANDLERS[verb];
         if (!handler) throw new Error(`unknown verb ${verb}`);
-        reply = { ok: true, result: await handler(terminal, args) };
+        reply = { ok: true, result: await handler(terminal, args, ctx) };
       } catch (err) {
         reply = { ok: false, error: err.message };
       }
@@ -493,6 +803,7 @@ async function serve(opts) {
     process.exit(0);
   };
   const closeAndExit = async () => {
+    await ctx.recording?.mirror.closeQuiet().catch(() => {});
     await terminal.closeQuiet();
     exit();
   };
@@ -805,10 +1116,11 @@ const VERBS = {
   doctor: (o) => doctor(o),
   ready: (o) => ready(o),
   log: (o, [prompt]) => log(o, prompt),
+  plugins: (_o, files) => plugins(files),
   serve: (o) => serve(o),
 };
 
-const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1 };
+const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2, log: 1, plugins: Number.POSITIVE_INFINITY };
 
 async function main(argv) {
   let parsed;
@@ -823,7 +1135,7 @@ async function main(argv) {
   if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {
-    console.log(out.text);
+    if (out.text) console.log(out.text);
     return out.status;
   }
   if (out !== undefined) console.log(out);
