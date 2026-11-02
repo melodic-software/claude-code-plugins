@@ -121,6 +121,35 @@ No script ingests `plugin-eval` or `claude -p` results. Turning them into a repo
 that matches `score` output, so `compare` can diff it against the baseline, is a manual step
 today.
 
+## Description controls
+
+A description change ships only when its control drops clearly below the shipped text:
+a generic description, in the same competitor listing, must draw a noise-report `case drop`
+that reproduces, or a mean fall of 0.15 or more. Without that drop the part is unmeasurable,
+and the before text ships. This is the description case of the negative-control step in
+`/playbooks:skill-authoring`'s rewrite-a-plugin reference.
+
+- **Competitor set:** the probe file's `competitors[]`. Emit reads that field and writes each
+  case's `plugins:` from it, so the run's listing and the recorded set cannot drift apart.
+- **The swap:** stage two copies of the repository's `plugins/` (`git archive HEAD plugins`),
+  each under its own directory. In the control copy, replace only the skill's `description:`
+  line with a generic one, such as `"Helper for repository maintenance tasks."`, and leave
+  the shipped SKILL.md as it is. Emit each copy's cases into that copy's
+  `probe-evals/<plugin>`, then run both copies together against their own roots.
+
+Recorded runs (2026-11-02: Claude Code 2.1.316, Sonnet 5.5, 3 runs per probe, all passes VALID,
+every competitor present on each with-arm init line):
+
+| Skill | Competitor plugins | Should-trigger fired, shipped / control | Should-not quiet | Mean | Verdict |
+|---|---|---|---|---|---|
+| `naming:name-it-better` | docs-hygiene, docs-naming, domain-driven-design | 30/30 / 11/30 | 30/30 / 30/30 | 1.000 / 0.683 | measurable: 7 case drops |
+| `domain-driven-design:curate-language` | planning, naming, docs-hygiene, architecture | 27/27 / 27/27 | 27/27 / 26/27 | 1.000 / 0.981 | unmeasurable: one drop that did not reproduce |
+
+Why `curate-language` cannot drop: no competitor took any of its should-trigger probes, even
+against the generic description, so the skill still won them by elimination. Its probe set
+needs queries that a neighboring skill could plausibly take, frozen before any description cut.
+Its competitor set comes from its probe file; `knowledge` is not in it.
+
 ## Outside the marketplace checkout
 
 The shipped seed probes name skills of this marketplace checkout (`plugins/skill-quality/...`
