@@ -17,6 +17,9 @@
     "bounded-contexts",
     "skill"
   ],
+  "metadata": {
+    "category": "design"
+  },
   "userConfig": {
     "glossary_file": {
       "type": "string",

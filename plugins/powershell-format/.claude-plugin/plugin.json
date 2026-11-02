@@ -15,6 +15,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "powershell_format_enabled": {
       "type": "boolean",

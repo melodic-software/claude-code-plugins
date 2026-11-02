@@ -16,6 +16,9 @@
     "diagramming",
     "visual-collaboration"
   ],
+  "metadata": {
+    "category": "design"
+  },
   "userConfig": {
     "miro_api_token": {
       "type": "string",

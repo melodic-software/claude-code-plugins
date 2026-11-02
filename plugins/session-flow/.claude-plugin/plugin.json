@@ -30,8 +30,12 @@
     "retire",
     "observer",
     "hook",
-    "skill"
+    "skill",
+    "retro"
   ],
+  "metadata": {
+    "category": "workflow"
+  },
   "userConfig": {
     "observer_enabled": {
       "type": "boolean",

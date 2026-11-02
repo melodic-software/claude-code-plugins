@@ -18,5 +18,8 @@
     "prose",
     "audit",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "quality"
+  }
 }

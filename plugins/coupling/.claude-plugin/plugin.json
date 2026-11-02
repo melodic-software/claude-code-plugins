@@ -15,5 +15,8 @@
     "dependency-injection",
     "refactoring",
     "skill"
-  ]
+  ],
+  "metadata": {
+    "category": "maintenance"
+  }
 }

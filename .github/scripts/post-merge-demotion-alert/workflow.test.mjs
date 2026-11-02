@@ -253,10 +253,10 @@ test("the alert's job if admits exactly the workflow_run events the file step ac
   assert.equal(admits({ event_name: "workflow_dispatch", repository: "o/r", wr: {} }, C, F), true, "a dispatch always runs");
 });
 
-// The close-cleared job runs only on a green attempt 1 of a scheduled full
-// run on this repository's main, an event the alert job never acts on, and
-// holds only contents: read and issues: write.
-test("close-cleared runs only on a green scheduled attempt 1 on main, with a narrow token", () => {
+// The close-cleared job runs on any completed scheduled full run on this
+// repository's main, whatever it concluded, and holds only actions: read,
+// contents: read and issues: write.
+test("close-cleared runs on every completed scheduled full run on main, with a narrow token", () => {
   const closer = text.slice(text.indexOf("\n  close-cleared:\n"));
   const folded = /\n {4}if: >-\n((?: {6}.*\n)+)/.exec(closer);
   assert.ok(folded, "close-cleared has a folded if:");
@@ -272,11 +272,11 @@ test("close-cleared runs only on a green scheduled attempt 1 on main, with a nar
   const base = { name: "pr-require-checks", event: "schedule", conclusion: "success", run_attempt: 1, head_branch: "main", head_repository: { full_name: "o/r" } };
   const ctx = (wr, event_name = "workflow_run") => ({ event_name, repository: "o/r", wr: { ...base, ...wr } });
   assert.equal(admits(ctx({})), true);
+  assert.equal(admits(ctx({ conclusion: "failure" })), true, "a red scheduled run still scans");
+  assert.equal(admits(ctx({ run_attempt: 2 })), true, "a re-run still scans");
   for (const [field, value] of [
     ["name", "post-merge-detect-silent-revert"],
     ["event", "workflow_dispatch"],
-    ["conclusion", "failure"],
-    ["run_attempt", 2],
     ["head_branch", "feature"],
     ["head_repository", { full_name: "fork/r" }],
   ]) {
@@ -285,6 +285,7 @@ test("close-cleared runs only on a green scheduled attempt 1 on main, with a nar
   assert.equal(admits(ctx({}, "workflow_dispatch")), false, "a dispatch never runs it");
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(closer)[1];
   assert.deepEqual(Object.fromEntries([...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => [m[1], m[2]])), {
+    actions: "read",
     contents: "read",
     issues: "write",
   });

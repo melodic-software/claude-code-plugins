@@ -308,7 +308,7 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # contains "date" as a substring followed later by an unrelated ` -d` flag on
 # the same line (e.g. `[[ -d "$candidate" ]]` — "date" inside "candidate").
 # The one real dual-dialect site
-# (plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh
+# (plugins/work-items/skills/morning-brief/scripts/morning-brief.sh
 # to_epoch/from_epoch) tries GNU `date -d` then BSD `date -j -f`/`date -r`
 # across separate statements, not co-located on one line, so it is excused via
 # a `portability-ok:` annotation at each site rather than a same-line guard
