@@ -595,8 +595,9 @@ plugin dial sits between the argument and the cascade. Each names the source of 
 - `codebase-health:audit` (genre: reports; dual-audience, since its findings feed a fix pass):
   `terminal` drops the offer to render the report through `visualization:visualize`; `file` keeps
   the offer and passes `file` to it; a value from the `--medium` argument keeps the offer and
-  passes that value to it; every other value keeps the offer and leaves the rung to
-  `visualization:visualize`.
+  passes that value to it; `artifact` or `hosted` from the team layer keeps the offer and passes
+  `file` to it, so a team layer cannot publish; every other value keeps the offer and leaves the
+  rung to `visualization:visualize`.
 
 `visualization:visualize` reads the argument, its `medium` option and the cascade (the Wave-1
 adopter above). `machine-health:audit` writes no model-written view: its report is markdown, and

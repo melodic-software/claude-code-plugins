@@ -7,7 +7,8 @@ versioned; this log records each change to it.
 
 - **`codebase-health:audit` offers a rendered view.** Its report is in the reports genre and feeds
   a fix pass, so it offers to render the report through `visualization:visualize` and never builds a
-  page itself. It reads `medium` from a `--medium` argument, then the three layers.
+  page itself. It reads `medium` from a `--medium` argument, then the three layers; `artifact` or
+  `hosted` from the team layer passes `file`, so a team layer cannot publish.
 - **`harness-ops:morning-brief` is listed as a shared-builder emitter.** It already built its status
   page from the printed brief; the contract now names it. A publishing `medium` from the team
   layer now keeps its page local, as the cascade concern requires.
