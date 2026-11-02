@@ -144,7 +144,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("a finished Own note shows no cut-off nudge", !(await page.$("#cutNudge")), await text("#decideRow"));
     await page.fill("#note", "Should we pin the version?");
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
-    const own = await landed(e => e.kind === "own" && e.id === "Q5", 5000); // a loaded runner can still have the save in flight once settle's 700 ms ceiling passes
+    const own = await landed(e => e.kind === "own" && e.id === "Q5", 5000); // a loaded CI host can still have the save in flight once settle's 700 ms ceiling passes
     ok("saving as own stays possible", own.kind === "own" && own.id === "Q5" && own.text === "Should we pin the version?", JSON.stringify(own));
     await pick("Q1"); // off the rows the next writes name, so their dots show
     await page.click('.sec[data-key="g:g2"] .sec-h'); // collapsed by the user before Claude replies on Q4

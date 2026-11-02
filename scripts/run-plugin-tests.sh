@@ -76,7 +76,7 @@
 # tooling reads survive. The block is printed the moment its suite finishes, so
 # progress stays visible. The TIME line prints on every run, with or without
 # --budget, so a CI log shows each suite's wall seconds. A failed suite's
-# annotation in the summary is followed by an indented excerpt of its capture:
+# annotation in the summary is followed by a `    | `-prefixed excerpt of its capture:
 # its FAIL and `not ok` lines, then its last 80 lines.
 #
 # ADVISORY SUITES. With PLUGIN_TEST_ADVISORY=1 a failing suite named in
@@ -517,16 +517,17 @@ suite_annotate() {
 
 # fail_excerpt <suite> <capture>: a failed suite's FAIL and `not ok` lines (the
 # first 20) and its last 80 lines, printed again under its annotation, since its
-# block can sit thousands of lines above the summary. Every line is indented, so
-# nothing reprinted reads as a workflow command or a runner marker
-# (`FAIL: <suite>`, `=== <suite> ===`).
+# block can sit thousands of lines above the summary. Every line starts with
+# `    | `: the runner trims leading spaces before it looks for `::`, so the bar
+# keeps a reprinted workflow command from running again, and keeps a runner
+# marker (`FAIL: <suite>`, `=== <suite> ===`) from being read again.
 fail_excerpt() {
   if grep -q -E '^(FAIL|not ok)' "$2"; then
     printf '  Failing lines of %s:\n' "$1"
-    grep -m 20 -E '^(FAIL|not ok)' "$2" | sed 's/^/    /'
+    grep -m 20 -E '^(FAIL|not ok)' "$2" | sed 's/^/    | /'
   fi
   printf '  Last 80 lines of %s:\n' "$1"
-  tail -n 80 "$2" | sed 's/^/    /'
+  tail -n 80 "$2" | sed 's/^/    | /'
 }
 
 failed=0
