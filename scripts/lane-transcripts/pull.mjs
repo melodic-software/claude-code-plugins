@@ -1,0 +1,247 @@
+#!/usr/bin/env node
+// The lane transcript puller: copies each sealed lane-transcript artifact to
+// the sink, opened with the private key, and keeps the sink's retention.
+// README.md has the commands, the layout and the key setup.
+//
+// The private key comes only from LANE_TRANSCRIPT_PRIVATE_KEY, which vault-exec
+// sets; it is read once and removed from the environment before any child
+// process starts. Transcript text reaches only the sink's files: nothing here
+// prints it, and an error names a kind, never a value.
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
+
+import { OpenError, openRecord, parsePrivateKey } from "../../.github/actions/open-lane-output/open.mjs";
+import {
+  appendRow,
+  ensureDir,
+  laneOf,
+  parseArtifactName,
+  paths,
+  prune,
+  query,
+  readRows,
+  readState,
+  sinkBytes,
+  staleness,
+  transcriptMetrics,
+  transcriptPath,
+  writeState,
+} from "./store.mjs";
+
+export const REPO = "melodic-software/claude-code-plugins";
+export const PAYLOAD = "transcript.json.gz";
+export const ENTRY = `${PAYLOAD}.sealed`;
+const HOUR = 60 * 60 * 1000;
+const ARTIFACT_DAYS = 7;
+const OVERLAP = 6 * HOUR;
+const PER_PAGE = 100;
+const MAX_PAGES = 200;
+const MAX_SEALED = 64 * 1024 * 1024;
+const MAX_PLAIN = 256 * 1024 * 1024;
+
+const USAGE = `usage: pull.mjs <pull|status|query|prune> [--sink DIR] [--repo OWNER/REPO]
+  query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome SUBTYPE] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
+
+export class UsageError extends Error {}
+
+export function parseArgs(argv) {
+  const [command, ...rest] = argv;
+  if (!["pull", "status", "query", "prune"].includes(command)) throw new UsageError(USAGE);
+  const flags = {};
+  const names = new Set(["sink", "repo", "lane", "model", "outcome", "since", "until"]);
+  for (let i = 0; i < rest.length; i += 2) {
+    const name = /^--([a-z]+)$/.exec(rest[i])?.[1];
+    if (!names.has(name) || rest[i + 1] === undefined || name in flags) throw new UsageError(USAGE);
+    flags[name] = rest[i + 1];
+  }
+  return { command, flags };
+}
+
+// The one sink value: --sink, else LANE_TRANSCRIPT_SINK, else under XDG_DATA_HOME.
+export function sinkOf(flags, env) {
+  const sink = flags.sink ?? env.LANE_TRANSCRIPT_SINK ?? path.join(env.XDG_DATA_HOME || path.join(env.HOME ?? os.homedir(), ".local", "share"), "lane-transcripts");
+  if (!path.isAbsolute(sink)) throw new UsageError("the sink must be an absolute directory path");
+  return sink;
+}
+
+const json = (buffer) => JSON.parse(buffer.toString("utf8"));
+
+function defaultDeps(env) {
+  const run = (cmd) => (args) => execFileSync(cmd, args, { env, maxBuffer: MAX_SEALED * 2, stdio: ["ignore", "pipe", "pipe"] });
+  return { gh: run("gh"), unzip: run("unzip"), now: () => Date.now() };
+}
+
+// The sealed record inside one artifact zip: exactly one entry, the sealed file.
+function sealedRecord(deps, sink, zip) {
+  const dir = mkdtempSync(path.join(paths(sink).tmp, "zip-"));
+  try {
+    const file = path.join(dir, "artifact.zip");
+    writeFileSync(file, zip, { mode: 0o600 });
+    const entries = deps.unzip(["-Z1", file]).toString("utf8").split("\n").filter(Boolean);
+    if (entries.length !== 1 || entries[0] !== ENTRY) return null;
+    return deps.unzip(["-p", file, ENTRY]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+export function pull({ sink, repo, recipient, deps, log }) {
+  const now = deps.now();
+  ensureDir(sink);
+  ensureDir(paths(sink).transcripts);
+  ensureDir(paths(sink).tmp);
+  const state = readState(sink);
+  const last = Date.parse(state.last_success_at ?? "");
+  const cutoff = Math.max(now - ARTIFACT_DAYS * 24 * HOUR, Number.isNaN(last) ? 0 : last - OVERLAP);
+  const known = new Set(readRows(sink).map((row) => row.artifact_id));
+  const runs = new Map();
+  const tally = { pulled: 0, known: 0, fork: 0, expired: 0, unnamed: 0, too_large: 0, bad_zip: 0, sealed_mismatch: 0 };
+  writeState(sink, { ...state, last_attempt_at: new Date(now).toISOString() });
+
+  let done = false;
+  for (let page = 1; page <= MAX_PAGES && !done; page++) {
+    const { artifacts = [] } = json(deps.gh(["api", `repos/${repo}/actions/artifacts?per_page=${PER_PAGE}&page=${page}`]));
+    if (artifacts.length < PER_PAGE) done = true;
+    for (const artifact of artifacts) {
+      if (Date.parse(artifact.created_at) < cutoff) {
+        done = true;
+        break;
+      }
+      if (!String(artifact.name).startsWith("lane-transcript-")) continue;
+      const named = parseArtifactName(artifact.name);
+      const wf = artifact.workflow_run ?? {};
+      if (!named) tally.unnamed++;
+      else if (known.has(artifact.id)) tally.known++;
+      else if (artifact.expired) tally.expired++;
+      // The public key is public: a fork's run could seal a record of its own.
+      else if (!wf.id || wf.head_repository_id !== wf.repository_id) tally.fork++;
+      else if (artifact.size_in_bytes > MAX_SEALED) tally.too_large++;
+      else {
+        const outcome = store({ sink, repo, recipient, deps, artifact, named, runs, now });
+        tally[outcome]++;
+        if (outcome === "pulled") known.add(artifact.id);
+      }
+    }
+  }
+  const pruned = prune(sink, now);
+  writeState(sink, { ...readState(sink), last_success_at: new Date(now).toISOString(), last_error: null, last_tally: tally });
+  log(`pulled ${tally.pulled} transcript(s); skipped ${JSON.stringify(tally)}; pruned ${JSON.stringify(pruned)}`);
+  return tally;
+}
+
+function store({ sink, repo, recipient, deps, artifact, named, runs, now }) {
+  const runId = String(artifact.workflow_run.id);
+  const record = sealedRecord(deps, sink, deps.gh(["api", `repos/${repo}/actions/artifacts/${artifact.id}/zip`]));
+  if (!record) return "bad_zip";
+  let gz;
+  try {
+    gz = openRecord(recipient, [recipient.keyId], PAYLOAD, record, runId, named.jobId);
+  } catch (error) {
+    if (error instanceof OpenError) return "sealed_mismatch";
+    throw error;
+  }
+  let messages = null;
+  try {
+    messages = JSON.parse(gunzipSync(gz, { maxOutputLength: MAX_PLAIN }).toString("utf8"));
+  } catch {
+    messages = null;
+  }
+  if (!runs.has(runId)) runs.set(runId, json(deps.gh(["api", `repos/${repo}/actions/runs/${runId}`])));
+  const run = runs.get(runId);
+  const row = {
+    artifact_id: artifact.id,
+    run_id: Number(runId),
+    run_attempt: named.attempt,
+    job_id: named.jobId,
+    lane: laneOf(run.path),
+    workflow: typeof run.name === "string" ? run.name : null,
+    event: typeof run.event === "string" ? run.event : null,
+    head_branch: typeof run.head_branch === "string" ? run.head_branch : null,
+    run_conclusion: run.conclusion ?? run.status ?? null,
+    created_at: artifact.created_at,
+    date: artifact.created_at.slice(0, 10),
+    ...transcriptMetrics(messages),
+    transcript_bytes: gz.length,
+    pulled_at: new Date(now).toISOString(),
+  };
+  row.transcript = transcriptPath(row);
+  const file = path.join(sink, row.transcript);
+  ensureDir(path.dirname(file));
+  writeFileSync(file, gz, { mode: 0o600 });
+  appendRow(sink, row);
+  return "pulled";
+}
+
+export function status(sink, now = Date.now()) {
+  const rows = readRows(sink);
+  return { sink, ...staleness(readState(sink), now), rows: rows.length, transcripts: rows.filter((r) => r.transcript).length, bytes: sinkBytes(sink) };
+}
+
+const alert = (s) => `ALERT: no lane transcript pull has succeeded in the last 5 days (last: ${s.last_success_at ?? "never"})`;
+
+// Exit codes: 0 done, 1 failed or stale, 2 usage.
+export function main(argv = process.argv.slice(2), env = process.env, deps = undefined, io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) }) {
+  let parsed;
+  let sink;
+  try {
+    parsed = parseArgs(argv);
+    sink = sinkOf(parsed.flags, env);
+  } catch (error) {
+    io.err(`${error.message}\n`);
+    return 2;
+  }
+  const { command, flags } = parsed;
+  // Read the key, then drop it, before anything can start a child process.
+  const keyText = env.LANE_TRANSCRIPT_PRIVATE_KEY;
+  delete env.LANE_TRANSCRIPT_PRIVATE_KEY;
+  const d = deps ?? defaultDeps(env);
+  if (command === "status") {
+    const s = status(sink, d.now());
+    io.out(`${JSON.stringify(s)}\n`);
+    if (s.stale) io.err(`${alert(s)}\n`);
+    return s.stale ? 1 : 0;
+  }
+  if (command === "query") {
+    try {
+      for (const row of query(readRows(sink), flags)) io.out(`${JSON.stringify({ ...row, transcript: row.transcript && path.join(sink, row.transcript) })}\n`);
+      return 0;
+    } catch (error) {
+      io.err(`${error.message}\n`);
+      return 2;
+    }
+  }
+  if (command === "prune") {
+    io.out(`${JSON.stringify(prune(sink, d.now()))}\n`);
+    return 0;
+  }
+  let recipient;
+  try {
+    recipient = parsePrivateKey(keyText);
+  } catch (error) {
+    io.err(`${error instanceof OpenError ? error.message : "no-key"}; set LANE_TRANSCRIPT_PRIVATE_KEY through vault-exec\n`);
+    return 1;
+  }
+  try {
+    pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
+    return 0;
+  } catch (error) {
+    // A kind, never a value: a failed gh call names its exit status only.
+    const kind = error?.status !== undefined ? `a gh or unzip call exited ${error.status}` : error?.name ?? "error";
+    try {
+      writeState(sink, { ...readState(sink), last_error: kind });
+    } catch {
+      // The sink itself may be the failure.
+    }
+    io.err(`pull failed: ${kind}\n`);
+    const s = status(sink, d.now());
+    if (s.stale) io.err(`${alert(s)}\n`);
+    return 1;
+  }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = main();

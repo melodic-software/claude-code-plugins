@@ -22,23 +22,16 @@ transcript is kept and an upload failure never changes the lane's outcome.
 record for the payload name `transcript.json.gz`, bound to `GITHUB_RUN_ID` and `job-id`; its
 plaintext is the execution file, gzipped.
 
-To open it, the puller takes the run id from the artifact's workflow run, the job id from the
-artifact name (everything between `lane-transcript-` and the last `-`), and calls `openRecord` from
-[`open-lane-output/open.mjs`](../open-lane-output/open.mjs) with the private key, the key id, the
-payload name, the record, the run id and the job id, then gunzips the result. A record moved to
+The [transcript puller](../../../scripts/lane-transcripts/README.md) opens it: it takes the run id
+from the artifact's workflow run and the job id from the artifact name (everything between
+`lane-transcript-` and the last `-`), opens the record with `openRecord` from
+[`open-lane-output/open.mjs`](../open-lane-output/open.mjs), and keeps the gzip. A record moved to
 another run or job name does not open.
 
 ## Key setup
 
 The private key lives only in Key Vault, read by the puller through `vault-exec`; CI never holds it.
-Generate the pair offline with [`keygen.mjs`](../open-lane-output/keygen.mjs), which prints the
-public line to stdout and writes the private key to the descriptor `--private-key-fd` names. From
-the repository root, in bash or zsh:
-
-```bash
-{ node .github/actions/open-lane-output/keygen.mjs --private-key-fd 3 | gh variable set LANE_TRANSCRIPT_PUBLIC_KEY >/dev/null; } 3>&1 | <command that stores stdin as the Key Vault secret>
-```
-
 Use a key pair of its own, never the scan-carrier key: that one's private half is a CI environment
-secret. To rotate, run the same line; artifacts sealed under the old key open only with the old
-private key until they expire.
+secret. The puller's [key setup](../../../scripts/lane-transcripts/README.md#key-setup) has the
+line that generates the pair with [`keygen.mjs`](../open-lane-output/keygen.mjs), sets this
+variable and stores the private key.
