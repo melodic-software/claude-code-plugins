@@ -1355,6 +1355,28 @@ assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem r
 cap_run "$(tool_payload Bash "bash <<'EOF'${NL}$(rep '$(: rm) ' 300)rm -rf /${NL}EOF")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: bash <<'EOF' with 300 substitutions then a root delete is refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count" "$ERR" "$CAP_MSG"
+# bash runs each substitution in an unquoted heredoc body, so every guard on
+# the row judges it as it judges the same text at top level; a quoted body is
+# data (docs/contracts/hook-precision/README.md).
+hd_row() { # <label> <expected rc> <command>
+  cap_run "$(tool_payload Bash "$3")" "${BASH_ROW_ARGS[@]}"
+  assert_exit "heredoc row: $1" "$2" "$RC"
+}
+hd_row "an unquoted body's \$(rm -rf /) is refused" 2 "cat <<EOF${NL}\$(rm -rf /)${NL}EOF"
+assert_contains "heredoc row: the root-delete guard refused it" "$ERR" "filesystem root"
+hd_row "a <<-EOF body's \$(rm -rf /) is refused" 2 "cat <<-EOF${NL}${TAB}\$(rm -rf /)${NL}${TAB}EOF"
+hd_row "a \$[...] that runs a root delete in an unquoted body is refused" 2 "cat <<EOF${NL}\$[\$(rm -rf /)]${NL}EOF"
+assert_contains "heredoc row: the root-delete guard refused the \$[...] one" "$ERR" "filesystem root"
+hd_row "a body holding \$(date) is allowed" 0 "cat <<EOF${NL}today: \$(date)${NL}EOF"
+hd_row "a body holding \$HOME is allowed" 0 "cat <<EOF${NL}home: \$HOME${NL}EOF"
+hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm -rf /)${NL}EOF"
+# shellcheck disable=SC2016  # literal shell text under test
+for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]'; do
+  cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"
+  hd_top=$RC
+  cap_run "$(tool_payload Bash "cat <<EOF${NL}$hd_expr${NL}EOF")" "${BASH_ROW_ARGS[@]}"
+  assert_eq "heredoc row: $hd_expr in an unquoted body gets its top-level verdict" "$hd_top" "$RC"
+done
 # --- over-length: the first block ends the chain (#4528) ----------------------
 # Past --max-command-len the guards after a block would only add reasons to a
 # decided verdict, and a row that outlives its hooks.json timeout is cancelled
