@@ -657,6 +657,16 @@ run "\\;; before a nested case is a word and a ; (blocked)" \
   "echo \$(case x in x) \\;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard" 2
 run "cat <<A; echo \`:⏎git reset --hard\`⏎A (here-doc body comes after the backtick line, blocked)" \
   $'cat <<A; echo `:\ngit reset --hard`\nA' 2
+# A pattern word that starts with a substitution is the first pattern word.
+run "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard (pattern starting with \$(…), blocked)" \
+  "echo \$(case x in \$(:)|esac) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in \`:\`|esac) :;; esac)#; git reset --hard (pattern starting with a backtick, blocked)" \
+  "echo \$(case x in \`:\`|esac) :;; esac)#; git reset --hard" 2
+# The parentheses of a [[ =~ ]] regex are regex text, not an array assignment.
+run "cat <<E; [[ \$s =~ k=(a|b) ]]⏎it's⏎E⏎git reset --hard (regex group with |, blocked)" \
+  $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' 2
+run "cat <<E; [[ \$s =~ k=(a>b) ]]⏎it's⏎E⏎git reset --hard (regex group with >, blocked)" \
+  $'cat <<E; [[ $s =~ k=(a>b) ]]\nit\'s\nE\ngit reset --hard' 2
 # Every quoted or delimited reader ends at the closing backtick.
 run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
   "echo \`\$'\`; git reset --hard #'\`" 2

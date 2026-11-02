@@ -14,7 +14,11 @@ bump: patch
   comment or quote it opens or closes a nested substitution whose commands are read.
 - Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
   `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
-  `;`, not a clause end. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, not as arithmetic. The parentheses of a `[[ … =~ … ]]` regex are regex
+  text, not an array assignment.
 - A here-doc takes its body only at a newline on the level where it was read, so one read
   before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
   where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
