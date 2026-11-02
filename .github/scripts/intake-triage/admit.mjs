@@ -498,13 +498,14 @@ const UNRUNNABLE = [
   // resolve-issue cannot write the tracker, and its pull request is the deliverable.
   // The comment must carry a payload the lane collects, and an output a named
   // script owns (work-unblock's result) is that script's behavior. A comment
-  // above, in or beside code is a file change. A conditional item, and a result
-  // an automation posts itself (a workflow's findings, posted by a lane), stay
-  // with the lane; a script's output is still a run the session records.
+  // above, in or beside code is a file change. Without "on this issue", a
+  // conditional item and a result an automation posts itself (a workflow's
+  // findings, posted by a lane) stay with the lane; a script's output is still a
+  // run the session records, and "broken down by lane" names a dimension.
   [
     "a comment instead of a file change",
     {
-      anchored: /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|^no file is changed\.?\s*$/i,
+      anchored: /^(?:a|one) comment on this issue (?:with|starting|records?|lists?|holds?|gives?|reports?)\b|(?<!\S[-.]\S*['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated) (?:in|as) (?:a|one) comment on this issue\b|^no file is changed\.?\s*$/i,
       posted: new RegExp(
         String.raw`(?:(?<!\S[-.]\S*['’]s )(?<!\b(?:workflow|lane|app|hook|action|job|bot|sweep)['’]s )\b(?:output|results?|findings?|answers?)\b[^,;:.]{0,20}\b(?:recorded|reported|posted|written|stated)|\b(?:is|are) (?:attributed|quantified|broken down)\b[^,;:.]{0,40}) (?:in|as) (?:a|one) (?:\x60[a-z][^\x60]*\x60 )?comment\b(?! (?:above|below|beside|next to|in|inside|within|at|before|after|for|of)\b)(?! on (?!this issue\b))`,
         "i",
@@ -512,7 +513,7 @@ const UNRUNNABLE = [
       test(text) {
         if (this.anchored.test(text)) return true;
         const match = this.posted.exec(text);
-        return Boolean(match) && !CONDITIONAL.test(text) && !BY_SCRIPT.test(text.slice(match.index));
+        return Boolean(match) && !CONDITIONAL.test(text) && !BY_SCRIPT.test(text.slice(match.index + match[0].length));
       },
     },
   ],

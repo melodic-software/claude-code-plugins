@@ -2241,6 +2241,10 @@ describe("unrunnableCriteria", () => {
     ["an imperative to open an issue", "Open an issue for each failing plugin.", /tracker write/],
     ["an imperative to file issues", "File issues for the remaining findings.", /tracker write/],
     ["an imperative to open sub-issues", "Open sub-issues for slices 2 and 3.", /tracker write/],
+    ["a conditional result recorded in a comment on this issue", "When the eval finishes, its output is recorded in a comment on this issue.", /comment instead/],
+    ["a bot's results posted as a comment on this issue", "The bot's results are posted as a comment on this issue.", /comment instead/],
+    ["a breakdown by lane in a comment", "Token spend is broken down by lane in a comment.", /comment instead/],
+    ["an attribution by hook in a comment", "The startup gap is attributed by hook in a comment.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
