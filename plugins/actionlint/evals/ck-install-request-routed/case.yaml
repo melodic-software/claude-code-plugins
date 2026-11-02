@@ -4,7 +4,7 @@ graders:
   - name: 'probes-actionlint'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(])(?:[^\s"\\;&|=]*/)?actionlint\s+-{1,2}version\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(''])(?:[^\s"\\;&|='']*/)?actionlint(?:\.exe)?(?:\\"|'')?\s+-{1,2}version\b)'
     min: 1
     arm: 'both'
   - name: 'no-install'

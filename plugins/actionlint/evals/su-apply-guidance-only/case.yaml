@@ -18,7 +18,7 @@ graders:
   - name: 'no-linter-run'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?actionlint(?:\.exe)?(?![\w.\-/])(?:\\\"|'')?(?!\s+-{1,2}version\b)|(?:(?:bash|dash|zsh|sh)\s+(?:-\w+\s+)*)?(?:\\\"|'')?[^\s\"\\;&|='']*(?:git-)?hooks/actionlint-check\.sh)'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?actionlint(?:\.exe)?(?![\w.\-/])(?!(?:\\\"|'')?\s+-{1,2}version\b)(?:\\\"|'')?|(?:(?:bash|dash|zsh|sh)\s+(?:-\w+\s+)*)?(?:\\\"|'')?[^\s\"\\;&|='']*(?:git-)?hooks/actionlint-check\.sh)'
     min: 0
     max: 0
     arm: 'both'

@@ -139,6 +139,30 @@
         }
       ],
       "why": "sudo which"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path version probe counts as a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "single-quoted version probe counts as a probe"
     }
   ],
   "fail": [
@@ -241,6 +265,30 @@
         }
       ],
       "why": "a linter run is not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted lint run is not a probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' -color",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted run with another flag is not a probe"
     }
   ]
 }

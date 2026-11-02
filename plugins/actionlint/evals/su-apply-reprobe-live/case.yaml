@@ -4,7 +4,7 @@ graders:
   - name: 'probes-actionlint'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(])(?:[^\s"\\;&|=]*/)?actionlint\s+-{1,2}version\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:command\s+-[vV]|which|type(?:\s+-\w+)*|whereis|hash|Get-Command)\s+(?:[\w.-]+\s+)*?actionlint(?![\w.\-/])|(?:(?<=")|[\s;&|(''])(?:[^\s"\\;&|='']*/)?actionlint(?:\.exe)?(?:\\"|'')?\s+-{1,2}version\b)'
     min: 1
     arm: 'both'
   - name: 'no-install'
@@ -28,6 +28,6 @@ graders:
     arm: 'both'
   - name: 'reports-probe-result'
     type: 'regex'
-    pattern: '^(?=[^\n]*actionlint(?![\w.\-/:]))[^\n]*?(?:\b(?:PASS|FAIL|found|present|absent|missing|resolves?|resolved to|installed at|not on (?:the )?PATH|on (?:the )?PATH)\b|✅|❌)'
+    pattern: '^(?=[^\n]*actionlint(?![\w.\-/:]))[^\n]*?(?:(?:^|[ \t`"''(=:])(?:~|[A-Za-z]:)?[\\/](?![\\/])[^\s`"''|)]*[\\/]actionlint(?:\.exe)?(?![\w:\-/]|\.\w)|\b\d+\.\d+\.\d+\b|\b(?:still|currently)[ \t]+(?:not[ \t]+(?:on|in)[ \t]+(?:the[ \t]+|your[ \t]+)?`?PATH|missing|absent|not[ \t]+(?:installed|found)))'
     flags: 'm'
     target: 'last_message'

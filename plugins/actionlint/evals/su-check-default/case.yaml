@@ -24,7 +24,7 @@ graders:
   - name: 'no-linter-run'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?actionlint(?:\.exe)?(?![\w.\-/])(?:\\\"|'')?(?!\s+-{1,2}version\b)|(?:(?:bash|dash|zsh|sh)\s+(?:-\w+\s+)*)?(?:\\\"|'')?[^\s\"\\;&|='']*(?:git-)?hooks/actionlint-check\.sh)'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|&(`]|\{(?=\s)|\$\(|\\n|\s-exec(?:dir)?(?=\s)))?(?:\s|\\\\\\n)*(?:(?:\w+=\S*|(?:sudo|doas|env|exec|eval|time|nice|nohup|xargs|then|do|else|!)(?:\s+-[^\s\"\\]+)*|command(?:\s+-p)?|(?:python[\d.]*|py)(?:\.exe)?(?:\s+-\w+)*?\s+-m|timeout(?:\s+-\S+)*\s+\S+)(?:\s|\\\\\\n)+|(?:(?:bash|dash|zsh|sh)(?:\s+-[^\s\"\\]+)*?\s+-\w*c\w*|(?:powershell|pwsh)(?:\.exe)?(?:\s+-\w+)*?\s+-(?:Command|c)|cmd(?:\.exe)?\s+/[cC])\s+(?:\\\"|'')?(?:\s|\\\\\\n)*)*(?:(?:\\\"|'')?(?:[^\s\"\\;&|='']*/)?actionlint(?:\.exe)?(?![\w.\-/])(?!(?:\\\"|'')?\s+-{1,2}version\b)(?:\\\"|'')?|(?:(?:bash|dash|zsh|sh)\s+(?:-\w+\s+)*)?(?:\\\"|'')?[^\s\"\\;&|='']*(?:git-)?hooks/actionlint-check\.sh)'
     min: 0
     max: 0
     arm: 'both'
@@ -47,6 +47,6 @@ graders:
     target: 'last_message'
   - name: 'toggle-reported'
     type: 'regex'
-    pattern: '^(?=[^\n]*actionlint_enabled)[^\n]*?actionlint_enabled\b[^\n]*?\b(?:true|false|default|enabled|disabled|on|off|unset)\b'
+    pattern: '^[^\n]*?actionlint_enabled\b[`*]*[ \t]*(?:[:=(]|->|→|\bis\b|\|(?:[ \t]*\**(?:PASS|FAIL|INFO|WARN|✅|❌|⚠)\**[ \t]*\|)?)[ \t]*(?:currently[ \t]+|set[ \t]+to[ \t]+|[`*])*(?:true|True|false|False|on|On|off|Off|enabled|Enabled|disabled|Disabled|unset|Unset|not[ \t]+set|Not[ \t]+set|empty|default)\b'
     flags: 'm'
     target: 'last_message'

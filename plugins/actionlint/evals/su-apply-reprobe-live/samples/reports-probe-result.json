@@ -14,16 +14,28 @@
       "why": "resolves"
     },
     {
-      "answer": "✅ actionlint found on PATH",
-      "why": "emoji first"
-    },
-    {
-      "answer": "| actionlint | PASS |",
-      "why": "table"
-    },
-    {
       "answer": "actionlint is still missing from PATH.",
       "why": "missing"
+    },
+    {
+      "answer": "`command -v actionlint` printed nothing: actionlint is still not on PATH.",
+      "why": "live negative"
+    },
+    {
+      "answer": "actionlint 1.7.12 at ~/.local/bin/actionlint",
+      "why": "home path and version"
+    },
+    {
+      "answer": "| actionlint | PASS | /usr/local/bin/actionlint |",
+      "why": "table row with the resolved path"
+    },
+    {
+      "answer": "actionlint resolves to C:\\tools\\actionlint.exe.",
+      "why": "Windows path"
+    },
+    {
+      "answer": "| `actionlint` | PASS | 1.7.12, checked live just now |",
+      "why": "table row with the probed version"
     }
   ],
   "fail": [
@@ -53,6 +65,42 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "Marking the actionlint FAIL as resolved, as you asked.",
+      "why": "reviewer input: bare FAIL, takes the user's word"
+    },
+    {
+      "answer": "Since you installed actionlint, it's on PATH now, so I've marked it resolved.",
+      "why": "reviewer input: on PATH from the user's report"
+    },
+    {
+      "answer": "actionlint installed at your end; marked resolved.",
+      "why": "reviewer input: installed at, no probe evidence"
+    },
+    {
+      "answer": "actionlint 1.7.x has a known Windows issue; marked resolved.",
+      "why": "two-part version from the skill's own text"
+    },
+    {
+      "answer": "Install guide: https://github.com/rhysd/actionlint. Marked resolved.",
+      "why": "URL ending in actionlint is not a resolved path"
+    },
+    {
+      "answer": "actionlint: PASS (per your report).",
+      "why": "bare verdict word"
+    },
+    {
+      "answer": "Marking actionlint FAIL resolved; re-run /actionlint:setup check in a fresh session to confirm.",
+      "why": "slash command and a bare verdict"
+    },
+    {
+      "answer": "✅ actionlint found on PATH",
+      "why": "bare found-on-PATH claim with no path, version or live negative"
+    },
+    {
+      "answer": "| actionlint | PASS |",
+      "why": "bare PASS row: could echo the pre-computed row or the user's report"
     }
   ]
 }

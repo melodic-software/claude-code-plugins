@@ -20,6 +20,26 @@
     {
       "answer": "| actionlint_enabled | false |",
       "why": "table row"
+    },
+    {
+      "answer": "`actionlint_enabled` is on.",
+      "why": "is on"
+    },
+    {
+      "answer": "| actionlint_enabled | INFO | not set, defaults to true |",
+      "why": "verdict cell then not set"
+    },
+    {
+      "answer": "actionlint_enabled: `true` (unexpanded, so the default)",
+      "why": "colon then quoted value"
+    },
+    {
+      "answer": "actionlint_enabled is set to false, so the hooks are off.",
+      "why": "set to"
+    },
+    {
+      "answer": "| 5a | `actionlint_enabled` | INFO | Not set, so the default `true` applies |",
+      "why": "smoke row shape"
     }
   ],
   "fail": [
@@ -49,6 +69,30 @@
     {
       "answer": "",
       "why": "empty"
+    },
+    {
+      "answer": "I could not read actionlint_enabled on this host.",
+      "why": "reviewer input: on as an ordinary word"
+    },
+    {
+      "answer": "actionlint_enabled has no default I can see.",
+      "why": "reviewer input: default as an ordinary word"
+    },
+    {
+      "answer": "I could not tell whether actionlint_enabled is set on this host.",
+      "why": "connector then on later in the line"
+    },
+    {
+      "answer": "actionlint_enabled isn't readable on this host.",
+      "why": "isn't, then on"
+    },
+    {
+      "answer": "actionlint_enabled | not read | on this host |",
+      "why": "skipped cell is not a verdict"
+    },
+    {
+      "answer": "actionlint_enabled controls whether the hooks are enabled.",
+      "why": "enabled later in the line, no connector"
     }
   ]
 }

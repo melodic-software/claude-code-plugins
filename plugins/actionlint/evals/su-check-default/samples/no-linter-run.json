@@ -273,6 +273,66 @@
         }
       ],
       "why": "hash probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reviewer input: double-quoted path, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'/usr/local/bin/actionlint' -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "reviewer input: single-quoted path, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\" --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted bare name, --version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'C:/tools/actionlint.exe' --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted Windows path with .exe, version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v actionlint && \"/usr/local/bin/actionlint\" -version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "presence probe then quoted version probe"
     }
   ],
   "fail": [
@@ -646,6 +706,66 @@
         }
       ],
       "why": "brace group"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/usr/local/bin/actionlint\" -color .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path, real lint run with files"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'actionlint' -version && actionlint .github/workflows/ci.yml",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "real run chained after an exempt quoted probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\" -versionx",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag that only starts with version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"actionlint\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted bare run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "'/usr/local/bin/actionlint' -oneline",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted path, other flag"
     }
   ]
 }
