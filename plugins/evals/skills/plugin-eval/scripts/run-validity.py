@@ -1189,10 +1189,11 @@ def bash_paths(command):
         first = lead and not SHELL_SPLIT.match(text)
         pieces = [v for v in SHELL_SPLIT.split(text) if v]
         values += [(v, first and k == 0) for k, v in enumerate(pieces)]
-        # A redirect's file (>/x, or the word after a bare >) is no argument.
+        # A redirect's file (>/x, or the word after a bare >) is no argument,
+        # nor is a prefix assignment's value (PYTHONPATH=/x pytest).
         argument = not (target or REDIRECT.match(text))
         target = REDIRECT.fullmatch(text) is not None
-        if simple is not None:
+        if simple is not None and not (lead and ASSIGNMENT.match(text)):
             named[simple] = named.get(simple, False) or (
                 argument
                 and any(rooted(v) for k, v in enumerate(pieces) if k or not first)
