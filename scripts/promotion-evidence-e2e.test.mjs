@@ -196,7 +196,9 @@ describe("demoted", () => {
 
   // A re-earn counted from the demotion record's creation lifts the resolver's restart failure at
   // that same instant; one counted from before it does not.
-  const reearned = (since) => events(...CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since })));
+  // covers counts the restart failures at or before since: C3 auto-merge's own and its two prerequisites'.
+  const covers = (cell, since) => (since < "2026-10-11T07:00:00Z" ? 0 : cell === "C3-auto-merge" ? 3 : 1);
+  const reearned = (since) => events(...CELLS.map((cell) => ({ cell, event: "re-earned", at: "2026-10-20T00:00:00Z", since, covers: covers(cell, since) })));
   test("a re-earn per cell whose since is the --window-start re-promotes every cell", cli, () => {
     const result = resolveWith({ promotion_evidence_source: reearned("2026-10-11T07:00:00Z") }, { args: ["--window-start", "2026-10-11T07:00:00Z"] });
     assert.equal(result.failClosedReason, null);

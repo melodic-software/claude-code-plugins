@@ -89,7 +89,8 @@
 // - A cell's window runs from its first counted merge to its last.
 // - re-earned: {cell, event: "re-earned", at, since}, emitted when the cell's report() predicate
 //   passes over only the merges after `since`, the latest contrary event against the cell or a
-//   prerequisite (reEarned). It lets a demoted cell re-promote with no binding update.
+//   prerequisite (reEarned), and `covers`, the count of contrary events against them at or before
+//   `since`. It lets a demoted cell re-promote with no binding update.
 //
 // Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
@@ -885,9 +886,15 @@ function report(counted, events, reviewsMeasured) {
 // takes in each demotion record's creation, rounded up to a whole second as
 // babysit_merge_policy.py _window_start rounds the resolver's --window-start. `report()` runs over
 // only the merges after that instant, and the first merge at which the cell's predicate passes is
-// the re-earn's `at`. The same evidence gives the same event; changing what that prefix shows
-// takes a new contrary event, which moves the window instead. A re-earn is not contrary.
+// the re-earn's `at`. The same evidence gives the same event, but the prefix can change with no
+// contrary event (a pull body edited after its merge, a gate going from passed to unsettled), so
+// a later run may derive a different re-earn or none; publish() keeps the one already published.
+// `covers` counts the distinct contrary events against the cell or a prerequisite at or before
+// `since` (contraryKey); the checker recounts them, so a contrary event published later but dated
+// at or before `since` voids the re-earn. A re-earn is not contrary.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
+// One contrary event, whatever spelling its instant has: the checker's REEARN_COVERS_KEY.
+const contraryKey = (event) => JSON.stringify([event.cell, event.event, Date.parse(event.at)]);
 
 function reEarned(counted, contrary, reviewsMeasured) {
   const out = [];
@@ -900,7 +907,8 @@ function reEarned(counted, contrary, reviewsMeasured) {
     const later = contrary.filter((e) => Date.parse(e.at) > sinceMs);
     for (let k = 1; k <= after.length; k += 1) {
       if (!report(after.slice(0, k), later, reviewsMeasured)[cell].pass) continue;
-      out.push({ cell, event: "re-earned", at: isoSeconds(Date.parse(after[k - 1].mergedAt)), since: isoSeconds(sinceMs) });
+      const covers = new Set(contrary.filter((e) => against.includes(e.cell) && Date.parse(e.at) <= sinceMs).map(contraryKey)).size;
+      out.push({ cell, event: "re-earned", at: isoSeconds(Date.parse(after[k - 1].mergedAt)), since: isoSeconds(sinceMs), covers });
       break;
     }
   }

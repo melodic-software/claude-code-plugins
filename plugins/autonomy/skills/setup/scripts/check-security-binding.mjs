@@ -112,6 +112,8 @@ const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
 // Not contrary: the operator-side publisher's record that a cell met its predicate again.
 const REEARN_EVENT = "re-earned";
+// A re-earn's `covers` counts distinct contrary events by this key, as the publisher does.
+const REEARN_COVERS_KEY = (event, at) => JSON.stringify([event.cell, event.event, at]);
 // The isolation-probe template's substrate-class tokens. The kernel-separated
 // pair mirrors the isolation-ladder leaf's L3 substrate classes: a VM or
 // microVM, and a hosted ephemeral executor surface.
@@ -2500,8 +2502,8 @@ function resolveEffectivePromotion(binding, evidencePath) {
         CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
-    // the cell's ratified_at belongs to a previous epoch and was already
-    // consumed by the re-earn that produced this ratification. An event
+    // the cell's ratified_at belongs to a previous epoch, which that
+    // ratification closed. An event
     // whose `at` is not strict ISO (or missing) cannot be assigned to an
     // epoch and is treated as contrary (fail-closed) — dropping it silently
     // would let malformed telemetry mask a real demotion signal.
@@ -2526,6 +2528,16 @@ function resolveEffectivePromotion(binding, evidencePath) {
     // `since`, and `since` is at or after every in-epoch contrary event (own and prerequisite).
     // It must name this cell: a prerequisite's re-earn never revives a dependent. A contrary event
     // with no parsable instant can never be shown to precede `since`, so it blocks every re-earn.
+    // `covers` must equal the count of distinct contrary events against this cell or a
+    // prerequisite, any epoch, at or before `since`: a contrary event published after the re-earn
+    // but dated at or before its `since` changes the count and voids it.
+    const coveredBy = (since) =>
+      new Set(
+        contrary.flatMap((event) => {
+          const at = parseIsoStrict(event.at);
+          return !Number.isNaN(at) && at <= since ? [REEARN_COVERS_KEY(event, at)] : [];
+        }),
+      ).size;
     const reearn =
       inEpoch.length === 0
         ? undefined
@@ -2533,13 +2545,20 @@ function resolveEffectivePromotion(binding, evidencePath) {
             if (!isPlainObject(event) || event.cell !== cell || event.event !== REEARN_EVENT) return false;
             const since = parseIsoStrict(event.since);
             const at = parseIsoStrict(event.at);
-            return !Number.isNaN(since) && !Number.isNaN(at) && at >= since && inEpochTimes.every((t) => !Number.isNaN(t) && since >= t);
+            return (
+              !Number.isNaN(since) &&
+              !Number.isNaN(at) &&
+              at >= since &&
+              Number.isInteger(event.covers) &&
+              inEpochTimes.every((t) => !Number.isNaN(t) && since >= t) &&
+              event.covers === coveredBy(since)
+            );
           });
     if (bound === "promoted" && reearn) {
       resolved.set(cell, {
         bound,
         effective: "promoted",
-        line: `${cell}: bound promoted -> effective promoted (re-earned at ${reearn.at} over evidence since ${reearn.since}, at or after every in-epoch contrary event: ${inEpoch.join("; ")})`,
+        line: `${cell}: bound promoted -> effective promoted (re-earned at ${reearn.at} over evidence since ${reearn.since}, covering ${reearn.covers} contrary event(s), at or after every in-epoch contrary event: ${inEpoch.join("; ")})`,
       });
     } else if (bound === "promoted" && inEpoch.length > 0) {
       resolved.set(cell, {
@@ -2551,7 +2570,7 @@ function resolveEffectivePromotion(binding, evidencePath) {
     } else {
       let line = `${cell}: bound ${bound} -> effective ${bound}`;
       if (preEpoch.length > 0) {
-        line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at} and were consumed by the re-earn)`;
+        line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at}, whose ratification closed their epoch)`;
       }
       resolved.set(cell, { bound, effective: bound === "promoted" ? "promoted" : "unpromoted", line });
     }

@@ -144,7 +144,8 @@ Every promotable matrix cell carries a per-cell promotion trigger with one contr
 shape: an **evidence predicate over queryable telemetry**. Verification outcomes recorded
 per the [telemetry contract](../telemetry.md) are the evidence base.
 
-- **Promotion is a human-ratified knob flip, never automatic.** A satisfied predicate makes
+- **The first promotion is a human-ratified knob flip; promotion after a demotion is
+  automatic.** A satisfied predicate makes
   the cell ELIGIBLE; a human ratifies the flip, and the flip is recorded as a reviewable
   change on the governance surface. That bound state stays the ceiling: evidence after a
   demotion can restore it, never raise it.
@@ -153,7 +154,7 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   evidence, with no person ratifying it again and no change to the binding: once its existing
   predicate passes again over only the evidence after the latest contrary event against it or a
   prerequisite, the publisher the operator runs records a `re-earned` event, and the evaluator
-  honors it while no contrary event follows. A dependent cell needs its own `re-earned` event;
+  honors it while no in-epoch contrary event comes after its `since`. A dependent cell needs its own `re-earned` event;
   its prerequisite's does not revive it.
   Only a demotion record's label and routing depend on whether its evidence can clear without a
   person: a record that clears once main is green at a later commit carries no human-gated

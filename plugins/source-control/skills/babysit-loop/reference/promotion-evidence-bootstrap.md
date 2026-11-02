@@ -128,14 +128,19 @@ entry as unproven. Outside the target repository's blast radius, for the same re
 
 The events file: a JSON array of `{cell, event, at}` records, `event` one of `gate-failure`,
 `reverted-merge`, `verification-divergence`, and `at` an ISO 8601 instant, plus
-`{cell, event: "re-earned", at, since}` records. The checker scopes the contrary events to each
+`{cell, event: "re-earned", at, since, covers}` records. The checker scopes the contrary events to each
 cell's promotion epoch and propagates prerequisite demotions (its evaluation-mode header comment
 owns the rules).
 
 A demotion lifts without a person: the publisher emits a `re-earned` event when the cell's
 existing predicate passes over only the merges after `since`, the latest contrary event against
-the cell or a prerequisite (a demotion record's creation among them). The checker then treats the
-cell as promoted again while every contrary event in its epoch is at or before `since`. Nothing
+the cell or a prerequisite (a demotion record's creation among them). `covers` is the number of
+distinct contrary events against the cell or a prerequisite at or before `since`. The checker
+treats the cell as promoted again while every contrary event in its epoch is at or before `since`
+and its own count of those events equals `covers`, so a contrary event published later but dated
+before `since` voids the re-earn. The publisher's `--lane-login` set must include the merge gate's
+`merge.agent-identity` login: a demotion record the publisher never reads still restarts the
+gate's window, so the cell stays unpromoted. Nothing
 writes the binding or `ratified_at`; the lane still cannot write the file, so it cannot produce a
 re-earn.
 

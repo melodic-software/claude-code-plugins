@@ -230,6 +230,34 @@
       ],
       "credential_roots": "/home"
     },
+    "evidence-reearn-backdated-contrary.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-reearn-backdated-contrary.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (reverted-merge at 2026-07-10T12:00:00Z; gate-failure at 2026-07-05T00:00:00Z)"
+      ],
+      "credential_roots": "/home"
+    },
+    "evidence-reearn-covers-exact.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-reearn-covers-exact.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective promoted (re-earned at 2026-08-01T00:00:00Z over evidence since 2026-07-10T12:00:00Z, covering 2 contrary event(s)"
+      ],
+      "credential_roots": "/home"
+    },
+    "evidence-reearn-dependent-prerequisite-demoted.json": {
+      "binding": "promoted-c2c3.json",
+      "evidence": "evidence-reearn-dependent-prerequisite-demoted.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence",
+        "C3-auto-merge: bound promoted -> effective unpromoted — prerequisite cell(s) not effective-promoted (C2-auto-merge: demoted by contrary evidence"
+      ],
+      "credential_roots": "/home"
+    },
     "evidence-reearn-dependent-own.json": {
       "binding": "promoted-c2c3.json",
       "evidence": "evidence-reearn-dependent-own.json",

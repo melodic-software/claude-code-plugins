@@ -858,7 +858,7 @@ const reearnRun = (pulls) => run({ pulls, workflowRuns: verifiedEach(pulls), dem
 test("a cell whose predicate passes again over the merges after its demotion gets one re-earn, at the merge that met it", () => {
   const pulls = c2Merges(20, 1);
   const result = reearnRun(pulls);
-  assert.deepEqual(result.events, [...gateEvents(DEMOTED, ...ALL), { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED }]);
+  assert.deepEqual(result.events, [...gateEvents(DEMOTED, ...ALL), { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED, covers: 1 }]);
   // The C3 cells' predicates do not pass, and the re-earn is not counted as a C2 demotion event.
   assert.equal(termOf(result, "C3-auto-merge", "C2 demotion events").value, 1);
   assert.deepEqual(reearnRun(pulls).events, result.events);
@@ -879,10 +879,21 @@ test("a contrary event after the merge that met the predicate moves the window, 
 
 test("a published re-earn the next run no longer derives is kept; a dropped contrary event still refuses", () => {
   const out = mkdtempSync(join(base, "out-"));
-  const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED };
+  const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED, covers: 1 };
   const later = { cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-25T00:00:00Z" };
   publish(out, [A, reearn], THROUGH);
   publish(out, [A, later], THROUGH);
   assert.deepEqual(JSON.parse(readFileSync(join(out, "evidence.json"), "utf8")), [A, reearn, later]);
   assert.throws(() => publish(out, [reearn, later], THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
+});
+
+test("a contrary event published after a re-earn but dated before its since leaves the carried re-earn's covers short", () => {
+  const out = mkdtempSync(join(base, "out-"));
+  const demoted = { cell: "C2-auto-merge", event: "gate-failure", at: DEMOTED };
+  const reearn = { cell: "C2-auto-merge", event: "re-earned", at: "2026-09-20T00:00:00Z", since: DEMOTED, covers: 1 };
+  const backdated = { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-08-05T00:00:00Z" };
+  publish(out, [demoted, reearn], THROUGH);
+  publish(out, [backdated, demoted], THROUGH);
+  // Two contrary events at or before since now, against the re-earn's covers of 1: the checker voids it.
+  assert.deepEqual(JSON.parse(readFileSync(join(out, "evidence.json"), "utf8")), [backdated, demoted, reearn]);
 });
