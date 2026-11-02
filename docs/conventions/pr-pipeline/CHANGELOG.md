@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.35.2] - 2026-11-02
+
+### Changed
+
+- The effective-rung rule now says that with no `.claude/source-control.md` at the base SHA,
+  `babysit_loop_merge` in `docs/conventions/source-control.yaml` sets the rung by itself. While both
+  files exist, the lower value still binds.
+- The hold floor names `docs/conventions/source-control.yaml` as a `gate` path, which holds a
+  change to it for a person.
+
+- The `skill-reply-*` artifact is kept 3 days instead of 7 in both run-activity files, which still covers a weekend of reading denials by hand.
+
 ## [8.35.1] - 2026-11-02
 
 ### Changed
