@@ -78,7 +78,7 @@ const RATE_LIMITED_STDERR =
 // The cover step's body, run under bash against a stub gh that applies the
 // step's --jq filter to a canned listing of pr-require-checks.yml dispatches
 // on main, newest first, as the runs API lists them. `runs` entries are
-// {minutesAgo, sha, actor, conclusion}. The cap (owner decision, efficiency
+// {minutesAgo, sha, actor, event, conclusion}. The cap (owner decision, efficiency
 // plan item 5) is one full run of main per 30 minutes.
 const coverBody = (id) => {
   const block = job(id).split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
@@ -93,6 +93,7 @@ function runCover(runs, { jobId = "dispatch-full-run", fails = false, limited = 
       id: 100 - i,
       head_sha: r.sha ?? HEAD,
       head_branch: "main",
+      event: r.event ?? "workflow_dispatch",
       created_at: new Date(now - r.minutesAgo * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z"),
       actor: { login: r.actor ?? "github-actions[bot]" },
       status: r.conclusion ? "completed" : "in_progress",
@@ -157,7 +158,7 @@ test("both jobs read main's cover with the same cap logic, a 30-minute cap and t
     assert.match(block, /\n {10}TIP: \$\{\{ github\.sha \}\}\n/);
     assert.match(block, /^ {8}id: cover\n/);
   }
-  assert.match(a.body, /actions\/workflows\/pr-require-checks\.yml\/runs\?event=workflow_dispatch&branch=main/);
+  assert.match(a.body, /actions\/workflows\/pr-require-checks\.yml\/runs\?branch=main&per_page=20/);
 });
 
 test("a full run of main started within 30 minutes caps the next dispatch", () => {
@@ -180,16 +181,42 @@ test("a full run of main older than 30 minutes caps nothing, and a run at the ti
 });
 
 // A cancelled run is no cover: replaced before it started, or cancelled once
-// running, which reads red. Only github-actions[bot]'s dispatches count: the
-// post-merge check credits no one else's for a lane merge.
-test("a cancelled run or another actor's dispatch neither caps nor covers", () => {
+// running, which reads red. Nor is a pull request run from a fork's main
+// branch, which the branch filter lists too.
+test("a cancelled run or a fork's pull request run neither caps nor covers", () => {
   const r = runCover([
     { minutesAgo: 5, conclusion: "cancelled" },
-    { minutesAgo: 8, actor: "maintainer" },
+    { minutesAgo: 8, actor: "someone", event: "pull_request" },
     { minutesAgo: 40, sha: OLDER, conclusion: "success" },
   ]);
   assert.equal(r.capped, false, r.out);
   assert.equal(r.uncovered, true);
+});
+
+// The schedule's full runs and a person's dispatch are full runs of main too:
+// they cap and cover. Only github-actions[bot]'s dispatches are `lane`, the
+// cover post-merge-dispatch's bypass reads, as the post-merge check credits
+// no other run for a lane merge.
+test("a scheduled or hand-started full run caps and covers, and only a lane dispatch is lane", () => {
+  for (const run of [{ actor: "maintainer" }, { event: "schedule", actor: "maintainer" }]) {
+    const r = runCover([{ minutesAgo: 8, ...run }]);
+    assert.equal(r.capped, true, r.out);
+    assert.equal(r.uncovered, false);
+  }
+  const dir = tempDir("pr-merge-cover-lane-");
+  mkdirSync(join(dir, "bin"));
+  const listing = {
+    workflow_runs: [
+      { head_sha: HEAD, head_branch: "main", event: "workflow_dispatch", created_at: "2026-10-29T01:00:00Z", actor: { login: "github-actions[bot]" }, conclusion: null },
+      { head_sha: HEAD, head_branch: "main", event: "workflow_dispatch", created_at: "2026-10-29T00:50:00Z", actor: { login: "maintainer" }, conclusion: null },
+      { head_sha: HEAD, head_branch: "main", event: "schedule", created_at: "2026-10-29T00:40:00Z", actor: { login: "github-actions[bot]" }, conclusion: "success" },
+    ],
+  };
+  writeFileSync(join(dir, "listing.json"), JSON.stringify(listing));
+  const filter = /--jq '([^']+)'/.exec(coverBody("post-merge-dispatch").body)[1];
+  const out = execFileSync("jq", ["-c", filter, join(dir, "listing.json")], { encoding: "utf8" });
+  rmSync(dir, { recursive: true, force: true });
+  assert.deepEqual(JSON.parse(out).map((r) => r.lane), [true, false, false]);
 });
 
 test("a failed read sets neither output, so the run dispatches as with no cap", () => {
@@ -1523,7 +1550,7 @@ function runBypass({ merges, runs, bypass = true, mergedAt = "2026-10-29T01:00:0
     pending: m.pending ?? ["dispatch-run-pending", "canary-run-pending"],
   }));
   writeFileSync(join(dir, "post-merge.json"), JSON.stringify({ ok: true, autoMerges }));
-  writeFileSync(join(dir, "cover-runs.json"), JSON.stringify(runs.map((r) => ({ sha: shas[r.at], created: r.created }))));
+  writeFileSync(join(dir, "cover-runs.json"), JSON.stringify(runs.map((r) => ({ sha: shas[r.at], created: r.created, lane: r.lane ?? true }))));
   writeFileSync(join(dir, "output"), "");
   const block = job("post-merge-dispatch").split("\n      - name: Find lane merges no full run covers\n")[1].split("\n      - name: ")[0];
   writeFileSync(join(dir, "body.sh"), runBody(block));
@@ -1552,6 +1579,18 @@ test("a run created after the merge on a commit that contains it covers the batc
     assert.equal(r.status, 0, r.out);
     assert.equal(r.bypass, false, `a run at ${at}`);
   }
+});
+
+// A scheduled or hand-started run caps the window but verifies no lane merge
+// (the post-merge check credits only a lane dispatch), so the bypass still
+// starts one.
+test("a run that is not a lane dispatch, at the tip after the merge, covers no lane merge", () => {
+  const r = runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T01:05:00Z", lane: false }, STARTED] });
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.bypass, true);
+  // With no lane dispatch listed, nothing bounds the listing, and the merge
+  // is skipped as under an empty one.
+  assert.equal(runBypass({ merges: [{}], runs: [{ at: "BEFORE", created: "2026-10-29T00:40:00Z", lane: false }] }).bypass, false);
 });
 
 test("a run after the merge on a commit without it, or one before the merge at the tip, covers nothing", () => {

@@ -139,6 +139,7 @@ jobs:
       restored: ${{ steps.restored.outputs.restored }}
       stop-class: ${{ steps.stop.outputs.class }}
     env:
+      API_BUDGET_TOKEN: github-token
       npm_config_audit: "false"
       npm_config_fetch_timeout: "60000"
       npm_config_fund: "false"
@@ -389,6 +390,14 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   report:
     needs: [prep, audit]

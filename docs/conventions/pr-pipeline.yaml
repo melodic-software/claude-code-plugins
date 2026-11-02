@@ -1250,9 +1250,9 @@ merge:
   # `max-changed-files` or `max-changed-lines` (the earlier 8 and 400).
   # `c2-contradictions` is deprecated and has no effect; set, it adds a
   # `configNotes` entry to the gate report.
-  # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
-  # provenance work only; scoped lane PRs off the HIGH floor merge on the
-  # verifier verdict.
+  # The work-class lane hold covers untrusted-provenance work only
+  # (`trust_refusal` in babysit_merge_policy.py); every other lane PR off the
+  # HIGH floor merges on the verifier verdict.
   # `path-holds` also sets whether ci-status holds an exempt author's PR for
   # a trust-gate path or an App-authored one (`trust-path-hold-apps`), except
   # that ci-status holds a Dependabot PR for one either way (owner decision

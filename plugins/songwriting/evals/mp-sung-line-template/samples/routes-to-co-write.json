@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter: run. The melody is fixed, so this is a fit question, answered in notes, not a length question.\n\nPositional template for line 2, from the recording:\n\n```text\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\nscan: u  u     u    /      u      /      u    u    u    /      u    u\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\n```\n\nTwelve notes, three strong slots at 4, 6 and 10. A car line has to put a meaning carrier on each bracketed slot and keep road signs off them. Writing that line is `/songwriting:co-write` line-brainstorm's job; take this template there."
+    },
+    {
+      "answer": "I measure; I don't write the line. Run /songwriting:co-write line-brainstorm with this template."
+    },
+    {
+      "answer": "Take the template to Co-Write for the actual car line.",
+      "why": "capitalized skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here's a line that fits the notes: \"I keep the engine running every night for you.\"",
+      "why": "writes the line itself, no hand-off"
+    },
+    {
+      "answer": "If you want more options, we can write together on the next pass.",
+      "why": "an offer to write, not the co-write route"
+    }
+  ]
+}

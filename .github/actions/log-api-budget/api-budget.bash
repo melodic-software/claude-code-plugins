@@ -5,7 +5,7 @@
 # is one line in $RUNNER_TEMP/api-budget/<token>:
 #   <status> <limit> <remaining> <used> <reset epoch> <resource> <route>
 # (`na` for a missing value). api-budget.mjs appends the same lines;
-# babysit_gh.py appends them without the route. A request the gh wrapper
+# babysit_gh.py appends the same lines. A request the gh wrapper
 # counts with no header block to read (each page of --paginate, a call that is
 # not `gh api`) is a line `request <route>`, `request graphql` for a GraphQL
 # request. The route is the request's path templated by API_BUDGET_ROUTE
