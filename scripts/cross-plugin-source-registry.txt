@@ -122,6 +122,13 @@ lib/setup-apply.mjs -> plugins/*/lib/setup-apply.mjs
 # plugins' context/ to fix a drift failure.
 context/recommendation-basis.md
 
+# No dedicated check: the rendered-views shared chrome reference, carried by
+# every plugin whose HTML view adopts it, because only the plugin directory
+# installs (docs/contracts/rendered-views/README.md, "The shared chrome
+# reference"). Canonical copy: plugins/visualization/reference/html-chrome.html;
+# copy it into the other plugins' reference/ to fix a drift failure.
+reference/html-chrome.html
+
 # No dedicated check: the telemetry-sink test helper each carrying plugin
 # ships, because only the plugin directory installs. Canonical copy:
 # lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
