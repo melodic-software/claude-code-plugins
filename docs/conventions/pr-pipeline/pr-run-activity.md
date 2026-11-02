@@ -597,7 +597,7 @@ or under a separate design that judges their result in a job head code never tou
 
 The step summary (in a PR-mode read run, the scan job's) shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
-artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
+artifact `skill-reply-<lane>-<activity>-<run_attempt>` (3-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
 

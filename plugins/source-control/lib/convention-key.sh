@@ -3,9 +3,8 @@
 # Team-layer reader for the commit and PR convention keys of the source-control
 # plugin: subject_pattern, type_list, pr_title_pattern, trailer_policy,
 # pr_body_attribution, pr_body_required_sections and branch_issue_pattern. The
-# babysit-loop lane reads four loop keys through it too, when the checkout is
-# its target: babysit_loop_stop_mode, babysit_loop_tier, babysit_loop_merge and
-# babysit_loop_grace_window_minutes.
+# babysit-loop lane reads its babysit_loop_* keys through it too, when the
+# checkout is its target.
 #
 # The team value lives in docs/conventions/source-control.yaml (ADR 0064),
 # validated by schemas/source-control.schema.json. For one release a key the YAML
