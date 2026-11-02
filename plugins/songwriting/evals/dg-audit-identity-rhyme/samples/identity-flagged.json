@@ -106,6 +106,18 @@
     {
       "answer": "light / delight is a perfect rhyme, not an identity.",
       "why": "calls the identity a perfect rhyme"
+    },
+    {
+      "answer": "Identity check: run. Stress: pass. Cliche: fail, light / delight is a stock pair.",
+      "why": "names the check with no verdict; the fail is on the cliche box"
+    },
+    {
+      "answer": "Identity check: fail on home / alone, which share the stressed vowel. light / delight is a near rhyme.",
+      "why": "an identity verdict on a different word pair"
+    },
+    {
+      "answer": "light / delight is a near rhyme; it would be an identity only if both words were the same.",
+      "why": "calls the pair a near rhyme"
     }
   ]
 }

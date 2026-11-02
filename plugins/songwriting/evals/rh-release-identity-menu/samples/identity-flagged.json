@@ -90,6 +90,26 @@
     {
       "answer": "Identity check: pass, police isn't an identity of release.",
       "why": "denies the identity"
+    },
+    {
+      "answer": "Identity check: run on police and lease. Here are more options: peace, grease, east.",
+      "why": "names the check with no verdict"
+    },
+    {
+      "answer": "Police is a near rhyme for release, a little loose; lease is closer.",
+      "why": "calls them near rhymes"
+    },
+    {
+      "answer": "Police and lease both work as near rhymes; peace would be a perfect one.",
+      "why": "calls them near rhymes"
+    },
+    {
+      "answer": "Identity check: fail for peace / piece, which sound the same. Police and lease are your strongest rhymes.",
+      "why": "an identity verdict on a different word pair"
+    },
+    {
+      "answer": "Lease rhymes perfectly with release; the identity check only matters for exact repeats like release / release.",
+      "why": "denies the identity"
     }
   ]
 }

@@ -4,7 +4,7 @@ graders:
   - name: identity-flagged
     type: llm
     focus: last_message
-    criteria: "The writer offered 'police' or 'lease' as rhymes for 'release'. PASS if the reply says police, lease or both are identities rather than rhymes, in any wording: calling them identities, saying they fail the identity check, or explaining that the consonant before the stressed vowel is the same, so the ear hears a repeat, not a rhyme. A reply that says so and still names one as the lesser pick passes this grader. FAIL if the reply treats either as a real rhyme, passes them on the identity check, or never says they are identities. Judge only this; candidate count and any pick are graded elsewhere."
+    criteria: "The writer offered 'police' or 'lease' as rhymes for 'release'. PASS if the reply says police, lease or both are identities rather than rhymes, in any wording: calling them identities, saying they fail the identity check, or explaining that the consonant before the stressed vowel is the same, so the ear hears a repeat, not a rhyme. A reply that says so and still names one as the lesser pick passes this grader. FAIL if the reply treats either as a rhyme of any kind, near or loose included, passes them on the identity check, names the check with no verdict, gives an identity verdict only to another word pair, or never says they are identities. Judge only this; candidate count and any pick are graded elsewhere."
   - name: eight-plus-candidates
     type: llm
     focus: last_message

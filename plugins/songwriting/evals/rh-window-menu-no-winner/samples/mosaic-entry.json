@@ -74,6 +74,26 @@
     {
       "answer": "I avoided multiword phrases.",
       "why": "no mosaic entry"
+    },
+    {
+      "answer": "Family: limbo, Pinto. Assonance: pillow. Two-word rhymes would loosen it, but I'd keep it to one word here.",
+      "why": "two-word rhymes mentioned, every candidate one word"
+    },
+    {
+      "answer": "Mosaic rhymes are an option for window, but every candidate below is a single word: limbo, Pinto, pillow, minnow.",
+      "why": "mosaic mentioned, no multi-word candidate"
+    },
+    {
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | limbo |\n| Subtractive | kiddo |\n| Assonance | pillow |\n| Mosaic | none that sing well |",
+      "why": "a mosaic row with no candidate in it"
+    },
+    {
+      "answer": "I avoided mosaics on purpose so the line keeps its length: limbo, Pinto, bingo, pillow, willow.",
+      "why": "says it avoided mosaics"
+    },
+    {
+      "answer": "Multi-word (mosaic): skipped. Single words only: limbo, Pinto, minnow.",
+      "why": "the mosaic tier skipped"
     }
   ]
 }

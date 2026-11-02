@@ -71,6 +71,10 @@
     {
       "answer": "1. thin glow\n2. in the snow\n3. thin glow\n4. been so slow\n5. in the snow\n6. wander\n7. been so slow\n8. sin oh",
       "why": "eight lines but five distinct candidates"
+    },
+    {
+      "answer": "| Tier | Candidates |\n| --- | --- |\n| Family | limbo, Pinto |\n| Assonance | pillow, willow |\n| Mosaic | been so, in the snow, him go |",
+      "why": "seven candidates across three table rows"
     }
   ]
 }

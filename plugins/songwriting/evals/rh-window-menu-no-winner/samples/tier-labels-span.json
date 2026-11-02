@@ -76,6 +76,26 @@
     {
       "answer": "| Stability | Candidate |\n|---|---|\n| Perfect | **limbo** |\n| Vowel match | **pillow** |\n| Multi-word | **dim glow** |",
       "why": "no family or additive/subtractive tier"
+    },
+    {
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | limbo |\n| Family | Pinto |\n| Assonance | pillow |\n| Consonance | condo |\n| Mosaic | been so |",
+      "why": "family and assonance or consonance only; no additive or subtractive tier"
+    },
+    {
+      "answer": "Family: limbo, Pinto, bingo. Subtractive: minnow, kiddo. Mosaic: been so, in the snow.",
+      "why": "family and subtractive only; no assonance or consonance tier"
+    },
+    {
+      "answer": "Drops a sound: minnow, kiddo. Same vowel only: pillow, willow. Multi-word: him go.",
+      "why": "subtractive and assonance only; no family tier"
+    },
+    {
+      "answer": "Family: limbo, Pinto. Assonance: pillow. Additive and subtractive rhymes exist too, but none fit this verse.",
+      "why": "additive and subtractive named in passing with no candidate"
+    },
+    {
+      "answer": "Perfect: crescendo. Near-perfect: Lindo. Mosaic: been so slow, in the snow. I skipped the family, additive and assonance tiers.",
+      "why": "the three tier groups named only as skipped"
     }
   ]
 }
