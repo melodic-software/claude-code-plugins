@@ -242,7 +242,7 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
   }
   const workClass = envelope["signal.work_class"];
   if (workClass !== undefined && !WORK_CLASSES.has(workClass)) {
-    findings.push(`${where}: signal.work_class ${JSON.stringify(workClass)} is not C1-C5 (omit the key when unclassified)`);
+    findings.push(`${where}: signal.work_class ${JSON.stringify(workClass)} is not C1-C5 (omit the key when no class resolves)`);
   }
   const traceparent = envelope["signal.traceparent"];
   if (typeof traceparent === "string" && traceparent.length > 0 && !TRACEPARENT.test(traceparent)) {
@@ -320,13 +320,13 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
       // it has no admission.classification.temporal home, so a stamped class
       // can never be attested and fails closed, and a producer identity with
       // no routine claim pins nothing. An envelope WITHOUT a class stays
-      // legal — an unclassified enqueue is human-gated downstream.
+      // legal: admission evaluates it with the work-class axis "*".
       if (sourceSection === "routines") {
         findings.push(`${where}: signal.routine missing (required for temporal signals from a routines-section surface)`);
       } else {
         if (stampedClass) {
           findings.push(
-            `${where}: signal.work_class ${JSON.stringify(workClass)} is stamped on a detector-fired temporal signal (no routine identity claimed) — a detector emission has no admission.classification.temporal home, so the class cannot be attested and fails closed; omit the class (an unclassified enqueue is human-gated downstream)`,
+            `${where}: signal.work_class ${JSON.stringify(workClass)} is stamped on a detector-fired temporal signal (no routine identity claimed) — a detector emission has no admission.classification.temporal home, so the class cannot be attested and fails closed; omit the class (admission evaluates a classless enqueue with the work-class axis "*")`,
           );
         }
         if (producerIdentity !== undefined) {
@@ -356,8 +356,8 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routin
       // under, while the producer_identity — the workflow/unit reference the
       // platform injects into the authenticated run context — pins WHICH
       // schedule within that shared namespace produced the run. An envelope
-      // WITHOUT signal.work_class stays legal: an unclassified enqueue is
-      // human-gated downstream. The association check runs only once the
+      // WITHOUT signal.work_class stays legal: admission evaluates it with
+      // the work-class axis "*". The association check runs only once the
       // source surface RESOLVED — an unresolved surface already carries its
       // own finding above.
       if (routineIsIdentity) {
