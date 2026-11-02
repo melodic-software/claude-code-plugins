@@ -20,6 +20,42 @@
     {
       "answer": "**How I'd choose:** _if_ the song is tender, #3; if it is bitter, #5.",
       "why": "an inline conditional guide"
+    },
+    {
+      "answer": "How I'd choose: by feel. Quiet ache, #1 or #2; bitterness, #5.",
+      "why": "a bare guide keyed to feelings"
+    },
+    {
+      "answer": "Here's how I'd choose between them: sing each one against the chorus.",
+      "why": "guide prose, no pick"
+    },
+    {
+      "answer": "How I'd choose: quiet ache, #1 or #2; bitterness, #5.",
+      "why": "feeling-keyed guide"
+    },
+    {
+      "answer": "**How I'd choose:** *by feel*: quiet ache, #1 or #2; bitterness, #5.",
+      "why": "italic by-feel guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, #5; tenderness, #3.",
+      "why": "one-word moods keyed to option numbers"
+    },
+    {
+      "answer": "**How I'd choose:** tenderness, #3; bitterness, #5.",
+      "why": "one-word moods after a bold heading"
+    },
+    {
+      "answer": "How I'd choose: honestly, it depends on whether the ballad is bitter or tender.",
+      "why": "filler word opens the guide"
+    },
+    {
+      "answer": "How I'd choose: first, name the feeling; then take #1 for ache or #5 for bitterness.",
+      "why": "ordinal opens the guide"
+    },
+    {
+      "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
+      "why": "emphasized option numbers"
     }
   ],
   "fail": [
