@@ -1743,20 +1743,24 @@ class Reader:
         # page boundary (#10486), which a read after a wait can restore, as
         # for any short count. It is read again only while the caps left
         # cover another read like this one, and a caller's limit still fits
-        # that read, the longest wait and one whole listing; else a whole
-        # listing. A top-up's exact count left short goes to another whole
-        # listing, which can restore a skip outside those pages.
+        # that read, the longest wait and one whole listing (only the read
+        # and the wait when no whole listing fits it, since falling back to
+        # one could only refuse); else a whole listing. A top-up's exact
+        # count left short goes to another whole listing, which can restore a
+        # skip outside those pages.
         if stage == "incremental" and (over or near):
             pages = self._near_expiry_reads - spent[0]
             ids = self._artifact_reads - spent[1]
             cap = listing_cap()[0]
             took = _listing_clock() - started
+            fits = listing_timeout(total, cap) is not None
+            fallback = listing_seconds(total) if fits else 0.0
             if (
                 NEAR_EXPIRY_PAGE_CAP - self._near_expiry_reads < pages
                 or NEAR_EXPIRY_ID_READ_CAP - self._artifact_reads < ids
                 or (
                     cap < LISTING_TIMEOUT_SECONDS
-                    and cap < took + max(INCREMENTAL_WAITS) + listing_seconds(total)
+                    and cap < took + max(INCREMENTAL_WAITS) + fallback
                 )
             ):
                 return COUNT_OVER
