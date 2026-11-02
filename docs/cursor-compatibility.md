@@ -1,0 +1,82 @@
+# Cursor compatibility
+
+Cursor can load a Claude Code plugin and run its `hooks/hooks.json` hooks on the events it maps
+(#7556 probe, with a test plugin). This note lists the hook events and matchers our plugins use that Cursor does not map. Each
+one is an accepted no-op in Cursor: the hook does not run there, and nothing changes in Claude Code.
+The marketplace ships no Cursor-specific files and no per-plugin Cursor edits.
+
+Sources:
+
+- **Cursor docs:** [Third-party hooks](https://cursor.com/docs/reference/third-party-hooks), read
+  2026-11-02. The `.md` form of that URL returned 404 on that date.
+- **#7556 probe:** the [probe result](https://github.com/melodic-software/claude-code-plugins/issues/7556#issuecomment-6586532476)
+  on #7556: 8 headless runs of `cursor-agent` 2026.10.19-6bbf2c4 on Linux (WSL), 2026-11-02.
+
+The per-plugin lists come from `plugins/*/hooks/hooks.json`. No hook in these lists was tested
+one by one in Cursor, so each no-op below is predicted from the Cursor docs.
+
+The event and matcher tables are a snapshot of those files at commit `208b23ae`, taken
+2026-11-02. No check keeps them in sync, so a hook added or moved since then may be missing:
+re-derive them from `plugins/*/hooks/hooks.json` before relying on them.
+
+## What runs
+
+The Cursor docs map these Claude Code events: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`,
+`Stop`, `SubagentStop`, `SessionStart`, `SessionEnd` and `PreCompact`. They map these tools: `Bash`
+to `Shell`, `Edit` and `Write` to `Write`, and `Read`, `Grep`, `Task`, `WebFetch` and `WebSearch`
+to the same names. (Cursor docs)
+
+In the #7556 probe, `SessionStart` fired in every run and `PreToolUse` with the `Bash` matcher
+fired once per shell call. The `SessionStart` hook process received `CLAUDE_PLUGIN_ROOT` set to
+the plugin directory. (#7556 probe)
+
+## `UserPromptSubmit`
+
+The Cursor docs list `UserPromptSubmit` as supported. (Cursor docs) It did not fire in any of the
+8 headless Cursor CLI runs. (#7556 probe) The probe ran only the headless CLI, so its behavior in
+the Cursor IDE is unverified. No plugin here registers `UserPromptSubmit` today. No manual check
+is planned, per the [decision on #12484](https://github.com/melodic-software/claude-code-plugins/issues/12484#issuecomment-6588071825).
+
+## Events Cursor does not map
+
+Each hook on these events is an accepted no-op in Cursor.
+
+| Event | Plugins | Basis |
+|---|---|---|
+| `PostToolBatch` | bash-format, biome-format, eol-normalizer, go-format, markdown-format, ruff-format | Not in the Cursor docs' event table |
+| `Notification` | desktop-notification | Marked not supported in the Cursor docs |
+| `PostCompact` | context-guard | Not in the Cursor docs' event table |
+| `StopFailure` | harness-ops, rate-limit-guard | Not in the Cursor docs' event table |
+| `UserPromptExpansion` | disk-hygiene, harness-ops | Not in the Cursor docs' event table |
+| `ConfigChange`, `InstructionsLoaded`, `PermissionDenied`, `PostToolUseFailure` | harness-ops | Not in the Cursor docs' event table |
+| `WorktreeCreate`, `WorktreeRemove` | source-control | Not in the Cursor docs' event table |
+
+The six formatters do not rewrite files in Cursor. They stay on `PostToolBatch`, since moving
+them to `PostToolUse` would make them run after every edit in Claude Code. Cursor maps `Stop`, so
+the opt-in end-of-turn check that bash-format, biome-format, go-format, markdown-format and
+ruff-format register on `Stop` is expected to run. (Cursor docs)
+
+## Tool matchers Cursor does not map
+
+A hook whose matcher names only these tools does not run in Cursor. Where a matcher lists them
+next to a mapped tool, such as `Write|Edit|NotebookEdit` or `Bash|PowerShell`, only the unmapped
+alternatives are no-ops. The Cursor docs' tool table lists none of these names. (Cursor docs) The
+page says nothing about MCP tool names either, so whether an `mcp__*` matcher fires in Cursor is
+unknown, and is accepted either way.
+
+| Matcher | Plugins |
+|---|---|
+| `NotebookEdit` | context-budget, guardrails |
+| `PowerShell` | disk-hygiene, guardrails |
+| `Skill` | disk-hygiene, harness-ops |
+| `Workflow` | guardrails |
+| `Artifact` | review |
+| `mcp__*` names | guardrails, source-control |
+
+The Cursor docs also mark `Glob` as not supported. (Cursor docs) No plugin hook matches it.
+
+## `SessionStart` source matchers
+
+disk-hygiene and harness-ops register `SessionStart` hooks with the source matcher
+`startup|resume|clear|fork`. The Cursor docs do not cover `SessionStart` source matchers (Cursor
+docs), and the #7556 probe did not test them, so whether these hooks run in Cursor is unknown.

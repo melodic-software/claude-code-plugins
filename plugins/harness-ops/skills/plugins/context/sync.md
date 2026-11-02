@@ -101,6 +101,10 @@ re-entry reuses the first pass's result, reads `null`, never 0. The digest's top
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
 is the part of it no block's window covers (run setup and each block's assembly into the digest).
+Each block's `cli` is `{calls, seconds}`: how many journaled `claude` calls this invocation made for
+the marketplace and their summed wall time, so `timings.total` minus `cli.seconds` is the script's
+own time. `journal.log` records each call's time on the line after its output, as
+`# elapsed <seconds>s, exit <rc>`.
 An `--only-install` re-entry times both passes: the first pass saves its run timings to
 `first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
 `timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
@@ -953,25 +957,33 @@ written before the split carries none of the four counts and renders the count w
 `converge` remedy, as the paragraph above describes.
 
 **Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
-much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
-`{id, scope, version, projectPath}`, one entry per record that makes a counted row skewed: the
-project/local pins the class rule above judges, plus a user-scope record behind a project pin
-(`projectPath` null). A row whose versions differ only past the numeric triple has no such pin, so
-all of its scopes are listed rather than none. `divergences.by_path[]` groups the records that carry
-a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
-above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
-order and `more` the number left. The actionable paths come first, then the linked worktrees, then
-the paths that are not present, each group with the most records first, so the first path listed
-is a place `converge` can run from. The render keeps the count lines and adds a `by project path:`
+much to converge but not where. Each record that makes a counted row skewed is
+`{id, scope, version, projectPath}`: the project/local pins the class rule above judges, plus a
+user-scope record behind a project pin (`projectPath` null). A row whose versions differ only past
+the numeric triple has no such pin, so all of its scopes are listed rather than none. The digest's
+`divergences.record_count` counts them. `sync` writes them as `records[]` to the run-directory file
+`divergences.records_file` names (`divergences.<marketplace>.json`, beside the full per-path list),
+not to the digest: on a large fleet they are nearly all of its bytes, and the run prints the digest
+into the session. `audit` keeps `records[]` in the digest and names no file, since its scratch directory
+is removed on exit; so does a `sync` whose file write fails. `divergences.by_path[]` groups the
+records whose `projectPath` is present as `{path, class, count, ids, more}`: `class` is the path's
+pin class under the rule above (`actionable` or `worktree`), `ids` holds the first three distinct
+ids in sorted order and `more` the number left. The actionable paths come first, then the linked
+worktrees, each group with the most records first, so the first path listed is a place `converge`
+can run from. The paths that are not present (`blocked`) are counted in
+`divergences.blocked_paths` as `{paths, records}` instead, because the stale project records
+section already counts each of them, and `sync` writes its full per-path list to the run directory. The render keeps the count lines and adds a `by project path:`
 line with one entry under it per path, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
-`+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
-the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
-(`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one
-place the operator acts: `converge` from an actionable path, a worktree removal, or a stale record to
-clear. `count` counts records and `more` counts distinct ids, so an id with both a project and a
-local record at one path is counted twice and named once. A digest written before these fields
-carries neither and renders the count line alone; one written before `class` renders every path
-without a suffix.
+`+<more> more` tail only when ids were left out, and `(linked worktree)` after the path, one space
+from it, when `converge` cannot act on it there. A last entry, `- <paths> path(s) not present:
+<records> diverging record(s), counted under Stale project records`, counts the absent ones. Three
+ids per path is a judgment cap (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of present
+paths is not capped, since each is one place the operator acts: `converge` from an actionable path
+or a worktree removal. `count` counts records and `more` counts distinct ids, so an id with both a
+project and a local record at one path is counted twice and named once. A digest written before
+these fields carries neither and renders the count line alone; one written before `class` renders
+every path without a suffix; one written before `blocked_paths` carries `records[]` inline and its
+absent paths in `by_path`, which the render folds into the count entry.
 
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the

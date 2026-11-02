@@ -710,6 +710,72 @@ run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\n
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0
 run "real git reset --hard after a heredoc (blocked)" $'cat <<EOF\nhello\nEOF\ngit reset --hard' 2
 run "here-string git reset --hard (not a heredoc, blocked)" $'git reset --hard <<<input' 2
+# bash runs each substitution in an unquoted heredoc body; a quoted body is data.
+run "unquoted heredoc body \$(git reset --hard) (blocked)" $'cat <<EOF\n$(git reset --hard)\nEOF' 2
+run "unquoted heredoc body backticked git reset --hard (blocked)" $'cat >notes <<EOF\nnote: `git reset --hard`\nEOF' 2
+run "<<-EOF body \$(git clean -fd) (blocked)" $'cat <<-EOF\n\t$(git clean -fd)\n\tEOF' 2
+run "unquoted heredoc body \${x:-\$(git reset --hard)} (blocked)" $'cat <<EOF\n${x:-$(git reset --hard)}\nEOF' 2
+run "unquoted heredoc body \$[\$(git reset --hard)] (blocked)" $'cat <<EOF\n$[$(git reset --hard)]\nEOF' 2
+run "unquoted heredoc body, a quoted ) inside \$( ) (blocked)" $'cat <<EOF\n$(echo ")"; git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a commented ) inside \$( ) (blocked)" $'cat <<EOF\n$(: # )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a case pattern ) inside \$( ) (blocked)" $'cat <<EOF\n$(case x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, a heredoc inside \$( ) (blocked)" $'cat <<EOF\n$(cat <<X\n)\nX\ngit reset --hard\n)\nEOF' 2
+run "unquoted heredoc body, a quoted } inside \${ cmd; } (blocked)" $'cat <<EOF\n${ echo "}"; git reset --hard; }\nEOF' 2
+run "unquoted heredoc body, a quoted ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((echo \')\' \')\'; git reset --hard) )\nEOF' 2
+run "unquoted heredoc body, a case pattern ) inside \$(( ) ) (blocked)" $'cat <<EOF\n$((case x in y) ;; x) git reset --hard;; esac) )\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside \$( (blocked)" $'cat <<EOF\n$\\\n(git reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline before a comment in \$( ) (blocked)" $'cat <<EOF\n$(: \\\n# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline inside a case word (blocked)" $'cat <<EOF\n$(cas\\\ne x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, apostrophes around a backslash-newline \$( (blocked)" $'cat <<EOF\ndon\'t $\\\n(git reset --hard) won\'t\nEOF' 2
+run "unquoted heredoc body, apostrophes around \$( ) after a backslash-newline elsewhere (blocked)" $'cat <<EOF\nx\\\ny\nit\'s $(git reset --hard) ok\'\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$( ) (blocked)" $'cat <<EOF\n$( (:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$(( ) (blocked)" $'cat <<EOF\n$((:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline in prose with \$HOME (allowed)" $'cat <<EOF\nit\'s a long \\\nline in $HOME\nEOF' 0
+hd_lines() { # <line> <count>: that line repeated, each after a newline
+  local s='' i
+  for ((i = 0; i < $2; i++)); do s+=$'\n'"$1"; done
+  printf '%s' "$s"
+}
+hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodies
+  local s='git reset --hard' i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
+run "here-docs nested ten deep in substitutions, innermost \$(git reset --hard) (blocked)" "$(hd_nest 10)" 2
+# shellcheck disable=SC2016  # literal shell text under test
+run "unquoted heredoc body of 20 \$(<<X lines, then git reset --hard (blocked)" "cat <<EOF$(hd_lines '$(<<X' 20)"$'\nEOF\ngit reset --hard' 2
+# Each `$( <<X` line opens a body holding the lines after it; the parse count
+# must stay linear in them, far inside the Bash row's 60 s hook timeout.
+bdg_t0=${EPOCHREALTIME/./}
+# shellcheck disable=SC2016  # literal shell text under test
+run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
+hd_nest_amb() { # <levels> <inner> [<after>]: hd_nest with <after> (default `; !(x)#`) after each opener
+  local s=$2 i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i${3-; !(x)#}"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
+# An extglob-ambiguous `)#` after each nested opener: the extglob-on reading
+# and the extglob-off one both see every body, and its substitutions must still
+# be parsed once, not once per reading at each level.
+run "here-docs nested four deep, a \`!(x)#\` at each opener, innermost git reset --hard (blocked)" "$(hd_nest_amb 4 'git reset --hard')" 2
+bdg_pad=$(hd_lines ': padding padding padding padding padding padding' 60)
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}")" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)# here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)# here-docs took ${bdg_ms} ms (limit 10000)"; fi
+bdg_t0=${EPOCHREALTIME/./}
+run "here-docs nested nine deep, a \`!(x)#<<F\` at each opener, padding innermost (allowed)" "$(hd_nest_amb 9 "${bdg_pad#?}" '; !(x)#<<F')" 0
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "nine nested !(x)#<<F here-docs finish in ${bdg_ms} ms (under 10000)"; else bad "nine nested !(x)#<<F here-docs took ${bdg_ms} ms (limit 10000)"; fi
+run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
+run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
+run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0
+run "double-quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<"EOF"\n$(git reset --hard)\nEOF' 0
+run "backslashed-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\\EOF\n$(git reset --hard)\nEOF' 0
+run "escaped \\\$(git reset --hard) in an unquoted body (literal, allowed)" $'cat <<EOF\n\\$(git reset --hard)\nEOF' 0
+run "unquoted heredoc body \$(git status) and \$HOME (allowed)" $'cat <<EOF\n$(git status) in $HOME\nEOF' 0
 run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
@@ -1007,8 +1073,7 @@ run_pwsh "PS: NO-GIT label in scriptblock (allowed — #2592)" \
 run_pwsh "PS: gh title mentioning -git and PowerShell (allowed — #2592)" \
   "gh issue create --title 'guardrails: block-dangerous-git.sh blocks PowerShell commands'" 0
 # Intermediate path directory named Git is not a git invocation.
-run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" \
-  "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path string in a test fixture, not a regex/sed construct
+run_pwsh "PS: call-op to bash under Git\\bin (allowed — #2592, basename is bash)" "& 'C:\\Program Files\\Git\\bin\\bash.exe' -c 'echo ok'" 0 # portability-ok: Windows path strings in a test label and fixture, not a regex/sed construct
 # Drive-relative git.exe (C:git.exe) must still count as git (Codex review on #2592).
 run_pwsh "PS: drive-relative C:git.exe reset --hard (blocked — #2592)" \
   "& 'C:git.exe' --% reset --hard" 2

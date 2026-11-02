@@ -1403,15 +1403,55 @@ if (existsSync(marketplacePath) && existsSync(coreManifestPath)) {
 // letters, digits and hyphens.
 const PLUGIN_DESCRIPTION_MAX = 500;
 const SKILL_DESCRIPTION_MAX = 1024;
+
+// Line number of each key of the top-level object in a JSON text, read off the
+// raw text because a parsed object no longer knows where its keys sat.
+function topLevelKeyLines(text) {
+  const lines = new Map();
+  const colon = /\s*:/y;
+  let depth = 0;
+  let line = 1;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "\n") line++;
+    else if (c === "{" || c === "[") depth++;
+    else if (c === "}" || c === "]") depth--;
+    else if (c === '"') {
+      const start = i;
+      for (i++; i < text.length && text[i] !== '"'; i++) if (text[i] === "\\") i++;
+      colon.lastIndex = i + 1;
+      if (depth === 1 && colon.test(text)) {
+        const key = JSON.parse(text.slice(start, i + 1));
+        if (!lines.has(key)) lines.set(key, line);
+      }
+    }
+  }
+  return lines;
+}
+
 for (const path of pluginFiles) {
   if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
-  const manifest = JSON.parse(read(path));
+  const text = read(path);
+  const manifest = JSON.parse(text);
   for (const key of ["$schema", "defaultEnabled"]) {
     if (key in manifest) fail(path, `must not set ${key} (claude.ai marketplace sync strips it)`);
   }
   const length = [...(manifest.description ?? "")].length;
   if (length > PLUGIN_DESCRIPTION_MAX) {
     fail(path, `description is ${length} characters, over claude.ai's ${PLUGIN_DESCRIPTION_MAX}`);
+  }
+  // Git merges edits on touching lines as one conflict, so a release's version
+  // bump would conflict with any open pull request that edits the description.
+  // A nested manifest (an eval fixture) is never released.
+  if (pluginPathParts(path).length !== 3) continue;
+  const keyLines = topLevelKeyLines(text);
+  const versionLine = keyLines.get("version");
+  const descriptionLine = keyLines.get("description");
+  if (versionLine !== undefined && descriptionLine !== undefined && Math.abs(versionLine - descriptionLine) < 2) {
+    fail(
+      path,
+      `"version" (line ${versionLine}) and "description" (line ${descriptionLine}) touch; keep at least one other line between them, so a version bump and a description edit merge without a conflict`,
+    );
   }
 }
 
