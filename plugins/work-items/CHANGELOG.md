@@ -3,6 +3,16 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-02
+
+### Changed
+
+- `scripts/charge-words.json` stays, because intake admission still reads it; its description no longer names `rule-admit.sh`.
+
+### Removed
+
+- Rule admission. `/work-items:work-loop` admits a candidate only when it carries an admitted autonomous-eligible role label; the second path that admitted an issue with no label from an owner-written rule in the security binding is gone, with `scripts/rule-admit.sh`, its test and fixtures, and the work-loop's rule-admission reference. A security binding that still carries `admission.rule_admission` is now invalid: the autonomy plugin's binding validator reports it as an unknown `admission` key.
+
 ## [5.0.0] - 2026-11-02
 
 ### Changed
