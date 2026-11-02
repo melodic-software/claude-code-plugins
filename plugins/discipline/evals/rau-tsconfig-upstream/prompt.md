@@ -4,7 +4,7 @@ tags: [discipline, recheck-against-upstream, outcome, scaffold]
 max_turns: 15
 timeout_seconds: 400
 allowed_tools: [Skill, Read, Glob, Grep, Bash, WebFetch, Edit]
-expected_outcome: "Names the pinned 5.4 line, classifies importsNotUsedAsValues as a deprecation gap, strict false as a deliberate ADR-backed divergence left in place, and useDefineForClassFields as undocumented and the human's call."
+expected_outcome: "Names the pinned 5.4 line, classifies importsNotUsedAsValues as a deprecation gap and removes it from tsconfig.json, strict false as a deliberate ADR-backed divergence left in place, and useDefineForClassFields as undocumented and the human's call."
 ---
 
 /discipline:recheck-against-upstream tsconfig.json

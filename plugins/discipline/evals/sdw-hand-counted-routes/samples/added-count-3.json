@@ -8,6 +8,14 @@
     },
     {
       "answer": "Additions: three."
+    },
+    {
+      "answer": "3. Added hosts: 3 (audit, cdn, ledger)",
+      "why": "a numbered line whose count is right"
+    },
+    {
+      "answer": "3. New hosts: 3 (audit, cdn, ledger)",
+      "why": "new before the count"
     }
   ],
   "fail": [
@@ -22,6 +30,14 @@
     {
       "answer": "v2 adds 4 hosts.",
       "why": "wrong number"
+    },
+    {
+      "answer": "3. Added hosts: 2",
+      "why": "the 3 is a list number, and the count is the wrong 2"
+    },
+    {
+      "answer": "Step 3: added hosts: 2",
+      "why": "the 3 is a step number, and the count is the wrong 2"
     }
   ]
 }
