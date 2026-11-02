@@ -970,17 +970,29 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
     ].join(" "),
   );
   const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
-  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read"]);
-  // No checkout, no model, no other action; outputs reach only env.
-  assert.doesNotMatch(job, /uses: /);
-  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(job)[1];
+  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read", "contents: read"]);
+  // No model and no action but main's api-budget library, checked out alone
+  // (contents: read is for that checkout) and logged at job end; outputs
+  // reach only env.
+  assert.deepEqual([...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]), ["actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", "./.base/.github/actions/log-api-budget"]);
+  assert.match(job, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(job, /^ {4}env:\n {6}API_BUDGET_TOKEN: github-token$/m);
+  const script = wakeScript();
   assert.doesNotMatch(script, /\$\{\{/);
+  assert.match(script, /^\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true$/m);
+  const log = /- name: Log the API budget\n([\s\S]*)$/.exec(job)?.[1];
+  assert.match(log, /^ {8}if: always\(\)$/m);
+  assert.match(log, /^ {10}tokens: github-token$/m);
   assert.match(job, /^ {8}continue-on-error: true$/m);
 });
 
+// The wake step's script, from its `run: |` to the next step.
+const wakeScript = () =>
+  /- name: Wake pr-merge for this pull request\n[\s\S]*?\n {8}run: \|\n([\s\S]*?)(?=\n\n {6}- name: |$)/.exec(jobText(WAKE))[1].replace(/^ {10}/gm, "");
+
+// Run without the library (its checkout absent), so gh is the stand-in itself.
 const wake = (env) => {
-  const job = jobText(WAKE);
-  const script = /\n {8}run: \|\n([\s\S]*)$/.exec(job)[1].replace(/^ {10}/gm, "");
+  const script = wakeScript();
   const dir = tempDir("wake-pr-merge-");
   const bin = path.join(dir, "bin");
   mkdirSync(bin);
@@ -993,6 +1005,7 @@ const wake = (env) => {
     { mode: 0o755 },
   );
   const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+    cwd: dir,
     env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t", ...env },
     encoding: "utf8",
   });

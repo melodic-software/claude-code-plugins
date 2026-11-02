@@ -56,7 +56,7 @@ name: pr-verify
 # and with no output from that judge there is no verdict.
 # The judging jobs' tokens can only read. Every script and local action comes from the
 # main checkout in .base; the Claude actions are ci-workflows', at main. After
-# them, wake-pr-merge, holding only actions: write, starts a PR-scoped
+# them, wake-pr-merge, whose only write is actions: write, starts a PR-scoped
 # pr-merge run on a pass or pass-notes verdict that uploaded.
 #
 # Every local action runs from the main checkout at ./.base. zizmor's
@@ -5330,7 +5330,8 @@ jobs:
   # author itself, since nothing here names it. A GITHUB_TOKEN's
   # workflow_dispatch creates a run, as github-actions[bot], which pr-merge's
   # who step admits for this case alone (who.mjs verdictWake). The job holds
-  # only actions: write, runs no model, checks out nothing, and passes the
+  # actions: write, pull-requests: read and contents: read (for main's
+  # api-budget library alone), runs no model, and passes the
   # verdict jobs' outputs through env, checked in bash. A failed dispatch
   # only warns: the run's verdict stands, and the schedule arms it.
   wake-pr-merge:
@@ -5349,7 +5350,26 @@ jobs:
     permissions:
       actions: write # start pr-merge.yml on main for this pull request
       pull-requests: read # read the pull request's author: only a lanes App one is woken
+      contents: read # check out the api-budget library
+    # Each gh call's rate-limit reading, for the job-end api-calls notice
+    # (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
+      # The api-budget library alone, from the default branch. A failed
+      # checkout leaves none: the step below calls GitHub as it would without
+      # it, and no reading is logged.
+      - name: Check out the api-budget library
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+          sparse-checkout-cone-mode: false
+
       - name: Wake pr-merge for this pull request
         continue-on-error: true
         timeout-minutes: 3
@@ -5364,6 +5384,9 @@ jobs:
           FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
         run: |
           set -euo pipefail
+          # Each gh call keeps its rate-limit reading for the job-end api-calls
+          # notice; none when the checkout of the library failed.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           pr=''
           # One job per run judges; the first pass in job order names the PR.
           for leg in KEY SUB FB; do
@@ -5392,3 +5415,11 @@ jobs:
           else
             echo "::warning::wake-pr-merge: the pr-merge dispatch for #$pr failed; its next scheduled run arms it"
           fi
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
