@@ -44,7 +44,8 @@ name: pr-review-main
 # next push reviews again.
 #
 # The trigger job reads the PR's files, then runs the trigger gate only for a
-# lane-source PR, once per run; the key leg takes its result, a boolean, the
+# lane-source PR whose head both lanes have not already reviewed (a verdict the
+# merge gate binds), once per run; no leg starts otherwise. The key leg takes its result, a boolean, the
 # PR number and two SHAs
 # checked against fixed shapes, only from the same run attempt, and gates
 # itself otherwise. The later legs gate themselves at their own start.
@@ -103,6 +104,7 @@ jobs:
       pr-number: ${{ steps.gate.outputs.pr-number }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
       base-sha: ${{ steps.gate.outputs.base-sha }}
+      judged: ${{ steps.judged.outputs.judged }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -163,12 +165,86 @@ jobs:
           { echo "pr-number=$pr"; echo "review=$review"; } >>"$GITHUB_OUTPUT"
           echo "lane source changed: $review"
 
+      # A head both lanes already reviewed from main is not reviewed again:
+      # pr-require-checks completes several times on one head (a re-run after
+      # each review, a label or body edit), and each completion starts this
+      # run. judged=true only when the merge gate's own predicate
+      # (babysit_review_evidence `_main_bound`) binds both lanes at this head
+      # on what this step reads as the gate does (babysit_gh
+      # collect_main_reviews, collect_main_review_counts): a verdict artifact
+      # for the PR and the head's tree, from a pr-review-main run on main that
+      # completed with success, naming this head, beside the record job's
+      # check run with its counts. A failed or cancelled run, a verdict for
+      # another head of the same tree, a lane with no verdict, or any failed
+      # read leaves no output, and the review runs as before. The run head's
+      # place on main is not compared: this file runs only from main's tip, and
+      # main's history is linear. The tree is the event's, for the event's head.
+      - name: Find a head both lanes already reviewed
+        id: judged
+        if: steps.files.outputs.review == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.files.outputs.pr-number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TREE_SHA: ${{ github.event.workflow_run.head_commit.tree_id }}
+          DIR: ${{ runner.temp }}/pr-review-main-judged
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $TREE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "the event names no tree for its head; the review runs"
+            exit 0
+          fi
+          mkdir -p "$DIR"
+          # Each call the gh wrapper sends counts toward the api-calls notice.
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          unread() {
+            echo "::warning::$1 did not read; the review runs"
+            exit 0
+          }
+          for lane in claude-review claude-security-review; do
+            name="pr-review-main-$lane-$PR_NUMBER-$TREE_SHA"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" >"$DIR/listing.json" || unread "the $lane verdict listing"
+            # One page holds every review of the tree, or the review runs.
+            pairs=$(jq -r --arg name "$name" 'if .total_count > 100 then error("more than one page") else .artifacts[] | select(.name == $name and .expired == false) | "\(.id) \(.workflow_run.id)" end' "$DIR/listing.json") || unread "the $lane verdict listing"
+            if [ -z "$pairs" ]; then
+              echo "$lane has no verdict for this tree; the review runs"
+              exit 0
+            fi
+            : >"$DIR/$lane-records.jsonl"
+            while read -r artifact run; do
+              [[ $artifact =~ ^[1-9][0-9]{0,19}$ && $run =~ ^[1-9][0-9]{0,19}$ ]] || unread "the $lane verdict listing"
+              gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" >"$DIR/run.json" || unread "run $run"
+              gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$DIR/verdict.zip" || unread "artifact $artifact"
+              unzip -p "$DIR/verdict.zip" verdict.json >"$DIR/verdict.json" || unread "artifact $artifact"
+              jq -nc --arg lane "$lane" --slurpfile listing "$DIR/listing.json" --slurpfile run "$DIR/run.json" --slurpfile verdict "$DIR/verdict.json" --argjson id "$artifact" \
+                '{lane: $lane, artifact: first($listing[0].artifacts[] | select(.id == $id)), run: $run[0], verdict: $verdict[0], on_branch: true}' >>"$DIR/$lane-records.jsonl" || unread "artifact $artifact"
+            done <<<"$pairs"
+            gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=pr-review-main%3A%20$lane&filter=all&per_page=100" \
+              --jq 'if .total_count > 100 then error("more than one page") else [.check_runs[] | select(.app.slug == "github-actions") | .output.title // ""] end' >"$DIR/$lane-titles.json" || unread "the $lane check runs"
+          done
+          judged=$(python3 -I -c '
+          import json, re, sys
+          sys.path.insert(0, ".base/plugins/source-control/skills/babysit-prs/scripts")
+          import babysit_review_evidence as ev
+          directory, repo, pr, tree, head = sys.argv[1:]
+          # babysit_gh MAIN_REVIEW_CHECK_TITLE: a record title the gate reads as counts.
+          title = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+          def bound(lane):
+              records = [json.loads(line) for line in open(f"{directory}/{lane}-records.jsonl", encoding="utf-8")]
+              titles = json.load(open(f"{directory}/{lane}-titles.json", encoding="utf-8"))
+              counts = [[int(m[1]), int(m[2])] for t in titles if (m := title.fullmatch(t))]
+              context = {"repo": repo, "pr": int(pr), "tree": tree, "branch": "main", "head_records": {lane: counts}}
+              return ev._main_bound(lane, head, records, context) is not None
+          print("true" if all(bound(lane) for lane in ev.LANES) else "false")
+          ' "$DIR" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$TREE_SHA" "$HEAD_SHA") || unread "a verdict"
+          echo "both lanes already reviewed this head: $judged"
+          if [ "$judged" = true ]; then echo "judged=true" >>"$GITHUB_OUTPUT"; fi
+
       # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. Skipped when no lane would review, or when
-      # the PR changes no lane source.
+      # on the trusted-actor list. Skipped when no lane would review, when
+      # the PR changes no lane source, or when both lanes reviewed this head.
       - name: Check the trigger
         id: gate
-        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false'
+        if: steps.kill.outputs.proceed == 'true' && (vars.CLAUDE_REVIEW_DISABLED != 'true' || vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true') && steps.files.outputs.review != 'false' && steps.judged.outputs.judged != 'true'
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
@@ -212,6 +288,9 @@ jobs:
         with:
           tokens: github-token
 
+  # No leg starts when the trigger job of this attempt found no lane source
+  # or a head both lanes already reviewed: the leg would review nothing. A
+  # leg re-run alone in a later attempt starts and gates itself.
   review:
     needs: trigger
     if: >-
@@ -219,6 +298,8 @@ jobs:
       && github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && (needs.trigger.outputs.run-attempt != github.run_attempt
+      || needs.trigger.outputs.review != 'false' && needs.trigger.outputs.judged != 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -2689,7 +2770,8 @@ jobs:
   # write-verdict.mjs checked, from this run's own artifacts.
   record:
     needs: [review, review-subscription, review-fallback]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    # A skipped key leg reviewed nothing, so no later leg ran: nothing to record.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.review.result != 'skipped' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
