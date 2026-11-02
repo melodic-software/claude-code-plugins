@@ -12,9 +12,12 @@ and any read that fails or does not hold its count refuses.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import pathlib
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -307,7 +310,7 @@ class LegacyFailsBuild(unittest.TestCase):
                 listing_path=None,
                 carry_path=None,
             )
-            return ve.build_legacy_fails(reader, self.CUTOVER, NOW)
+            return ve.build_legacy_fails_from_listing(reader, self.CUTOVER, NOW)
 
     def fake(self) -> IndexGitHub:
         fake = IndexGitHub(
@@ -372,6 +375,235 @@ class LegacyFailsBuild(unittest.TestCase):
         fake.records.clear()
         with self.assertRaises(ve._Unreadable):
             self.build(fake)
+
+
+class RunsGitHub:
+    """GitHub as the per-run build reads it: the verifier's runs by
+    `created` window, each run's artifacts, the rate limit, a compare of a
+    run head against main, and a verdict archive by artifact id."""
+
+    def __init__(self) -> None:
+        self.runs = [
+            run(5, created_at="2026-10-14T03:00:00Z"),  # FAIL before the index
+            run(3, created_at="2026-10-15T01:00:00Z"),  # FAIL with its index
+            run(1, created_at="2026-10-15T02:00:00Z"),  # a pass
+            run(
+                6, created_at="2026-10-15T03:00:00Z", path=".github/workflows/other.yml"
+            ),
+        ]
+        self.artifacts = {
+            5: [artifact(named(EARLIER, "fail"), 5)],
+            3: fail(PR, UNRELATED, 3),
+            1: [artifact(named(HEAD, "pass"), 1)],
+            6: [artifact(named(HEAD, "fail", 90), 6)],
+        }
+        self.records = {named(EARLIER, "fail"): record(sha=EARLIER, verdict="fail")}
+        self.window_total: int | None = None
+        self.run_total: dict[int, int] = {}
+        self.remaining = 4000
+        self.limit_from: int | None = None  # the call that answers rate limited
+        self.calls: list[str] = []
+
+    def __call__(self, args: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
+        path = next(a for a in args if a.startswith("repos/") or a == "rate_limit")
+        self.calls.append(path)
+
+        def ok(payload: Any) -> subprocess.CompletedProcess:
+            return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        if self.limit_from is not None and len(self.calls) >= self.limit_from:
+            return subprocess.CompletedProcess(
+                args, 1, "", "gh: API rate limit exceeded (HTTP 403)"
+            )
+        if path == "rate_limit":
+            reset = 4_000_000_000
+            return ok(
+                {"resources": {"core": {"remaining": self.remaining, "reset": reset}}}
+            )
+        window = re.fullmatch(
+            rf"repos/{REPO}/actions/workflows/pr-verify\.yml/runs\?created=(\S+)\.\.(\S+)"
+            r"&per_page=100&page=1",
+            path,
+        )
+        if window:
+            listed = [r for r in self.runs if window[1] <= r["created_at"] <= window[2]]
+            total = len(listed) if self.window_total is None else self.window_total
+            return ok({"total_count": total, "workflow_runs": listed})
+        of_run = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
+        )
+        if of_run:
+            held = self.artifacts.get(int(of_run[1]), [])
+            total = self.run_total.get(int(of_run[1]), len(held))
+            return ok({"total_count": total, "artifacts": held})
+        if path.startswith(f"repos/{REPO}/compare/"):
+            return ok({"status": "ahead"})
+        zips = re.fullmatch(rf"repos/{REPO}/actions/artifacts/([0-9]+)/zip", path)
+        if zips:
+            name = next(
+                a["name"]
+                for held in self.artifacts.values()
+                for a in held
+                if a["id"] == int(zips[1])
+            )
+            return subprocess.CompletedProcess(
+                args, 0, base.zipped(self.records[name]), ""
+            )
+        raise AssertionError(f"unexpected gh call: {args}")
+
+
+class PerRunLegacyFails(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = pathlib.Path(self.tmp.name, "legacy.json")
+        self.checkpoint = pathlib.Path(self.tmp.name, "checkpoint.json")
+
+    def run_build(self, fake: RunsGitHub, *extra: str) -> tuple[int, str]:
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stderr(stderr),
+        ):
+            code = ve.main(
+                [
+                    "legacy-fails",
+                    "--repo",
+                    REPO,
+                    "--since",
+                    "2026-10-14T00:00:00Z",
+                    "--cutover",
+                    "2026-10-16T00:00:00Z",
+                    "--out",
+                    str(self.out),
+                    "--checkpoint",
+                    str(self.checkpoint),
+                    "--calls-per-second",
+                    "0",
+                    *extra,
+                ],
+                now=NOW,
+            )
+        return code, stderr.getvalue()
+
+    def test_it_holds_each_unindexed_fail_of_a_verifier_run(self) -> None:
+        fake = RunsGitHub()
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 0, err)
+        built = json.loads(self.out.read_text())
+        self.assertEqual(
+            [(a["name"], a["head_ref"], a["origin"]) for a in built["artifacts"]],
+            [(named(EARLIER, "fail"), "feat/x", True)],
+        )
+        self.assertEqual(built["runs"], 4)
+        # One rate-limit read, two day windows, four runs, one compare, one download.
+        self.assertEqual(len(fake.calls), 9)
+        self.assertIn("calls=9 total=9", err)
+        self.assertTrue(ve.Reader(REPO, "main", legacy_path=str(self.out)).index_mode())
+
+    def test_a_window_that_misses_its_count_refuses_and_writes_nothing(self) -> None:
+        fake = RunsGitHub()
+        fake.window_total = 9
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("list 1 of [9]", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_run_whose_artifacts_miss_their_count_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.run_total[5] = 2
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("artifacts of run 5 do not hold their count", err)
+        self.assertFalse(self.out.exists())
+
+    def test_a_run_not_completed_refuses(self) -> None:
+        fake = RunsGitHub()
+        fake.runs[2] = run(1, created_at="2026-10-15T02:00:00Z", status="in_progress")
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 1, err)
+        self.assertIn("verifier run 1 is in_progress", err)
+
+    def test_a_rate_limit_stops_and_the_checkpoint_resumes(self) -> None:
+        fake = RunsGitHub()
+        # Calls: rate limit, window 1, run 5, its compare and download, then
+        # window 2, which answers rate limited.
+        fake.limit_from = 6
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 3, err)
+        self.assertIn("stopped, resume from", err)
+        self.assertFalse(self.out.exists())
+        saved = json.loads(self.checkpoint.read_text())
+        self.assertEqual(len(saved["windows"]), 1)
+        self.assertEqual(sorted(saved["runs"]), ["5"])
+        # Resumed: nothing read before is read again.
+        resumed = RunsGitHub()
+        code, err = self.run_build(resumed)
+        self.assertEqual(code, 0, err)
+        self.assertNotIn(
+            f"repos/{REPO}/actions/runs/5/artifacts?per_page=100", resumed.calls
+        )
+        self.assertEqual(len(json.loads(self.out.read_text())["artifacts"]), 1)
+
+    def test_a_rate_limit_inside_a_verdict_download_still_stops(self) -> None:
+        # The download's reader wraps every error; the stop is kept anyway.
+        fake = RunsGitHub()
+        fake.limit_from = 5
+        code, err = self.run_build(fake)
+        self.assertEqual(code, 3, err)
+        self.assertEqual(json.loads(self.checkpoint.read_text())["runs"], {})
+
+    def test_calls_are_paced(self) -> None:
+        with mock.patch.object(ve, "_listing_sleep") as slept:
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(postmerge, "gh_capture", side_effect=RunsGitHub()),
+                contextlib.redirect_stderr(stderr),
+            ):
+                ve.main(
+                    [
+                        "legacy-fails",
+                        "--repo",
+                        REPO,
+                        "--since",
+                        "2026-10-14T00:00:00Z",
+                        "--cutover",
+                        "2026-10-16T00:00:00Z",
+                        "--out",
+                        str(self.out),
+                        "--checkpoint",
+                        str(self.checkpoint),
+                    ],
+                    now=NOW,
+                )
+        # The default 0.5 calls a second: about 2 s before each call after the first.
+        self.assertEqual(slept.call_count, 8)
+        self.assertTrue(all(1.9 < c.args[0] <= 2.0 for c in slept.call_args_list))
+
+    def test_the_window_cap_stops(self) -> None:
+        code, err = self.run_build(RunsGitHub(), "--window-cap", "4")
+        self.assertEqual(code, 3, err)
+        self.assertIn("4 calls in the window", err)
+
+    def test_the_breaker_or_low_remaining_stops_before_any_read(self) -> None:
+        breaker = pathlib.Path(self.tmp.name, "breaker.txt")
+        breaker.write_text("tripped")
+        fake = RunsGitHub()
+        code, err = self.run_build(fake, "--breaker-file", str(breaker))
+        self.assertEqual((code, fake.calls), (3, []), err)
+        fake = RunsGitHub()
+        fake.remaining = 1999
+        code, err = self.run_build(fake)
+        self.assertEqual((code, fake.calls), (3, ["rate_limit"]), err)
+        self.assertIn("core remaining 1999 is under 2000", err)
+
+    def test_a_checkpoint_for_another_range_refuses(self) -> None:
+        self.checkpoint.write_text(
+            json.dumps({"version": 1, "repo": REPO, "since": "x"})
+        )
+        code, err = self.run_build(RunsGitHub())
+        self.assertEqual(code, 1, err)
+        self.assertIn("another repository, range or cutover", err)
 
 
 def setUpModule() -> None:
