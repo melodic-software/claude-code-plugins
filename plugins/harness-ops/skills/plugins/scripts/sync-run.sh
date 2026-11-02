@@ -160,17 +160,25 @@
 #   instead, which is what keeps a backward move off the report's `Updated:` line
 #   even for an id the guard could not prove in advance.
 #   `divergences` is `{pre, mid, post, new_total, new_by_interval, pre_existing,
-#   actionable_here, actionable_elsewhere, in_worktrees, blocked, records, by_path}`:
+#   actionable_here, actionable_elsewhere, in_worktrees, blocked, record_count,
+#   records_file, by_path, blocked_paths}`:
 #   `post` counts the actionable (`versionsMatch: false`) rows, and
 #   `actionable_here` through `blocked` split it by what an operator can do about
 #   each row (see `divergence_block`). A digest written before the split carries
-#   none of the four. `records[]` is `{id, scope, version, projectPath}` for every
-#   record that makes a counted row skewed (projectPath null at user scope), and
-#   `by_path[]` is `{path, class, count, ids, more}` per projectPath among them,
-#   `class` the path's pin class (`actionable`, `worktree` or `blocked`), the
-#   actionable paths first and then most records first, `ids` the first
-#   DIVERGENCE_PATH_IDS distinct ids and `more` the rest. A digest written before
-#   them carries neither, and one written before `class` carries no `class`.
+#   none of the four. `record_count` counts the records that make a counted row
+#   skewed, each `{id, scope, version, projectPath}` (projectPath null at user
+#   scope). In sync they are written as `records[]` to `records_file`
+#   (`<run_dir>/divergences.<mp>.json`, beside the full `by_path[]`), not to the
+#   digest; under --audit, or when that write fails, `records_file` is null and
+#   the digest carries `records[]` itself. `by_path[]` is `{path, class, count,
+#   ids, more}` per projectPath among them that is present, `class` the path's
+#   pin class (`actionable` or `worktree`), the actionable paths first and then
+#   most records first, `ids` the first DIVERGENCE_PATH_IDS distinct ids and
+#   `more` the rest; `blocked_paths` is `{paths, records}` for the `blocked`
+#   paths it leaves out, which the stale project records section counts. A digest
+#   written before `blocked_paths` carries `records[]` and every path in
+#   `by_path`, one written before `records` and `by_path` carries neither, and one
+#   written before `class` carries no `class`.
 #   `moved_during_run[]` is `{id, scope, kind, old, new, direction}` for each id whose
 #   update call the CLI answered "already at the latest version" while the post
 #   snapshot's version differs from the pre-mutation one: it moved during the run
@@ -558,6 +566,35 @@ json_object_file() {
   } >"$__file"
 }
 
+# A move row `{id, scope[, kind], old, new, direction}` and a downgrade row
+# `{id, scope, old, new[, concurrent: true]}`, written with builtins in the key
+# order and escaping `jq -c` gives, so a run with many moves pays no jq per row.
+# move_row_to VAR id scope old new direction [kind]
+move_row_to() {
+  local __mr_id __mr_sc __mr_o __mr_n __mr_d __mr_k=""
+  json_string_to __mr_id "$2"
+  json_string_to __mr_sc "$3"
+  json_string_to __mr_o "$4"
+  json_string_to __mr_n "$5"
+  json_string_to __mr_d "$6"
+  [[ -z "${7:-}" ]] || {
+    json_string_to __mr_k "$7"
+    __mr_k="\"kind\":$__mr_k,"
+  }
+  printf -v "$1" '{"id":%s,"scope":%s,%s"old":%s,"new":%s,"direction":%s}' \
+    "$__mr_id" "$__mr_sc" "$__mr_k" "$__mr_o" "$__mr_n" "$__mr_d"
+}
+# downgrade_row_to VAR id scope old new [concurrent]
+downgrade_row_to() {
+  local __dr_id __dr_sc __dr_o __dr_n
+  json_string_to __dr_id "$2"
+  json_string_to __dr_sc "$3"
+  json_string_to __dr_o "$4"
+  json_string_to __dr_n "$5"
+  printf -v "$1" '{"id":%s,"scope":%s,"old":%s,"new":%s%s}' \
+    "$__dr_id" "$__dr_sc" "$__dr_o" "$__dr_n" "${6:+,\"concurrent\":true}"
+}
+
 RUN_ERRORS=()
 MP_ERRORS=()
 
@@ -569,8 +606,16 @@ mp_error() { MP_ERRORS+=("$1"); }
 # does not parse on both sides is "unknown", never silently ranked: an unrankable
 # pair is reported as such rather than assumed forward.
 version_direction() {
-  local old="$1"
-  local new="$2"
+  local __vd
+  version_direction_to __vd "$1" "$2"
+  echo "$__vd"
+}
+
+# version_direction into the variable named by $1, with no subshell.
+version_direction_to() {
+  local __vd_var="$1"
+  local old="$2"
+  local new="$3"
   local ore_ok=0
   local nre_ok=0
   local o1
@@ -594,21 +639,23 @@ version_direction() {
     n3=$((10#${BASH_REMATCH[3]}))
     nre_ok=1
   fi
+  local __vd_d
   if [[ "$ore_ok$nre_ok" != "11" ]]; then
-    echo "unknown"
-    return 0
-  fi
-  if ((n1 > o1)) || { ((n1 == o1)) && ((n2 > o2)); } ||
+    __vd_d="unknown"
+  elif ((n1 > o1)) || { ((n1 == o1)) && ((n2 > o2)); } ||
     { ((n1 == o1)) && ((n2 == o2)) && ((n3 > o3)); }; then
-    echo "forward"
+    __vd_d="forward"
   elif ((n1 < o1)) || { ((n1 == o1)) && ((n2 < o2)); } ||
     { ((n1 == o1)) && ((n2 == o2)) && ((n3 < o3)); }; then
-    echo "backward"
+    __vd_d="backward"
+  elif [[ "$old" == "$new" ]]; then
+    __vd_d="same"
   else
     # Triples tie while the strings differ (`1.2.3` vs `1.2.3-beta`): the compare
     # cannot rank a suffix, so the pair is unknown rather than forward.
-    if [[ "$old" == "$new" ]]; then echo "same"; else echo "unknown"; fi
+    __vd_d="unknown"
   fi
+  printf -v "$__vd_var" '%s' "$__vd_d"
 }
 
 # Testing only. "old<TAB>new" prints version_direction and exits before any
@@ -644,10 +691,21 @@ CLI_RC=0
 # The directory a project/local call runs from when it is not the run's own:
 # `-s project` and `-s local` have no path flag and act on the cwd.
 CLI_CWD=""
+# A clock stamp as integer microseconds, so the shell can subtract two of them.
+stamp_us() {
+  local __su_s="$2"
+  local __su_f=""
+  [[ "$__su_s" == *.* ]] && __su_f="${__su_s#*.}"
+  __su_f="${__su_f}000000"
+  printf -v "$1" '%s' "$((10#${__su_s%%.*} * 1000000 + 10#${__su_f:0:6}))"
+}
 run_cli() {
   local label="$1"
   shift
   local sink="$RUN_DIR/.last-cli-out"
+  local t_s
+  local t_e
+  clock_into t_s
   {
     echo "\$ $label"
     # stdin closed: the CLI's confirmation for a marketplace-declared command
@@ -659,7 +717,20 @@ run_cli() {
     fi
   } | tee -a "$JOURNAL_LOG" >"$sink"
   CLI_RC=${PIPESTATUS[0]}
-  CLI_OUT=$(<"$sink")
+  # Each call's own wall time goes to the journal and into the block's `cli`
+  # total, so a run separates the CLI's time from this script's.
+  clock_into t_e
+  stamp_us t_s "$t_s"
+  stamp_us t_e "$t_e"
+  t_e=$(((t_e - t_s) / 1000))
+  ((t_e >= 0)) || t_e=0
+  CLI_CALLS=$((CLI_CALLS + 1))
+  CLI_MS=$((CLI_MS + t_e))
+  printf '# elapsed %d.%03ds, exit %d\n' $((t_e / 1000)) $((t_e % 1000)) "$CLI_RC" >>"$JOURNAL_LOG"
+  # `read`, not `$(<file)`: a builtin, so no fork per call.
+  CLI_OUT=""
+  IFS= read -r -d '' CLI_OUT <"$sink"
+  while [[ "$CLI_OUT" == *$'\n' ]]; do CLI_OUT="${CLI_OUT%$'\n'}"; done
   CLI_OUT="${CLI_OUT//$'\r'/}"
   # A CLI older than `--json` (before 2.1.268) rejects it as an unknown option:
   # run the call once more without it and read its text output.
@@ -696,11 +767,16 @@ predict_cli() {
 cli_json() {
   local __var="$1"
   local __text="$2"
-  local __line __found=""
+  local __line __lines="" __found=""
   while IFS= read -r __line || [[ -n "$__line" ]]; do
-    [[ "$__line" == '{'* ]] || continue
-    jq -e 'type == "object" and has("command")' <<<"$__line" >/dev/null 2>&1 && __found="$__line"
+    [[ "$__line" == '{'* ]] && __lines+="$__line"$'\n'
   done <<<"$__text"
+  # One jq reads every candidate line. `values`: jq 1.7's last() of nothing is
+  # null, and a found null would read as a result line.
+  [[ -z "$__lines" ]] ||
+    jq_to __found -c -R -n \
+      'last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values' \
+      <<<"$__lines" 2>/dev/null || __found=""
   printf -v "$__var" '%s' "$__found"
 }
 
@@ -794,6 +870,36 @@ cli_move_result() {
   *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
   *) printf -v "$__var" '%s' "other" ;;
   esac
+}
+
+# cli_move_result into $1 and cli_reported_version into $2 from one read of the
+# result line: one jq per update call.
+cli_update_result() {
+  local __ur_res="$1"
+  local __ur_new="$2"
+  local __ur_line
+  local __ur_lines=""
+  local __ur_pair=""
+  while IFS= read -r __ur_line || [[ -n "$__ur_line" ]]; do
+    [[ "$__ur_line" == '{'* ]] && __ur_lines+="$__ur_line"$'\n'
+  done <<<"$3"
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  [[ -z "$__ur_lines" ]] ||
+    jq_to __ur_pair -r -R -n '
+      last(inputs | (try fromjson catch null) | select(type == "object" and has("command"))) | values
+      | (.updateOutcome // "") as $o
+      | (if $o == "updated" then "updated" elif $o == "up_to_date" then "noop" else "other" end)
+        + "\u001f"
+        + (if $o == "updated" or $o == "up_to_date" then (.newVersion // "" | tostring) else "" end)' \
+      <<<"$__ur_lines" 2>/dev/null || __ur_pair=""
+  if [[ -z "$__ur_pair" ]]; then
+    # No result line: the text forms, which spawn nothing.
+    cli_reported_version "$__ur_new" "$3"
+    cli_move_result "$__ur_res" "$3"
+    return 0
+  fi
+  printf -v "$__ur_res" '%s' "${__ur_pair%%$'\x1f'*}"
+  printf -v "$__ur_new" '%s' "${__ur_pair#*$'\x1f'}"
 }
 
 # The line the report should show for a CLI call, classified from the
@@ -1131,6 +1237,15 @@ divergence_block() {
     | ([$qq.divergences[]? | actionable | {id, c: row_class}]) as $rows
     | ([$rows[] | select(.c == "actionable")]) as $act_rows
     | ([$qq.divergences[]? | actionable | diverging_records[]]) as $records
+    # A path converge can act on sorts before a linked worktree, and a worktree
+    # before a path that is not present, so the first sub-line under the
+    # converge pointer is a place converge can run from.
+    | ([$records[] | select((.projectPath // "") != "")]
+       | group_by(.projectPath)
+       | map((map(.id) | unique) as $ids
+             | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
+                more: ([($ids | length) - $cap, 0] | max)})
+       | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path)) as $paths
     | {pre: ($pre | length), mid: ($mid | length), post: ($post | length),
        new_total: ($new | length),
        new_by_interval: {in_repo: ([$by_step[] | select(. as $i | $mid | index($i))] | length),
@@ -1142,16 +1257,29 @@ divergence_block() {
        in_worktrees: ([$rows[] | select(.c == "worktree")] | length),
        blocked: ([$rows[] | select(.c == "blocked")] | length),
        records: [$records[] | del(.class)],
-       # A path converge can act on sorts before a linked worktree, and a worktree
-       # before a path that is not present, so the first sub-line under the
-       # converge pointer is a place converge can run from.
-       by_path: ([$records[] | select((.projectPath // "") != "")]
-                 | group_by(.projectPath)
-                 | map((map(.id) | unique) as $ids
-                       | {path: .[0].projectPath, class: .[0].class, count: length, ids: $ids[:$cap],
-                          more: ([($ids | length) - $cap, 0] | max)})
-                 | sort_by(({actionable: 0, worktree: 1, blocked: 2}[.class // ""] // 0), -.count, .path))}' \
-    "$RUN_DIR/.divergence-args.$mp.json"
+       # The stale project records section already counts every path that is
+       # not present, so the digest names those paths by count only.
+       by_path: [$paths[] | select(.class != "blocked")],
+       blocked_paths: ([$paths[] | select(.class == "blocked")]
+                       | {paths: length, records: (map(.count) | add // 0)}),
+       by_path_all: $paths}' \
+    "$RUN_DIR/.divergence-args.$mp.json" || return
+  # The per-record detail goes to a run-directory file, not the digest: on a
+  # large fleet it is most of the digest, and the digest is printed into the
+  # session. Audit's scratch directory is removed on exit, so audit keeps the
+  # records inline, and so does a run whose file write fails.
+  local full="${!__var}"
+  local detail=""
+  local detail_file="$RUN_DIR/divergences.$mp.json"
+  if [[ "$MODE" != "audit" ]] &&
+    jq_to detail -c '{records, by_path: .by_path_all}' <<<"$full" &&
+    printf '%s\n' "$detail" >"$detail_file"; then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to "$__var" -c --arg f "$detail_file" \
+      '(.records | length) as $n | del(.records, .by_path_all) + {record_count: $n, records_file: $f}' <<<"$full"
+  else
+    jq_to "$__var" -c 'del(.by_path_all) + {record_count: (.records | length), records_file: null}' <<<"$full"
+  fi
 }
 
 # --- Step 3a — forward-update the records of every other present path --------------
@@ -1180,29 +1308,53 @@ TRIPLE_DEF='def triple:
        | if . == null then null else [.x, .y, .z] | map(tonumber) end)
     else null end;'
 
+# Whether a directory is in a git work tree, asked once per directory: the
+# answer does not change between the calls made in it.
+SS_GIT_DIR=""
+SS_GIT_IN=0
 settings_state() {
   local __var="$1"
   local dir="$2"
   local st=""
   local f
-  local sum
-  if git --no-optional-locks -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  local text
+  if [[ "$dir" != "$SS_GIT_DIR" ]]; then
+    SS_GIT_DIR="$dir"
+    SS_GIT_IN=0
+    git --no-optional-locks -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 && SS_GIT_IN=1
+  fi
+  if ((SS_GIT_IN == 1)); then
     st=$(git --no-optional-locks -C "$dir" status --porcelain -- .claude/ 2>&1)
   fi
+  # The files' own bytes, read with a builtin: no process per call.
   for f in settings.json settings.local.json; do
-    sum="absent"
-    [[ -f "$dir/.claude/$f" ]] && sum=$(cksum <"$dir/.claude/$f")
-    st+=$'\n'"$f $sum"
+    text="absent"
+    if [[ -f "$dir/.claude/$f" ]]; then
+      text=""
+      IFS= read -r -d '' text <"$dir/.claude/$f"
+      text="present:$text"
+    fi
+    st+=$'\n'"$f $text"
   done
   printf -v "$__var" '%s' "$st"
 }
 
 path_row() {
-  # path_row <result> <reason> <stopped>: one row for the current record.
-  jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$path" --arg old "$old" --arg cat "$cat" \
-    --arg label "$label" --arg home "$home" --arg result "$1" --arg reason "$2" --argjson stopped "$3" \
-    '{id: $id, scope: $sc, path: $path, old: $old, catalog: $cat, label: $label,
-      home: ($home == "true"), result: $result, reason: $reason, stopped: $stopped}'
+  # path_row <result> <reason> <stopped>: one row for the current record, in
+  # the key order and escaping `jq -c` gives, with no process.
+  local j_id j_sc j_path j_old j_cat j_label j_result j_reason
+  local j_home="false"
+  json_string_to j_id "$id"
+  json_string_to j_sc "$scope"
+  json_string_to j_path "$path"
+  json_string_to j_old "$old"
+  json_string_to j_cat "$cat"
+  json_string_to j_label "$label"
+  json_string_to j_result "$1"
+  json_string_to j_reason "$2"
+  [[ "$home" == "true" ]] && j_home="true"
+  printf '{"id":%s,"scope":%s,"path":%s,"old":%s,"catalog":%s,"label":%s,"home":%s,"result":%s,"reason":%s,"stopped":%s}\n' \
+    "$j_id" "$j_sc" "$j_path" "$j_old" "$j_cat" "$j_label" "$j_home" "$j_result" "$j_reason" "$3"
 }
 
 other_paths_step() {
@@ -1327,6 +1479,7 @@ reset_marketplace_state() {
   T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
   T_FN_S="" T_MP_S="" T_MP_E=""
   CACHE_CHECK_RAN=0
+  CLI_CALLS=0 CLI_MS=0
 }
 reset_marketplace_state
 
@@ -1681,8 +1834,7 @@ run_marketplace() {
             '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason}')")
           continue
         fi
-        cli_reported_version new "$CLI_OUT"
-        cli_move_result result "$CLI_OUT"
+        cli_update_result result new "$CLI_OUT"
         printf 'in_repo\t%s\t%s\t%s\t%s\t%s\n' "$id" "$scope" "${old:--}" "${new:--}" "$result" \
           >>"$RUN_DIR/moves.$mp.tsv"
       done <"$RUN_DIR/ids.pre.$mp.txt"
@@ -1716,10 +1868,18 @@ run_marketplace() {
     if ((rc != 0)); then
       mp_error "user-scope projection failed (exit $rc), sweep not run: $(proj_err)"
     else
-      while IFS= read -r id; do
-        id="${id//$'\r'/}"
+      # Each id with its installed version, from one read of the snapshot.
+      local sweep_rows=""
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_to sweep_rows -r --rawfile ids "$RUN_DIR/ids.mid.$mp.txt" '
+        . as $s
+        | $ids | gsub("\r"; "") | split("\n")[] | select(length > 0) as $id
+        | $id + "\u001f"
+          + (first($s.installed[]? | select(.id == $id and .scope == "user") | .version) // "" | tostring)' \
+        "$RUN_DIR/mid.$mp.json" || sweep_rows=$(<"$RUN_DIR/ids.mid.$mp.txt")
+      sweep_rows="${sweep_rows//$'\r'/}"
+      while IFS=$'\x1f' read -r id old; do
         [[ -n "$id" ]] || continue
-        version_at old "$RUN_DIR/mid.$mp.json" "$id" user
         if [[ "$MODE" == "audit" ]]; then
           predict_cli "claude plugin update $id -s user"
           US_WOULD+=("$(jq -c -n --arg id "$id" --arg old "$old" '{id: $id, installed: $old}')")
@@ -1733,11 +1893,10 @@ run_marketplace() {
             --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
           continue
         fi
-        cli_reported_version new "$CLI_OUT"
-        cli_move_result result "$CLI_OUT"
+        cli_update_result result new "$CLI_OUT"
         printf 'user_sweep\t%s\t%s\t%s\t%s\t%s\n' "$id" user "${old:--}" "${new:--}" "$result" \
           >>"$RUN_DIR/moves.$mp.tsv"
-      done <"$RUN_DIR/ids.mid.$mp.txt"
+      done <<<"$sweep_rows"
     fi
 
     # The withheld set. `--allow-downgrade` is the operator's explicit opt-in; without
@@ -2204,9 +2363,35 @@ finalize_moves() {
   local result
   local dir
   local row
+  local line
+  local post_v
+  local ncat
+  local nlabel
+  local joined=""
   local post="$RUN_DIR/post.$mp.json"
   [[ -f "$RUN_DIR/moves.$mp.tsv" ]] || return 0
-  while IFS=$'\t' read -r kind id scope old new result; do
+  # Every ledger line joined, in one read of the post snapshot, with what the
+  # checks below need from it: the id's version at its scope (version_at's
+  # rule), its catalog version, and this project's record label. Empty when the
+  # post read is missing or unreadable, as version_at would give.
+  if [[ -f "$post" ]]; then
+    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+    jq_to joined -r --rawfile moves "$RUN_DIR/moves.$mp.tsv" '
+      . as $p
+      | $moves | gsub("\r"; "") | split("\n")[] | select(length > 0)
+      | . as $line | split("\t") as $f | $f[1] as $id | $f[2] as $sc
+      | [$line,
+         (first($p.installed[]? | select(.id == $id and .scope == $sc
+            and ($sc == "user" or .currentProject == true)) | .version) // "" | tostring),
+         ($p.catalog_versions[$id]? // "" | tostring),
+         (first($p.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
+            | .label) // "" | tostring)]
+      | join("\u001f")' "$post" 2>/dev/null || joined=""
+  fi
+  [[ -n "$joined" ]] || joined=$(<"$RUN_DIR/moves.$mp.tsv")
+  joined="${joined//$'\r'/}"
+  while IFS=$'\x1f' read -r line post_v ncat nlabel; do
+    IFS=$'\t' read -r kind id scope old new result <<<"$line"
     [[ -n "$id" ]] || continue
     # A version field is written as `-` when it is empty, and read back the same
     # way: tab is IFS WHITESPACE, so two adjacent tabs collapse into one delimiter
@@ -2225,17 +2410,10 @@ finalize_moves() {
     # read, or the two sources disagreeing, stays a noop and is counted as unverified.
     if [[ "$result" == "noop" ]]; then
       if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" && -f "$post" ]]; then
-        local ncur
-        local ncat
-        local nlabel
-        version_at ncur "$post" "$id" "$scope"
-        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-        jq_to ncat -r --arg id "$id" '.catalog_versions[$id] // ""' "$post"
-        # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-        jq_to nlabel -r --arg id "$id" --arg sc "$scope" \
-          'first(.installed[]? | select(.id == $id and .scope == $sc and .currentProject == true)
-            | .label) // ""' "$post"
-        if [[ -n "$ncur" && -n "$ncat" && "$(version_direction "$ncur" "$ncat")" == "forward" ]]; then
+        dir=""
+        [[ -n "$post_v" && -n "$ncat" ]] && version_direction_to dir "$post_v" "$ncat"
+        if [[ "$dir" == "forward" ]]; then
+          local ncur="$post_v"
           IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg cur "$ncur" --arg cat "$ncat" --arg label "$nlabel" \
             '{id: $id, scope: $sc, rc: 0, output: "",
               reason: ("the CLI said already at the latest version, but this project'"'"'s record is still at \($cur) and the catalog reads \($cat): the update did not take"
@@ -2243,8 +2421,6 @@ finalize_moves() {
           continue
         fi
       fi
-      local post_v=""
-      [[ -f "$post" ]] && version_at post_v "$post" "$id" "$scope"
       if [[ -z "$old" || -z "$post_v" ]]; then
         NOOP_UNVERIFIED=$((NOOP_UNVERIFIED + 1))
         continue
@@ -2254,19 +2430,18 @@ finalize_moves() {
         continue
       fi
       new="$post_v"
-      dir=$(version_direction "$old" "$new")
+      version_direction_to dir "$old" "$new"
       [[ "$dir" == "same" ]] && continue
-      row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg k "$kind" --arg o "$old" --arg n "$new" --arg d "$dir" \
-        '{id: $id, scope: $sc, kind: $k, old: $o, new: $n, direction: $d}')
+      move_row_to row "$id" "$scope" "$old" "$new" "$dir" "$kind"
       MOVED_DURING+=("$row")
       if [[ "$dir" == "backward" ]]; then
-        DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-          '{id: $id, scope: $sc, old: $o, new: $n, concurrent: true}')")
+        downgrade_row_to row "$id" "$scope" "$old" "$new" concurrent
+        DOWNGRADED+=("$row")
       fi
       continue
     fi
     if [[ -z "$new" && -f "$post" ]]; then
-      version_at new "$post" "$id" "$scope"
+      new="$post_v"
       [[ "$new" == "$old" ]] && new=""
     fi
     # The CLI says it updated a project/local record, yet the run's own record is
@@ -2276,10 +2451,8 @@ finalize_moves() {
     # included, so it does not append it again.
     if ((ONLY_INSTALL_MODE == 0)) && [[ "$kind" == "in_repo" && "$scope" != "user" &&
       "$result" == "updated" && -n "$new" && -n "$old" && -f "$post" ]]; then
-      local cur
       local moved=""
-      version_at cur "$post" "$id" "$scope"
-      if [[ "$cur" == "$old" && "$new" != "$old" ]]; then
+      if [[ "$post_v" == "$old" && "$new" != "$old" ]]; then
         # Name the record that did move: another project's record of the id whose
         # version differs between the pre and post reads.
         # Against the mid read when there is one: Step 3a moves other paths'
@@ -2306,21 +2479,20 @@ finalize_moves() {
       new="unknown"
       dir="unknown"
     else
-      dir=$(version_direction "$old" "$new")
+      version_direction_to dir "$old" "$new"
     fi
     case "$dir" in
     same) continue ;;
     backward)
-      DOWNGRADED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" \
-        '{id: $id, scope: $sc, old: $o, new: $n}')")
+      downgrade_row_to row "$id" "$scope" "$old" "$new"
+      DOWNGRADED+=("$row")
       ;;
     *)
-      row=$(jq -c -n --arg id "$id" --arg sc "$scope" --arg o "$old" --arg n "$new" --arg d "$dir" \
-        '{id: $id, scope: $sc, old: $o, new: $n, direction: $d}')
+      move_row_to row "$id" "$scope" "$old" "$new" "$dir"
       if [[ "$kind" == "in_repo" ]]; then IR_UPDATED+=("$row"); else US_UPDATED+=("$row"); fi
       ;;
     esac
-  done <"$RUN_DIR/moves.$mp.tsv"
+  done <<<"$joined"
 }
 
 # --- report rows that live in the state, not in this run's actions ------------------
@@ -2494,7 +2666,15 @@ monitor_count_at() {
   local __mc_path=""
   printf -v "$__mc_var" '%s' "0"
   [[ -d "$__mc_root" ]] || return 0
-  if [[ -f "$__mc_manifest" ]]; then
+  local __mc_text=""
+  [[ -f "$__mc_manifest" ]] && IFS= read -r -d '' __mc_text <"$__mc_manifest"
+  # A manifest whose text never spells `monitors` (nor any `\u` escape that
+  # could spell it) declares neither key, and with no default file the count
+  # is 0 whether or not it parses, so it needs no jq. Most plugins are this.
+  if [[ -f "$__mc_manifest" && "$__mc_text" != *monitors* && "$__mc_text" != *'\u'* &&
+    ! -f "$__mc_root/monitors/monitors.json" ]]; then
+    __mc_kind="false"
+  elif [[ -f "$__mc_manifest" ]]; then
     # Nested experimental.monitors wins over a top-level monitors key, the same
     # order as (.experimental.monitors // .monitors). Presence is has(), not
     # //: an empty array is a declared value and must not fall through to the
@@ -2555,23 +2735,37 @@ monitor_rows() {
   local path
   local n
   local rows=()
+  local moved=()
+  local paths=""
+  local j_id
+  local j_sc
   printf -v "$__var" '%s' "[]"
   [[ -f "$post" ]] || return 0
   for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
     ${DOWNGRADED[@]+"${DOWNGRADED[@]}"} ${MOVED_DURING[@]+"${MOVED_DURING[@]}"}; do
     # A backward concurrent move sits in both arrays; the downgraded copy counts.
     [[ "$row" == *'"kind":'* && "$row" == *'"direction":"backward"'* ]] && continue
-    jq_to id -r '.id' <<<"$row"
-    jq_to scope -r '.scope' <<<"$row"
-    # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to path -r --arg id "$id" --arg sc "$scope" \
-      'first(.installed[]? | select(.id == $id and .scope == $sc
-        and ($sc == "user" or .currentProject == true)) | .installPath) // ""' "$post"
+    moved+=("$row")
+  done
+  ((${#moved[@]} > 0)) || return 0
+  # Every moved row's id, scope and install path from one read of the post
+  # snapshot, in row order.
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to paths -r -n --slurpfile p "$post" '
+    $p[0] as $q
+    | inputs | . as $r
+    | [$r.id, $r.scope,
+       (first($q.installed[]? | select(.id == $r.id and .scope == $r.scope
+          and ($r.scope == "user" or .currentProject == true)) | .installPath) // "")]
+    | join("\u001f")' <<<"$(printf '%s\n' "${moved[@]}")" || return 0
+  while IFS=$'\x1f' read -r id scope path; do
     [[ -n "$path" ]] || continue
     monitor_count_at n "${path//\\//}"
     ((n > 0)) || continue
-    rows+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson n "$n" '{id: $id, scope: $sc, monitors: $n}')")
-  done
+    json_string_to j_id "$id"
+    json_string_to j_sc "$scope"
+    rows+=("{\"id\":$j_id,\"scope\":$j_sc,\"monitors\":$n}")
+  done <<<"$paths"
   json_array_of "$__var" ${rows[@]+"${rows[@]}"}
 }
 
@@ -2710,6 +2904,7 @@ emit_marketplace_block() {
     --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
     --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
+    --argjson cli_calls "$CLI_CALLS" --argjson cli_ms "$CLI_MS" \
     --arg resolution "$CLOCK_RESOLUTION" '
     # Seconds to three decimals; an empty stamp pair is a step that did not run.
     # Steps round DOWN and the total rounds UP, so the total is never below the
@@ -2742,6 +2937,7 @@ emit_marketplace_block() {
             | max end) as $unattributed
     | $extras + {name: $name,
      timings: ($steps + {unattributed: $unattributed, total: $total, resolution: $resolution}),
+     cli: {calls: $cli_calls, seconds: ($cli_ms / 1000)},
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
      source_pull: $pull,
