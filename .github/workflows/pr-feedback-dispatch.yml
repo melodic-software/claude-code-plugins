@@ -204,8 +204,8 @@ jobs:
           # hold: at most 194 characters, the digest optional, `-i` on a FAIL
           # only, its issues ascending and once each). A verdict-shaped name
           # no reader takes fails the run rather than being skipped.
-          listed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-(fail|pass)"))')
+          listing=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100")
+          listed=$(jq -r '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[0-9]+-[0-9a-f]{40}-(fail|pass)"))' <<<"$listing")
           names=$(jq -Rr 'select(length <= 194 and (test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") or test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-pass(-notes)?(-[0-9a-f]{16})?\\z")) and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
           if [ "$names" != "$listed" ]; then
             echo "::error::run $RUN_ID uploaded a verdict whose name no reader takes"
@@ -216,7 +216,16 @@ jobs:
             exit 0
           fi
           name=$(head -n 1 <<<"$names")
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/verdict"
+          # The listing names the artifact's id, so the download is one call;
+          # `gh run download --name` would list the run's artifacts again.
+          id=$(jq -r --arg name "$name" 'first(.artifacts[] | select(.expired == false and .name == $name) | .id)' <<<"$listing")
+          if [[ ! "$id" =~ ^[1-9][0-9]{0,19}$ ]]; then
+            echo "::error::run $RUN_ID listed $name with no artifact id"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/verdict"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" >"$RUNNER_TEMP/verdict.zip"
+          unzip -o -q "$RUNNER_TEMP/verdict.zip" verdict.json -d "$RUNNER_TEMP/verdict"
           echo "name=$name" >>"$GITHUB_OUTPUT"
 
       - name: Post a fail's notes, or find a pass's stale ones
