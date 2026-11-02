@@ -502,7 +502,8 @@ async function serve(opts) {
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
-  // claude has its copy; the holder keeps no credential for the rest of the session.
+  // claude has its copy: later children and in-process reads no longer see the key. /proc/<pid>/environ
+  // still shows the environment the holder started with, which #8651's isolation probe covers.
   for (const name of CI_NAMES) delete process.env[name];
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
