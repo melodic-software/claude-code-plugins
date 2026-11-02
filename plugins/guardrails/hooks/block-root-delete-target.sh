@@ -435,7 +435,8 @@
 #     A directory holding a protected tree, or a glob whose matches do, is
 #     refused too; a glob is read as bash reads it with dotglob off, unless the
 #     command names dotglob, GLOBIGNORE or globdots, and on the PowerShell
-#     tool, whose `*` matches dot names. A `.git` is matched in any case, and
+#     tool, whose `*` matches dot names, outside a bash, sh, dash or mksh
+#     child it runs. A `.git` is matched in any case, and
 #     on Windows with a trailing dot or space, which Win32 trims. A path named
 #     under a `.git`, the toplevel or a worktree root is not refused
 #     (`rm -rf .git/rebase-merge`), and neither is the bash glob of a toplevel
@@ -1806,6 +1807,10 @@ RDT_P_REF=()
 RDT_P_SUB=()
 RDT_P_WT=()
 RDT_WTRM=0
+# RDT_PS_BASHC is 1 while a bash, sh, dash or mksh child of the PowerShell tool
+# is parsed; RDT_P_PSDOT is 1 once an operand is queued outside one.
+RDT_PS_BASHC=0
+RDT_P_PSDOT=0
 RDT_WIN=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) RDT_WIN=1 ;;
@@ -2486,7 +2491,8 @@ rdt_within() {
 # rdt_pat_hits <name> <pattern>: true when globbing <pattern> in a directory
 # would match the entry <name>. A leading `.` is matched only by a pattern that
 # starts with one, as bash and zsh glob by default, unless RDT_DOTS is 1 (the
-# PowerShell tool, whose `*` matches dot names, or a command that names
+# PowerShell tool, whose `*` matches dot names, outside a bash, sh, dash or
+# mksh child it runs, or a command that names
 # dotglob, GLOBIGNORE or zsh's globdots). On Windows both are folded to lower
 # case, so a pattern bash would match case-sensitively can match more here,
 # never less.
@@ -3127,10 +3133,11 @@ rdt_judge_pending() {
     RDT_PROT_A+=("$t")
     RDT_PROT_AW+=("a tree in block_root_delete_target_protected_trees")
   done
-  # A glob matches dot names on the PowerShell tool, and in bash or zsh once
-  # the command turns on dotglob, GLOBIGNORE or globdots.
+  # A glob matches dot names on the PowerShell tool, unless every operand sits
+  # in a bash, sh, dash or mksh child it runs, and in bash or zsh once the
+  # command turns on dotglob, GLOBIGNORE or globdots.
   RDT_DOTS=0
-  [[ "$TOOL_NAME" == PowerShell ]] && RDT_DOTS=1
+  [[ "$TOOL_NAME" == PowerShell ]] && ((RDT_P_PSDOT)) && RDT_DOTS=1
   case "${COMMAND,,}" in
   *dotglob* | *globignore* | *globdots* | *glob_dots*) RDT_DOTS=1 ;;
   *) ;;
@@ -6207,6 +6214,7 @@ rdt_check_operand() {
     RDT_P_REF+=("$rdt_cd_refuse")
     RDT_P_SUB+=("$rdt_in_subst")
     RDT_P_WT+=("$RDT_WTRM")
+    ((RDT_PS_BASHC)) || RDT_P_PSDOT=1
   fi
   return 0
 }
@@ -6887,7 +6895,8 @@ rdt_ps_cmd_rd() {
   case "$__base" in
   rd | rmdir) ;;
   # del and erase with /s delete the files they name in every subdirectory
-  # too (del, learn.microsoft.com); /a takes attributes, so `/as` is no /s.
+  # too (del, learn.microsoft.com), run together too (`/qs`); /a takes
+  # attributes, so `/as` is no /s.
   del | erase) __del=1 ;;
   robocopy)
     rdt_ps_robocopy_check "${__cw[@]:1}"
@@ -6899,7 +6908,7 @@ rdt_ps_cmd_rd() {
   for ((__i = 1; __i < ${#__cw[@]}; __i++)); do
     if ((__del)); then
       case "${__cw[__i]}" in
-      /*) [[ "${__cw[__i],,}" =~ (^|/)s ]] && __rec=1 ;;
+      /*) [[ "${__cw[__i],,}" =~ (^|/)[^a/]*s ]] && __rec=1 ;;
       *) __paths+=("${__cw[__i]}") ;;
       esac
       continue
@@ -6989,6 +6998,13 @@ rdt_ps_bash_from() {
   hook::shell_c_operand "${__bw[@]}" || return 0
   local rdt_depth=$((rdt_depth + 1))
   ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
+  # bash, sh, dash and mksh glob `*` without dot names; zsh, ksh and wsl's
+  # default shell keep the PowerShell reading.
+  local RDT_PS_BASHC=$RDT_PS_BASHC
+  case "$1" in
+  bash | sh | dash | mksh) RDT_PS_BASHC=1 ;;
+  *) ;;
+  esac
   rdt_shell_prog "$HOOK_SHELL_C_OPERAND" 0
 }
 

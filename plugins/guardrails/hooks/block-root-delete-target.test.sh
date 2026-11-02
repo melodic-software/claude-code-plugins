@@ -1802,6 +1802,23 @@ expect_both 'protected: the toplevel glob leaves .git, allowed' 0 "${RDT_CWD[@]}
 # A glob matches dot names on PowerShell, and in bash once dotglob is on.
 expect_both 'protected: PS Remove-Item * from the toplevel blocks (its * matches .git)' 2 \
   --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Force *'
+# A bash child of the PowerShell tool globs as bash does: `*` skips .git.
+expect_both 'protected: PS bash -c rm -rf * from the toplevel allowed (bash * skips .git)' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "bash -c 'rm -rf *'"
+expect_both 'protected: PS cmd /c bash -c rm -rf * from the toplevel allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'cmd /c bash -c "rm -rf *"'
+expect_both 'protected: PS bash -O dotglob -c rm -rf * blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "bash -O dotglob -c 'rm -rf *'"
+expect_both 'protected: PS bash -c with shopt -s dotglob then rm -rf * blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "bash -c 'shopt -s dotglob; rm -rf *'"
+expect_both 'protected: PS bash -c rm -rf * then Remove-Item * blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "bash -c 'rm -rf *'; Remove-Item -Recurse -Force *"
+expect_both 'protected: PS Remove-Item * then bash -c rm -rf * blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force *; bash -c 'rm -rf *'"
+expect_both 'protected: PS zsh -c rm -rf * keeps the PowerShell glob reading, blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "zsh -c 'rm -rf *'"
+expect_both 'protected: PS wsl rm -rf * keeps the PowerShell glob reading, blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'wsl rm -rf *'
 expect_both 'protected: dotglob then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'shopt -s dotglob; rm -rf *'
 expect_both 'protected: GLOBIGNORE then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'GLOBIGNORE=x; rm -rf *'
 # A case-insensitive filesystem removes .git through .GIT.
@@ -4260,6 +4277,16 @@ expect_both 'engine parity 112 companion: cmd /c del /s under a named %NAME% sub
   --tool PowerShell --command 'cmd /c del /s /q %USERPROFILE%\proj'
 expect_both 'engine parity 112 companion: cmd /c del /as reads /a attributes, not /s' 0 "${RDT_CWD[@]}" --tool PowerShell \
   --command 'cmd /c del /as /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /c del /qs reads the run-together /s, blocks' 2 "${RDT_CWD[@]}" \
+  --tool PowerShell --command 'cmd /c del /qs %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /c del /q/s blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /c del /q/s %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /k del /fs /q blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /k del /fs /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /c del /ahs reads /a attributes, not /s' 0 "${RDT_CWD[@]}" \
+  --tool PowerShell --command 'cmd /c del /ahs /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /c del /a:s reads /a attributes, not /s' 0 "${RDT_CWD[@]}" \
+  --tool PowerShell --command 'cmd /c del /a:s /q %USERPROFILE%'
 expect_both 'engine parity 112 companion: Bash cmd /c del /s /q %USERPROFILE% blocks' 2 "${RDT_CWD[@]}" \
   --command 'cmd /c del /s /q %USERPROFILE%'
 expect_both 'engine parity 112 companion: Bash cmd /c "erase /s /q %USERPROFILE%" blocks' 2 "${RDT_CWD[@]}" \
