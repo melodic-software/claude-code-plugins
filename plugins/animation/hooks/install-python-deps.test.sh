@@ -71,6 +71,63 @@ run_hook() {
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
 
+# Real Git Bash or Cygwin on Windows (the Windows CI lane): the ready stamp in true Windows form, built from this
+# fixture's own paths with cygpath -w, holds and the hook starts no Python. A sitecustomize on PYTHONPATH logs every
+# Python start that imports site, the hook's own interpreter probe included. Every later case stubs interpreters with
+# shell scripts, simulates Windows paths or needs Linux namespaces, so on Windows the suite ends here.
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
+  root="$(new_plugin realwin "$digest")"
+  data="$WORK/data-realwin"
+  stamp="$data/python/.hook-ready"
+  mkdir -p "$WORK/site"
+  printf 'with open(%s, "a") as f:\n    f.write("start\\n")\n' "'$(native "$WORK/py-starts.log")'" >"$WORK/site/sitecustomize.py"
+  # win_run <find-links dir> -> runs the hook with the logging sitecustomize; sets OUT, RC and STARTS.
+  win_run() {
+    rm -f "$WORK/py-starts.log"
+    run_hook "$root" "$1" CLAUDE_PLUGIN_DATA="$(native "$data")" PYTHONPATH="$(native "$WORK/site")"
+    STARTS=0
+    [[ -f "$WORK/py-starts.log" ]] && STARTS="$(wc -l <"$WORK/py-starts.log" | tr -d '[:space:]')"
+  }
+  win_run "$WHEELS"
+  target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+  if [[ "$RC" -eq 0 && -z "$OUT" && -f "$stamp" && -n "$target" && "$STARTS" -gt 0 ]]; then
+    ok "under Git Bash the first session installs, starting Python, and writes the ready stamp"
+  else
+    fail "Git Bash install: rc=$RC starts=$STARTS stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
+  fi
+  {
+    printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(cygpath -w "$root")" "$(cygpath -w "$target")"
+    for name in python3.13 python3.12 python3 python py; do
+      resolved="$(command -v "$name" 2>/dev/null)" || resolved=""
+      windows=""
+      if [[ -n "$resolved" ]]; then
+        windows="$(cygpath -w "$resolved")"
+        # shutil.which keeps the PATHEXT suffix that command -v may drop.
+        [[ "${resolved,,}" != *.exe && -e "$resolved.exe" ]] && windows+=".EXE"
+      fi
+      printf '%s=%s\n' "$name" "$windows"
+    done
+  } >"$stamp"
+  win_run "$EMPTY"
+  if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -eq 0 ]]; then
+    ok "under Git Bash a ready stamp in Windows form starts no Python"
+  else
+    fail "Git Bash ready stamp: rc=$RC starts=$STARTS stamp=[$(tr '\n' '|' <"$stamp")] output=[$OUT]"
+  fi
+  rm -f "$stamp"
+  win_run "$EMPTY"
+  if [[ "$RC" -eq 0 && "$STARTS" -gt 0 ]]; then
+    ok "under Git Bash without the stamp the hook starts Python, so the start log sees one"
+  else
+    fail "Git Bash without stamp: rc=$RC starts=$STARTS output=[$OUT]"
+  fi
+  echo "SKIP: the remaining cases stub interpreters with shell scripts, simulate Windows paths or need Linux namespaces"
+  echo "---"
+  echo "passed: $PASS, failed: $FAIL"
+  exit $((FAIL > 0))
+fi
+echo "SKIP: the real Git Bash ready-stamp case needs Git Bash or Cygwin with cygpath"
+
 # First session: installs, says nothing.
 root="$(new_plugin first "$digest")"
 data="$WORK/data-first"
