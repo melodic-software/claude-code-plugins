@@ -623,6 +623,11 @@ run "unquoted heredoc body, a case pattern ) inside \$(( ) ) (blocked)" $'cat <<
 run "unquoted heredoc body, a backslash-newline inside \$( (blocked)" $'cat <<EOF\n$\\\n(git reset --hard)\nEOF' 2
 run "unquoted heredoc body, a backslash-newline before a comment in \$( ) (blocked)" $'cat <<EOF\n$(: \\\n# )\ngit reset --hard)\nEOF' 2
 run "unquoted heredoc body, a backslash-newline inside a case word (blocked)" $'cat <<EOF\n$(cas\\\ne x in x) git reset --hard;; esac)\nEOF' 2
+run "unquoted heredoc body, apostrophes around a backslash-newline \$( (blocked)" $'cat <<EOF\ndon\'t $\\\n(git reset --hard) won\'t\nEOF' 2
+run "unquoted heredoc body, apostrophes around \$( ) after a backslash-newline elsewhere (blocked)" $'cat <<EOF\nx\\\ny\nit\'s $(git reset --hard) ok\'\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$( ) (blocked)" $'cat <<EOF\n$( (:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a comment after a subshell ) in \$(( ) (blocked)" $'cat <<EOF\n$((:)# )\ngit reset --hard)\nEOF' 2
+run "unquoted heredoc body, a backslash-newline in prose with \$HOME (allowed)" $'cat <<EOF\nit\'s a long \\\nline in $HOME\nEOF' 0
 run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
 run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
 run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0

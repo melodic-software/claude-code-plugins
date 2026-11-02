@@ -4563,14 +4563,12 @@ hook::_bps_hd_brace_open() {
 }
 
 # hook::_bps_hd_spans <start> <end>: append to hook::bash_parse_segments_uncached's
-# `hd_spans` one `<from> <to>` byte range of `chars` for each substitution bash
-# runs in the unquoted here-doc body chars[start..end). bash expands such a body
-# as it expands a double-quoted string, `"` aside (Here Documents, Bash
-# Reference Manual): a `\` before `$`, a backtick or `\` escapes it, a
-# `\`-newline is removed before anything is read, and `$(...)`, a backtick
-# pair, `${...}` and `$[...]` run what they hold. A body holding a `\`-newline,
-# which can join an opener or a comment across lines, is one range from start
-# to end, so its parse reads all of it as commands. A
+# `hd_subs` the text of each substitution bash runs in the unquoted here-doc
+# body chars[start..end). bash expands such a body as it expands a
+# double-quoted string, `"` aside (Here Documents, Bash Reference Manual): each
+# `\`-newline is removed first, so the scan reads a copy of the body without
+# them; then a `\` before `$`, a backtick or `\` escapes it, and `$(...)`, a
+# backtick pair, `${...}` and `$[...]` run what they hold. A
 # `$(` range starts at its `(`, so its parse reads a subshell; the others keep
 # their `$`, so their parse reads the word the same text reads at top level.
 # Inside `$( )` the quotes, `$'...'` spans, comments and nested openers are
@@ -4579,11 +4577,24 @@ hook::_bps_hd_brace_open() {
 # still open at the end of the body, run the range to the end of the body and
 # end the scan: the parse then reads more of the body as commands, never less.
 # Dynamic scope, like hook::_bps_close_word.
-# shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; `chars` and `hd_spans` are locals of hook::bash_parse_segments_uncached
+# shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; `chars` and `hd_subs` are locals of hook::bash_parse_segments_uncached
 hook::_bps_hd_spans() {
-  local k=$1 e=$2 from=0 j ch nx top ws=0
-  # Open frames, innermost last: P `$(`, `$((` or `(` in a command, or a
-  # `${ ` / `${|` command substitution; B `${`, K `$[` or `[` inside one, D a
+  local k from=0 j ch nx top ws=0 e sub
+  local -a hb=() rs=()
+  for ((j = $1; j < $2; j++)); do
+    if [[ ${chars[j]} == '\' ]] && ((j + 1 < $2)); then
+      [[ ${chars[j + 1]} == $'\n' ]] || hb+=('\' "${chars[j + 1]}")
+      j=$((j + 1))
+      continue
+    fi
+    hb+=("${chars[j]}")
+  done
+  local -a chars=(${hb[@]+"${hb[@]}"})
+  k=0
+  e=${#chars[@]}
+  # Open frames, innermost last: P `$(`, `$((`, `<(` or `>(` in a command, or
+  # a `${ ` / `${|` command substitution; S a subshell `(`, read as P except
+  # that a `#` after its `)` starts a comment; B `${`, K `$[` or `[` inside one, D a
   # double-quoted string, Q a backtick substitution. `$((` reads as P because
   # bash runs `$((cmd) )` as a command substitution, so its quotes, comments
   # and `case` patterns count; an arithmetic `<<` then runs the range to the
@@ -4591,12 +4602,6 @@ hook::_bps_hd_spans() {
   # the end of the body, never at a `}`, which bash ends only in command
   # position.
   local -a st=()
-  for ((j = k; j + 1 < e; j++)); do
-    if [[ ${chars[j]} == '\' && ${chars[j + 1]} == $'\n' ]]; then
-      hd_spans+=("$k $e")
-      return 0
-    fi
-  done
   while ((k < e)); do
     ch=${chars[k]}
     nx=""
@@ -4673,7 +4678,7 @@ hook::_bps_hd_spans() {
           continue
           ;;
         "'")
-          if [[ $top == P ]]; then
+          if [[ $top == [PS] ]]; then
             j=$((k + 2))
             while ((j < e)) && [[ ${chars[j]} != "'" ]]; do
               if [[ ${chars[j]} == '\' ]]; then j=$((j + 2)); else j=$((j + 1)); fi
@@ -4699,7 +4704,7 @@ hook::_bps_hd_spans() {
         *) ;;
         esac
         ;;
-      P)
+      P | S)
         case $ch in
         "'")
           j=$((k + 1))
@@ -4713,12 +4718,15 @@ hook::_bps_hd_spans() {
           ws=0
           ;;
         '(')
-          st+=(P)
+          # `<(` and `>(` are part of a word; any other `(` opens a subshell,
+          # whose `)` ends a token, so a `#` after it starts a comment.
+          if ((k > 0)) && [[ ${chars[k - 1]} == [\<\>] ]]; then st+=(P); else st+=(S); fi
           ws=1
           ;;
         ')')
           unset 'st[${#st[@]}-1]'
           ws=0
+          [[ $top == S ]] && ws=1
           ;;
         '#')
           if ((ws)); then
@@ -4753,9 +4761,14 @@ hook::_bps_hd_spans() {
       esac
     fi
     k=$((k + 1))
-    ((${#st[@]})) || hd_spans+=("$from $k")
+    ((${#st[@]})) || rs+=("$from $k")
   done
-  ((${#st[@]} == 0)) || hd_spans+=("$from $e")
+  ((${#st[@]} == 0)) || rs+=("$from $e")
+  for j in ${rs[@]+"${rs[@]}"}; do
+    sub=""
+    for ((k = ${j% *}; k < ${j#* }; k++)); do sub+=${chars[k]}; done
+    hd_subs+=("$sub")
+  done
 }
 
 # hook::bash_parse_segments is the name every hook calls, and
@@ -4846,8 +4859,8 @@ hook::bash_parse_segments_uncached() {
   # Pending heredoc delimiters (FIFO), their `<<-` tab-strip flags and quoted
   # flags. A heredoc body is the command's stdin, not commands — recorded when
   # `<<` is seen and skipped at the command-line newline, all but the
-  # substitutions an unquoted body holds (hd_spans, hook::_bps_hd_spans).
-  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=() hd_spans=() hd_subs=()
+  # substitutions an unquoted body holds (hd_subs, hook::_bps_hd_spans).
+  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=() hd_subs=()
   # How many unquoted bodies enclose this text: the caller's __hu_hdd_in, then
   # cleared so a callback's own parse starts at 0. Past 8 a here-doc opener
   # records no body, so every line after it is parsed as commands: more is
@@ -5109,18 +5122,6 @@ hook::bash_parse_segments_uncached() {
         hd_delims=()
         hd_strip=()
         hd_quoted=()
-        # Each substitution an unquoted body holds runs as a command. Its text
-        # is queued here and parsed after the last top-level segment, so the
-        # callback sees the top-level segments in the order it sees them with
-        # no substitution: a callback that reads the segment before (a pipe
-        # into a shell) still reads the top-level one.
-        local hsp hj hsub
-        for hsp in ${hd_spans[@]+"${hd_spans[@]}"}; do
-          hsub=""
-          for ((hj = ${hsp% *}; hj < ${hsp#* }; hj++)); do hsub+=${chars[hj]}; done
-          hd_subs+=("$hsub")
-        done
-        hd_spans=()
       fi
       ;;
     *)
@@ -5132,7 +5133,10 @@ hook::bash_parse_segments_uncached() {
   done
   ((have)) && hook::_bps_close_word
   hook::_bps_flush_segment
-  # The queued body substitutions, in source order, for the same callback.
+  # Each substitution an unquoted body holds runs as a command. It is parsed
+  # here, in source order and after the last top-level segment, so a callback
+  # that reads the segment before (a pipe into a shell) still reads the
+  # top-level one.
   local hsub
   for hsub in ${hd_subs[@]+"${hd_subs[@]}"}; do
     __hu_hdd_in=$((__hu_hdd + 1))
