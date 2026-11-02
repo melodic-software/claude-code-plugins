@@ -1,6 +1,6 @@
 // The transcript sink: its layout, the metrics row read from one transcript,
 // retention, and queries. Nothing here reads a key or prints transcript text.
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { JOB_ID } from "../../.github/actions/seal-lane-output/seal.mjs";
@@ -67,10 +67,15 @@ export function transcriptPath({ date, lane, run_id: runId, run_attempt: attempt
   return path.join("transcripts", date, lane, `${runId}-${attempt}-${jobId}.json.gz`);
 }
 
+// The rows every complete line holds. An append cut short (a full disk, a
+// kill) leaves a last line with no newline: it is not a row, so its artifact
+// is pulled again and the next append replaces it.
+const completeText = (text) => text.slice(0, text.lastIndexOf("\n") + 1);
+
 export function readRows(sink) {
   const file = paths(sink).metrics;
   if (!existsSync(file)) return [];
-  return readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  return completeText(readFileSync(file, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 
 function writeAtomic(file, text) {
@@ -82,6 +87,11 @@ function writeAtomic(file, text) {
 export const writeRows = (sink, rows) => writeAtomic(paths(sink).metrics, rows.map((row) => `${JSON.stringify(row)}\n`).join(""));
 
 export function appendRow(sink, row) {
+  const file = paths(sink).metrics;
+  if (existsSync(file)) {
+    const text = readFileSync(file, "utf8");
+    if (!text.endsWith("\n") && text !== "") truncateSync(file, Buffer.byteLength(completeText(text)));
+  }
   writeFileSync(paths(sink).metrics, `${JSON.stringify(row)}\n`, { flag: "a", mode: 0o600 });
 }
 

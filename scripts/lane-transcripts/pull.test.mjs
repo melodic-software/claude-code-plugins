@@ -146,6 +146,21 @@ test("a pull where every transcript fails to open for the key fails, so the stal
   assert.equal(JSON.parse(readFileSync(paths(sink).state, "utf8")).last_success_at, undefined);
 });
 
+test("a metrics append cut short leaves a tail the next pull drops and replaces", () => {
+  const { publicLine, privateText } = generate();
+  const sink = sinkDir();
+  const env = () => ({ LANE_TRANSCRIPT_PRIVATE_KEY: privateText });
+  assert.equal(run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([[artifact(31, { record: sealed(publicLine) })]]) }).code, 0);
+  writeFileSync(paths(sink).metrics, '{"artifact_id":32,"run_id":4', { flag: "a" });
+  assert.equal(run(["status", "--sink", sink], { deps: fakeDeps([]) }).code, 0);
+  assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31]);
+  const page = [artifact(32, { jobId: "judge", record: sealed(publicLine, { jobId: "judge" }) }), artifact(31, { record: sealed(publicLine) })];
+  const again = run(["pull", "--sink", sink], { env: env(), deps: fakeDeps([page]) });
+  assert.equal(again.code, 0, again.err);
+  assert.deepEqual(readRows(sink).map((r) => r.artifact_id), [31, 32]);
+  assert.ok(readFileSync(paths(sink).metrics, "utf8").endsWith("}\n"));
+});
+
 test("a pull with no key, or a malformed one, fails naming the kind only", () => {
   for (const key of [undefined, "", "not-a-key"]) {
     const result = run(["pull", "--sink", sinkDir()], { env: key === undefined ? {} : { LANE_TRANSCRIPT_PRIVATE_KEY: key }, deps: fakeDeps([[]]) });
