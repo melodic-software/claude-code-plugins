@@ -1271,7 +1271,12 @@ class RunValidityTest(unittest.TestCase):
             sibling=[("Grep", {"pattern": "x", "path": self.PLUGIN})],
         )
         self.assertDenials(proc, "FAIL")
-        self.assertIn("verdict: INVALID (1 permission denial in the traces)", proc.stdout)
+        # The sibling's set-aside search still warns; only the /etc/hosts read counts.
+        self.assertIn(
+            "verdict: INVALID (1 permission denial in the traces (warnings only, not"
+            " counted: case measurable-criterion))",
+            proc.stdout,
+        )
 
     def test_a_bash_denial_through_a_same_command_variable_under_plugin_data_is_a_warning(
         self,
