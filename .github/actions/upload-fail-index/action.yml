@@ -52,15 +52,24 @@ runs:
           exit 1
         fi
         # The names this run holds already, every attempt's, in one read
-        # that must hold its own count.
-        if ! body=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100"); then
-          echo "::error::the run's artifacts could not be read"
-          exit 1
-        fi
-        if ! jq -e '.total_count == (.artifacts | length) and .total_count < 100' <<<"$body" >/dev/null; then
-          echo "::error::the run's artifacts do not hold their count"
-          exit 1
-        fi
+        # that must hold its own count: three attempts, 5 s then 10 s apart.
+        attempt=0
+        for wait in 5 10 ''; do
+          attempt=$((attempt + 1))
+          if ! body=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts?per_page=100"); then
+            why="the run's artifacts could not be read"
+          elif ! jq -e '.total_count == (.artifacts | length) and .total_count < 100' <<<"$body" >/dev/null; then
+            why="the run's artifacts do not hold their count"
+          else
+            break
+          fi
+          if [ -z "$wait" ]; then
+            echo "::error::$why (attempt $attempt of 3)"
+            exit 1
+          fi
+          echo "::warning::$why (attempt $attempt of 3), reading again in ${wait}s"
+          sleep "$wait"
+        done
         mapfile -t held < <(jq -r '.artifacts[].name' <<<"$body")
         slot=0
         for name in "${names[@]}"; do
