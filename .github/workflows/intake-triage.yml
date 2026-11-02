@@ -1452,6 +1452,8 @@ jobs:
       - name: Resolve the config
         id: config
         if: steps.context.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: intake-triage

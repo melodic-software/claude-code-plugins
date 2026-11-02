@@ -7,6 +7,9 @@
 # triage as read), the most recent application of a label decides, and any failed or empty read
 # refuses.
 set -uo pipefail
+# In a CI job the adapter wraps its gh calls and records into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 TMP_ROOT="$(mktemp -d)"

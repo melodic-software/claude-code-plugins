@@ -49,7 +49,12 @@ How the validity gate classifies a denied tool call, after the FAIL rule in
 above the plugin's directory, or with no absolute path or no known plugin directory).
 
 - A Bash denial's paths are its command's absolute arguments, plus no path when it has an
-  expansion or a relative word other than a flag, or does not parse.
+  expansion or a relative word other than a flag or a command name, or does not parse. A `$NAME`
+  or `${NAME}` counts as the value of an earlier `NAME=<literal>` in the same command when that
+  assignment is a command of its own that always runs in the top-level shell. A command that
+  names no absolute argument, a redirect's file or a prefix assignment's value aside (`ls`,
+  `PYTHONPATH=/x pytest`, `cat /x | ls`), also adds no path, unless it is `cat`, `head`, `wc`,
+  `grep` or `sed` reading a pipe.
 - Two kinds of denial are set aside before any other rule judges the run, each a warning that never
   counts toward a FAIL: a named call other than Skill aimed only under the run's own plugin-data
   directory (`<sandbox>/config/plugins/data`), and a `Read`, `Grep` or `Glob` aimed only under the
@@ -68,6 +73,10 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   and its run scored the same as each; otherwise it is a FAIL.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
   in a forked session, and the gate lists it under `session started` without failing it.
+- `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
+  `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
+  plugin under test. The detail names the plugin and the error type, such as
+  `dependency-unsatisfied`. A with-arm run whose init line has no `plugins` list is a warning.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.

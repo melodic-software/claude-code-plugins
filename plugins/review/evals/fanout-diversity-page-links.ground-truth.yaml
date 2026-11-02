@@ -1,0 +1,8 @@
+fixture: page-links
+source_case: none
+defect: none
+axis: none
+not_defects:
+  - "the <= bound in pageNumbers is off by one and adds an extra page (pageCount is the last 1-based page number, so the loop pushes 1 through pageCount as main did)"
+  - "pageNumbers(0) now returns [1] (pageCount is 0, so the loop body never runs)"
+  - "the first page is now skipped (the loop starts at page 1, the first 1-based page)"

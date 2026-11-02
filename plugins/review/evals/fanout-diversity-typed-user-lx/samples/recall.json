@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/display-name.ts:3 | code-reviewer | A JSDoc line saying callers must check for a signed-in user first would help a later caller. | Add a doc comment |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/display-name.ts:4 | code-reviewer | The null check is gone, so displayName(null) throws a TypeError reading `profile` for a signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "an IMPORTANT finding raises the decoy, which headerLabel's sign-in check and strict mode rule out"
+    }
+  ]
+}

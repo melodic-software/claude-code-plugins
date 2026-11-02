@@ -5,6 +5,10 @@
     },
     {
       "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        resp.raise_for_status()\n"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        try:\n            resp.raise_for_status()\n        except requests.RequestException as exc:  # narrowed from except Exception per EH-1\n            log.warning(\"sync failed for %s: %s\", sku, exc)\n",
+      "why": "a comment that names the old broad catch is not a catch"
     }
   ],
   "fail": [
@@ -35,6 +39,14 @@
     {
       "answer": "def f():\n    try:\n        run()\n    except Exception: pass\n",
       "why": "one-line swallow"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        try:\n            resp.raise_for_status()\n        except Exception:\n            log.warning(\"sync failed for %s\", sku)\n",
+      "why": "logs, but still the broad catch EH-1 forbids"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    try:\n        run()\n    except:\n        log.exception(\"sync failed\")\n        raise\n",
+      "why": "bare except, logged and re-raised, still not the narrowest type"
     }
   ]
 }

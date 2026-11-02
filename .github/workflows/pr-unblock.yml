@@ -206,6 +206,10 @@ jobs:
           PR_NUMBER: ${{ inputs.pr-number }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
@@ -845,6 +849,10 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
@@ -1244,6 +1252,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
@@ -1768,6 +1780,8 @@ jobs:
       - name: Resolve the adjudicator's model
         id: models
         if: fromJSON(steps.prepare.outputs.count || '0') > 0
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: adjudicate-feedback
@@ -2190,6 +2204,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1

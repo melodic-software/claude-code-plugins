@@ -64,6 +64,11 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
    body. Run the degraded copy on one target model, compared against a before run launched together
    with it. The suite detects a loss when the noise report calls a `case drop` or the mean case
    score falls by 0.15 or more (scores run 0 to 1). When it does neither, the part is unmeasurable.
+   Merge each version's per-case result files into one file before the compare: the noise report
+   calls no `case drop` when fewer than 3 cases are scored in both results. A guard that denies
+   the degraded copy's commands makes its pass INVALID, so the control cannot read the cases where
+   the loss is largest; degrade the guidance in a way that invites no denied command, or count the
+   part unmeasurable.
 6. **Meaning diff (step 5).** Run `/docs-hygiene:compress compare` with two independent labelers
    and take the union of their losses, since one labeler can miss a loss the other catches.
 7. **Decide (step 6).** Decide each skill's description and body separately. An unmeasurable part

@@ -4,6 +4,9 @@
 # .labels[].name, comment .body and .user.type) and records every call.
 # shellcheck disable=SC2016  # backticks and $STUB are literal text here
 set -euo pipefail
+# On a runner the script would wrap its gh calls and record into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/report-escalation.sh"
@@ -45,6 +48,9 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   esac
 done
 printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
+# The api-budget wrapper asks for the headers (-i): a status line and one
+# rate-limit header lead the body.
+[[ " $* " != *" -i "* ]] || printf 'HTTP/2.0 201 Created\r\nx-ratelimit-remaining: 4999\r\n\r\n'
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments?per_page=100") cat "$STUB/comments.json" ;;
@@ -366,6 +372,17 @@ has "status, unresolved-conflict: context names the conflict" 'context=pr-unbloc
 has "status, unresolved-conflict: description says CI does not run" \
   'description=Conflicts with the base branch; CI does not run until they are resolved' "$STUB/calls"
 has "status, unresolved-conflict: links the run" 'target_url=https://example.test/run/1' "$STUB/calls"
+
+# In a job (RUNNER_TEMP set) the script wraps its own gh calls: the status
+# POST still goes, and its reading lands under github-token.
+setup '[]' '[]'
+mkdir -p "$STUB/runner"
+RUNNER_TEMP="$STUB/runner" MODE=status run unresolved-conflict
+check "status in a job: exit 0" 0 "$RC"
+check "status in a job: one status POST on the head" "POST repos/o/r/statuses/$HEAD_A" "$(cat "$STUB/requests")"
+check "status in a job: the POST went with -i" 1 "$(grep -c -- '^api -i -X POST repos/o/r/statuses/' "$STUB/calls" || true)"
+check "status in a job: a reading under github-token" "201 na 4999 na na na" \
+  "$(cut -d' ' -f1-6 "$STUB/runner/api-budget/github-token" 2>/dev/null)"
 
 # Re-armed on a new head: the status is the head's, so a later head starts
 # with none and gets its own only if the lane stops there too.

@@ -55,9 +55,10 @@ test('launch clears every auth, gateway and provider variable and keeps the rest
   assert.deepEqual(input, before, 'the caller env is not mutated');
 });
 
-test('persistence is forced to 1 even when the parent set it to 0', () => {
-  const { env } = buildLaunch({ pluginDir: '/p' }, { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '0' });
+test('persistence and the hidden cwd are forced to 1 even when the parent set them to 0', () => {
+  const { env } = buildLaunch({ pluginDir: '/p' }, { CLAUDE_CODE_FORCE_SESSION_PERSISTENCE: '0', CLAUDE_CODE_HIDE_CWD: '0' });
   assert.equal(env.CLAUDE_CODE_FORCE_SESSION_PERSISTENCE, '1');
+  assert.equal(env.CLAUDE_CODE_HIDE_CWD, '1');
 });
 
 test('launch without a plugin dir is a usage error raised before any install', async () => {
@@ -123,6 +124,7 @@ test('the control skill config keeps local.json out of git and ships every floor
   const defaults = JSON.parse(readFileSync(join(config, 'defaults.json'), 'utf8'));
   assert.equal(typeof defaults.pluginDir, 'string');
   assert.ok(defaults.pluginDir.length > 0);
+  assert.equal(defaults.maxCaptures, 20);
   assert.deepEqual(defaults.credentials, {});
   assert.deepEqual(defaults.safety, { recipients: {}, signInAttempts: {}, production: {}, unattendedWrites: false });
 });
@@ -431,6 +433,45 @@ export const TuiTest = { ephemeral: () => ({
   }
 });
 
+test('an unattended run drives the session it launched: no terminal, no key, cwd hidden, then stopped', posixOnly, async () => {
+  // The engine records what the holder hands claude; the launch runs with no terminal on stdin.
+  const box = sandbox();
+  const seen = join(box.root, 'seen.json');
+  const records = `import { writeFileSync } from 'node:fs';
+export const TuiTest = { ephemeral: () => ({
+  run: async (cmd, args, opts) => writeFileSync(${JSON.stringify(seen)}, JSON.stringify({
+    cmd, args, tty: Boolean(process.stdin.isTTY),
+    key: opts.env.ANTHROPIC_API_KEY ?? null, hide: opts.env.CLAUDE_CODE_HIDE_CWD ?? null,
+  })),
+  state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => {},
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const saved = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = 'from-parent';
+  try {
+    await withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']));
+    assert.equal(await main(['type', 'x', '--session', name]), 0, 'the launched session takes input');
+    const got = JSON.parse(readFileSync(seen, 'utf8'));
+    assert.equal(got.cmd, 'claude');
+    assert.deepEqual(got.args, ['--restricted', '--strict-mcp-config', '--plugin-dir', '/p']);
+    assert.equal(got.tty, false, 'the holder runs with no terminal for a person');
+    assert.equal(got.key, null, 'the parent key never reaches claude');
+    assert.equal(got.hide, '1');
+    assert.equal(await main(['stop', '--session', name]), 0);
+    await assert.rejects(main(['type', 'x', '--session', name]), { code: 3 });
+  } finally {
+    if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = saved;
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
 const isAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -558,6 +599,23 @@ test('ready exits 1 when the init event names an API key', posixOnly, async () =
     assert.match(text, /refused: apiKeySource is "apiKeyHelper"/);
   } finally {
     rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('ready still requires apiKeySource "none": every key source is refused', posixOnly, async () => {
+  // The non-none values of the ApiKeySource table the driver's pointer names.
+  for (const source of ['user', 'project', 'org', 'temporary', 'apiKeyHelper', 'ANTHROPIC_API_KEY', '/login managed key']) {
+    const box = sandbox();
+    stubClaude(box, source, 'exec sleep 30');
+    try {
+      const { result, text } = await withPath(box.bin, () =>
+        quietly(() => main(['ready', '--plugin-dir', pluginDir(box), '--out', join(box.root, 'init.jsonl'), '--deps-dir', box.deps])),
+      );
+      assert.equal(result, 1, source);
+      assert.match(text, new RegExp(`refused: apiKeySource is "${source}", not "none"; drive nothing`));
+    } finally {
+      rmSync(box.root, { recursive: true, force: true });
+    }
   }
 });
 

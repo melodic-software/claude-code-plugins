@@ -496,6 +496,10 @@ jobs:
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
           WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $HOLDER =~ ^[1-9][0-9]*$ && $TIMEOUT_MINUTES =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::the issue number, lanes App sender id or timeout is not a positive integer"
             exit 1
@@ -738,6 +742,9 @@ jobs:
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: check-trigger
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -802,6 +809,9 @@ jobs:
       - name: Resolve the config
         id: config
         if: steps.trusted-base.outcome == 'success'
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: resolve-config
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
@@ -3484,6 +3494,10 @@ jobs:
           RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           sha=""
           if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
             sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha) || sha=""

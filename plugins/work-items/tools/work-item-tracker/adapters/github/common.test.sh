@@ -4,6 +4,9 @@
 # common.sh is a sourceable contract lib — assert it sources cleanly and exposes
 # its public helpers (no --help contract; it is sourced, never invoked).
 set -uo pipefail
+# In a CI job the adapter wraps its gh calls and records into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -154,6 +157,27 @@ EOF
   assert_eq "wit_resolve_repo keeps an explicit override" "x/y" "$(wit_resolve_repo x/y)"
 
   rm -rf "$EMIT_STUB"
+
+  # In a job (RUNNER_TEMP set) sourcing common.sh wraps gh: a read goes with
+  # -i, its reading lands under github-token, and the caller sees the body alone.
+  WRAP_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  mkdir -p "$WRAP_STUB/runner"
+  cat >"$WRAP_STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "--version" ]] && { echo "gh version 2.45.0 (test)"; exit 0; }
+printf '%s\n' "$*" >>"${GH_STUB_DIR:?}/calls.log"
+[[ " $* " != *" -i "* ]] || printf 'HTTP/2.0 200 OK\r\nx-ratelimit-remaining: 4999\r\n\r\n'
+printf '{"number":1,"title":"t","state":"open","assignees":[],"labels":[],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z"}\n'
+EOF
+  chmod +x "$WRAP_STUB/gh"
+  : >"$WRAP_STUB/calls.log"
+  OUT="$(RUNNER_TEMP="$WRAP_STUB/runner" GH_STUB_DIR="$WRAP_STUB" PATH="$WRAP_STUB:$PATH" \
+    bash -c 'source "$1" && wit_emit_item o r 1' _ "$SCRIPT_DIR/common.sh")"
+  assert_eq "wrapped in a job → the body alone reaches the caller" "github:o/r#1" "$(jq -r '.id' <<<"$OUT")"
+  assert_contains "wrapped in a job → the read goes with -i" "$(<"$WRAP_STUB/calls.log")" "api -i repos/o/r/issues/1"
+  assert_eq "wrapped in a job → a reading under github-token" "200 na 4999 na na na" \
+    "$(cut -d' ' -f1-6 "$WRAP_STUB/runner/api-budget/github-token" 2>/dev/null)"
+  rm -rf "$WRAP_STUB"
 fi
 
 # --- a closed blocker unblocks only when it was completed ---

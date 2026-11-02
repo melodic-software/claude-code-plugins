@@ -5129,6 +5129,9 @@ jobs:
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          # gh-read.sh wraps gh when it carries the library; named here so
+          # this step's own gh api calls read as wrapped (idempotent).
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -6284,6 +6287,9 @@ jobs:
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
+          # gh-read.sh wraps gh when it carries the library; named here so
+          # this step's own gh api calls read as wrapped (idempotent).
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
             exit 1
