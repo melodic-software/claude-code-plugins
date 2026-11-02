@@ -224,3 +224,75 @@ test("an emitter check's kill-switch stop releases the head's earlier activity c
   assert.equal(capped.cut, null, "the dispatcher's per-head cap ends the retries");
   assert.equal(stopRelease([{ ...stop, output: { title: "Passed" } }], 3).cut, null, "a push that acted releases nothing");
 });
+
+// The lane-outcome record report-check-run writes into output.text, built by
+// hand from docs/lane-outcome.md's rate-limit example plus the hub's activity.
+const RECORD = {
+  v: 1,
+  lane: "pr-unblock",
+  activity: "resolve-conflicts",
+  outcome: "failure",
+  class: "rate-limit",
+  credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "oauth-token" },
+  resets: { at: "2026-10-17T14:00:00Z", window: "five_hour" },
+  turns: 4,
+};
+const withText = (record, line = "", extra = {}) =>
+  posted(line, { output: { title: "Failed", summary: `${line}\n\nThe activity step failed.`, text: `lane-outcome ${JSON.stringify(record)} trailing free text }` }, ...extra });
+
+test("the lane-outcome record in output.text is read before the legacy summary line", () => {
+  assert.equal(limitResetsAt(withText(RECORD, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
+  assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth", resets: undefined })), ended + 5 * HOUR);
+});
+
+test("an auth stop waits fallback-reset even when its record states a reset, as the legacy line does", () => {
+  assert.equal(limitResetsAt(withText({ ...RECORD, class: "auth" })), ended + 5 * HOUR);
+});
+
+test("a record's Claude model ids, with the [1m] suffix, are read", () => {
+  const models = { ...RECORD, models: ["claude-opus-5-5", "claude-haiku-5-5[1m]"] };
+  assert.equal(limitResetsAt(withText(models, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
+});
+
+test("an impossible stated reset (month 13) is no stated reset: it resets five hours after the run ended", () => {
+  assert.equal(limitResetsAt(withText({ ...RECORD, resets: { at: "2026-13-01T00:00:00Z", window: "five_hour" } })), ended + 5 * HOUR);
+  assert.equal(limitResetsAt(posted(`${LIMIT} resets=2026-13-01T00:00:00Z`)), ended + 5 * HOUR);
+});
+
+test("a key the reader does not know, top level or nested, is ignored and the record still read", () => {
+  const extra = { ...RECORD, laterField: { note: "a } in a string" }, resets: { ...RECORD.resets, laterNested: 1 } };
+  assert.equal(limitResetsAt(withText(extra, LIMIT_LINE)), Date.parse("2026-10-17T14:00:00Z"));
+});
+
+test("with no record, or an unreadable one, the legacy summary line is read", () => {
+  assert.equal(limitResetsAt(posted(LIMIT_LINE)), Date.parse("2026-10-17T13:00:00Z"));
+  for (const [label, record] of [
+    ["another v", { ...RECORD, v: 2 }],
+    ["a malformed known key", { ...RECORD, turns: "4" }],
+    ["a malformed nested key", { ...RECORD, resets: { at: "tomorrow" } }],
+    ["a value-shaped secret", { ...RECORD, credential: { secret: "sk-ant-abc", kind: "api-key" } }],
+    ["a kind that disagrees with the secret", { ...RECORD, credential: { secret: "CLAUDE_CODE_OAUTH_TOKEN", kind: "api-key" } }],
+    ["a class outside the enum", { ...RECORD, class: "rate limited" }],
+    ["a failure with no class", { ...RECORD, class: undefined }],
+    ["a handoff leg", { ...RECORD, handoff: true }],
+    ["an email as a model", { ...RECORD, models: ["kyle.sexton@example.com"] }],
+    ["a host:port as a model", { ...RECORD, models: ["runner-7.corp.internal:443"] }],
+    ["a key prefix as a model", { ...RECORD, models: ["sk-ant-api03-abcdef"] }],
+  ]) {
+    assert.equal(limitResetsAt(withText(record, LIMIT_LINE)), Date.parse("2026-10-17T13:00:00Z"), label);
+  }
+});
+
+test("a record naming another check run is ignored: the legacy line wins, and with none there is no stop", () => {
+  const other = { ...RECORD, activity: "address-feedback" };
+  assert.equal(limitResetsAt(withText(other, LIMIT_LINE)), Date.parse("2026-10-17T13:00:00Z"));
+  assert.equal(limitResetsAt(withText(other, "The activity step failed.")), null);
+  assert.equal(limitResetsAt(withText({ ...RECORD, lane: "pr-review" }, "The activity step failed.")), null);
+});
+
+test("a credit stop is no limit stop on the record or the legacy line", () => {
+  const credit = { ...RECORD, class: "credit-stop", resets: undefined, credential: { secret: "LANES_CLAUDE_API_KEY", kind: "api-key", role: "LANES" } };
+  assert.equal(limitResetsAt(withText(credit)), null);
+  assert.equal(limitResetsAt(withText(credit, LIMIT_LINE)), null, "a readable record wins over the legacy line");
+  assert.equal(limitResetsAt(posted("lane=pr-unblock activity=resolve-conflicts class=credit-stop")), null);
+});

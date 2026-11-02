@@ -8,6 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
 import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
+import { checkStatus } from "./issue-status.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -332,6 +333,9 @@ function checkModels(models, activities) {
         `models.issue-dimensions.complexity-profiles names \`${stray}\`, which is not a key of complexity`,
       );
     }
+  }
+  if (models["issue-status"] !== undefined) {
+    checkStatus(models["issue-status"], models["issue-dimensions"]);
   }
 }
 

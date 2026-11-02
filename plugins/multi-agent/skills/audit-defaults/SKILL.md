@@ -63,7 +63,8 @@ web access.
    - `repo` mode: run `${CLAUDE_SKILL_DIR}/scripts/list-targets.sh` and keep
      the array it prints as `targets`. It lists tracked markdown that states a
      model, effort, workflow or subagent claim, grouped into areas, and leaves
-     out `docs/upstream/`, changelogs, vendored trees and eval fixtures.
+     out `docs/upstream/`, changelogs and `.changes/` release fragments,
+     vendored trees and eval fixtures.
 4. **Launch**
    `Workflow({ name: "multi-agent:drift-audit", args: { mode, pointers, targets, roles, maxConcurrent, asOf } })`.
    `mode` is `defaults` or `repo`. `asOf` is today's date as `YYYY-MM-DD`, used
