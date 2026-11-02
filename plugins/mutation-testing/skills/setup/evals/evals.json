@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Set up mutation testing for this project.",
-      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes .claude/mutation-testing.md from the template plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md overlay convention.",
+      "expected_output": "Runs check first, then the apply flow: detects the ecosystem and proposes the matching tool with its install command WITHOUT installing it unprompted, resolves the diff target from origin/HEAD rather than hardcoding main, defaults the operator set to the tool's defaults with the reason stated, derives the timeout from the measured baseline suite time, proposes source roots excluding tests and generated code, writes docs/conventions/mutation-testing.yaml from the template's YAML block plus an empty .claude/mutation-testing-arid.md, then re-verifies and offers the .local.md overlay convention.",
       "files": []
     },
     {
@@ -69,7 +69,14 @@
     {
       "id": 11,
       "prompt": "/mutation-testing:setup apply user. This is a shared repository and I can't commit config to it; I want the narrow operator set and a cap of 20 mutants for myself.",
-      "expected_output": "Treats the user layer as the plugin's userConfig, not a ~/.claude/mutation-testing.md file. Settles only operators (narrow) and max_mutants (20) and names `/plugin configure mutation-testing@<marketplace>` as the way to save them, with the headless `claude plugin configure ... --values-stdin` form as the alternative. Writes no pluginConfigs value and no settings file itself, and writes no file in the repository: no .claude/mutation-testing.md, no arid record, no .local.md overlay. Runs no test command. Says it skipped the write, tracking and commit steps, so `git status` in the repository is unchanged. States that the tool, diff target, mutate paths and test command are per repository and do not come from userConfig.",
+      "expected_output": "Treats the user layer as the plugin's userConfig, not a ~/.claude/mutation-testing.md file. Settles only operators (narrow) and max_mutants (20) and names `/plugin configure mutation-testing@<marketplace>` as the way to save them, with the headless `claude plugin configure ... --values-stdin` form as the alternative. Writes no pluginConfigs value and no settings file itself, and writes no file in the repository: no docs/conventions/mutation-testing.yaml, no arid record, no .local.md overlay. Runs no test command. Says it skipped the write, tracking and commit steps, so `git status` in the repository is unchanged. States that the tool, diff target, mutate paths and test command are per repository and do not come from userConfig.",
+      "files": [],
+      "narration": true
+    },
+    {
+      "id": 12,
+      "prompt": "/mutation-testing:setup apply. An earlier plugin release configured this repository, so its settings are the yaml block in .claude/mutation-testing.md (tool: manual, diff-target: main, mutate: [\"src/**/*.py\"], operators: narrow, max-mutants: 12) and there is no docs/conventions/mutation-testing.yaml. Keep every setting as it is.",
+      "expected_output": "Reports the older .claude/mutation-testing.md as the team layer in effect and names apply as the move. Writes docs/conventions/mutation-testing.yaml as plain YAML, not Markdown, carrying every key of the older file's yaml block with its name and value unchanged: tool manual, diff-target main, mutate src/**/*.py, operators narrow, max-mutants 12. Leaves .claude/mutation-testing.md in place and tells the user to delete it once the YAML file is committed. Offers the git add and commit for the new file without running them unasked.",
       "files": [],
       "narration": true
     }

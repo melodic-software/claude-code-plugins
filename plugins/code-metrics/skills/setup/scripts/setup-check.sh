@@ -105,13 +105,17 @@ check_layer() {
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
-# The team layer is docs/conventions/code-metrics.yaml; the older
-# .claude/code-metrics.yaml is read only while that file is absent.
+# The team layer is docs/conventions/code-metrics.yaml alone; the retired
+# .claude/code-metrics.yaml is reported, never read. With the repository at
+# the home directory that path is the user-global layer, which is read.
 team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
-legacy_file="$REPO_ROOT/.claude/code-metrics.yaml"
-if [[ ! -f "$team_file" && -f "$legacy_file" ]]; then
-  row WARN "layer team location" "$legacy_file is the older team file; /code-metrics:setup apply moves its keys to $team_file"
-  team_file="$legacy_file"
+retired_file="$REPO_ROOT/.claude/code-metrics.yaml"
+if [[ -f "$retired_file" && ! "$retired_file" -ef "$HOME_DIR/.claude/code-metrics.yaml" ]]; then
+  if [[ -f "$team_file" ]]; then
+    row WARN "layer team location" "$retired_file is the retired team file and is not read; delete it"
+  else
+    row WARN "layer team location" "$retired_file is the retired team file and is not read; /code-metrics:setup apply moves its keys to $team_file"
+  fi
 fi
 check_layer "team" "$team_file" yes
 check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no

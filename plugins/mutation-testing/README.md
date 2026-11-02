@@ -54,10 +54,13 @@ about it, and a coverage report will call that file healthy.
 
 `/mutation-testing:setup apply` writes two tracked files in the consuming repo:
 
-- `.claude/mutation-testing.md`. Tool, invocation command, diff target, mutate globs, operator set,
-  timeout, measured baseline suite time, optional mutant cap, and an optional `test-command` whose
-  `{tests}` placeholder `audit --exercised` fills with the test paths (for `dotnet test`, with one
-  test project and a class filter per run).
+- `docs/conventions/mutation-testing.yaml`, validated by
+  [`schemas/mutation-testing.schema.json`](schemas/mutation-testing.schema.json). Tool, invocation
+  command, diff target, mutate globs, operator set, timeout, measured baseline suite time, optional
+  mutant cap, and an optional `test-command` whose `{tests}` placeholder `audit --exercised` fills
+  with the test paths (for `dotnet test`, with one test project and a class filter per run). For
+  one release, the older team file `.claude/mutation-testing.md` is read while that YAML file is absent;
+  `apply` carries its keys over unchanged.
 - `.claude/mutation-testing-arid.md`, the arid-node suppression record, shaped by the marketplace's
   finding-suppression convention: a mapping keyed by a derived `finding_id`, every entry carrying all
   five required keys (`check`, `claim`, `sites`, `reason`, `date`) with the id derived from its own

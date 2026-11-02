@@ -377,17 +377,17 @@ repo="$(mktemp -d)"
   git init -q -b main
   git config user.email t@example.com
   git config user.name t
-  mkdir -p .claude src/vendor src/keep
+  mkdir -p docs/conventions src/vendor src/keep
   printf 'a = 1\n' >src/vendor/skip.py
   printf 'b = 2\n' >src/keep/keep.py
-  printf 'scope:\n  exclude: ["src/vendor/**"]\n' >.claude/code-metrics.yaml
+  printf 'scope:\n  exclude: ["src/vendor/**"]\n' >docs/conventions/code-metrics.yaml
   git add -A && git commit -q -m base
 )
 from_root="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
-assert_eq "the exclusion applies from the repository root" "other	.claude/code-metrics.yaml
+assert_eq "the exclusion applies from the repository root" "other	docs/conventions/code-metrics.yaml
 python	src/keep/keep.py" "$from_root"
 from_sub="$(cd "$repo/src" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all --print-scope)"
-assert_eq "the same exclusion applies from a subdirectory" "other	../.claude/code-metrics.yaml
+assert_eq "the same exclusion applies from a subdirectory" "other	../docs/conventions/code-metrics.yaml
 python	keep/keep.py" "$from_sub"
 # 17. The same exclusion, reached through an explicitly scoped sibling. Mapping
 #     a path back to the root by prefixing alone leaves the `..` in place, so
@@ -403,8 +403,8 @@ rm -rf "$repo"
 #     user-global layer (CODE_METRICS_HOME).
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
-mkdir -p "$repo/.claude/ecosystems" "$repo/gen"
-cat >"$repo/.claude/code-metrics.yaml" <<'EOF'
+mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
+cat >"$repo/docs/conventions/code-metrics.yaml" <<'EOF'
 size:
   file_lines: 5
 scope:
@@ -470,17 +470,17 @@ home="$(mktemp -d)"
   git tag --no-sign mark
   printf 'z = 3\n' >third.py
   git add third.py && git commit -q -m third
-  mkdir -p .claude
-  printf 'scope:\n  base: mark\n' >.claude/code-metrics.yaml
+  mkdir -p docs/conventions
+  printf 'scope:\n  base: mark\n' >docs/conventions/code-metrics.yaml
 )
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 # The untracked configuration file is part of the change too, in the other lane.
 assert_doc "a configured scope.base narrows the change to the commits after it" "$out" \
-  'sorted(r["file"] for r in d["measures"])==[".claude/code-metrics.yaml","third.py"]'
+  'sorted(r["file"] for r in d["measures"])==["docs/conventions/code-metrics.yaml","third.py"]'
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main)"
 assert_doc "an explicit --base wins over the configured one" "$out" \
-  'sorted(r["file"] for r in d["measures"])==[".claude/code-metrics.yaml","changed.py","third.py"]'
-(cd "$repo" && printf 'scope:\n  default: all\nlanes:\n  python:\n    collectors:\n      file_lines: []\n' >.claude/code-metrics.yaml)
+  'sorted(r["file"] for r in d["measures"])==["changed.py","docs/conventions/code-metrics.yaml","third.py"]'
+(cd "$repo" && printf 'scope:\n  default: all\nlanes:\n  python:\n    collectors:\n      file_lines: []\n' >docs/conventions/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a configured scope.default of all widens the run to the tree" "$out" \
   'd["scope"]["mode"]=="all" and d["scope"]["files"]==4'
@@ -497,20 +497,20 @@ assert_doc "an explicit --base beats a configured scope.default of all" "$out" \
 (cd "$repo" && git checkout -q main && printf 'x = 1\nx = 2\n' >base.py &&
   git add base.py && git commit -q -m "main moves on" && git checkout -q feature)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --base main --print-scope)"
-assert_eq "a base branch's own later edit is not part of the change" "other	.claude/code-metrics.yaml
+assert_eq "a base branch's own later edit is not part of the change" "other	docs/conventions/code-metrics.yaml
 python	changed.py
 python	third.py" "$(printf '%s\n' "$out" | sort)"
 listing="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --print-scope)"
-assert_eq "--print-scope prints each measurable file with its lane" "other	.claude/code-metrics.yaml
+assert_eq "--print-scope prints each measurable file with its lane" "other	docs/conventions/code-metrics.yaml
 python	base.py
 python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
-assert_eq "--print-scope lists a file no language lane claims under other" "other	.claude/code-metrics.yaml" \
+assert_eq "--print-scope lists a file no language lane claims under other" "other	docs/conventions/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
 # A value the resolver refuses never stops the run and never reaches the
 # dispatcher: the line break that would smuggle in `--disable-lane python` is
 # named on stderr and dropped, so the python lane is still measured.
-(cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >.claude/code-metrics.yaml)
+(cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >docs/conventions/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
 assert_eq "a refused config value does not stop the run" 0 "$rc"
@@ -575,7 +575,7 @@ assert_doc "a branch at its merge-base with a clean tree gets the merge-base rea
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "a change holding only a markdown file is measured in the other lane" "$out" \
   'd["status"]=="complete" and [(r["file"], r["lane"]) for r in d["measures"]]==[("notes.md","other")] and d["scope"]["unclassified"]==0'
-(cd "$repo" && mkdir -p .claude && printf 'lanes:\n  other:\n    enabled: false\n' >.claude/code-metrics.yaml && git add -A && git commit -qm config) >/dev/null 2>&1
+(cd "$repo" && mkdir -p docs/conventions && printf 'lanes:\n  other:\n    enabled: false\n' >docs/conventions/code-metrics.yaml && git add -A && git commit -qm config) >/dev/null 2>&1
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo/no-home" bash "$SCRIPT" audit-size --measures file_lines)"
 assert_doc "with lanes.other.enabled false, a change holding only files in no lane says so" "$out" \
   'd["status"]=="empty" and "belong to no lane" in d["run"][0]["reason"] and d["scope"]["files"]==2 and d["scope"]["unclassified"]==2'
@@ -683,8 +683,8 @@ rm -rf "$team"
 # globs all travel from Python to bash as lines.
 repo="$(mktemp -d)"
 home="$(mktemp -d)"
-mkdir -p "$repo/.claude/ecosystems" "$repo/gen"
-printf 'scope:\n  default: all\n  exclude: ["gen/**"]\n' >"$repo/.claude/code-metrics.yaml"
+mkdir -p "$repo/.claude/ecosystems" "$repo/docs/conventions" "$repo/gen"
+printf 'scope:\n  default: all\n  exclude: ["gen/**"]\n' >"$repo/docs/conventions/code-metrics.yaml"
 eco_lane=bash
 printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
 printf 'a = 1\n' >"$repo/a.py"

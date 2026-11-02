@@ -6,11 +6,12 @@
 The target is `<repo-root>/docs/conventions/code-metrics.yaml` (or `--file`);
 with neither option the root is what `git rev-parse --show-toplevel` reports
 from the current directory, or the current directory outside a repository.
-When that file does not exist yet and the older `<repo-root>/.claude/
-code-metrics.yaml` does, every key of the older file is carried into the new
-one in the same write, except a key the contract does not declare, which is
-dropped and named on stderr; with no `<key>=<value>` the run is that move
-alone. The older file is left in place for plugin releases that read only it.
+When that file does not exist yet and the retired `<repo-root>/.claude/
+code-metrics.yaml` does, every key of the retired file is carried into the
+new one in the same write, except a key the contract does not declare, which
+is dropped and named on stderr; with no `<key>=<value>` the run is that move
+alone. The plugin no longer reads the retired file; it is left in place for
+the operator to delete.
 Each `<key>=<value>` is a dotted key from the plugin's config contract and a
 value written in the YAML subset the plugin reads (`500`, `true`, `null`,
 `"quoted"`, `[a, b]`). The existing file is parsed, the keys are merged per
@@ -404,8 +405,8 @@ def main(argv: list[str]) -> int:
         return 1
     if carried_from is not None:
         print(
-            f"carried every declared key of {carried_from}; that file is no longer read "
-            "while this one exists, and can be deleted once no older plugin release reads it"
+            f"carried every declared key of {carried_from}; the plugin does not read "
+            "that file, so delete it"
         )
     print(f"written: {target}")
     return 0

@@ -116,22 +116,27 @@ class SetupApplyTests(unittest.TestCase):
             )
 
     def test_a_claude_file_is_carried_whole_into_the_docs_file(self) -> None:
-        # With only the older .claude file present, the first apply writes
-        # every key it holds into the docs file in the same write, so the
-        # resolved configuration is the same before and after the move.
+        # With only the retired .claude file present, the first apply writes
+        # every key it holds into the docs file in the same write, so the docs
+        # file resolves to what the retired file held as a team layer.
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            (root / ".claude").mkdir()
-            (root / ".claude" / "code-metrics.yaml").write_text(
+            home = Path(tmp) / "home"
+            home.mkdir()
+            root = Path(tmp) / "repo"
+            (root / ".claude").mkdir(parents=True)
+            retired = root / ".claude" / "code-metrics.yaml"
+            retired.write_text(
                 "complexity:\n  cyclomatic:\n    reference: 12\n"
                 'scope:\n  exclude: ["gen/**"]\n'
                 "lanes:\n  go:\n    enabled: false\n",
                 encoding="utf-8",
             )
+            empty_user = home / "empty.yaml"
+            empty_user.write_text("", encoding="utf-8")
 
-            def resolved() -> dict:
+            def resolved(*args: str) -> dict:
                 out = subprocess.run(
-                    [sys.executable, str(RESOLVER), "--home", tmp, "--repo-root", tmp],
+                    [sys.executable, str(RESOLVER), *args],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -142,10 +147,10 @@ class SetupApplyTests(unittest.TestCase):
                     k: v for k, v in json.loads(out).items() if not k.startswith("_")
                 }
 
-            before = resolved()
+            before = resolved(str(empty_user), str(retired))
             # size.mode=file-lines restates the bundled default, so the
             # apply itself changes no resolved value.
-            result = run("--dir", tmp, "size.mode=file-lines")
+            result = run("--dir", str(root), "size.mode=file-lines")
             self.assertEqual(result.returncode, 0, result.stderr)
             target = root / "docs" / "conventions" / "code-metrics.yaml"
             self.assertEqual(
@@ -158,7 +163,10 @@ class SetupApplyTests(unittest.TestCase):
                 },
             )
             self.assertIn(".claude/code-metrics.yaml", result.stdout)
-            self.assertEqual(resolved(), before)
+            self.assertIn("delete it", result.stdout)
+            self.assertEqual(
+                resolved("--home", str(home), "--repo-root", str(root)), before
+            )
 
     def test_with_no_key_a_claude_file_is_moved_and_nothing_else_is_an_error(
         self,

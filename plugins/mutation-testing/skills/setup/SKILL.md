@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked .claude/mutation-testing.md config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill ran on fallback defaults or reports an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
+description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked docs/conventions/mutation-testing.yaml config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill ran on fallback defaults or reports an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
 argument-hint: "[check|apply [team|local|user]]"
 user-invocable: true
 disable-model-invocation: true
@@ -24,10 +24,17 @@ runs the check first, then the write flow. `apply` takes the target layer as its
 ## The config merge model
 
 The config resolves across three layers, lowest first: the user layer (`userConfig`) → team
-(`${CLAUDE_PROJECT_DIR}/.claude/mutation-testing.md`) → local overlay
-(`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists. There is
-no user-global file: a per-person value lives in this plugin's `userConfig`, which Claude Code
-prompts for and stores. It carries two keys that mean the same thing in every repository,
+(`${CLAUDE_PROJECT_DIR}/docs/conventions/mutation-testing.yaml`, a YAML file validated by
+`${CLAUDE_PLUGIN_ROOT}/schemas/mutation-testing.schema.json`) → local overlay
+(`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
+
+For one release, the older team file `.claude/mutation-testing.md` is read only while `docs/conventions/mutation-testing.yaml` is absent:
+its fenced `yaml` block, with the same keys, is then the team layer. Report it as the older file
+and name `/mutation-testing:setup apply` as the move. With both present the YAML file is the whole
+team layer: the older file's keys are not merged in, and a warning names it as ignored.
+
+There is no user-global file, and `~/.claude/mutation-testing.md` is never read: a per-person
+value lives in this plugin's `userConfig`, which Claude Code prompts for and stores. It carries two keys that mean the same thing in every repository,
 `operators` and `max_mutants` (the config's `max-mutants`); their rendered values are:
 
 - `operators`: `${user_config.operators}`
@@ -180,8 +187,14 @@ unambiguous; ask only where the answer is genuinely the user's.
    for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`); step 2 already said
    what that costs. The forms and their sources are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
-7. **Write the config** following
+7. **Write the config** to `docs/conventions/mutation-testing.yaml`, the template's YAML block
+   without its Markdown, following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
+   Keep every key name as the template spells it. When that file does not exist yet and the older
+   `.claude/mutation-testing.md` does, this first write carries every key of the older file's
+   `yaml` block with its value unchanged, a value settled in steps 2 to 6 replacing it; with
+   nothing to settle, the write is that move alone. Leave the older file in place and tell the
+   user to delete it once the YAML file is committed, since no later release reads it.
 8. **Create the suppression record empty**, with its header comment and an empty `suppressions:`
    mapping, a **mapping, never a list**, since a list is taken whole and one personal entry would
    discard the team's entire accepted set. An empty record makes the first suppression an edit to a
@@ -233,8 +246,8 @@ Steps 1 to 10 are the `team` flow. The other two layers change what is written:
 
 ## Output
 
-For the `team` layer, a tracked `.claude/mutation-testing.md` and `.claude/mutation-testing-arid.md`
-in the consuming repo; for `local`, the untracked overlay; for `user`, no file and the
+For the `team` layer, a tracked `docs/conventions/mutation-testing.yaml` and
+`.claude/mutation-testing-arid.md` in the consuming repo; for `local`, the untracked overlay; for `user`, no file and the
 `/plugin configure` line. Each ends with a one-paragraph summary of what was written and how to
 re-run this setup to reconfigure; `team` and `local` also give the measured baseline suite time.
 

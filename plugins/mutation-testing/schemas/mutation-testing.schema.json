@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/mutation-testing/schemas/mutation-testing.schema.json",
+  "title": "mutation-testing team config",
+  "description": "Schema for a repository's docs/conventions/mutation-testing.yaml, the team layer of the mutation-testing plugin's config, written by /mutation-testing:setup apply and read by /mutation-testing:audit. Every key is optional; a key no layer sets takes the audit's fallback. Keys and their meaning: the plugin's skills/setup/templates/config-template.md; layers and merge: skills/setup/SKILL.md \"The config merge model\". Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "tool": {
+      "enum": ["stryker-js", "stryker-net", "stryker4s", "pitest", "infection", "mutmut", "manual"],
+      "description": "The mutation tool driving this project's test runner. manual means no off-the-shelf tool covers the language, and the audit applies each mutant by the single-operator manual protocol."
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1,
+      "description": "How to invoke the tool, written out rather than derived, since every project wraps its tooling differently."
+    },
+    "diff-target": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The git ref the diff is taken against, resolved from the repository's default branch (origin/HEAD) when setup writes it."
+    },
+    "mutate": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Source globs to mutate, excluding generated code, vendored directories and test code. Lists union across layers."
+    },
+    "operators": {
+      "enum": ["default", "narrow"],
+      "description": "Operator set. default is the tool's own defaults; narrow restricts to statement-block removal plus relational-operator replacement, for a cheaper run."
+    },
+    "timeout-ms": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Per-mutant timeout in milliseconds, derived from the measured baseline suite time."
+    },
+    "baseline-suite-ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Measured wall-clock of one unmutated suite run, in milliseconds, when setup last ran."
+    },
+    "max-mutants": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Cap on how many mutants one audit run generates. Absent: the audit's effort cap applies."
+    },
+    "test-command": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The project's test command for runs restricted to named test files, used by audit --exercised. {tests} must appear as a standalone, unquoted word; it is replaced with the test paths, one argument each."
+    }
+  }
+}
