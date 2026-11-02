@@ -247,6 +247,13 @@ assert_contains "add --per-file records a ceiling per file" "\"$A_SRC\": 2" "$(<
 assert_not_contains "a file at 0 gets no ceiling" "\"$B_SRC\": 0" "$(<"$PA")"
 assert_contains "add --break-glass records the setting" '"break_glass": false' "$(<"$PA")"
 
+PK="$WORK/per-file-kept.json"
+printf '{"break_glass": true, "counters": []}\n' >"$PK"
+ratchet add --file "$PK" --per-file --break-glass off --name lint --field violations --goal "g" \
+  --command "printf '%s violations=2\n' '$A_SRC'"
+assert_eq "add with a break_glass key exits 0" "0" "$RUN_RC"
+assert_contains "the file's break_glass key wins over --break-glass" '"break_glass": true' "$(<"$PK")"
+
 # --- 7. break glass: an inline exception with a reason, an expiry and an approver ---
 OVER="printf '%s violations=1\n' '$B_SRC'"
 VALID="// ratchet-break-glass(lint): reason=vendor bug; expires=2999-01-01; approved-by=alice"

@@ -401,8 +401,9 @@ def cmd_propose_tighten(args: argparse.Namespace) -> int:
 def cmd_add(args: argparse.Namespace) -> int:
     # A missing file starts empty; a malformed one still fails loudly in load().
     data = load(args.file) if os.path.exists(args.file) else {"counters": []}
+    # The file's own break_glass key wins: the option only fills a missing one.
     if args.break_glass is not None:
-        data["break_glass"] = args.break_glass == "on"
+        data.setdefault("break_glass", args.break_glass == "on")
     # The ceiling stands in until measured; validating now refuses a bad or
     # duplicate entry before its command runs.
     entry = {key: getattr(args, key) for key in ("name", "command", "field", "goal")}
