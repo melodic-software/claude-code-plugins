@@ -402,8 +402,8 @@ jobs:
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
       # with its chunk, so a reference across chunks is a finding. A
       # patch that still shows a binary file, holds a file over the
-      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
-      # returns whole gets no verdict: the step stops green with the reason
+      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
+      # stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
@@ -430,9 +430,9 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a diff with a longer line gets
-          # no verdict, and the merge gate holds it for a person
-          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          # Read may cut a long line short, so a longer diff line continues
+          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # which the binder holds each verdict's longest line to).
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
@@ -450,10 +450,6 @@ jobs:
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
-          fi
-          # A diff line's text, past its +, - or space, longer than the cap.
-          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
           # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
@@ -474,20 +470,33 @@ jobs:
           fi
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
-          # whole (write-verdict.mjs `readCoverage`). A line longer than a
-          # part gets no verdict.
+          # whole (write-verdict.mjs `readCoverage`).
           bytes=
           for k in $(seq "$chunks"); do
             dir="$DATA/diff/chunk-$k"
             mkdir "$dir"
-            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-              { len = length($0) + 1
-                if (len > maxb) exit 3
+            # A line over LONG_LINE_BYTES continues on lines that start
+            # `\ continued: `, which no line of a diff does, so every byte
+            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
+            # way). A cut never falls inside a UTF-8 character.
+            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
+              function put(text) {
+                len = length(text) + 1
                 if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print > f; b += len; l++ }' "$dir.patch"; then
-              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
-              exit 1
-            fi
+                print text > f; b += len; l++
+              }
+              { rest = $0; mark = ""
+                while (length(mark) + length(rest) > wrap) {
+                  at = wrap - length(mark)
+                  for (back = 0; back < 3 && at > 1; back++) {
+                    next_byte = substr(rest, at + 1, 1)
+                    if (next_byte < "\200" || next_byte >= "\300") break
+                    at--
+                  }
+                  put(mark substr(rest, 1, at))
+                  rest = substr(rest, at + 1); mark = "\\ continued: "
+                }
+                put(mark rest) }' "$dir.patch"
             bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
             rm "$dir.patch"
           done
@@ -1228,8 +1237,8 @@ jobs:
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
       # with its chunk, so a reference across chunks is a finding. A
       # patch that still shows a binary file, holds a file over the
-      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
-      # returns whole gets no verdict: the step stops green with the reason
+      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
+      # stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
@@ -1256,9 +1265,9 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a diff with a longer line gets
-          # no verdict, and the merge gate holds it for a person
-          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          # Read may cut a long line short, so a longer diff line continues
+          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # which the binder holds each verdict's longest line to).
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
@@ -1276,10 +1285,6 @@ jobs:
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
-          fi
-          # A diff line's text, past its +, - or space, longer than the cap.
-          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
           # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
@@ -1300,20 +1305,33 @@ jobs:
           fi
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
-          # whole (write-verdict.mjs `readCoverage`). A line longer than a
-          # part gets no verdict.
+          # whole (write-verdict.mjs `readCoverage`).
           bytes=
           for k in $(seq "$chunks"); do
             dir="$DATA/diff/chunk-$k"
             mkdir "$dir"
-            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-              { len = length($0) + 1
-                if (len > maxb) exit 3
+            # A line over LONG_LINE_BYTES continues on lines that start
+            # `\ continued: `, which no line of a diff does, so every byte
+            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
+            # way). A cut never falls inside a UTF-8 character.
+            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
+              function put(text) {
+                len = length(text) + 1
                 if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print > f; b += len; l++ }' "$dir.patch"; then
-              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
-              exit 1
-            fi
+                print text > f; b += len; l++
+              }
+              { rest = $0; mark = ""
+                while (length(mark) + length(rest) > wrap) {
+                  at = wrap - length(mark)
+                  for (back = 0; back < 3 && at > 1; back++) {
+                    next_byte = substr(rest, at + 1, 1)
+                    if (next_byte < "\200" || next_byte >= "\300") break
+                    at--
+                  }
+                  put(mark substr(rest, 1, at))
+                  rest = substr(rest, at + 1); mark = "\\ continued: "
+                }
+                put(mark rest) }' "$dir.patch"
             bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
             rm "$dir.patch"
           done
@@ -2058,8 +2076,8 @@ jobs:
       # chunk. Each chunk's prompt names manifest.txt, every file of the diff
       # with its chunk, so a reference across chunks is a finding. A
       # patch that still shows a binary file, holds a file over the
-      # cap, needs more than MAX_CHUNKS chunks, or holds a line longer than Read
-      # returns whole gets no verdict: the step stops green with the reason
+      # cap, or needs more than MAX_CHUNKS chunks gets no verdict: the step
+      # stops green with the reason
       # as an output, the record job posts it as `verdict=none
       # reason=<reason>` on the head, and the lanes stay unbound under that
       # reason. Any other failure fails the step. The tree the verdict is
@@ -2086,9 +2104,9 @@ jobs:
           # numbers comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
-          # Read may cut a long line short, so a diff with a longer line gets
-          # no verdict, and the merge gate holds it for a person
-          # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
+          # Read may cut a long line short, so a longer diff line continues
+          # on lines that start `\ continued: ` (babysit_risk LONG_LINE_BYTES,
+          # which the binder holds each verdict's longest line to).
           LONG_LINE_BYTES: "1800"
         run: |
           # A designed stop: the reason, from this script's own literals, and
@@ -2106,10 +2124,6 @@ jobs:
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
             stop binary "the diff holds a binary file the review cannot read"
-          fi
-          # A diff line's text, past its +, - or space, longer than the cap.
-          if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Chunks of at most MAX_DIFF_BYTES, one review each; exit 3 is a
           # file over one chunk, or a diff more chunks than MAX_CHUNKS hold.
@@ -2130,20 +2144,33 @@ jobs:
           fi
           # Each chunk's parts, which its reviewer reads whole, each named in
           # its prompt; the verdict counts only when every part was read
-          # whole (write-verdict.mjs `readCoverage`). A line longer than a
-          # part gets no verdict.
+          # whole (write-verdict.mjs `readCoverage`).
           bytes=
           for k in $(seq "$chunks"); do
             dir="$DATA/diff/chunk-$k"
             mkdir "$dir"
-            if ! LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
-              { len = length($0) + 1
-                if (len > maxb) exit 3
+            # A line over LONG_LINE_BYTES continues on lines that start
+            # `\ continued: `, which no line of a diff does, so every byte
+            # reaches a whole Read (pr-verify/chunk-diff.sh folds the same
+            # way). A cut never falls inside a UTF-8 character.
+            LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" -v wrap="$LONG_LINE_BYTES" '
+              function put(text) {
+                len = length(text) + 1
                 if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
-                print > f; b += len; l++ }' "$dir.patch"; then
-              echo "::error::a diff line is over $PART_BYTES bytes, more than one read returns whole; no verdict, so the lanes stay unbound"
-              exit 1
-            fi
+                print text > f; b += len; l++
+              }
+              { rest = $0; mark = ""
+                while (length(mark) + length(rest) > wrap) {
+                  at = wrap - length(mark)
+                  for (back = 0; back < 3 && at > 1; back++) {
+                    next_byte = substr(rest, at + 1, 1)
+                    if (next_byte < "\200" || next_byte >= "\300") break
+                    at--
+                  }
+                  put(mark substr(rest, 1, at))
+                  rest = substr(rest, at + 1); mark = "\\ continued: "
+                }
+                put(mark rest) }' "$dir.patch"
             bytes="$bytes${bytes:+,}$(wc -c <"$dir.patch")"
             rm "$dir.patch"
           done
@@ -2685,7 +2712,7 @@ jobs:
           for lane in claude-review claude-security-review; do
             if [ "$lane" = claude-review ]; then reason=$CODE_STOP head=$CODE_HEAD; else reason=$SECURITY_STOP head=$SECURITY_HEAD; fi
             [ -z "$reason" ] && continue
-            [[ $reason =~ ^(too-large|binary|long-line|chunk-failed)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
+            [[ $reason =~ ^(too-large|binary|chunk-failed)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
               echo "::error::a stop output is malformed for $lane"; exit 1; }
             calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
