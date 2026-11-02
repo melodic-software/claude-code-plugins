@@ -30,8 +30,6 @@ const LANE_JOB =
   "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
-const REPORT_ESCALATION =
-  ".github/scripts/pr-unblock/report-escalation.sh does not wrap its gh calls";
 const ALLOWED = new Map([
   // The lane jobs.
   ["pr-run-activity-read.yml:run", LANE_JOB],
@@ -62,12 +60,6 @@ const ALLOWED = new Map([
     "release-publish-plugins.yml:merge",
     `step "Queue the checked head" calls gh without api_budget_wrap_gh; ${DECIDE_REBUILD}`,
   ],
-  // report-escalation.sh runs as its own process.
-  [
-    "pr-require-checks.yml:ci-status",
-    `step "Clear a cost-only review hold the owner decided" calls gh without api_budget_wrap_gh; step "Fail a lanes App pull request its body or a member holds" calls gh without api_budget_wrap_gh; ${REPORT_ESCALATION}`,
-  ],
-  ["pr-unblock.yml:report-stop-status", REPORT_ESCALATION],
 ]);
 
 const GH_CALL =

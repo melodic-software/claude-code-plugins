@@ -4,6 +4,9 @@
 # .labels[].name, comment .body and .user.type) and records every call.
 # shellcheck disable=SC2016  # backticks and $STUB are literal text here
 set -euo pipefail
+# On a runner the script would wrap its gh calls and record into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/report-escalation.sh"
