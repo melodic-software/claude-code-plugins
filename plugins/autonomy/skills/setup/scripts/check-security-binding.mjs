@@ -52,9 +52,17 @@
 // state. The bound state is a CEILING — contrary evidence (gate-failure,
 // reverted-merge, verification-divergence) lowers it to unpromoted at
 // evaluation time WITHOUT writing the binding: automatic demotion has no
-// write-back actor by design, because the binding is agent-unwritable; the
-// demotion event files an escalation item requesting the human-ratified
-// binding update. An unavailable evidence source fail-closes every cell to
+// write-back actor by design, because the binding is agent-unwritable, and the
+// demotion event files an escalation item. A demoted cell re-promotes from run
+// evidence, with no binding update: a `re-earned` event for that cell, whose
+// `since` is at or after every in-epoch contrary event's `at` and `discovered`
+// (own and prerequisite; `discovered` is when the publisher first published
+// the event, so one found late voids an earlier re-earn whatever its `at`)
+// and whose `at` is at or after `since`, records that the operator-side
+// publisher found the cell's predicate met again over evidence counted from
+// `since`. A malformed re-earn counts for nothing, a prerequisite's re-earn
+// never revives a dependent, and pass 2 still lowers a dependent whose
+// prerequisite is unpromoted. An unavailable evidence source fail-closes every cell to
 // unpromoted rather than crashing. This is the same resolution the admission
 // seam and the merge disposition MUST perform (querying the promotion-evidence
 // telemetry) before every autonomous dispatch/merge decision — reading the raw
@@ -104,6 +112,8 @@ const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
+// Not contrary: the operator-side publisher's record that a cell met its predicate again.
+const REEARN_EVENT = "re-earned";
 // The isolation-probe template's substrate-class tokens. The kernel-separated
 // pair mirrors the isolation-ladder leaf's L3 substrate classes: a VM or
 // microVM, and a hosted ephemeral executor surface.
@@ -2479,10 +2489,11 @@ function resolveEffectivePromotion(binding, evidencePath) {
     }
     // Prerequisite-cell events count against the dependent too, judged in
     // the DEPENDENT's epoch: a prerequisite demotion event inside this
-    // cell's epoch stays contrary here until THIS cell is re-ratified, even
-    // if the prerequisite is later re-earned — re-ratifying the prerequisite
-    // must never silently revive a dependent that consumed no re-earn of its
-    // own. (The prerequisite's own current state propagates in pass 2.)
+    // cell's epoch stays contrary here until THIS cell re-earns or is
+    // re-ratified, even if the prerequisite is later re-earned — the
+    // prerequisite's recovery must never silently revive a dependent that
+    // consumed no re-earn of its own. (The prerequisite's own current state
+    // propagates in pass 2.)
     const dependencyCells = PROMOTION_DEPENDENCIES[cell] ?? [];
     const contrary = events.filter(
       (event) =>
@@ -2491,36 +2502,69 @@ function resolveEffectivePromotion(binding, evidencePath) {
         CONTRARY_EVIDENCE_EVENTS.has(event.event),
     );
     // Contrary evidence is scoped to the promotion epoch: an event predating
-    // the cell's ratified_at belongs to a previous epoch and was already
-    // consumed by the re-earn that produced this ratification. An event
+    // the cell's ratified_at belongs to a previous epoch, which that
+    // ratification closed. An event
     // whose `at` is not strict ISO (or missing) cannot be assigned to an
     // epoch and is treated as contrary (fail-closed) — dropping it silently
     // would let malformed telemetry mask a real demotion signal.
     const ratifiedAt = parseIsoStrict(entry.ratified_at);
     const inEpoch = [];
+    const inEpochTimes = [];
     const preEpoch = [];
     for (const event of contrary) {
       const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
+      // When the publisher first published the event; absent on events published before it
+      // recorded one. Present but malformed, it can never be shown to precede a re-earn.
+      const discovered = event.discovered === undefined ? at : parseIsoStrict(event.discovered);
+      const found = event.discovered === undefined ? "" : ` (discovered ${event.discovered})`;
       if (Number.isNaN(at)) {
         inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
+        inEpochTimes.push(at);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${source}${event.event} at ${event.at}`);
+        inEpoch.push(`${source}${event.event} at ${event.at}${found}`);
+        inEpochTimes.push(Number.isNaN(discovered) ? discovered : Math.max(at, discovered));
       } else {
         preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
-    if (bound === "promoted" && inEpoch.length > 0) {
+    // A re-earn lifts the demotion when the predicate was met again over evidence counted from
+    // `since`, and `since` is at or after every in-epoch contrary event's `at` and `discovered`
+    // (own and prerequisite): a contrary event found after the re-earn was published voids it,
+    // whatever its `at`. It must name this cell: a prerequisite's re-earn never revives a
+    // dependent. A contrary event with an unparsable `at` or `discovered` can never be shown to
+    // precede `since`, so it blocks every re-earn.
+    const reearn =
+      inEpoch.length === 0
+        ? undefined
+        : events.find((event) => {
+            if (!isPlainObject(event) || event.cell !== cell || event.event !== REEARN_EVENT) return false;
+            const since = parseIsoStrict(event.since);
+            const at = parseIsoStrict(event.at);
+            return (
+              !Number.isNaN(since) &&
+              !Number.isNaN(at) &&
+              at >= since &&
+              inEpochTimes.every((t) => !Number.isNaN(t) && since >= t)
+            );
+          });
+    if (bound === "promoted" && reearn) {
+      resolved.set(cell, {
+        bound,
+        effective: "promoted",
+        line: `${cell}: bound promoted -> effective promoted (re-earned at ${reearn.at} over evidence since ${reearn.since}, at or after every in-epoch contrary event: ${inEpoch.join("; ")})`,
+      });
+    } else if (bound === "promoted" && inEpoch.length > 0) {
       resolved.set(cell, {
         bound,
         effective: "unpromoted",
         demotedReason: `contrary evidence (${inEpoch.join("; ")})`,
-        line: `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)} requesting the human-ratified binding update`,
+        line: `${cell}: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (${inEpoch.join("; ")}) WITHOUT modifying the binding; demotion files an escalation item on route ${JSON.stringify(binding.escalation_routes?.demotion)}, and the cell stays unpromoted until a re-earned event shows its predicate met again over evidence counted from after the latest of them`,
       });
     } else {
       let line = `${cell}: bound ${bound} -> effective ${bound}`;
       if (preEpoch.length > 0) {
-        line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at} and were consumed by the re-earn)`;
+        line += ` (${preEpoch.length} pre-epoch contrary event(s) ignored: ${preEpoch.join("; ")} — predate ratified_at ${entry.ratified_at}, whose ratification closed their epoch)`;
       }
       resolved.set(cell, { bound, effective: bound === "promoted" ? "promoted" : "unpromoted", line });
     }

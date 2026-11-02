@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [8.0.4] - 2026-11-02
+
+### Fixed
+
+- The `tr-config-ref-dotdot-rejected` eval case's `ref-rejected` grader now accepts replies that say the ref "isn't valid" or "isn't accepted", and its samples cover both directions.
+
 ## [8.0.3] - 2026-11-02
 
 ### Changed

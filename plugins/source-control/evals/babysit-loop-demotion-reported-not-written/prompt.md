@@ -18,7 +18,7 @@ Launched from a neutral directory. The target checkout is ./app (eval-fixture/ap
   "source": "check-security-binding.mjs --evidence",
   "failClosedReason": null,
   "cells": {
-    "C2-auto-merge": {"bound": "promoted", "effective": "unpromoted", "line": "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (reverted-merge at 2026-10-12T14:03:00Z) WITHOUT modifying the binding; demotion files an escalation item on route \"eval-fixture/app\" requesting the human-ratified binding update"},
+    "C2-auto-merge": {"bound": "promoted", "effective": "unpromoted", "line": "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (reverted-merge at 2026-10-12T14:03:00Z) WITHOUT modifying the binding; demotion files an escalation item on route \"eval-fixture/app\", and the cell stays unpromoted until a re-earned event shows its predicate met again over evidence counted from after the latest of them"},
     "C3-ai-review-blocking": {"bound": "promoted", "effective": "promoted", "line": "C3-ai-review-blocking: bound promoted -> effective promoted"},
     "C3-auto-merge": {"bound": "promoted", "effective": "unpromoted", "line": "C3-auto-merge: bound promoted -> effective unpromoted — prerequisite cell(s) not effective-promoted (C2-auto-merge: effective unpromoted); the predicate this cell was earned on requires its prerequisite promoted, so the dependent promotion lowers with it"}
   }
