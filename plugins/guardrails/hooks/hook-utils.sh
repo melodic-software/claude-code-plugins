@@ -4720,7 +4720,10 @@ hook::_bps_hd_spans() {
         '(')
           # `<(` and `>(` are part of a word; any other `(` opens a subshell,
           # whose `)` ends a token, so a `#` after it starts a comment.
-          if ((k > 0)) && [[ ${chars[k - 1]} == [\<\>] ]]; then st+=(P); else st+=(S); fi
+          case ${chars[k - 1]:-} in
+          '<' | '>') st+=(P) ;;
+          *) st+=(S) ;;
+          esac
           ws=1
           ;;
         ')')
