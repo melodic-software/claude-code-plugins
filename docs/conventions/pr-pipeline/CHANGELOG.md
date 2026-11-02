@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [8.34.0] - 2026-11-02
+
+### Changed
+
+- A pr-verify FAIL first uploads one index artifact per tie the merge gate counts (`.github/actions/upload-fail-index`), and uploads only once every index did; a job without the index step writes no FAIL. The gate reads those exact names instead of the whole artifact listing once the legacy FAILs file is committed.
+
 ## [8.33.1] - 2026-11-02
 
 ### Fixed

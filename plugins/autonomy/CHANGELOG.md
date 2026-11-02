@@ -3,6 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-02
+
+### Changed
+
+- The shipped admission defaults no longer hold `C3` or `C4` items, or an item with no class. They ship two `human-gated` rows, `C5` and the `channel-feed` surface class; those rows apply beneath a binding's own rules, so a binding need not restate them. Every other item is `autonomous-eligible` within caps, and that is now the default where no rule matches. An item with no stamped class is evaluated with the work-class axis `"*"` once the `C5` trust tests have run, so it matches only rules whose work class is `"*"`. `check-security-binding.mjs` now accepts a `C3` or `C4` `autonomous-eligible` rule without `override_justification`, and rejects a `C5` or `channel-feed` one that has none. Once a binding classifies `channel-feed` signals, a wildcard-surface `autonomous-eligible` rule binding a work class also needs one.
+- Two trust holds stay `human-gated`: a routine identity claim that fails the identity-to-surface association check, and an `agent-internal` signal whose parent item the seam cannot verify. An item with no stamped class whose observed state is neither a PR nor an issue, such as a detector-fired `temporal` item backstopping a `channel-feed` surface or a `tracker-vcs-event` on a discussion, fails the `C5` trust tests closed and is `C5`, so it stays `human-gated`. A `channel-feed` signal is held by its own surface row instead.
+
+### Removed
+
+- The `C4` upfront plan approval. The runner lifecycle drops its two-phase plan-approval drain, and the runner escalation leaf drops the "missing plan approval" stop. The `structural-plan-approval` event class stays a valid escalation route and severity key.
+
 ## [1.0.0] - 2026-11-02
 
 ### Changed
