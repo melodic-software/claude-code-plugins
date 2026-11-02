@@ -1,7 +1,7 @@
 // Expected values come from docs/conventions/pr-pipeline/README.md ("Verifier
 // verdict", upstream-jobs.json): each judging job writes the jobs of the
-// pr-require-checks run it was started by, each with its name and
-// conclusion, and a list read short writes nothing. The
+// pr-require-checks run it was started by, each with its name, conclusion
+// and job page (the API's html_url), and a list read short writes nothing. The
 // list endpoint pages at most 100 jobs and reports total_count
 // (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run).
 // Which Node suites run in test-bash comes from scripts/plan-test-lanes.sh's
@@ -17,7 +17,8 @@ import { KEPT_JOBS, main, shapeJobs, upstreamJobs, wrappedNodeSuites } from "./u
 
 const REPO = "melodic-software/claude-code-plugins";
 const RUN = 4242;
-const job = (n, conclusion = "success") => ({ id: n, name: `job-${n}`, conclusion, steps: [{ name: "x" }] });
+const jobUrl = (n) => `https://github.com/${REPO}/actions/runs/${RUN}/job/${n}`;
+const job = (n, conclusion = "success") => ({ id: n, name: `job-${n}`, conclusion, html_url: jobUrl(n), steps: [{ name: "x" }] });
 
 // A GitHub that serves `all` in pages of 100 and records each path.
 const paged = (all, total = all.length) => {
@@ -31,17 +32,18 @@ const paged = (all, total = all.length) => {
   return { github, paths };
 };
 
-test("every page of the run's latest jobs is read, keeping only each name and conclusion", async () => {
+test("every page of the run's latest jobs is read, keeping only each name, conclusion and job page", async () => {
   const all = [...Array.from({ length: 100 }, (_, i) => job(i + 1)), job(101, "skipped"), { id: 102, name: "ci-status", conclusion: null }];
   const { github, paths } = paged(all);
   const listed = await upstreamJobs(github, REPO, RUN);
   assert.deepEqual(paths, [1, 2].map((page) => `/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=${page}`));
   assert.equal(listed.run_id, RUN);
   assert.equal(listed.jobs.length, 102);
-  assert.deepEqual(listed.jobs.at(0), { name: "job-1", conclusion: "success" });
+  assert.deepEqual(listed.jobs.at(0), { name: "job-1", conclusion: "success", url: jobUrl(1) });
   assert.deepEqual(listed.jobs.slice(-2), [
-    { name: "job-101", conclusion: "skipped" },
-    { name: "ci-status", conclusion: null },
+    { name: "job-101", conclusion: "skipped", url: jobUrl(101) },
+    // A job with no html_url lists a null url.
+    { name: "ci-status", conclusion: null, url: null },
   ]);
 });
 
@@ -97,8 +99,8 @@ test("main writes the list to JOBS_FILE, and writes nothing when the read fails"
   assert.deepEqual(JSON.parse(readFileSync(env.JOBS_FILE, "utf8")), {
     run_id: RUN,
     jobs: [
-      { name: "job-1", conclusion: "success" },
-      { name: "job-2", conclusion: "failure" },
+      { name: "job-1", conclusion: "success", url: jobUrl(1) },
+      { name: "job-2", conclusion: "failure", url: jobUrl(2) },
     ],
     wrapped_node_suites: [{ suite: "x/a b.test.mjs", wrapper: "x/a b.test.sh" }],
   });
@@ -140,7 +142,7 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
     return { paths, jobs: JSON.parse(readFileSync(env.JOBS_FILE, "utf8")).jobs };
   };
   // The file as resolve-pr.mjs writes it: no read, and its jobs.
-  assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped" }] });
+  assert.deepEqual(await run(`${JSON.stringify(shapeJobs(RUN, kept))}\n`), { paths: [], jobs: [{ name: "job-3", conclusion: "skipped", url: jobUrl(3) }] });
   const read = { paths: [`/repos/${REPO}/actions/runs/${RUN}/jobs?filter=latest&per_page=100&page=1`], jobs: shapeJobs(RUN, live).jobs };
   for (const [label, content] of [
     ["no file", undefined],
@@ -148,7 +150,8 @@ test("main takes the resolver's kept jobs with no read, and reads when they are 
     ["not JSON", "{"],
     ["no job list", JSON.stringify({ run_id: RUN })],
     ["a job with no name", JSON.stringify({ run_id: RUN, jobs: [{ conclusion: "success" }] })],
-    ["a conclusion that is not text", JSON.stringify({ run_id: RUN, jobs: [{ name: "x", conclusion: 1 }] })],
+    ["a conclusion that is not text", JSON.stringify({ run_id: RUN, jobs: [{ name: "x", conclusion: 1, url: null }] })],
+    ["a url that is not text", JSON.stringify({ run_id: RUN, jobs: [{ name: "x", conclusion: "success", url: 1 }] })],
     ["the run id as text", JSON.stringify({ run_id: String(RUN), jobs: [] })],
   ]) {
     assert.deepEqual(await run(content), read, label);
