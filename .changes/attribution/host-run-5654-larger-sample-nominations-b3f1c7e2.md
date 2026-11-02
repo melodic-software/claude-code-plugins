@@ -9,8 +9,9 @@ bump: patch
   `fingerprint.mjs` figures and the blind three-judge panel outcome for each (copy rubric v5,
   restated-fact v1). It holds pointers only, never the passages or sources. Outcomes: 2 unanimous
   findings (one near-verbatim, one verbatim, both from one source page), 14 unanimously cleared, and
-  2 splits, settled by agent decisions under the owner's standing direction (k16 near-verbatim;
-  k17 restated-fact, after five of six judges across both panels returned it).
+  2 splits, settled by agent decisions under the owner's standing direction of 2026-11-02 to settle
+  open questions on evidence, recorded on #5654 (k16 near-verbatim; k17 restated-fact, after five of
+  six judges across both panels returned it). Each label is one case's `expected.json`.
 - Golden cases `c39` to `c56`, one synthetic rewrite per nominated passage, registered as eval 16.
   No real passage or source text is carried. Each case keeps its passage's fingerprint profile
   against its own source (fires for the twelve that fired, below both limbs for the six that did
