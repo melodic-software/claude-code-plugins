@@ -11,9 +11,12 @@ import {
   escapeCell,
   failureRows,
   MAX_ROWS,
+  MAX_WAIT_SECONDS,
   main,
   marker,
   render,
+  SECONDARY_WAIT_SECONDS,
+  secondaryWait,
   templatePath,
 } from "./post.mjs";
 
@@ -240,6 +243,75 @@ test("a posting failure warns and does not fail the step", async () => {
   assert.ok(
     out.lines.some((line) => line.startsWith("::warning::could not post")),
   );
+});
+
+// A thrown GitHubError's shape: its status and responseDetail's line.
+const refusal = (status, detail) =>
+  Object.assign(new Error(`POST /repos/o/r/issues/42/comments failed with status ${status}`), { status, detail });
+
+async function runWith(env, github) {
+  const lines = [];
+  const waits = [];
+  const original = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    const code = await main({ ...ENV, GITHUB_RUN_ATTEMPT: "1", ...env }, { github, sleep: async (ms) => waits.push(ms) });
+    return { code, lines, waits };
+  } finally {
+    console.log = original;
+  }
+}
+
+test("a refused post names GitHub's answer and writes the report to the job summary", async () => {
+  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
+  writeFileSync(summary, "");
+  const detail = 'status=403 x-ratelimit-remaining=2575 x-ratelimit-reset=1 x-ratelimit-resource=core body="{\\"message\\":\\"Resource not accessible by integration\\"}"';
+  const github = async () => {
+    throw refusal(403, detail);
+  };
+  const out = await runWith({ GITHUB_STEP_SUMMARY: summary }, github);
+  assert.equal(out.code, 0);
+  assert.deepEqual(out.waits, []);
+  const warning = out.lines.find((line) => line.startsWith("::warning::could not post"));
+  assert.ok(warning.endsWith(`status 403 [${detail}]; the report is in this job's summary`), warning);
+  assert.ok(readFileSync(summary, "utf8").startsWith(`${MARKER}\n`));
+});
+
+test("a secondary rate limit is retried once after its retry-after", async () => {
+  const calls = [];
+  const github = async (method, path, body) => {
+    calls.push({ method, path, body });
+    if (calls.length === 1) throw refusal(403, 'status=403 x-ratelimit-remaining=4000 x-ratelimit-reset=1 x-ratelimit-resource=core retry-after=7 body="{}"');
+    return {};
+  };
+  const out = await runWith({}, github);
+  assert.equal(out.code, 0);
+  assert.deepEqual(out.waits, [7000]);
+  assert.equal(calls.length, 2);
+  assert.ok(out.lines.some((line) => line === "::notice::posted the lane run report on #42"));
+});
+
+test("a secondary limit named only in the body waits the default, and a second refusal goes to the summary", async () => {
+  const summary = join(tempDir("lane-run-report-summary-"), "summary.md");
+  writeFileSync(summary, "");
+  let calls = 0;
+  const github = async () => {
+    calls += 1;
+    throw refusal(429, 'status=429 x-ratelimit-remaining=4000 x-ratelimit-reset=1 x-ratelimit-resource=core body="You have exceeded a secondary rate limit"');
+  };
+  const out = await runWith({ GITHUB_STEP_SUMMARY: summary }, github);
+  assert.equal(out.code, 0);
+  assert.equal(calls, 2);
+  assert.deepEqual(out.waits, [SECONDARY_WAIT_SECONDS * 1000]);
+  assert.ok(readFileSync(summary, "utf8").startsWith(`${MARKER}\n`));
+});
+
+test("secondaryWait leaves a primary limit, other statuses and an unexplained 403 alone, and caps a long retry-after", () => {
+  assert.equal(secondaryWait(refusal(403, "status=403 x-ratelimit-remaining=0 x-ratelimit-reset=1 x-ratelimit-resource=core retry-after=5 body=\"\"")), undefined);
+  assert.equal(secondaryWait(refusal(404, "status=404 retry-after=5")), undefined);
+  assert.equal(secondaryWait(refusal(403, 'status=403 x-ratelimit-remaining=9 body="Resource not accessible by integration"')), undefined);
+  assert.equal(secondaryWait(new Error("boom")), undefined);
+  assert.equal(secondaryWait(refusal(429, "status=429 x-ratelimit-remaining=9 retry-after=9999")), MAX_WAIT_SECONDS);
 });
 
 test("a path renders as a template: known words stay, the repository is {repo}, anything else is *", () => {
