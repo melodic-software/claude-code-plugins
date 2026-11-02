@@ -278,6 +278,18 @@ A later part 2 change fixed these gaps, each with a test:
   so it no longer counts the repository as private (`.github/scripts/intake-triage/admit.mjs`).
   work-unblock's admission check shares this read.
 
+A third part 2 change fixed pr-merge's two script gaps, each with a test:
+
+- **pr-merge, element 2.** With more than 1000 open pull requests, `enable-auto-merge.mjs` holds:
+  it arms, disarms and notes nothing, prints a `::notice::` and a step summary line, and ends
+  green. The next run reads the listing again (`.github/scripts/pr-merge/enable-auto-merge.mjs`).
+  The workflow's own listing still ends red at the limit (the `pr-merge.yml:1192` row below).
+- **pr-merge, element 1.** The lane-token request sends at most 3 requests and waits at most 60 s
+  in all, down from 4 requests and 480 s. A `github-unavailable` retry waits 0 to 20 s, then 0 to
+  40 s (full jitter), or a longer `Retry-After`. A wait that does not fit is not taken, and the step
+  fails red at once, as it does on any final broker answer: holding the calling job green instead is
+  that workflow's change (`.github/actions/request-lane-token/action.yml`).
+
 The other script rows below are still open. Part 2 also found two rows that are not script-only
 fixes. Holding work-unblock's sweep green on a failed listing (element 2) would let the next sweep
 start its window after this run (`sweepSince` in `.github/scripts/work-unblock/label-unblocked.mjs`),
@@ -307,7 +319,6 @@ since it has no cron.
 | pr-require-checks | 1, 2, 3, 4, 5, 6 | workflow | `.github/workflows/pr-require-checks.yml` |
 | pr-unblock | 2, 3, 4 | script | `.github/scripts/pr-unblock/dispatch.mjs`, `limit-stop.mjs`, `escalation-routes.json`; part 2 fixed `report-escalation.sh`'s comment resends, `request-budget.mjs`'s write resends and 6-minute waits, and the lane's parallel reads |
 | pr-unblock | 5, 6 | workflow | `.github/workflows/pr-unblock-dispatch.yml`, `pr-feedback-dispatch.yml` |
-| pr-merge | 1, 2 | script | `.github/scripts/pr-merge/enable-auto-merge.mjs` (element 2), `.github/actions/request-lane-token/action.yml` (its 480 s sleep); part 2 fixed `withRetry`'s stacked resends |
 | pr-merge | 2, 6 | workflow | `.github/workflows/pr-merge.yml` (listing-full and rate-limit exits, cover-read dispatch, `queue: max`) |
 | pr-merge | 2 | workflow | `.github/workflows/pr-merge.yml:1192`: hold green on a full listing and count it toward the monitor signal, so 1000 or more open pull requests reaches a person the way a held listing does |
 | pr-merge | 3 | larger | the hub's lane breaker and kill switch, outside this repository |
