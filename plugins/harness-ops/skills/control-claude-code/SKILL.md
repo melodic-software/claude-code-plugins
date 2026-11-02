@@ -19,7 +19,9 @@ resolved from the directory the run starts in; `<run-dir>` is drive's run direct
 one name for the whole run; `<file>` is the feature id with each `/` as `-`, then the entry point
 (`mods-band-01`). The `--timeout` values come from `timeouts` in the same config: `stepMs` for every
 `wait-for`, `readyMs` for Ready, `logMs` for `logs`. A run takes at most `maxCaptures` screenshots
-and videos together, from the same config.
+and videos together, from the same config; the driver does not count them, so the run keeps the
+count. At the cap it takes no further screenshot or video and records each entry point it skipped
+as `blocked: maxCaptures reached`.
 
 ## Launch
 
