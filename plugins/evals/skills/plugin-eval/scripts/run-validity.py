@@ -1680,8 +1680,9 @@ def check_denials(runs, roots, root, own_copy_search_warns=False):
         )
     self_search = sum(len(searched[r]) for r in denied)
     if self_search:
-        summary += "; %s of the run's own plugin copy in a finished run, not counted" % plural(
-            self_search, "denied read or search"
+        summary += "; %d %s of the run's own plugin copy in a finished run, not counted" % (
+            self_search,
+            "denied read or search" if self_search == 1 else "denied reads or searches",
         )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
