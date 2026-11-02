@@ -92,6 +92,46 @@
         "When harness-config is not installed, states the request is out of scope instead of routing to a nonexistent skill",
         "Does not run its own claim-extraction fan-out over the settings/MCP schema"
       ]
+    },
+    {
+      "id": 8,
+      "name": "rendered-view-offered-not-built",
+      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; no rendered-views layer sets medium; no --medium argument. The audit finds two doc-drift findings.)",
+      "expected_output": "Presents the full Phase 3 report as usual, then makes one offer to render the findings through visualization:visualize. It builds no HTML page itself, and names \"shipped default\" as the source of medium.",
+      "files": [],
+      "expectations": [
+        "Presents the full Phase 3 report before any rendered-view offer",
+        "Offers to render the findings through visualization:visualize instead of building a view itself",
+        "Builds no HTML page or chart itself",
+        "Names \"shipped default\" as the source of medium"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "terminal-medium-drops-view-offer",
+      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; ~/.claude/rendered-views.md contains only 'medium: terminal'; the repo has no rendered-views layer; no --medium argument. The audit finds one doc-drift finding.)",
+      "expected_output": "Presents the full Phase 3 report and makes no offer to render it through visualization:visualize, since medium resolves to terminal from the user-global layer. Names ~/.claude/rendered-views.md as the source of medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers",
+        "Makes no offer to render the report through visualization:visualize",
+        "Names ~/.claude/rendered-views.md as the source of medium"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "team-layer-artifact-passes-file",
+      "prompt": "/codebase-health:audit README.md --docs-only\n\n(Fixture: interactive session; the visualization plugin is installed; the repository's tracked .claude/rendered-views.md contains only 'medium: artifact'; ~/.claude/rendered-views.md and .claude/rendered-views.local.md do not exist; no --medium argument. The audit finds one doc-drift finding, and the person accepts the rendered-view offer.)",
+      "expected_output": "Presents the full Phase 3 report, then offers the rendered view. When the offer is taken, it passes `file` to visualization:visualize instead of leaving the medium to the layers, says a team layer cannot publish, and names the team layer (.claude/rendered-views.md) as the source of medium. Nothing is published as an Artifact.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Offers the rendered view after the full report",
+        "Passes `file` to visualization:visualize when the offer is taken, not `artifact` and not the layer-picked rung",
+        "Says a team layer cannot publish",
+        "Names the team layer (.claude/rendered-views.md) as the source of medium"
+      ]
     }
   ]
 }

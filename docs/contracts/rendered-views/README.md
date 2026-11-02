@@ -592,6 +592,12 @@ plugin dial sits between the argument and the cascade. Each names the source of 
   offer and leaves the rung to `visualization:visualize`.
 - `ai-briefing:generate`: only `--format` selects HTML or PPTX, so no layer starts the build; the
   briefing stays markdown under every layer.
+- `codebase-health:audit` (genre: reports; dual-audience, since its findings feed a fix pass):
+  `terminal` drops the offer to render the report through `visualization:visualize`; `file` keeps
+  the offer and passes `file` to it; a value from the `--medium` argument keeps the offer and
+  passes that value to it; `artifact` or `hosted` from the team layer keeps the offer and passes
+  `file` to it, so a team layer cannot publish; every other value keeps the offer and leaves the
+  rung to `visualization:visualize`.
 
 `visualization:visualize` reads the argument, its `medium` option and the cascade (the Wave-1
 adopter above). `machine-health:audit` writes no model-written view: its report is markdown, and
@@ -614,7 +620,23 @@ the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scr
 (`plugins/architecture/scripts/build-view.mjs`); and the `machine-health:audit` decision page, which
 its orchestrator builds for each run from `latest.json`
 (`plugins/machine-health/skills/audit/scripts/build-checkup-view.mjs`), with a copied payload that
-`machine-health:setup picks` resolves against the run's id map.
+`machine-health:setup picks` resolves against the run's id map; and `harness-ops:morning-brief`
+(genre: reports and status), which builds its status page from the printed brief
+(`plugins/harness-ops/skills/morning-brief/scripts/build-brief-view.mjs`) and resolves `medium` from
+the cascade, defaulting to a local `file`; `artifact` or `hosted` from the team layer keeps the page local.
+
+Assessed under the genre rubric and given no lane:
+
+- `education:explain`: a concept explainer, but its answer is short text the reader uses where they
+  read, the lowest rung. Its page and video views already exist as `education:illustrate` and
+  `explainer-video:produce`.
+- `knowledge:docpage-digest`, `knowledge:distill` and `knowledge:absorb-upstream`: each delivers a
+  record a later pass reads (a knowledge slice with its interview handoff, skill reference files,
+  a tracked `docs/upstream` record). The next consumer is that pass, not a person, so no genre
+  applies. `knowledge:video-digest` is on the escape-helper gate (above).
+- `testing:audit`: the scanner's output, presented as the script prints it: one rule-tagged
+  `path:line` row per finding and a coverage block. Its gate (`--check`) and its fix-pass file
+  (`--persist-findings`) are separate script modes. The text rung loses nothing a page would add.
 
 Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.

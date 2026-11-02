@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.3.2] - 2026-11-02
+
+### Fixed
+
+- **`/harness-ops:morning-brief` no longer publishes its status page on a team layer's say-so.** A `medium: artifact` or `hosted` in the repository's tracked `.claude/rendered-views.md`, which any checked-out branch can write, now keeps the page in a local file and says why. The same value from `~/.claude/rendered-views.md` or an untracked, gitignored overlay still publishes.
+
 ## [5.3.1] - 2026-11-02
 
 ### Fixed
