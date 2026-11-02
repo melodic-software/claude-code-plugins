@@ -45,9 +45,12 @@ export const SECRET_PATTERNS = Object.freeze([
   ["Slack token", /\bxox[abposr]-[0-9A-Za-z-]{10,}/],
   ["Stripe key", /\b[sr]k_(?:test|live|prod)_[0-9A-Za-z]{10,}/],
   ["password or secret assignment", /\b(?:password|passwd|pwd|secret|client_secret|api_?key|token)["']?\s*[:=]\s*["'][^"'\s$<>{}]{8,}["']/i],
+  // A 32-hex and a 64-hex word on one line, in either order. The lookaheads run once per line
+  // start (m: after the terminators `.` stops at), so time grows linearly; a `hex.*hex` form
+  // rescans the line from every hex word, quadratic on one-line JSON full of digests.
   [
     "R2 key pair",
-    /\b[0-9a-f]{32}\b.*\b[0-9a-f]{64}\b|\b[0-9a-f]{64}\b.*\b[0-9a-f]{32}\b|\b(?:access_?key_?id|secret_?access_?key)["']?\s*[:=]\s*["']?[0-9A-Za-z/+]{16,}/i,
+    /^(?=.*\b[0-9a-f]{32}\b)(?=.*\b[0-9a-f]{64}\b)|\b(?:access_?key_?id|secret_?access_?key)["']?\s*[:=]\s*["']?[0-9A-Za-z/+]{16,}/im,
   ],
   ["Azure client secret", /(?:^|[^\w~.-])[\w~.]{3}\dQ~[\w~.-]{31,34}(?![\w~.-])/],
   ["Cloudflare API token", /\bcf(?:k|ut|at)_[A-Za-z0-9]{40,}/],
