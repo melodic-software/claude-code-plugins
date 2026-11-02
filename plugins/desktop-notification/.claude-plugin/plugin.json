@@ -15,6 +15,9 @@
     "osc9",
     "hook"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "desktop_notification_enabled": {
       "type": "boolean",

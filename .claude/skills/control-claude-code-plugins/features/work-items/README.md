@@ -6,6 +6,7 @@ The skills of `plugins/work-items`. Each one is driven with `<plugin-dir>` set t
 
 - `attend-queue`: Drive escalations to resolution; list held PRs and post-merge failures; hand intake to triage.
 - `decompose`: Break a plan into vertical-slice work items with dependencies.
+- `morning-brief`: Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions.
 - `onboard-adapter`: Generate a consumer-owned adapter for a tracker this plugin does not bundle.
 - `scan-todos`: Sweep source comments for TODO and FIXME markers, resolve or file each.
 - `setup`: Verify and configure the work-items plugin for this repo. No plain-words entry.

@@ -2,7 +2,8 @@
 // (scripts/generate-catalog.mjs, scripts/generate-cheatsheet.mjs). Both locate a
 // `<!-- x:start -->` ... `<!-- x:end -->` block in a committed file, compare it
 // against a freshly generated one, and then either report drift under --check or
-// rewrite the block in place.
+// rewrite the block in place. scripts/generate-marketplace.mjs passes a whole
+// file as the block.
 //
 // Two exports rather than one because the missing-marker outcome is the one part
 // of the flow the generators do not share: findMarkerBlock returns null and each

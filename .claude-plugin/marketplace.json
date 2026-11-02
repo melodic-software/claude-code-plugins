@@ -6,24 +6,46 @@
     "email": "info@melodicsoftware.com"
   },
   "description": "Reusable, repo-agnostic Claude Code plugins — skills, hooks, agents, and MCP servers.",
-  "allowCrossMarketplaceDependenciesOn": ["claude-plugins-official"],
+  "allowCrossMarketplaceDependenciesOn": [
+    "claude-plugins-official"
+  ],
   "plugins": [
     {
       "name": "markdown-format",
       "source": "./plugins/markdown-format",
       "category": "development",
-      "tags": ["markdown", "markdownlint", "formatter", "linter", "hook"]
+      "tags": [
+        "markdown",
+        "markdownlint",
+        "formatter",
+        "linter",
+        "hook"
+      ]
     },
     {
       "name": "bash-format",
       "source": "./plugins/bash-format",
       "category": "development",
-      "tags": ["bash", "shell", "shellcheck", "shfmt", "formatter", "linter", "hook"],
+      "tags": [
+        "bash",
+        "shell",
+        "shellcheck",
+        "shfmt",
+        "formatter",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "shell scripts",
         "signals": {
-          "filesRead": ["**/*.sh", "**/*.bash"],
-          "cli": ["shellcheck", "shfmt"]
+          "filesRead": [
+            "**/*.sh",
+            "**/*.bash"
+          ],
+          "cli": [
+            "shellcheck",
+            "shfmt"
+          ]
         }
       }
     },
@@ -31,11 +53,23 @@
       "name": "biome-format",
       "source": "./plugins/biome-format",
       "category": "development",
-      "tags": ["biome", "typescript", "javascript", "json", "jsx", "formatter", "linter", "hook"],
+      "tags": [
+        "biome",
+        "typescript",
+        "javascript",
+        "json",
+        "jsx",
+        "formatter",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "Biome",
         "signals": {
-          "filesRead": ["**/biome.json", "**/biome.jsonc"],
+          "filesRead": [
+            "**/biome.json",
+            "**/biome.jsonc"
+          ],
           "manifestDeps": [
             {
               "file": "[/\\\\]package\\.json$",
@@ -49,12 +83,22 @@
       "name": "ruff-format",
       "source": "./plugins/ruff-format",
       "category": "development",
-      "tags": ["ruff", "python", "formatter", "linter", "hook"],
+      "tags": [
+        "ruff",
+        "python",
+        "formatter",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "Python",
         "signals": {
-          "filesRead": ["**/*.py"],
-          "cli": ["ruff"]
+          "filesRead": [
+            "**/*.py"
+          ],
+          "cli": [
+            "ruff"
+          ]
         }
       }
     },
@@ -62,12 +106,24 @@
       "name": "typos-format",
       "source": "./plugins/typos-format",
       "category": "development",
-      "tags": ["typos", "spelling", "formatter", "linter", "hook"],
+      "tags": [
+        "typos",
+        "spelling",
+        "formatter",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "Spelling / typo fixing",
         "signals": {
-          "filesRead": ["**/typos.toml", "**/_typos.toml", "**/.typos.toml"],
-          "cli": ["typos"]
+          "filesRead": [
+            "**/typos.toml",
+            "**/_typos.toml",
+            "**/.typos.toml"
+          ],
+          "cli": [
+            "typos"
+          ]
         }
       }
     },
@@ -75,12 +131,22 @@
       "name": "go-format",
       "source": "./plugins/go-format",
       "category": "development",
-      "tags": ["go", "golang", "goimports", "formatter", "hook"],
+      "tags": [
+        "go",
+        "golang",
+        "goimports",
+        "formatter",
+        "hook"
+      ],
       "relevance": {
         "topic": "Go",
         "signals": {
-          "filesRead": ["**/*.go"],
-          "cli": ["goimports"]
+          "filesRead": [
+            "**/*.go"
+          ],
+          "cli": [
+            "goimports"
+          ]
         }
       }
     },
@@ -88,25 +154,52 @@
       "name": "eol-normalizer",
       "source": "./plugins/eol-normalizer",
       "category": "development",
-      "tags": ["eol", "line-endings", "crlf", "lf", "gitattributes", "hook"]
+      "tags": [
+        "eol",
+        "line-endings",
+        "crlf",
+        "lf",
+        "gitattributes",
+        "normalizer",
+        "hook"
+      ]
     },
     {
       "name": "desktop-notification",
       "source": "./plugins/desktop-notification",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["notification", "desktop", "toast", "bell", "osc9", "hook"]
+      "tags": [
+        "notification",
+        "desktop",
+        "toast",
+        "bell",
+        "osc9",
+        "hook"
+      ]
     },
     {
       "name": "powershell-format",
       "source": "./plugins/powershell-format",
       "category": "development",
-      "tags": ["powershell", "psscriptanalyzer", "pwsh", "formatter", "linter", "hook"],
+      "tags": [
+        "powershell",
+        "psscriptanalyzer",
+        "pwsh",
+        "formatter",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "PowerShell",
         "signals": {
-          "filesRead": ["**/*.ps1", "**/*.psm1"],
-          "cli": ["pwsh"]
+          "filesRead": [
+            "**/*.ps1",
+            "**/*.psm1"
+          ],
+          "cli": [
+            "pwsh"
+          ]
         }
       }
     },
@@ -114,11 +207,20 @@
       "name": "actionlint",
       "source": "./plugins/actionlint",
       "category": "development",
-      "tags": ["actionlint", "github-actions", "workflow", "yaml", "linter", "hook"],
+      "tags": [
+        "actionlint",
+        "github-actions",
+        "workflow",
+        "yaml",
+        "linter",
+        "hook"
+      ],
       "relevance": {
         "topic": "GitHub Actions workflows",
         "signals": {
-          "filesRead": ["**/.github/workflows/**"]
+          "filesRead": [
+            "**/.github/workflows/**"
+          ]
         }
       }
     },
@@ -126,35 +228,95 @@
       "name": "guardrails",
       "source": "./plugins/guardrails",
       "category": "security",
-      "tags": ["guard", "security", "secrets", "hardcoded-paths", "git", "cli-flags", "hook"]
+      "tags": [
+        "guard",
+        "security",
+        "secrets",
+        "hooks",
+        "pretooluse",
+        "git",
+        "hardcoded-paths",
+        "cli-flags",
+        "pull-request",
+        "hook"
+      ]
     },
     {
       "name": "bugs",
       "source": "./plugins/bugs",
       "category": "maintenance",
-      "tags": ["bug", "bug-report", "defect", "triage", "issue", "skill"]
+      "tags": [
+        "bug",
+        "bugs",
+        "defect",
+        "scan",
+        "bug-hunting",
+        "triage",
+        "issue",
+        "workflow",
+        "skill",
+        "bug-report"
+      ]
     },
     {
       "name": "debugging",
       "source": "./plugins/debugging",
       "category": "maintenance",
-      "tags": ["debug", "diagnose", "troubleshooting", "root-cause", "regression", "skill"]
+      "tags": [
+        "debug",
+        "diagnose",
+        "debugging",
+        "troubleshooting",
+        "root-cause",
+        "regression",
+        "skill"
+      ]
     },
     {
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "portfolio", "adr", "decision-record", "skill"]
+      "tags": [
+        "architecture",
+        "refactoring",
+        "deep-modules",
+        "ousterhout",
+        "module-design",
+        "testability",
+        "c4",
+        "landscape",
+        "portfolio",
+        "adr",
+        "decision-record",
+        "skill",
+        "dependencies",
+        "components",
+        "containers",
+        "context",
+        "flow",
+        "events",
+        "data",
+        "deployment"
+      ]
     },
     {
       "name": "mcp-tools",
       "source": "./plugins/mcp-tools",
       "category": "quality",
-      "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"],
+      "tags": [
+        "mcp",
+        "tools",
+        "audit",
+        "quality",
+        "scorecard",
+        "skill"
+      ],
       "relevance": {
         "topic": "MCP servers",
         "signals": {
-          "filesRead": ["**/.mcp.json"]
+          "filesRead": [
+            "**/.mcp.json"
+          ]
         }
       }
     },
@@ -162,17 +324,55 @@
       "name": "prototype",
       "source": "./plugins/prototype",
       "category": "design",
-      "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
+      "tags": [
+        "prototype",
+        "spike",
+        "throwaway",
+        "design",
+        "ui",
+        "state-machine",
+        "skill"
+      ]
     },
     {
       "name": "knowledge",
       "source": "./plugins/knowledge",
       "category": "discovery",
-      "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"],
+      "tags": [
+        "knowledge",
+        "distill",
+        "book",
+        "pdf",
+        "epub",
+        "youtube",
+        "x",
+        "twitter",
+        "video",
+        "transcript",
+        "course",
+        "dometrain",
+        "teachable",
+        "docs",
+        "documentation",
+        "docpage",
+        "corpus",
+        "sitemap",
+        "llms.txt",
+        "playwright",
+        "skill",
+        "reference",
+        "synthesis",
+        "ingest",
+        "upstream",
+        "provenance"
+      ],
       "relevance": {
         "topic": "books and PDFs",
         "signals": {
-          "filesRead": ["**/*.pdf", "**/*.epub"]
+          "filesRead": [
+            "**/*.pdf",
+            "**/*.epub"
+          ]
         }
       }
     },
@@ -180,39 +380,96 @@
       "name": "context7",
       "source": "./plugins/context7",
       "category": "discovery",
-      "tags": ["context7", "documentation", "library-docs", "api-reference", "tooling", "skill"]
+      "tags": [
+        "context7",
+        "documentation",
+        "library-docs",
+        "api-reference",
+        "tooling",
+        "skill"
+      ]
     },
     {
       "name": "playbooks",
       "source": "./plugins/playbooks",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["knowledge", "playbook", "doctrine", "boris", "fable-5", "skill-authoring", "repo-sweep", "hygiene", "best-practices", "skill"]
+      "tags": [
+        "playbooks",
+        "knowledge",
+        "doctrine",
+        "claude-code",
+        "workflow",
+        "skill-authoring",
+        "boris-cherny",
+        "fable-5",
+        "best-practices",
+        "tips",
+        "playbook",
+        "boris",
+        "repo-sweep",
+        "hygiene",
+        "skill"
+      ]
     },
     {
       "name": "docs-hygiene",
       "source": "./plugins/docs-hygiene",
       "category": "maintenance",
-      "tags": ["maintenance", "documentation", "skill", "markdown", "hygiene", "deduplication", "compress", "audit", "progressive-disclosure", "context-engineering"]
+      "tags": [
+        "documentation",
+        "markdown",
+        "maintenance",
+        "hygiene",
+        "deduplication",
+        "derivability",
+        "progressive-disclosure",
+        "context-engineering",
+        "refactoring",
+        "skill",
+        "compress",
+        "audit"
+      ]
     },
     {
       "name": "docs-naming",
       "source": "./plugins/docs-naming",
       "category": "maintenance",
       "defaultEnabled": false,
-      "tags": ["maintenance", "documentation", "skill", "file-names", "naming", "rename", "audit", "gate"]
+      "tags": [
+        "documentation",
+        "maintenance",
+        "file-names",
+        "naming",
+        "rename",
+        "audit",
+        "gate",
+        "skill"
+      ]
     },
     {
       "name": "firecrawl",
       "source": "./plugins/firecrawl",
       "category": "discovery",
-      "tags": ["firecrawl", "scraping", "web-search", "crawling", "parsing", "skill"],
+      "tags": [
+        "firecrawl",
+        "scraping",
+        "web-search",
+        "crawling",
+        "parsing",
+        "cli",
+        "skill"
+      ],
       "defaultEnabled": false,
       "relevance": {
         "topic": "Firecrawl",
         "signals": {
-          "cli": ["firecrawl"],
-          "hosts": ["api.firecrawl.dev"]
+          "cli": [
+            "firecrawl"
+          ],
+          "hosts": [
+            "api.firecrawl.dev"
+          ]
         }
       }
     },
@@ -221,11 +478,27 @@
       "source": "./plugins/harness-config",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"],
+      "tags": [
+        "settings",
+        "configuration",
+        "hooks",
+        "plugins",
+        "permissions",
+        "automation",
+        "audit",
+        "maintenance",
+        "skill",
+        "instructions",
+        "mcp",
+        "rules"
+      ],
       "relevance": {
         "topic": "Claude Code settings",
         "signals": {
-          "filesRead": ["**/.claude/settings.json", "**/.claude/settings.local.json"]
+          "filesRead": [
+            "**/.claude/settings.json",
+            "**/.claude/settings.local.json"
+          ]
         }
       }
     },
@@ -233,36 +506,88 @@
       "name": "harness-memory",
       "source": "./plugins/harness-memory",
       "category": "claude-code",
-      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
+      "tags": [
+        "memory",
+        "claude-md",
+        "rules",
+        "auto-memory",
+        "instructions",
+        "audit",
+        "stateless",
+        "disable",
+        "purge",
+        "maintenance",
+        "skill",
+        "health"
+      ]
     },
     {
       "name": "work-items",
       "source": "./plugins/work-items",
       "category": "project-management",
-      "tags": ["work-items", "tracker", "seam", "provider-neutral", "github", "issues", "triage", "orchestration", "skill"]
+      "tags": [
+        "work-items",
+        "tracker",
+        "seam",
+        "provider-neutral",
+        "github",
+        "issues",
+        "triage",
+        "orchestration",
+        "skill"
+      ]
     },
     {
       "name": "discovery",
       "source": "./plugins/discovery",
       "category": "discovery",
-      "tags": ["discovery", "explore", "research", "codebase", "investigation", "sources", "skill"]
+      "tags": [
+        "discovery",
+        "explore",
+        "research",
+        "intent",
+        "rationale",
+        "archaeology",
+        "codebase",
+        "investigation",
+        "sources",
+        "subagent",
+        "agents",
+        "skill"
+      ]
     },
     {
       "name": "playgrounds",
       "source": "./plugins/playgrounds",
       "category": "presentation",
       "defaultEnabled": false,
-      "tags": ["playground", "interactive", "explorer", "html", "prompt-round-trip", "skill"]
+      "tags": [
+        "playground",
+        "interactive",
+        "explorer",
+        "html",
+        "prompt-round-trip",
+        "skill"
+      ]
     },
     {
       "name": "playwright",
       "source": "./plugins/playwright",
       "category": "testing",
-      "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"],
+      "tags": [
+        "playwright",
+        "e2e",
+        "browser-automation",
+        "testing",
+        "tooling",
+        "skill"
+      ],
       "relevance": {
         "topic": "Playwright",
         "signals": {
-          "cli": ["playwright"],
+          "cli": [
+            "playwright"
+          ],
           "manifestDeps": [
             {
               "file": "[/\\\\]package\\.json$",
@@ -276,265 +601,711 @@
       "name": "app-control",
       "source": "./plugins/app-control",
       "category": "testing",
-      "tags": ["app-control", "drive", "launch", "evidence", "capture", "e2e", "skill"]
+      "tags": [
+        "app-control",
+        "drive",
+        "launch",
+        "evidence",
+        "capture",
+        "e2e",
+        "skill"
+      ]
     },
     {
       "name": "code-tidying",
       "source": "./plugins/code-tidying",
       "category": "maintenance",
-      "tags": ["tidy", "refactoring", "simplify", "boy-scout", "comments", "maintenance", "skill"]
+      "tags": [
+        "tidy",
+        "refactoring",
+        "simplify",
+        "boy-scout",
+        "tidy-first",
+        "maintenance",
+        "comments",
+        "self-documenting",
+        "dead-code",
+        "skill"
+      ]
     },
     {
       "name": "coupling",
       "source": "./plugins/coupling",
       "category": "maintenance",
-      "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
+      "tags": [
+        "coupling",
+        "cohesion",
+        "decouple",
+        "connascence",
+        "dependency-injection",
+        "refactoring",
+        "skill"
+      ]
     },
     {
       "name": "session-flow",
       "source": "./plugins/session-flow",
       "category": "workflow",
-      "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
+      "tags": [
+        "workflow",
+        "handoff",
+        "background",
+        "delegation",
+        "keep-going",
+        "find-handoff",
+        "clean-stop",
+        "resume",
+        "recover",
+        "durable",
+        "retrospective",
+        "session",
+        "checkpoint",
+        "orchestration",
+        "reanchor",
+        "freshness",
+        "orient",
+        "orientation",
+        "reconcile",
+        "retire",
+        "observer",
+        "hook",
+        "skill",
+        "retro"
+      ]
     },
     {
       "name": "multi-agent",
       "source": "./plugins/multi-agent",
       "category": "workflow",
-      "tags": ["workflow", "orchestration", "subagents", "model-routing", "effort", "fan-out", "skill"]
+      "tags": [
+        "workflow",
+        "orchestration",
+        "subagents",
+        "model-routing",
+        "effort",
+        "fan-out",
+        "skill"
+      ]
     },
     {
       "name": "visualization",
       "source": "./plugins/visualization",
       "category": "presentation",
-      "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
+      "tags": [
+        "visualize",
+        "visualization",
+        "diagram",
+        "mermaid",
+        "chart",
+        "artifact",
+        "render",
+        "slides",
+        "deck",
+        "skill"
+      ]
     },
     {
       "name": "tdd",
       "source": "./plugins/tdd",
       "category": "testing",
-      "tags": ["knowledge", "skill", "tdd", "testing", "unit-testing", "test-design", "best-practices"]
+      "tags": [
+        "tdd",
+        "testing",
+        "unit-testing",
+        "test-design",
+        "knowledge",
+        "beck",
+        "khorikov",
+        "best-practices",
+        "skill"
+      ]
     },
     {
       "name": "evals",
       "source": "./plugins/evals",
       "category": "testing",
       "defaultEnabled": false,
-      "tags": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "knowledge", "skill"]
+      "tags": [
+        "evals",
+        "evaluation",
+        "success-criteria",
+        "llm-judge",
+        "grading",
+        "rubric",
+        "testing",
+        "knowledge",
+        "skill"
+      ]
     },
     {
       "name": "harness-ops",
       "source": "./plugins/harness-ops",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
+      "tags": [
+        "claude-code",
+        "operations",
+        "observability",
+        "otel",
+        "troubleshooting",
+        "changelog",
+        "monitoring",
+        "hooks",
+        "telemetry",
+        "audit",
+        "plugins",
+        "marketplace",
+        "dashboard",
+        "performance",
+        "diagnostics",
+        "skill"
+      ]
     },
     {
       "name": "rate-limit-guard",
       "source": "./plugins/rate-limit-guard",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["rate-limit", "mod", "loop-lane", "stopfailure", "hook"]
+      "tags": [
+        "rate-limit",
+        "mod",
+        "loop-lane",
+        "stopfailure",
+        "hook"
+      ]
     },
     {
       "name": "context-guard",
       "source": "./plugins/context-guard",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["context-window", "mod", "zones", "context-degradation", "session", "skill"]
+      "tags": [
+        "context-window",
+        "mod",
+        "zones",
+        "context-degradation",
+        "session",
+        "hooks",
+        "skill"
+      ]
     },
     {
       "name": "context-budget",
       "source": "./plugins/context-budget",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["context-window", "startup-payload", "token-budget", "tool-schemas", "measurement", "attribution", "ledger", "skill"]
+      "tags": [
+        "context-window",
+        "startup-payload",
+        "token-budget",
+        "tool-schemas",
+        "measurement",
+        "attribution",
+        "ledger",
+        "skill"
+      ]
     },
     {
       "name": "plugin-quality",
       "source": "./plugins/plugin-quality",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["plugin-audit", "audit", "review", "quality", "work-item", "context-guard", "skill"]
+      "tags": [
+        "plugin-audit",
+        "audit",
+        "review",
+        "quality",
+        "work-item",
+        "context-guard",
+        "skill"
+      ]
     },
     {
       "name": "songwriting",
       "source": "./plugins/songwriting",
       "category": "audio",
-      "tags": ["songwriting", "lyrics", "pat-pattison", "suno", "music", "domain", "skill"],
+      "tags": [
+        "songwriting",
+        "lyrics",
+        "pat-pattison",
+        "suno",
+        "music",
+        "rhyme",
+        "metaphor",
+        "agents",
+        "skill",
+        "domain"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "retro-audio",
       "source": "./plugins/retro-audio",
       "category": "audio",
-      "tags": ["chiptune", "sfx", "mml", "wav", "gameboy", "nes", "audio", "skill"],
+      "tags": [
+        "audio",
+        "chiptune",
+        "sfx",
+        "wav",
+        "mml",
+        "game-audio",
+        "skill",
+        "gameboy",
+        "nes"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "speech",
       "source": "./plugins/speech",
       "category": "audio",
-      "tags": ["speech", "text-to-speech", "tts", "narration", "kokoro", "elevenlabs", "audio", "skill"],
+      "tags": [
+        "speech",
+        "text-to-speech",
+        "tts",
+        "narration",
+        "kokoro",
+        "elevenlabs",
+        "word-timings",
+        "skill",
+        "audio"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "pixel-art",
       "source": "./plugins/pixel-art",
       "category": "visual-arts",
-      "tags": ["pixel-art", "sprites", "sprite-sheet", "animation", "rpg-maker", "cutscene", "game-assets", "skill"],
+      "tags": [
+        "pixel-art",
+        "sprites",
+        "sprite-sheet",
+        "animation",
+        "rpg-maker",
+        "cutscene",
+        "game-assets",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "animation",
       "source": "./plugins/animation",
       "category": "visual-arts",
-      "tags": ["animation", "rotoscope", "2d-animation", "ink", "film", "canvas", "skill"],
+      "tags": [
+        "animation",
+        "rotoscope",
+        "style-pack",
+        "2d-animation",
+        "ink",
+        "film",
+        "canvas",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "explainer-video",
       "source": "./plugins/explainer-video",
       "category": "visual-arts",
-      "tags": ["explainer", "video", "manim", "animation", "math", "skill"],
+      "tags": [
+        "explainer",
+        "video",
+        "manim",
+        "animation",
+        "math",
+        "typst",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "source-control",
       "source": "./plugins/source-control",
       "category": "development",
-      "tags": ["delivery", "git", "github", "commit", "pull-request", "babysit", "worktree", "ci", "skill"]
+      "tags": [
+        "git",
+        "github",
+        "commit",
+        "pull-request",
+        "babysit",
+        "worktree",
+        "merge-conflict",
+        "rebase",
+        "ci",
+        "code-review",
+        "delivery",
+        "skill"
+      ]
     },
     {
       "name": "planning",
       "source": "./plugins/planning",
       "category": "design",
-      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "audit-answers", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
+      "tags": [
+        "planning",
+        "wayfind",
+        "decision-map",
+        "brainstorm",
+        "prd",
+        "interview",
+        "questionnaire",
+        "design",
+        "design-handoff",
+        "devils-advocate",
+        "audit-answers",
+        "validate",
+        "plan",
+        "stress-test",
+        "incumbent",
+        "alternatives",
+        "status-quo",
+        "implementation-plan",
+        "draft-goal-condition",
+        "goal",
+        "completion-condition",
+        "autonomous-goal",
+        "skill",
+        "domain-modeling",
+        "ubiquitous-language",
+        "glossary"
+      ]
     },
     {
       "name": "domain-driven-design",
       "source": "./plugins/domain-driven-design",
       "category": "design",
       "defaultEnabled": false,
-      "tags": ["ddd", "domain-driven-design", "ubiquitous-language", "glossary", "domain-modeling", "skill"]
+      "tags": [
+        "ddd",
+        "domain-driven-design",
+        "ubiquitous-language",
+        "glossary",
+        "domain-modeling",
+        "vocabulary",
+        "bounded-contexts",
+        "skill"
+      ]
     },
     {
       "name": "naming",
       "source": "./plugins/naming",
       "category": "design",
-      "tags": ["naming", "name", "rename", "identifier", "candidates", "anti-anchoring", "skill"]
+      "tags": [
+        "naming",
+        "name",
+        "rename",
+        "identifier",
+        "candidates",
+        "anti-anchoring",
+        "skill"
+      ]
     },
     {
       "name": "review",
       "source": "./plugins/review",
       "category": "quality",
-      "tags": ["review", "code-review", "security", "architecture", "doc-drift", "ci-audit", "quality-gate", "fanout", "agents", "skill"]
+      "tags": [
+        "review",
+        "code-review",
+        "security",
+        "architecture",
+        "quality-gate",
+        "ci",
+        "agents",
+        "skill",
+        "doc-drift",
+        "ci-audit",
+        "fanout"
+      ]
     },
     {
       "name": "implementation",
       "source": "./plugins/implementation",
       "category": "development",
-      "tags": ["implementation", "execute", "orchestration", "dispatch", "incremental", "skill"]
+      "tags": [
+        "implementation",
+        "implement",
+        "orchestration",
+        "execution",
+        "tdd",
+        "skill",
+        "execute",
+        "dispatch",
+        "incremental"
+      ]
     },
     {
       "name": "toolchain",
       "source": "./plugins/toolchain",
       "category": "development",
-      "tags": ["build", "lint", "format", "ecosystem", "toolchain", "setup", "skill"]
+      "tags": [
+        "toolchain",
+        "build",
+        "lint",
+        "test",
+        "ecosystem",
+        "polyglot",
+        "verification",
+        "skill",
+        "hook",
+        "format",
+        "setup"
+      ]
     },
     {
       "name": "testing",
       "source": "./plugins/testing",
       "category": "testing",
-      "tags": ["testing", "test", "tdd", "e2e", "coverage", "diagnose", "skill"]
+      "tags": [
+        "testing",
+        "tdd",
+        "test-plan",
+        "e2e",
+        "diagnose",
+        "coverage",
+        "skill",
+        "test"
+      ]
     },
     {
       "name": "verification",
       "source": "./plugins/verification",
       "category": "verification",
-      "tags": ["verification", "outcome", "baseline", "measure", "verify", "skill"]
+      "tags": [
+        "verification",
+        "outcome",
+        "verify",
+        "baseline",
+        "measurement",
+        "evidence",
+        "skill",
+        "measure"
+      ]
     },
     {
       "name": "performance",
       "source": "./plugins/performance",
       "category": "verification",
-      "tags": ["performance", "benchmarking", "baseline", "measurement", "optimization", "noise-characterization", "drift-immune-counter", "interleaved-ab", "skill"]
+      "tags": [
+        "performance",
+        "benchmarking",
+        "baseline",
+        "measurement",
+        "optimization",
+        "noise-characterization",
+        "drift-immune-counter",
+        "interleaved-ab",
+        "skill"
+      ]
     },
     {
       "name": "kindle-dedrm",
       "source": "./plugins/kindle-dedrm",
       "category": "personal",
-      "tags": ["kindle", "dedrm", "calibre", "ebook", "epub", "drm", "knowledge", "windows", "skill"],
+      "tags": [
+        "kindle",
+        "dedrm",
+        "calibre",
+        "ebook",
+        "epub",
+        "drm",
+        "knowledge",
+        "windows",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "gaming",
       "source": "./plugins/gaming",
       "category": "personal",
-      "tags": ["gaming", "dlss", "dlss5", "nvidia", "optiscaler", "mod", "windows", "skill"],
+      "tags": [
+        "gaming",
+        "dlss",
+        "dlss5",
+        "nvidia",
+        "optiscaler",
+        "mod",
+        "windows",
+        "powershell",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "codebase-health",
       "source": "./plugins/codebase-health",
       "category": "quality",
-      "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
+      "tags": [
+        "audit",
+        "drift",
+        "documentation",
+        "configuration",
+        "architecture",
+        "verification",
+        "claims",
+        "skill"
+      ]
     },
     {
       "name": "code-metrics",
       "source": "./plugins/code-metrics",
       "category": "quality",
-      "tags": ["code-metrics", "complexity", "cyclomatic", "cognitive-complexity", "halstead", "duplication", "coverage", "crap", "type-coverage", "lines-of-code", "measurement", "audit", "skill"]
+      "tags": [
+        "code-metrics",
+        "complexity",
+        "cyclomatic",
+        "cognitive-complexity",
+        "halstead",
+        "lines-of-code",
+        "duplication",
+        "coverage",
+        "crap",
+        "type-coverage",
+        "quality",
+        "measurement",
+        "audit",
+        "skill"
+      ]
     },
     {
       "name": "discipline",
       "source": "./plugins/discipline",
       "category": "quality",
       "defaultEnabled": false,
-      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
+      "tags": [
+        "re-anchor",
+        "discipline",
+        "corrector",
+        "research",
+        "standards",
+        "duplication",
+        "incumbency",
+        "terseness",
+        "upstream",
+        "conformance",
+        "selection",
+        "dependencies",
+        "communication",
+        "determinism",
+        "scripting",
+        "skills",
+        "consistency",
+        "reuse",
+        "skill",
+        "self-scrutiny",
+        "adversarial",
+        "runbook",
+        "posture",
+        "batch",
+        "audit"
+      ]
     },
     {
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
-      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "illustrate", "onboarding", "quiz", "comprehension", "skill"]
+      "tags": [
+        "teach",
+        "learn",
+        "learning",
+        "coach",
+        "tutor",
+        "pedagogy",
+        "primer",
+        "explain",
+        "illustrate",
+        "onboarding",
+        "quiz",
+        "comprehension",
+        "skill"
+      ]
     },
     {
       "name": "repo-hygiene",
       "source": "./plugins/repo-hygiene",
       "category": "maintenance",
-      "tags": ["maintenance", "clean", "hygiene", "caches", "build-artifacts", "git-prune", "working-tree", "skill"]
+      "tags": [
+        "maintenance",
+        "clean",
+        "hygiene",
+        "caches",
+        "build-artifacts",
+        "git-prune",
+        "working-tree",
+        "skill"
+      ]
     },
     {
       "name": "repo-fleet-hygiene",
       "source": "./plugins/repo-fleet-hygiene",
       "category": "maintenance",
       "defaultEnabled": false,
-      "tags": ["maintenance", "git", "github", "repository", "fleet", "hygiene", "worktree", "audit", "skill"]
+      "tags": [
+        "git",
+        "github",
+        "repository",
+        "fleet",
+        "hygiene",
+        "worktree",
+        "audit",
+        "maintenance",
+        "skill"
+      ]
     },
     {
       "name": "disk-hygiene",
       "source": "./plugins/disk-hygiene",
       "category": "maintenance",
       "defaultEnabled": false,
-      "tags": ["maintenance", "disk", "hygiene", "cleanup", "artifacts", "temporary-files", "audit", "skill"]
+      "tags": [
+        "disk",
+        "hygiene",
+        "cleanup",
+        "artifacts",
+        "temporary-files",
+        "audit",
+        "skill",
+        "maintenance"
+      ]
     },
     {
       "name": "event-storming",
       "source": "./plugins/event-storming",
       "category": "design",
       "defaultEnabled": false,
-      "tags": ["event-storming", "ddd", "domain-modeling", "bounded-contexts", "miro", "facilitation", "simulation", "skill"]
+      "tags": [
+        "event-storming",
+        "ddd",
+        "domain-modeling",
+        "bounded-contexts",
+        "miro",
+        "facilitation",
+        "simulation",
+        "skill"
+      ]
     },
     {
       "name": "skill-quality",
       "source": "./plugins/skill-quality",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["skill", "authoring", "quality", "contract", "lint", "evals", "audit"],
+      "tags": [
+        "skill",
+        "authoring",
+        "quality",
+        "contract",
+        "lint",
+        "evals",
+        "audit"
+      ],
       "relevance": {
         "topic": "skill authoring",
         "signals": {
-          "filesRead": ["**/SKILL.md"]
+          "filesRead": [
+            "**/SKILL.md"
+          ]
         }
       }
     },
@@ -543,13 +1314,32 @@
       "source": "./plugins/machine-health",
       "category": "operations",
       "defaultEnabled": false,
-      "tags": ["machine-health", "workstation", "health", "audit", "monitoring", "windows", "powershell", "cisa-kev", "skill"]
+      "tags": [
+        "machine-health",
+        "workstation",
+        "health",
+        "audit",
+        "monitoring",
+        "windows",
+        "powershell",
+        "cisa-kev",
+        "skill"
+      ]
     },
     {
       "name": "ai-briefing",
       "source": "./plugins/ai-briefing",
       "category": "personal",
-      "tags": ["ai-briefing", "ai-news", "aggregation", "briefing", "slides", "presentation", "rss", "skill"],
+      "tags": [
+        "ai-briefing",
+        "ai-news",
+        "aggregation",
+        "briefing",
+        "slides",
+        "presentation",
+        "rss",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
@@ -557,27 +1347,61 @@
       "source": "./plugins/ai-slop",
       "category": "quality",
       "defaultEnabled": false,
-      "tags": ["ai-slop", "ai-writing", "slop", "unslop", "em-dash", "emoji", "detector", "prose", "audit", "skill"]
+      "tags": [
+        "ai-slop",
+        "ai-writing",
+        "slop",
+        "unslop",
+        "em-dash",
+        "emoji",
+        "detector",
+        "prose",
+        "audit",
+        "skill"
+      ]
     },
     {
       "name": "miro",
       "source": "./plugins/miro",
       "category": "design",
-      "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"],
+      "tags": [
+        "miro",
+        "mcp",
+        "boards",
+        "sticky-notes",
+        "eventstorming",
+        "diagramming",
+        "visual-collaboration"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "sql-server",
       "source": "./plugins/sql-server",
       "category": "development",
-      "tags": ["sql-server", "azure-sql", "t-sql", "database", "read-only", "mcp"],
+      "tags": [
+        "sql-server",
+        "azure-sql",
+        "t-sql",
+        "database",
+        "read-only",
+        "mcp"
+      ],
       "defaultEnabled": false
     },
     {
       "name": "dometrain",
       "source": "./plugins/dometrain",
       "category": "discovery",
-      "tags": ["dometrain", "courses", "dotnet", "csharp", "learning", "grounding", "skill"],
+      "tags": [
+        "dometrain",
+        "courses",
+        "dotnet",
+        "csharp",
+        "learning",
+        "grounding",
+        "skill"
+      ],
       "defaultEnabled": false
     },
     {
@@ -585,29 +1409,82 @@
       "source": "./plugins/autonomy",
       "category": "autonomy",
       "defaultEnabled": false,
-      "tags": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
+      "tags": [
+        "adoption",
+        "autonomy",
+        "binding",
+        "governance",
+        "guided-setup",
+        "otlp",
+        "return-accounting",
+        "routines",
+        "runner",
+        "telemetry",
+        "topology"
+      ]
     },
     {
       "name": "adhd",
       "source": "./plugins/adhd",
       "category": "personal",
-      "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
+      "tags": [
+        "adhd",
+        "output",
+        "accessibility",
+        "action-first",
+        "focus",
+        "response-style",
+        "executive-function",
+        "brevity",
+        "clarify",
+        "restructure",
+        "working-memory",
+        "decision-table",
+        "skill"
+      ]
     },
     {
       "name": "github",
       "source": "./plugins/github",
       "category": "operations",
-      "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
+      "tags": [
+        "github",
+        "audit",
+        "governance",
+        "org-admin",
+        "billing",
+        "security-posture",
+        "rulesets",
+        "actions-policy",
+        "drift",
+        "skill",
+        "advise"
+      ]
     },
     {
       "name": "x",
       "source": "./plugins/x",
       "category": "discovery",
-      "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
+      "tags": [
+        "x",
+        "twitter",
+        "markdown",
+        "social",
+        "content-extraction",
+        "skill"
+      ],
       "relevance": {
         "topic": "X (Twitter) content",
         "signals": {
-          "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "xtomd.com", "threadreaderapp.com"]
+          "hosts": [
+            "x.com",
+            "www.x.com",
+            "twitter.com",
+            "www.twitter.com",
+            "mobile.twitter.com",
+            "xtomd.com",
+            "threadreaderapp.com"
+          ]
         }
       }
     },
@@ -615,7 +1492,19 @@
       "name": "wizard",
       "source": "./plugins/wizard",
       "category": "development",
-      "tags": ["wizard", "setup", "provisioning", "credentials", "ci-secrets", "migration", "cutover", "bash", "skill"]
+      "tags": [
+        "wizard",
+        "setup",
+        "provisioning",
+        "credentials",
+        "ci-secrets",
+        "dashboard",
+        "migration",
+        "cutover",
+        "env",
+        "bash",
+        "skill"
+      ]
     },
     {
       "name": "mutation-testing",
@@ -692,8 +1581,8 @@
         "hotspots",
         "value-to-effort",
         "ranking",
-        "audit",
-        "skill"
+        "skill",
+        "audit"
       ]
     },
     {
@@ -736,7 +1625,15 @@
       "name": "corrections",
       "source": "./plugins/corrections",
       "category": "quality",
-      "tags": ["corrections", "codify", "check", "fail-then-pass", "proof", "worktree", "recurring-findings"]
+      "tags": [
+        "corrections",
+        "codify",
+        "check",
+        "fail-then-pass",
+        "proof",
+        "worktree",
+        "recurring-findings"
+      ]
     },
     {
       "name": "writing",
@@ -750,7 +1647,11 @@
         "readability",
         "plain-language",
         "bluf",
+        "inverted-pyramid",
         "prose",
+        "tickets",
+        "pull-request",
+        "documentation",
         "skill"
       ]
     },
@@ -758,34 +1659,74 @@
       "name": "user-interface",
       "source": "./plugins/user-interface",
       "category": "presentation",
-      "tags": ["user-interface", "ui", "terminal", "cli", "tui", "design-system", "accessibility", "skill"]
+      "tags": [
+        "user-interface",
+        "ui",
+        "terminal",
+        "cli",
+        "tui",
+        "design-system",
+        "accessibility",
+        "routing",
+        "skill"
+      ]
     },
     {
       "name": "user-experience",
       "source": "./plugins/user-experience",
       "category": "design",
-      "tags": ["user-experience", "ux", "user-research", "personas", "jobs-to-be-done", "skill"]
+      "tags": [
+        "user-experience",
+        "ux",
+        "user-research",
+        "discussion-guide",
+        "personas",
+        "jobs-to-be-done",
+        "routing",
+        "skill"
+      ]
     },
     {
       "name": "developer-experience",
       "source": "./plugins/developer-experience",
       "category": "development",
       "defaultEnabled": false,
-      "tags": ["developer-experience", "dx", "tooling", "cli", "scripts", "audit", "skill"]
+      "tags": [
+        "developer-experience",
+        "dx",
+        "tooling",
+        "cli",
+        "scripts",
+        "audit",
+        "skill"
+      ]
     },
     {
       "name": "display-redaction",
       "source": "./plugins/display-redaction",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["mod", "redaction", "screen-share", "recording", "display", "hooks"]
+      "tags": [
+        "mod",
+        "redaction",
+        "screen-share",
+        "recording",
+        "display",
+        "hooks"
+      ]
     },
     {
       "name": "core",
       "source": "./plugins/core",
       "category": "claude-code",
       "defaultEnabled": false,
-      "tags": ["bundle", "dependencies", "default-on", "plugin-set", "install"]
+      "tags": [
+        "bundle",
+        "dependencies",
+        "default-on",
+        "plugin-set",
+        "install"
+      ]
     }
   ]
 }

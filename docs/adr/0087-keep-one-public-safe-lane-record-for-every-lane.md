@@ -94,7 +94,7 @@ lanes included.
 2. **Hub emitters**: hub lanes pass `credit-stop` through, write the record on every lane
    (including the handoff record they skip today), and work-resolve-issue writes a credential and
    fallback marker.
-3. **Hub readers**: `/harness-ops:morning-brief`, the operator's local monitor and `limit-stop.mjs`
+3. **Hub readers**: `/work-items:morning-brief`, the operator's local monitor and `limit-stop.mjs`
    read the record; the `lane-record.mjs` format is retired.
 4. **API-budget coverage**: the workflows and local scripts that make GitHub calls without a
    reading get one, so `githubCalls` is complete.

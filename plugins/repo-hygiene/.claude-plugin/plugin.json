@@ -17,6 +17,9 @@
     "working-tree",
     "skill"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "clean_destructive_guard_enabled": {
       "type": "boolean",

@@ -578,7 +578,7 @@
     {
       "id": 46,
       "name": "fanout-diversity-repository-model-only",
-      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 200 changed lines under payroll/, none of them in docs/conventions/. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and `PASS fanout_diversity: model`.]",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 200 changed lines under payroll/, none of them in docs/conventions/. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run prints `PASS downstream_probe: (unset)` and `PASS fanout_diversity: model`.]",
       "expected_output": "The user option is unset and the repository file sets model. Reports `fanout_diversity: model (docs/conventions/review.yaml)` and launches review:fanout-sweep with args.diversity set to model.",
       "files": [],
       "narration": true,
@@ -590,7 +590,7 @@
     {
       "id": 47,
       "name": "fanout-diversity-repository-lens-wins-over-user-model",
-      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 75 changed lines under clinic/scheduling/. The user option renders as `model`. The setup-apply --check run prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and `PASS fanout_diversity: lens`.]",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 75 changed lines under clinic/scheduling/. The user option renders as `model`. The setup-apply --check run prints `PASS downstream_probe: (unset)` and `PASS fanout_diversity: lens`.]",
       "expected_output": "Both layers are valid and the repository file is the later layer, so its lens wins over the user's model. Reports `fanout_diversity: lens (docs/conventions/review.yaml)` and launches review:fanout-sweep with args.diversity set to lens.",
       "files": [],
       "narration": true,
@@ -603,7 +603,7 @@
     {
       "id": 48,
       "name": "fanout-diversity-invalid-repository-value-drops-to-default",
-      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 140 changed lines under greenhouse/sensors/, none of them in docs/conventions/. The user option renders as `model`. The setup-apply --check run exits 1 and prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and a WARN line saying docs/conventions/review.yaml sets fanout_diversity=models, which is not one of lens, model.]",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 140 changed lines under greenhouse/sensors/, none of them in docs/conventions/. The user option renders as `model`. The setup-apply --check run exits 1 and prints `PASS downstream_probe: (unset)` and a WARN line saying docs/conventions/review.yaml sets fanout_diversity=models, which is not one of lens, model.]",
       "expected_output": "Names the file docs/conventions/review.yaml, the key fanout_diversity and the value models, and drops the repository layer for that key. No valid layer above it remains, so the key takes its default: reports `fanout_diversity: lens (default)` and launches with args.diversity set to lens. It does not fall back to the user option's model, and the run continues.",
       "files": [],
       "narration": true,
