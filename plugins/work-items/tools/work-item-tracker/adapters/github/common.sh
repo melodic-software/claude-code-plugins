@@ -41,6 +41,12 @@ source "$WIT_GH_ADAPTER_DIR/../../lib/binding.sh"
 wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
 # shellcheck source=../../lib/gh-version.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/gh-version.sh"
+# In this repository's CI jobs, each gh call keeps its rate-limit reading for
+# the job-end api-budget notice (.github/actions/log-api-budget). Each verb runs
+# as its own process, so the wrap goes here, where every verb sources it. A
+# no-op outside a job and wherever that file is absent (an installed plugin).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 # wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
 # resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the

@@ -1,0 +1,28 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": {
+        "start_line": 29,
+        "end_line": 32
+      },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous: STANDS verbatim",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k02"
+  },
+  "notes": {
+    "shape": "Three rules bullets copied word for word from one upstream entry, directly under a local example that differs from the source's. The file's only links point at a support table, not at the page the bullets come from.",
+    "carve_outs": "None apply. The Support link names a different page and attributes nothing.",
+    "rubric": "C1 holds: the three bullets are the source's three sentences in order. C2 holds: they are the source's specific rules. C3 holds: no attribution covers them. C4 holds: the bullets add nothing; the adapted example is outside the span.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.295, jaccard 0.097, longest matched span 54 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.042, longest span 8 words).",
+    "carries": "A verbatim lift below a local example, the case a run misses when it credits the example's local changes to the bullets under it."
+  }
+}

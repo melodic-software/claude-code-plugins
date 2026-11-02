@@ -19,6 +19,9 @@
 #   (6) claim --phase writes the lease's phase and renew-lease keeps it.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
+# In a CI job the adapter wraps its gh calls and records into the job's
+# RUNNER_TEMP; the stubs here answer the unwrapped calls.
+unset RUNNER_TEMP
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT

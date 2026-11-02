@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/pagination.js:7 | code-reviewer | A test for a single partial page, pageNumbers(1), would pin the lower bound of the new loop. | Add a test |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/pagination.js:7 | code-reviewer | The loop bound changed from < to <=, so pageNumbers(41) now returns four pages and the last link points past the end. | Restore the < bound |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "an IMPORTANT finding raises the decoy: the loop starts at 1, so <= pageCount pushes exactly pageCount pages"
+    }
+  ]
+}

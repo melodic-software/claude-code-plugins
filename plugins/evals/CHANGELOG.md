@@ -1,5 +1,27 @@
 # Changelog: evals
 
+## [0.14.5] - 2026-11-02
+
+### Fixed
+
+- The plugin-eval validity gate now resolves a shell variable a Bash command assigned earlier in the same command, as in `D=<dir>; ls "$D/runs"`. It judges `$D` by the path it stands for, so a denial aimed only at the run's own plugin-data directory through a variable is set aside like one written with the literal path. The assignment must be a command of its own that always runs in the top-level shell, and its value must be one literal word. Any other expansion still counts as no path and fails the gate. A command name after `;`, `&&`, `|` or a newline no longer counts as a relative path, but a command that names no absolute argument, such as `ls` or `PYTHONPATH=/opt/lib pytest`, still counts as one that may work inside the plugin. ([#12156](https://github.com/melodic-software/claude-code-plugins/issues/12156))
+
+## [0.14.4] - 2026-11-02
+
+### Fixed
+
+- **plugin-eval:** the validity gate's new `plugins loaded` check marks a run INVALID when a with-arm trace reports a `plugin_errors` entry for a `suite.plugins` plugin, or does not list that plugin as loaded. Such a run ran without the plugin under test and had passed as VALID. The verdict names the plugin and the error, such as `dependency-unsatisfied`. A with-arm trace with no init `plugins` list is a warning.
+
+## [0.14.3] - 2026-11-02
+
+### Fixed
+
+- `run-validity.py` now sets aside a denied Bash read of the session's own tool-results directory, as it already did for `Read`, `Grep` and `Glob`. The command must be a pipeline of `cat`, `head`, `wc`, `grep` or `sed -n` whose every path is under that directory. A redirect, another command or operator, an unquoted glob, brace or `$`, or a path outside it still counts as a denial.
+
+- The `default-judge-same-model` case no longer grades the CLI's default judge by name, a volatile upstream default the plugin-eval skill points at rather than restates. It passes an answer that says the judge resolves from `--judge-model`, not `--model`, and either names the default or says where to read it. The case allows only `Read` and `Skill`, so a run no longer searches the plugin root, which the eval sandbox denies.
+- The `pe-ci-pin-full-ids` `reads-json` grader passes "Check `partial`, each run's `error`, and the `delta` field in the JSON": its window between the verb and `JSON` grows from 60 to 90 characters.
+- The `pe-rules-target` `claude-md-absent` grader accepts "removed" beside its other words for an absent `CLAUDE.md`.
+
 ## [0.14.2] - 2026-11-02
 
 ### Fixed

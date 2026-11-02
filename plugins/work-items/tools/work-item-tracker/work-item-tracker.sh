@@ -190,7 +190,12 @@ main() {
       check_gh_version "--parent"
       ;;
     list-items)
-      check_gh_version
+      # A GraphQL-refusing session reads blockers over REST (adapter README "List items").
+      if wit_gh_session_refuses_graphql; then
+        check_gh_present
+      else
+        check_gh_version
+      fi
       ;;
     capabilities | change-link)
       # Read the JSON manifest or format text only; never shell out to gh.

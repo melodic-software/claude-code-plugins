@@ -10,7 +10,8 @@ graders:
     target: trace
   - name: skips-unrelated-standard
     type: regex
-    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:frontend-css\.md)'
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:frontend-css\.md)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:CSS-1|Class names follow BEM|card__title)'
+    flags: 'm'
     match: not_contains
     target: trace
     arm: both
@@ -26,7 +27,8 @@ graders:
     target: last_message
   - name: swallow-removed
     type: regex
-    pattern: '\bexcept\b[^\n:]*:[ \t]*(?:#[^\n]*)?\n(?:[ \t]*(?:#[^\n]*)?\n)*[ \t]*(?:pass|\.\.\.|continue)\b|\bexcept\b[^\n:]*:[ \t]*(?:pass|\.\.\.|continue)\b'
+    pattern: '\bexcept\b[^\n:]*:[ \t]*(?:#[^\n]*)?\n(?:[ \t]*(?:#[^\n]*)?\n)*[ \t]*(?:pass|\.\.\.|continue)\b|\bexcept\b[^\n:]*:[ \t]*(?:pass|\.\.\.|continue)\b|^[ \t]*except[ \t]*:|^[ \t]*except\b[^\n:#]*\b(?:Base)?Exception\b'
+    flags: 'm'
     match: not_contains
     target: { source: file, path: src/sync.py }
   - name: sync-call-kept

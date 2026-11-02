@@ -3,6 +3,16 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-11-02
+
+### Changed
+
+- The intake-admission charge terms and the edit-history hold, which sat inside the removed section, now sit in their own "Intake admission charge terms" section with the same meaning.
+
+### Removed
+
+- Rule admission. The admission-policy leaf drops its "Rule admission (C1/C2)" section, and the security binding drops `admission.rule_admission` and its `RuleAdmission` definition. A binding that still carries `rule_admission` is now invalid: `check-security-binding.mjs` reports `admission: unknown key "rule_admission"` and no longer checks rules against the posture or the decision table. To fix such a binding, delete the key; items enter the work-loop only through the autonomous-eligible role label.
+
 ## [0.32.15] - 2026-11-01
 
 ### Fixed

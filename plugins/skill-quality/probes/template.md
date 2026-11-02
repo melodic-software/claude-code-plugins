@@ -19,8 +19,11 @@ path into another plugin; add a `competitor_dirs` entry only for a rival outside
 - **A fresh author.** A fresh agent writes the queries and sees only the skill's *before*
   description, never the body or the planned rewrite. Queries are phrased the way a user asks,
   not copied from the listing.
-- **Same-plugin competitors only.** List sibling skills from the same plugin, so a parallel
-  rewrite in another plugin cannot move this score.
+- **Competitors by purpose.** For the committed `listing-overlap` baseline, list sibling skills
+  from the same plugin, so a parallel rewrite in another plugin cannot move that score. A probe
+  set meant for live `emit-plugin-eval` runs may also list rivals from other plugins: each
+  emitted case loads their plugins beside the target, and the before and after runs load the
+  same copies. `validate` warns on each cross-plugin rival as a reminder of that trade.
 - **Frozen before the rewrite.** Commit the set before the description changes, and leave it
   unchanged through the rewrite.
 
