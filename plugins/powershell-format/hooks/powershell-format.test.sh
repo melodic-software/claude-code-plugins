@@ -49,7 +49,7 @@ fi
 # "Hook budget"), so PowerShell is rewritten at pre-commit only.
 expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
 expect "hooks.json: no PostToolBatch row" "0" "$(jq '[.hooks.PostToolBatch // [] | .[]] | length' "$HOOKS_JSON")"
-expect "hooks.json: no digest-reset SessionStart row" "2" "$(jq '.hooks.SessionStart | length' "$HOOKS_JSON")"
+expect "hooks.json: no digest-reset SessionStart row" "0" "$(jq '.hooks.SessionStart // [] | length' "$HOOKS_JSON")"
 # shellcheck disable=SC2016
 EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","POWERSHELL_FORMAT_ENABLED","--require-true","POWERSHELL_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh","--end-of-turn"]'
 expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
@@ -75,63 +75,12 @@ if jq -e '(.requires | map(.id)) == ["pwsh", "node"]' "$MANIFEST" >/dev/null 2>&
 else
   fail "manifest: expected tools pwsh and node: $(cat "$MANIFEST" 2>&1)"
 fi
-IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
-if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
-  '[.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "POWERSHELL_FORMAT_ENABLED"])] | length == 1' "$HOOKS_JSON" >/dev/null; then
-  ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
+# harness-ops' prerequisites-fleet.mjs runs the probe behind the kill switch; its own test covers the gate.
+if jq -e '.session_probe.run_if_unset_or_true == "POWERSHELL_FORMAT_ENABLED"' "$MANIFEST" >/dev/null &&
+  jq -e '.hooks | has("SessionStart") | not' "$HOOKS_JSON" >/dev/null; then
+  ok "manifest: session_probe is gated on POWERSHELL_FORMAT_ENABLED, and hooks.json carries no SessionStart row"
 else
-  fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
-fi
-NODE_BIN="$(command -v node 2>/dev/null)"
-if [[ -z "$NODE_BIN" ]]; then
-  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
-else
-  PG_WORK="$(mktemp -d)"
-  trap 'rm -rf "$PG_WORK"' EXIT
-  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
-  for dir in /usr/local/bin /usr/bin /bin; do
-    for exe in "$dir"/*; do
-      base="${exe##*/}"
-      [[ -x "$exe" && "$base" != pwsh && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
-    done
-  done
-  PG_ARGS=()
-  while IFS= read -r pg_arg; do
-    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
-    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
-
-  # run_probe <value|__unset__> -> run the row with powershell_format_enabled set to <value> (or unset).
-  run_probe() {
-    local v="$1"
-    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED)
-    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=$v")
-    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
-      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
-        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
-  }
-
-  OUT_PG=$(run_probe false)
-  RC_PG=$?
-  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
-    ok "probe-gate: powershell_format_enabled=false -> exit 0 and no notice"
-  else
-    fail "probe-gate: powershell_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
-  fi
-  for v in __unset__ true; do
-    label="powershell_format_enabled=$v"
-    [[ "$v" == "__unset__" ]] && label="powershell_format_enabled unset"
-    OUT_PG=$(run_probe "$v")
-    RC_PG=$?
-    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$MF_NAME"* && "$OUT_PG" == *"$MF_CHECK"* && "$OUT_PG" == *"$MF_INSTALL"* ]]; then
-      ok "probe-gate: $label -> notice names $MF_NAME, $MF_CHECK and the install line"
-    else
-      fail "probe-gate: $label should print the missing-pwsh notice (rc=$RC_PG out=$OUT_PG)"
-    fi
-  done
-  rm -rf "${PG_WORK:?}"
+  fail "manifest: want session_probe gated on POWERSHELL_FORMAT_ENABLED and no SessionStart row in hooks.json"
 fi
 
 report_and_exit
