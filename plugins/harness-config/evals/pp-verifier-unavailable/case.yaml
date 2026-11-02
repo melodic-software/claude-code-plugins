@@ -9,10 +9,9 @@ graders:
     input_match: 'claude-prompting-best-practices'
     min: 1
   - name: 'phase-d-disclosed'
-    type: 'regex'
-    pattern: 'Phase D[\s\S]{0,200}?(?:(?:did not|didn[''’]t) run|not run|unavailable|skipped|(?:could not|couldn[''’]t)|no subagent)|(?:(?:did not|didn[''’]t) run|unavailable|skipped|(?:could not|couldn[''’]t))[\s\S]{0,200}?Phase D|(?:verifier|reviewer|second[- ]opinion)(?: check| step| pass)?\s+(?:(?:did not|didn[''’]t) run|never ran|(?:was not|wasn[''’]t) run|was skipped|(?:is|was) unavailable)|\b(?:no|without an?)\s+(?:independent\s+|fresh[- ]context\s+|separate\s+)?(?:verifier|reviewer|second[- ]opinion)|(?:could not|couldn[''’]t|can[''’]t|cannot|unable to)\s+(?:start|run|dispatch|spawn)\s+(?:an?\s+|the\s+)?(?:independent\s+|fresh[- ]context\s+|separate\s+)?(?:verifier|reviewer|subagents?)'
-    target: 'last_message'
-    flags: 'i'
+    type: llm
+    focus: 'last_message'
+    criteria: "PASS only if the reply says plainly that the independent check of its findings (Phase D, which the reply may call the verifier, the reviewer or a second opinion) did not run or could not run in this session, in any wording. FAIL if the reply says such a check ran or reviewed the findings, or never says whether it ran."
   - name: 'proposals-marked'
     type: 'regex'
     pattern: '\(unverified\)'
