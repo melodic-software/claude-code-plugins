@@ -683,7 +683,7 @@ check "--uncommitted with no edits passes with nothing to check" '[[ $RC == 0 &&
 # one per 2 GiB of free memory, on a host whatever nproc and the memory files
 # report; CHECK_AFFECTED_JOBS and --jobs still set it outright.
 unset CHECK_AFFECTED_JOBS
-mkdir -p "$tmp/nprocbin" "$tmp/cg/slice/scope"
+mkdir -p "$tmp/nprocbin" "$tmp/cg/slice/scope/leaf"
 printf '#!/usr/bin/env bash\necho "$STUB_NPROC"\n' >"$tmp/nprocbin/nproc"
 chmod +x "$tmp/nprocbin/nproc"
 printf 'MemTotal: 100663296 kB\nMemAvailable: 67108864 kB\n' >"$tmp/meminfo-64g"
@@ -705,6 +705,8 @@ run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/meminfo-6g" -- -
 check "6 GiB of MemAvailable caps a 24-core host at 3 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 3 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_CGROUP_DIR="$tmp/cg/slice/scope" -- --base base --tests
 check "a parent cgroup with 5 GiB free caps a 64 GiB host at 2 jobs" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 2 "* ]]'
+run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_CGROUP_DIR="$tmp/cg/slice/scope/leaf" -- --base base --tests
+check "a leaf cgroup with no memory files still takes an ancestor's cap" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 2 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/meminfo-1g" -- --base base --tests
 check "under 2 GiB free still runs 1 job" '[[ $RC == 0 && $(cat "$tmp/args.log") == *"--jobs 1 "* ]]'
 run "${jobs_env[@]}" STUB_NPROC=24 CHECK_AFFECTED_MEMINFO="$tmp/no-meminfo" -- --base base --tests

@@ -124,16 +124,20 @@ run_tests=0
 # jobs peaked at 15 GiB and the kernel killed chrome at the session slice's
 # cap). Free memory is MemAvailable, or less where a cgroup above this shell
 # caps it: its memory.max less memory.current, inactive file cache counted free.
+# Every ancestor is read: a cgroup whose parent does not delegate the memory
+# controller has no memory.* files, yet the parent's cap still applies to it.
 mem_free_kib() {
   local free dir="${CHECK_AFFECTED_CGROUP_DIR:-/sys/fs/cgroup$(sed -n 's/^0:://p' /proc/self/cgroup 2>/dev/null)}" max cur inactive
   free="$(awk '/^MemAvailable:/ { print $2 }' "${CHECK_AFFECTED_MEMINFO:-/proc/meminfo}" 2>/dev/null)"
   [[ "$free" =~ ^[0-9]+$ ]] || return 1
-  while [[ -r "$dir/memory.max" ]]; do
-    max="$(<"$dir/memory.max")" cur="$(<"$dir/memory.current")"
-    inactive="$(awk '$1 == "inactive_file" { print $2 }' "$dir/memory.stat" 2>/dev/null)"
-    if [[ "$max" =~ ^[0-9]+$ && "$cur" =~ ^[0-9]+$ ]]; then
-      cur=$(((max - cur + ${inactive:-0}) / 1024))
-      ((cur >= free)) || free=$((cur > 0 ? cur : 0))
+  while [[ -n "$dir" ]]; do
+    if [[ -r "$dir/memory.max" && -r "$dir/memory.current" ]]; then
+      max="$(<"$dir/memory.max")" cur="$(<"$dir/memory.current")"
+      inactive="$(awk '$1 == "inactive_file" { print $2 }' "$dir/memory.stat" 2>/dev/null)"
+      if [[ "$max" =~ ^[0-9]+$ && "$cur" =~ ^[0-9]+$ ]]; then
+        cur=$(((max - cur + ${inactive:-0}) / 1024))
+        ((cur >= free)) || free=$((cur > 0 ? cur : 0))
+      fi
     fi
     [[ "${dir%/*}" != "$dir" ]] || break
     dir="${dir%/*}"
