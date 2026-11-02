@@ -3597,12 +3597,6 @@ jobs:
             exit 1
           fi
           scripts/run-plugin-tests.sh --jobs 3 --suites-from "$RUNNER_TEMP/leg-suites.txt"
-      - name: Log the API budget at the end
-        if: always()
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
 
   # THE PYTHON SUITES THE CHANGE SELECTS, one pytest process per module, on one
   # to four legs of about 180 suite-seconds (one module at a time). Every module
@@ -3749,12 +3743,6 @@ jobs:
             [ "$suite_rc" = 0 ] || rc=1
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
-      - name: Log the API budget at the end
-        if: always()
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
@@ -3937,12 +3925,6 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
-      - name: Log the API budget at the end
-        if: always()
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          tokens: github-token
 
   # A pull request that hand-edits a file the standards sync-manifest manages
   # fails. A standards-sync pull request (melodic-standards-sync[bot], head
