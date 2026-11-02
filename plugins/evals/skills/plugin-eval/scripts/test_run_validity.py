@@ -11,7 +11,9 @@ structural lines of its kept traces, with no answer text:
                         fired, so it must come out INVALID
     r2-clean-runs.json  one run per arm per case, taken from the runs of that same
                         result that pass every check, so it must come out VALID
-    traces/             clean.jsonl stands in for every trace with no denial
+    traces/             clean.jsonl stands in for every trace with no denial;
+                        self-*.jsonl are hand-written traces of a run denied a
+                        read or search of its plugin copy, with made-up paths
 
 The other tests copy a fixture into a temporary directory and change one field.
 
@@ -1342,6 +1344,117 @@ class RunValidityTest(unittest.TestCase):
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
+
+    COPY = "/tmp/eval-ctl/plugins/demo"  # the plugin copy the self-search traces load
+    SELF_SEARCH = "denied read or search of the run's own plugin copy in a finished run"
+    LAST_LINE_END = 'permission settings."}]}}\n'  # self-read-unfinished.jsonl's denied result
+
+    def self_search(self, fixture, replace=(), plugin=COPY, grader_tool=None, flag=True):
+        """The clean result at one run per arm with plugin as its suite.plugins
+        path, measurable-criterion's with-arm run traced by traces/<fixture>, each
+        (old, new) in replace applied to every match in its text; with grader_tool,
+        the case also has a tool_used grader requiring a call to that tool. Run
+        with --own-copy-search-warns unless flag is False."""
+        text = (TRACES / fixture).read_text(encoding="utf-8")
+        for old, new in replace:
+            self.assertIn(old, text)
+            text = text.replace(old, new)
+        trace = self.dir / fixture
+        trace.write_text(text, encoding="utf-8")
+        data = load(self.write(self.clean()))
+        data["suite"]["plugins"] = [{"path": plugin}]
+        case = data["cases"][1]
+        case["arms"]["with"][0]["tracePath"] = str(trace)
+        if grader_tool:
+            case["graders"].append(
+                {"name": "searched", "type": "tool_used", "config": {"tool": grader_tool}}
+            )
+        result = self.dir / "aggregate-result.json"
+        result.write_text(json.dumps(data), encoding="utf-8")
+        flags = ["--own-copy-search-warns"] if flag else []
+        return self.run_script(result, "--runs", "1", *flags)
+
+    def assertSelfSearchWarnsOnlyWithFlag(self, fixture, replace=()):
+        proc = self.self_search(fixture, replace)
+        self.assertDenials(proc, "WARN")
+        self.assertIn("1 %s, not counted" % self.SELF_SEARCH, proc.stdout)
+        self.assertIn("under --own-copy-search-warns", proc.stdout)
+        proc = self.self_search(fixture, replace, flag=False)
+        self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertNotIn(self.SELF_SEARCH, proc.stdout)
+        return proc
+
+    def test_a_finished_runs_denied_search_of_its_own_plugin_copy_warns_only_with_the_flag(
+        self,
+    ):
+        self.assertSelfSearchWarnsOnlyWithFlag("self-search-finished.jsonl")
+        proc = self.self_search("self-search-finished.jsonl")
+        self.assertIn("compare it only with runs denied the same way", proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: Grep %s (" % self.COPY, proc.stdout
+        )
+
+    def test_a_finished_runs_denied_read_or_glob_of_its_copy_warns_only_with_the_flag(self):
+        finished = '{"type":"result","subtype":"success","is_error":false,"permission_denials":[]}\n'
+        for fixture, replace in (
+            ("self-read-unfinished.jsonl", [(self.LAST_LINE_END, self.LAST_LINE_END + finished)]),
+            ("self-glob-escape.jsonl", [("../other/**/SKILL.md", "skills/**/SKILL.md")]),
+        ):
+            self.assertSelfSearchWarnsOnlyWithFlag(fixture, replace)
+
+    def test_a_denied_search_outside_the_plugin_copy_still_fails(self):
+        proc = self.self_search("self-search-outside.jsonl")
+        self.assertDenials(proc, "FAIL")
+        self.assertNotIn(self.SELF_SEARCH, proc.stdout)
+
+    def test_a_denied_read_of_the_plugin_copy_in_an_unfinished_run_still_fails(self):
+        for replace in (
+            # No result line: the run never reached its end.
+            [],
+            # The result line is an error.
+            [(
+                self.LAST_LINE_END,
+                self.LAST_LINE_END + '{"type":"result","is_error":true,"permission_denials":[]}\n',
+            )],
+        ):
+            proc = self.self_search("self-read-unfinished.jsonl", replace)
+            self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+            self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_path_escaping_the_plugin_copy_still_fails(self):
+        for fixture, replace in (
+            ("self-read-escape.jsonl", []),
+            ("self-glob-escape.jsonl", []),
+            # A rooted Glob pattern searches where it names, whatever its path.
+            ("self-glob-escape.jsonl", [("../other/**/SKILL.md", "/tmp/eval-ctl/**/SKILL.md")]),
+        ):
+            proc = self.self_search(fixture, replace)
+            self.assertDenials(proc, "FAIL")
+            self.assertNotIn(self.SELF_SEARCH, proc.stdout)
+
+    def test_another_tool_a_graded_search_or_an_unlisted_copy_still_fails(self):
+        no_plugins = (
+            ',"plugins":[{"name":"demo","path":"/tmp/eval-ctl/plugins/demo","source":"demo@inline"}]',
+            "",
+        )
+        for kwargs in (
+            {"replace": [("Grep", "Write")]},
+            {"replace": [("Grep", "Bash"), ('"pattern":"## Procedure","path":"', '"command":"grep -r Procedure ')]},
+            # No path, or a relative one.
+            {"replace": [('"## Procedure","path":"/tmp/eval-ctl/plugins/demo"', '"## Procedure"')]},
+            {"replace": [(
+                '"## Procedure","path":"/tmp/eval-ctl/plugins/demo"',
+                '"## Procedure","path":"skills"',
+            )]},
+            {"grader_tool": "Grep"},
+            # The init line lists no plugins, or another copy than the suite's.
+            {"replace": [no_plugins]},
+            {"plugin": self.COPY + "-v2"},
+        ):
+            proc = self.self_search("self-search-finished.jsonl", **kwargs)
+            self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+            self.assertVerdict(proc, "INVALID", 1)
 
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):
         trace = self.dir / "quoted.jsonl"
