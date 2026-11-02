@@ -26,7 +26,10 @@
 # 41155134524, 41155547615, 41156806410, 41157904887, 41161299347, 41166490299,
 # 41168736310, 41170732066 and 41172804312, and surface-journey.test.sh again
 # 2026-10-31 from whole-suite main runs 41199079392, 41200659367, 41201359701,
-# 41202468872, 41204767979, 41206938075, 41209305383 and 41211887017. A shell
+# 41202468872, 41204767979, 41206938075, 41209305383 and 41211887017, and the
+# shell rows that had drifted 20 s or more, plus the unlisted shell suites 20 s
+# or more over the mean they counted, 2026-11-02 from the TIME lines of
+# whole-tree main runs 41501297702, 41507989564, 41512679251 and 41517754843. A shell
 # suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
@@ -228,7 +231,7 @@ plugins/evals/skills/design/scripts/render-review.test.sh 1
 plugins/evals/skills/design/scripts/test_render_review.py 1
 plugins/evals/skills/plugin-eval/scripts/calibrate-judge.test.sh 5
 plugins/evals/skills/plugin-eval/scripts/noise-report.test.sh 2
-plugins/evals/skills/plugin-eval/scripts/run-validity.test.sh 4
+plugins/evals/skills/plugin-eval/scripts/run-validity.test.sh 32
 plugins/evals/skills/plugin-eval/scripts/test_calibrate_judge.py 4
 plugins/evals/skills/plugin-eval/scripts/test_noise_report.py 2
 plugins/evals/skills/plugin-eval/scripts/test_run_validity.py 3
@@ -250,11 +253,12 @@ plugins/guardrails/git-hooks/reference-verify.test.sh 2
 plugins/guardrails/hooks/abort-boundary.test.sh 1
 plugins/guardrails/hooks/block-convention-violation.test.sh 5
 plugins/guardrails/hooks/block-credential-read.test.sh 3
+plugins/guardrails/hooks/block-cross-domain.test.sh 31
 plugins/guardrails/hooks/block-dangerous-git.test.sh 20
 plugins/guardrails/hooks/block-exported-msys-pathconv.test.sh 1
 plugins/guardrails/hooks/block-no-verify.test.sh 13
 plugins/guardrails/hooks/block-noncanonical-commit.test.sh 9
-plugins/guardrails/hooks/block-root-delete-target.test.sh 248
+plugins/guardrails/hooks/block-root-delete-target.test.sh 441
 plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh 28
 plugins/guardrails/hooks/block-windows-drive-tmp.test.sh 10
 plugins/guardrails/hooks/cli-flag-verify.test.sh 5
@@ -437,11 +441,11 @@ plugins/pixel-art/scripts/test_palette.py 1
 plugins/pixel-art/scripts/test_render.py 1
 plugins/pixel-art/scripts/test_tools.py 1
 plugins/planning/scripts/build-view.test.sh 5
-plugins/planning/scripts/check-open-questions.test.sh 2
+plugins/planning/scripts/check-open-questions.test.sh 25
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/shared/tests/align.test.sh 340
+plugins/planning/shared/tests/align.test.sh 310
 plugins/planning/shared/tests/test_cfdns.py 8
 plugins/planning/shared/tests/test_load.py 10
 plugins/planning/shared/tests/test_owner_ops.py 1
@@ -455,14 +459,14 @@ plugins/planning/shared/tests/test_tunnel.py 64
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/shared/tests/ui-a.test.sh 187
-plugins/planning/shared/tests/ui-b.test.sh 219
+plugins/planning/shared/tests/ui-b.test.sh 197
 plugins/planning/shared/tests/ui-c.test.sh 174
-plugins/planning/surface/surface-journey.test.sh 141
-plugins/planning/surface/surface-page.test.sh 85
+plugins/planning/surface/surface-journey.test.sh 119
+plugins/planning/surface/surface-page.test.sh 128
 plugins/planning/surface/surface-ui-c-ledger.test.sh 24
 plugins/planning/surface/surface-ui-c-listen.test.sh 72
 plugins/planning/surface/surface-ui-c.test.sh 64
-plugins/planning/surface/surface.test.sh 104
+plugins/planning/surface/surface.test.sh 126
 plugins/planning/surface/test_exporters.py 74
 plugins/planning/surface/test_interview_server.py 70
 plugins/planning/surface/test_question_shape.py 1
@@ -483,7 +487,7 @@ plugins/playbooks/skills/repo-sweep/scripts/skill-version.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/state.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh 1
 plugins/playbooks/skills/skill-authoring/scripts/update.test.sh 1
-plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 334
+plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 218
 plugins/playwright/skills/demo-video/scripts/test_demo_video.py 1
 plugins/playwright/skills/playwright/scripts/update.test.sh 1
 plugins/plugin-quality/scripts/citation-contract-drift.test.sh 1
@@ -581,7 +585,7 @@ plugins/source-control/scripts/worktree-create.test.sh 11
 plugins/source-control/scripts/worktree-root-doctor.test.sh 1
 plugins/source-control/scripts/worktree-root-scan.test.sh 1
 plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.test.sh 1
-plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 205
+plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 241
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_checks.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_classify.py 1
@@ -649,7 +653,7 @@ plugins/testing/hooks/test-weaken.test.sh 6
 plugins/testing/scripts/gen-hook-filters.test.sh 1
 plugins/testing/scripts/resolve-config.test.sh 3
 plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh 6
-plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 170
+plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 200
 plugins/testing/skills/setup/scripts/setup.test.sh 2
 plugins/testing/tests/fix-until-green.test.sh 1
 plugins/typos-format/hooks/typos-format.test.sh 12
@@ -672,7 +676,7 @@ plugins/work-items/tools/work-item-tracker/adapters/github/claim.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/common.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/create-item.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/get-item.test.sh 1
-plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh 22
+plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh 68
 plugins/work-items/tools/work-item-tracker/adapters/github/link-blocks.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/list-items.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/list-sub-items.test.sh 1
@@ -797,7 +801,7 @@ scripts/lib/test-harness.test.sh 1
 scripts/node-notice-rows.test.sh 8
 scripts/pilot-plugin-quality-sim.test.sh 1
 scripts/plugin-validate-report.test.sh 1
-scripts/post-merge-demotion-alert.test.sh 144
+scripts/post-merge-demotion-alert.test.sh 62
 scripts/run-outside-node-suites.test.sh 1
 scripts/run-plugin-tests.test.sh 41
 scripts/selection-audit.test.sh 1
