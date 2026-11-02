@@ -855,7 +855,36 @@
           "additionalProperties": { "$ref": "#/$defs/name" },
           "description": "Run -> profile. A key is a skill activity or a run route (verify-pr, review-code, review-security, triage-issue, summarize-reuse, adjudicate-feedback); a value is a key of profiles. The config reader rejects any other key or value."
         },
-        "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" }
+        "issue-dimensions": { "$ref": "#/$defs/issue-dimensions" },
+        "issue-status": { "$ref": "#/$defs/issue-status" }
+      }
+    },
+    "issue-status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field-id", "options", "labels", "order"],
+      "description": "An issue's state as its Work status org issue field, read by field and option id; a state is its option's name on GitHub. An issue's labels collapse to the first state in order whose label it carries, or the last state when it carries none; a field option no entry maps fails the read (README.md, Models).",
+      "properties": {
+        "field-id": { "type": "integer", "minimum": 1, "description": "The org issue field's id (REST issue_field_id)." },
+        "options": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[1-9][0-9]{0,15}$" },
+          "additionalProperties": { "$ref": "#/$defs/name" },
+          "description": "Single-select option id -> its state. A rename keeps the id; no two ids name one state."
+        },
+        "labels": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "description": "State -> the issue label it collapses from; every state has one, and no two share one."
+        },
+        "order": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/name" },
+          "description": "Every state once, first match first; the last is what an issue with no state label collapses to."
+        }
       }
     },
     "issue-dimensions": {

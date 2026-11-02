@@ -376,6 +376,40 @@ for (const [why, dims, code] of [
   });
 }
 
+const STATUS = {
+  "field-id": 7,
+  options: { 71: "needs-triage", 72: "agent-ready", 73: "needs-human" },
+  labels: { "needs-triage": "needs-triage", "agent-ready": "agent-ready", "needs-human": "needs-human" },
+  order: ["needs-human", "agent-ready", "needs-triage"],
+};
+const statusModels = (status) => ({ profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", "issue-status": status });
+
+test("issue-status: a block with every state labeled and ordered once loads", () => {
+  assert.equal(fixtureSlot(withModels(statusModels(STATUS))).applies, true);
+});
+
+for (const [why, status, code] of [
+  ["a missing option id", { ...STATUS, options: { 71: "needs-triage", 72: "agent-ready" } }, "undefined-status"],
+  ["two option ids for one state", { ...STATUS, options: { ...STATUS.options, 74: "agent-ready" } }, "undefined-status"],
+  ["a state with no label", { ...STATUS, labels: { "needs-triage": "needs-triage", "agent-ready": "agent-ready" } }, "undefined-status"],
+  ["one label for two states", { ...STATUS, labels: { ...STATUS.labels, "needs-human": "agent-ready" } }, "undefined-status"],
+  ["an order missing a state", { ...STATUS, order: ["needs-human", "agent-ready"] }, "undefined-status"],
+  ["an order naming a state twice", { ...STATUS, order: ["needs-human", "agent-ready", "agent-ready"] }, "undefined-status"],
+  ["a non-numeric option id", { ...STATUS, options: { ...STATUS.options, ready: "ready" } }, "invalid-config"],
+  ["no field id", { options: STATUS.options, labels: STATUS.labels, order: STATUS.order }, "invalid-config"],
+]) {
+  test(`issue-status: ${why} is rejected`, () => {
+    assertRejected(() => fixtureSlot(withModels(statusModels(status))), code);
+  });
+}
+
+test("issue-status: one option id written twice is rejected", () => {
+  const files = withModels(statusModels(STATUS));
+  const config = files.config.replace(/"?72"?: agent-ready/, '"71": agent-ready');
+  assert.notEqual(config, files.config);
+  assertRejected(() => fixtureSlot({ ...files, config }), "invalid-config");
+});
+
 for (const [why, models, code] of [
   [
     "an escalate-to naming no profile",

@@ -877,6 +877,45 @@ models:
       knowable: run
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
+  # An issue's state, as its Work status org issue field, read by field and
+  # option id. A state's name is its option's name on GitHub. Collapsing an
+  # issue's labels takes the first state in order whose label it carries; one
+  # with none takes the last. A value the field holds that no option maps fails
+  # the read. Nothing reads or writes the field from here yet.
+  issue-status:
+    field-id: 48484079
+    options:
+      "84879216": needs-triage
+      "84879217": needs-reporter-info
+      "84879218": needs-owner-decision
+      "84879219": needs-spec
+      "84879220": agent-ready
+      "86380002": confirmed
+      "86380003": ready
+      "86380004": deferred
+      "86380005": needs-human
+    # The label each state collapses from. agent-ready and needs-human are the
+    # tracker's autonomous-eligible and human-gated role labels.
+    labels:
+      needs-triage: needs-triage
+      needs-reporter-info: "status: needs-info"
+      needs-owner-decision: "status: needs-decision"
+      needs-spec: needs-spec
+      agent-ready: agent-ready
+      confirmed: "status: confirmed"
+      ready: "status: ready"
+      deferred: admission-deferred
+      needs-human: needs-human
+    order:
+      - needs-human
+      - needs-owner-decision
+      - needs-spec
+      - needs-reporter-info
+      - agent-ready
+      - deferred
+      - ready
+      - confirmed
+      - needs-triage
 
 loop:
   review-rounds: 3
