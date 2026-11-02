@@ -157,11 +157,11 @@ The lane has no workflow or script in this repository. It is declared at
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/workflows/pr-require-checks.yml:4826`, `.github/workflows/pr-require-checks.yml:4679` | Callers loop 3 times with linear sleeps around a `gh_read` that can send twice, so a read can go out 6 times. A guessed secondary limit fails at once. Status writes are retried (`:4033`). |
-| 2 | gap | `.github/workflows/pr-require-checks.yml:4681`, `.github/workflows/pr-require-checks.yml:4830` | A read failure fails the check red on purpose instead of holding green. |
-| 3 | gap | `.github/workflows/pr-require-checks.yml:4685` | A held result recovers only through another lane's re-run, a person or the reconciler. The cron at `:29` is not the probe. |
-| 4 | gap | `.github/workflows/pr-require-checks.yml:7079` | A missing review run sets `failed=1`, which fails on absent evidence. |
-| 5 | gap | `.github/workflows/pr-require-checks.yml:7084`, `.github/workflows/pr-require-checks.yml:7140` | A review the status-page gate stopped becomes a red `ci-status`. |
+| 1 | gap | `.github/workflows/pr-require-checks.yml:4823`, `.github/workflows/pr-require-checks.yml:4676` | Callers loop 3 times with linear sleeps around a `gh_read` that can send twice, so a read can go out 6 times. A guessed secondary limit fails at once. Status writes are retried (`:4031`). |
+| 2 | gap | `.github/workflows/pr-require-checks.yml:4678`, `.github/workflows/pr-require-checks.yml:4827` | A read failure fails the check red on purpose instead of holding green. |
+| 3 | gap | `.github/workflows/pr-require-checks.yml:4682` | A held result recovers only through another lane's re-run, a person or the reconciler. The cron at `:29` is not the probe. |
+| 4 | gap | `.github/workflows/pr-require-checks.yml:6920` | A missing review run sets `failed=1`, which fails on absent evidence. |
+| 5 | gap | `.github/workflows/pr-require-checks.yml:6925`, `.github/workflows/pr-require-checks.yml:6981` | A review the status-page gate stopped becomes a red `ci-status`. |
 | 6 | gap | `.github/workflows/pr-require-checks.yml:89`, `.github/workflows/pr-require-checks.yml:109` | Scheduled runs each get their own `run_id` group, so the lane is not single-pending, and it sends no `etag`. The cron (`17 9,16`) is off minute 0. |
 
 ## pr-unblock

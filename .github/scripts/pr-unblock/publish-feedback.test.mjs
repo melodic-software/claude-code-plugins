@@ -539,7 +539,7 @@ test("an INCORRECT reply on a security-review finding goes to a person even with
     JSON.stringify(RUN),
     verdicts(judged("PRRT_b", "lane")),
   );
-  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.equal(result.escalationReason, "feedback-disputed-security");
   assert.deepEqual(api.posted().map((call) => call[2]), [100, 200], "the lane's replies, and no adjudication reply");
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
@@ -572,7 +572,7 @@ test("a claude[bot] finding whose text names the security-review lane with no ra
     JSON.stringify(RUN),
     verdicts(judged("PRRT_b", "lane")),
   );
-  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.equal(result.escalationReason, "feedback-disputed-security");
   assert.deepEqual(api.posted().map((call) => call[2]), [100, 200], "the lane's replies, and no adjudication reply");
   assert.deepEqual(api.resolved(), ["PRRT_a"]);
 });
