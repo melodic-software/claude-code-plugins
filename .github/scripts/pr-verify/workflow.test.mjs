@@ -125,13 +125,28 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
     // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
+    // A FAIL's index uploads before the scan, and the verdict is scanned and
+    // uploads only when it is no FAIL or every index uploaded
+    // (write-verdict.mjs failIndexNames).
+    assert.equal(index("Upload the FAIL index", job), index("Write the verdict", job) + 1, job);
+    assert.equal(index("Scan the upload for credentials", job), index("Upload the FAIL index", job) + 1, job);
     assert.equal(index("Upload the verdict", job), index("Scan the upload for credentials", job) + 1, job);
+    const indexed = "steps\\.verdict\\.outcome == 'success' && \\(steps\\.verdict\\.outputs\\.verdict != 'fail' \\|\\| steps\\.fail-index\\.outcome == 'success'\\)";
     const scan = step("Scan the upload for credentials", job);
-    assert.match(scan, /^ {8}id: scan-upload\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
+    assert.match(scan, new RegExp(`^ {8}id: scan-upload\\n {8}if: >-\\n {10}\\$\\{\\{ !cancelled\\(\\) && ${indexed} \\}\\}$`, "m"), job);
     assert.match(scan, /^ {10}path: \$\{\{ runner\.temp \}\}\/pr-verify-verdict\/verdict\.json$/m, job);
+    const failIndex = step("Upload the FAIL index", job);
+    assert.match(
+      failIndex,
+      /^ {8}id: fail-index\n {8}if: >-\n {10}\$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' && steps\.verdict\.outputs\.verdict == 'fail' \}\}$/m,
+      job,
+    );
+    assert.match(failIndex, /^ {8}uses: \.\/\.base\/\.github\/actions\/upload-fail-index /m, job);
+    assert.equal(input(failIndex, "names"), "${{ steps.verdict.outputs.index-names }}", job);
+    assert.equal(input(failIndex, "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
     assert.match(
       uploads[0].block,
-      /^ {8}if: >-\n {10}\(!cancelled\(\) && steps\.verdict\.outcome == 'success'\) && steps\.scan-upload\.outputs\.clean == 'true'$/m,
+      new RegExp(`^ {8}if: >-\\n {10}\\(!cancelled\\(\\) && ${indexed}\\) && steps\\.scan-upload\\.outputs\\.clean == 'true'$`, "m"),
       job,
     );
     // The verdict step names the retention (write-verdict.mjs retentionDays).
