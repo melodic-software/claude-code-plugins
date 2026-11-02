@@ -72,10 +72,12 @@ run_hook() {
 
 installs() { find "$1/python" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]'; }
 
-# Real Git Bash or Cygwin on Windows (the Windows CI lane): the ready stamp in true Windows form, built from this
-# fixture's own paths with cygpath -w, holds and the hook starts no Python. A sitecustomize on PYTHONPATH logs every
-# Python start that imports site, the hook's own interpreter probe included. Every later case stubs interpreters with
-# shell scripts, simulates Windows paths or needs Linux namespaces, so on Windows the suite ends here.
+# Real Git Bash or Cygwin on Windows (the Windows CI lane): the ready stamp the real install writes, in native
+# Windows form (drive-letter paths, 8.3 or long names, .EXE suffixes as shutil.which gives them), holds and the hook
+# starts no Python. The fixture stays under /tmp, which Git Bash maps through an 8.3 short name, so the hook's ROOT
+# and the stamp's root spell one directory two ways. A sitecustomize on PYTHONPATH logs every Python start that
+# imports site, the hook's own interpreter probe included. Every later case stubs interpreters with shell scripts,
+# simulates Windows paths or needs Linux namespaces, so on Windows the suite ends here.
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpath >/dev/null 2>&1; then
   root="$(new_plugin realwin "$digest")"
   data="$WORK/data-realwin"
@@ -90,25 +92,17 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && command -v cygpat
     [[ -f "$WORK/py-starts.log" ]] && STARTS="$(wc -l <"$WORK/py-starts.log" | tr -d '[:space:]')"
   }
   win_run "$WHEELS"
-  target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-  if [[ "$RC" -eq 0 && -z "$OUT" && -f "$stamp" && -n "$target" && "$STARTS" -gt 0 ]]; then
-    ok "under Git Bash the first session installs, starting Python, and writes the ready stamp"
-  else
-    fail "Git Bash install: rc=$RC starts=$STARTS stamp=$([[ -f "$stamp" ]] && echo yes || echo no) output=[$OUT]"
+  stamp_root=""
+  if [[ -f "$stamp" ]]; then
+    mapfile -t stamp_lines <"$stamp"
+    stamp_root="${stamp_lines[1]-}"
   fi
-  {
-    printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(cygpath -w "$root")" "$(cygpath -w "$target")"
-    for name in python3.13 python3.12 python3 python py; do
-      resolved="$(command -v "$name" 2>/dev/null)" || resolved=""
-      windows=""
-      if [[ -n "$resolved" ]]; then
-        windows="$(cygpath -w "$resolved")"
-        # shutil.which keeps the PATHEXT suffix that command -v may drop.
-        [[ "${resolved,,}" != *.exe && -e "$resolved.exe" ]] && windows+=".EXE"
-      fi
-      printf '%s=%s\n' "$name" "$windows"
-    done
-  } >"$stamp"
+  drive_letter="^[A-Za-z]:\\\\"
+  if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -gt 0 && "$stamp_root" =~ $drive_letter ]]; then
+    ok "under Git Bash the first session installs, starting Python, and writes the ready stamp in Windows form"
+  else
+    fail "Git Bash install: rc=$RC starts=$STARTS stamp root=[$stamp_root] output=[$OUT]"
+  fi
   win_run "$EMPTY"
   if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -eq 0 ]]; then
     ok "under Git Bash a ready stamp in Windows form starts no Python"
