@@ -60,7 +60,7 @@ about it, and a coverage report will call that file healthy.
   mutant cap, and an optional `test-command` whose `{tests}` placeholder `audit --exercised` fills
   with the test paths (for `dotnet test`, with one test project and a class filter per run). The
   Markdown team file of earlier releases under `.claude/` is retired and not read;
-  `setup check` warns while it exists and `apply` carries its keys over unchanged.
+  `setup check` reports it as INFO while it exists and `apply` carries its keys over unchanged.
 - `.claude/mutation-testing-arid.md`, the arid-node suppression record, shaped by the marketplace's
   finding-suppression convention: a mapping keyed by a derived `finding_id`, every entry carrying all
   five required keys (`check`, `claim`, `sites`, `reason`, `date`) with the id derived from its own

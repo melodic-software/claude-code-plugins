@@ -29,7 +29,7 @@ The config resolves across three layers, lowest first: the user layer (`userConf
 (`.claude/mutation-testing.local.md`), later layers overriding scalars and unioning lists.
 
 The team file of earlier releases, .claude/mutation-testing.md, is retired and never read as a
-layer. While it exists, `check` probe 6 reports it as WARN, naming `apply` as the move, or, once
+layer. While it exists, `check` probe 6 reports it as INFO, which gates nothing, naming `apply` as the move, or, once
 the YAML file exists, deleting it; `apply` step 7 carries its keys over.
 
 There is no user-global file, and `~/.claude/mutation-testing.md` is never read: a per-person
@@ -94,7 +94,7 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
    changed source files, the effort cap, and a test command the user supplies or confirms at run
    time. `apply` writes a config that replaces it. The retired .claude/mutation-testing.md
-   present → WARN, as the merge model says; it never counts as a layer here.
+   present → INFO, as the merge model says; it never counts as a layer here.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
    scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
