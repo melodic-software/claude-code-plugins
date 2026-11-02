@@ -142,11 +142,6 @@ that charting needs an interactive session. Do not fabricate a map.
      decision items. Its self-answered facts, constraint ledger, `## Starting point` line, and
      session-shorthand glossary are distilled into *Notes* as text, never as a path, so nothing
      the interview already asked is asked again.
-   - **No interview yet:** when neither the slice nor this conversation holds an interview of the
-     effort, offer to run it first, preloaded with what the user has said (the topic, stated
-     constraints, any starting point). On yes, invoke `/planning:interview` via the Skill tool with
-     that preload and continue from its ledger once it hands off. On no, chart only if the user
-     still asks for a map.
    - Sort every remaining uncertainty through the fog test: sharp → candidate decision item;
      foggy → *Not-yet-specified* prose.
    - **No-fog bail-out:** if the survey leaves *both* halves of the trigger unmet (every
@@ -157,6 +152,11 @@ that charting needs an interactive session. Do not fabricate a map.
      is too-big AND foggy, both, never either alone. Seeded rows are sharp by construction, so
      the fog must come from the survey; a seeded interview with no fog goes back to its own
      handoff and resume.
+   - **No interview yet:** only once the bail-out has not fired, when neither the slice nor this
+     conversation holds an interview of the effort, offer to run it first, preloaded with what the
+     user has said (the topic, stated constraints, any starting point). On yes, invoke
+     `/planning:interview` via the Skill tool with that preload and continue from its ledger once
+     it hands off. On no, chart only if the user still asks for a map.
 2. **Name the destination and confirm it** with the user before any item exists: one or two lines
    saying what finishing the map produces. Its kind sets the closure target (work step 8): a PRD,
    a set of build items to decompose, one change, a decision record, or a general summary. Narrow

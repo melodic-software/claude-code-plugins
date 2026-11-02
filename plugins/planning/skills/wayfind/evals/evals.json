@@ -67,12 +67,13 @@
       "id": 6,
       "name": "anti-pattern-skips-when-work-is-already-sharp-tickets",
       "prompt": "/planning:wayfind chart help me plan out adding a 'forgot password' email flow — I already know exactly what I need: an endpoint to request a reset token, an email send, and a reset-confirmation endpoint. These are just three clear tickets I need scoped.",
-      "expected_output": "The skill recognizes this work is already a set of sharp, answerable tickets rather than a too-big-and-foggy effort, declines to build a map for it, and points to /planning:interview or /work-items instead.",
+      "expected_output": "The skill recognizes this work is already a set of sharp, answerable tickets rather than a too-big-and-foggy effort, declines to build a map for it, and routes the three tickets to /work-items:decompose. The no-fog bail-out fires before the no-interview offer, so it does not offer to run /planning:interview first.",
       "files": [],
       "expectations": [
         "Output does NOT create a work-map or decision items for this request",
         "Output recognizes the three items are already sharp and answerable rather than foggy",
-        "Output recommends /planning:interview or /work-items as the better-fit skill instead of charting"
+        "Output recommends /work-items:decompose (or /work-items) as the better-fit skill instead of charting",
+        "Output does NOT offer to run /planning:interview first"
       ]
     },
     {
