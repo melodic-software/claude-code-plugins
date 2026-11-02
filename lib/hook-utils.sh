@@ -4573,7 +4573,8 @@ hook::_bps_hd_brace_open() {
 # tracked, so a `)` in them does not end the range. A here-doc opener or a
 # `case` word inside `$( )`, whose `)` this scan does not model, and a range
 # still open at the end of the body, run the range to the end of the body and
-# end the scan: the parse then reads more of the body as commands, never less.
+# end the scan. That parse reads the tail as top-level shell, where `'` opens a
+# quote, so an apostrophe in the tail can still hide a later substitution.
 # Dynamic scope, like hook::_bps_close_word.
 # shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; `chars` and `hd_subs` are locals of hook::bash_parse_segments_uncached
 hook::_bps_hd_spans() {
@@ -4864,8 +4865,9 @@ hook::bash_parse_segments_uncached() {
   local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=() hd_subs=()
   # How many unquoted bodies enclose this text: the caller's __hu_hdd_in, then
   # cleared so a callback's own parse starts at 0. Past 8 a here-doc opener
-  # records no body, so every line after it is parsed as commands: more is
-  # judged, never less, and the nesting costs no more stack.
+  # records no body, so every line after it is parsed as top-level commands
+  # (an apostrophe there opens a quote, as in hook::_bps_hd_spans's tail), and
+  # the nesting costs no more stack.
   local __hu_hdd=${__hu_hdd_in:-0} __hu_hdd_in=""
 
   for ((i = 0; i < n; i++)); do
