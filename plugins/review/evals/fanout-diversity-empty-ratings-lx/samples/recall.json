@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | average_rating no longer handles an empty reviews list: Cable tray in products.json has no reviews, so the division by len(reviews) raises ZeroDivisionError and the product page fails. | Restore the early return |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the empty list and the ZeroDivisionError at CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | architecture-guardian | A product with reviews now gets a different average, because round now applies to the whole expression. | Revert |\n| 2 | IMPORTANT | medium | ratings.py:2 | code-reviewer | average_rating([]) now divides by len(reviews), which is 0, so Cable tray in products.json raises ZeroDivisionError and the product page fails to render. | Restore the early return |\n\n## Surfaces\n\nRan: [architecture-guardian@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the IMPORTANT finding names the empty list and the ZeroDivisionError; a wrong CRITICAL finding beside it does not affect recall"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | ratings.py:2 | code-reviewer | The one-line expression is harder to read; consider splitting it. | Split the expression |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "treats the change as style and misses the empty input"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | The rewrite folds average_rating into one expression and drops its early return. | Restore the early return |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the changed lines at CRITICAL but neither the no-review input nor the ZeroDivisionError, so it does not count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | product_page.py:12 | security-reviewer | product_page.py opens sys.argv[1] with no check, so running it with no argument raises IndexError. | Check the argument |\n| 2 | SUGGESTION | medium | ratings.py:2 | code-reviewer | A product with no reviews, such as Cable tray, now makes average_rating raise ZeroDivisionError. | Restore the early return |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding that names the defect is SUGGESTION; the CRITICAL finding is about a different issue"
     }
   ]
 }
