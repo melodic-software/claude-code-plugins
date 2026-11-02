@@ -2,15 +2,13 @@ schema_version: "1.1"
 name: rh-window-menu-no-winner
 graders:
   - name: tier-labels-span
-    type: regex
-    pattern: '(?=[\s\S]*(?:\bfamily\b|\bcousins?\b|\b(?:voiced|voiceless|unvoiced)\b))(?=[\s\S]*(?:\b(?:additive|subtractive)\b|\b(?:sound|consonant)s?\s+(?:dropped|added|removed)\b|\b(?:drops?|adds?)\s+(?:a|an|the|one)\s+(?:extra\s+)?(?:sound|consonant)\b|\bextra consonant\b))(?=[\s\S]*(?:\b(?:assonance|consonance)\b|\bvowel[- ](?:match|only)\b|\bsame (?:stressed )?vowel\b))'
-    flags: 'i'
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The writer asked for a rhyme for 'window'. PASS if the reply labels its candidates across all three of these stability tiers, in any wording: family rhymes or voicing swaps (close-cousin or partner consonants, such as t for d); additive or subtractive rhymes, or a sound added or dropped ('drops the d'); and assonance or consonance, or vowel-only or consonant-only matches ('same vowels, different consonants', 'same consonants, different vowel'). A tier counts when at least one candidate carries its label, in a table, heading or note. FAIL if any of the three tiers labels no candidate, including a reply that names a tier only in passing with no candidate under it. Perfect and mosaic labels count toward none of the three. Judge only the tier labels; candidate count, mosaic entries and any pick are graded elsewhere."
   - name: mosaic-entry
-    type: regex
-    pattern: '(?<!\bno )(?<!\bnot )\b(?:mosaic|multi-word)\b'
-    flags: 'i'
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The writer asked for a rhyme for 'window'. PASS if the reply's candidates include at least one multi-word (mosaic) rhyme, a candidate of two or more words such as 'been so' or 'in the snow', whatever it is called ('mosaic', 'multi-word', 'two-word rhyme', 'two-word phrases') or if it carries another label. FAIL if every candidate is a single word, or the reply mentions mosaic rhymes only to say it has none or avoided them. Judge only this; tiers, candidate count and any pick are graded elsewhere."
   - name: eight-plus-candidates
     type: llm
     focus: last_message

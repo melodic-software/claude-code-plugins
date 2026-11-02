@@ -2,10 +2,9 @@ schema_version: "1.1"
 name: rh-release-identity-menu
 graders:
   - name: identity-flagged
-    type: regex
-    pattern: '\bidentit(?:y|ies)\b[^\n]{0,80}?(?:\bfail(?:s|ed)?\b|✗|❌|\breject(?:s|ed)?\b|\b(?:not|isn[''’]t|aren[''’]t)\s+(?:a\s+)?(?:true\s+|real\s+)?rhymes?\b)|(?:\bfail(?:s|ed)?\b|✗|❌)[^\n]{0,60}?\bidentit(?:y|ies)\b|\b(?:is|are|it[''’]s|that[''’]s|they[''’]re)\s+(?:an\s+)?identit(?:y|ies)\b(?!\s+check)'
-    flags: 'i'
-    target: last_message
+    type: llm
+    focus: last_message
+    criteria: "The writer offered 'police' or 'lease' as rhymes for 'release'. PASS if the reply says police, lease or both are identities rather than rhymes, in any wording: calling them identities, saying they fail the identity check, or explaining that the consonant before the stressed vowel is the same, so the ear hears a repeat, not a rhyme. A reply that says so and still names one as the lesser pick passes this grader. FAIL if the reply treats either as a real rhyme, passes them on the identity check, or never says they are identities. Judge only this; candidate count and any pick are graded elsewhere."
   - name: eight-plus-candidates
     type: llm
     focus: last_message
