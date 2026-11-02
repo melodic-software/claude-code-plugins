@@ -233,7 +233,7 @@ The tests retired with the statusline tee, and what holds their property now:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install rate-limit-guard@<marketplace>
+/plugin install rate-limit-guard@melodic-software
 ```
 
 The module and the StopFailure hook are active once the plugin loads (the next session, or

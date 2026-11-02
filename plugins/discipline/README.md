@@ -441,7 +441,7 @@ of truth:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install discipline@<marketplace>
+/plugin install discipline@melodic-software
 ```
 
 ## Configuration

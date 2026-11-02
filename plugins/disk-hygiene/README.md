@@ -13,6 +13,13 @@ Recycle Bin and refuses one the shell reports it cannot recycle. The engine then
 only the entries captured in the snapshot, except the Git metadata contents `handoff-apply` empties
 (see the safety contract); it never follows links or recursively deletes an unvalidated tree.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install disk-hygiene@melodic-software
+```
+
 ## Safety contract
 
 - The side-effecting skill is model-invocable (`disable-model-invocation: false`), so Claude can

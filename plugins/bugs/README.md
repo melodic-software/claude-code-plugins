@@ -233,7 +233,7 @@ Otherwise the emitted report is the deliverable. Copy it into your tracker.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install bugs@<marketplace>
+/plugin install bugs@melodic-software
 ```
 
 ## License

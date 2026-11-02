@@ -11,6 +11,13 @@ The default build is wilsjo2's fork (`v0.8.3`); Dagherbou's (`v0.2.0-patch1`) is
 `skills/dlss5/reference/fork-comparison.md` has the A/B evidence behind that choice, and
 `skills/dlss5/reference/upstream-watch.md` the process that moves a pin.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install gaming@melodic-software
+```
+
 ## Windows only
 
 The mod, the NVIDIA runtime, and the games are Windows binaries, and the plugin's script is

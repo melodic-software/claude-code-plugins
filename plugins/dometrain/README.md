@@ -6,6 +6,13 @@ etiquette. The skills call a Dometrain MCP server, which this plugin does not sh
 hosted server (`https://mcp.dometrain.com/mcp`) is closed-source and requires an active
 [Dometrain Pro](https://dometrain.com/dometrain-pro/) subscription.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install dometrain@melodic-software
+```
+
 ## Getting the MCP server
 
 Register a user-scope HTTP server named `dometrain`. The skills find its tools by the `dometrain`

@@ -183,7 +183,7 @@ of the routes above.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install visualization@<marketplace>
+/plugin install visualization@melodic-software
 ```
 
 ## Possible future change

@@ -77,7 +77,7 @@ from `scripts/hook-census.sh`, wall times over ten runs after one warm-up:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install actionlint@<marketplace>
+/plugin install actionlint@melodic-software
 ```
 
 Then verify prerequisites with `/actionlint:setup check` and register the pre-commit entry with

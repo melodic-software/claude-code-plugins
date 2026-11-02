@@ -70,12 +70,8 @@ gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
 
 ## Install
 
-From whichever marketplace distributes this plugin:
-
-```shell
-/plugin marketplace add <marketplace-owner>/<marketplace-repo>
-/plugin install github@<marketplace-name>
-```
+Add the marketplace and install `github` as the root README's
+[Use this marketplace](../../README.md#use-this-marketplace) section shows.
 
 ## Configuration
 

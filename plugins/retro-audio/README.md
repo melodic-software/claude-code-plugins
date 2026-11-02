@@ -20,3 +20,10 @@ Pulse duties are 12.5%, 25%, 50%, and 75%. `@0` is the chip's bass wave (triangl
 wave channel as a 32-step triangle). `n` is the noise channel, and a chip preset allows one noise
 part. Scores use `|` between parts, up to four. Presets cap channels and noise parts only, not the
 hardware voice mix, and the pico-8 preset shares the Game Boy and NES duties.
+
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install retro-audio@melodic-software
+```

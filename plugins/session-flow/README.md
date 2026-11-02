@@ -470,7 +470,7 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install session-flow@<marketplace>
+/plugin install session-flow@melodic-software
 ```
 
 ## Requirements

@@ -2,6 +2,13 @@
 
 Detects and removes AI-writing tells ("slop") in checked-in markdown prose, commit messages, PR bodies and interface copy.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install ai-slop@melodic-software
+```
+
 ## Skills
 
 - `/ai-slop:audit [target]` reports AI-writing tells in the target (default: the whole repo's

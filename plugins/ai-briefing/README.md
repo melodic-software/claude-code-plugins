@@ -5,6 +5,13 @@ briefings. It collects from official vendor publications, configured RSS/Atom fe
 releases, reputable secondary reporting, and user-supplied URLs; then deduplicates, ranks,
 and presents the result as markdown or an optional HTML/PPTX deck.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install ai-briefing@melodic-software
+```
+
 ## Skills
 
 | Skill | Invoke | What it does |

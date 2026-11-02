@@ -65,7 +65,7 @@ run log; a call that bypasses the wrapper is neither. No telemetry, no other net
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install machine-health@<marketplace>
+/plugin install machine-health@melodic-software
 ```
 
 ## Migrating from an in-repo copy

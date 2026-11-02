@@ -10,6 +10,13 @@ extension.
 The plugin namespace is the platform, not the technique, so later capabilities (search, archival, an
 MCP surface) join it as sibling skills rather than forcing a rename.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install x@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

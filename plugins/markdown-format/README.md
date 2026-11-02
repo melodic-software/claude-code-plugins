@@ -164,7 +164,7 @@ wall and the 1 s per-fire ceiling, and the spawn count is what any reduction wou
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install markdown-format@<marketplace>
+/plugin install markdown-format@melodic-software
 ```
 
 Then verify the runtime prerequisites with `/markdown-format:setup check`;

@@ -5,6 +5,13 @@ app, observes it, and records evidence. It never judges: the report holds action
 artifact paths, and the caller (`/verification:confirm`, a CI verdict job or a person) decides what
 they mean.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install app-control@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

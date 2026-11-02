@@ -6,6 +6,13 @@ uses the app and what they need. It uses the project's own research, personas an
 routes to the tools installed, and labels every deliverable evidence-based, assumption-based or
 mixed.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install user-experience@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

@@ -55,7 +55,7 @@ same host.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install typos-format@<marketplace>
+/plugin install typos-format@melodic-software
 ```
 
 Then verify prerequisites with `/typos-format:setup check`.

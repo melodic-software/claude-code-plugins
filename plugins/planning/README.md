@@ -67,7 +67,7 @@ themselves. Every skill also works standalone.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install planning@<marketplace>
+/plugin install planning@melodic-software
 ```
 
 ## Configuration

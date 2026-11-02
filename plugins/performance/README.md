@@ -3,6 +3,13 @@
 Measurement-first optimization for an arbitrary target, built around refusing to report what the
 data does not support.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install performance@melodic-software
+```
+
 ## Why this exists
 
 This plugin was generalized from one end-to-end optimization run done by hand against the

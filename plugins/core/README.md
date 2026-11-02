@@ -5,8 +5,11 @@ own: its manifest lists those plugins in `dependencies`, so installing it instal
 of them. `core` itself is off by default (`"defaultEnabled": false`), so taking the default-on set
 never installs it; installing it is an explicit choice.
 
-```bash
-claude plugin install core@melodic-software
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install core@melodic-software
 ```
 
 ## Members

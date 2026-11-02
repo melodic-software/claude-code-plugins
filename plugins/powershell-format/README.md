@@ -120,7 +120,7 @@ the convention names, so re-measure there.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install powershell-format@<marketplace>
+/plugin install powershell-format@melodic-software
 ```
 
 Then verify prerequisites with `/powershell-format:setup check`.

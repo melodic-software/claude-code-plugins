@@ -5,6 +5,13 @@ A Claude Code plugin for short explainer videos made with
 otherwise. Claude writes one scene script, renders it, and checks the file it rendered before
 calling the video done.
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install explainer-video@melodic-software
+```
+
 ## Skills
 
 | Skill | What it does |

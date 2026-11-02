@@ -9,6 +9,13 @@ session succeed, and making its failures legible.
 | `/computer-use:diagnose` | Symptom-to-cause for a screen-control session. Covers the screenshot pixel budget and when `zoom` recovers detail, the ladders for capture and input failures, and the per-OS quirks that make synthesized input behave unlike a human's. A symptom guide answers the common cases with no file load. |
 | `/computer-use:setup` | Read-only preflight. Confirms the surface and tool availability, then reports the screensaver, display-sleep, and lock timeouts that end a session mid-run regardless of how busy Claude is. Check-only: every prerequisite is external or a system setting this plugin must not write. |
 
+## Install
+
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install computer-use@melodic-software
+```
+
 ## Why this exists
 
 The computer-use tool descriptions already document the mechanics: the actions, the allowlist
