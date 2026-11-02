@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: phase6-signal-gate-never
+context:
+  scaffold_script: scaffold.sh

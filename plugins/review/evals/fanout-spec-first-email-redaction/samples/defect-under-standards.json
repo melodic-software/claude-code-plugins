@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The CSV writes raw emails. | Mask the address |\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend now checks 6 and 7, but getDay() returns 0 for Sunday, so Sunday orders ship same day. | Check 0 and 6 |\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the weekend defect sits under Standards"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The CSV writes raw emails. | Mask the address |\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n### Standards\n\nnone\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the weekend defect is filed under Spec and Standards reads none"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/reviews/feat-orders-csv-export/20261101T120000Z-orders-csv.md",
+            "content": "---\ntype: review-findings\n---\n\n## By axis\n\n### Spec\n\n| 1 | CRITICAL | high | src/export-orders.js:4 | code-reviewer | The CSV writes raw emails. | Mask the address |\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n### Standards\n\n| 2 | IMPORTANT | high | src/calendar.js:2 | code-reviewer | isWeekend misses Sunday. | Check 0 and 6 |\n\n## Unparsed\n\nnone\n"
+          }
+        }
+      ],
+      "why": "the weekend defect is filed under both Spec and Standards, not under exactly one"
+    }
+  ]
+}
