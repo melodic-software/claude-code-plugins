@@ -68,7 +68,7 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
      inheritance check (see `discipline:sweep-all`'s preflight); never claim forks are
      unconditionally available on every build. The user-facing command is `/subtask` as of
      **2.1.212**.
-     - **Pointer**: [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-off)
+     - **Pointer**: [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
        for the default and the versions it changed in, and the variable's row in
        [env vars](https://code.claude.com/docs/en/env-vars) for what each value does.
      - **As of**: 2026-11-01
