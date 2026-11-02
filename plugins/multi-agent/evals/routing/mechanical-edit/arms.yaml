@@ -14,7 +14,7 @@
 # A case's score is its pass rate across runs; no prices are stated here.
 #
 # Basis, read 2026-10-25:
-# - model IDs: https://platform.claude.com/docs/en/about-claude/models/overview
+# - model IDs: https://platform.claude.com/docs/en/models/overview
 #   (Claude API ID row)
 # - effort variable and levels: https://code.claude.com/docs/en/model-config
 #   ("Set the effort level")

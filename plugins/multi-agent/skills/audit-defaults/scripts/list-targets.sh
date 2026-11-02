@@ -3,7 +3,8 @@
 # repo-mode args.targets as one JSON array of {area, files[]}: the tracked
 # markdown files in <dir> (default: the current repository) that state a
 # model, effort, workflow or subagent claim. Out of scope: docs/upstream/
-# snapshots, changelogs, vendored trees and eval fixtures. An area is
+# snapshots, changelogs and .changes/ release fragments, vendored trees and
+# eval fixtures. An area is
 # plugins/<name> or the first path segment ("(root)" for top-level files),
 # split into chunks of at most 10 files.
 set -uo pipefail
@@ -33,7 +34,7 @@ cd "$ROOT" || exit 2
 
 B='[^[:alnum:]_]'
 CLAIMS="(^|$B)(opus|sonnet|haiku|fable)($B|$)|(^|$B)effort$B.{0,30}(low|medium|high|xhigh|max)|^model:|CLAUDE_CODE_(SUBAGENT_MODEL|DISABLE_WORKFLOWS)|Workflow (tool|script)|dynamic workflow|subagents?.{0,20}(model|depth|concurren)"
-EXCLUDE='(^|/)(docs/upstream|vendor|node_modules|fixtures?|evals?)/|(^|/)CHANGELOG[^/]*$'
+EXCLUDE='(^|/)(docs/upstream|vendor|node_modules|fixtures?|evals?|\.changes)/|(^|/)CHANGELOG[^/]*$'
 
 git ls-files -z -- '*.md' |
   tr '\0' '\n' |

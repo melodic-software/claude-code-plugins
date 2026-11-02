@@ -68,8 +68,10 @@ dontAsk with explicit allow rules and no write token; `permission-mode: auto` th
 because under the launcher's subprocess env scrub the CLI starts in the default mode. All run under
 the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
 which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
-answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
-unattended runs. A host run on 2026-10-28 (Claude Code 2.1.312,
+answers, so lane sessions carry none. `--permission-prompts none` is documented for print-mode
+runs where nobody can answer a prompt
+([CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags), as of 2026-11-01; recheck
+when its `--permission-prompts` row changes). A host run on 2026-10-28 (Claude Code 2.1.312,
 [probe record](plugins/session-flow/skills/continue-in-background/reference/denial-probe.md))
 launched `claude --bg --permission-mode auto` without that flag: one classifier denial came back
 to the session as a tool error and it went on to its next step. What a `--bg` lane does with the

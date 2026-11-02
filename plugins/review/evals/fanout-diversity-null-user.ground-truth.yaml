@@ -1,0 +1,10 @@
+fixture: null-user
+source_case: guard-removal-null-user
+defect:
+  location: src/display-name.js:2
+  summary: "displayName drops its check for a missing user or profile, on the commit message's claim that every caller passes a signed-in user"
+  failure: "renderHeader in src/header.js passes session.user, which is null until the visitor signs in, so displayName reads .profile of null and throws a TypeError for every signed-out visitor; a user with no profile fails the same way"
+axis: spec
+not_defects:
+  - "src/header.js changed on this branch (only src/display-name.js changed)"
+  - "a signed-in user with a profile now gets a different name (that path is unchanged)"

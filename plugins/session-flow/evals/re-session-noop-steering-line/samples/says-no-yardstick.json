@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Steering-file yardstick: /docs-hygiene:write-for-agents is not available in this session.",
+      "why": "names the skill as not available"
+    },
+    {
+      "answer": "The yardstick was unavailable, so the CLAUDE.md finding is judged on its own.",
+      "why": "unavailable"
+    },
+    {
+      "answer": "Note: the steering-file yardstick isn't loadable here (docs-hygiene is not installed).",
+      "why": "contraction"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Judged against /docs-hygiene:write-for-agents, the first CLAUDE.md line earns no place.",
+      "why": "claims a yardstick that was not loaded"
+    },
+    {
+      "answer": "The CLAUDE.md line \"Read a file before you edit it.\" is a no-op: /harness-config:audit-instructions.",
+      "why": "says nothing about the yardstick"
+    }
+  ]
+}

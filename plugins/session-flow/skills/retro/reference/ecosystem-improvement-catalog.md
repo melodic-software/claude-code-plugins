@@ -82,7 +82,10 @@ CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 approval checkpoint, and the owner skill picks the mechanism. Propose one on the first occurrence of
 a policy-class mistake (irreversible, public, or security-relevant), and on a repeat with the same
 cause for a behavior correction. Sometimes the right outcome is no check: the model already
-complies, the action is reversible, or the repo has nothing to wire a check into.
+complies, the action is reversible, or the repo has nothing to wire a check into. An existing check
+that should have caught the mistake but is unwired (no CI or pre-commit step runs it) or broken is
+the finding, reported before any new check is proposed. A repo with no CI or pre-commit step to
+wire a check into is still reported as a finding, even when no check is proposed.
 
 ## Memory
 

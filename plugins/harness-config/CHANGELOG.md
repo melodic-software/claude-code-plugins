@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.8] - 2026-11-02
+
+### Changed
+
+- `audit-permission-grants`, `audit-permission-state` and `draft-auto-mode-rules`: body prose tightened to the skill criteria (filler and restated reasons cut, a miscounted list lead-in corrected), measured non-inferior on the frozen outcome cases. No description, script or contract changed.
+
 ## [2.4.7] - 2026-11-01
 
 ### Fixed
