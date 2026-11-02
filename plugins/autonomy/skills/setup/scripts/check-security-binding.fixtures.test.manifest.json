@@ -25,6 +25,12 @@
       ],
       "credential_roots": "/home/runner"
     },
+    "admission-channel-feed-classified-wildcard-surface-no-justification.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rules[0]: disposition \"autonomous-eligible\" is more permissive than the shipped default for channel-feed — invalid without override_justification"
+      ]
+    },
     "ambiguous-runtime-markers.json": {
       "exit": 1,
       "findings_substrings": [

@@ -48,7 +48,7 @@ any execution surface below `L3`, and the class's merge policy never promotes.
 `C5` is assigned by field tests on the provider's own metadata, never by classifier judgment
 alone, and never by anything recorded in the item's own body (the untrusted surface being
 classified). Two surfaces carry the tests; they answer different provenance questions and do
-not substitute for one another.
+not substitute for one another. Any other observed state fails closed to `C5` (below).
 
 **Pull request: the code's provenance.** Two tests on the PR's cycle-start snapshot, either
 one marking the PR `C5`, each failing closed to `C5` when its field is missing or unreadable:
@@ -80,6 +80,12 @@ failing closed to `C5` when any field it needs is missing or unreadable:
 The issue test keys on the issue author only. It is not a lookup of anything in the issue's
 title, body, or comments; those surfaces are attacker-writable and are evaluated as data,
 never as admission input.
+
+**Any other observed state: no readable provenance.** A detector-fired `temporal` item (one
+claiming no routine identity) whose observed state is neither a PR nor an issue, such as a
+poll-detector backstopping a `channel-feed` surface, has no author either test can read. It
+fails closed to `C5`, as any test does when the field it needs is missing. A detector whose
+observed state is a PR or an issue runs that surface's tests.
 
 **Composition.** The PR tests and the issue test are independent: a same-repository PR from a
 trusted member closing an issue filed by an outside collaborator is `C5` on the issue and not
