@@ -667,6 +667,24 @@ run "cat <<E; [[ \$s =~ k=(a|b) ]]⏎it's⏎E⏎git reset --hard (regex group wi
   $'cat <<E; [[ $s =~ k=(a|b) ]]\nit\'s\nE\ngit reset --hard' 2
 run "cat <<E; [[ \$s =~ k=(a>b) ]]⏎it's⏎E⏎git reset --hard (regex group with >, blocked)" \
   $'cat <<E; [[ $s =~ k=(a>b) ]]\nit\'s\nE\ngit reset --hard' 2
+# Array subscripts keep their quotes and substitutions; ( inside ${…} is text.
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  run "a=([\$(git reset --hard)]=1) (substitution in a subscript, blocked)" \
+    'a=([$(git reset --hard)]=1)' 2
+  run "a=([\`git reset --hard\`]=1) (backtick in a subscript, blocked)" \
+    'a=([`git reset --hard`]=1)' 2
+  run "a=([\"x]\"]=1); git reset --hard #\" (quoted ] in a subscript, blocked)" \
+    'declare -A a; a=(["x]"]=1); git reset --hard #"' 2
+  run "a=([']'x]=1); git reset --hard (single-quoted ] in a subscript, blocked)" \
+    "declare -A a; a=([']'x]=1); git reset --hard" 2
+  run "a=([\"]\"]=1); git reset --hard (double-quoted ] in a subscript, blocked)" \
+    'declare -A a; a=(["]"]=1); git reset --hard' 2
+  run "m=(['[']=1); git reset --hard (quoted [ in a subscript, blocked)" \
+    "declare -A m=(['[']=1); git reset --hard" 2
+  run "cat <<E; a=(\${x/(/y})⏎it's⏎E⏎git reset --hard (( inside \${…} in an array, blocked)" \
+    $'cat <<E; a=(${x/(/y})\nit\'s\nE\ngit reset --hard' 2
+}
 # Every quoted or delimited reader ends at the closing backtick.
 run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
   "echo \`\$'\`; git reset --hard #'\`" 2

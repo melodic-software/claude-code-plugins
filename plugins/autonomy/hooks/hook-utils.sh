@@ -4615,6 +4615,14 @@ hook::_bps_dparen_is_arith() {
         ((_bps_k++))
       done
       ;;
+    '`')
+      # Backtick text is its own unit: a `)` inside it closes nothing.
+      ((_bps_k++))
+      while ((_bps_k < n)) && [[ "${chars[_bps_k]}" != '`' ]]; do
+        [[ "${chars[_bps_k]}" == '\' ]] && ((_bps_k++))
+        ((_bps_k++))
+      done
+      ;;
     '(')
       if [[ "${chars[_bps_k - 1]}" == '$' && "${chars[_bps_k + 1]-}" != '(' ]]; then
         _bps_o+=(1)
@@ -5197,8 +5205,10 @@ hook::bash_parse_segments_uncached() {
         j=${pstk//0/}
         # Inside an array assignment a `(` other than `$(` or `<(` is a syntax
         # error; after an extglob character only with extglob off, so the
-        # array frame stays for the extglob-on reading.
-        if ((i != sub_at)) && [[ "$j" == *1 ]]; then
+        # array frame stays for the extglob-on reading. One inside an open
+        # `${…}` is expansion text.
+        if ((i != sub_at)) && [[ "$j" == *1 ]] &&
+          ! [[ "$word" == *"$dbrace"* && "${word##*"$dbrace"}" != *'}'* ]]; then
           if ((have)) && [[ "$word" == *[@?*+!] ]]; then
             # The extglob-on pass reads it as a pattern in the array; this
             # reading goes on with extglob off.
@@ -5257,6 +5267,11 @@ hook::bash_parse_segments_uncached() {
         # word: an `esac` after it is not reserved.
         j=${pstk//0/}
         [[ "$j" == *C && "$wpar" != p ]] && cps=0
+        # A plain `(` inside an open `${…}` is expansion text: no frame.
+        if [[ "$wpar" == 0 ]] && ((have)) &&
+          [[ "$word" == *"$dbrace"* && "${word##*"$dbrace"}" != *'}'* ]]; then
+          wpar=""
+        fi
         # Bash fixes the text of these by matching parentheses (quotes
         # skipped) before it reads it, so a comment or here-doc body inside
         # ends at the matching `)` (`dtop`).
@@ -5399,18 +5414,23 @@ hook::bash_parse_segments_uncached() {
     *)
       # Inside an array assignment a word that starts with `[` is read, as a
       # subscript is, up to its matching `]`: parentheses, blanks and `#` in
-      # it are text.
+      # it are text. Only plain text: at a quote, backslash, `$` or backtick,
+      # or with no matching `]`, the `[` stays one character and the main
+      # loop reads on, so quoting and substitutions keep their readers.
       if [[ "$c" == '[' ]] && ((!have)) && [[ "${pstk//0/}" == *1 ]]; then
         j=1
-        while ((i + 1 < n && j > 0)); do
-          ((i++))
-          case "${chars[i]}" in
+        for ((__hu_bps_k = i + 1; __hu_bps_k < n && j > 0; __hu_bps_k++)); do
+          case "${chars[__hu_bps_k]}" in
           '[') ((j++)) ;;
           ']') ((j--)) ;;
+          "'" | '"' | '\' | '$' | '`') break ;;
           *) ;;
           esac
-          c+="${chars[i]}"
         done
+        if ((j == 0)); then
+          printf -v c '%s' "${chars[@]:i:__hu_bps_k-i}"
+          i=$((__hu_bps_k - 1))
+        fi
       fi
       word+="$c"
       wq_plain=1
