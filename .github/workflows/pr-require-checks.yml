@@ -4806,11 +4806,9 @@ jobs:
       # to its completion, the part of its timeout no step can shorten (see the
       # work budget rule). Every needed job has completed when this runs, so one
       # read of the attempt's jobs measures them all. It is written to this
-      # job's summary, kept with the run, and never fails the job.
+      # job's summary, kept with the run; a failed read warns and fails nothing.
       - name: Record each job's runner tail
         if: github.event_name == 'merge_group'
-        continue-on-error: true
-        timeout-minutes: 1
         env:
           GH_TOKEN: ${{ github.token }}
           TAIL_ROWS: >-
@@ -4823,7 +4821,8 @@ jobs:
             echo '| job | work s | tail s |'
             echo '|---|---|---|'
             # gh-read-exempt: a best-effort record that never gates the job.
-            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS"
+            timeout 30 gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" --jq "$TAIL_ROWS" ||
+              echo "::warning::Could not read this attempt's jobs; no runner tails recorded." >&2
           } >>"$GITHUB_STEP_SUMMARY"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
