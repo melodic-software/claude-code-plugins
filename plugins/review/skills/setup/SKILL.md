@@ -58,7 +58,7 @@ the base branch.
 **`check` row.** Run `node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the project
 root and add each line it prints to the table with its own INFO, PASS or WARN prefix. INFO when the
 file is absent (every key comes from `userConfig` or its default); PASS with each key's value when
-it validates; WARN when it does not (a value outside the key's values, a quoted boolean, a key set
+it validates; WARN when it does not (a value outside the key's values, a key set
 twice, an empty value, a key the schema does not list, a file that does not parse, or a map or list
 where one value belongs), quoting the file, key and value. A key the schema does not list is
 ignored: the other keys keep their PASS lines, so a valid `downstream_probe` floor beside it counts.
@@ -72,9 +72,7 @@ a regular file). `apply` is the fix.
 **`apply`.**
 
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
-   at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`,
-   skipping `ratchet_offer`, which no skill in this plugin reads (to keep ratchet offers off, set
-   `ratchet_offer` on the corrections plugin: its plugin option or `docs/conventions/corrections.yaml`)
+   at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
    (`downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
    to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
    default, unless the team wants `/review:fanout run-everything` to run each review prompt on
@@ -170,7 +168,7 @@ the value `check` reads back, and whether the file is tracked.
 - Run a review. That is `/review:quality-gate` and this plugin's reviewer agents; they resolve
   criteria through the index this setup bootstraps.
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`. The per-user
-  `ratchet_offer` option is set through `/plugin configure`, not here.
+  `downstream_probe` and `fanout_diversity` options are set through `/plugin configure`, not here.
 - Write any settings file other than `docs/conventions/review.yaml`.
 - Edit the consumer's root `.gitignore` or any ignore file it did not itself create, the single
   setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.

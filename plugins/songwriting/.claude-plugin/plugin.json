@@ -16,6 +16,10 @@
     "rhyme",
     "metaphor",
     "agents",
-    "skill"
-  ]
+    "skill",
+    "domain"
+  ],
+  "metadata": {
+    "category": "audio"
+  }
 }

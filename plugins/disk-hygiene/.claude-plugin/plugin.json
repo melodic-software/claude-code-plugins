@@ -14,8 +14,12 @@
     "artifacts",
     "temporary-files",
     "audit",
-    "skill"
+    "skill",
+    "maintenance"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "disk_hygiene_enabled": {
       "type": "boolean",

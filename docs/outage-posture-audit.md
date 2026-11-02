@@ -107,12 +107,12 @@ The lane runs from `.github/workflows/pr-review-hosted.yml`, a caller of the ext
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:194` | The shared client sends up to 4 attempts with equal jitter, and the file-list read is never retried. |
-| 2 | gap | `.github/workflows/pr-review-main.yml:194`, `.github/workflows/pr-review-main.yml:1007` | A failed read fails the step, and "no verdict" exits 1. |
+| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:307` | The shared client sends up to 4 attempts with equal jitter, and the file-list read is never retried. |
+| 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read fails the step, and "no verdict" exits 1. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-hosted.yml:183` | Recovery is a recorded one-time re-run by the reconciler, gated on the status page. That is a re-arm and a status-page trigger. |
-| 4 | gap | `.github/workflows/pr-review-main.yml:2656` | A later clean review never clears a CRITICAL check run. |
-| 5 | gap | `.github/workflows/pr-review-hosted.yml:168`, `.github/workflows/pr-review-main.yml:287` | `check-upstream-status` stops the review with exit 1. |
-| 6 | gap | `.github/workflows/pr-review-main.yml:222`, `.github/workflows/pr-review-main.yml:503` | Matrix legs run in parallel and repeat the same PR reads with no `etag`. Concurrency per PR is fine. |
+| 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later clean review never clears a CRITICAL check run. |
+| 5 | gap | `.github/workflows/pr-review-hosted.yml:168`, `.github/workflows/pr-review-main.yml:426` | `check-upstream-status` stops the review with exit 1. |
+| 6 | gap | `.github/workflows/pr-review-main.yml:340`, `.github/workflows/pr-review-main.yml:457` | Matrix legs run in parallel and repeat the same PR reads with no `etag`. Concurrency per PR is fine. |
 
 ## pr-review-security
 
@@ -121,12 +121,12 @@ The lane runs from `.github/workflows/pr-review-security-hosted.yml` and the
 
 | Element | Verdict | Evidence | Why |
 |---|---|---|---|
-| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:194` | It shares pr-review's code, so it has the same gap. |
-| 2 | gap | `.github/workflows/pr-review-main.yml:194`, `.github/workflows/pr-review-main.yml:1007` | A failed read or "no verdict" makes the run red. |
+| 1 | gap | `.github/actions/check-trusted-trigger/check-trusted-trigger.mjs:145`, `.github/workflows/pr-review-main.yml:307` | It shares pr-review's code, so it has the same gap. |
+| 2 | gap | `.github/workflows/pr-review-main.yml:307`, `.github/workflows/pr-review-main.yml:1139` | A failed read or "no verdict" makes the run red. |
 | 3 | gap | `.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs:79`, `.github/workflows/pr-review-security-hosted.yml:188` | Resume depends on the reconciler's status-gated re-run. |
-| 4 | gap | `.github/workflows/pr-review-main.yml:2656` | A later complete read never closes a filed CRITICAL count. |
+| 4 | gap | `.github/workflows/pr-review-main.yml:2874` | A later complete read never closes a filed CRITICAL count. |
 | 5 | gap | `.github/workflows/pr-review-security-hosted.yml:173`, `.github/workflows/pr-review-security-hosted.yml:193` | The status page gates the run and turns it red. |
-| 6 | gap | `.github/workflows/pr-review-main.yml:222`, `.github/workflows/pr-review-main.yml:503` | Matrix legs run in parallel and repeat the same reads with no `etag`. |
+| 6 | gap | `.github/workflows/pr-review-main.yml:340`, `.github/workflows/pr-review-main.yml:457` | Matrix legs run in parallel and repeat the same reads with no `etag`. |
 
 ## pr-verify
 

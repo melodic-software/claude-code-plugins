@@ -1103,11 +1103,12 @@ the rules that only tighten in
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
-  that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
+  that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
-  or post-merge-failure, that either filer opened before that run was created, at a commit behind
-  its head, and that was never edited; closing it is the record's state only, and the merge gate
-  still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
+  or post-merge-failure, that either filer opened, that was never edited, and that a later green
+  full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
+  a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
   `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
   outside the charset, or not filed; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
@@ -1260,8 +1261,14 @@ the rules that only tighten in
   completion through `workflow_run`, so its definition is main's, gates the trigger as pr-verify
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
-  token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
-  git would call binary is shown as text, and a patch that still holds a binary file gets no
+  token and a model that may only Read its data directory. A head both lanes already reviewed,
+  where the merge gate's own predicate (`_main_bound`) binds each lane on what the trigger job
+  reads, is not reviewed again, and no leg starts for a pull request with no lane source. A verdict
+  counts there only when its run's main commit has no diff from main's tip over what the review
+  reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
+  so a verdict judged under other criteria reviews again; a failed or cancelled review, another
+  head of the same tree, or a failed read, fetch or diff reviews again. The diff is
+  `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones

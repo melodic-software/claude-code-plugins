@@ -165,6 +165,33 @@
       ],
       "credential_roots": "/home/runner"
     },
+    "evidence-discovered-after-ratification.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-discovered-after-ratification.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (reverted-merge at 2026-06-15T09:00:00Z (discovered 2026-07-02T00:00:00Z))"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-discovered-before-ratification.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-discovered-before-ratification.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective promoted (1 pre-epoch contrary event(s) ignored: reverted-merge at 2026-06-15T09:00:00Z (discovered 2026-06-20T00:00:00Z)"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "evidence-pre-epoch-malformed-discovered.json": {
+      "binding": "promoted-c2.json",
+      "evidence": "evidence-pre-epoch-malformed-discovered.json",
+      "exit": 0,
+      "findings_substrings": [
+        "C2-auto-merge: bound promoted -> effective unpromoted — ceiling lowered by contrary evidence (reverted-merge at 2026-06-15T09:00:00Z (discovered 2026-06-20))"
+      ],
+      "credential_roots": "/home/runner"
+    },
     "evidence-empty.json": {
       "binding": "promoted-c3-only.json",
       "evidence": "evidence-empty.json",
