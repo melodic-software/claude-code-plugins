@@ -5,21 +5,28 @@ disable-model-invocation: true
 
 App: Claude Code, the `claude` on PATH, with the plugin at `<plugin-dir>` loaded for the session.
 Driving tool: `driver/driver.mjs`, a terminal driver for Claude Code's TUI.
-Attended runs only.
+Runs attended or unattended, and drives only the session it launches; it never attaches to a
+Claude Code session it did not start. This follows the
+[evidence-verification Brief](https://github.com/melodic-software/claude-code-plugins/issues/11364#issuecomment-6534933364),
+which supersedes #7581's 2026-10-23 attended-only criterion.
 
 The run uses the account Claude Code is already signed in with. It never signs in, signs out or
-switches accounts.
+switches accounts, and it never drives Claude Desktop (Gotchas).
 
 In the commands below, `<skill-dir>` is this skill's folder; `<plugin-dir>` is the plugin directory
 the person names, else `pluginDir` from `config/local.json`, else from `config/defaults.json`,
 resolved from the directory the run starts in; `<run-dir>` is drive's run directory; `<session>` is
 one name for the whole run; `<file>` is the feature id with each `/` as `-`, then the entry point
 (`mods-band-01`). The `--timeout` values come from `timeouts` in the same config: `stepMs` for every
-`wait-for`, `readyMs` for Ready, `logMs` for `logs`.
+`wait-for`, `readyMs` for Ready, `logMs` for `logs`. A run takes at most `maxCaptures` screenshots
+and videos together, from the same config.
 
 ## Launch
 
 `node <skill-dir>/driver/driver.mjs launch --plugin-dir <plugin-dir> --session <session>`
+
+The launch clears every API-key, gateway and provider variable and hides the working directory on
+the startup screen.
 
 ## Ready
 
