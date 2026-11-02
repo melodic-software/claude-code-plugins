@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.14.11] - 2026-11-02
+
+### Changed
+
+- The `setup` skill's Gotchas again warn against regenerating the whole config to change one key, and against moving the eval-fixture exclusion into the script. Their removal shipped on an eval that a negative control showed cannot tell the body from one with its procedure sections emptied, so the cut was never measured.
+
+## [0.14.10] - 2026-11-02
+
+### Fixed
+
+- `/attribution:audit` detects the `review` plugin for its findings contract by whether `/review:fanout` resolves in the session, and never globs or lists outside its own plugin root to find it. It reads `review`'s bundled files only when the session already knows that plugin's root; otherwise it uses the publisher's raw URL. A session with `review` installed but its root unknown therefore now needs the network for the contract, and offline it is report-only. A path link into the `review` plugin's tree is replaced by a `/review:fanout` reference.
+
 ## [0.14.9] - 2026-11-01
 
 ### Changed

@@ -1105,8 +1105,8 @@ OUT_15ERR=$(run "$D15_ERR" --check 2>&1) || true
 assert_contains "gate mode still prints the finding" "$OUT_15ERR" "[P2]"
 assert_contains "gate mode still prints the coverage block" "$OUT_15ERR" "Scan coverage"
 
-# 15a2: P2b and P4 are error-tier too — a gate that only knew P2 would pass a
-# tree whose only defects were the two checks #4149 found unsurfaced.
+# 15a2: P2b, P4 and P5 are error-tier too — a gate that only knew P2 would pass a
+# tree whose only defect was one of them.
 D15_P2B="$TEST_TMPDIR/gate-error-p2b"
 mkdir -p "$D15_P2B/.claude"
 jq -n '{permissions:{allow:["Bash(~remy/x.sh:*)"]}}' >"$D15_P2B/.claude/settings.json"
@@ -1115,6 +1115,13 @@ D15_P4="$TEST_TMPDIR/gate-error-p4"
 mkdir -p "$D15_P4/.claude"
 jq -n '{permissions:{allow:["Bash(%USERPROFILE%/x.sh:*)"]}}' >"$D15_P4/.claude/settings.json"
 assert_exit "P4 alone fails --check" 1 "$(gate_rc "$D15_P4" --check)"
+D15_P5="$TEST_TMPDIR/gate-error-p5"
+mkdir -p "$D15_P5/.claude"
+printf '%s\n' '{"permissions":{"allow":["Bash(ls) x"]}}' >"$D15_P5/.claude/settings.json"
+assert_exit "P5 alone fails --check" 1 "$(gate_rc "$D15_P5" --check)"
+OUT_15P5=$(run "$D15_P5" --check 2>&1) || true
+assert_contains "the P5-only tree reports P5 at error tier" "$OUT_15P5" "error [P5]"
+assert_not_contains "the P5-only tree reports no other check" "$OUT_15P5" "[P1]"
 
 # 15b/15c: WARNING-tier findings only (P1 here) pass --check and fail --strict.
 # That difference is the entire reason the two flags exist.

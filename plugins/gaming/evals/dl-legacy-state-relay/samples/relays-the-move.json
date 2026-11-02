@@ -3,7 +3,11 @@
     { "answer": "Move `runtime\\`, `state\\`, `builds\\`, `cache\\` and `LEDGER.md` from `G:\\OneDrive\\Documents\\Gaming` into `G:\\OneDrive\\Documents\\Gaming\\dlss5`, then rerun status.", "why": "verbatim relay" },
     { "answer": "1. Open G:/OneDrive/Documents/Gaming.\n2. Move the runtime, state, builds and cache folders and LEDGER.md into Gaming/dlss5.\n3. Rerun status.", "why": "steps with forward slashes" },
     { "answer": "Paste this on the gaming PC:\n\n$old = 'G:\\OneDrive\\Documents\\Gaming'; $new = Join-Path $old 'dlss5'\n'runtime','state','builds','cache','LEDGER.md' | ForEach-Object { Move-Item \"$old\\$_\" $new }", "why": "observed reply, reworded: destination built with Join-Path" },
-    { "answer": "Move runtime, state, builds, cache and LEDGER.md into `dlss5\\` under the old folder, then rerun status.", "why": "destination as a code span" }
+    { "answer": "Move runtime, state, builds, cache and LEDGER.md into `dlss5\\` under the old folder, then rerun status.", "why": "destination as a code span" },
+    { "answer": "Run this on the gaming PC:\n\n$old = 'G:\\OneDrive\\Documents\\Gaming'; $new = \"$old\\dlss5\"\n'runtime','state','builds','cache','LEDGER.md' | ForEach-Object { if (Test-Path \"$old\\$_\") { Move-Item \"$old\\$_\" $new } }", "why": "observed reply, trimmed: destination built as \"$old\\dlss5\"" },
+    { "answer": "$d = 'G:\\OneDrive\\Documents\\Gaming'\nforeach ($n in 'runtime','state','builds','cache','LEDGER.md') {\n    if (Test-Path \"$d\\$n\") { Move-Item \"$d\\$n\" \"$d\\dlss5\\\" }\n}", "why": "observed reply, trimmed: destination built as \"$d\\dlss5\\\"" },
+    { "answer": "$root = 'G:/OneDrive/Documents/Gaming'; move runtime, state, builds, cache and LEDGER.md into '$root/dlss5/'.", "why": "forward slashes, single quotes" },
+    { "answer": "Move-Item runtime,state,builds,cache,LEDGER.md -Destination \"$base\\dlss5\"", "why": "variable base, one Move-Item" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
@@ -11,6 +15,9 @@
     { "answer": "Done: I moved everything and status is clean.", "why": "did it itself, no relay" },
     { "answer": "Move runtime, state, builds, cache and LEDGER.md as the message says, then run /gaming:dlss5 status again.", "why": "every item but no destination; the slash command is not the destination" },
     { "answer": "The dlss5 skill leaves runtime, state, builds, cache and LEDGER.md to you.", "why": "dlss5 only as the skill name" },
-    { "answer": "$new = Join-Path $old 'Gaming'; move runtime, state, builds, cache and LEDGER.md there.", "why": "Join-Path to a different folder" }
+    { "answer": "$new = Join-Path $old 'Gaming'; move runtime, state, builds, cache and LEDGER.md there.", "why": "Join-Path to a different folder" },
+    { "answer": "Move runtime, state, builds, cache and LEDGER.md into \"$env:TEMP\\dlss5\".", "why": "dlss5 under an environment path, not a variable base" },
+    { "answer": "Move runtime, state, builds, cache and LEDGER.md into \"$old\\dlss5-backup\".", "why": "a different folder name that starts with dlss5" },
+    { "answer": "Back up runtime, state, builds, cache and LEDGER.md to \"$old\\dlss5.zip\".", "why": "an archive, not the folder" }
   ]
 }

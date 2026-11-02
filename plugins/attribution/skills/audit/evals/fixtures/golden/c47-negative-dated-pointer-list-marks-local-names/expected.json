@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k09"
+  },
+  "notes": {
+    "shape": "A README list that says where each upstream fact behind a local check lives, with a dated pointer per item; one item restates the source's precedence sentence before its pointer and marks which variable names are local.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 holds on the precedence sentence. C2 FAILS: the matched words are mostly variable names. C3 FAILS: the item points at the anchored section with an as-of date and a trigger. C4 FAILS: it separates the source's three variables from the two this repository adds.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.144, jaccard 0.105, longest matched span 28 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.088, longest span 14 words).",
+    "carries": "The conforming end state the rubric converts copies into, with a thin restatement inside it. A run that flags it would penalize the remedy."
+  }
+}

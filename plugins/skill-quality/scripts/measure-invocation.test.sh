@@ -244,6 +244,62 @@ else
   pass "emit-plugin-eval refuses a non-empty out dir"
 fi
 
+# Pin: same-plugin competitors only, so no case gains a plugins: line.
+if [[ -f "$emit_dir/fixture-target-pos-train-01/prompt.md" ]] && ! grep -rq '^plugins:' "$emit_dir"; then
+  pass "emit-plugin-eval writes no plugins: line without cross-plugin competitors"
+else
+  fail "emit-plugin-eval wrote a plugins: line for same-plugin competitors only"
+fi
+
+# Cross-plugin competitors: one plugins: entry per distinct rival plugin,
+# sorted, without the target's own plugin, relative to the case directory.
+write_cross_probe() {
+  mkdir -p "$TMP/$1"
+  printf '%s\n' "{\"skill\": \"fixture:target\", \"plugin\": \"fixture\", \"skill_dir\": \"skills/target\",
+  \"competitors\": $2,
+  \"queries\": [{\"id\": \"pos-train-01\", \"split\": \"train\", \"expect_trigger\": true, \"request\": \"check this skill\"}]}" >"$TMP/$1/target.json"
+}
+mkdir -p "$TMP/plugins/fixture" "$TMP/plugins/alpha" "$TMP/plugins/beta"
+write_cross_probe probes-cross '["beta:x", "alpha:y", "alpha:z", "fixture:rival"]'
+run emit-plugin-eval "$TMP/probes-cross" "$TMP/plugins/fixture/probe-evals" >/dev/null 2>&1
+if grep -qxF 'plugins: ["../..", "../../../alpha", "../../../beta"]' "$TMP/plugins/fixture/probe-evals/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval lists the target and each rival plugin under plugins:"
+else
+  fail "emit-plugin-eval plugins: line wrong: $(grep '^plugins:' "$TMP/plugins/fixture/probe-evals/fixture-target-pos-train-01/prompt.md")"
+fi
+run emit-plugin-eval "$TMP/probes-cross" "$TMP/plugins/fixture/a/b" >/dev/null 2>&1
+if grep -qxF 'plugins: ["../../..", "../../../../alpha", "../../../../beta"]' "$TMP/plugins/fixture/a/b/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval computes plugins: paths from where the cases land"
+else
+  fail "emit-plugin-eval plugins: paths ignore the out dir depth: $(grep '^plugins:' "$TMP/plugins/fixture/a/b/fixture-target-pos-train-01/prompt.md")"
+fi
+
+write_cross_probe probes-missing '["alpha:y", "gamma:q"]'
+out="$(run emit-plugin-eval "$TMP/probes-missing" "$TMP/plugins/fixture/missing-evals" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -qF 'needs plugin gamma' <<<"$out" && [[ ! -e "$TMP/plugins/fixture/missing-evals" ]]; then
+  pass "emit-plugin-eval refuses a competitor plugin with no directory, before writing"
+else
+  fail "emit-plugin-eval should exit 2 for a missing competitor plugin and write nothing (rc=$rc): $out"
+fi
+
+outside="$(mktemp -d)"
+out="$(run emit-plugin-eval "$TMP/probes-cross" "$outside/evals" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -qF 'must sit inside' <<<"$out" && [[ ! -e "$outside/evals" ]]; then
+  pass "emit-plugin-eval refuses an out dir outside the repo root when a probe has rivals"
+else
+  fail "emit-plugin-eval should exit 2 for an out dir outside the repo root (rc=$rc): $out"
+fi
+mkdir -p "$outside/kept"
+out="$(run emit-plugin-eval "$TMP/probes-cross" "$outside/kept" 2>&1)"
+if [[ -d "$outside/kept" ]]; then
+  pass "emit-plugin-eval leaves an empty out dir it did not create"
+else
+  fail "emit-plugin-eval removed an out dir it did not create"
+fi
+rm -rf "${outside:?}"
+
 jq '.skills = []' "$TMP/score.json" >"$TMP/empty.json"
 if run compare "$TMP/score.json" "$TMP/empty.json" >/dev/null 2>&1; then
   fail "compare over mismatched skill sets should exit non-zero"

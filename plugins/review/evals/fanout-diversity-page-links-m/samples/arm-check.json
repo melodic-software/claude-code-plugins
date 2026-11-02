@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high]. Returned no result: []. Codex left out by request.",
+      "why": "repository layer read, one leaf per model tier, Codex not in the Ran list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nThe role map resolved fewer than two tiers, so the sweep ran lens.\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "model fell back to lens"
+    },
+    {
+      "answer": "fanout_diversity: model (docs/conventions/review.yaml)\n\n## Surfaces\n\nRan: [model:opus@high, model:sonnet@high, codex]. Returned no result: [].",
+      "why": "Codex ran in an arm that leaves it out"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | reserve reads the stock level, awaits confirmSku, then writes available - qty. Two checkouts for the last unit both read 1 during the await, both pass the check and both write 0, so one unit is sold twice. | Re-read and check the stock after the await |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the concurrent reservations and the oversell at CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/inventory.js:14 | code-reviewer | confirmSku adds a network round trip to every reservation; consider caching the result. | Cache confirmSku |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the awaited call at SUGGESTION, without the concurrent input or the oversell"
+    }
+  ]
+}

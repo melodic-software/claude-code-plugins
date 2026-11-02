@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/price-cents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/invoice.js:4 | code-reviewer | The commit says every caller now works in cents, but invoiceLine still treats parsePrice's result as dollars. A line of 2 at 12.34 prints $2468.00 instead of $24.68. | Divide by 100 in invoiceLine |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the unchanged caller, an input and the wrong amount at CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/price-cents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/price.js:3 | code-reviewer | parsePrice changed its return unit; consider renaming it parsePriceCents. | Rename parsePrice |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the contract change at SUGGESTION, without the stale caller or the wrong amount"
+    }
+  ]
+}

@@ -42,6 +42,14 @@
     {
       "answer": "Tell me when you are done, once the runner shows as Idle in the list, like this:\n\n```powershell\n./config.cmd\n```",
       "why": "a long gap before the colon still needs a non-command fence"
+    },
+    {
+      "answer": "type `cd C:\\actions-runner` and press Enter. Let me know when you're done.",
+      "why": "the code span after type is a command to run, not a reply"
+    },
+    {
+      "answer": "Then type `./config.cmd` in the PowerShell window and wait.",
+      "why": "a command typed into a terminal, not a reply"
     }
   ]
 }

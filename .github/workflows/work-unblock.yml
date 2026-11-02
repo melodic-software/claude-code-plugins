@@ -206,6 +206,8 @@ jobs:
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (github.event_name == 'schedule' || steps.who.outputs.proceed == 'true')
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: work-unblock

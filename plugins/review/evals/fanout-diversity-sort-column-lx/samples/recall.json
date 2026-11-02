@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-sort\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/routes/products.js:15 | code-reviewer | An unknown sort value falls back to name silently; a 400 for it would tell the client its sort was ignored. | Consider rejecting unknown sort values |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-sort\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/routes/products.js:17 | security-reviewer | The ORDER BY clause is built with a template literal from req.query.sort, so a caller can inject SQL through the sort parameter. | Bind or validate the sort value |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "an IMPORTANT finding raises the decoy, which the SORT_COLUMNS Map lookup rules out"
+    }
+  ]
+}

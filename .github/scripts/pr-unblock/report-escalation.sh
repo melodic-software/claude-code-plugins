@@ -55,6 +55,10 @@
 #
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
+# In a job, each gh call keeps its rate-limit reading for the job-end
+# api-budget notice (.github/actions/log-api-budget).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 die() {
   printf 'report-escalation.sh: %s\n' "$*" >&2

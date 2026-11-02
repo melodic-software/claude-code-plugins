@@ -991,6 +991,8 @@ jobs:
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge
@@ -2290,6 +2292,9 @@ jobs:
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true' && steps.superseded.outputs.superseded != 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: resolve-config
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-merge

@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k08"
+  },
+  "notes": {
+    "shape": "A paragraph that orders override mechanisms from several upstream pages into one reach ladder, with this repository's own routing rule inside it; the matched words are a list of environment variable names.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 holds on the variable list. C2 FAILS: a list of variable names is the vocabulary of the mechanism, not the source's expression. C3 FAILS: the pointer under the paragraph names the sections for the variables and the allowlist. C4 FAILS: the cross-page ordering and the upward-only rule exist in no source.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.121, jaccard 0.081, longest matched span 17 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.000, longest span 0 words).",
+    "carries": "A matched run of identifiers inside a local synthesis. A run that flags it counts shared names as shared prose."
+  }
+}

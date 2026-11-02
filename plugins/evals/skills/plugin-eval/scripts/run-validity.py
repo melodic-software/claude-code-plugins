@@ -40,6 +40,14 @@ one line per check, detail lines indented under it:
                       working shell, whatever its exit code. A 0-turn run whose
                       trace holds assistant messages ran in a forked session (a
                       slash-invoked `context: fork` skill) and passes
+    plugins loaded    every suite.plugins plugin, named by its
+                      .claude-plugin/plugin.json (else its directory), is in
+                      each with-arm run's init plugins list with no
+                      plugin_errors entry; a with-arm run that lacks one, or
+                      reports a load error for one, ran without the plugin
+                      under test and is a FAIL naming the plugin and the
+                      error. A with-arm run with no trace, no init line or no
+                      plugins list on it is a warning
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -130,6 +138,8 @@ SUITE = "suite"
 SUITE_ROOT = "root"  # suite.root, the directory case dirs are relative to
 SUITE_ABLATION = "ablation"  # suite.ablation
 SUITE_PLUGINS, PLUGIN_PATH = "plugins", "path"  # suite.plugins[].path
+PLUGIN_MANIFEST = (".claude-plugin", "plugin.json")  # under a suite.plugins path
+MANIFEST_NAME = "name"
 CASES = "cases"
 CASE_NAME = "name"
 CASE_DIR = "dir"  # cases[].dir, relative to suite.root
@@ -217,6 +227,32 @@ SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
 # A path that resolves against the validator's own process, matched normalized.
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
+# Same-command shell variables (shell_words): an unquoted NAME= opening a word,
+# and a $NAME or ${NAME}.
+SHELL_NAME = r"[A-Za-z_][A-Za-z0-9_]*"
+ASSIGNMENT = re.compile(r"(%s)=" % SHELL_NAME)
+EXPANSION = re.compile(r"\$(?:(%s)|\{(%s)\})" % (SHELL_NAME, SHELL_NAME))
+# A value a later $NAME cannot stand for as one literal word: empty, or holding
+# whitespace, an expansion, a glob or brace, a redirect, or a tilde the shell
+# would expand; or a bare name, which a later read "$X" or declare "$X=..."
+# would write through, so $X stays unresolved.
+UNRECORDED_VALUE = re.compile(r"\A\Z|[\s$`*?\[{<>]|\A~|:~|\A%s\Z" % SHELL_NAME)
+# A command holding one of these can set or split a variable in a way not traced.
+NO_RESOLVE = ("`", "<<", "IFS")
+# Names the shell sets, ignores assignments to or holds readonly, so an earlier
+# assignment does not fix their value.
+SHELL_SET = frozenset(
+    "_ PWD OLDPWD RANDOM SRANDOM SECONDS LINENO REPLY OPTARG OPTIND HISTCMD"
+    " EPOCHSECONDS EPOCHREALTIME BASHPID PPID UID EUID GROUPS FUNCNAME"
+    " SHELLOPTS MAPFILE PIPESTATUS DIRSTACK COPROC".split()
+)
+RESETS = ("eval", "source", ".")  # run other shell code, which may set any name
+# Words opening or closing a compound command: an assignment inside one may not run.
+COMPOUND = frozenset(
+    "if then else elif fi while until for select do done case esac function { }".split()
+)
+# The operators after which an assignment that ran stays set in the shell.
+KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
 # A redirect word that names no file the command reads or writes: an fd
 # duplication or close (2>&1, >&2, 2>&-) or a redirect to /dev/null, with or
 # without its fd (>/dev/null, 2>/dev/null, &>/dev/null). A bare operator (2>)
@@ -242,6 +278,17 @@ MAX_TURNS_ERROR = re.compile(
 )
 TRACE_ERRORS = "errors"  # on the result line
 TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
+# The init line lists the plugins the session loaded and the ones that failed
+# to load; the check reads both by these keys, takes a missing failure list as
+# none failed, and matches a loaded name with or without an @marketplace suffix.
+# - Pointer: when the init line's plugin fields may have changed, fetch
+#   https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage live.
+# - As of: 2026-11-01
+# - Recheck trigger: the init message renames or drops plugins or
+#   plugin_errors, or renames a field these keys read from their entries.
+TRACE_PLUGINS, LOADED_NAME, LOADED_PATH = "plugins", "name", "path"
+TRACE_PLUGIN_ERRORS = "plugin_errors"
+ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message", "path"
 # Tools emit-plugin-eval's README removes from a probe run with --disallow-tools.
 # The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
@@ -764,6 +811,125 @@ def check_started(runs):
     return PASS, summary, forked, None
 
 
+def suite_plugins(suite, base):
+    """(name, path) of each suite.plugins entry, the name read from its
+    .claude-plugin/plugin.json, else the directory's own name."""
+    plugins = []
+    for plugin in as_list(suite.get(SUITE_PLUGINS)):
+        path = resolve(plugin.get(PLUGIN_PATH), base)
+        if not path:
+            continue
+        path, name = os.path.normpath(path), None
+        try:
+            with open(os.path.join(path, *PLUGIN_MANIFEST), encoding="utf-8") as handle:
+                name = as_dict(json.load(handle)).get(MANIFEST_NAME)
+        except (OSError, ValueError):
+            pass
+        if not isinstance(name, str) or not name:
+            name = os.path.basename(path)
+        plugins.append((name, path))
+    return plugins
+
+
+def init_line(run):
+    """The run's (system, init) trace line, or {}."""
+    return next(
+        (
+            line
+            for line in run.trace or []
+            if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
+        ),
+        {},
+    )
+
+
+def names_plugin(entry, name_key, path_key, plugin):
+    """True when a trace entry's name (bare or name@marketplace) or path is plugin's."""
+    name, path = plugin
+    label, entry_path = entry.get(name_key), entry.get(path_key)
+    return (isinstance(label, str) and (label == name or label.startswith(name + "@"))) or (
+        isinstance(entry_path, str)
+        and bool(entry_path)
+        and os.path.normpath(entry_path) == path
+    )
+
+
+def load_error(error):
+    return "%s: %s" % (error.get(ERROR_TYPE) or "error", error.get(ERROR_MESSAGE) or "no message")
+
+
+def check_plugins_loaded(runs, plugins):
+    """A with-arm run whose init line reports a plugin_errors entry for a suite
+    plugin, or leaves one out of its loaded plugins, ran without the plugin
+    under test, so its score measures the bare model. A with-arm run whose
+    init plugins list cannot be read is a warning."""
+    if not plugins:
+        return PASS, "no suite.plugins entry to check", [], None
+    details, failed, causes, unread = [], 0, set(), []
+    for r in (r for r in runs if r.arm == "with"):
+        init = init_line(r)
+        if not isinstance(init.get(TRACE_PLUGINS), list):
+            unread.append(r)
+            continue
+        loaded, errors = as_list(init[TRACE_PLUGINS]), as_list(init.get(TRACE_PLUGIN_ERRORS))
+        problems = []
+        for plugin in plugins:
+            name = plugin[0]
+            own = [e for e in errors if names_plugin(e, ERROR_PLUGIN, ERROR_PATH, plugin)]
+            for error in own:
+                problems.append("plugin %s failed to load: %s" % (name, load_error(error)))
+                causes.add("%s (%s)" % (name, error.get(ERROR_TYPE) or "error"))
+            if not any(names_plugin(p, LOADED_NAME, LOADED_PATH, plugin) for p in loaded):
+                # A load error filed under another name, such as a missing
+                # dependency's, may be why this plugin is absent.
+                others = [e for e in errors if e not in own]
+                listed = "; ".join(
+                    "%s %s" % (e.get(ERROR_PLUGIN), load_error(e)) for e in others
+                )
+                problems.append(
+                    "plugin %s is not among the loaded plugins%s"
+                    % (name, "; plugin_errors: " + listed if others else "")
+                )
+                if not own:
+                    types = ", ".join(
+                        "%s %s" % (e.get(ERROR_PLUGIN), e.get(ERROR_TYPE) or "error")
+                        for e in others
+                    )
+                    causes.add(
+                        "%s (not loaded%s)"
+                        % (name, "; plugin_errors: " + types if others else "")
+                    )
+        if problems:
+            failed += 1
+            details += ["%s: %s (%s)" % (r.where, p, r.trace_path) for p in problems]
+    unread_details = [
+        "%s: no init plugins list (%s)" % (r.where, r.trace_path or "no trace")
+        for r in unread
+    ]
+    if failed:
+        count = plural(failed, "with-arm run")
+        unread_note = (
+            "; %s with no readable init plugins list" % plural(len(unread), "with-arm run")
+            if unread
+            else ""
+        )
+        return (
+            FAIL,
+            "the plugin under test did not load in %s%s" % (count, unread_note),
+            details + unread_details,
+            "the plugin under test did not load in %s: %s"
+            % (count, ", ".join(sorted(causes))),
+        )
+    if unread:
+        return (
+            WARN,
+            "%s with no readable init plugins list" % plural(len(unread), "with-arm run"),
+            unread_details,
+            "plugins loaded unread in %s" % plural(len(unread), "run"),
+        )
+    return PASS, "every with-arm run loaded %s" % ", ".join(n for n, _ in plugins), [], None
+
+
 def single_arm(case, root):
     """True when the result records no without-arm for the case at all and its
     case.yaml sets context.history_file: claude plugin eval runs such a case
@@ -830,41 +996,217 @@ def rooted(path):
     return os.path.splitdrive(path or "")[1][:1] in (os.sep, os.altsep)
 
 
+def shell_tokens(command):
+    """A Bash command as tokens: ("op", text) for an unquoted ;, &, &&, |, ||, (,
+    ) or newline, else ("word", parts), each part (text, quote), quote None for
+    unquoted text, '"' for double-quoted text and "'" for text the shell takes as
+    written (single quotes or a backslash escape). A & or | right after < or >,
+    or a & before >, stays in its redirect's word. None when a quote is left open
+    or a backslash ends the command."""
+    tokens, parts, i, n = [], [], 0, len(command)
+
+    def add(text, quote):
+        if parts and parts[-1][1] == quote:
+            parts[-1] = (parts[-1][0] + text, quote)
+        else:
+            parts.append((text, quote))
+
+    def end_word():
+        if parts:
+            tokens.append(("word", parts[:]))
+            parts.clear()
+
+    while i < n:
+        char = command[i]
+        if char == "\\":
+            if i + 1 == n:
+                return None
+            if command[i + 1] != "\n":
+                add(command[i + 1], "'")
+            i += 2
+        elif char == "'":
+            close = command.find("'", i + 1)
+            if close < 0:
+                return None
+            add(command[i + 1 : close], "'")
+            i = close + 1
+        elif char == '"':
+            i += 1
+            add("", '"')
+            while i < n and command[i] != '"':
+                escaped = command[i + 1 : i + 2]
+                if command[i] == "\\" and escaped in ("$", "`", '"', "\\", "\n"):
+                    if escaped != "\n":
+                        add(escaped, "'")
+                    i += 2
+                else:
+                    add(command[i], '"')
+                    i += 1
+            if i >= n:
+                return None
+            i += 1
+        elif char in " \t":
+            end_word()
+            i += 1
+        elif char in "\n;&|()" and not (
+            (
+                char in "&|"
+                and parts
+                and parts[-1][1] is None
+                and parts[-1][0].endswith(("<", ">"))
+            )
+            or command.startswith("&>", i)
+        ):
+            end_word()
+            op = command[i : i + 2] if command[i : i + 2] in ("&&", "||") else char
+            tokens.append(("op", op))
+            i += len(op)
+        else:
+            add(char, None)
+            i += 1
+    end_word()
+    return tokens
+
+
+def assignment(parts):
+    """The match of a word's opening unquoted NAME=, else None."""
+    return ASSIGNMENT.match(parts[0][0]) if parts[0][1] is None else None
+
+
+def expand(parts, names):
+    """A word's text, each $NAME or ${NAME} outside single quotes replaced by
+    names[NAME], one with no entry left as written."""
+    return "".join(
+        text
+        if quote == "'"
+        else EXPANSION.sub(lambda m: names.get(m.group(1) or m.group(2), m.group(0)), text)
+        for text, quote in parts
+    )
+
+
+def shell_words(command):
+    """A Bash command's words as (text, lead, simple) triples, quotes removed. A $NAME or
+    ${NAME} outside single quotes takes the value of an earlier NAME=value in the
+    same command when that assignment stands alone as a command the shell is sure
+    to run in its own process (at the top level, first or after ;, a newline or
+    an && whose left side was such an assignment, before any compound command or
+    # comment) and its value is one literal word (UNRECORDED_VALUE). A later
+    word or assignment value that holds the name other than as $NAME or ${NAME},
+    an eval, source or ., or any assignment to it not recorded so drops the name,
+    as in read NAME, printf -vNAME, ((NAME=1)) or E="$((NAME=1))". Every other
+    expansion stays as written. lead marks each command's first word and each
+    assignment, whose first piece names a command or a variable, not a path.
+    simple numbers the simple command a word belongs to, None for a BASH_READERS
+    command reading a pipe (after |) or one that follows a ), whose words are the
+    compound's redirects.
+    None when the command does not parse."""
+    tokens = shell_tokens(command)
+    if tokens is None:
+        return None
+    names, words, simple = {}, [], []
+    recording = not any(mark in command for mark in NO_RESOLVE)
+    depth, certain, at_command, piped, count = 0, True, True, False, 0
+    for kind, value in tokens + [("op", None)]:
+        if kind == "word":
+            simple.append(value)
+            continue
+        lead = at_command
+        verb = next(("".join(t for t, _ in p) for p in simple if not assignment(p)), None)
+        number = count if at_command and not (piped and verb in BASH_READERS) else None
+        alone = bool(simple) and at_command and all(assignment(p) for p in simple)
+        sure = alone and recording and depth == 0 and certain and value in KEEPS_ASSIGNMENT
+        for parts in simple:
+            match = assignment(parts) if lead else None
+            if match:
+                name = match.group(1)
+                raw = "".join(text for text, _ in parts)
+                mentions = EXPANSION.sub("", raw[match.end() :])
+                for other in [other for other in names if other in mentions]:
+                    del names[other]
+                text = expand([(parts[0][0][match.end() :], None)] + parts[1:], names)
+                words.append((name + "=" + text, True, number))
+                names.pop(name, None)
+                if (
+                    sure
+                    and name not in SHELL_SET
+                    and not name.startswith("BASH")
+                    and not UNRECORDED_VALUE.search(text)
+                ):
+                    names[name] = text
+                continue
+            raw = "".join(text for text, _ in parts)
+            if lead and raw in RESETS:
+                names.clear()
+            if (lead and raw in COMPOUND) or (parts[0][1] is None and raw[:1] == "#"):
+                recording = False
+            mentions = EXPANSION.sub("", raw)
+            for name in [name for name in names if name in mentions]:
+                del names[name]
+            words.append((expand(parts, names), lead, number))
+            lead = False
+        simple = []
+        certain = value in (";", "\n", None) or (value == "&&" and certain and sure)
+        if value == "(":
+            depth += 1
+        elif value == ")":
+            depth = max(depth - 1, 0)
+        at_command = value != ")"
+        piped = value == "|"
+        count += 1
+    return words
+
+
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
-    redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
-    REDIRECT word naming no file (2>&1, 2>/dev/null) is dropped first. A
-    word UNRESOLVED matches, a relative path with a slash or any later word that
-    is neither rooted nor a flag (cwd-relative, so possibly the plugin), a path
-    OWN_PROCESS matches, no rooted word, or a command that does not parse adds
-    None, which inside() counts as inside."""
-    try:
-        words = shlex.split(command) if isinstance(command, str) else None
-    except ValueError:
-        words = None
+    redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count, after
+    shell_words puts each same-command variable it resolves in place. A REDIRECT
+    word naming no file (2>&1, 2>/dev/null) is dropped first. A word UNRESOLVED
+    matches, a relative path with a slash or any word that is neither rooted, a
+    flag nor the command or variable name opening a lead word (cwd-relative, so
+    possibly the plugin), a simple command other than a BASH_READERS one reading a
+    pipe that names
+    no rooted argument outside a redirect (ls, make: it works in the working
+    directory, so possibly the plugin), a path OWN_PROCESS matches, no rooted
+    word, or a command that does not parse adds None, which inside() counts as
+    inside."""
+    words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return (None,)
     kept, skip = [], False
-    for index, word in enumerate(words):
+    for index, (text, lead, simple) in enumerate(words):
         if skip:
             skip = False
             continue
-        redirect = REDIRECT.fullmatch(word)
+        redirect = REDIRECT.fullmatch(text)
         if redirect and redirect.group(1):
             continue
-        if redirect and words[index + 1 : index + 2] == [DEV_NULL]:
+        if redirect and [w for w, _, _ in words[index + 1 : index + 2]] == [DEV_NULL]:
             skip = True
             continue
-        kept.append(word)
+        kept.append((text, lead, simple))
     words = kept
     if not words:
         return (None,)
-    values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
-    paths = tuple(v for v in values if rooted(v))
+    values, named, target = [], {}, False
+    for text, lead, simple in words:
+        first = lead and not SHELL_SPLIT.match(text)
+        pieces = [v for v in SHELL_SPLIT.split(text) if v]
+        values += [(v, first and k == 0) for k, v in enumerate(pieces)]
+        # A redirect's file (>/x, or the word after a bare >) is no argument,
+        # nor is a prefix assignment's value (PYTHONPATH=/x pytest).
+        argument = not (target or REDIRECT.match(text))
+        target = REDIRECT.fullmatch(text) is not None
+        if simple is not None and not (lead and ASSIGNMENT.match(text)):
+            named[simple] = named.get(simple, False) or (
+                argument
+                and any(rooted(v) for k, v in enumerate(pieces) if k or not first)
+            )
+    paths = tuple(v for v, _ in values if rooted(v))
     unresolved = (
-        any(UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values)
-        or any(not rooted(v) and not v.startswith("-") for v in values[1:])
+        any(UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v, _ in values)
+        or any(not (lead or rooted(v) or v.startswith("-")) for v, lead in values)
         or any(OWN_PROCESS.search(posixpath.normpath(v)) for v in paths)
+        or not all(named.values())
     )
     return paths + (None,) if unresolved or not paths else paths
 
@@ -1654,7 +1996,8 @@ def main(argv=None):
         lines.append(
             "traces: %d of %d tracePaths do not resolve (the run needs --keep-temp, and its"
             " directories must still exist); permission denials, probe tools and the"
-            " trace model are unchecked for those runs" % (len(unresolved), len(runs))
+            " trace model are unchecked for those runs, and plugins loaded warns for"
+            " each with-arm run among them" % (len(unresolved), len(runs))
         )
         lines += [
             "  %s: %s" % (r.where, r.trace_path or "no tracePath") for r in unresolved
@@ -1663,6 +2006,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
+        ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base))),
         ("permission denials", check_denials(runs, plugin_roots, root)),
         ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),

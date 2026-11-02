@@ -1,6 +1,6 @@
 {
   "name": "ai-slop",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "description": "Detects and removes AI-writing tells (slop) in tracked markdown, commit messages, PR bodies and interface copy: em dashes, emoji formatting, AI vocabulary, negative parallelisms, chatbot phrases, filler, hedging, citation artifacts and model-era phrases, from a catalog based on Wikipedia's Signs of AI writing plus a graded model-vocabulary inventory. Read-only audit by default (deterministic detector plus judgment rubric); an explicit fix action rewrites findings behind a semantic-diff guard.",
   "author": {
     "name": "Melodic Software",
