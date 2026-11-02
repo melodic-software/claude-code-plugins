@@ -4,7 +4,6 @@
   "skill_dir": "plugins/review/skills/quality-gate",
   "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills and toolchain:ratchet.",
   "competitors": [
-    "review:audit-enforceability",
     "review:explain-change",
     "review:fanout",
     "toolchain:ratchet",

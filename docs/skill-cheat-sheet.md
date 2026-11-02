@@ -170,7 +170,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/mcp-tools:audit`](../plugins/mcp-tools/skills/audit/SKILL.md) | `mcp-tools` | Audit MCP tool definitions against design quality criteria |
 | [`/mcp-tools:audit-posture`](../plugins/mcp-tools/skills/audit-posture/SKILL.md) | `mcp-tools` | Inventory configured MCP servers and flag floating versions and other supply-chain risks |
 | [`/plugin-quality:audit`](../plugins/plugin-quality/skills/audit/SKILL.md) | `plugin-quality` | Behavioral audit of a plugin component ending in a maintainer work item |
-| [`/review:audit-enforceability`](../plugins/review/skills/audit-enforceability/SKILL.md) | `review` | Propose the cheapest deterministic rung for each review finding |
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |
 | [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |

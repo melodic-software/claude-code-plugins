@@ -1633,6 +1633,15 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   await main(env, { github: fake({ jobs }) });
   assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), shapeJobs(RUN, jobs.jobs));
   assert.deepEqual(keptJobs(env, RUN), shapeJobs(RUN, jobs.jobs));
+  // Each kept job carries its html_url as url, and keptJobs reads it back.
+  const jobPage = `https://github.com/${REPO}/actions/runs/${RUN}/job/9002`;
+  const linked = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
+  const withUrl = { ...jobs, jobs: jobs.jobs.map((job) => (job.id === 9002 ? { ...job, html_url: jobPage } : job)) };
+  await main(linked, { github: fake({ jobs: withUrl }) });
+  const keptLinked = JSON.parse(readFileSync(path.join(linked.RUNNER_TEMP, KEPT_JOBS), "utf8")).jobs;
+  assert.deepEqual(keptLinked.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
+  assert.equal(keptLinked.find((job) => job.name === "ci-status").url, null);
+  assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "lint-repo"), { name: "lint-repo", conclusion: "success", url: jobPage });
   // A head already judged, after its jobs were read, leaves no file.
   const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
