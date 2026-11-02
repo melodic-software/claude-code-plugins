@@ -496,6 +496,10 @@ jobs:
           TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
           WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $HOLDER =~ ^[1-9][0-9]*$ && $TIMEOUT_MINUTES =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::the issue number, lanes App sender id or timeout is not a positive integer"
             exit 1
@@ -3481,6 +3485,10 @@ jobs:
           RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           sha=""
           if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
             sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha) || sha=""

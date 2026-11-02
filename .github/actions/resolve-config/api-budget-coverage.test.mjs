@@ -24,7 +24,6 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 
 // Jobs that call GitHub and are not yet covered, each with the exact gap the
 // detector reports for it, so a gap that grows, shrinks or closes fails.
-const RESOLVE = "resolve-config without API_BUDGET_TOKEN";
 const NO_LOG = "no job-end log-api-budget step";
 const LANE_JOB =
   "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
@@ -32,9 +31,6 @@ const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const REPORT_ESCALATION =
   ".github/scripts/pr-unblock/report-escalation.sh does not wrap its gh calls";
-const READ_HEAD =
-  'step "Read the PR head" calls gh without api_budget_wrap_gh';
-const READ_HEAD_SHA = `step "Read the PR's current head SHA" calls gh without api_budget_wrap_gh`;
 const START_FULL_RUN =
   'step "Start the full CI run on main" calls gh without api_budget_wrap_gh';
 const ALLOWED = new Map([
@@ -66,23 +62,6 @@ const ALLOWED = new Map([
   ["pr-merge.yml:dispatch-full-run", START_FULL_RUN],
   ["pr-merge.yml:post-merge-dispatch", START_FULL_RUN],
   [
-    "pr-refine.yml:fix-docs-head",
-    `step "Read the PR's head SHA" calls gh without api_budget_wrap_gh`,
-  ],
-  [
-    "pr-run-activity-read.yml:broker-check",
-    'step "Claim the issue with a lane lease" calls gh without api_budget_wrap_gh',
-  ],
-  ["pr-run-activity-read.yml:report", READ_HEAD_SHA],
-  ["pr-run-activity-write.yml:report", READ_HEAD_SHA],
-  ["pr-unblock.yml:address-feedback-select", READ_HEAD],
-  ["pr-unblock.yml:resolve-conflicts-select", READ_HEAD],
-  ["pr-unblock.yml:review-dependency-select", READ_HEAD],
-  ["pr-unblock.yml:sync-shared-copies-select", READ_HEAD],
-  // The detector judges selection-audit.sh by the whole file; trace, the mode
-  // this job runs, makes none of its gh calls (red-replay does).
-  ["maintenance-audit-test-selection.yml:audit-test-selection", NO_LOG],
-  [
     "release-publish-plugins.yml:build",
     `step "Write the release commit" calls gh without api_budget_wrap_gh; step "Open or update the release pull request" calls gh without api_budget_wrap_gh; step "Name the skipped plugins on the open release pull request" calls gh without api_budget_wrap_gh; ${DECIDE_REBUILD}`,
   ],
@@ -96,23 +75,6 @@ const ALLOWED = new Map([
     `step "Clear a cost-only review hold the owner decided" calls gh without api_budget_wrap_gh; step "Fail a lanes App pull request its body or a member holds" calls gh without api_budget_wrap_gh; ${REPORT_ESCALATION}`,
   ],
   ["pr-unblock.yml:report-stop-status", REPORT_ESCALATION],
-  // resolve-config and check-trusted-trigger read readings into
-  // API_BUDGET_TOKEN's bucket only when the job or step sets it.
-  ["intake-triage.yml:apply-refinement", RESOLVE],
-  ["pr-merge.yml:merge", RESOLVE],
-  ["pr-merge.yml:enable-auto-merge", RESOLVE],
-  ["pr-review-main.yml:review", RESOLVE],
-  ["pr-review-main.yml:review-subscription", RESOLVE],
-  ["pr-review-main.yml:review-fallback", RESOLVE],
-  ["pr-unblock.yml:adjudicate-feedback", RESOLVE],
-  ["pr-verify.yml:check-intent", RESOLVE],
-  ["pr-verify.yml:check-intent-subscription", RESOLVE],
-  ["pr-verify.yml:check-intent-fallback", RESOLVE],
-  ["work-unblock.yml:label-unblocked", RESOLVE],
-  [
-    "pr-unblock-dispatch.yml:dispatch",
-    "check-trusted-trigger without API_BUDGET_TOKEN",
-  ],
 ]);
 
 const GH_CALL =

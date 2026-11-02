@@ -154,6 +154,16 @@ jobs:
             ${{ runner.temp }}/selection-audit/logs/
           retention-days: 7
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        # actionlint rejects the $/ form zizmor asks for; the comment above
+        # pr-require-checks.yml's Run zizmor step has the detail.
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   audit-failed-suite-selection:
     if: >-
       github.event_name == 'workflow_run' &&
