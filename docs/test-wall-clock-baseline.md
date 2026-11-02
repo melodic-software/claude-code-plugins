@@ -186,7 +186,7 @@ and is empty until one is made.
 | `plugins/code-tidying/scripts/comment-tooling-probe.test.sh` | 4 | |
 | `plugins/code-tidying/scripts/evals-fixtures.test.sh` | 2 | |
 | `plugins/code-tidying/scripts/scope-code-files.test.sh` | 1 | |
-| `plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh` | 3 | |
+| `plugins/code-tidying/skills/remove-comments/scripts/detect.test.sh` | 3 | |
 | `plugins/code-tidying/skills/audit-dead-code/scripts/dead-code-scan.test.sh` | 4 | |
 | `plugins/code-tidying/skills/tidy/scripts/open-pr-count.test.sh` | 0 | |
 | `plugins/context-budget/hooks/settings-write-ask.test.sh` | 2 | |

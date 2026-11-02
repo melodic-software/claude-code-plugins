@@ -4,7 +4,7 @@
   "skill_dir": "plugins/attribution/skills/audit",
   "ranking_note": "Authored from the before description at commit e4e24832f7, frozen before any rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling attribution:setup is user-invoked only (disable-model-invocation: true), so it cannot compete and is not listed. The review plugin's doc-drift-detector is an agent, not a skill, so codebase-health:audit stands for docs-versus-code drift. The competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test that the skill stays quiet, not competitor wins.",
   "competitors": [
-    "code-tidying:audit-comment-residue",
+    "code-tidying:remove-comments",
     "docs-hygiene:extract-ssot",
     "codebase-health:audit",
     "ai-slop:audit",

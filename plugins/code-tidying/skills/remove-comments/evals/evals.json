@@ -1,0 +1,425 @@
+{
+  "skill_name": "remove-comments",
+  "evals": [
+    {
+      "id": 1,
+      "name": "deletes-class-a-restatement",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains one code file whose comments restate the adjacent lines: a '// increment counter' above 'counter++;' and a commented-out block of dead code. The file has no other comments.)",
+      "narration": true,
+      "expectations": [
+        "Classifies both comments as class A (zero information) and deletes them outright",
+        "Does not modify any non-comment code in the file",
+        "Reports per-file counts of applied class-A deletions",
+        "Does not commit; leaves the edits in the working tree for review"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "proposes-class-b-without-test-net",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a code file where a comment narrates what a 6-line block does — a class-B extract-function candidate. The repository has no discoverable test command: no test script in the package manifest, no Makefile target, no ecosystem default that resolves.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the block comment as class B with Extract Function as the named move",
+        "Does NOT apply the refactoring or delete the comment, because no runnable test net was discovered",
+        "Emits the class-B treatment as a proposal in the report",
+        "Does not treat the presence of a linter as a substitute for tests"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "safe-mode-applies-removals-only",
+      "prompt": "/code-tidying:remove-comments safe\n\n(The uncommitted diff contains one file with a class-A restating comment, a class-B magic-literal comment, and the repository has a working test suite.)",
+      "narration": true,
+      "expectations": [
+        "Applies the class-A deletion",
+        "Does NOT apply the class-B refactoring even though a test net exists — safe mode restricts applied edits to removals",
+        "Emits the class-B item (Replace Magic Literal) as a proposal",
+        "Report distinguishes applied removals from proposed refactorings"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-touches-exempt-surfaces",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains: a public exported function with a JSDoc block, a file-top license header, a line with '// eslint-disable-next-line', a 'TODO(#412): remove after migration' marker, a terse '// items must stay sorted; binary search depends on it' constraint comment, and a change inside .github/workflows/ci.yml.)",
+      "narration": true,
+      "expectations": [
+        "Leaves the public-API JSDoc, license header, lint directive, and TODO(#412) marker untouched",
+        "Keeps the sorted-items constraint comment as a class-C keep and says why in the report",
+        "Never edits the .github/workflows/ file — excluded path dropped at scoping time",
+        "Refuses to reinterpret 'remove comments' as deleting the class-C or exempt material"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "stages-narrative-before-deletion",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a file with a 10-line comment justifying why one caching strategy was chosen over another; one line of it states a durable constraint — the cache must be invalidated before writes.)",
+      "narration": true,
+      "expectations": [
+        "Extracts the durable constraint into a terse one-line class-C comment",
+        "Stages the removed justification narrative as a proposed commit-message block in the output before the deletion is final",
+        "Does not silently destroy the narrative text",
+        "Recommends handing the staged block to /source-control:commit when committing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "applies-local-move-without-test-net",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a TypeScript file where '// milliseconds since epoch' sits above 'const t = Date.now();' and 't' is used three times in the same function and nowhere else. The repository has no discoverable test command. The tooling probe reports tree-sitter present for typescript.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the comment as class B with Rename Variable as the named move",
+        "APPLIES the rename (to a name such as 'millisecondsSinceEpoch') and deletes the comment despite the absence of a test net, because Rename Variable on a function-local identifier creates no interface",
+        "Runs the change-shape check on the edit and cites its RENAME-ONLY verdict with the identifier mapping in the report",
+        "Reports the item as applied, not proposed, and does not ask for a test suite it already knows is absent"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "reverts-when-ast-proof-fails",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a class-B Rename Variable candidate: '// retry budget in attempts' above 'let n = 3;' where n is function-local. When the rename is applied, the change-shape check reports CODE-CHANGED with kinds=['number'] because the edit also altered a neighboring numeric literal from 3 to 5 instead of returning RENAME-ONLY.)",
+      "narration": true,
+      "expectations": [
+        "Runs the change-shape check after applying the move, before deleting the comment",
+        "On CODE-CHANGED, reverts the move so the file matches its pre-edit content, and restores the comment",
+        "Demotes the item to a proposal and quotes the change-shape verdict, including which token kinds differed",
+        "Leaves no partially applied edit in the working tree"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "never-deletes-discovered-machine-marker",
+      "prompt": "/code-tidying:remove-comments\n\n(The repository ships scripts/check-quiet-exits.sh, a CI gate that greps hook scripts for the annotation '# quiet-exit-ok: <reason>'. The uncommitted diff contains a hook script with the line 'command -v jq >/dev/null 2>&1 || exit 0 # quiet-exit-ok: sink is fire-and-forget' and, elsewhere in the same file, '# increment the counter' above 'count=$((count + 1))'. The marker is not in any universal pragma list.)",
+      "narration": true,
+      "expectations": [
+        "Runs marker discovery before triage and locates the gate's matcher in scripts/check-quiet-exits.sh rather than guessing the marker's spelling",
+        "Treats 'quiet-exit-ok' as a repo-local machine-read marker: exempt, never classified, never deleted",
+        "Deletes only the restating '# increment the counter' comment",
+        "The report names the discovered marker family and the file that consumes it, so the reader can see what was protected and why"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "does-not-treat-heredoc-body-as-comments",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a shell test script that writes a fixture with cat >\"$F\" <<'EOF' whose body includes the lines '# used to buffer; now flushes' and '# as you asked, retry three times', followed by EOF. Above a later command the script has a real restating comment '# print the result' over 'echo \"$result\"'. The tooling probe reports pygments present and tree-sitter present for bash.)",
+      "narration": true,
+      "expectations": [
+        "Does not classify, count, or delete any line inside the heredoc body, because those lines are string data the script writes, not comments",
+        "Deletes the restating '# print the result' comment",
+        "The per-file count in the report excludes the heredoc lines",
+        "The report states which tooling layer read the file (pygments or tree-sitter), not a line-prefix grep"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "reports-degraded-tooling-layer",
+      "prompt": "/code-tidying:remove-comments\n\n(The tooling probe reports pygments absent, tree-sitter absent, and scc absent. The uncommitted diff contains a shell script with two heredocs and a Python module with a docstring and one restating comment.)",
+      "narration": true,
+      "expectations": [
+        "Runs the tooling probe at scope time and reports the layer the run is operating at",
+        "Refuses the apply path on the shell file at grep precision and says why: a line-prefix read cannot distinguish heredoc bodies from comments",
+        "For each absent layer, names the specific capability lost in install-hint shape rather than a generic 'consider installing'",
+        "Does not silently proceed as if it had parser-level precision"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "keeps-rejected-alternative-rationale",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a guard script whose header says 'git branch -D is deliberately NOT blocked: a deleted branch is reflog-recoverable' and 'the helper is deliberately not named dirname, which would shadow the real command for every sourced guard'. Neither sentence has a referent in the adjacent code. The same file has '# increment counter' above 'count=$((count + 1))'.)",
+      "narration": true,
+      "expectations": [
+        "Classifies both header sentences as class C negative information (what the code deliberately does not do, and why an alternative was rejected) and keeps them",
+        "Does not treat 'no referent in the adjacent code' as evidence of class A; recognizes that an absence claim cannot be restated by code that is not there",
+        "Deletes the '# increment counter' restatement",
+        "The report explains the negative-information reasoning for the keeps in one line each"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "repository-rung-is-ranked-and-censused",
+      "prompt": "/code-tidying:remove-comments\n\n(The tree is clean on the default branch, so scope-code-files.sh reports rung=repository with 400 code files. The tooling probe reports pygments present and scc absent. The repository's most-churned paths are CHANGELOG.md, plugin.json and .github/workflows/ci.yml; one shell library is byte-identical in 18 locations.)",
+      "narration": true,
+      "expectations": [
+        "States the resolved rung and asks for confirmation before widening to the whole repository in an interactive session",
+        "Runs rank-comment-targets.py and triages in its order, and says the ranking is a reading order, not evidence",
+        "The ranking excludes the changelog, manifest and CI workflow as administrative paths and shows the 18-copy library once with instances=18",
+        "Runs comment-census.py --json as the baseline before any edit and reports the delta in lines, bytes and estimated tokens at the end, with tokens labeled as an estimate"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "over-budget-class-c-is-rewritten-under-strict",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is unset. The uncommitted diff contains a 14-line comment above a retry loop: two lines state the durable constraint that the backoff must stay under the upstream's 30-second timeout, the remaining twelve narrate how three alternatives were tried and why each was rejected.)",
+      "narration": true,
+      "expectations": [
+        "Classifies the comment as class C (a constraint plus rationale) and keeps the constraint",
+        "Rewrites the comment to within the two-line budget, keeping the 30-second constraint verbatim in substance",
+        "Stages the twelve lines of rejected-alternative narrative as a proposed commit-message block before the deletion is final, and does not silently destroy them",
+        "Runs change-shape.py on the rewrite and cites COMMENT-ONLY"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "balanced-posture-reports-instead-of-rewriting",
+      "prompt": "/code-tidying:remove-comments\n\n(comment_posture is balanced. The uncommitted diff contains the same 14-line constraint-plus-rationale comment as the strict case, and one '// increment counter' restatement.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the restatement with a COMMENT-ONLY verdict",
+        "Keeps the 14-line comment unrewritten and reports it as over budget with the line count and the budget",
+        "Does not treat balanced as permission to delete an uncertain comment",
+        "Names the posture in the report so the reader can see why no rewrite was applied"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "commented-out-code-detector-yields-verified-candidates",
+      "prompt": "/code-tidying:remove-comments\n\n(The uncommitted diff contains a shell script with '# rm -rf \"$TMP\"' followed by '# if [[ -n \"$x\" ]]; then echo yes; fi' as two adjacent comment lines, and a prose comment '# cd into the dir and print the result'. The tooling probe reports tree-sitter present for bash and ruff absent.)",
+      "narration": true,
+      "expectations": [
+        "Runs commented-out-code.py, reads its finding for the two-line block, and classes the block A because the text is statements rather than a sentence",
+        "Does not flag the prose comment even though it parses as a command in Bash, because the reparse shows no structure prose cannot produce",
+        "Deletes the two-line block with a COMMENT-ONLY verdict and keeps the prose comment for ordinary triage",
+        "Notes ruff as absent with the capability lost, rather than failing"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "aggressive-deletes-non-exempt-rationale-with-staging",
+      "prompt": "/code-tidying:remove-comments aggressive lib/worker.sh\n\n(lib/worker.sh is committed. It carries a rationale comment explaining why a retry count is three, a warning that one function must run before another or the lock file deadlocks, a license header, and a '# shellcheck disable=SC2034' directive with its justification. The repository has no test suite and tree-sitter is present for bash.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the retry rationale with its narrative staged in the proposed commit-message block, without running a git log -L recoverability check on it",
+        "Keeps the deadlock warning, rewritten to at most class_c_max_lines, and names it as a warning of consequence rather than citing criterion-2 evidence",
+        "Keeps the license header and the shellcheck directive with its justification untouched",
+        "Certifies each deletion COMMENT-ONLY with change-shape.py and reports the next commit touching the file as the staged block's landing place"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "strip-keeps-exempt-surfaces-and-rewrites-nothing",
+      "prompt": "/code-tidying:remove-comments strip lib/worker.sh\n\n(Same file as the aggressive case: a rationale comment, a deadlock warning, a license header, a shellcheck directive with its justification, and a block comment narrating what a six-line section does. A test suite exists and is discoverable.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the rationale, the warning, and the narrating block comment, each certified COMMENT-ONLY",
+        "Does NOT extract a function for the narrating comment even though a test net exists, because strip rewrites no code, and sends that comment's information to the staged block instead",
+        "Keeps the license header and the shellcheck directive with its justification",
+        "Leaves every non-comment line byte-identical"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "standing-aggressive-posture-yields-to-safe",
+      "prompt": "/code-tidying:remove-comments safe lib/worker.sh\n\n(comment_posture is aggressive. The file carries one restating comment above the line it restates and one rationale comment whose reasoning is absent from git history.)",
+      "narration": true,
+      "expectations": [
+        "Applies the class-A deletion of the restating comment",
+        "Does NOT delete the rationale comment: safe wins over the standing aggressive posture, and only class-A deletions are applied",
+        "Emits the rationale removal as a proposal with its narrative staged",
+        "Names safe mode as the effective mode in the report rather than the standing posture"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "report-mode-applies-nothing-and-asks-nothing",
+      "prompt": "/code-tidying:remove-comments report lib/worker.sh\n\n(lib/worker.sh is committed. It carries a '# set the counter to zero' comment above 'counter=0', a rationale comment whose reasoning is absent from git history, and a two-line comment that a function extraction would make superfluous. A test suite exists. AskUserQuestion is unavailable.)",
+      "narration": true,
+      "expectations": [
+        "Edits no file: the class-A deletion, the rationale deletion, and the extraction are all emitted as proposals",
+        "Each proposal names the file and line, the class, and the treatment it would apply",
+        "Says the report has no census delta because nothing was edited, rather than reporting +0",
+        "Finishes without asking a question"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "report-added-since-scopes-to-added-lines",
+      "prompt": "/code-tidying:remove-comments report --added-since main\n\n(The branch adds two comment lines to src/app.sh and nothing else. src/app.sh also carries older comments on lines the branch did not touch.)",
+      "narration": true,
+      "expectations": [
+        "Runs added-lines.sh with main to resolve the scope instead of scope-code-files.sh",
+        "Proposes treatments only for the two added comments; the older comments are not triaged or reported",
+        "Edits no file"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "report-constraint-comment-yields-test-or-lint-proposal",
+      "prompt": "/code-tidying:remove-comments report src/\n\n(The current branch is feat/Retry-Fix. src/client.ts has '// Never call fetch directly; go through httpClient so the retry policy applies', and src/queue.ts has '// open() must run before push(), or push() throws'. The memory root .work/ exists without a .gitignore. /corrections:codify is among the available skills.)",
+      "narration": true,
+      "expectations": [
+        "Proposes a lint rule for the forbidden direct fetch call and a regression test for the open-before-push order",
+        "Announces the findings file path under .work/comment-pass/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
+        "The findings file declares type: review-findings, and its row for the lint proposal carries Tier SUGGESTION, the comment's path:line as Location, and code-tidying:remove-comments as the surface",
+        "Names the file and offers /corrections:codify findings with that path without running it",
+        "Edits no file in src/"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "aggressive-keeps-outside-constraints-and-deletes-local-rationale",
+      "prompt": "/code-tidying:remove-comments aggressive lib/sync.sh\n\n(lib/sync.sh is committed and tree-sitter is present for bash. It has '# The storage API rejects batches over 100 items, so chunk at 100' above a chunking loop, '# Field order is fixed by RFC 8785 section 3.2.3' above a serializer call, and '# Picked 4 workers after a local benchmark' above 'workers=4'.)",
+      "narration": true,
+      "expectations": [
+        "Keeps the storage API comment, naming it as behavior an outside party forces",
+        "Keeps the RFC 8785 comment, naming it as a link that explains a constraint",
+        "Deletes the benchmark comment with its narrative staged, since the reason sits inside the repository",
+        "Certifies the deletion COMMENT-ONLY"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "removed-workaround-is-listed-as-open-root-cause-work",
+      "prompt": "/code-tidying:remove-comments aggressive lib/cache.sh\n\n(lib/cache.sh is committed and tree-sitter is present for bash. It has '# Workaround: write twice, our cache wrapper drops the first write after a reconnect' above two identical cache_set calls. The comment gives no link and no removal condition.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the workaround comment with its narrative staged",
+        "Lists the comment by file and line as open root-cause work, saying the double write is still in the code and its cause is unfixed",
+        "Does not change the two cache_set calls and does not attempt the root-cause fix"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "kept-constraint-refuted-by-code-is-obsolete",
+      "prompt": "/code-tidying:remove-comments src/ledger.py\n\n(src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
+      "narration": true,
+      "expectations": [
+        "Re-checks the thread-safety claim against the current code before keeping it and finds it false, citing the lock and the missing _BALANCES global by line",
+        "Reclassifies the thread-safety comment as class A (obsolete) and deletes it behind the COMMENT-ONLY proof",
+        "Keeps the integer-cents comment as class C, because nothing in the code refutes it",
+        "Names the evidence behind each verdict, and for a claim the code alone cannot settle uses /discovery:trace-intent when that skill is available or reports the claim as unverified and then applies the class-C criteria to it"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "classify-residue-shapes-with-tiers",
+      "prompt": "Audit code comments for residue: read evals/fixtures/residue-snippet.py relative to the skill directory and classify what you find.",
+      "expected_output": "Emits a per-file tier table: the 'used to batch writes … now flushes' comment as history-narration (Tier 1), the 'as you asked' comment as conversational-antecedent (Tier 1), the 'Task 2 replaces the old …' comment as plan-reference (Tier 1), and the 'see PR #45' comment as ticket-pr-residue (Tier 2), each with delete/review treatment guidance. No edits are applied.",
+      "files": [
+        "evals/fixtures/residue-snippet.py"
+      ],
+      "expectations": [
+        "Output classifies findings by the skill's shape vocabulary (history-narration, plan-reference, conversational-antecedent, ticket-pr-residue)",
+        "The 'used to … now flushes' comment is flagged as history-narration",
+        "The 'see PR #45' comment is flagged as ticket-pr-residue at Tier 2",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "read-only-even-when-asked-to-fix",
+      "prompt": "Run comment-residue on src/parser.py and just delete the residue comments you find — strip them for me.",
+      "expected_output": "Stays read-only despite the request to edit: surfaces the findings with treatment guidance and does NOT apply Edit/Write. It explains the author applies each deletion, or points to /code-tidying:tidy for the edit-capable pass.",
+      "files": [],
+      "expectations": [
+        "Output does NOT edit or write the file despite the explicit request to strip comments",
+        "Output surfaces findings with treatment guidance for the author to apply",
+        "The read-only contract is honored or explicitly stated"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "sanctioned-todo-not-flagged",
+      "prompt": "Audit a file whose only tracker reference is `# TODO(#123): switch to CRC32 once the format is frozen`. Classify it.",
+      "expected_output": "Recognizes TODO(#issue) as the sanctioned back-reference and does NOT flag it as ticket-pr-residue. Only bare provenance references (see PR #, from branch, JIRA-123) are ticket residue.",
+      "files": [],
+      "expectations": [
+        "The TODO(#123) line is NOT flagged as ticket-pr-residue",
+        "Output states that TODO(#issue) tracking real work is the sanctioned exception"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "code-word-not-in-comment-not-flagged",
+      "prompt": "Audit a file with the line `previously = load_cache()` — 'previously' is an identifier in code, not a comment. Classify it.",
+      "expected_output": "Does NOT flag the code identifier as history-narration: residue detection runs only on the comment portion of a line, so a residue-shaped word in an identifier or string literal is never flagged.",
+      "files": [],
+      "expectations": [
+        "The `previously` identifier in code is NOT flagged as history-narration",
+        "Output states that detection is scoped to the comment portion of a line"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "not-delete-all-comments",
+      "prompt": "Audit a file with `# Sums the payload bytes modulo 2**32.` above the code. Flag it.",
+      "expected_output": "Does NOT flag a legitimate present-tense why/what-it-can't-express comment. Only the five residue shapes are findings; a comment that carries non-obvious intent or a contract stays.",
+      "files": [],
+      "expectations": [
+        "The legitimate present-tense comment is NOT classified as any residue shape",
+        "Output distinguishes residue from comments worth keeping (non-obvious why / interface intent)"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "markdown-is-audit-noise-not-comment-residue",
+      "prompt": "Run comment-residue on docs/notes.md — it contains 'used to do X, now does Y' narration. Flag it.",
+      "expected_output": "Does NOT audit the markdown file — code-comment residue is code-file-only; markdown noise is the sibling /audit-noise's territory. It reports no code targets and routes markdown to /audit-noise.",
+      "files": [],
+      "expectations": [
+        "The .md file is not audited (no findings emitted for it)",
+        "Output routes markdown noise to /audit-noise rather than handling it here"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "origin-notes-are-tier-1-findings",
+      "prompt": "Audit code comments for residue: read evals/fixtures/origin-notes.sh relative to the skill directory and classify what you find.",
+      "expected_output": "Emits exactly five origin-note findings at Tier 1, one per line naming where the block came from or when it was added ('ported from the melodic-software dotfiles profile', 'Merged 2026-07-24 from dot_bashrc', 'Added 2026-08-10 while wiring permission/hook telemetry', 'Copied from the provisioning repo and adapted for Windows', 'Backported 2026-09-01 from main'), each with a delete treatment because git history owns origin. Nothing else in the file is a finding. No edits are applied.",
+      "files": [
+        "evals/fixtures/origin-notes.sh"
+      ],
+      "expectations": [
+        "All five origin-note lines are classified as origin-note at Tier 1 with a delete treatment",
+        "The three license-header lines (Copyright, SPDX-License-Identifier, Licensed under the MIT License) are NOT flagged; a license or attribution header is exempt from this shape even when it carries an origin cue",
+        "None of the four dated stamp lines (verified, Checked, Confirmed, As of) is flagged: a dated stamp is load-bearing, not an origin note",
+        "The why-comment 'Must stay ordered because the parser reads the first match' is NOT flagged",
+        "The bare date line '2026-08-10' is NOT flagged: an origin verb is required",
+        "The 'TODO(#123): tighten the upper bound' marker is NOT flagged; a marker comment is exempt from this shape even when it carries an origin cue",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "weak-history-cues-are-tier-2-and-wrapped-lines-join",
+      "prompt": "Audit a file with the comments `# keeps the order exactly as before`, `# now uses the old shared group`, and a wrapped pair `# grouped for speed (ci-perf Phase` / `# 6b) and nothing else`, plus `# phase 2 of the build parses the header`. Classify them.",
+      "expected_output": "Reports history-narration-weak at Tier 2 (Review, not Delete) for the 'exactly as before' comment, for the 'the old shared group' comment, and once for the wrapped 'Phase 6b' pair, at the first line's number. The 'phase 2 of the build' comment is not a finding. It explains the weak cues also open ordinary prose, which is why a person reviews them. No edits are applied.",
+      "files": [],
+      "expectations": [
+        "'exactly as before' and 'the old shared group' are classified as history-narration-weak at Tier 2 with a review treatment",
+        "The wrapped 'Phase 6b' comment is found once, at the line where it starts",
+        "The 'phase 2 of the build' comment is NOT flagged",
+        "Output explains that the weak cues can be ordinary prose, so they are reviewed rather than deleted",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "workaround-without-link-or-removal-condition-is-flagged",
+      "prompt": "Audit a shell file with these comments and classify them: `# Workaround: the cache client drops the first write after a reconnect, so write twice.`, `# Workaround for the parser crash: https://example.org/bugs/88`, `# Workaround until the vendor SDK 4.2 ships: pin the v1 endpoint.`, `# Workaround for upstream issue #412.`, and the two-line comment `# Workaround: the IDE holds a lock on the output folder;` / `# remove when the IDE releases it after a build.` The file also has the code line `workaround_count=0`.",
+      "expected_output": "Reports one unjustified-workaround finding at Tier 2, on the cache-client comment, with a review treatment that names fixing the cause or adding a link or removal condition. The URL, 'until', and issue-number comments are not findings, the two-line comment is justified by its second line, the issue number is not reported as ticket-pr-residue, and the identifier workaround_count is not flagged. No edits are applied.",
+      "files": [],
+      "expectations": [
+        "The cache-client comment is classified as unjustified-workaround at Tier 2 with a review treatment, not a delete treatment",
+        "The comments carrying a URL, 'until', or an issue number are NOT flagged as unjustified-workaround",
+        "The two-line comment is NOT flagged: the removal condition on its second line justifies the run",
+        "The 'upstream issue #412' comment is NOT reported as ticket-pr-residue, because a workaround's reference is its justification",
+        "The identifier workaround_count is NOT flagged",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "added-since-reports-only-added-lines",
+      "prompt": "/code-tidying:remove-comments audit --added-since main\n\n(The branch adds two lines to app.py: '# Workaround: write twice' and a code line. app.py already carried '# used to buffer writes' on line 1 before the branch, and lib.py is unchanged and also carries '# used to buffer writes'.)",
+      "narration": true,
+      "expected_output": "Runs detect.sh with --added-since main and reports only the unjustified-workaround finding on the added comment in app.py. The history-narration comments on unchanged lines in app.py and in the unchanged lib.py are not reported, and lib.py is not audited. No question is asked and no edits are applied.",
+      "files": [],
+      "expectations": [
+        "Runs detect.sh with --added-since main",
+        "Reports the unjustified-workaround finding on the added comment in app.py",
+        "Does NOT report the history-narration comment on app.py line 1 or the one in lib.py, since neither sits on an added line",
+        "Finishes the report without asking the user a question",
+        "No file is edited"
+      ]
+    }
+  ]
+}

@@ -15,7 +15,7 @@ brackets are resolved per repo by `plan` before the step runs.
 #### Notes
 
 Authorize the candidate-count consent gate for the whole repo. Tag any `alive` notes it adds with
-`dissolve-comments-ignore` so the residue-dissolve step keeps them.
+`remove-comments-ignore` so the residue-dissolve step keeps them.
 
 ### batch-simplify
 
@@ -26,7 +26,7 @@ Authorize the candidate-count consent gate for the whole repo. Tag any `alive` n
 
 ### residue-dissolve
 
-- skill: code-tidying:audit-comment-residue, code-tidying:dissolve-comments
+- skill: code-tidying:remove-comments
 - args: .
 - applies-when: repo has non-config source code with comments outside CI workflows and synced files
 - checked: true
@@ -35,7 +35,7 @@ Authorize the candidate-count consent gate for the whole repo. Tag any `alive` n
 
 One step: the residue audit's Tier 1 rows are the dissolve pass's input, so run both in the same
 session without `/clear` between them. CI workflows stay excluded unless the operator lifts them
-by hand, for example `dissolve-comments override .github/workflows/ci.yml`; the skill's Hard rules
+by hand, for example `remove-comments override .github/workflows/ci.yml`; the skill's Hard rules
 section owns the exclusion and its lift channels. Findings on files synced from another repository
 are fixed upstream, never in this sweep; filter them out before fixing.
 

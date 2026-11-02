@@ -4,10 +4,9 @@
   "skill_dir": "plugins/code-tidying/skills/tidy",
   "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
   "competitors": [
-    "code-tidying:audit-comment-residue",
+    "code-tidying:remove-comments",
     "code-tidying:audit-dead-code",
-    "code-tidying:batch-simplify",
-    "code-tidying:dissolve-comments"
+    "code-tidying:batch-simplify"
   ],
   "queries": [
     {
