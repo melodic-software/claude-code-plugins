@@ -23,6 +23,10 @@
     {
       "answer": "| 1 | CRITICAL (P1) | High | SQL injection (CWE-89) | `req.query.q` is concatenated into the SQL string on a public route, so `?q=' UNION SELECT id, email, password_hash FROM users --` returns every password hash. | `src/routes/search.js:9-17` | Bind the term as a parameter: `name LIKE ?`. |\n\n### Limits of this review\n\n- **No findings file written.** The session has no Write tool, so the report exists only here.",
       "why": "a limits line saying no findings file was written is not a no-findings verdict"
+    },
+    {
+      "answer": "| 1 | CRITICAL (P1) | High | Injection (CWE-89) | `req.query.q` is concatenated into the SQL string on a public route, so `/search?q=' UNION SELECT id, email, password_hash FROM users--` returns every password hash. | `src/routes/search.js:11-17` | Bind a parameter and escape the LIKE wildcards. |",
+      "why": "'Bind a parameter' names the parameterized fix"
     }
   ],
   "fail": [
