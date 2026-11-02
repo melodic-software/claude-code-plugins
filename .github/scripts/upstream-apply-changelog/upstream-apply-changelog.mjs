@@ -24,7 +24,9 @@ const KEY = /^changelog:[0-9.]+\.\.[0-9.]+:[a-z-]+:[A-Za-z0-9_./-]{1,200}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const branchFor = (plugin, release) => `changelog/${plugin}/v${release}`;
-export const startedArtifact = (release, runId) => `upstream-apply-changelog-started-${release}-${runId}`;
+// One name for every start record (an artifact is scoped to its run), so the
+// cap lists them by name instead of paging the repository's artifacts.
+export const STARTED_ARTIFACT = "upstream-apply-changelog-started";
 export const doneArtifact = (release) => `upstream-apply-changelog-done-${release}`;
 export const alreadyProcessed = (artifacts) => (artifacts?.total_count ?? 0) > 0;
 export const handoffMarker = (key) => `<!-- upstream-apply-changelog key=${key} -->`;
@@ -183,7 +185,7 @@ export function newestRelease(releases) {
 // artifacts, as red-main counts reverts "in any 24 hours".
 export function startedInWindow(artifacts, now) {
   return artifacts.filter(
-    (a) => a?.name?.startsWith("upstream-apply-changelog-started-") && now - Date.parse(a.created_at) < DAY_MS,
+    (a) => a?.name === STARTED_ARTIFACT && now - Date.parse(a.created_at) < DAY_MS,
   ).length;
 }
 
@@ -206,11 +208,13 @@ export function validatePlan(plan, { release, baseSha }) {
     throw new Error(`ci-plan.json: ${why}`);
   };
   if (plan?.schema !== "changelog-ci-plan/1") fail("schema is not changelog-ci-plan/1");
-  if (plan.status === "stopped") return { branches: [], handoffs: [] };
-  if (plan.status !== "planned") fail("status is neither planned nor stopped");
+  const { status } = plan;
+  if (status !== "planned" && status !== "stopped") fail("status is neither planned nor stopped");
   if (plan.range !== `${release}..${release}`) fail("range is not this run's release");
   if (plan.base_sha !== baseSha) fail("base_sha is not the commit the run checked out");
-  const branches = Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
+  // A stopped plan derived no rows, so it publishes no branch; its handoffs
+  // (ci-mode.md: cap exceeded carries a docs-conformance one) are still filed.
+  const branches = status === "stopped" ? [] : Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
   const handoffs = Array.isArray(plan.handoffs) ? plan.handoffs : fail("handoffs is not a list");
   const seen = new Set();
   branches.forEach((b, i) => {
@@ -236,7 +240,7 @@ export function validatePlan(plan, { release, baseSha }) {
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);
     if (typeof h.body !== "string" || h.body.length > 60000) fail(`${at}.body is bad`);
   });
-  return { branches, handoffs };
+  return { status, branches, handoffs };
 }
 
 // Every path the raw diff changes, either side of a rename, must sit under
@@ -392,7 +396,7 @@ async function gate(env) {
   output("release", release);
   const cap = Number(env.DAILY_CAP);
   if (!Number.isInteger(cap) || cap < 1) throw new Error("the per-day cap is not a positive whole number");
-  const recent = await api(`/repos/${repo}/actions/artifacts?per_page=100`);
+  const recent = await api(`/repos/${repo}/actions/artifacts?per_page=100&name=${STARTED_ARTIFACT}`);
   const started = startedInWindow(recent?.artifacts ?? [], Date.now());
   if (started >= cap) {
     console.log(`::notice::upstream-apply-changelog started ${started} runs in the last 24 hours, at its cap of ${cap}; Claude Code ${release} waits`);
@@ -422,8 +426,16 @@ async function push(env) {
       // A re-run's branch counts only when its tip holds the planned tree.
       const tip = existing.object?.sha;
       const commit = SHA.test(tip ?? "") ? await api(`/repos/${repo}/git/commits/${tip}`) : null;
-      if (commit?.tree?.sha === headTree) heads[b.branch] = tip;
-      console.log(`${b.branch} already exists${heads[b.branch] ? "" : " with another tree"}; not pushed`);
+      if (commit?.tree?.sha === headTree) {
+        heads[b.branch] = tip;
+        console.log(`${b.branch} already exists at the planned tree; not pushed`);
+        continue;
+      }
+      // Another tree is an earlier run's work: done once it has a pull
+      // request, else stranded, so the run fails before the done marker.
+      const prs = await api(`/repos/${repo}/pulls?state=all&head=${repo.split("/")[0]}:${encodeURIComponent(b.branch)}`);
+      if (!prs?.length) throw new Error(`branches[${i}] already exists with another tree and no pull request; open one for it or delete it, then dispatch again`);
+      console.log(`${b.branch} already has pull request #${prs[0].number} with another tree; not pushed`);
       continue;
     }
     const head = await commitNetTree(readNetChanges(repoDir, baseSha, commit), {
@@ -463,6 +475,9 @@ async function publish(env) {
   }
   console.log(`opened ${opened} pull requests`);
   console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, api }));
+  // Its handoffs are filed, but the release was never applied: fail so the
+  // done marker is not uploaded and the next run takes the release again.
+  if (plan.status === "stopped") throw new Error(`the plan for Claude Code ${release} stopped; its handoffs are filed and the release is not marked done`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

@@ -1,0 +1,7 @@
+{
+  "name": "upstream-apply-changelog",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

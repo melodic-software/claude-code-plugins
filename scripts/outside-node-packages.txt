@@ -35,6 +35,7 @@
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
 .github/scripts/security-outside-actor
+.github/scripts/upstream-apply-changelog
 .github/scripts/work-unblock
 .github/scripts/work-resolve-issue
 plugins/knowledge/vendor/node-launcher

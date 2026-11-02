@@ -66,16 +66,27 @@ test("the newest release is the highest version, skipping drafts, prereleases an
 test("the per-day cap counts only start records from the last 24 hours", () => {
   const now = Date.parse("2026-11-02T12:00:00Z");
   const artifacts = [
-    { name: "upstream-apply-changelog-started-2.1.300-1", created_at: "2026-11-02T01:00:00Z" },
-    { name: "upstream-apply-changelog-started-2.1.299-2", created_at: "2026-11-01T11:00:00Z" },
+    { name: "upstream-apply-changelog-started", created_at: "2026-11-02T01:00:00Z" },
+    { name: "upstream-apply-changelog-started", created_at: "2026-11-01T11:00:00Z" },
     { name: "upstream-apply-changelog-done-2.1.300", created_at: "2026-11-02T02:00:00Z" },
   ];
   assert.equal(startedInWindow(artifacts, now), 1);
 });
 
-test("a valid plan passes and a stopped plan acts on nothing", () => {
+test("a valid plan passes and a stopped plan keeps its handoffs and publishes no branch", () => {
   assert.equal(validatePlan(plan(), ctx).branches.length, 1);
-  assert.deepEqual(validatePlan(plan({ status: "stopped" }), ctx), { branches: [], handoffs: [] });
+  // ci-mode.md: cap exceeded is status stopped with one docs-conformance handoff.
+  const conformance = { key: "changelog:2.1.300..2.1.300:docs-conformance:plugins/harness-ops/skills/changelog/SKILL.md", title: "t", body: "b" };
+  assert.deepEqual(validatePlan(plan({ status: "stopped", handoffs: [conformance] }), ctx), {
+    status: "stopped",
+    branches: [],
+    handoffs: [conformance],
+  });
+  assert.throws(
+    () => validatePlan(plan({ status: "stopped", handoffs: [{ ...conformance, key: "changelog:2.1.1..2.1.1:docs-conformance:x" }] }), ctx),
+    /handoffs\[0\]\.key/,
+  );
+  assert.throws(() => validatePlan(plan({ status: "stopped", range: "2.1.299..2.1.299" }), ctx), /range/);
 });
 
 test("a plan for another release, base or branch name is refused", () => {

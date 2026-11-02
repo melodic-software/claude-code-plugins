@@ -142,7 +142,7 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: upstream-apply-changelog-started-${{ steps.gate.outputs.release }}-${{ github.run_id }}
+          name: upstream-apply-changelog-started
           path: ${{ runner.temp }}/started/release.txt
           retention-days: 2
           if-no-files-found: error
@@ -196,6 +196,7 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .base
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -252,6 +253,7 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Prepare the working tree
         id: prepare
@@ -272,6 +274,7 @@ jobs:
             git update-index --skip-worktree -- "${held[@]}"
             rm -f -- "${held[@]}"
           fi
+          mkdir .lane
           cp -R "$STAGE/plugins" .lane/plugins
           chmod -R a-w .lane/plugins
           cat >"$RUNNER_TEMP/upstream-apply-changelog-prompt.md" <<PROMPT
@@ -349,6 +352,7 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
@@ -423,6 +427,7 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -608,6 +613,7 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -741,6 +747,7 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .base
           persist-credentials: false
+          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
