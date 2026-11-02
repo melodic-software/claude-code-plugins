@@ -197,7 +197,7 @@ Options:
                       \${user_config.*} token falls through to the config key /
                       fallback / data-root rungs — never to the in-repo
                       .claude/worktrees/ default, whose nested placement the
-                      nesting invariant forbids (skills/worktree/SKILL.md).
+                      nesting invariant forbids (skills/worktree/reference/nesting-invariant.md).
                       Mutually exclusive with --root-file.
   --fallback-root <dir>
                       The machine-global worktree_root PLUGIN OPTION, consulted
@@ -801,8 +801,8 @@ worktree_path=$(worktree_path_normalize "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
-# the helper's core purpose — see skills/worktree/SKILL.md § "The nesting
-# invariant, verified" for the measured claim, and note that a worktree dropped
+# the helper's core purpose — see skills/worktree/reference/nesting-invariant.md § "The nesting
+# invariant, dated measurement" for the measured claim, and note that a worktree dropped
 # inside a .git or bare directory additionally mixes the checkout into git
 # metadata, which is a separate and undisputed reason to refuse. The root
 # resolution above does not catch a root explicitly pointed inside a repository

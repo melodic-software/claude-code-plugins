@@ -486,7 +486,7 @@ than reading it from the environment (it is not per-plugin in a Bash-tool subpro
 deliberately outside the repository tree and outside repository-discovery roots such as a ghq root,
 which a checkout-relative default would land inside. The in-repo `.claude/worktrees/` default is
 never used because the nesting invariant forbids its nested placement; that claim is stated,
-measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` "The nesting
+measured, dated and given an expiry in exactly one place: `skills/worktree/reference/nesting-invariant.md` "The nesting
 invariant, dated measurement".
 
 **`worktree_add_containment_gate_enabled`.** The message names the external root resolved from the
