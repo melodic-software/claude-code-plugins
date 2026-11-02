@@ -2084,7 +2084,8 @@ run_close() {
   jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
-    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_SHA="$SHA" RUN_URL="$RUN_URL" RUN_CREATED=2026-10-17T16:26:00Z \
+    STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_SHA="${CLOSE_RUN_SHA-$SHA}" RUN_URL="$RUN_URL" RUN_CREATED=2026-10-17T16:26:00Z \
     bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/close.sh" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
 }
@@ -2122,6 +2123,56 @@ if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be
   ok "close-cleared leaves an edited record open"
 else
   fail "close edited: rc=$RC log='$LOG' out='$OUT'"
+fi
+# The close comment names the green run that contradicted the record.
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && -n "$comment_line" ]] &&
+  grep -qF "body=Main is green at \`$SHA\`, a later commit: $RUN_URL" "$TMP_ROOT/stub/post.$comment_line"; then
+  ok "close-cleared's close comment names the green run and its head"
+else
+  fail "close comment: rc=$RC log='$LOG' out='$OUT'"
+fi
+# A failed or incomplete read closes nothing.
+FAIL_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not read github-actions%5Bbot%5D's open records: none of them closed"* ]]; then
+  ok "close-cleared closes nothing when the open-record listing fails"
+else
+  fail "close on failed listing: rc=$RC log='$LOG' out='$OUT'"
+fi
+FAIL_LANE_READ=1 LANE_ISSUES="[$(rec 11 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$OUT" == *"could not read melodic-automation-lanes%5Bbot%5D's open records: none of them closed"* ]]; then
+  ok "close-cleared closes none of a filer's records when that filer's listing fails, and still closes the other's"
+else
+  fail "close on one failed listing: rc=$RC closed='$(closed)' out='$OUT'"
+fi
+ANCESTRY=fail PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/comments$' <<<"$LOG"; then
+  ok "close-cleared closes no record when the compare read fails"
+else
+  fail "close on failed compare: rc=$RC log='$LOG'"
+fi
+FAIL_GRAPHQL=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
+  ok "close-cleared closes no record when its edit history cannot be read"
+else
+  fail "close on failed graphql: rc=$RC log='$LOG' out='$OUT'"
+fi
+for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" \
+  "<!-- post-merge-fix check=lint -->" "<!-- post-merge-failure sha=${OTHER:0:12} signal=schedule -->"; do
+  PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "$marker")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/compare/' <<<"$LOG"; then
+    ok "close-cleared leaves '$marker' open and reads no compare for it"
+  else
+    fail "close on '$marker': rc=$RC log='$LOG'"
+  fi
+done
+CLOSE_RUN_SHA="${SHA:0:39}" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -ne 0 && -z "$LOG" && "$OUT" == *"::error::head SHA"* ]]; then
+  ok "close-cleared refuses a head SHA that is not 40 hex digits before any read"
+else
+  fail "close on malformed head SHA: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 test_harness::report
