@@ -1720,7 +1720,7 @@ class SettleCommand(unittest.TestCase):
     def test_a_canary_finished_since_a_verified_report_refuses_its_reuse(
         self,
     ) -> None:
-        # Issue #12445's PR-scoped wake reuses the last sweep's report through
+        # pr-merge's PR-scoped wake reuses the last sweep's report through
         # this call (pr-merge.yml "Keep the last sweep's report only while
         # nothing it read has moved"): a fully verified report whose canary,
         # queued before it, completed after its computedAt is refused before
