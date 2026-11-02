@@ -18,7 +18,6 @@ The skills of `plugins/harness-ops`. Each one is driven with `<plugin-dir>` set 
 - `known-issues`: Look up and track known Claude product issues, health, and workarounds.
 - `lanes`: Start, restart, stop, and check loop lanes as named background sessions. No plain-words entry.
 - `machine-profile`: Discover, store and diff machine facts and per-tree identity domains. Read-only by default.
-- `morning-brief`: Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions.
 - `observability`: Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity.
 - `plugins`: Bring the machine's plugin fleet current. Refresh, update, install per policy. No plain-words entry.
 - `prerequisites`: Report external tools the enabled fleet declares missing. Never installs.

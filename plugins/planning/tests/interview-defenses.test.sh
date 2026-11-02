@@ -418,12 +418,13 @@ declares_both_fixtures B "$CASE_B"
 
 # Both defenses are body prose, each covered by its own section digest below; no
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
-# `[me|lock|scope|share|product] [topic]`, with the invocation examples in the body's `Arguments.` line.
+# `[me|lock|scope|restate|share|product] [topic]`, with the invocation examples in the body's `Arguments.` line.
 # Adds idea-shaped trigger phrases
 # product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
+# #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "64cb5a334e5874682e1f67df8f8871ddb9474518dc21679dc7728f19dae42dcd"
+  "edb8927fa7b39d33b68303a8708b1942022a619749144fad5fb3d334cade143b"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap, the register gate, the
 # confirmation gate and the Step 4 `--brief` cross-check near the top of SKILL.md, where a
@@ -501,11 +502,14 @@ done
 # Merge of main with the #11857 rounds change: both sides kept (main's out-of-band full restate, this branch's topic groups, index, Held, Origin, single pacing and discussing); the drift check now keeps an unaddressed row's status, so a discussing row stays discussing, and a discussing row goes back to open before a page import; neither resolves a row, and the no-silent-resolve, gap and blocker defenses are unchanged
 # Review round on the rounds change: the out-of-band check and its full restate now cover discussing rows (restated as under discussion, never read as an answer), and discussing is limited to the terminal lane, the page keeping the row open; each widens what is checked or restated, resolves no row, and the no-silent-resolve, gap and blocker defenses are unchanged
 # #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
+# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
+# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
+# #12502 replacement: answer_audit_rounds drops its userConfig layer (a manifest key outside the inert set), so the audit-offer paragraph names no user_config token; the pointer still asks nothing, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "bede4c77aceddd6a0edb1882a127aca89b3cc93b31af070cda86650c206a8e62"
+  "6e225b3afedb890bb993196b17b90536c81ea5d1ee1f6f259ab69c0a2de2a8c7"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -575,11 +579,13 @@ pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arb
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.
 # The start-fresh note is the Brief's only history and its published PR-body or issue copy carries it; it touches no assumption, gap or Brief rule.
+# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
+# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "6cc95d0a77848f2ac6f0528460f6648ad1f28ce1daab79aea3db48edd91d9b5f"
+  "0c42ce895e27712457fe1cfafdd734e9d6e22fde8e239fcfd124b8923b3fc83b"
 # The "memory slice is not a durable home" paragraph names where content that outlives the
 # branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
@@ -646,11 +652,13 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The product row's When-to-use cell says product is reached by its argument or by an idea-test phrase, and a grill me about a task stays auto; the lock row and STOP-on-gap are byte-identical
 # The empty-argument line says auto never picks product, and the product row says only the product action reaches it, selected by its idea phrases; the lock row and STOP-on-gap are byte-identical
 # #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
+# #12476: restate action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, and restate decides nothing new, writes no Brief and reads silence as no yes
+# #12476 review: question_pacing takes its cascade value, the because lives on the Intent line, each new ask is registered like any question, a stated constraint is still written confirmed at once, and restate skips the resume prompt; each adds a registered row or narrows a step, resolves no row, and the lock, fudge, no-silent-resolve and blocker defenses are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "45562174d2f05a92a005abdf48adea923a4fdc336d3e5f5d68f93c9ef6e0019e"
+  "9081800701e5a506a131c1929285a2a767c8d2e8f59cc89b213e922d4ec73521"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -676,11 +684,13 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "### Step 4. Persist the contract" \
   "b078b836bde8cf30fdee4051c083e27899efb694b86162d6ce372f028d173ad6"
 # The not-adversarial bullet names the product action as its one exception, pointing at context/product.md; the fudge-prohibition bullet is byte-identical
+# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
+# #12476: the no-tests bullet names the read-only Run it to settle it step as its one exception; the fudge prohibition line is byte-identical
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "10b531a30584c37a65f14c574157fc19e413dad9ac98251f9da46b71b005e5c1"
+  "46aa532d9c875e5796008332ed2eccc642faf9657a06b626cc3fa986382bc605"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -713,11 +723,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Question shape (#7475): every question opens with a referenced Context block, alternatives carry gain and cost, open questions are restated in full, a terminology matrix is agreed as a registered question, and codes show with their plain names (Checked against names constraints in words); each adds a requirement or a registered question, resolves no row, and the no-silent-resolve rule, the constraint-ledger rows and their re-check, and the late-commitment numbering are unchanged
 # Rounds gain topic groups, a closing index, a Held line, origin labels, single pacing and a discussing status that blocks like open; partial-round resolution, the no-silent-resolve rule, the confirmation-gate exemption, late commitment ids and the register gate are unchanged.
 # #5769: the Step 3 register gate and loop.md's gate list name the stale=<n> outcome as a halt, and Re-check covers answered rows; every existing halt is kept and none is qualified
+# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "3e39acebbae2414a3d61d4b35e9345a99e04dacad6b565f1a8aecdc46ab3447e"
+  "47ea036b756c9f88d371f6865a9e53d7ba07506ba41020925ce0696e89703763"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -730,11 +741,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # #11858: the page honors single pacing and shows the round index and Held line; each change alters how a frontier is shown or a setting is read, resolves no row, and the lock, STOP-on-gap, no-silent-resolve and late-commitment defenses are byte-identical
 # #11858 review: the page-surface Delivery bullet names single pacing's first-question add-round and one add per later question, and the round index leaves out held questions; each changes how a frontier is shown, resolves no row, and the late-commitment next-free-id rule is untouched
 # Rendered-views medium rung (#12296): the degrade table gains a Medium bullet that resolves medium first and renders the table the No HTML way under terminal, and case 45 grades that inline render; each changes only where a round is shown, resolves no row, licenses no silent capture or fudged gap, so cases 15 and 16 hold and the late-commitment next-free-id rule is byte-identical
+# #12476: the closing index table is dropped and the grilling steps added (a because on the goal, the quality bar when the user cannot judge, no nodding along, stated facts checked against code, a read-only run settles a fact, document-my-repo routed, probe topics read, a pointer to audit-answers); each adds a check or removes a summary table, resolves no row, and the no-silent-resolve, fudge, gap and blocker defenses are byte-identical
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "f788e056ef70e13f9aad65c47cbbf9734fd944dd141b562543a8e867ad351b05"
+  "db2194e07911789c1af0fb0dce7276488aaeb414a9bbe4e3905c5255a69db997"
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical

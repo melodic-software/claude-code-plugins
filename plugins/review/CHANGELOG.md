@@ -3,6 +3,30 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.2] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+## [4.0.1] - 2026-11-02
+
+### Fixed
+
+- `/review:fanout` now runs its Codex surface. The Codex plugin's `/codex:review` and `/codex:adversarial-review` commands set `disable-model-invocation: true`, so fanout listed Codex but never ran it. The new `skills/fanout/scripts/codex-review.sh` finds `codex@openai-codex` through `claude plugin list --json`, checks the Codex CLI and its login with the plugin's `setup --json`, and runs the plugin's `codex-companion.mjs` review in the foreground with the review base passed as `--base`. Its first line reports `codex: ran`, `codex: skipped (<reason>)` or `codex: failed (<reason>)`, so a run with no Codex CLI or login reports the surface as skipped, never as ran. The fanout-diversity X-arm eval prompts no longer name `/codex:review`.
+
+## [4.0.0] - 2026-11-02
+
+### Removed
+
+- The unused `ratchet_offer` setting leaves the review plugin: its plugin option, its key in `schemas/review.schema.json` and its rows in the README and `reference/config.md`. A `docs/conventions/review.yaml` that still sets it gets an unknown-key WARN from `/review:setup check`, and its other keys still count; delete the line to clear it. To keep ratchet offers off, set `ratchet_offer` on the corrections plugin (its plugin option or `docs/conventions/corrections.yaml`).
+
+### Fixed
+
+- `/review:quality-gate`'s "Reviewer handback" input now separates the reviewer's findings file from the gate's own `<UTC-timestamp>-<mode>.md` artifact. The path it passes `review:code-reviewer` or `review:security-reviewer` is named `<UTC-timestamp>-<agent>.md` and given absolute. A path named after the mode, such as `-self.md`, made the reviewer refuse the write and reply with its report by value.
+
+- `/review:code-review` and its `lane-verifier` hunters now cite each finding's `file:line` as the line in the file at the PR head, counted from the hunk header's `+<start>` over context and added lines. They no longer cite a line number inside the diff file the wrapper names, which put an inline comment on the wrong line. A verifier gives the head file's line when a candidate cites a different one.
+
 ## [3.0.0] - 2026-11-02
 
 ### Changed

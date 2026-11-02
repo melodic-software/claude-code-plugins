@@ -1,6 +1,6 @@
 ---
 description: "Claude Code changelog ingestion into the current repo: fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (one PR per owner plugin, larger decisions handed off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', a new CC release is mentioned, or the user pastes changelog text."
-argument-hint: "<fetch|diff|status|apply> [vA..vB|vX|text]"
+argument-hint: "<fetch|diff|status|apply> [--ci] [vA..vB|vX|text]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Ingest a Claude Code release changelog and integrate its changes into the repo
 ---
 
-**Arguments.** `<fetch|diff|status|apply> [vA..vB|vX|text]`. Full form: <action> [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only)
+**Arguments.** `<fetch|diff|status|apply> [--ci] [vA..vB|vX|text]`. Full form: <action> [--ci] [vA..vB|vX|text]. Actions: fetch (default on passive mention), diff, status, apply (explicit only). `--ci` applies to `apply` only
 
 ## Pre-computed context
 
@@ -90,6 +90,17 @@ auto-start the hand-off.
 
 `apply` plans, edits and verifies nothing itself. It reads the release, asks the user which decisions
 are in scope, and hands each one to the marketplace skill that owns that stage, as Phases 3 and 4 set out.
+
+### Unattended: `apply --ci`
+
+Only the literal `--ci` token selects this path, and it needs an explicit release or range. It
+replaces every question in Phases 3 to 5 with the evidence rule in
+[context/ci-mode.md](context/ci-mode.md): only a verified, cited `correct` row confined to one owner
+plugin and not security-relevant is committed, on a local branch per owner plugin; every other row
+becomes a handoff. It asks nothing, pushes nothing, opens no PR, files nothing and never moves the
+read marker. It writes `ci-plan.json` for the calling workflow and ends with `ci-plan: <path>` and
+`status: <stopped|planned>`. Where the phases below say to ask, confirm or file, `--ci` follows that
+file instead.
 
 ### Phase 0. Ingest
 
@@ -247,5 +258,6 @@ that path in place of the placeholder before running it.
 | `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger, filed issue), fanning out, or saving and reusing the working set. |
 | `context/repo-surfaces.md` | Phase 1 explore, after running `scripts/discover-surfaces.sh`: per-class examples of what an item changes, and scoped grep patterns. |
 | `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
+| `context/ci-mode.md` | Running `apply --ci`: the branch rule, handoff kinds, branches, and the `ci-plan.json` format. |
 | `context/native-drift.md` | Running `apply` Phase 5: the extraction commands, the previous-run summary, the drift report, and filing its items. |
 | `scripts/native_drift.py` | Phase 5's summary, diff and trigger evaluation. Covered by `scripts/test_native_drift.py`. |

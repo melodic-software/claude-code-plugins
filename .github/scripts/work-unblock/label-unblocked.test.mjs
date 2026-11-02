@@ -697,6 +697,34 @@ test("the sweep labels an issue whose last blocker a bot closed", async () => {
   );
 });
 
+// A finished work-resolve-issue run sweeps as the schedule does. Its payload,
+// sent by the lanes App, is never read, so the bot-close skip and the closer
+// check do not apply.
+test("a finished work-resolve-issue run sweeps like the schedule, past a bot sender and with no closer check", async () => {
+  const { github, calls } = sweptDependent();
+  const actionCalls = [];
+  const actions = async (method, path) => {
+    actionCalls.push(`${method} ${path}`);
+    return { workflow_runs: [], jobs: [] };
+  };
+  const env = envFor({ action: "completed", issue: undefined, sender: LANES_BOT, workflow_run: { name: "work-resolve-issue" } }, { GITHUB_EVENT_NAME: "workflow_run" });
+  assert.equal(await main({ now: NOW, env, github, actions }), 0);
+  assert.deepEqual(writes(calls), [labeled(20)]);
+  assert.ok(
+    calls.includes(
+      `GET /repos/${REPO}/issues?state=closed&since=${encodeURIComponent(SINCE)}&sort=updated&direction=desc&per_page=100&page=1`,
+    ),
+  );
+  assert.ok(!actionCalls.includes(`GET /repos/${REPO}/actions/runs/${RUN_ID}`), actionCalls.join("\n"));
+});
+
+test("an event other than an issue close, the schedule or a work-resolve-issue run fails before any API call", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = sweptDependent();
+  assert.equal(await main({ now: NOW, env: envFor({}, { GITHUB_EVENT_NAME: "push" }), github }), 1);
+  assert.deepEqual(calls, []);
+});
+
 // The window starts 15 minutes before the last successful scheduled run of
 // work-unblock.yml whose label-unblocked job ran its sweep step, at most 3
 // hours back; anything else, or any failed read, gives the 3 hours.

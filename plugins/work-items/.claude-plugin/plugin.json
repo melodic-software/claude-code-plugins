@@ -1,11 +1,11 @@
 {
   "name": "work-items",
-  "version": "8.0.4",
-  "description": "Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans into vertical slices), ship (run one spec container), triage (raw intake and unsolicited PRs), work, work-loop (autonomous PR-only drain), attend-queue (escalations), onboard-adapter (new tracker adapter), measure-delivery (DORA metrics), and setup (binds the provider).",
+  "description": "Work items through a provider-neutral tracker seam (github, local-markdown, jira, gitea, linear adapters): track (dashboard, creation, race-safe claims, recurring checks, stale-lease audits), scan-todos, decompose (plans to vertical slices), ship (one spec container), triage (intake, unsolicited PRs), work, work-loop (autonomous drain), attend-queue (escalations), morning-brief (read-only daily view), onboard-adapter (new trackers), measure-delivery (DORA metrics), and setup (binds a provider).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "8.1.1",
   "license": "MIT",
   "keywords": [
     "work-items",
@@ -15,8 +15,12 @@
     "github",
     "issues",
     "triage",
-    "orchestration"
+    "orchestration",
+    "skill"
   ],
+  "metadata": {
+    "category": "project-management"
+  },
   "userConfig": {
     "decompose_container_publish": {
       "type": "boolean",

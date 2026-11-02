@@ -16,11 +16,6 @@
       "additionalProperties": { "type": "string" },
       "description": "Per setting, whether the team chose the value or it was filled at the plugin default. The writer owns it; it is not a setting."
     },
-    "ratchet_offer": {
-      "description": "Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml).",
-      "type": "boolean",
-      "default": true
-    },
     "downstream_probe": {
       "description": "Policy floor. run: /review:quality-gate downstream mode writes one probe for its single safety fact in a temporary directory outside the tree and runs it. report: it states the probe and does not run it. report in this file or in the user's option wins over run in the other. Read from the default branch's committed copy, so a pull request cannot change it for its own review.",
       "enum": ["run", "report"],

@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | The q query parameter is concatenated into the LIKE clause on a public route, so an unauthenticated caller can send a UNION SELECT over the users table and read every email and password hash. | Bind the term as a ? parameter, as products.js does |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
       "why": "names the q injection, the attacker gain and the fix at CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/routes/search.js:11 | security-reviewer | q goes into the LIKE string unescaped, so a request such as ?q=%' UNION SELECT id, email, password_hash FROM users -- returns user emails and password hashes to any visitor. | Bind q as a ? parameter |\n\n## Surfaces\n\nRan: [security-reviewer@high]. Returned no result: [].",
+      "why": "names the q input and the leaked credentials at IMPORTANT; the low Confidence is ignored"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:15 | code-reviewer | sort is concatenated into ORDER BY, so a caller can inject SQL through sort. | Bind sort |\n| 2 | CRITICAL | high | src/routes/search.js:11 | security-reviewer | The public /search route concatenates q into its LIKE clause, so an unauthenticated caller can UNION SELECT the users table and read every email and password hash. | Bind q as a parameter, as products.js does |\n| 3 | IMPORTANT | medium | src/routes/products.js:9 | security-reviewer | products.js passes req.params.id straight into its query, so it is injectable too. | Bind the id |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "the q finding passes at CRITICAL; wrong findings about sort and products.js do not affect recall"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/routes/search.js:11 | code-reviewer | The SQL is built by string concatenation; consider a query builder for readability. | Use a query builder |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names string-built SQL at SUGGESTION without the injection"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-search\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/search.js:15 | security-reviewer | The sort parameter goes into ORDER BY by concatenation, so a caller can inject SQL through sort. | Bind sort |\n| 2 | SUGGESTION | high | src/routes/search.js:11 | code-reviewer | q is concatenated into the LIKE clause, so a caller can UNION SELECT the users table's emails and password hashes. | Bind q as a parameter |\n\n## Surfaces\n\nRan: [security-reviewer@high, code-reviewer@high]. Returned no result: [].",
+      "why": "the only finding that names the q injection is SUGGESTION; the CRITICAL finding is the wrong sort claim"
     }
   ]
 }

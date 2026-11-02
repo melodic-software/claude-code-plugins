@@ -620,9 +620,9 @@ the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scr
 (`plugins/architecture/scripts/build-view.mjs`); and the `machine-health:audit` decision page, which
 its orchestrator builds for each run from `latest.json`
 (`plugins/machine-health/skills/audit/scripts/build-checkup-view.mjs`), with a copied payload that
-`machine-health:setup picks` resolves against the run's id map; and `harness-ops:morning-brief`
+`machine-health:setup picks` resolves against the run's id map; and `work-items:morning-brief`
 (genre: reports and status), which builds its status page from the printed brief
-(`plugins/harness-ops/skills/morning-brief/scripts/build-brief-view.mjs`) and resolves `medium` from
+(`plugins/work-items/skills/morning-brief/scripts/build-brief-view.mjs`) and resolves `medium` from
 the cascade, defaulting to a local `file`; `artifact` or `hosted` from the team layer keeps the page local.
 
 Assessed under the genre rubric and given no lane:

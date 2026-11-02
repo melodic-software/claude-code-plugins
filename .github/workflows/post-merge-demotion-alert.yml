@@ -18,9 +18,10 @@ name: post-merge-demotion-alert
 # person's close clears it. A fix issue or quarantine issue not delivered to
 # intake gets needs-human; the record does when a failing check got no fix
 # issue, whether over the cap, outside the name charset, or not filed.
-# The close-cleared job closes, on a green attempt 1 of a scheduled full run,
-# each open schedule or dispatch record (either filer's) created before that
-# run, at a commit behind its head, and never edited. This workflow merges,
+# The close-cleared job, on each completed scheduled full run, closes each
+# open, never-edited schedule or dispatch record (either filer's) that a
+# later green full run on main has cleared, by the rule
+# babysit_merge_policy.py `_recovered_at` applies. This workflow merges,
 # reverts and dequeues nothing.
 #
 # Only a failure whose merges include one the lanes App put in the merge queue
@@ -1288,42 +1289,45 @@ jobs:
         with:
           tokens: github-token
 
-  # A green attempt 1 of a scheduled full run on main closes the records main
-  # has cleared. The record is a state marker: babysit_merge_policy.py
-  # `_recovered_at` still decides whether it holds, and a record this closes
-  # that main has not cleared holds all the same (closed-by-non-human).
+  # Each completed scheduled full run on main, whatever it concluded, closes
+  # the records main has cleared since they were filed, by the rule
+  # babysit_merge_policy.py `_recovered_at` applies. A green run that clears
+  # a record may be a github-actions[bot] dispatch, which raises no
+  # workflow_run event, so the step lists the runs itself. The record is a
+  # state marker: `_recovered_at` still decides whether it holds, and a
+  # record this closes that main has not cleared holds all the same
+  # (closed-by-non-human).
   close-cleared:
     name: Close the records main cleared
     if: >-
       github.event_name == 'workflow_run'
       && github.event.workflow_run.name == 'pr-require-checks'
       && github.event.workflow_run.event == 'schedule'
-      && github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.run_attempt == 1
       && github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # read merge.agent-identity on main
+      actions: read # list green full runs on main
+      contents: read # read merge.agent-identity on main, compare commits
       issues: write # comment on and close a cleared record
     steps:
       - name: Close the records main cleared
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
-          RUN_CREATED: ${{ github.event.workflow_run.created_at }}
         run: |
           # Each open schedule or dispatch record, demotion or post-merge-failure,
-          # that github-actions[bot] or merge.agent-identity filed, created before
-          # this run, at a commit behind its head (RUN_SHA...sha is behind), and
-          # never edited (`_recovered_at` reads its SHA from the body), is closed
-          # as completed. A failed read closes nothing.
-          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
-            exit 1
-          fi
+          # that github-actions[bot] or merge.agent-identity filed and nobody
+          # ever edited (`_recovered_at` reads its SHA from the body) is closed
+          # as completed at the oldest green full run on main that clears it:
+          # attempt 1, this repository's main, a schedule or a dispatch both
+          # started by github-actions[bot] (a person dispatching until a run
+          # passes is no recovery), created after the record, at a commit
+          # ahead of the record's SHA and on main's history. Like
+          # `_GreenMain.listed`, it reads GREEN_SPAN windows oldest first, up to
+          # now and at most GREEN_SPANS of them, and stops at the first run that
+          # clears the record. Any failed read, a window past its page bound, or
+          # more windows than GREEN_SPANS closes nothing.
           identity="$(gh api -H 'Accept: application/vnd.github.raw' \
             "repos/$GITHUB_REPOSITORY/contents/docs/conventions/pr-pipeline.yaml?ref=main" |
             sed -n '/^merge:/,/^[^[:space:]#]/ s/^  agent-identity: \([^[:space:]]*\)[[:space:]]*$/\1/p')" || identity=''
@@ -1333,6 +1337,49 @@ jobs:
           else
             echo "::warning::merge.agent-identity '$identity' could not be read or is no App login: its records are not closed"
           fi
+          if ! tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" ||
+            [[ ! "$tip" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::warning::main's tip could not be read: no record closed"
+            exit 0
+          fi
+          # The window `_GreenMain.listed` reads and how many, from
+          # babysit_merge_policy.py on main, so the two never disagree.
+          policy="$(gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py?ref=main")" || policy=''
+          span_days="$(sed -n 's/^GREEN_SPAN = timedelta(days=\([1-9][0-9]*\))$/\1/p' <<<"$policy")"
+          spans="$(sed -n 's/^GREEN_SPANS = \([1-9][0-9]*\)$/\1/p' <<<"$policy")"
+          if [[ ! "$span_days" =~ ^[1-9][0-9]*$ || ! "$spans" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::GREEN_SPAN or GREEN_SPANS could not be read from babysit_merge_policy.py: no record closed"
+            exit 0
+          fi
+          span_s=$((span_days * 86400))
+          now="$(date -u +%s)"
+          # green <since> <until> <after>: the qualifying green full runs
+          # created from <since> to <until> and after <after>, oldest first, as
+          # `<created_at> <head_sha> <html_url>` lines; fails on a failed read
+          # or more than 5 pages of an event.
+          green() {
+            local event page runs n
+            for event in schedule workflow_dispatch; do
+              for page in 1 2 3 4 5 6; do
+                if [[ "$page" -eq 6 ]]; then
+                  echo "::warning::more than 5 pages of green $event runs from $1 to $2" >&2
+                  return 1
+                fi
+                runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?branch=main&event=$event&status=success&created=$1..$2&per_page=100&page=$page")" || return 1
+                jq -r --arg e "$event" --arg repo "$GITHUB_REPOSITORY" --arg after "$3" '.workflow_runs[]
+                  | select(.event == $e and .conclusion == "success" and .run_attempt == 1
+                    and .head_branch == "main" and .head_repository.full_name == $repo
+                    and ((.head_sha // "") | test("^[0-9a-f]{40}$")) and .created_at > $after
+                    and ($e == "schedule" or (.actor.login == "github-actions[bot]"
+                      and .triggering_actor.login == "github-actions[bot]")))
+                  | "\(.created_at) \(.head_sha) \(.html_url)"' <<<"$runs" || return 1
+                n="$(jq '.workflow_runs | length' <<<"$runs")" || return 1
+                [[ "$n" -eq 100 ]] || break
+              done
+            done | sort -u
+            return "${PIPESTATUS[0]}"
+          }
           declare -A seen=()
           for filer in "${filers[@]}"; do
             if ! open="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&creator=$filer&per_page=100" \
@@ -1342,18 +1389,12 @@ jobs:
             fi
             while IFS=$'\t' read -r n created first; do
               if [[ ! "$n" =~ ^[1-9][0-9]*$ || -n "${seen[$n]+x}" ||
+                ! "$created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ||
                 ! "$first" =~ ^\<!--\ (babysit-merge-demotion|post-merge-failure)\ sha=([0-9a-f]{40})\ signal=(schedule|dispatch)\ --\>$ ]]; then
                 continue
               fi
               seen[$n]=1
               sha="${BASH_REMATCH[2]}"
-              if [[ ! "$created" < "$RUN_CREATED" ]]; then
-                continue
-              fi
-              status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$RUN_SHA...$sha" --jq .status)" || status=''
-              if [[ "$status" != behind ]]; then
-                continue
-              fi
               # shellcheck disable=SC2016 # GraphQL variables, not shell ones
               edited="$(gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){issue(number:$n){lastEditedAt}}}' \
                 -f o="${GITHUB_REPOSITORY%%/*}" -f r="${GITHUB_REPOSITORY#*/}" -F n="$n" \
@@ -1362,10 +1403,49 @@ jobs:
                 echo "#$n was edited or could not be read: left open"
                 continue
               fi
+              # Walk the windows oldest first; any failure ends the walk.
+              cleared='' failed='' span=0
+              from="$(date -u -d "$created" +%s)"
+              while [[ -z "$cleared$failed" ]] && ((from <= now)); do
+                if ((span == spans)); then
+                  echo "::warning::more than $spans spans of green runs after #$n: left open"
+                  failed=1
+                  break
+                fi
+                since="$(date -u -d "@$from" +%Y-%m-%dT%H:%M:%SZ)"
+                until="$(date -u -d "@$((from + span_s))" +%Y-%m-%dT%H:%M:%SZ)"
+                if ! runs="$(green "$since" "$until" "$created")"; then
+                  echo "::warning::could not list the green runs after #$n: left open"
+                  failed=1
+                  break
+                fi
+                while read -r _ head url; do
+                  [[ -n "$head" ]] || continue
+                  if ! ahead="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$sha" --jq .status)" ||
+                    { [[ "$ahead" == behind ]] &&
+                      ! on_main="$(gh api "repos/$GITHUB_REPOSITORY/compare/$head...$tip" --jq .status)"; }; then
+                    echo "#$n: a compare did not read: left open"
+                    failed=1
+                    break
+                  fi
+                  [[ "$ahead" == behind ]] || continue
+                  if [[ "$on_main" == ahead || "$on_main" == identical ]]; then
+                    cleared="$head $url"
+                    break
+                  fi
+                done <<<"$runs"
+                span=$((span + 1))
+                from=$((from + span_s))
+              done
+              [[ -z "$failed" ]] || continue
+              if [[ -z "$cleared" ]]; then
+                echo "#$n: no green full run on main clears it yet"
+                continue
+              fi
               if gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$n/comments" \
-                -f body="Main is green at \`$RUN_SHA\`, a later commit: $RUN_URL" >/dev/null &&
+                -f body="Main is green at \`${cleared%% *}\`, a later commit: ${cleared#* }" >/dev/null &&
                 gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$n" -f state=closed -f state_reason=completed >/dev/null; then
-                echo "closed #$n: main is green at ${RUN_SHA:0:12}"
+                echo "closed #$n: main is green at ${cleared:0:12}"
               else
                 echo "::warning::could not close #$n"
               fi

@@ -3,6 +3,80 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.1] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+### Fixed
+
+- The shared hook library's Bash segment parser (`hook::bash_parse_segments`) now passes each substitution in an unquoted here-doc body (`$(...)`, a backtick pair, `${...}`, `$[...]`) to its callback as segments of their own, because bash runs them. A body under a quoted delimiter is still skipped as data.
+
+## [5.6.0] - 2026-11-02
+
+### Added
+
+- bound the age of the promotion evidence a re-earn after a demotion is read from
+
+  A new setting, `promotion_evidence_max_age_hours`, is read from managed or
+  user settings. Under `--window-start`, where every cell that resolves
+  promoted was re-ratified after a demotion record, the resolver now reads
+  the events file's `evidence.meta.json` sidecar. It fails closed, so a
+  demoted cell stays demoted, when the bound is unset or malformed, when the
+  sidecar is missing, lane-writable or holds another `sha256`, or when its
+  `generated_at` is older than the bound. The stale reason names the file,
+  its `generated_at` and the bound. Before this, a publisher that stopped
+  running left a re-earned cell promoted with no newer contrary event able
+  to reach it. The merge gate also refuses a lane-writable settings file
+  that holds the bound.
+
+### Fixed
+
+- `babysit-prs`: the pr-merge merge job's queued-entry sweep no longer dequeues a lanes App entry just because this run could not read its pr-verify verdict. The merge queue's ci-status reads a lanes App pull request's verdict itself and refuses it fail-closed, so the reader answers `verify:queue-reads` and the entry stays, not counted as kept. Before, when the merge job's whole artifact listing failed, the sweep removed lanes App entries that enable-auto-merge had just armed on a pass, and they cycled in and out of the queue. Every other unreadable entry still leaves, adopted pull requests included, since the queue reads no verdict for them.
+
+- stop an earlier-dated revert of a published reverted merge from refusing every later promotion-evidence publish
+
+  The publisher wrote one `reverted-merge` event per reverted merge, dated
+  at the earliest revert it saw. When a later run found an earlier revert of
+  the same merge, the event's date moved, the published event was missing
+  from the new set, and every later publish refused with "the new events drop
+  N previously published event(s)" until a person edited the file. It now
+  writes an event at each date a revert of the merge is seen, so an earlier
+  revert adds an event and the published one stays. A revert seen in both a
+  pull request body and its squash commit at different times now gives two
+  events. The refusal still fires for a published event the new set lacks.
+
+- The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)` of an
+  array assignment, an extglob, `$(…)`, `$((…))`, `<(…)` or `>(…)`, or after a closing backtick,
+  in its word, as Bash does, instead of reading it as a comment that hid the rest of the line.
+  Those frames now stay open across `;`, `|`, `&` and newlines inside them, a `case` pattern's
+  `)` no longer closes one, and `case` or `esac` inside arithmetic is read as a variable name.
+- A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
+  ends at the closing backtick, as in Bash; an escaped backtick does not close it, and outside a
+  comment or quote it opens or closes a nested substitution whose commands are read.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, not as arithmetic. The parentheses of a `[[ … =~ … ]]` regex are regex
+  text, not an array assignment.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
+- For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
+  without it, the parser now reports the commands of both readings, and `HOOK_HEREDOC_BODIES`
+  lists each here-doc body once, in source order.
+
+## [5.5.0] - 2026-11-02
+
+### Changed
+
+- `publish-promotion-evidence.mjs` emits a `re-earned` event for a cell once its existing predicate passes over only the merges after the latest contrary event against it or a prerequisite, a demotion record's creation among them. `since` is that instant rounded up to a whole second, as the merge gate's `--window-start` is, so a re-earn counted from the newest demotion record lifts the resolver's restart. Each contrary event carries `discovered`, the run that first published it, and the window starts at the later of each event's `at` and `discovered`, so a contrary event found after a re-earn restarts the window at that run whatever its date. An event published before `discovered` existed is stamped once with that file's `generated_at`. `--out` refuses any other change, addition or removal of a published event's `discovered`, and refuses a run whose clock is behind the previous publish. `--out` carries forward a published re-earn the next run no longer derives, and still refuses to drop a contrary event.
+
+- `push-branch.sh`'s stale-base merge and the `/source-control:pull-request ready` local-merge fallback run `git merge --no-stat`, so a merge returns its outcome line instead of a diffstat of every changed file.
+
 ## [5.4.1] - 2026-11-02
 
 ### Changed

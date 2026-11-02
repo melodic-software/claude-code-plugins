@@ -694,7 +694,7 @@ assert_contains "the failed upsert is reported" "$OUT" "telemetry upsert failed"
 # Not refactored to a shared source: the two skills are independently
 # installable. This gate is what makes the duplication safe — if the reader's
 # search changes, the consumer would silently post where the brief never looks.
-BRIEF="$SCRIPT_DIR/../../morning-brief/scripts/morning-brief.sh"
+BRIEF="$SCRIPT_DIR/../../../../work-items/skills/morning-brief/scripts/morning-brief.sh"
 for literal in 'loop-lane telemetry running per-lane status in:title' 'sort_by(.number) | .[0].number // empty'; do
   assert_contains "the consumer carries the discovery literal [$literal]" "$(cat "$SCRIPT")" "$literal"
   assert_contains "the morning brief carries the SAME literal [$literal]" "$(cat "$BRIEF")" "$literal"

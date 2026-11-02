@@ -33,7 +33,7 @@
     "entry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "kind", "need", "for", "detect", "degrade", "install", "check"],
+      "required": ["id", "kind", "need", "for", "detect", "degrade", "install"],
       "properties": {
         "id": {
           "type": "string",

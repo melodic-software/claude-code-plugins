@@ -1,11 +1,11 @@
 {
   "name": "source-control",
-  "version": "5.4.1",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "5.6.1",
   "license": "MIT",
   "keywords": [
     "git",
@@ -21,6 +21,9 @@
     "delivery",
     "skill"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",
@@ -273,6 +276,11 @@
       "type": "string",
       "title": "Promotion-evidence credential roots",
       "description": "Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven."
+    },
+    "promotion_evidence_max_age_hours": {
+      "type": "string",
+      "title": "Promotion-evidence maximum age (hours)",
+      "description": "Positive whole number of hours: after a demotion record restarts the evidence window, a cell re-earns promotion only when the events file's sidecar generated_at is no older than this. User or managed settings only; --settings does not count. Absent: a demoted cell stays effective-unpromoted."
     },
     "setup_inference_window": {
       "type": "string",

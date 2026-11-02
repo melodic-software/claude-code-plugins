@@ -15,8 +15,12 @@
     "git",
     "hardcoded-paths",
     "cli-flags",
-    "pull-request"
+    "pull-request",
+    "hook"
   ],
+  "metadata": {
+    "category": "security"
+  },
   "userConfig": {
     "secret_pattern_detection_enabled": {
       "type": "boolean",
@@ -188,5 +192,5 @@
       "min": 1
     }
   },
-  "version": "0.84.3"
+  "version": "0.84.5"
 }
