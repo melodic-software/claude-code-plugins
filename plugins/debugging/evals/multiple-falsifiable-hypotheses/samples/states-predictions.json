@@ -23,6 +23,14 @@
     {
       "answer": "| Rank | Cause | Ruled out if | Confirmed if |\n|---|---|---|---|\n| 1 | Exporter reads `cfg.footer` without a guard | Test passes unchanged with a footer | Footer set makes it green |",
       "why": "Ruled out if / Confirmed if columns, table at start of reply"
+    },
+    {
+      "answer": "| # | Hypothesis | Prediction | How to test | Evidence | Result |\n|---|---|---|---|---|---|\n| 1 | Null `footer` config since commit a3f9c1 | A footer in the fixture makes it pass | Add a footer to the test fixture | Commit a3f9c1 moved the footer key | |",
+      "why": "Result column left blank before testing; Prediction is filled"
+    },
+    {
+      "answer": "| Hypothesis | Evidence | Refuted if\n|---|---|---\n| Null `footer` config | known-issues #12 | A footer set still crashes",
+      "why": "no trailing pipes, prediction in the last column"
     }
   ],
   "fail": [
@@ -49,6 +57,10 @@
     {
       "answer": "| # | Hypothesis | Prediction |\n|---|---|---|\n| 1 | Null `footer` config | TBD |\n| 2 | Formatter null date | TBD |\n| 3 | Customer lookup null | TBD |",
       "why": "prediction column holding only TBD"
+    },
+    {
+      "answer": "| # | Hypothesis | Prediction | Result |\n|---|---|---|---|\n| 1 | Null `footer` config from commit a3f9c1 |  | Crash reproduced on main |\n| 2 | Formatter null date |  | Not run yet |",
+      "why": "blank Prediction column while a later Result column is filled"
     },
     {
       "answer": "Three hypotheses, most likely first: the null `footer` config from commit a3f9c1, the date formatter getting a null date, and the customer lookup returning null. I will rank them against the recent commits.",
