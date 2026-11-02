@@ -7,6 +7,22 @@
     {
       "answer": "H2: if the date formatter is the culprit, a report with no dates will not crash.",
       "why": "culprit ... will"
+    },
+    {
+      "answer": "Ranked causes:\n\n| Rank | Cause | Refuted if | Supported if |\n|---|---|---|---|\n| 1 | `footer` config is null since a3f9c1 | Setting a footer still crashes | Setting a footer stops the crash |\n| 2 | Date formatter gets a null date | A report with no dates still crashes | Removing dates stops the crash |\n| 3 | Customer lookup returns null | A seeded customer still crashes | A seeded customer passes |",
+      "why": "Refuted if / Supported if columns, plain pipes"
+    },
+    {
+      "answer": "| **#** | **Hypothesis** | **Prediction** |\n| :-- | :-- | :-- |\n| 1 | Null `footer` from ADR 0004's config split | Adding a footer to the fixture makes the test pass |\n| 2 | Formatter null date | A dateless report passes |\n| 3 | Template cache stale | Clearing the cache changes nothing |",
+      "why": "bold Prediction column, aligned separator"
+    },
+    {
+      "answer": "Before testing any of them:\n\n  | Hypothesis | Expected if true |\n  |------------|------------------|\n  | **Footer null (known-issues #12)** | **Crash goes away with a footer set** |\n  | Locale missing | Crash moves to the locale call |\n  | Exporter retry | Crash only on the second write |",
+      "why": "Expected if true column, indented table, bold cells"
+    },
+    {
+      "answer": "| Rank | Cause | Ruled out if | Confirmed if |\n|---|---|---|---|\n| 1 | Exporter reads `cfg.footer` without a guard | Test passes unchanged with a footer | Footer set makes it green |",
+      "why": "Ruled out if / Confirmed if columns, table at start of reply"
     }
   ],
   "fail": [
@@ -21,6 +37,22 @@
     {
       "answer": "Here is a summary of the release notes for version 2.3.",
       "why": "answer to a different question"
+    },
+    {
+      "answer": "| Rank | Hypothesis | Evidence |\n|---|---|---|\n| 1 | Null `footer` config | Commit a3f9c1 moved it |\n| 2 | Formatter null date | ADR 0004 |\n| 3 | Customer lookup null | known-issues #12 |",
+      "why": "hypothesis column but no prediction column"
+    },
+    {
+      "answer": "| Rank | Cause | Refuted if | Supported if |\n|---|---|---|---|\n| 1 | Null `footer` config |  |  |\n| 2 | Formatter null date |  |  |",
+      "why": "prediction columns with empty cells"
+    },
+    {
+      "answer": "| # | Hypothesis | Prediction |\n|---|---|---|\n| 1 | Null `footer` config | TBD |\n| 2 | Formatter null date | TBD |\n| 3 | Customer lookup null | TBD |",
+      "why": "prediction column holding only TBD"
+    },
+    {
+      "answer": "Three hypotheses, most likely first: the null `footer` config from commit a3f9c1, the date formatter getting a null date, and the customer lookup returning null. I will rank them against the recent commits.",
+      "why": "prose names hypotheses with no predictions"
     }
   ]
 }
