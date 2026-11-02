@@ -65,6 +65,10 @@ jobs:
       actions: read # the dispatcher run's file and head
     outputs:
       stale: ${{ steps.current.outputs.stale }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         if: inputs.dispatcher-run-id != ''
@@ -81,6 +85,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
+      - name: Log the API budget at the end
+        if: always() && inputs.dispatcher-run-id != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The PR head fix-docs's report posts its check on, read by a job that runs
   # no head code, as fix-ci-context's is for fix-ci. Without it the report
@@ -206,13 +218,19 @@ jobs:
       posted: ${{ steps.posted.outputs.posted }}
       allowed: ${{ steps.posted.outputs.allowed }}
       handed-off: ${{ steps.posted.outputs.handed-off }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
-          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -231,6 +249,14 @@ jobs:
         env:
           PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
         run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
   # only when the broker allowed fix-docs, fix-docs posted no check, and
@@ -292,13 +318,19 @@ jobs:
       contents: read # the default branch tip's handoff-evidence.sh
     outputs:
       handed-off: ${{ steps.handoff.outputs.handed-off }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
-          sparse-checkout: .github/scripts/lib/handoff-evidence.sh
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
@@ -308,6 +340,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CALLS: fix-docs-subscription
         run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The third call, on the central fallback subscription's token alone: it
   # runs only on fix-docs-subscription-handoff's read, after fix-docs-subscription's subscription leg handed off (a

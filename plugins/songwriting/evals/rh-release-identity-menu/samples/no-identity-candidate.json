@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours."
+    },
+    {
+      "answer": "Rejected (identity): police, lease.\n\nCandidates: peace, grease, beef, wreath, east, seat, the streets, on my knees.",
+      "why": "named only under a rejected heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lease is the better of the two; police pulls focus.",
+      "why": "picks one of the identities"
+    },
+    {
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Perfect | police |\n| Perfect | peace |\n| Family | wreath |",
+      "why": "lists police as a candidate"
+    }
+  ]
+}

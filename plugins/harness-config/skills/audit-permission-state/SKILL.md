@@ -149,7 +149,7 @@ inert <kind> scopes=<a,b> outranked_by=<kind> <rule>           one per beaten en
 carveout <kind> source=<scope>:<surface> [bare] <rule>         one per ! Read/Edit rule
 ```
 
-Two mechanics decide those records, and conflating them produces confident wrong answers:
+These mechanics decide those records, and conflating them produces confident wrong answers:
 
 - **The merge treats rules as merging across scopes, never overriding**, so the same rule in the
   same list at two scopes has no winner. Both are live, and `scopes=` names every contributor.
@@ -263,7 +263,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/automode-block
   A mid-sentence cut is reported as truncated; an empty result says "critique returned nothing; run it
   yourself" rather than implying your rules are clean.
 
-**This lane is optional, and its prerequisite is nobody else's problem.** It needs `python3` because
+**This lane is optional.** It needs `python3` because
 `claude auto-mode config` emits raw control characters inside string values. `jq` rejects the output
 outright, and no line-oriented POSIX filter can repair it, since the offending byte is a raw line feed
 inside a string. Absent `python3` or `claude`, the lane prints a visible skip notice and exits 0; every

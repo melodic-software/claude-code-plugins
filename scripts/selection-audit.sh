@@ -58,6 +58,10 @@
 # Exit: 0 no gap and no miss; 1 gaps or misses reported; 2 usage or a tool
 # missing.
 set -uo pipefail
+# In a job, each gh call keeps its rate-limit reading for the job-end
+# api-budget notice (.github/actions/log-api-budget).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 SELECTOR="${SELECTION_AUDIT_SELECTOR:-scripts/affected-tests.sh}"
 # shellcheck source=scripts/lib/pytest-python.sh
