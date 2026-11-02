@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.2] - 2026-11-02
+
+### Changed
+
+- The `multiple-falsifiable-hypotheses` eval's `states-predictions` grader also credits a hypothesis table whose prediction column (such as "Refuted if" or "Prediction") is filled in, not only an `if ... then` sentence.
+
 ## [0.16.1] - 2026-11-01
 
 ### Changed
