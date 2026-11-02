@@ -1017,6 +1017,25 @@ describe("decide", () => {
         assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
       });
 
+      // The phrasings the cost-hold review found admitted by a raising-verb
+      // allowlist: a verb outside any list, a noun phrase, a split sentence.
+      test("a charge in a clause that does not lower it, whatever its verb", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: set artifact retention to 400 days" }) }), "retention");
+        assert.equal(word({ issue: issueOf({ title: "ci: larger runners for e2e" }) }), "larger runners");
+        for (const [item, found] of [
+          ["Bump the Actions spending limit to $200.", "spending limit"],
+          ["Double the log retention.", "retention"],
+          ["Change retention to 400 days.", "retention"],
+          ["Spin up an Azure VM for the e2e job.", "azure"],
+          ["Larger runners for the build job.", "larger runners"],
+          ["Run the e2e job on larger runners.", "larger runners"],
+          ["Larger runners. Move the e2e job there.", "larger runners"],
+          ["Drop the old job and move the build to larger runners.", "larger runners"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
+
       test("raising retention and adding an Azure resource still charge", () => {
         assert.equal(inBody("- [ ] Raise retention to 400 days."), "retention");
         assert.equal(inBody("- [ ] Add an Azure storage account."), "azure");
@@ -2503,6 +2522,14 @@ describe("host-run work", () => {
     const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
     assert.equal(unrunnableCriteria(PAID, "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
     assert.equal(unrunnableCriteria("- [ ] Run `claude plugin eval` on larger runners and record the delta.", "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
+    // Another provider bills an account the subscriptions and credits do not cover.
+    for (const line of [
+      "- [ ] Run claude plugin eval on the suite through Amazon Bedrock and record the delta.",
+      "- [ ] Run claude plugin eval on the suite with CLAUDE_CODE_USE_VERTEX=1 and record the delta.",
+      "- [ ] Run claude plugin eval --provider foo on the suite and record the delta.",
+    ]) {
+      assert.equal(unrunnableCriteria(line, "- [ ] ", HOSTS).found[0].kind, PAID_EVAL, line);
+    }
     for (const [why, input] of [
       ["paid eval alone", { issue: hostRun(PAID) }],
       ["paid eval beside a host item", { issue: hostRun(`${HOST_ONLY}\n${PAID}`) }],
@@ -3317,10 +3344,16 @@ describe("bodyUnpushablePaths", () => {
       "The step at .github/workflows/a.yml:40 calls the script.",
       "```\n.github/workflows/a.yml\n```",
       "No file under .github/workflows is edited.",
+      "No file under `.github/workflows`\nis edited.",
       "- [ ] Raise the timeout in .github/workflows/a.yml.",
     ]) {
       assert.deepEqual(paths(body), [], body);
     }
+  });
+
+  test("a soft-wrapped sentence reads as one, and a blank line ends it", () => {
+    assert.deepEqual(paths("Raise the timeout in\n.github/workflows/pr-require-checks.yml to 5 minutes."), [".github/workflows/pr-require-checks.yml"]);
+    assert.deepEqual(paths("Raise the timeout in .github/CODEOWNERS.\n\nNo file under .github/workflows is edited."), [".github/CODEOWNERS"]);
   });
 
   test("decide refuses an issue whose body prose names one, with no hold", () => {

@@ -449,7 +449,10 @@ const EVAL_HARNESS = String.raw`(?:\bmeasure-invocation(?!\.test\b)(?!(?:\.sh)?\
 // account (BILLED) can bill the owner: an owner decision, never the host queue.
 export const EVAL_RUN = "a model eval run";
 export const PAID_EVAL = "a paid eval";
-const BILLED = /\b(?:azure|larger(?:[- ][a-z]+){0,3}[- ]runners?|(?:actions|private[- ]repo(?:sitory)?) (?:minutes|storage)|api keys? (?:beyond|outside|past) the (?:promotional )?credits?|paid api keys?|billed api keys?)\b/i;
+// A provider other than the subscriptions and the credits (Bedrock, Vertex,
+// Foundry, a cloud account, `--provider`, `CLAUDE_CODE_USE_*`) bills too.
+const BILLED =
+  /\b(?:azure|larger(?:[- ][a-z]+){0,3}[- ]runners?|(?:actions|private[- ]repo(?:sitory)?) (?:minutes|storage)|api keys? (?:beyond|outside|past) the (?:promotional )?credits?|paid api keys?|billed api keys?|bedrock|vertex|foundry|aws|amazon|gcp|google cloud|openai|openrouter|claude_code_use_\w+)\b|--provider\b/i;
 const EVAL_PATTERN = new RegExp(
   [
     String.raw`\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b${FREE})`,
@@ -750,13 +753,17 @@ const workSections = (prose, text, workHeadings) => {
   return { known, lines };
 };
 
-// A clause that says the work will create, raise, extend, enable or take on
-// something that bills (owner decision 2026-10-31 Q1: what the issue will do,
-// not background text). A charge word in any other clause, such as "shorten
-// their retention" or "set a retention policy", names no charge.
+// What the issue will do, not background text (owner decision 2026-10-31
+// Q1): a charge word counts in every clause but one that only lowers or
+// removes the charge (LOWERING) and does not also take one on (CHARGING), such
+// as "shorten their retention" or "set a retention policy". An unlisted verb
+// still counts, so the cost hold fails closed.
+const LOWERING =
+  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delet\w*|disabl\w*|cut|cuts|cutting|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
 const CHARGING =
-  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|(?:runs?|running) on)\b/i;
-// A billing account admission reads as a charge beside the shared words.
+  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|runs?|running|bump\w*|doubl\w*|expand\w*|spin(?:s|ning)? up|spun up|allocat\w*|configur\w*|keep|keeps|keeping|kept|sign(?:s|ed|ing)? up|opt(?:s|ed|ing)? in|set(?:s|ting)?(?! (?:an? |the )(?:[\w-]+ ){0,2}polic))\b/i;
+// A billing account admission reads as a charge beside the shared words, in
+// every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
 // A clause ends at a sentence end, or at a line break before a blank line or
 // a list item.
@@ -764,7 +771,7 @@ const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+
 
 // The charge words in what an issue will do, each once: its `title`, and its
 // `body`'s task items and work sections (workSections), or the whole body with
-// neither, each counted only in a CHARGING clause. Each is read alone, so a
+// neither, each counted in every clause but a LOWERING one. Each is read alone, so a
 // fence one leaves open never closes in the other. Comments are not read.
 // Pure.
 export function workCharges({ title, body }, charges, isPublic, taskList) {
@@ -781,7 +788,7 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
     ...new Set(
       parts
         .flatMap(clausesOf)
-        .filter((clause) => CHARGING.test(clause))
+        .filter((clause) => !LOWERING.test(clause) || CHARGING.test(clause))
         .flatMap((clause) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())]),
     ),
   ];
@@ -1009,15 +1016,30 @@ const CITED_AT = /`[^`\n]*:\d+(?:-\d+)?`|\S+:\d+(?:-\d+)?(?=[\s.,;)\]]|$)/g;
 // each line outside a code fence and outside every task-list item (which
 // unpushablePaths reads), read as plainText, less an evidence line, a path
 // cited at a line, and a path named only in a shape that leaves it
-// unmodified (NEGATED), each once. Pure.
+// unmodified (NEGATED), each once. Consecutive prose lines are read as one
+// paragraph, so a negation soft-wrapped across lines still holds; a blank
+// line, a bullet, a heading or a line left out ends one. Pure.
 export function bodyUnpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
   const items = new Set(taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more]));
-  const paths = lines
-    .map((line) => plainText(line))
-    .filter((line, index) => blocks[index] === 0 && !items.has(index) && !EVIDENCE_LINE.test(line))
-    .flatMap((line) => pathTokens(withoutNegated(line.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))));
+  const paragraphs = [];
+  let open = false;
+  lines.forEach((raw, index) => {
+    const line = plainText(raw);
+    if (blocks[index] !== 0 || items.has(index) || EVIDENCE_LINE.test(line) || line.trim() === "") {
+      open = false;
+      return;
+    }
+    const starts = BULLET.test(raw) || /^\s*#/.test(raw);
+    if (open && !starts) {
+      paragraphs[paragraphs.length - 1] += ` ${line.trim()}`;
+    } else {
+      paragraphs.push(line);
+    }
+    open = !/^\s*#/.test(raw);
+  });
+  const paths = paragraphs.flatMap((text) => pathTokens(withoutNegated(text.replace(CITED_AT, " ")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))));
   return [...new Set(paths)];
 }
 
