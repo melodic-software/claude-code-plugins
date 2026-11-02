@@ -44,6 +44,7 @@ else
   bad "a plugin still carries its own probe row; declare session_probe in its prerequisites.json instead" "${probes[*]}"
 fi
 
+# shellcheck disable=SC2016 # the row's ${...} placeholders are literal hooks.json text
 want='sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" node-notice /harness-ops:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1" node-notice /harness-ops:check'
 row="$(jq -r --arg want "$want" --arg m "$MATCHER" '[.hooks.SessionStart[] | select(.matcher == $m) | .hooks[] | select(.command == $want)] | length' "$HOOKS")"
 if [[ "$row" == 1 ]]; then

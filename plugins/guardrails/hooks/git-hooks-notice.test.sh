@@ -36,11 +36,11 @@ args=("$ROOT/lib/prerequisites.mjs" probe "$ROOT")
 REPO="$WORK/repo"
 git init -q -b main "$REPO"
 n=0
-run_row() { # [ENV=value ...] -> the row's stdout
+run_row() { # -> the probe's stdout
   n=$((n + 1))
   ((${#args[@]})) || return 0
   printf '{"session_id":"s%d"}' "$n" |
-    env CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_DATA="$WORK/data" "$@" node "${args[@]}" 2>/dev/null
+    env CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_DATA="$WORK/data" node "${args[@]}" 2>/dev/null
 }
 
 out="$(run_row)"
