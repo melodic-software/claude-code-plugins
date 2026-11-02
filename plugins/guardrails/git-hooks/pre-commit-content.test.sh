@@ -92,6 +92,13 @@ git -C "$REPO" add notes.md
 expect "a home path on an added line blocks, naming that line" "1|notes.md:3: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
+# The GitHub-hosted runner's home is the same on every hosted runner, so a line
+# holding it, bare or with a child path, passes.
+new_repo
+printf 'line one\nline two\n"cwd": "%s"\nsee %s here\n' "${SL}home${SL}runner" "${SL}home${SL}runner${SL}work${SL}demo${SL}demo" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "the hosted runner's home on an added line passes" "0|" "$(check "$REPO")"
+
 # The Edit semantics check-bash-file-changes used: only the lines the change adds.
 new_repo
 printf 'line one\ntoken=%s\n' "$FAKE_GHP" >"$REPO/notes.md"
