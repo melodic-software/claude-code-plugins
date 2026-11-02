@@ -135,7 +135,11 @@ per the [telemetry contract](../telemetry.md) are the evidence base.
   change on the governance surface.
 - **Demotion is automatic and fail-closed.** Contrary evidence lowers the cell's effective
   state immediately, without waiting for human action; the cell re-earns promotion from
-  there through the same evidence predicate.
+  there through the same evidence predicate, and a person re-ratifies it after the demotion.
+  Only a demotion record's label and routing depend on whether its evidence can clear without a
+  person: a record that clears once main is green at a later commit carries no human-gated
+  label, unless its filer needs one to keep intake admission off it (the lanes App's
+  `--remediate` record) or a failing check got no fix issue.
 - **Promotion never overrides unanimity.** A promoted `C2`/`C3` auto-merge cell still does not
   auto-proceed on checker dissent: the promoted state is a ceiling, and dissent withholds the
   automatic transition the same way contrary evidence lowers the cell. That is the same
