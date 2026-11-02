@@ -447,7 +447,7 @@ jobs:
             import { validatePlan } from "./.base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs";
             const plan = validatePlan(JSON.parse(readFileSync(process.env.IN + "/plan.json", "utf8")),
               { release: process.env.RELEASE, baseSha: process.env.BASE_SHA });
-            console.log(`${plan.branches.length} branches, ${plan.handoffs.length} handoffs`);
+            console.log(plan.branches.length + " branches, " + plan.handoffs.length + " handoffs");
           '
           : >"$IN/diffs.txt"
           count=0
