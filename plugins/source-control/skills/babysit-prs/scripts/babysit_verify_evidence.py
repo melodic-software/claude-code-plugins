@@ -5747,7 +5747,7 @@ class _PerRunBuild:
                 f"{len(early)} listed FAIL(s) uploaded before --since "
                 f"{_stamp(self.since)}, the earliest artifact {item.get('id')} of run "
                 f"{item.get('run')} at {_stamp(created)}: lower --since to at most "
-                f"{_stamp(created)} and start a new --checkpoint"
+                f"{_stamp(created)}, remove the checkpoint file and run again"
             )
 
     def build(self) -> dict[str, Any]:

@@ -533,7 +533,8 @@ class PerRunLegacyFails(unittest.TestCase):
         self.assertIn(
             "2 listed FAIL(s) uploaded before --since 2026-10-14T00:00:00Z, the "
             "earliest artifact 90 of run 9 at 2026-10-13T20:00:00Z: lower --since "
-            "to at most 2026-10-13T20:00:00Z",
+            "to at most 2026-10-13T20:00:00Z, remove the checkpoint file and run "
+            "again",
             err,
         )
         self.assertFalse(self.out.exists())
