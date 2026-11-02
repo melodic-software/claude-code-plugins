@@ -735,8 +735,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
   function readBack(q, d){ // Claude's newest "Understood as:" reply to this page answer, and whether the user confirmed it since
     if (!d || d.src !== "page" || d.seq == null) return null;
-    const h = (q.history || []).filter(x => x.by === "claude" && x.replyTo === d.seq && /^\s*Understood as:/i.test(x.text || "")).pop();
-    return h ? {text: h.text, at: h.at, confirmed: events().some(e => e.kind === "confirm-reading" && e.id === q.id && !e.withdrawn && e.seq > d.seq && String(e.at) >= String(h.at))} : null; // a confirm older than a corrected read-back does not confirm it
+    const hs = (q.history || []).filter(x => x.by === "claude" && x.replyTo === d.seq && /^\s*Understood as:/i.test(x.text || "")), h = hs[hs.length - 1], rev = hs.length;
+    return h ? {text: h.text, at: h.at, seq: d.seq, rev, confirmed: events().some(e => e.kind === "confirm-reading" && e.id === q.id && !e.withdrawn && e.seq > d.seq && (e.readRev != null ? e.answerSeq === d.seq && e.readRev === rev : String(e.at) >= String(h.at)))} : null; // a confirm names the read-back it saw, so one Claude replaced since does not confirm the new one
   }
   const flipsIf = q => { const m = String(q.basis || "").match(/^[ \t>*-]*(?:\*\*)?Flips if:(?:\*\*)?[ \t]*(.+)$/im); return m ? m[1].trim() : ""; }; // the basis's Flips if: line
   function asideRec(q, d){ // the recommendation a set-aside accept was given against, when a revision set it aside (exporters.aside_rec)
@@ -1522,7 +1522,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (d && !d.aside && d.text) $("cur").innerHTML += '<div class="earlier" id="earlier"><span class="kbd">Your earlier answer</span><q>' + esc(d.text) + "</q></div>"; // read-only; the note box never takes it
     const rb = d && !d.aside ? readBack(q, d) : null;
     if (rb) $("cur").innerHTML += '<div class="readback" id="readback"><span class="kbd">Claude read your answer as</span> ' + mdHtml(rb.text) +
-      (rb.confirmed ? '<span class="chip s-accept" id="readOk">You confirmed this reading</span>' : '<div class="arow"><button type="button" class="act" data-confirmreading="' + esc(q.id) + '" data-submit="1"' + (can && !off ? "" : " disabled") + ">Confirm reading</button><span class=\"kbd\">Or answer again to correct it.</span></div>") + "</div>";
+      (rb.confirmed ? '<span class="chip s-accept" id="readOk">You confirmed this reading</span>' : '<div class="arow"><button type="button" class="act" data-confirmreading="' + esc(q.id) + '" data-answerseq="' + rb.seq + '" data-readrev="' + rb.rev + '" data-submit="1"' + (can && !off ? "" : " disabled") + ">Confirm reading</button><span class=\"kbd\">Or answer again to correct it.</span></div>") + "</div>";
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt) && !!c.who === personOf(d)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
@@ -2281,8 +2281,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const id = S.sel;
     if (await sendFree(kind, "", {id})) { toast(kind === "research" ? "Sent. Claude researches " + id + " and replies in its thread." : "Sent. Claude releases " + id + " and ignores the pending result."); renderAll(); }
   }
-  async function confirmReading(id){ // no decision: Claude settles the answer as read back
-    if (await sendFree("confirm-reading", "", {id})) { toast("Sent. Claude records " + id + " as read back."); renderAll(); }
+  async function confirmReading(ds){ // no decision: Claude settles the answer as read back; the event names the read-back shown
+    const id = ds.confirmreading;
+    if (S.api < 2 || S.busy) return;
+    if (closed()) { toast(closedWhy(), true); return; }
+    S.busy = true;
+    try {
+      const {res, data} = await post({kind: "confirm-reading", text: "", id, answerSeq: Number(ds.answerseq), readRev: Number(ds.readrev)});
+      S.busy = false;
+      if (res.status === 409) { await refresh(); toast("Claude changed its reading of " + id + " while you read it. Review the new one.", true); return; }
+      if (!res.ok) throw new Error(data.error || res.status);
+      await refresh(); toast("Sent. Claude records " + id + " as read back."); renderAll();
+    } catch (e) { S.busy = false; if (!e.quiet) toast("Not sent (" + e.message + ").", true); }
   }
   async function confirmCommit(id, i){ // records only this commitment; idempotent
     const q = Q[id]; if (!q || S.busy || !accepted(q) || confirmed(q).has(String(i))) return false;
@@ -2532,7 +2542,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.name === "choice") { arm(+t.value, viaKeys); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
-    const cr = t.closest("[data-confirmreading]"); if (cr) { confirmReading(cr.dataset.confirmreading); return; }
+    const cr = t.closest("[data-confirmreading]"); if (cr) { confirmReading(cr.dataset); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
     if (t.closest("[data-auditaccepted]")) { auditAccepted(); return; }
     const nt = t.closest("#needToast button");

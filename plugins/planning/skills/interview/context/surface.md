@@ -145,7 +145,7 @@ A decision event names the content revision it answered: the `contentRev` the pa
 | `accept` | question | yes | Record in the ledger. No `text`, or the note already recorded for that question: `handle`, no reply (a plain accept the server auto-handled never reaches you, see [Auto-handled events](#auto-handled-events)). New non-empty `text`: `reply` with its `seq`, answering the note |
 | `alt` | question | yes (`alt` is the key) | Record; read it back when R-D calls for it, and reply when the choice changes other questions |
 | `own` | question | yes (`text` required) | Record; read it back when R-D calls for it |
-| `confirm-reading` | question | no | The user confirmed your read-back (R-D): for an `own` answer, `reply` with its `seq` and `resolution` set to the reading; otherwise `handle` it |
+| `confirm-reading` | question | no | The user confirmed your read-back (R-D): for an `own` answer, `reply` with its `seq` and `resolution` set to the reading the event names (`answerSeq` is the answer, `readRev` counts your `Understood as:` replies to it, from 1; the server refuses one you have since replaced); otherwise `handle` it |
 | `defer` | question | yes | Record as deferred |
 | `reopen` | question | clears it, keeps the note | `handle`; triage the dependents it marked ([Changed answers](#changed-answers)) |
 | `ask` | question | no | `reply` with its `seq`; an Ask that opens new scope also gets a `propose` per new question ([Asks that open new scope](#asks-that-open-new-scope)) |

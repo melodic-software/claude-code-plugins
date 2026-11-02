@@ -21,6 +21,8 @@
     "undoSeq": {"type": "integer"},
     "auditSeq": {"type": "integer"},
     "contentRev": {"type": "integer"},
+    "answerSeq": {"type": "integer", "description": "On confirm-reading: the seq of the answer whose read-back the user confirmed."},
+    "readRev": {"type": "integer", "description": "On confirm-reading: which of Claude's `Understood as:` replies to that answer the user confirmed, counted from 1; the server refuses one that is no longer the newest."},
     "outOfOrder": {
       "type": "array",
       "items": {"type": "string"},

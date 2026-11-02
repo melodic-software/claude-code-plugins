@@ -1833,17 +1833,37 @@ class TestConfirmReading(WaitCase):
     def test_confirm_reading_is_kept_unhandled_and_leaves_the_decision(self):
         from interview_server import rebuild_responses
 
-        self.assertEqual(self.post({"id": "A", "kind": "own", "text": "fee chair flag"})[0], 200)
+        code, own = self.post({"id": "A", "kind": "own", "text": "fee chair flag"})
+        self.assertEqual(code, 200, own)
+        seq = own["seq"]
         before = self.state()["responses"]["responses"]["A"]
-        code, data = self.post({"id": "A", "kind": "confirm-reading"})
+        read = {"id": "A", "kind": "confirm-reading", "answerSeq": seq}
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: feature flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.post({"id": "A", "kind": "confirm-reading"})[0], 400)
+        rc, out = self.rp_ops(
+            {"op": "reply", "id": "A", "seq": seq, "text": "Understood as: fee chart flag."}
+        )
+        self.assertEqual(rc, 0, out)
+        # The tab drew the first read-back; Claude replaced it before the click.
+        code, data = self.post({**read, "readRev": 1})
+        self.assertEqual((code, data.get("readRev")), (409, 2), data)
+        code, data = self.post({**read, "answerSeq": seq - 1, "readRev": 2})
+        self.assertEqual(code, 409, data)
+        code, data = self.post({**read, "readRev": 2})
         self.assertEqual(code, 200, data)
         r = self.state()["responses"]
         ev = next(e for e in r["events"] if e["seq"] == data["seq"])
-        self.assertEqual((ev["kind"], ev["id"]), ("confirm-reading", "A"))
+        self.assertEqual(
+            (ev["kind"], ev["id"], ev["answerSeq"], ev["readRev"]),
+            ("confirm-reading", "A", seq, 2),
+        )
         self.assertNotIn("autoHandled", ev)
         self.assertEqual(r["responses"]["A"], before)
         self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
-        self.assertEqual(self.post({"id": "nope", "kind": "confirm-reading"})[0], 400)
+        self.assertEqual(self.post({**read, "id": "nope", "readRev": 2})[0], 400)
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
 

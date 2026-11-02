@@ -18,6 +18,7 @@ import heapq
 import html
 import json
 import os
+import re
 import secrets
 import sys
 import tempfile
@@ -1058,6 +1059,29 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
+READ_BACK = re.compile(r"^\s*Understood as:", re.I)
+
+
+def check_reading(q, response, answer_seq, read_rev):
+    """ValueError (400) or Conflict (409 stale) for a confirm-reading event: it names the answer
+    (its seq) and the read-back it confirms (readRev, the count of Claude's `Understood as:` replies
+    to that answer up to the one shown), so a reading Claude replaced after the tab drew it is refused."""
+    if not isinstance(answer_seq, int) or not isinstance(read_rev, int):
+        raise ValueError(
+            "confirm-reading needs answerSeq and readRev: the read-back it confirms"
+        )
+    current = (response or {}).get("seq")
+    rev = sum(
+        1
+        for h in q.get("history") or []
+        if h.get("by") == "claude"
+        and h.get("replyTo") == answer_seq
+        and READ_BACK.match(h.get("text") or "")
+    )
+    if answer_seq != current or read_rev != rev or not rev:
+        raise Conflict({"error": "stale", "answerSeq": current, "readRev": rev})
+
+
 def repeat_of(events, event, since_seq=None):
     """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
     event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
@@ -1328,6 +1352,14 @@ class Hub(LoopbackWatcher):
                 qid = event["id"]
             elif kind == "confirm-understanding":
                 event["contentRev"] = msg["contentRev"]
+            elif kind == "confirm-reading":
+                check_reading(
+                    qs[qid],
+                    r["responses"].get(qid),
+                    msg.get("answerSeq"),
+                    msg.get("readRev"),
+                )
+                event["answerSeq"], event["readRev"] = msg["answerSeq"], msg["readRev"]
             elif kind == "accept-audit":
                 accepted, skipped = split_accept_audit(doc, r, items)
                 if not accepted:

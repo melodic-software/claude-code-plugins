@@ -608,7 +608,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#12103: Claude's read-back shows beside the answer it reads back, with Confirm reading", !!rb && rb.inAnswer && /^Claude read your answer as Understood as: the release owner emails the team the day before the freeze\./.test(rb.text) && rb.btn, JSON.stringify(rb));
     await page.click("[data-confirmreading]"); await page.waitForTimeout(700);
     const ev = (await events()).pop();
-    ok("#12103: Confirm reading posts confirm-reading on Q21, and the read-back then reads confirmed", ev.kind === "confirm-reading" && ev.id === "Q21" && /You confirmed this reading/.test(await text("#readback")) && !(await page.$("[data-confirmreading]")), JSON.stringify(ev) + " | " + await text("#readback"));
+    ok("#12103: Confirm reading posts confirm-reading on Q21, and the read-back then reads confirmed", ev.kind === "confirm-reading" && ev.id === "Q21" && Number.isInteger(ev.answerSeq) && ev.readRev === 1 && /You confirmed this reading/.test(await text("#readback")) && !(await page.$("[data-confirmreading]")), JSON.stringify(ev) + " | " + await text("#readback"));
     await page.click("#sumBtn"); await page.waitForTimeout(300);
     const n = (await events()).length;
     await page.fill("#offText", "Q99"); await page.click('[data-understand="off"]'); await page.waitForTimeout(300);
