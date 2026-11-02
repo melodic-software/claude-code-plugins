@@ -2300,8 +2300,9 @@ same-repository, non-draft pull request into main that did not start while the p
 draft (its `ci-status` skipped `Note a draft`; a draft's run tests nothing, and neither pr-verify
 nor the merge gate below counts a FAIL judged from one), and after each one whose only failures are
 `ci-status`'s holds that an approving review of the head lifts (a hold path, a trusted-actor list
-widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldOnly` reads the run's
-jobs and the `ci-status` log). The person then approves a head pr-verify has judged, and a session
+widening), its contract step's `do-not-merge` label, or both (resolve-pr's `heldShape` reads the run's
+jobs before the commit's pull requests, so any other failed run skips as `not-a-passing-run`
+whatever its pull request, and `heldOnly` reads the `ci-status` log). The person then approves a head pr-verify has judged, and a session
 holding the pull request with `do-not-merge` gets a verdict on each head it pushes. `ci-status`
 stays red until that approval and while the label is on, and the merge queue still removes a
 labeled pull request; no verdict replaces either. It never runs the pull request's code: a model
