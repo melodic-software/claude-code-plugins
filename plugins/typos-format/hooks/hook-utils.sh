@@ -4572,10 +4572,12 @@ hook::_bps_hd_brace_open() {
 # `$(` range starts at its `(`, so its parse reads a subshell; the others keep
 # their `$`, so their parse reads the word the same text reads at top level.
 # Inside `$( )` the quotes, `$'...'` spans, comments and nested openers are
-# tracked, so a `)` in them does not end the range. A here-doc opener or a
-# `case` word inside `$( )`, whose `)` this scan does not model, and a range
-# still open at the end of the body, run the range to the end of the body and
-# end the scan: the parse then reads more of the body as commands, never less.
+# tracked, so a `)` in them does not end the range. Where the scan cannot find
+# the `)` (a here-doc opener, a `case` word, an unclosed quote, a `(` that
+# continues a word) or the body ends inside a range, the range runs to the end
+# of the body, and the scan goes on from the next byte at body level, where
+# `'` stays literal: the parse reads the tail as commands and also gets every
+# substitution the tail holds, so it judges more, never less.
 # Dynamic scope, like hook::_bps_close_word.
 # shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; `chars` and `hd_subs` are locals of hook::bash_parse_segments_uncached
 hook::_bps_hd_spans() {
@@ -4602,6 +4604,27 @@ hook::_bps_hd_spans() {
   # the end of the body, never at a `}`, which bash ends only in command
   # position.
   local -a st=()
+  while ((k < e)); do
+    st=()
+    hook::_bps_hd_scan
+    if ((${#st[@]})); then
+      rs+=("$from $e")
+      k=$((k + 1))
+    fi
+  done
+  for j in ${rs[@]+"${rs[@]}"}; do
+    sub=""
+    for ((k = ${j% *}; k < ${j#* }; k++)); do sub+=${chars[k]}; done
+    hd_subs+=("$sub")
+  done
+}
+
+# hook::_bps_hd_scan: hook::_bps_hd_spans' frame scan from chars[k], appending
+# each closed range to `rs`. It returns with frames still open in `st` when it
+# stops at a construct it does not model, or at the end of the body.
+# Dynamic scope: every variable is hook::_bps_hd_spans'.
+# shellcheck disable=SC1003,SC2154  # '\' compares a literal backslash; dynamic-scope locals of hook::_bps_hd_spans
+hook::_bps_hd_scan() {
   while ((k < e)); do
     ch=${chars[k]}
     nx=""
@@ -4718,11 +4741,16 @@ hook::_bps_hd_spans() {
           ws=0
           ;;
         '(')
-          # `<(` and `>(` are part of a word; any other `(` opens a subshell,
-          # whose `)` ends a token, so a `#` after it starts a comment.
+          # A `(` that starts a token opens a subshell, whose `)` ends a
+          # token, so a `#` after it starts a comment. `<(` and `>(` are part
+          # of a word. Any other `(` continues a word (`a=(`, an extglob
+          # `@(`), where whether a later `#` is text depends on shell options.
           case ${chars[k - 1]:-} in
           '<' | '>') st+=(P) ;;
-          *) st+=(S) ;;
+          *)
+            ((ws)) || break
+            st+=(S)
+            ;;
           esac
           ws=1
           ;;
@@ -4765,12 +4793,6 @@ hook::_bps_hd_spans() {
     fi
     k=$((k + 1))
     ((${#st[@]})) || rs+=("$from $k")
-  done
-  ((${#st[@]} == 0)) || rs+=("$from $e")
-  for j in ${rs[@]+"${rs[@]}"}; do
-    sub=""
-    for ((k = ${j% *}; k < ${j#* }; k++)); do sub+=${chars[k]}; done
-    hd_subs+=("$sub")
   done
 }
 
@@ -4864,10 +4886,9 @@ hook::bash_parse_segments_uncached() {
   # `<<` is seen and skipped at the command-line newline, all but the
   # substitutions an unquoted body holds (hd_subs, hook::_bps_hd_spans).
   local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=() hd_subs=()
-  # How many unquoted bodies enclose this text: the caller's __hu_hdd_in, then
-  # cleared so a callback's own parse starts at 0. Past 8 a here-doc opener
-  # records no body, so every line after it is parsed as commands: more is
-  # judged, never less, and the nesting costs no more stack.
+  # Whether this text is a queued body substitution (1) or a parse of its own
+  # (0): the caller's __hu_hdd_in, then cleared so a callback's own parse
+  # starts its own queue.
   local __hu_hdd=${__hu_hdd_in:-0} __hu_hdd_in=""
 
   for ((i = 0; i < n; i++)); do
@@ -5040,11 +5061,9 @@ hook::bash_parse_segments_uncached() {
             ;;
           esac
         done
-        if ((__hu_hdd <= 8)); then
-          hd_delims+=("$delim")
-          hd_strip+=("$hstrip")
-          hd_quoted+=("$hquoted")
-        fi
+        hd_delims+=("$delim")
+        hd_strip+=("$hstrip")
+        hd_quoted+=("$hquoted")
         # The opener is a redirection whose target is the delimiter. A pending
         # operand ahead of it never arrived.
         hook::_bps_orphan_pending
@@ -5136,16 +5155,24 @@ hook::bash_parse_segments_uncached() {
   done
   ((have)) && hook::_bps_close_word
   hook::_bps_flush_segment
-  # Each substitution an unquoted body holds runs as a command. It is parsed
-  # here, in source order and after the last top-level segment, so a callback
-  # that reads the segment before (a pipe into a shell) still reads the
-  # top-level one.
-  local hsub
-  for hsub in ${hd_subs[@]+"${hd_subs[@]}"}; do
-    __hu_hdd_in=$((__hu_hdd + 1))
-    hook::bash_parse_segments_uncached "$hsub" "$cb"
-    __hu_hdd_in=""
-  done
+  # Each substitution an unquoted body holds runs as a command. The outermost
+  # parse queues them in __hu_hdq and parses each one, in source order and
+  # after its last top-level segment, so a callback that reads the segment
+  # before (a pipe into a shell) still reads the top-level one. A parse of a
+  # queued substitution appends its own body substitutions to that queue
+  # instead of recursing, so nesting costs no stack and has no depth limit;
+  # each one is shorter than the text it came from, so the queue drains.
+  if ((__hu_hdd)); then
+    __hu_hdq+=(${hd_subs[@]+"${hd_subs[@]}"})
+  else
+    local -a __hu_hdq=(${hd_subs[@]+"${hd_subs[@]}"})
+    local __hu_hqi
+    for ((__hu_hqi = 0; __hu_hqi < ${#__hu_hdq[@]}; __hu_hqi++)); do
+      __hu_hdd_in=1
+      hook::bash_parse_segments_uncached "${__hu_hdq[__hu_hqi]}" "$cb"
+      __hu_hdd_in=""
+    done
+  fi
   # Set last: a callback's own parse would overwrite it.
   # shellcheck disable=SC2034  # result global is consumed by the sourcing guard
   HOOK_HEREDOC_BODIES=(${hd_bodies[@]+"${hd_bodies[@]}"})
