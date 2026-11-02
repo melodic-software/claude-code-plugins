@@ -62,7 +62,8 @@ for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{
   'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'RUN_TITLE: ${{ github.event.workflow_run.display_title }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
   'RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml' \
   'RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs' \
-  'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash'; do
+  'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash' \
+  'LANES_PROCEED: ${{ steps.kill.outputs.proceed }}' 'APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 job="$(awk '/^  rerun-ci-status:$/ { on = 1; next } on && /^  [a-z]/ { exit } on { print }' "$WORKFLOW")"
@@ -71,6 +72,15 @@ if [[ "$job" == *$'    permissions:\n      contents: read # '*$'\n      actions:
 else
   fail "the job's permissions changed"
 fi
+# The kill switch is read as post-verify-notes reads it, before the find step,
+# and a failed read leaves the job running with no proceed output.
+kill_step="$(awk '$0 == "      - name: Check the kill switch" { on = 1; print; next } on && /^      - / { exit } on { print }' <<<"$job")"
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
+for want in 'id: kill' 'continue-on-error: true' 'uses: ./.base/.github/actions/check-kill-switch' \
+  'value: ${{ vars.CLAUDE_LANES_DISABLED }}' 'repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}'; do
+  if [[ "$kill_step" == *"$want"* ]]; then ok "the kill-switch step carries $want"; else fail "the kill-switch step lacks $want"; fi
+done
+if [[ "$job" == *"- name: Check the kill switch"*"- name: Find the ci-status to re-run"* ]]; then ok "the switch is read before the find step"; else fail "the kill-switch step is not before the find step"; fi
 # The trusted-actors list comes from the default branch, never the PR head,
 # and a failed checkout leaves no list rather than failing the re-run.
 list_step="$(step_of 'Check out the trusted-actors list')"
@@ -85,8 +95,8 @@ done
 # each later step runs only on the find step's outputs. The job ends by
 # logging its readings.
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
-  ok "the job finds, scans, records, re-runs, then logs the API budget"
+if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Check the kill switch| Find the ci-status to re-run| Scan the upload for credentials| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
+  ok "the job reads the switch, finds, scans, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"
 fi
@@ -211,7 +221,8 @@ SEC=.github/workflows/pr-review-security-hosted.yml
 # This lane finished at DONE, the other lane at LATER; ci-status started at
 # EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
 EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:01Z
-pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" '{state: $st, head: {sha: $sha}}'; }
+# A person's PR unless a case says otherwise.
+pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" --argjson by "$KYLE" '{state: $st, head: {sha: $sha}, user: {id: $by, type: "User"}}'; }
 # run <id> [status] [sha] [path] [event] [updated_at] [run_attempt] [head repository]
 run() {
   jq -cn --argjson id "$1" --arg st "${2:-completed}" --arg sha "${3:-$HEAD}" --arg p "${4:-$RCF}" --arg ev "${5:-pull_request}" --arg at "${6:-$LATER}" \
@@ -628,6 +639,47 @@ for seq in "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)" "$(run 9 
   check_reran 0 "nothing is recorded or re-run over another re-run"
 done
 STUB_RUN_SEQ=''
+
+# While the kill switch is on, or unread, a lanes App PR's ci-status is left
+# for the lost-run reconciler, from every upstream; a person's PR is re-run.
+lanes_pr() { jq -cn --arg sha "$HEAD" --argjson id "${1:-$LANES_APP}" --arg type "${2:-Bot}" '{state: "open", head: {sha: $sha}, user: {id: $id, type: $type}}'; }
+STUB_LANE_RUNS="$BOTH_LANES" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
+STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER")]"
+for proceed in false ''; do
+  STUB_PR="$(lanes_pr)"
+  LANES_PROCEED=$proceed APP_SENDER_ID=$LANES_APP expect "proceed '${proceed:-unread}': a lanes App PR after a review lane is not re-run" 0 "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #42 is not re-run"
+  check_reran 0 "proceed '${proceed:-unread}': no job id or record after a review lane"
+  LANES_PROCEED=$proceed APP_SENDER_ID=$LANES_APP unblock_case "proceed '${proceed:-unread}': a lanes App PR after pr-unblock is not re-run" 0 "is not re-run; the lost-run reconciler"
+  check_reran 0 "proceed '${proceed:-unread}': no job id or record after pr-unblock"
+  LANES_PROCEED=$proceed APP_SENDER_ID=$LANES_APP approval_case "proceed '${proceed:-unread}': a lanes App PR after an approval is not re-run" 0 "is not re-run; the lost-run reconciler"
+  check_reran 0 "proceed '${proceed:-unread}': no job id or record after an approval"
+done
+STUB_PR="$(pr)"
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "switch on: a person's PR is still re-run" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "switch on: a person's PR gets its job id and record"
+for author in "$KYLE Bot" "$LANES_APP User"; do
+  STUB_PR="$(lanes_pr "${author% *}" "${author#* }")"
+  LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "switch on: an author '$author' that is not the lanes App is re-run" 0 "Re-running ci-status (job 77)"
+  check_reran 1 "switch on: author '$author' is re-run"
+done
+STUB_PR="$(lanes_pr)"
+LANES_PROCEED=true APP_SENDER_ID=$LANES_APP expect "switch off: a lanes App PR is re-run" 0 "Re-running ci-status (job 77)"
+check_reran 1 "switch off: a lanes App PR gets its job id and record"
+LANES_PROCEED=false APP_SENDER_ID='' expect "no App id: a readable author is not held, as in ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "no App id: re-run"
+# An author that does not read counts as the App's, as ci-status reads it.
+STUB_PR='{"state":"open","head":{"sha":"'$HEAD'"}}'
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': an unreadable author is held as the App's" 0 "is not re-run; the lost-run reconciler"
+check_reran 0 "an unreadable author: no job id or record"
+STUB_PR="$(lanes_pr | jq -c '.user.type = null')"
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': an unreadable author type is held as the App's" 0 "is not re-run; the lost-run reconciler"
+check_reran 0 "an unreadable author type: no job id or record"
+# Only attempt 1 is held: at a later attempt the re-run goes ahead, recorded.
+STUB_PR="$(lanes_pr)" STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")" STUB_RUN_SEQ="$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)"
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': a lanes App PR's ci-status at attempt 2 is re-run" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 3."
+check_reran 1 "attempt 2: job id and the attempt-3 record" "rerun-ci-status-9-3-$HEAD"
+STUB_RUN_SEQ='' STUB_RUNS="$(runs "$(run 9)")"
+STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 
 # Without the library (a failed checkout) the job runs as before and keeps no reading.
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"

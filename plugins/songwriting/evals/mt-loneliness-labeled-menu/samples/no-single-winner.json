@@ -56,6 +56,14 @@
     {
       "answer": "How I'd choose: bitterness, **#5**; tenderness, **#3**.",
       "why": "emphasized option numbers"
+    },
+    {
+      "answer": "How I'd choose: simple, tender ache, #1 or #5; bitterness, #6.",
+      "why": "filler word 'simple' opens the guide"
+    },
+    {
+      "answer": "How I'd choose: for regret, **#3**; for numbness, **#4**; for a wry edge, **#6**.",
+      "why": "three moods keyed to emphasized option numbers"
     }
   ],
   "fail": [
@@ -87,6 +95,30 @@
     {
       "answer": "**How I'd choose:** *the porch light still waits up*.",
       "why": "a single italic pick on the choosing-guide line (review finding)"
+    },
+    {
+      "answer": "How I'd choose: motel.",
+      "why": "a bare single pick, no quotes, emphasis or number"
+    },
+    {
+      "answer": "How I'd choose: motel, #2.",
+      "why": "a single pick with its option number"
+    },
+    {
+      "answer": "How I'd choose: honestly, the off-season motel, **#2**.",
+      "why": "a filler word, then a single pick with an emphasized number"
+    },
+    {
+      "answer": "**How I'd choose:** the off-season motel, it keeps the vacancy sign in the song.",
+      "why": "a bare single pick after a bold heading"
+    },
+    {
+      "answer": "**Pick: the off-season motel.**",
+      "why": "a bold Pick lead naming one option"
+    },
+    {
+      "answer": "**The off-season motel**, but only just.",
+      "why": "a bold bare candidate, then a hedge"
     }
   ]
 }

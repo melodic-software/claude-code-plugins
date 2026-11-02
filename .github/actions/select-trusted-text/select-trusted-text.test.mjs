@@ -60,23 +60,34 @@ function editNodes(edits, ids) {
 }
 
 function fakeGitHub(routes) {
-  const github = async (method, apiPath, body) => {
-    let key = `${method} ${apiPath}`;
-    github.calls.push(key);
-    if (key === "POST /graphql") {
-      github.graphql.push(body);
-      if (body.query.includes("nodes(ids")) {
-        return editNodes(routes["POST /graphql edits"], body.variables.ids);
-      }
-      key = body.query.includes("RENAMED_TITLE_EVENT")
-        ? "POST /graphql renames"
-        : "POST /graphql closing";
-    }
+  const answer = (key, body) => {
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
     const route = routes[key];
     return structuredClone(typeof route === "function" ? route(body) : route);
+  };
+  const github = async (method, apiPath, body) => {
+    const key = `${method} ${apiPath}`;
+    github.calls.push(key);
+    if (key !== "POST /graphql") {
+      return answer(key, body);
+    }
+    github.graphql.push(body);
+    if (body.query.includes("nodes(ids")) {
+      return editNodes(routes["POST /graphql edits"], body.variables.ids);
+    }
+    // Each connection the query asks for, from its own route, in one answer.
+    const pullRequest = {};
+    for (const [field, route] of [
+      ["closingIssuesReferences", "POST /graphql closing"],
+      ["RENAMED_TITLE_EVENT", "POST /graphql renames"],
+    ]) {
+      if (body.query.includes(field)) {
+        Object.assign(pullRequest, answer(route, body)?.data?.repository?.pullRequest);
+      }
+    }
+    return { data: { repository: { pullRequest } } };
   };
   github.calls = [];
   github.graphql = [];
@@ -245,16 +256,30 @@ test("reads every page of a list endpoint", async () => {
   assert.equal(ids.at(-1), 2000);
 });
 
-test("asks GraphQL for the PR's closing issue references", async () => {
+const connectionReads = (github) => github.graphql.filter((body) => !body.query.includes("nodes(ids"));
+
+test("one GraphQL request reads the PR's closing issue references and its title renames", async () => {
   const { github } = await filter();
-  const closing = github.graphql.filter((body) => body.query.includes("closingIssuesReferences"));
-  assert.equal(closing.length, 1);
-  assert.deepEqual(closing[0].variables, {
+  const reads = connectionReads(github);
+  assert.equal(reads.length, 1);
+  assert.match(reads[0].query, /closingIssuesReferences\(first: 100, after: \$after\)/);
+  assert.match(reads[0].query, /timelineItems\(itemTypes: \[RENAMED_TITLE_EVENT\], first: 100, after: \$after\)/);
+  assert.deepEqual(reads[0].variables, {
     owner: "melodic-software",
     name: "claude-code-plugins",
     number: 42,
     after: null,
   });
+});
+
+test("an unlisted PR author's closing-issues request asks for no renames", async () => {
+  const api = load();
+  api.pull.user = { login: "stranger", id: 9999001, type: "User" };
+  const { github } = await filter(api);
+  const reads = connectionReads(github);
+  assert.equal(reads.length, 1);
+  assert.match(reads[0].query, /closingIssuesReferences/);
+  assert.doesNotMatch(reads[0].query, /RENAMED_TITLE_EVENT/);
 });
 
 test("a closing reference whose repository is a dot segment is never requested", async () => {
@@ -402,6 +427,63 @@ test("a title rename with no resolvable actor is withheld", async () => {
   api.renames = [rename({ __typename: "User", databaseId: 153232337 }), rename(null)];
   const { context } = await filter(api);
   assert.equal(context.pr.title, "");
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+});
+
+const renamesPage = (nodes, hasNextPage, endCursor) => ({
+  data: { repository: { pullRequest: { timelineItems: { nodes, pageInfo: { hasNextPage, endCursor } } } } },
+});
+
+async function filterWithRenames(renames, api = load()) {
+  const routes = routesFrom(api);
+  routes["POST /graphql renames"] = renames;
+  const outputPath = path.join(dir, "trusted-context.json");
+  const github = fakeGitHub(routes);
+  const code = await main({
+    env: { PR_NUMBER: "42", REPOSITORY, TRUSTED_ACTORS_PATH: LIST, OUTPUT_PATH: outputPath },
+    github,
+    log: () => {},
+  });
+  let context;
+  try {
+    context = JSON.parse(readFileSync(outputPath, "utf8"));
+  } catch {
+    context = undefined;
+  }
+  return { code, context, github };
+}
+
+test("renames past the first page are read on their own and every renamer counts", async () => {
+  const { code, context, github } = await filterWithRenames((body) =>
+    body.variables.after === "r1"
+      ? renamesPage([rename({ __typename: "User", databaseId: 9999001 })], false, "r2")
+      : renamesPage([rename({ __typename: "User", databaseId: 153232337 })], true, "r1"),
+  );
+  assert.equal(code, 0);
+  assert.equal(context.pr.title, "");
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+  const later = connectionReads(github).slice(1);
+  assert.equal(later.length, 1);
+  assert.doesNotMatch(later[0].query, /closingIssuesReferences/);
+  assert.equal(later[0].variables.after, "r1");
+});
+
+test("a rename page with no node list fails the run when the title is weighed", async () => {
+  const { code, context } = await filterWithRenames({ data: { repository: { pullRequest: { timelineItems: {} } } } });
+  assert.equal(code, 1);
+  assert.equal(context, undefined);
+});
+
+test("a rename page with no node list is never weighed when the PR body is withheld", async () => {
+  const api = load();
+  api.edits.N4200 = {
+    lastEditedAt: "2026-10-04T12:00:00Z",
+    editor: { __typename: "User", databaseId: 9999001 },
+  };
+  const { code, context } = await filterWithRenames({ data: { repository: { pullRequest: { timelineItems: {} } } } }, api);
+  assert.equal(code, 0);
+  assert.equal(context.pr.title, "");
+  assert.equal(context.pr.body, null);
   assert.equal(context.dropped["edited-by-untrusted"], 1);
 });
 

@@ -47,7 +47,7 @@ Evidence tiers are discrete and evidence-gated, never verbalized probabilities:
 
 | Tier | Evidence | Fix-eligible |
 |---|---|---|
-| `fingerprint-confirmed` | matched span above the separation rule against an identity-checked source | yes |
+| `fingerprint-confirmed` | matched span above the separation rule against an identity-checked source | `near-verbatim` only; `verbatim` stays report-only |
 | `vendored-snapshot` | source read from a committed snapshot because the live fetch failed | no, human report |
 | `source-fetched-similar` | source fetched, below the deterministic rule, judges unanimous | no, human report |
 | `llm-suspected` | no lexical evidence is possible (paraphrase, summary) | no, human report |
