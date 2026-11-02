@@ -66,14 +66,16 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
      `claude -p`, the SDK) from the pointer below and report that, never one remembered here. A
      default is not a runtime guarantee, so the only authoritative probe is still a live
      inheritance check (see `discipline:sweep-all`'s preflight); never claim forks are
-     unconditionally available on every build. The user-facing command is `/subtask` as of
-     **2.1.212**.
+     unconditionally available on every build. Name the command that starts a fork by hand as the
+     pointer's fork section gives it.
      - **Pointer**: [Turn fork mode off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
-       for the default and the versions it changed in, and the variable's row in
+       for the default and the versions it changed in;
+       [Fork the current conversation](https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation)
+       for the command that starts a fork by hand; the variable's row in
        [env vars](https://code.claude.com/docs/en/env-vars) for what each value does.
      - **As of**: 2026-11-01
-     - **Recheck trigger**: that section states a different default or version, or a release note
-       names fork mode.
+     - **Recheck trigger**: either section states a different default, version or command, or a
+       release note names fork mode.
 2. **Gate allow rules.** The acceptance-gate scripts prompt on every run unless the operator's
    `~/.claude/settings.json` allows them. Read its `permissions.allow` (a missing file or key reads
    as no rules; read only, never write) and compare it with these eight rules for this install root:

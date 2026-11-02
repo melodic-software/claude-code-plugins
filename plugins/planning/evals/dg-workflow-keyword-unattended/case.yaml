@@ -16,7 +16,7 @@ graders:
     arm: with-only
   - name: keyword-dead-in-print-mode
     type: regex
-    pattern: '^(?=[^\n]*\bultracode\b)(?=[^\n]*(?:(?<![\w-])-p\b|--print\b|print mode|headless|non-?interactive|\bcron\b|scheduled))[^\n]*(?:\b(?:not|never|ignored|ignores|only)\b|n''t\b|no effect)'
+    pattern: '^(?=[^\n]*\bultracode\b)(?=[^\n]*(?:(?<![\w-])-p\b|--print\b|print mode|headless|non-?interactive|\bcron\b|scheduled))[^\n]*(?:\b(?:not|never|ignored|ignores|cannot)\b|\b(?:won|doesn|isn|can)''t\b|no effect)'
     flags: mi
     arm: both
   - name: pro-config-row

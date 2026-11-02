@@ -6,6 +6,8 @@
   ],
   "fail": [
     {"answer": "Yes, start the -p prompt with `ultracode:` and it will run as a workflow.\n", "why": "recommends the dead form"},
+    {"answer": "Yes: start the -p prompt with `ultracode:`; you only need the Dynamic workflows row on in /config first.\n", "why": "recommends the dead form with only"},
+    {"answer": "Don't worry, ultracode: works in -p.\n", "why": "recommends the dead form with don't"},
     {"answer": "The ultracode keyword runs one task as a workflow.\n\nIn a -p prompt it is not honored.\n", "why": "keyword and -p on separate lines"},
     {"answer": "Use a saved workflow command instead.\n", "why": "never names the keyword"}
   ]
