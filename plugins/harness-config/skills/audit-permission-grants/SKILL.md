@@ -120,7 +120,7 @@ the finding names rather than by its check id. P3 maps to `plugins`.
 
 The detector is advisory by default and a gate on request:
 
-- `--check` exits 1 when any error-tier finding fired (P2, P2b, P4), and 0 when none did.
+- `--check` exits 1 when any error-tier finding fired (P2, P2b, P4, P5), and 0 when none did.
 - `--strict` does the same and adds the warning tier (P1, P3).
 - Under either flag a `NOTHING TO AUDIT` result exits 2 rather than 0, and so does a run that saw no
   gate-firing finding but could not read one of its inputs. A scan that could not look is never a pass.
@@ -147,7 +147,7 @@ yet reachable on the measured platform. Add an **Operator setup** note wherever 
 
 | Severity | Criteria |
 | --- | --- |
-| error | Non-portable grant that leaks a username / breaks on other machines (P2, P2b), or a substitution token that stays literal in this rule's context so the grant never matches (P4) |
+| error | Non-portable grant that leaks a username / breaks on other machines (P2, P2b), or a substitution token that stays literal in this rule's context so the grant never matches (P4), or an allow rule with text after its closing parenthesis (P5) |
 | warning | Interpreter/runner-led grant whose broad forms auto mode drops, or an inert self-grant (P1, P3) |
 
 P4's plugin-scoped tokens are context-dependent: `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`

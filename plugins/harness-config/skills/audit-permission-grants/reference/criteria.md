@@ -298,7 +298,7 @@ rule. When a request is about baseline security patterns, deprecated syntax, or 
   pre-v2.1.211 start-directory copy (dated record: audit-permission-state/reference/criteria.md
   §Scopes)
 - Consumer declarations read: {file(s), and what each changed, or "none"}
-- error: X findings (P2)
+- error: X findings (P2, P2b, P4, P5)
 - warning: X findings (P1, P3)
 - exempted by consumer declaration: X (still listed below; never removed)
 

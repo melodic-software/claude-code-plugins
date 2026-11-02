@@ -52,33 +52,37 @@ The runtime scripts and their tools:
 
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh`: jq **and** curl
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh`, `check-hook-coverage.sh` and `fix-plugin-drift.sh`: jq
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh`: jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh`: jq plus awk and sort; `check-effort-pins.sh`: awk
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh`: jq plus awk
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh`: jq plus awk and sort
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-state/scripts/*.sh`: jq (required; `permission-state.sh` exits 2 without it), awk and sort; `automode-block-lint.sh` and `automode-entry-diff.sh` add python3 for an optional lane
-- `${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh`: jq plus awk
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh` and `${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh`: jq (`run-state.sh` falls back to python3, then to a scan that announces itself)
-- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`: grep only (POSIX; no jq)
+- `${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-block.sh`: jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh`: jq (falls back to python3, then to a scan that announces itself)
+- `${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh`: awk (no jq)
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/state-digest.sh` and `finding-identity.sh`: sort
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`: grep, tr and awk (no jq)
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh`: awk **and** sort (no jq)
 
-Only `conflict-scan.sh` and `permission-state.sh` probe for their tools; the rest call them with no
+Only `conflict-scan.sh`, `instruction-scan.sh` and `permission-state.sh` probe for their tools; the rest call them with no
 guard, so read each script's actual calls rather than trusting a single script's prerequisite block to
 speak for the plugin.
 
 1. **`jq`**, from the pre-computed `jq` row. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
    to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks every
    skill whose scripts parse JSON (`audit`, `audit-automation-gaps`, `audit-permission-grants`,
-   `audit-permission-state`, `draft-auto-mode-rules`, and `audit-pass`'s run-state and retirement
-   helpers); `audit-instructions` scans markdown and is unaffected.
+   `audit-permission-state`, `draft-auto-mode-rules`, and `audit-pass`'s run-state helper); `audit-instructions` scans markdown and is unaffected.
 2. **`curl`**, from the pre-computed `curl` row. FAIL if absent, but scoped: only the plugin-drift check
    (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and every other
    skill still run; say so in the remediation line.
 3. **`awk` and `sort`**, from the pre-computed `awk` and `sort` rows. FAIL if either is absent, and **not**
-   scoped to one skill: `conflict-scan.sh` executes both and `exit 2`s naming the missing one, while
-   `check-plugin-drift.sh` (both), `permission-rule-check.sh` (both), and `fix-plugin-drift.sh`
-   (`sort`) reach them with no prerequisite check at all, so `audit` and `audit-permission-grants`
-   fail mid-run on a bare `command not found` rather than on a named prerequisite. Say in the
-   remediation line that this FAIL reaches three skills, not just `audit-instructions`. Report `awk`
-   and `sort` by name rather than as one row, since a minimal shell can carry one and not the other.
+   scoped to one skill: `conflict-scan.sh` and `instruction-scan.sh` probe and `exit 2` naming the
+   missing one, while the other scripts in the list above that use them have no prerequisite check
+   at all, so their skills fail mid-run on a bare `command not found` rather than on a named
+   prerequisite. Say in the
+   remediation line that this FAIL reaches six skills (`audit`, `audit-automation-gaps`,
+   `audit-pass`, `audit-permission-grants`, `audit-permission-state` and `audit-instructions`), not
+   just `audit-instructions`. Report `awk` and `sort` by name rather than as one row, since a
+   minimal shell can carry one and not the other.
 4. **Bash shell**, INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
    run through Claude Code's Bash tool, which is the bash shell on every platform and Git Bash on native Windows.
    Report the resolved interpreter; FAIL only if no bash is resolvable.
@@ -143,9 +147,8 @@ This skill never installs system packages:
   shims are where this shows up. Remediate by installing a full userland rather than the single tool:
   Git for Windows, which bundles both; the distribution's `gawk`/`mawk` and `coreutils` on Linux;
   `brew install gawk coreutils` on macOS. Report the two separately, since a minimal shell can carry
-  one and not the other. Five skills depend on them (`audit`, `audit-permission-grants`,
-  `audit-permission-state`, `draft-auto-mode-rules`, and `audit-instructions`), and only
-  `conflict-scan.sh` and `permission-state.sh` `exit 2` cleanly, so do not offer the others as still
+  one and not the other. The skills `check` step 3 names depend on them, and only
+  `conflict-scan.sh` and `instruction-scan.sh` `exit 2` cleanly, so do not offer the others as still
   working meanwhile.
 - **no resolvable bash:** also not remediable by one package. The scripts use arrays, `[[ ]]`,
   process substitution, and `BASH_SOURCE`, so they need a real bash on `PATH`: Git for Windows on
