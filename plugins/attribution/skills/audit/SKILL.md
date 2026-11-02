@@ -166,9 +166,11 @@ external source owns, is model work against [`reference/rubric.md`](reference/ru
     tracked files. Resolve the producer contract first and refuse to write when it cannot be
     resolved, reporting report-only as the outcome. Relay-eligible findings only.
 
-12. **Recommend, never auto-run.** The `fix` action for fix-eligible findings, `sweep` for a
-    repo-wide pass, or `/attribution:setup` when the run tripped over deliberate house structure
-    (heavy declined counts, or a carve-out that should be configured).
+12. **Recommend, never auto-run.** Report each finding as fix-eligible or report-only by
+    [`reference/dispositions.md`](reference/dispositions.md) "Fix eligibility". Recommend the
+    `fix` action for fix-eligible findings, `sweep` for a repo-wide pass, or `/attribution:setup`
+    when the run tripped over deliberate house structure (heavy declined counts, or a carve-out
+    that should be configured).
 
 ## Fix flow (explicit invocation only)
 

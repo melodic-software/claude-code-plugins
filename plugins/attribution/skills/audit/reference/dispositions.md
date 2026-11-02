@@ -1,7 +1,7 @@
 # Dispositions: what `fix` is allowed to do, and what guards each edit
 
-Read this only inside `fix` or `sweep`. The default `audit` action never edits, so it never
-needs this file.
+Read this whole file inside `fix` or `sweep`. The default `audit` action never edits, so it reads
+only "Fix eligibility" below, to report which findings `fix` could reach.
 
 ## Fix eligibility
 
