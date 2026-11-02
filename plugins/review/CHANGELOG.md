@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.0] - 2026-11-02
+
+### Added
+
+- `/review:fanout` gives each finding one axis, `spec` when it says the change does not do, or only partly does, what the intent paragraph says it is for, else `standards` (always `standards` under `Intent: not stated`). The findings file gains a `## By axis` section after `## By dimension`, with `### Spec` before `### Standards`, so one spec gap is not buried under many standards findings. Rows keep their rank numbers and `Surface(s)` column; the fix action does not parse the section. Fanout still reviews code against its stated purpose, never a spec or plan document ([#12138](https://github.com/melodic-software/claude-code-plugins/issues/12138)).
+- `/review:fanout` notes that when a stub-scaffold phase (the planning plugin's `scaffold_stubs` setting) is committed, it may review that diff before the bodies are filled in, with no new argument, setting or step.
+- `/review:audit-enforceability` notes that `## By axis`, like `## By dimension`, repeats every row, so it still reads rows only from `## Findings`.
+- The `fanout-spec-first-email-redaction` eval checks that a commit stating two goals and building one lists the missing goal under `### Spec`, before `### Standards`, where an unrelated `isWeekend` defect lands.
+- The `fanout-intent-not-stated-all-standards` eval checks that a branch whose only commit says "wip" runs under `Intent: not stated`, with `### Spec` reading `none` and every finding under `### Standards`.
+
 ## [2.3.7] - 2026-11-02
 
 ### Security
