@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | test/slug.test.js:15 | code-reviewer | assert.ok(slugify(title), expected) takes expected as the message and only checks that the slug is truthy, so the test also passes for main's cr-me-br-l-e and cannot catch the accent bug coming back. | Use assert.equal(slugify(title), expected) |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the assertion that cannot fail, the slug it lets through and the bug it misses at IMPORTANT"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | low | test/slug.test.js:15 | code-reviewer | The second argument to assert.ok is the failure message, so the accent test passes whenever slugify returns a non-empty string; with main's slugify, Crème brûlée gives cr-me-br-l-e and the test still passes, so a return of the accent bug goes unnoticed. | Use assert.equal(slugify(title), expected) |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the assertion that cannot fail, the slug it lets through and the bug it misses at CRITICAL; the low Confidence is ignored"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | test/slug.test.js:10 | code-reviewer | Split each accent case into its own test so a failure names the title. | One test per case |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "names the new test at SUGGESTION, without the assertion that cannot fail"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | test/slug.test.js:15 | code-reviewer | assert.ok takes expected as its message and checks only that the slug is truthy, so the accent test passes for main's cr-me-br-l-e too and cannot catch the accent bug coming back. | Use assert.equal |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the vacuous assertion, the slug it lets through and the missed bug, but its Tier is SUGGESTION; high Confidence is not severity"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: fix/slug-accents\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/slug.js:4 | architecture-guardian | slugify still keeps accents: the character class does not match the combining marks, so Crème brûlée still slugs to cr-me-br-l-e. | Fix the regex |\n| 2 | SUGGESTION | medium | test/slug.test.js:15 | code-reviewer | The accent test uses assert.ok where assert.equal reads better. | Use assert.equal |\n\n## Surfaces\n\nRan: [architecture-guardian@high, code-reviewer@high]. Returned no result: [].",
+      "why": "no IMPORTANT or CRITICAL finding names the vacuous assertion; the CRITICAL finding wrongly claims slugify keeps accents"
     }
   ]
 }
