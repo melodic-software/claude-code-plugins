@@ -72,7 +72,10 @@ graphql)
 */check-runs\?*) f=checks.json ;;
 */status\?*) f=status.json ;;
 */pulls\?*) f=pulls_list.json ;;
+*/pulls/[0-9]*/files*) f=files.json ;;
 */pulls/[0-9]*) f=pr.json ;;
+*/rules/branches/*) f=rules.json ;;
+*/branches/*) f=branch.json ;;
 *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
 esac
 if [[ ! -f "$fix/$f" ]]; then
@@ -97,7 +100,7 @@ scenario() {
   mkdir -p "$FIX"
   : >"$FIX/calls"
   cat >"$FIX/pr.json" <<'J'
-{"state":"open","head":{"sha":"abc123"},"base":{"repo":{"full_name":"acme/widgets"}}}
+{"state":"open","head":{"sha":"abc123"},"base":{"ref":"main","repo":{"full_name":"acme/widgets"}}}
 J
   echo '[{"number":42}]' >"$FIX/pulls_list.json"
   echo '{"data":{"node":{"number":42,"repository":{"nameWithOwner":"acme/widgets"}}}}' >"$FIX/graphql_node.json"
@@ -188,6 +191,13 @@ J
   ci-failed-plain)
     echo '{"total_count":1,"check_runs":[{"id":903,"name":"ci-status","app":{"id":15368},"check_suite":{"id":3},"status":"completed","conclusion":"failure","details_url":"https://github.com/acme/widgets/actions/runs/5002/job/3"}]}' >"$FIX/checks.json"
     echo '[{"annotation_level":"failure","message":"Process completed with exit code 1."}]' >"$FIX/annotations_903.json"
+    ;;
+  # ci-workflows#951: ci-status passed, both review lanes failed because they
+  # ran the broken action from main; or ci-status failed beside them.
+  review-lanes-failed | review-lanes-and-ci-failed)
+    local ci=success
+    [[ "$3" == *-and-ci-* ]] && ci=failure
+    echo '{"total_count":3,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"'"$ci"'"},{"id":902,"name":"claude-review-status","app":{"id":15368},"status":"completed","conclusion":"failure"},{"id":903,"name":"security-review","app":{"id":15368},"status":"completed","conclusion":"failure"}]}' >"$FIX/checks.json"
     ;;
   matrix-same-suite-sibling) echo '{"total_count":2,"check_runs":[{"id":901,"name":"build","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"cancelled"},{"id":902,"name":"build (arm64)","app":{"id":15368},"check_suite":{"id":1},"status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
@@ -401,6 +411,70 @@ assert_contains "names the other app's merge check" "$ERR" "Pending checks (use 
 scenario none none merge-lane-pending green
 run "an empty ignore list judges the merge lane's check" 'gh pr merge 42 --squash' 2 CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS=
 assert_contains "empty ignore list -> names merge" "$ERR" "Pending checks (use --auto to merge once they pass): merge"
+
+# --- 3b. a PR that changes a workflow or action definition (#12027) ------------
+# changed <files> <rules> <classic>: the PR's files and main's required checks.
+#   files:   code | action | renamed-workflow
+#   rules:   ci-status | none | unreadable
+#   classic: none | review
+changed() {
+  case "$1" in
+  code) echo '[{"filename":"src/app.py"}]' >"$FIX/files.json" ;;
+  action) echo '[{"filename":".github/actions/report-lane-outcome/outcome-step.cjs"}]' >"$FIX/files.json" ;;
+  renamed-workflow) echo '[{"filename":"ci/old.yml","previous_filename":".github/workflows/old.yml"}]' >"$FIX/files.json" ;;
+  *) return 1 ;;
+  esac
+  case "$2" in
+  ci-status) echo '[{"type":"pull_request","parameters":{}},{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"ci-status","integration_id":15368}]}}]' >"$FIX/rules.json" ;;
+  none) echo '[]' >"$FIX/rules.json" ;;
+  unreadable) ;;
+  *) return 1 ;;
+  esac
+  case "$3" in
+  none) echo '{"name":"main","protected":false,"protection":{"enabled":false,"required_status_checks":{"enforcement_level":"off","contexts":[],"checks":[]}}}' >"$FIX/branch.json" ;;
+  review) echo '{"name":"main","protected":true,"protection":{"enabled":true,"required_status_checks":{"enforcement_level":"everyone","contexts":["claude-review-status"],"checks":[{"context":"claude-review-status","app_id":15368}]}}}' >"$FIX/branch.json" ;;
+  *) return 1 ;;
+  esac
+}
+scenario none none review-lanes-failed green && changed code ci-status none
+run "no workflow change: a non-required failing check blocks" 'gh pr merge 42 --squash' 2
+assert_contains "no workflow change -> names both review checks" "$ERR" "Failing checks: claude-review-status, security-review"
+assert_absent "no workflow change -> rules not read" "$(calls)" "rules/branches"
+scenario none none review-lanes-and-ci-failed green && changed code ci-status none
+run "no workflow change: a required failing check blocks" 'gh pr merge 42 --squash' 2
+assert_contains "no workflow change, required -> names ci-status" "$ERR" "Failing checks: ci-status, claude-review-status, security-review"
+scenario none none review-lanes-failed green && changed action ci-status none
+run "action change: non-required failing checks warn, ci-workflows#951" 'gh pr merge 42 --squash --match-head-commit abc123' 0
+assert_contains "action change -> warning names the checks" "$OUT" "not blocking"
+assert_contains "action change -> warning lists both" "$OUT" "claude-review-status, security-review"
+assert_contains "action change -> base branch rules read" "$(calls)" "repos/acme/widgets/rules/branches/main"
+assert_contains "action change -> files read" "$(calls)" "repos/acme/widgets/pulls/42/files"
+scenario none none review-lanes-failed green && changed renamed-workflow ci-status none
+run "a workflow renamed away counts as a workflow change" 'gh pr merge 42 --squash' 0
+scenario none none green failed && changed action ci-status none
+run "action change: a non-required failing status warns" 'gh pr merge 42 --squash' 0
+assert_contains "failing status -> warning names it" "$OUT" "ci/legacy"
+scenario none none review-lanes-and-ci-failed green && changed action ci-status none
+run "action change: a required failing check still blocks" 'gh pr merge 42 --squash' 2
+assert_eq "required -> only ci-status blocks" "Failing checks: ci-status" "$(grep 'Failing checks:' <<<"$ERR")"
+assert_contains "required -> the rest are named as not blocking" "$ERR" "not blocking"
+scenario none none review-lanes-failed green && changed action ci-status review
+run "action change: a check classic protection requires still blocks" 'gh pr merge 42 --squash' 2
+assert_eq "classic required -> names it" "Failing checks: claude-review-status" "$(grep 'Failing checks:' <<<"$ERR")"
+scenario none none review-lanes-failed green && changed action unreadable none
+run "action change, rules unreadable: every failing check blocks" 'gh pr merge 42 --squash' 2
+assert_contains "rules unreadable -> names both" "$ERR" "Failing checks: claude-review-status, security-review"
+assert_absent "rules unreadable -> no unchecked notice" "$OUT$ERR" "unchecked"
+scenario none none review-lanes-failed green && changed action none none
+run "action change, no required checks: every failing check blocks" 'gh pr merge 42 --squash' 2
+assert_contains "no required checks -> names both" "$ERR" "Failing checks: claude-review-status, security-review"
+scenario none none review-lanes-failed green
+run "changed files unreadable: every failing check blocks" 'gh pr merge 42 --squash' 2
+scenario unresolved none review-lanes-failed green && changed action ci-status none
+run "action change: an unresolved thread still blocks" 'gh pr merge 42 --squash' 2
+assert_contains "thread still listed" "$ERR" "src/app.py:12"
+scenario none requested review-lanes-failed green && changed action ci-status none
+run "action change: a change request still blocks" 'gh pr merge 42 --squash' 2
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

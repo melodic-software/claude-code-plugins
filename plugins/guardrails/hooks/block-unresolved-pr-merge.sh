@@ -31,7 +31,16 @@
 #     CLAUDE_CODE_REMOTE session tries the cloud route first)
 #   - a reviewer whose latest approving, dismissing or change-requesting review
 #     requests changes
-#   - a check run or commit status on the head commit that failed
+#   - a check run or commit status on the head commit that failed. One
+#     exemption (#12027): on a PR whose changed files include a workflow or
+#     action definition file (a path under BUPM_WORKFLOW_PREFIXES), a failing
+#     check the base branch's rules do not require is named as a warning and
+#     does not block, since such a PR's own checks may load the workflow or
+#     action from the base branch, still broken until the PR lands. A required
+#     check still blocks; the required set is the base branch's ruleset rules
+#     plus its classic protection, matched by name. When the changed files or
+#     either required-set read fails, or no check is required, there is no
+#     exemption and every failing check blocks.
 #   - a check that is still pending, for an immediate merge only. An auto-merge
 #     or merge-queue request is the way to wait for checks, so pending checks
 #     do not block `--auto`, `enablePullRequestAutoMerge`, `enqueuePullRequest`,
@@ -43,6 +52,9 @@
 # the time budget runs out, the merge runs and both the user and the model are
 # told it will run unchecked. CI and other machines are never wedged. The org
 # ruleset that requires conversation resolution is the server-side backstop.
+# The workflow exemption's reads are the exception: a failed read of the PR's
+# changed files or of the base branch's rules (rulesets or classic protection)
+# drops the exemption, so the failing checks block as before.
 # AN UNRESOLVABLE TARGET FAILS CLOSED (#8598): a `gh pr merge` or REST merge
 # whose repo or PR number comes from a shell variable, `$(...)` or backticks,
 # a `gh pr merge` with no selector whose current branch cannot be read or has
@@ -124,7 +136,8 @@
 # an ignored check (merge_guard_ignored_checks) is matched by app slug and
 # name only, so every GitHub Actions job named `merge` is ignored by the
 # default, not just the pr-merge lane's, because a check run does not name its
-# workflow.
+# workflow; the workflow exemption reads the first 100 changed files only, so
+# a PR whose workflow change lies past them gets no exemption.
 #
 # THE CLOUD ROUTES. Basis: the HTTP 403 body GitHub GraphQL returns inside a
 # Claude Code cloud session names `GET pulls/{n}/ccr/review_threads` (an array
@@ -136,8 +149,10 @@
 # string test. A merge command pays five calls in sequence (PR, reviews, check
 # runs, statuses, threads; up to seven with a branch or node lookup and the
 # thread fallback, and one more per failed check run, three at most, to read
-# its annotations), all inside one 35 s budget that keeps the row under its
-# 60 s timeout (TIME BUDGET below), about once per PR: measured
+# its annotations; with a failing check, one more for the PR's changed files,
+# and when they include a workflow or action definition file, two more for the
+# base branch's rules: its rulesets and its classic protection), all inside
+# one 35 s budget that keeps the row under its 60 s timeout (TIME BUDGET below), about once per PR: measured
 # 3.0 to 3.6 s end to end against live PRs in a Claude Code cloud session on
 # 2026-10-11.
 #
@@ -870,9 +885,9 @@ fi
 [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "the pull request number could not be read"
 
 # The PR: open state, head commit, and the canonical repo name.
-_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq '"\(.state) \(.head.sha) \(.base.repo.full_name)"' ||
+_bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM" --jq '"\(.state) \(.head.sha) \(.base.repo.full_name) \(.base.ref)"' ||
   _bupm_pr_unreadable
-read -r _bupm_state _bupm_sha _bupm_full <<<"$BUPM_OUT"
+read -r _bupm_state _bupm_sha _bupm_full _bupm_base <<<"$BUPM_OUT"
 # A closed or merged PR has nothing to guard; gh reports the refusal itself.
 [[ "$_bupm_state" == open ]] || exit 0
 [[ -n "$_bupm_full" && "$_bupm_full" != null ]] && BUPM_REPO="$_bupm_full"
@@ -956,22 +971,57 @@ BUPM_OUT="$(printf '%s\n%s\n' "$_bupm_all" "$_bupm_runs" | jq -rs --argjson sup 
     else . end) as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
-  | "\($f | join(", "))\u001f\($p | join(", "))"')" ||
+  | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)"')" ||
   _bupm_unchecked "the check runs could not be judged"
 # A unit separator, not a tab: tab is IFS whitespace, so an empty first field
 # would collapse and the pending list would read as the failed one.
-IFS=$'\x1f' read -r _bupm_failed _bupm_pending <<<"$BUPM_OUT"
+IFS=$'\x1f' read -r _bupm_failed _bupm_pending _bupm_fjson <<<"$BUPM_OUT"
 
 # Commit statuses (the combined endpoint holds the latest per context).
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/status?per_page=100" --jq '
   [.statuses[] | select(.state | IN("failure","error")) | .context] as $f
   | [.statuses[] | select(.state == "pending") | .context] as $p
-  | "\($f | join(", "))\u001f\($p | join(", "))"' ||
+  | "\($f | join(", "))\u001f\($p | join(", "))\u001f\($f | tojson)"' ||
   _bupm_unchecked "$BUPM_ERR"
-IFS=$'\x1f' read -r _bupm_sfailed _bupm_spending <<<"$BUPM_OUT"
+IFS=$'\x1f' read -r _bupm_sfailed _bupm_spending _bupm_sfjson <<<"$BUPM_OUT"
 [[ -n "$_bupm_sfailed" ]] && _bupm_failed="${_bupm_failed:+$_bupm_failed, }$_bupm_sfailed"
 [[ -n "$_bupm_spending" ]] && _bupm_pending="${_bupm_pending:+$_bupm_pending, }$_bupm_spending"
+
+# The workflow exemption (header, WHAT BLOCKS). A changed file whose path starts
+# with one of these prefixes is a workflow or action definition file.
+BUPM_WORKFLOW_PREFIXES='[".github/workflows/", ".github/actions/", "action.yml", "action.yaml"]'
+# _bupm_changes_workflows: true when the PR's first 100 changed files, renames'
+# old paths included, hold a workflow or action definition file.
+_bupm_changes_workflows() {
+  # shellcheck disable=SC2016  # jq program text
+  _bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM/files?per_page=100" --jq "$BUPM_WORKFLOW_PREFIXES"' as $pre
+    | any(.[] | .filename, (.previous_filename // empty); . as $f | any($pre[]; . as $p | $f | startswith($p)))' &&
+    [[ "$BUPM_OUT" == true ]]
+}
+# _bupm_required_checks: set _bupm_required to a JSON array of the check names
+# the base branch's ruleset rules and classic protection require; false when
+# either read fails or the set is empty.
+_bupm_required_checks() {
+  local base rules
+  [[ -n "${_bupm_base-}" && "$_bupm_base" != null ]] || return 1
+  _bupm_urlencode base "$_bupm_base"
+  _bupm_api "repos/$BUPM_REPO/rules/branches/$base?per_page=100" --jq '
+    [.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context]' || return 1
+  rules="$BUPM_OUT"
+  _bupm_api "repos/$BUPM_REPO/branches/$base" --jq '
+    (.protection.required_status_checks // {}) | [(.contexts // [])[], ((.checks // [])[] | .context)]' || return 1
+  _bupm_required="$(jq -cn --argjson a "$rules" --argjson b "$BUPM_OUT" '$a + $b | unique')" || return 1
+  [[ "$_bupm_required" != '[]' ]]
+}
+_bupm_warned=""
+if [[ -n "$_bupm_failed" ]] && _bupm_changes_workflows && _bupm_required_checks; then
+  # shellcheck disable=SC2016  # jq program text
+  BUPM_OUT="$(jq -rn --argjson f "${_bupm_fjson:-[]}" --argjson s "${_bupm_sfjson:-[]}" --argjson r "$_bupm_required" '
+    ($f + $s) as $all
+    | "\($all | map(select(IN($r[]))) | join(", "))\u001f\($all | map(select(IN($r[]) | not)) | join(", "))"')" &&
+    IFS=$'\x1f' read -r _bupm_failed _bupm_warned <<<"$BUPM_OUT"
+fi
 
 # Unresolved review threads, one line each: path:line, the first line of the
 # first comment when the source carries it, and a link.
@@ -1003,7 +1053,16 @@ _bupm_threads="$BUPM_OUT"
 # --- verdict --------------------------------------------------------------------
 
 ((BUPM_AUTO)) && _bupm_pending=""
+_bupm_warn_line=""
+[[ -n "$_bupm_warned" ]] &&
+  _bupm_warn_line="Failing checks not blocking (this PR changes a workflow or action definition file, and the rules for $_bupm_base do not require them): $_bupm_warned"
 if [[ -z "$_bupm_threads" && -z "$_bupm_changes" && -z "$_bupm_failed" && -z "$_bupm_pending" ]]; then
+  if [[ -n "$_bupm_warn_line" ]]; then
+    _bupm_msg="guardrails block-unresolved-pr-merge: ${BUPM_REPO}#${BUPM_NUM} merges with failing checks. $_bupm_warn_line. Confirm each failure comes from the workflow or action this PR fixes."
+    hook::emit_channels PreToolUse "$_bupm_msg" "$_bupm_msg"
+    emit_tel "warned" "$BUPM_FORM"
+    exit 0
+  fi
   emit_tel "ok" "$BUPM_FORM"
   exit 0
 fi
@@ -1028,6 +1087,7 @@ fi
   fi
   [[ -n "$_bupm_changes" ]] && printf 'Changes requested by: %s\n' "$_bupm_changes"
   [[ -n "$_bupm_failed" ]] && printf 'Failing checks: %s\n' "$_bupm_failed"
+  [[ -n "$_bupm_warn_line" ]] && printf '%s\n' "$_bupm_warn_line"
   [[ -n "$_bupm_pending" ]] && printf 'Pending checks (use --auto to merge once they pass): %s\n' "$_bupm_pending"
   printf 'Fix: read each thread and address it, then resolve the thread; get the changes-requested review updated; fix failing checks. Then merge.\n'
   printf 'Only the user can turn this guard off (block_unresolved_pr_merge_enabled).\n'
