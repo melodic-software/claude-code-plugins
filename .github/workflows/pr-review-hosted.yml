@@ -239,6 +239,9 @@ jobs:
       # Empty, as pr-review.yml's default was: the code lane reviews every
       # change, documentation included.
       docs-only-paths: ''
+      # Copies scripts/sync-shared-copies.sh generates, read at the merge base:
+      # identical changes to copies of one source are read once, hooks included.
+      generated-copies: scripts/shared-copies.txt
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
       # fails while the label is on. The review holds only for a real-charge
       # cost or a CRITICAL security finding; hold-paths names the files the
