@@ -1549,8 +1549,20 @@ jobs:
             echo "::error::the issue number is not a number"
             exit 1
           fi
+          { echo 1 >"$RUNNER_TEMP/intake-dispatch-calls"; } 2>/dev/null || :
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
             -f ref=main -f "inputs[issue-number]=$ISSUE_NUMBER"
+
+      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
+      # shape: this job has no checkout of that action, and its only call is
+      # the dispatch POST above, counted as it is sent.
+      - name: Log the API calls at the end
+        if: always()
+        run: |
+          calls=0
+          [[ -f $RUNNER_TEMP/intake-dispatch-calls ]] && calls=$(<"$RUNNER_TEMP/intake-dispatch-calls")
+          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"
 
   # A size split filed sub-issues as the lanes App: their own opened runs
   # triage them but write no verdict (apply-verdict writes only for a listed
@@ -1576,7 +1588,20 @@ jobs:
               exit 1
             fi
           done
+          calls=0
+          # The count never changes the step's exit status.
+          trap '{ echo "$calls" >"$RUNNER_TEMP/intake-dispatch-calls"; } 2>/dev/null || :' EXIT
           for child in "${children[@]}"; do
+            calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
               -f ref=main -f "inputs[issue-number]=$child"
           done
+
+      # The hub's api-calls notice, as redispatch-refined writes it.
+      - name: Log the API calls at the end
+        if: always()
+        run: |
+          calls=0
+          [[ -f $RUNNER_TEMP/intake-dispatch-calls ]] && calls=$(<"$RUNNER_TEMP/intake-dispatch-calls")
+          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"

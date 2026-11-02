@@ -6935,13 +6935,14 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   assert.equal(gated(""), true);
   // Every later step is off on a supersede: each if:, with the steps before
   // the check succeeded, every later step skipped, and every other output
-  // empty, reads false. api-failures runs always() and touches no head.
+  // empty, reads false. api-failures and api-budget run always() and touch no
+  // head; api-budget only reads this job's own counts, before the head checkout.
   const at = steps.indexOf(check);
   const ran = new Set(steps.slice(0, at + 1).map((step) => step.id).filter(Boolean));
   const later = steps.slice(at + 1);
   assert.ok(later.length > 40);
   for (const step of later) {
-    if (step.id === "api-failures") continue;
+    if (step.id === "api-failures" || step.id === "api-budget") continue;
     assert.ok(step.if, `${step.name} has no if:`);
     const refs = [...new Set(String(step.if).match(/\b(?:steps|inputs|needs|vars|github|job)\.[\w.-]*[\w]/g) ?? [])];
     const context = {};
