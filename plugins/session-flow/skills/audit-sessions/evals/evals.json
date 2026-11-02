@@ -147,6 +147,42 @@
         "Runs neither collect.py nor sweep.py",
         "Does not guess a session id or take one from the store"
       ]
+    },
+    {
+      "id": 13,
+      "name": "trends-mode-routing",
+      "prompt": "/session-flow:audit-sessions trends. Show me how my session scores have moved across recent sessions.",
+      "expected_output": "The trends action reads the cross-session score history from plugin state (${CLAUDE_PLUGIN_DATA}/scores/<project-slug>.md), presenting the trend rather than analyzing the current session in isolation. It runs no collect and no sweep.",
+      "files": [],
+      "expectations": [
+        "The skill runs the trends action (cross-session score history), not a sweep",
+        "It reads score history from plugin state (${CLAUDE_PLUGIN_DATA}), not from a file inside the consumer's repo",
+        "It does not run collect.py or sweep.py"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "trends-reads-delivery-metrics-when-available",
+      "prompt": "/session-flow:audit-sessions trends. The work-items plugin is installed, so /work-items:measure-delivery is available.",
+      "expected_output": "The trends action presents the cross-session score analysis, or the 'No historical scores found' line when there is no history, then invokes /work-items:measure-delivery through the Skill tool and shows its delivery table and trend lines under a separate Delivery heading, with the window, branch and deploy signal, naming no person.",
+      "files": [],
+      "expectations": [
+        "The skill invokes /work-items:measure-delivery rather than computing delivery metrics itself",
+        "The delivery table appears under its own heading with the window, branch and deploy signal, apart from the session scores",
+        "No author, committer or other person is named in the delivery section"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "trends-names-missing-measure-delivery",
+      "prompt": "/session-flow:audit-sessions trends. The work-items plugin is not installed in this setup.",
+      "expected_output": "The trends action presents the score analysis, or the 'No historical scores found' line when there is no history, and states that delivery metrics were not read because /work-items:measure-delivery is not available, without inventing delivery numbers or computing them another way.",
+      "files": [],
+      "expectations": [
+        "The output says delivery metrics were not read and names /work-items:measure-delivery as unavailable",
+        "No delivery numbers are invented or computed from git history by the skill itself",
+        "The score analysis, or the 'No historical scores found' line, still appears before the Delivery heading"
+      ]
     }
   ]
 }
