@@ -63,6 +63,21 @@ re-read the page.
   [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: a release
   note touching `plugin eval` sandbox paths or `TMPDIR`.
 
+- Slash command for a skill with a pre-computed line: on Claude Code 2.1.316, one Sonnet run of a
+  minimal plugin whose skill body holds ``!`echo precomputed-ok` ``, with the case prompt
+  `/bangrepro:hi`, ended at 0 turns and 0 cost, and its grader reported `pattern not found`. The
+  trace's user turn carried a `local-command-stderr` reading `Shell command failed for pattern`,
+  then `<run-tmp>/tmp/claude-1000/cwd-6a70: Read-only file system`. The same skill with the prompt
+  "Use the Skill tool to run the bangrepro:hi skill, then do what it says." took 2 turns and its
+  grader matched `precomputed-ok`. bash and zsh failed the same way, and a `TMPDIR` under
+  `/var/tmp` or the default `/tmp` made no difference. The cause is in Claude Code's slash-command
+  pre-command path, not in a case. When the issue below was filed, 56 cases in this repository over 23
+  skills typed such a slash command. Evidence:
+  [#12422](https://github.com/melodic-software/claude-code-plugins/issues/12422), found while
+  running [#12151](https://github.com/melodic-software/claude-code-plugins/issues/12151).
+  Recheck: a release note touching slash-command pre-computed lines or `plugin eval` sandbox
+  paths; then rerun the `/bangrepro:hi` shape, and when it takes a turn, drop the SKILL.md gotcha.
+
 ## Worktrees
 
 - The Bash guard's `eval` refusal: `claude plugin eval --help` refused from a worktree-isolated

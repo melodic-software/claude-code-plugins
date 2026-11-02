@@ -491,6 +491,57 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_a_zero_turn_run_whose_pre_computed_command_failed_is_invalid(self):
+        # The #12422 shape: a slash command's pre-computed line fails in the
+        # session's read-only tmp, and the session ends before its first turn.
+        stderr = (
+            "<local-command-stderr>Shell command failed for pattern \"!`echo ok`\":"
+            " [stderr]\n/bin/bash: line 1: /tmp/claude-1000/cwd-6a70: Read-only"
+            " file system</local-command-stderr>"
+        )
+        trace = self.dir / "pre-command.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": stderr}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"x"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(
+            tracePath=str(trace), turns=0, costUsd=0
+        )
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("1 run never started or had no sandbox", proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: 0 turns, and a skill's"
+            " pre-computed command failed before the first turn (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_a_forked_run_whose_tool_result_quotes_the_pre_command_failure_passes(self):
+        quoted = {"type": "tool_result", "tool_use_id": "t1", "content": (
+            "<local-command-stderr>Shell command failed for pattern</local-command-stderr>"
+        )}
+        trace = self.dir / "quoted.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": [quoted]}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(tracePath=str(trace), turns=0)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check session started: PASS", proc.stdout)
+
     def test_a_mention_of_the_sandbox_failure_outside_a_failed_bash_result_passes(self):
         text = "Sandbox is required but failed to initialize"
         trace = self.dir / "mentions.jsonl"

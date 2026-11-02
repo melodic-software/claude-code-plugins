@@ -44,7 +44,9 @@ one line per check, detail lines indented under it:
                       no working shell. A failed call that printed output ran in a
                       working shell, whatever its exit code. A 0-turn run whose
                       trace holds assistant messages ran in a forked session (a
-                      slash-invoked `context: fork` skill) and passes
+                      slash-invoked `context: fork` skill) and passes, unless a
+                      user line's local-command-stderr shows a skill's
+                      pre-computed command failing, which fails the run
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -242,6 +244,12 @@ TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_err
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
+# A user line's local-command-stderr when a slash-invoked skill's pre-computed
+# (!`command`) line failed and the session ended before its first turn
+# (Claude Code 2.1.316, #12422).
+TRACE_USER = "user"
+PRE_COMMAND_STDERR = "local-command-stderr"
+PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
 # A run with at least this many Bash calls, every one failed with no output, had no
 # working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
@@ -814,11 +822,37 @@ def assistant_messages(run):
     return sum(1 for line in run.trace or [] if line.get(LINE_TYPE) == TRACE_ASSISTANT)
 
 
+def user_texts(line):
+    """A user line's own text: its string content or its text blocks, never a
+    tool_result, which may quote a file the session read."""
+    if line.get(LINE_TYPE) != TRACE_USER:
+        return []
+    content = as_dict(line.get(MESSAGE)).get(CONTENT)
+    if isinstance(content, str):
+        return [content]
+    return [
+        b.get("text")
+        for b in as_list(content)
+        if b.get(BLOCK_TYPE) == "text" and isinstance(b.get("text"), str)
+    ]
+
+
+def pre_command_failed(run):
+    """True when a user line of the run's trace carries a skill's pre-computed
+    command failing in its local-command-stderr."""
+    return any(
+        PRE_COMMAND_STDERR in text and PRE_COMMAND_FAILURE_TEXT in text
+        for line in run.trace or []
+        for text in user_texts(line)
+    )
+
+
 def check_started(runs):
     """A run at 0 turns that check_errors passes, or one whose trace shows the
     sandbox failing to start, scored a session that never ran or had no shell.
     A 0-turn run whose trace holds assistant messages ran in a forked session
-    (a slash-invoked `context: fork` skill), which the turn count leaves out."""
+    (a slash-invoked `context: fork` skill), which the turn count leaves out,
+    unless its trace shows a pre-computed command failing before the first turn."""
     details, failed, forked = [], set(), []
     for r in runs:
         if (
@@ -829,7 +863,13 @@ def check_started(runs):
             and not trace_errored(r)
         ):
             messages = assistant_messages(r)
-            if messages:
+            if pre_command_failed(r):
+                details.append(
+                    "%s: 0 turns, and a skill's pre-computed command failed before"
+                    " the first turn (%s)" % (r.where, r.trace_path)
+                )
+                failed.add(r)
+            elif messages:
                 forked.append(
                     "%s: 0 turns, and its trace holds %s (%s)"
                     % (r.where, plural(messages, "assistant message"), r.trace_path)
