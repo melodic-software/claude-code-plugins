@@ -136,21 +136,13 @@ alternative in the same sentence. A design exclusion is the exception that stays
 the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 
-Ask for outcomes, not thinking. Prefer the effort level to a line in saved text telling the model
-to think carefully, think less, or not think: more depth is a higher level, a faster answer a lower
-one, tried before any answer-directly line. Whether such a line still helps depends on the model
-the text runs on, so check `/harness-config:audit-instructions` criteria I8-f (think-carefully)
-and I8-c (don't-think) for that model before keeping one. Never ask the model to show or
-reproduce its reasoning in the reply (criterion I10); ask for what the reader needs, such as the
+Ask for outcomes, not thinking. Whether a "think carefully" line helps depends on the target model,
+so follow `/harness-config:audit-instructions` criterion I8-f for the model the text will run on:
+it drops these lines for Opus 5.5, where depth is the effort setting's job and a quick answer is
+a lower effort level first, "Answer directly." second. A line telling the model to think less or
+not at all is I8-c's, scoped per model the same way. Never ask the model to show or reproduce
+its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
 rationale in two or three sentences or the evidence as a list.
-
-- **Pointer**: Opus 5.5 prompting guide,
-  [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts),
-  [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort)
-  and [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals).
-- **As of**: 2026-11-02
-- **Recheck trigger**: a model guide changes whether thinking lines or reasoning-in-the-reply
-  requests help, or the audit-instructions I8-f, I8-c or I10 scope changes.
 
 ## Be strict with precise words
 
