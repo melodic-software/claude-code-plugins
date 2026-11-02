@@ -6,7 +6,11 @@
     { "answer": "The tool says \"only game files drifted, none of the mod's.\" That points to a normal update, not damage.", "why": "observed smoke reply: an update, not damage" },
     { "answer": "**Is the game corrupted?** No. Steam rewrote the exe when it updated the game.", "why": "observed reply, reworded: question heading answered No." },
     { "answer": "Corrupted? No, the changed exe is the new Steam build.", "why": "No with a comma" },
-    { "answer": "Is it corrupted?\n\nNo: only the game's own exe changed.", "why": "No on its own line" }
+    { "answer": "Is it corrupted?\n\nNo: only the game's own exe changed.", "why": "No on its own line" },
+    { "answer": "**Is the game corrupted?** Almost certainly not. The `MODIFIED` entry is `Ride-Win64-Shipping.exe`, and the `game updated by Steam (build 25311042 -> 25458807)` line explains it. Nothing suggests damage.", "why": "observed reply, trimmed: almost certainly not, nothing suggests damage" },
+    { "answer": "Corrupted? Almost certainly not: Steam rewrote the exe.", "why": "almost certainly not, after the question" },
+    { "answer": "Nothing suggests corruption here; Steam patched the game.", "why": "nothing suggests corruption" },
+    { "answer": "The drift in Ride-Win64-Shipping.exe came from the Steam update.", "why": "dotted exe name inside the drift sentence" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
@@ -14,6 +18,10 @@
     { "answer": "Run remove again after verifying.", "why": "no explanation" },
     { "answer": "Is it corrupted? No idea yet; run Verify integrity first.", "why": "No idea is not an answer" },
     { "answer": "Corrupted? Not sure until status runs on the PC.", "why": "Not sure" },
-    { "answer": "Is it corrupted? Nobody can tell from this output.", "why": "Nobody" }
+    { "answer": "Is it corrupted? Nobody can tell from this output.", "why": "Nobody" },
+    { "answer": "The change is in Ride-Win64-Shipping.exe. A Steam update might explain it, or damage might.", "why": "sentence ends right after the exe name" },
+    { "answer": "MODIFIED: Ride-Win64-Shipping.exe. Update or damage, I can't tell yet.", "why": "exe name, then no answer" },
+    { "answer": "Is it corrupted? Almost certainly not something I can judge from here; run Verify.", "why": "almost certainly not, no answer" },
+    { "answer": "Nothing suggests the mod did it; the exe is damaged.", "why": "nothing suggests, about the cause" }
   ]
 }
