@@ -1132,7 +1132,7 @@ wrote only data (`zones.json`) or nothing at all. Reviewed as a delta; the base 
 
 - **Code execution (1).** The write is a byte-identical copy of a reviewed, tested, bundled script,
   with no generation, no templating, and no operator-supplied content, so nothing enters it that was not
-  already in the plugin. Critically, **the copy is inert until the operator wires it**: it is not
+  already in the plugin. **The copy is inert until the operator wires it**: it is not
   on `PATH`, not a hook, and not referenced by any Claude Code surface, so the base record's
   justification for having no kill switch, "nothing runs unless the operator wires it, and
   unwiring is the same one-line edit", survives verbatim. The shim itself has no untrusted input
