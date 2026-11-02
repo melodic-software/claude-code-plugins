@@ -4215,10 +4215,13 @@ expect_both $'engine parity 75 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command 
 expect_both $'engine parity 76 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm -rf ~ "|"'
 expect_both $'engine parity 77 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval "true; rm -rf ~"'
 expect_both $'engine parity 78 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'eval eval eval eval "rm -rf ~"'
-# DECLARED GAP, the engine refused it: an expansion-built command word
-expect_both $'engine parity 79 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'$SHELL -c "rm -rf ~"'
-# DECLARED GAP, the engine refused it: an expansion-built command word
-expect_both $'engine parity 80 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'"$SHELL" -c "rm -rf ~"'
+expect_both $'engine parity 79 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'$SHELL -c "rm -rf ~"'
+expect_both 'engine parity 79 companion: $SHELL -c "ls ~" is left alone' 0 "${RDT_CWD[@]}" --command '$SHELL -c "ls ~"'
+expect_both 'engine parity 79 companion: $SHELL -c of an in-tree delete is left alone' 0 "${RDT_CWD[@]}" \
+  --command '$SHELL -c "rm -rf build"'
+expect_both $'engine parity 80 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'"$SHELL" -c "rm -rf ~"'
+expect_both 'engine parity 80 companion: "$SHELL" -c of an in-tree delete is left alone' 0 "${RDT_CWD[@]}" \
+  --command '"$SHELL" -c "rm -rf build"'
 expect_both $'engine parity 81 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:\'C:\\\''
 expect_both $'engine parity 82 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -LiteralPath:"C:\\"'
 expect_both $'engine parity 83 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'Remove-Item -Recurse -Force -Path:"$HOME"'
@@ -4250,8 +4253,19 @@ expect_both $'engine parity 108 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --t
 expect_both $'engine parity 109 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c "rd /s /q '"$RDT_EP_WH"$'"'
 expect_both $'engine parity 110 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd.exe /c rd /s /q '"$RDT_EP_WH"
 expect_both $'engine parity 111 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s/q '"$RDT_EP_WH"
-# DECLARED GAP, the engine refused it: cmd del /s and a %NAME% cmd expands
-expect_both $'engine parity 112 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /k del /s /q %USERPROFILE%'
+expect_both $'engine parity 112 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /k del /s /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: cmd /c del /q of one file is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /c del /q build\x.txt'
+expect_both 'engine parity 112 companion: cmd /c del /s under a named %NAME% subpath is left alone' 0 "${RDT_CWD[@]}" \
+  --tool PowerShell --command 'cmd /c del /s /q %USERPROFILE%\proj'
+expect_both 'engine parity 112 companion: cmd /c del /as reads /a attributes, not /s' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /c del /as /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: Bash cmd /c del /s /q %USERPROFILE% blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cmd /c del /s /q %USERPROFILE%'
+expect_both 'engine parity 112 companion: Bash cmd /c "erase /s /q %USERPROFILE%" blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cmd /c "erase /s /q %USERPROFILE%"'
+expect_both 'engine parity 112 companion: Bash cmd /c del /q of one file is left alone' 0 "${RDT_CWD[@]}" \
+  --command 'cmd /c del /q build\x.txt'
 expect_both $'engine parity 113 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c rd /s /q C:\\'
 # old expectation wrong: bash removes the backslashes, so cmd gets the drive-relative C:Usersname
 expect_both $'engine parity 114 (Bash, engine deny)' 0 "${RDT_CWD[@]}" --command $'cmd /c rd /s /q '"$RDT_EP_WH"
@@ -4260,8 +4274,19 @@ expect_both $'engine parity 116 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --t
 expect_both $'engine parity 117 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'powershell.exe -Command "Remove-Item -Recurse -Force ~"'
 expect_both $'engine parity 118 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'pwsh -Command "Remove-Item -Recurse -Force ~"'
 expect_both $'engine parity 119 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'pwsh -c "rm -r -for $HOME"'
-# DECLARED GAP, the engine refused it: a bash -c run from the PowerShell tool
-expect_both $'engine parity 120 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'bash -c "rm -rf ~"'
+expect_both $'engine parity 120 (PowerShell, engine deny)' 2 "${RDT_CWD[@]}" --tool PowerShell --command $'bash -c "rm -rf ~"'
+expect_both 'engine parity 120 companion: PS bash -c "ls ~" is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'bash -c "ls ~"'
+expect_both 'engine parity 120 companion: PS bash -c of an in-tree delete is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'bash -c "rm -rf build"'
+expect_both 'engine parity 120 companion: PS bash -c shred, a Bash-lane word, blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command "bash -c 'shred -u x; rm -rf ~'"
+expect_both 'engine parity 120 companion: PS wsl rm -rf ~ blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'wsl rm -rf ~'
+expect_both 'engine parity 120 companion: PS wsl ls ~ is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'wsl ls ~'
+expect_both 'engine parity 120 companion: Start-Process bash with a quoted -c text blocks' 2 "${RDT_CWD[@]}" \
+  --tool PowerShell --command "Start-Process bash -ArgumentList '-c \"rm -rf ~\"'"
 # old expectation wrong: a single-quoted -c text is a string literal; nothing runs
 expect_both $'engine parity 121 (PowerShell, engine deny)' 0 "${RDT_CWD[@]}" --tool PowerShell --command $'cmd /c "powershell -c \'Remove-Item -Recurse ~\'"'
 expect_both $'engine parity 122 (Bash, engine deny)' 2 "${RDT_CWD[@]}" --command $'rm.exe -rf ~'
@@ -4374,10 +4399,12 @@ expect_both 'engine parity companion: cmd /c rd /s /q with a quoted profile path
   --command "cmd /c rd /s /q '$RDT_EP_WH'"
 expect_both 'engine parity companion: PS Remove-Item -Recurse "~" blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
   --command 'Remove-Item -Recurse -Force "~"'
-# DECLARED GAP: on the PowerShell tool a cmd /c line is read for rd /s, rmdir /s
-# and robocopy only, so a powershell it runs is not judged.
-expect_both 'engine parity companion: cmd /c powershell -c unquoted is left alone' 0 "${RDT_CWD[@]}" --tool PowerShell \
+expect_both 'engine parity companion: cmd /c powershell -c unquoted blocks' 2 "${RDT_CWD[@]}" --tool PowerShell \
   --command 'cmd /c "powershell -c Remove-Item -Recurse ~"'
+expect_both 'engine parity companion: cmd /c powershell -c of an in-tree delete is left alone' 0 "${RDT_CWD[@]}" \
+  --tool PowerShell --command 'cmd /c "powershell -c Remove-Item -Recurse build"'
+expect_both 'engine parity companion: a cmd /c statement after & is judged' 2 "${RDT_CWD[@]}" --tool PowerShell \
+  --command 'cmd /c "echo x & rd /s /q C:\"'
 expect_both 'engine parity companion: a balanced rm -rf ~ after echo blocks' 2 "${RDT_CWD[@]}" \
   --command "echo 'terminated' ; rm -rf ~"
 
