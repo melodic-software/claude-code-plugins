@@ -128,8 +128,10 @@ candidate, `pydeps.py` writes `<plugin data dir>/python/.hook-ready` atomically,
 plugin root, the installed directory and what each of the hook's candidate names resolves to. An
 interpreter only the py launcher listed writes no stamp. The hook checks the stamp with shell
 builtins alone, and any of these sends it down the full path: another plugin root, a candidate
-name resolving elsewhere, a resolved interpreter file, `requirements.txt`, `pydeps.py` or
-`pydeps.json` newer than the stamp, or the installed directory missing.
+name resolving to another file, a resolved interpreter file, `requirements.txt`, `pydeps.py` or
+`pydeps.json` newer than the stamp, or the installed directory missing. The root and the
+candidates are compared as files (`-ef`), not as path strings, so a symlink, another mount, an 8.3
+short name, another letter case or a dropped `.exe` still matches the same file.
 
 **Nothing else fetches.** No skill body, script or hook other than the install hook runs
 `uv run`, `uvx`, `pip install` or `--with-requirements`. A skill runs its scripts against the

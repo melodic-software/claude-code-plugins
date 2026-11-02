@@ -78,48 +78,35 @@ as_posix() {
   esac
 }
 
-# path_key <path> -> REPLY: the path as compared. Under Git Bash or Cygwin, paths are case-insensitive and a
-# command -v result may drop the .exe that Python's shutil.which keeps. Fails as as_posix does.
-path_key() {
-  as_posix "$1" || return 1
-  case "${OSTYPE:-}" in
-    msys* | cygwin*)
-      REPLY="${REPLY,,}"
-      REPLY="${REPLY%.exe}"
-      ;;
-    *) ;;
-  esac
-}
-
 # stamp_holds -> 0 when pydeps.py's ready stamp (written after a successful install with an interpreter found on
-# PATH) still describes this session: the same plugin root, every candidate name resolving where it did, none of
+# PATH) still describes this session: the same plugin root, every candidate name resolving to the same file, none of
 # those files, requirements.txt, pydeps.py or pydeps.json newer than the stamp, and the installed set present.
-# Builtins only (hash fills BASH_CMDS the way command -v looks up a name, without a subshell), so a session start
-# whose set is ready starts no process. Anything else falls through to the full path, which probes and rebuilds.
+# Files are compared by identity (-ef), not spelling: one file can be named through a symlink, another mount, an 8.3
+# short name, another letter case, or without its .exe. Builtins only (hash fills BASH_CMDS the way command -v looks
+# up a name, without a subshell), so a session start whose set is ready starts no process. Anything else falls
+# through to the full path, which probes and rebuilds.
 stamp_holds() {
   ((BASH_VERSINFO[0] >= 4)) || return 1
-  local stamp lines name got want i=3 f
+  local stamp lines name got i=3 f
   as_posix "$data" || return 1
   stamp="$REPLY/python/.hook-ready"
   [[ -f "$stamp" ]] || return 1
   mapfile -t lines <"$stamp" || return 1
   lines=("${lines[@]%$'\r'}")
   ((${#lines[@]} == 3 + ${#candidates[@]})) && [[ "${lines[0]}" == 'pydeps-hook-ready 1' ]] || return 1
-  path_key "${lines[1]}" || return 1
-  want="$REPLY"
-  path_key "$ROOT" || return 1
-  [[ "$want" == "$REPLY" ]] || return 1
+  as_posix "${lines[1]}" || return 1
+  [[ "$REPLY/scripts/pydeps.py" -ef "$ROOT/scripts/pydeps.py" ]] || return 1
   as_posix "${lines[2]}" || return 1
   [[ -d "$REPLY" ]] || return 1
   for name in "${candidates[@]}"; do
     [[ "${lines[i]%%=*}" == "$name" ]] || return 1
-    path_key "${lines[i]#*=}" || return 1
-    want="$REPLY"
+    as_posix "${lines[i]#*=}" || return 1
     got=""
     hash -- "$name" 2>/dev/null && got="${BASH_CMDS[$name]-}"
-    path_key "$got" || return 1
-    [[ "$want" == "$REPLY" ]] || return 1
-    [[ -n "$got" && "$got" -nt "$stamp" ]] && return 1
+    if [[ -n "$REPLY" || -n "$got" ]]; then
+      [[ -n "$REPLY" && -n "$got" && "$REPLY" -ef "$got" ]] || return 1
+      [[ "$got" -nt "$stamp" ]] && return 1
+    fi
     i=$((i + 1))
   done
   for f in requirements.txt scripts/pydeps.py scripts/pydeps.json; do

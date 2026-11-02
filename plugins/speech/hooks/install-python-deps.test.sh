@@ -301,22 +301,30 @@ invalidated "a newer pydeps.py" newer "$root/scripts/pydeps.py"
 invalidated "a newer pydeps.json" newer "$root/scripts/pydeps.json"
 invalidated "a missing installed set" target_missing
 
-# Under Git Bash, Windows Python writes the stamp with backslashes, its own letter case and .EXE suffixes, while the
-# hook sees POSIX paths without them. A stamp in that shape holds under OSTYPE=msys and, paired, not elsewhere.
-# windows_form <path> -> the path with backslashes; upper-cased with .EXE appended when a second argument is given.
-windows_form() {
-  local p="${1//\//\\}"
-  [[ -n "${2:-}" && -n "$p" ]] && p="${p^^}.EXE"
-  printf '%s' "$p"
-}
+# One directory spelled two ways (a symlink here; an 8.3 short name or another mount on Windows): pydeps.py records
+# the resolved root, the hook's ROOT keeps the spelling it was started through, and the stamp still holds.
+ln -s "$root" "$WORK/stamped-link"
+restore_stamp
+stamp_run "$WORK/stamped-link" "$EMPTY"
+if [[ "$RC" -eq 0 && -z "$OUT" && "$STARTS" -eq 0 ]]; then
+  ok "a plugin root reached through a symlink still matches the stamp, and no Python starts"
+else
+  fail "symlinked plugin root: starts=$STARTS rc=$RC output=[$OUT]"
+fi
+
+# Under Git Bash, Windows Python writes the stamp with backslashes, while the hook sees POSIX paths. A stamp in that
+# shape holds under OSTYPE=msys and, paired, not elsewhere. Letter case, 8.3 names and .EXE suffixes need a Windows
+# file system: the real Git Bash case covers them.
+# windows_form <path> -> the path with backslashes.
+windows_form() { printf '%s' "${1//\//\\}"; }
 target="$(find "$data/python" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
 py_at="$(PATH="$logged:$PATH" command -v py 2>/dev/null || true)"
 {
-  printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(windows_form "${root^^}")" "$(windows_form "$target")"
+  printf 'pydeps-hook-ready 1\n%s\n%s\n' "$(windows_form "$root")" "$(windows_form "$target")"
   for name in python3.13 python3.12 python3 python; do
-    printf '%s=%s\n' "$name" "$(windows_form "$logged/$name" upper)"
+    printf '%s=%s\n' "$name" "$(windows_form "$logged/$name")"
   done
-  printf 'py=%s\n' "$(windows_form "$py_at" upper)"
+  printf 'py=%s\n' "$(windows_form "$py_at")"
 } >"$WORK/good-stamp"
 starts_under=""
 for ostype in msys linux-gnu; do
@@ -362,9 +370,9 @@ for name in python3.13 python3.12 python3 python; do
 done
 chmod +x "$WORK/drive/bin/"*
 {
-  printf 'pydeps-hook-ready 1\nC:\\PLUGIN\nC:\\data\\python\\0123456789ab-cpython-399\n'
+  printf 'pydeps-hook-ready 1\nC:\\plugin\nC:\\data\\python\\0123456789ab-cpython-399\n'
   for name in python3.13 python3.12 python3 python; do
-    printf '%s=C:\\BIN\\%s.EXE\n' "$name" "${name^^}"
+    printf '%s=C:\\bin\\%s\n' "$name" "$name"
   done
   printf 'py=\n'
 } >"$WORK/drive/data/python/.hook-ready"
