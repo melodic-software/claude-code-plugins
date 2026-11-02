@@ -116,11 +116,17 @@ jobs:
       held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
-    # notice (.github/actions/log-api-budget). The head read's `gh api` runs
-    # before the checkout, outside the wrapper, and leaves none.
+    # notice (.github/actions/log-api-budget).
     env:
       API_BUDGET_TOKEN: github-token
     steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
       - name: Read the PR's head SHA
         id: head
         env:
@@ -135,13 +141,6 @@ jobs:
           sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
-
-      - name: Check out the default branch tip
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          path: .base
-          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

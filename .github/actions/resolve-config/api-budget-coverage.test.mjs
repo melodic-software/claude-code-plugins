@@ -1,8 +1,8 @@
 // Every workflow job that calls the GitHub API leaves api-budget readings and
 // logs them at its end, so the lane record's githubCalls covers the job: each
-// step that runs gh itself wraps it with api_budget_wrap_gh (or sources
-// api-budget.bash and records each response with api_budget_read), each script that
-// runs as its own process wraps its own calls, the job (or the step) sets
+// step that runs gh itself wraps it with api_budget_wrap_gh, or sources
+// api-budget.bash and calls api_budget_read, each script that runs as its own
+// process wraps its own calls, the job (or the step) sets
 // API_BUDGET_TOKEN for the actions below, and a final always() step runs this
 // action. A job calls GitHub when a step:
 //   - runs `gh api|issue|pr|run|workflow|release|label|search|repo`, or
@@ -26,13 +26,15 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 // Jobs that call GitHub and are not yet covered, each with the exact gap the
 // detector reports for it, so a gap that grows, shrinks or closes fails.
 const NO_LOG = "no job-end log-api-budget step";
+const LANE_JOB =
+  "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  // The lane jobs run PR head code, after which no step loads an action or
-  // library from a checkout; logging here needs a trusted copy of the library.
-  ["pr-run-activity-read.yml:run", NO_LOG],
-  ["pr-run-activity-write.yml:run", NO_LOG],
+  // Head code runs in the lane jobs, so no step after it loads the log action
+  // (log-api-budget.test.mjs:1006); with no log, the token would emit nothing.
+  ["pr-run-activity-read.yml:run", LANE_JOB],
+  ["pr-run-activity-write.yml:run", LANE_JOB],
   // No checkout to load the log-api-budget action from, and no contents: read
   // to check one out with.
   [
@@ -61,6 +63,9 @@ const ALLOWED = new Map([
     "release-publish-plugins.yml:merge",
     `step "Queue the checked head" calls gh without api_budget_wrap_gh; ${DECIDE_REBUILD}`,
   ],
+  // The detector judges selection-audit.sh by the whole file; trace, the mode
+  // this job runs, makes none of its gh calls (red-replay does).
+  ["maintenance-audit-test-selection.yml:audit-test-selection", NO_LOG],
 ]);
 
 const GH_CALL =
@@ -71,7 +76,7 @@ const SCRIPT =
 const WRAP = /\bapi_budget_wrap_gh\b/;
 // Sourcing api-budget.bash by a literal path, or by "$NAME" from the step env.
 const LIB_SOURCE =
-  /(?:^|[\s;{(])(?:\.|source) +(?:["']?((?:\.base\/)?[\w./-]*api-budget\.bash)\b|"\$\{?([A-Z_][A-Z0-9_]*)\}?")/gm;
+  /(?:^|[\s;{(])(?:\.|source) +(?:["']?([\w./-]*api-budget\.bash)\b|"\$\{?([A-Z_][A-Z0-9_]*)\}?")/gm;
 // The self-wrap line: source the wrapper by a path relative to the script,
 // then call api_budget_wrap_gh <token>.
 const SELF_WRAP =
@@ -121,11 +126,16 @@ const detector = ({ read, exists }) => {
   // not reach them. Script paths are left to the script rules.
   // A step that records its own readings sources the library, by its path or
   // by a step env variable holding it, and calls api_budget_read.
-  const recordsOwn = ({ run = "", env = {} }) =>
-    /\bapi_budget_read\b/.test(run) &&
-    [...run.matchAll(LIB_SOURCE)].some(
-      ([, path, name]) => path || /api-budget\.bash$/.test(env[name] ?? ""),
+  // Comment lines are not code, so neither half may come from one.
+  const recordsOwn = ({ run = "", env = {} }) => {
+    const code = run.replace(/^\s*#.*$/gm, "");
+    return (
+      /\bapi_budget_read\b/.test(code) &&
+      [...code.matchAll(LIB_SOURCE)].some(
+        ([, path, name]) => path || /api-budget\.bash$/.test(env[name] ?? ""),
+      )
     );
+  };
   const ownCallsUnwrapped = (step) => {
     const run = step.run ?? "";
     return (
@@ -319,6 +329,18 @@ test("covered() names each missing piece", () => {
       steps: [{ name: "Src", run: `. .base/${WRAPPER} || true\ngh api x` }, LOG],
     }),
     ['step "Src" calls gh without api_budget_wrap_gh'],
+  );
+  assert.deepEqual(
+    covered({
+      steps: [
+        {
+          name: "Comment",
+          run: `. .base/${WRAPPER} || true\n# api_budget_read keeps it\ngh api x`,
+        },
+        LOG,
+      ],
+    }),
+    ['step "Comment" calls gh without api_budget_wrap_gh'],
   );
   assert.deepEqual(
     covered({
