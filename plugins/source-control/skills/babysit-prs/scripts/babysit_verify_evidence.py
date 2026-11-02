@@ -4316,43 +4316,80 @@ def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
     but never read again), as the lane's agent identity in the config there.
     With `idle`, the report is an earlier tick's, and it must also pass
-    `postmerge.idle_refusal`. Changed check code refuses before any read.
-    Prints `{"reuse", "reason"}`; exit 0 when it stands, else 1, and the
-    caller runs the check."""
+    `postmerge.idle_refusal`, its parts read cheapest first: changed check
+    code and the report's own refusals (`idle_report_refusal`) refuse before
+    any read, the verifying runs (two reads) before `settle_shared`, and the
+    quarantine issues and pins after it. The report checks run again last,
+    so their clock is never earlier than it was with the room's rule first.
+    Prints `{"reuse", "reason", "outcome"}`, `outcome` being how
+    `settle_shared` settled (None when it did not run); exit 0 when it
+    stands, else 1, and the caller runs the check."""
     shared = postmerge.read_shared(path)
     reason: str | None = "post-merge answer missing or unreadable"
+    outcome: dict[str, str | None] = {}
     if not merge_policy.check_code_unchanged(code_sha):
         reason = "post-merge answer code-changed"
     elif shared is not None:
         try:
-            default = merge_policy._default_branch(repo, shared=True)
-            config = merge_policy._default_branch_config(repo, default)
-            if not config.agent_identity:
-                reason = "no agent identity"
-            else:
-                _, reason = merge_policy.settle_shared(
-                    repo,
-                    shared,
-                    default=default,
-                    base_sha=config.base_sha,
-                    identity=config.agent_identity,
-                    code_unchanged=True,
-                    runs_unchanged=lambda answer, branch: (
-                        postmerge.pending_runs_unchanged(repo, answer, branch)
-                    ),
-                )
-                if reason is None and idle:
-                    refusal = postmerge.idle_refusal(
-                        repo,
-                        shared,
-                        default,
-                        confirm_wait_minutes=config.confirm_wait_minutes,
-                    )
-                    reason = refusal and f"idle tick {refusal}"
+            reason = _settle_reason(repo, shared, idle=idle, outcome=outcome)
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
-    print(json.dumps({"reuse": reason is None, "reason": reason}))
+    print(
+        json.dumps(
+            {"reuse": reason is None, "reason": reason, "outcome": outcome or None}
+        )
+    )
     return 0 if reason is None else 1
+
+
+def _settle_reason(
+    repo: str,
+    shared: merge_policy.SharedPostMerge,
+    *,
+    idle: bool,
+    outcome: dict[str, str | None],
+) -> str | None:
+    """`_settle`'s refusal for a readable report, `outcome` filled by
+    `settle_shared` when it runs. Raises what the reads raise."""
+
+    def idle_tick(refusal: str | None) -> str | None:
+        return refusal and f"idle tick {refusal}"
+
+    if idle and (refused := idle_tick(postmerge.idle_report_refusal(shared))):
+        return refused
+    default = merge_policy._default_branch(repo, shared=True)
+    config = merge_policy._default_branch_config(repo, default)
+    if not config.agent_identity:
+        return "no agent identity"
+    if idle and (
+        refused := idle_tick(
+            postmerge.idle_runs_refusal(
+                repo,
+                shared,
+                default,
+                confirm_wait_minutes=config.confirm_wait_minutes,
+            )
+        )
+    ):
+        return refused
+    _, reason = merge_policy.settle_shared(
+        repo,
+        shared,
+        default=default,
+        base_sha=config.base_sha,
+        identity=config.agent_identity,
+        code_unchanged=True,
+        runs_unchanged=lambda answer, branch: (
+            postmerge.pending_runs_unchanged(repo, answer, branch)
+        ),
+        outcome=outcome,
+    )
+    if reason is not None or not idle:
+        return reason
+    return idle_tick(
+        postmerge.idle_marks_refusal(repo, shared)
+        or postmerge.idle_report_refusal(shared)
+    )
 
 
 # GitHub refuses a comment body over 65536 characters; the findings are cut
