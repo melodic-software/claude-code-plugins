@@ -1040,6 +1040,24 @@ describe("decide", () => {
         assert.equal(inBody("- [ ] Raise retention to 400 days."), "retention");
         assert.equal(inBody("- [ ] Add an Azure storage account."), "azure");
       });
+
+      // The phrasings the review found a lowering verb let through: a verb
+      // aimed at a guard on spend, and a move onto a charge.
+      test("a lowering verb that removes a spend guard or moves onto a charge", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: remove the Actions spending limit" }) }), "spending limit");
+        for (const [item, found] of [
+          ["Disable the spending limit on the lanes account.", "spending limit"],
+          ["Drop the Actions spending limit.", "spending limit"],
+          ["Turn off the spending limits on all 12 accounts.", "spending limits"],
+          ["Disable the spending limit on the Azure account.", "spending limit, azure"],
+          ["Cut over the e2e job to larger runners.", "larger runners"],
+          ["Cut over to Azure.", "azure"],
+          ["Retire the standard runners in favour of larger runners.", "larger runners"],
+          ["Drop the old runner for larger runners.", "larger runners"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
     });
 
     // Owner decision 2026-10-31 Q1: the check reads what the issue will do,

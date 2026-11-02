@@ -757,14 +757,27 @@ const workSections = (prose, text, workHeadings) => {
 // Q1): a charge word counts in every clause but one that only lowers or
 // removes the charge (LOWERING) and does not also take one on (CHARGING), such
 // as "shorten their retention" or "set a retention policy". An unlisted verb
-// still counts, so the cost hold fails closed.
+// still counts, so the cost hold fails closed. A clause that lowers a guard on
+// spend (SAFEGUARD), or names a charge it moves to (TOWARD), still counts.
 const LOWERING =
-  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delete[sd]?|deleting|disable[sd]?|disabling|cut|cuts|cutting|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
+  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delete[sd]?|deleting|disable[sd]?|disabling|(?:cut|cuts|cutting)(?! over)|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
 const CHARGING =
   /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|runs?|running|bump\w*|doubl\w*|expand\w*|spin(?:s|ning)? up|spun up|allocate[sd]?|allocating|allocations?|configure[sd]?|configuring|keep|keeps|keeping|kept|sign(?:s|ed|ing)? up|opt(?:s|ed|ing)? in|set(?:s|ting)?(?! (?:an? |the )(?:[\w-]+ ){0,2}polic))\b/i;
 // A billing account admission reads as a charge beside the shared words, in
 // every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
+const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
+const TOWARD = /\b(?:for|with|in favou?r of|instead of|in place of|over to)\b/i;
+const clauseCharges = (clause, charges, isPublic) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())];
+// A clause whose charge words the work only lowers: a LOWERING verb, no
+// CHARGING one, no SAFEGUARD, and no charge word after a TOWARD marker.
+const lowersOnly = (clause, charges, isPublic) => {
+  if (!LOWERING.test(clause) || CHARGING.test(clause) || SAFEGUARD.test(clause)) {
+    return false;
+  }
+  const at = clause.search(TOWARD);
+  return at < 0 || clauseCharges(clause.slice(at), charges, isPublic).length === 0;
+};
 // A clause ends at a sentence end, or at a line break before a blank line or
 // a list item.
 const clausesOf = (text) => String(text).split(/[.;!?](?=\s|$)|\n(?=\s*(?:$|[-*+]\s|\d+[.)]\s))/);
@@ -788,8 +801,8 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
     ...new Set(
       parts
         .flatMap(clausesOf)
-        .filter((clause) => !LOWERING.test(clause) || CHARGING.test(clause))
-        .flatMap((clause) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())]),
+        .filter((clause) => !lowersOnly(clause, charges, isPublic))
+        .flatMap((clause) => clauseCharges(clause, charges, isPublic)),
     ),
   ];
 }
