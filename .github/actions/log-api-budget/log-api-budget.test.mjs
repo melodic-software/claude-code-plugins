@@ -357,6 +357,35 @@ test("the action emits each named token, the call count as an api-calls notice t
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
+test("outside names the job-token steps no counted client sees in an api-uncounted notice after api-calls, skipping a bad name", () =>
+  withDir((dir) => {
+    const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
+    writeFileSync(join(dir, "summary"), "");
+    writeFileSync(join(dir, "output"), "");
+    const out = execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        ...RUNNER,
+        RUNNER_TEMP: dir,
+        TMPDIR: dir,
+        GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
+        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+        GITHUB_OUTPUT: join(dir, "output"),
+        TOKENS: "github-token",
+        OUTSIDE: "detect-changes:pulls/files\nbad;name check-managed-files",
+      },
+    });
+    assert.equal(
+      out,
+      "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n" +
+        "::warning::api-budget: skipped an outside step name with other characters\n" +
+        "::notice title=api-uncounted::github-token detect-changes:pulls/files check-managed-files\n" +
+        "::notice title=api-routes::github-token rest=0\n",
+    );
+    assert.match(readFileSync(join(dir, "summary"), "utf8"), /^api-uncounted github-token detect-changes:pulls\/files check-managed-files$/m);
+  }));
+
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));

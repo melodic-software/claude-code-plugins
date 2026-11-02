@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.5] - 2026-11-02
+
+### Security
+
+- Shared `publish-gate.mjs` synced: the publish gate now treats a `melo-phone-NNN` fleet hostname as machine-specific, like the desk and laptop hosts.
+
 ## [0.13.4] - 2026-11-01
 
 ### Security

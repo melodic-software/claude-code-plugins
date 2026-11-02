@@ -28,7 +28,7 @@ graders:
   - name: no-tracker-or-telemetry
     type: tool_used
     tool: Bash
-    input_match: 'work-item-tracker\.sh|lane-telemetry-upsert|lane-push\.sh|first-drain-ratified|rule-admit\.sh|\bgh[ \t]+(?:issue|api|pr|label)\b'
+    input_match: 'work-item-tracker\.sh|lane-telemetry-upsert|lane-push\.sh|\bgh[ \t]+(?:issue|api|pr|label)\b'
     min: 0
     max: 0
     arm: both

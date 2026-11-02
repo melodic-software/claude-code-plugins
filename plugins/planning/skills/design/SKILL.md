@@ -154,9 +154,15 @@ boundary other modules will build on):
    `design-threads.md`.
 
 When the thread is about how a screen or interaction looks or feels, invoke
-`/prototype:explore-directions` via the Skill tool when it is among the available skills, after
-confirming the scope of the throwaway with the user; otherwise run the three steps here, describing
-each candidate in prose.
+`/prototype:explore-directions` via the Skill tool when it is among the available skills. When the
+candidates differ in logic or state (the rules, a state machine, a data model, an API surface) and
+a run can settle the fork, invoke `/prototype:pressure-test observe` via the Skill tool when it is
+among the available skills, because running each candidate on the same inputs shows which one
+holds where arguing them only predicts it. The test: name the event sequence or record that the
+criteria turn on; when nobody can yet say with confidence how each candidate handles it, a run
+settles the fork (pstack's `exhaust-the-design-space` principle). Confirm the scope of the
+throwaway with the user before either route. When neither route applies or its skill is
+unavailable, run the three steps here, describing each candidate in prose.
 
 Open these threads when their trigger holds:
 

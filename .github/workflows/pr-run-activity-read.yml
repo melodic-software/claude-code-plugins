@@ -623,6 +623,9 @@ jobs:
       record-max-turns: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.max-turns || '' }}
       record-models: ${{ steps.lane-record.outcome == 'success' && steps.act-turns.outputs.models || '' }}
       record-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
+      # The lane-outcome JSON itself, empty when the step wrote none; the
+      # report-check-run action validates it before the check run carries it.
+      record: ${{ steps.lane-record.outputs.record }}
       # Set after head code ran, for the scan job alone: each payload's byte
       # count and the sealed bundle, never a workflow_call output.
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
@@ -1824,7 +1827,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@c41e3457e01c9ff6ca2c3d10e5bf470551383e11 # c41e345 2026-11-01
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@6b9c640bf209c0c7e76f1111c5d18c96707348a2 # 6b9c640 2026-11-02
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -3629,6 +3632,7 @@ jobs:
           lane-max-turns: ${{ needs.run.outputs.record-max-turns }}
           lane-models: ${{ needs.run.outputs.record-models }}
           lane-profile: ${{ needs.run.outputs.record-profile }}
+          lane-outcome: ${{ needs.run.outputs.record }}
           head-sha: ${{ steps.head.outputs.sha }}
           pr-head-sha: ${{ steps.pr-head.outputs.sha }}
           can-commit: ${{ needs.run.outputs.can-commit }}

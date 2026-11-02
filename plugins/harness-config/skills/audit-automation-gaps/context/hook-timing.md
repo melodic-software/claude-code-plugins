@@ -15,28 +15,25 @@ about to state a timing number.
 There is no upstream hook latency budget. The hooks documentation has no performance section, so
 any fixed number is a house rule and must be labeled as one wherever a verdict cites it.
 
-The measurement from Phase 2.1 is the left side of the comparison, never a source of the budget
-itself. The budget is the right side, and it resolves in two rungs:
+The Phase 2.1 measurement is one side of the comparison, never a source of the budget. The budget
+resolves in two rungs:
 
 1. **The consuming repository's own documented budget.** Search its convention docs and rules for a
-   stated per-tool-call or per-turn hook ceiling. Where one exists it is authoritative, including
-   when it is far stricter than any default you would otherwise pick, and including when it says it
-   never relaxes to absorb an overage.
+   stated per-tool-call or per-turn hook ceiling. Where one exists it is authoritative, even when it
+   is far stricter than any default you would pick, or says it never relaxes to absorb an overage.
 2. **The house-rule fallback.** Where the repository documents no ceiling, treat roughly one second
    per tool call as the working one, and say in the verdict that this is this skill's number rather
    than upstream guidance.
 
-Name which rung applied in every verdict that cites a threshold. A measurement with no budget on the
-other side yields no verdict, so rung 2 always supplies one rather than leaving the gate unable to
-decide.
+Name which rung applied in every verdict that cites a threshold. A measurement with no budget yields
+no verdict, so rung 2 always supplies one.
 
 A consuming repository that documents a budget and has no headroom left turns a duplicate-hook
 candidate into a REJECT, whatever its latency in isolation.
 
 ## What the timing actually costs, per event
 
-The cost of a slow hook is not the same on every event, and the difference decides what the gate is
-even measuring.
+A slow hook costs something different on each event, and that decides what the gate measures.
 
 | Event | Can it block? | What slowness costs |
 |---|---|---|
@@ -46,8 +43,8 @@ even measuring.
 | `PermissionRequest` | Not via exit code 2 | Denial goes through the `decision` object; an `exit 2` gate here is inert |
 | Any command hook with `async: true` | No, structurally | Nothing; it runs in the background |
 
-Three consequences for a verdict. A `PostToolUse` candidate can never be rejected for blocking,
-because it cannot block, so judge it on turn latency against the resolved budget. A report-only
+Three consequences for a verdict. A `PostToolUse` candidate cannot block, so never reject it for
+blocking; judge it on turn latency against the resolved budget. A report-only
 check (one that only prints findings) is judged on placement before latency: it never belongs on a
 per-edit `PostToolUse` hook, however fast, because its output reaches the model on in-between
 states and it covers only Claude Code's own edits. Place it in a git `pre-commit` hook on changed
@@ -64,7 +61,7 @@ one, else the house rule above.
 
 ## Levers to propose instead of a bare threshold
 
-When a hook is too slow for the resolved budget, these are the documented adjustments, in rough
+When a hook is too slow for the resolved budget, propose these documented adjustments, roughly in
 order of how much they save:
 
 - **Narrow the `matcher`** so the hook does not fire on tool calls it cannot act on.

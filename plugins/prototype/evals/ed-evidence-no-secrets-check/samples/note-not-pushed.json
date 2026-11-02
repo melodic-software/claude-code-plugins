@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# /shipments\n\nDirection: B (Cards). Skipped A: the table hides the delivery date. Skipped C: the map crowds out the parcel list.\n\nEvidence: mockup-run/explore-directions.html\nnot pushed: no secrets check in this repository\n",
+      "why": "local path and a not-pushed reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no note"
+    },
+    {
+      "answer": "# /shipments\n\nDirection: B (Cards).\n\nEvidence: branch prototype/ui-shipments at 3f9c2ab\n",
+      "why": "claims a pushed branch, no not-pushed reason"
+    }
+  ]
+}

@@ -410,8 +410,12 @@ screen: /shipments
 - [ ] Test ids: shipments-parcel-card, shipments-region-filter, shipments-empty, shipments-error
 ```
 
-Then carry out the "When the exercise ends" column of the intent selector for the host you used.
-Those deletions are irreversible: whatever is not written down first is gone. On the real stack,
+Then run the discipline's [evidence step](../../context/discipline.md#evidence-step) over the
+switcher and variant files. The default `file://` mockup lives outside the repository, so the page
+is not copied onto the evidence branch: the note records its local path and `not pushed: <reason>`,
+such as `not pushed: mockup lives outside the repository`. Then carry out the "When the exercise
+ends" column of the intent selector for the host you used. Those deletions are irreversible:
+whatever is not written down first is gone. On the real stack,
 delete the switcher and every variant file in the same change that merges the winner; code left
 behind gets imported by mistake and falls out of date. Under sub-shape A, revert the mount block
 too, then grep for its fence comments and confirm nothing is left.

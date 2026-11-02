@@ -6782,18 +6782,94 @@ def _recompute_shared(
 CHECK_CODE_PATHS = (
     "plugins/source-control/skills/babysit-prs/scripts",
     "docs/conventions/pr-pipeline.yaml",
+    "plugins/source-control/lib/yaml-subset.awk",
+    "plugins/source-control/lib/parse-concern-value.sh",
 )
 # Inside those paths but deciding no report: a change here keeps it.
 CHECK_CODE_EXCLUDES = ("plugins/source-control/skills/babysit-prs/scripts/tests",)
+# YAML files among them compared by `_yaml_meaning`, so an edit to their
+# comments, blank lines or trailing whitespace alone keeps the report.
+CHECK_CODE_YAML = (CONFIG_PATH,)
 CHECK_CODE_ROOT = Path(__file__).resolve().parents[5]
+# A block scalar indicator (`key: |`, `- >-`), under which a `#` line is
+# content, not a comment.
+_BLOCK_SCALAR = re.compile(r"(^|[\s:-])[|>][-+0-9]*\s*(#.*)?$")
+# A control or line-separator character the config parser
+# (plugins/source-control/lib/yaml-subset.awk) reads as neither a line break
+# nor a blank, though Python's `splitlines` or `strip` would.
+_FOREIGN = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
+# A line that starts a node: a sequence item, a complex key, a flow
+# collection, or a `key:` mapping entry. Any other line continues the
+# scalar before it, where a blank or `#` line is folded content.
+_STARTS_NODE = re.compile(r"[ \t]*([-?[{]|[^#]*?:([ \t]|$))")
+
+
+def _opens_quote(line: str) -> bool:
+    """Whether `line` ends inside a quoted scalar it opened. A quote opens
+    only where a token starts (after a blank, `[`, `{`, `,`, `:` or `-`), so
+    an apostrophe inside a plain value is not one."""
+    quote, prev, i = "", " ", 0
+    while i < len(line):
+        c = line[i]
+        if quote == '"' and c == "\\":
+            i += 1
+        elif quote and c == quote:
+            if quote == "'" and line[i + 1 : i + 2] == "'":
+                i += 1
+            else:
+                quote = ""
+        elif not quote and c in "\"'" and prev in " \t[{,:-":
+            quote = c
+        elif not quote and c == "#" and prev in " \t":
+            break
+        prev = c
+        i += 1
+    return bool(quote)
+
+
+def _yaml_meaning(text: str) -> str:
+    """`text` less its blank lines, its whole-line comments and each line's
+    trailing whitespace, which no YAML parser reads; `text` itself when a
+    line opens a block scalar or leaves a quote open (a quoted value going on
+    to the next line) or continues a plain scalar from the line before,
+    where a blank or `#` line is content. Indentation and an
+    inline comment stay: one is structure, and a `#` in a quoted value is
+    not a comment. Lines, blanks and comments follow the config parser's
+    rules: lines split on `\\n` only, one trailing `\\r` dropped, and only a
+    space or tab is a blank; `text` itself when a line holds any other
+    control or line-separator character."""
+    lines = [line.removesuffix("\r") for line in text.split("\n")]
+    if any(_FOREIGN.search(line) for line in lines):
+        return text
+    lines = [line.rstrip(" \t") for line in lines]
+    kept = [line for line in lines if line and not line.lstrip(" \t").startswith("#")]
+    if any(
+        _BLOCK_SCALAR.search(line) or _opens_quote(line) or not _STARTS_NODE.match(line)
+        for line in kept
+    ):
+        return text
+    return "\n".join(kept)
+
+
+def _git_show(root: Path, sha: str, path: str) -> str:
+    """`path` at commit `sha` in `root`, its line endings as stored (text
+    mode would turn every `\\r` into `\\n`). Raises
+    `subprocess.SubprocessError` when it cannot be read."""
+    return subprocess.run(
+        ["git", "-C", str(root), "show", f"{sha}:{path}"],
+        capture_output=True,
+        timeout=60,
+        check=True,
+    ).stdout.decode("utf-8")
 
 
 def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool:
     """Whether the check's code (`CHECK_CODE_PATHS` less
     `CHECK_CODE_EXCLUDES`) at `root`'s HEAD is the code at `code_sha`, the
-    commit a kept post-merge report's check ran. A sha that is not 40 hex
-    digits, a commit missing from the clone, a path missing at HEAD (a diff of
-    a path at neither commit is empty) or any git failure is not unchanged."""
+    commit a kept post-merge report's check ran, with `CHECK_CODE_YAML`
+    compared by `_yaml_meaning`. A sha that is not 40 hex digits, a commit
+    missing from the clone, a path missing at HEAD (a diff of a path at
+    neither commit is empty) or any git failure is not unchanged."""
     if not SHA_RE.fullmatch(code_sha):
         return False
     try:
@@ -6808,14 +6884,20 @@ def check_code_unchanged(code_sha: str, *, root: Path = CHECK_CODE_ROOT) -> bool
         done = subprocess.run(
             ["git", "-C", str(root), "diff", "--quiet", code_sha, "HEAD", "--"]
             + list(CHECK_CODE_PATHS)
-            + [f":(exclude){path}" for path in CHECK_CODE_EXCLUDES],
+            + [f":(exclude){path}" for path in CHECK_CODE_EXCLUDES + CHECK_CODE_YAML],
             capture_output=True,
             timeout=60,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
+        if done.returncode:
+            return False
+        return all(
+            _yaml_meaning(_git_show(root, code_sha, path))
+            == _yaml_meaning(_git_show(root, "HEAD", path))
+            for path in CHECK_CODE_YAML
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
         return False
-    return done.returncode == 0
 
 
 def settle_shared(
