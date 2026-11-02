@@ -230,7 +230,7 @@ case "$endpoint" in
     ;;
   *) fixture="$STUB_DIR/issues.json" ;;
 esac
-RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "$filter" "$fixture"
+RUN_SHA="${STUB_RUN_SHA:-}" RUN_CREATED="${STUB_RUN_CREATED:-}" jq -r "${filter:-.}" "$fixture"
 EOF
 chmod +x "$TMP_ROOT/bin/gh"
 
@@ -2060,9 +2060,11 @@ refused "an answer for another run id is refused" workflow_dispatch 4242 4189828
   "$(attempt_run '.id = 4243')"
 
 # --- The close-cleared job ----------------------------------------------------
-# A green attempt 1 of a scheduled full run closes each open schedule or
-# dispatch record either filer opened before the run, at a commit behind its
-# head, and never edited; never a canary record.
+# Each completed scheduled full run closes each open, never-edited schedule or
+# dispatch record either filer opened that a later green full run on main
+# cleared (babysit_merge_policy.py `_recovered_at`): attempt 1, a schedule or a
+# github-actions[bot] dispatch, created after the record, at a commit ahead of
+# its SHA and on main. Never a canary record.
 CLOSE_NAME='Close the records main cleared'
 awk -v name="      - name: $CLOSE_NAME" '$0 == name { on = 1; next }
   on && /^        run: \|$/ { body = 1; next }
@@ -2074,18 +2076,32 @@ rec() {
   jq -n --argjson n "$1" --arg t "$2" --arg body "$3" \
     '{number: $n, state: "open", created_at: $t, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}'
 }
-# run_close <issues-json> [lastEditedAt]
+# clear_run <created_at> [event] [jq edit]: a green full run on main at SHA.
+clear_run() {
+  jq -n --arg t "$1" --arg e "${2:-workflow_dispatch}" \
+    '{id: 4500, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main",
+      head_repository: {full_name: "o/r"}, head_sha: "'"$SHA"'", created_at: $t,
+      html_url: "https://github.com/o/r/actions/runs/4500",
+      actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"}}' |
+    jq -c "${3:-.}"
+}
+CLEAR_AT=2026-10-17T16:26:00Z
+# run_close <issues-json> [lastEditedAt]; GREEN is the green-run listing
+# (default one dispatch at CLEAR_AT), ANCESTRY the record SHA's compare status,
+# ON_MAIN the run head's compare against main's tip.
 run_close() {
   rm -rf "$TMP_ROOT/stub"
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work"
   printf '%s\n' "$1" >"$TMP_ROOT/stub/issues.json"
   printf '%s\n' "${LANE_ISSUES:-[]}" >"$TMP_ROOT/stub/lane-issues.json"
   printf '%s\n' "${PIPELINE:-}" >"$TMP_ROOT/stub/pipeline.yaml"
+  printf '{"workflow_runs": [%s]}\n' "${GREEN-$(clear_run "$CLEAR_AT")}" >"$TMP_ROOT/stub/green.json"
   jq -n --arg e "${2:-}" '{data: {repository: {issue: {lastEditedAt: (if $e == "" then null else $e end)}}}}' >"$TMP_ROOT/stub/graphql.json"
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_RUN_SHA="$SHA" STUB_ANCESTRY="${ANCESTRY:-behind}" \
+    STUB_ON_MAIN="${ON_MAIN:-ahead}" STUB_FAIL_BASE_READ="${FAIL_GREEN_READ:-}" \
     STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" \
-    GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_SHA="${CLOSE_RUN_SHA-$SHA}" RUN_URL="$RUN_URL" RUN_CREATED=2026-10-17T16:26:00Z \
+    GH_TOKEN=x GITHUB_REPOSITORY=o/r \
     bash -e -c 'cd "$1" && bash -e "$2"' _ "$TMP_ROOT/work" "$TMP_ROOT/close.sh" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
 }
@@ -2094,52 +2110,112 @@ BEFORE=2026-10-17T10:00:00Z
 if [[ ! -s "$TMP_ROOT/close.sh" ]]; then
   fail "no '$CLOSE_NAME' step with a run: | body"
 fi
+if grep -qF "\${{" "$TMP_ROOT/close.sh"; then
+  fail "the close-cleared step body interpolates an expression; pass it through env"
+fi
 LANE_ISSUES="[$(rec 11 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
   run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->"), $(rec 8 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->"), $(rec 9 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=canary -->"), $(rec 10 2026-10-17T17:00:00Z "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
 if [[ "$RC" -eq 0 && "$(closed)" == "7 8 11" ]] &&
   grep -qx 'state_reason=completed' "$TMP_ROOT/stub/post.$(grep -nx 'PATCH repos/o/r/issues/7' <<<"$LOG" | cut -d: -f1)" &&
   grep -q 'issues?state=open&creator=github-actions%5Bbot%5D' <<<"$LOG" &&
-  grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG"; then
-  ok "close-cleared closes both filers' full-run records created before the run, never a canary or later record"
+  grep -q 'issues?state=open&creator=melodic-automation-lanes%5Bbot%5D' <<<"$LOG" &&
+  grep -q "^GET repos/o/r/actions/workflows/pr-require-checks.yml/runs?branch=main&event=workflow_dispatch&status=success&created=%3E$BEFORE&per_page=100&page=1$" <<<"$LOG"; then
+  ok "close-cleared closes both filers' full-run records a later dispatched green run cleared, never a canary or a record newer than the run"
 else
   fail "close cleared: rc=$RC closed='$(closed)' log='$LOG' out='$OUT'"
 fi
+# The close comment names the green run that contradicted the record.
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && -n "$comment_line" ]] &&
+  grep -qF "body=Main is green at \`$SHA\`, a later commit: https://github.com/o/r/actions/runs/4500" "$TMP_ROOT/stub/post.$comment_line"; then
+  ok "close-cleared's close comment names the green run and its head"
+else
+  fail "close comment: rc=$RC log='$LOG' out='$OUT'"
+fi
+GREEN="$(clear_run "$CLEAR_AT" schedule)" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=dispatch -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 ]]; then
+  ok "a green scheduled run clears a record too"
+else
+  fail "schedule clear: rc=$RC log='$LOG' out='$OUT'"
+fi
+# A run the merge gate would not count clears nothing.
+for case in 'no green run|' \
+  'a person dispatched it|.actor.login = "octocat"' \
+  'a person re-triggered it|.triggering_actor.login = "octocat"' \
+  'green only at attempt 2|.run_attempt = 2' \
+  'not green|.conclusion = "failure"' \
+  'another branch|.head_branch = "feature"' \
+  "a fork's head|.head_repository.full_name = \"fork/r\"" \
+  'created before the record|.created_at = "2026-10-17T09:00:00Z"' \
+  'a short head SHA|.head_sha = "0123456"'; do
+  label="${case%%|*}" edit="${case#*|}"
+  if [[ "$label" == 'no green run' ]]; then green=''; else green="$(clear_run "$CLEAR_AT" workflow_dispatch "$edit")"; fi
+  GREEN="$green" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7: no green full run on main clears it yet"* ]] && ! grep -q '/compare/' <<<"$LOG"; then
+    ok "close-cleared leaves a record open when the only run is $label"
+  else
+    fail "close on $label: rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
 for status in diverged ahead identical; do
-  ANCESTRY=$status run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  ANCESTRY=$status PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
   if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
-    ok "close-cleared closes no record when compare reads $status"
+    ok "close-cleared closes no record when its SHA's compare to the run reads $status"
   else
     fail "close on $status: rc=$RC log='$LOG'"
   fi
 done
+for status in behind diverged; do
+  ON_MAIN=$status PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]]; then
+    ok "close-cleared closes no record when the run's head reads $status against main's tip"
+  else
+    fail "close off main ($status): rc=$RC log='$LOG'"
+  fi
+done
+ON_MAIN=identical PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 ]]; then
+  ok "a run at main's tip clears a record"
+else
+  fail "close at tip: rc=$RC log='$LOG'"
+fi
+# The oldest run that clears the record is the one named; a later one is never compared.
+GREEN="$(clear_run 2026-10-17T15:00:00Z workflow_dispatch '.id = 4499 | .html_url = "https://github.com/o/r/actions/runs/4499"'), $(clear_run "$CLEAR_AT")" PIPELINE="$PIPE" \
+  run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
+comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$(grep -c "/compare/$SHA\.\.\.$OTHER" <<<"$LOG")" -eq 1 ]] &&
+  grep -qF 'actions/runs/4499' "$TMP_ROOT/stub/post.$comment_line"; then
+  ok "close-cleared names the oldest clearing run and stops there"
+else
+  fail "oldest run: rc=$RC log='$LOG'"
+fi
 run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
 if [[ "$RC" -eq 0 && "$OUT" == *"::warning::merge.agent-identity '' could not be read or is no App login"* ]]; then
   ok "close-cleared warns when merge.agent-identity does not read"
 else
   fail "identity warning: out='$OUT'"
 fi
-run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]" 2026-10-17T11:00:00Z
+PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]" 2026-10-17T11:00:00Z
 if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
   ok "close-cleared leaves an edited record open"
 else
   fail "close edited: rc=$RC log='$LOG' out='$OUT'"
 fi
-# The close comment names the green run that contradicted the record.
-PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-comment_line="$(grep -nx 'POST repos/o/r/issues/7/comments' <<<"$LOG" | cut -d: -f1)"
-if [[ "$RC" -eq 0 && "$(closed)" == 7 && -n "$comment_line" ]] &&
-  grep -qF "body=Main is green at \`$SHA\`, a later commit: $RUN_URL" "$TMP_ROOT/stub/post.$comment_line"; then
-  ok "close-cleared's close comment names the green run and its head"
-else
-  fail "close comment: rc=$RC log='$LOG' out='$OUT'"
-fi
 # A failed or incomplete read closes nothing, for each kind of record the job closes.
 for kind in post-merge-failure babysit-merge-demotion; do
   FAIL_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
-  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not read github-actions%5Bbot%5D's open records: none of them closed"* ]]; then
-    ok "close-cleared closes no $kind record when the open-record listing fails"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"main's tip could not be read: no record closed"* ]]; then
+    ok "close-cleared closes no $kind record when nothing reads"
   else
-    fail "$kind close on failed listing: rc=$RC log='$LOG' out='$OUT'"
+    fail "$kind close on failed reads: rc=$RC log='$LOG' out='$OUT'"
+  fi
+  ON_MAIN=fail-ref PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"main's tip could not be read: no record closed"* ]]; then
+    ok "close-cleared closes no $kind record when main's tip does not read"
+  else
+    fail "$kind close on failed tip: rc=$RC log='$LOG' out='$OUT'"
   fi
   FAIL_LANE_READ=1 LANE_ISSUES="[$(rec 11 $BEFORE "<!-- $kind sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
     run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
@@ -2148,11 +2224,23 @@ for kind in post-merge-failure babysit-merge-demotion; do
   else
     fail "$kind close on one failed listing: rc=$RC closed='$(closed)' out='$OUT'"
   fi
+  FAIL_GREEN_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not list the green runs after #7: left open"* ]]; then
+    ok "close-cleared closes no $kind record when the green-run listing fails"
+  else
+    fail "$kind close on failed green listing: rc=$RC log='$LOG' out='$OUT'"
+  fi
   ANCESTRY=fail PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
   if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/comments$' <<<"$LOG"; then
     ok "close-cleared closes no $kind record when the compare read fails"
   else
     fail "$kind close on failed compare: rc=$RC log='$LOG'"
+  fi
+  ON_MAIN=fail PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/comments$' <<<"$LOG"; then
+    ok "close-cleared closes no $kind record when the on-main compare fails"
+  else
+    fail "$kind close on failed on-main compare: rc=$RC log='$LOG'"
   fi
   FAIL_GRAPHQL=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
   if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
@@ -2161,20 +2249,23 @@ for kind in post-merge-failure babysit-merge-demotion; do
     fail "$kind close on failed graphql: rc=$RC log='$LOG' out='$OUT'"
   fi
 done
+# A full page of green runs reads the next; past five pages of an event clears nothing.
+full_page="$(for i in $(seq 100); do clear_run "$CLEAR_AT" workflow_dispatch ".id = $((5000 + i)) | .head_sha = \"0123456\""; done | paste -sd,)"
+GREEN="$full_page" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- babysit-merge-demotion sha=$OTHER signal=schedule -->")]"
+if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"more than 5 pages of green"* && "$OUT" == *"could not list the green runs after #7: left open"* ]] &&
+  grep -q 'page=5$' <<<"$LOG"; then
+  ok "close-cleared leaves a record open when the green-run listing passes its page bound"
+else
+  fail "page bound: rc=$RC out='${OUT:0:400}'"
+fi
 for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" \
   "<!-- post-merge-fix check=lint -->" "<!-- post-merge-failure sha=${OTHER:0:12} signal=schedule -->"; do
   PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "$marker")]"
-  if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/compare/' <<<"$LOG"; then
-    ok "close-cleared leaves '$marker' open and reads no compare for it"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -qE '/compare/|graphql' <<<"$LOG"; then
+    ok "close-cleared leaves '$marker' open and reads nothing for it"
   else
     fail "close on '$marker': rc=$RC log='$LOG'"
   fi
 done
-CLOSE_RUN_SHA="${SHA:0:39}" PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -ne 0 && -z "$LOG" && "$OUT" == *"::error::head SHA"* ]]; then
-  ok "close-cleared refuses a head SHA that is not 40 hex digits before any read"
-else
-  fail "close on malformed head SHA: rc=$RC log='$LOG' out='$OUT'"
-fi
 
 test_harness::report
