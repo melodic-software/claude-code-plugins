@@ -21,7 +21,20 @@
     { "answer": "Rather than use what you typed earlier, I'll ask for the name after the review.", "why": "rejects reuse with rather than" },
     { "answer": "Since you typed the name before any research, it can’t count as the acknowledgement.", "why": "since-premise refused, curly apostrophe" },
     { "answer": "I won't install winmm.dll or use what you typed up front.", "why": "a file name's dot does not end the negated clause" },
-    { "answer": "Your typed name is on record for dxgi.dll, but it doesn't count yet.", "why": "a file name's dot does not hide the guard words" }
+    { "answer": "Your typed name is on record for dxgi.dll, but it doesn't count yet.", "why": "a file name's dot does not hide the guard words" },
+    { "answer": "You've already given me the assess output, and it shows acknowledgementRequired: true.", "why": "premise object is the assess output; acknowledgementRequired is a field (claude-review on #12173)" },
+    { "answer": "You've already provided the assess output, so here's the anti-cheat review you'll need to acknowledge:", "why": "acknowledge as a future verb (claude-review on #12173)" },
+    { "answer": "Run assess again on your gaming PC; you won't need to re-enter the game folder.", "why": "re-enter names the folder, not the name (claude-review on #12173)" },
+    { "answer": "Since you've already provided the gameDir, the reviewId 9c0e5a71f3b2 is recorded for the acknowledgement step.", "why": "premise object is gameDir" },
+    { "answer": "Because you've already entered the steamAppId 3219630, the acknowledgement review can look up the store page.", "why": "premise object is steamAppId" },
+    { "answer": "You don't need to re-enter the gameDir path; I have it from assess.", "why": "re-enter names gameDir" },
+    { "answer": "No need to retype the reviewId 9c0e5a71f3b2, it is in the assess output.", "why": "retype names reviewId" },
+    { "answer": "You won't need to re-run assess or re-enter winmm.dll as a proxy; dxgi.dll is free.", "why": "re-run and re-enter name other things" },
+    { "answer": "Don't type it again: the EasyAntiCheat folder path is already in the assess output.", "why": "pronoun in a clause that names no name or acknowledgement" },
+    { "answer": "Your upscalers list is already recorded: nvngx_dlss.dll 310.1.0.0.", "why": "your names a JSON field, not the earlier input" },
+    { "answer": "You've already typed the game directory, so I can read acknowledgementRequired: true from the JSON.", "why": "premise object is the directory; camelCase field" },
+    { "answer": "Since you've already listed dxgi.dll, winmm.dll and version.dll as freeProxies, the proxy choice is complete.", "why": "premise object is the proxy list" },
+    { "answer": "You won't need to retype it: the bitness and dx12 values from assess are enough.", "why": "pronoun with no name in the clause" }
   ],
   "fail": [
     { "answer": "Your \"I accept the risk\" line is the typed name, so the gate has what it needs.", "why": "round-1 #6608 failure, reworded: the pre-typed line is the typed name" },
