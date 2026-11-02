@@ -802,12 +802,18 @@ MAIN_TIP = "d" * 40
 GREEN_RUNS_PATH = f"repos/{REPO}/actions/workflows/pr-require-checks.yml/runs"
 
 
-def green_runs(event: str, page: int = 1, since: str = "2026-10-12T10:00:00Z") -> str:
-    """The listing of `event`'s green full runs on main created since the
-    record (`demotion_fake`'s `createdAt`), page `page`."""
+def green_runs(
+    event: str,
+    page: int = 1,
+    since: str = "2026-10-12T10:00:00Z",
+    until: str = "2026-10-19T10:00:00Z",
+) -> str:
+    """The listing of `event`'s green full runs on main created in the first
+    `GREEN_SPAN` after the record (`demotion_fake`'s `createdAt`), page
+    `page`."""
     return (
         f"{GREEN_RUNS_PATH}?branch=main&event={event}&status=success"
-        f"&created=%3E%3D{since}&per_page=100&page={page}"
+        f"&created={since}..{until}&per_page=100&page={page}"
     )
 
 
@@ -856,9 +862,29 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     # Before the single read's name, which the batch query's name extends.
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
-    # No green full run since: an open red-main record keeps holding.
+    # No green full run since: an open red-main record keeps holding. Every
+    # later span up to now lists none either.
+    for listing in later_spans():
+        gh.rest[listing] = {"workflow_runs": []}
     gh.rest[SCHEDULE_RUNS] = gh.rest[DISPATCH_RUNS] = {"workflow_runs": []}
     return gh
+
+
+def later_spans() -> list[str]:
+    """The green listings of every `GREEN_SPAN` after the first one, from the
+    record's creation up to now."""
+    start = policy.datetime.fromisoformat("2026-10-12T10:00:00Z")
+    stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
+    out = []
+    for span in range(1, policy.GREEN_SPANS):
+        since = start + span * policy.GREEN_SPAN
+        if since > policy.datetime.now(policy.UTC):
+            break
+        for event in ("schedule", "workflow_dispatch"):
+            out.append(
+                green_runs(event, since=stamp(since), until=stamp(since + policy.GREEN_SPAN))
+            )
+    return out
 
 
 def read_demotion() -> Any:
@@ -1317,6 +1343,28 @@ class AutoClearOnGreen(unittest.TestCase):
         self.assertFalse(result.active, result.reason)
         self.assertEqual(
             result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
+        )
+
+    def test_a_record_cleared_early_reads_no_later_span(self) -> None:
+        # However many green runs came since, a record main cleared in its
+        # first span reads only that span: later spans would fail the read.
+        gh = self.fake()
+        for listing in later_spans():
+            gh.rest[listing] = 502
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
+        )
+
+    def test_a_green_in_a_later_span_clears(self) -> None:
+        later = green_run(created_at="2026-10-20T11:00:00Z")
+        gh = self.fake(runs={"workflow_runs": []})
+        gh.rest[later_spans()[1]] = {"workflow_runs": [later]}
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-20T11:00:00Z")
         )
 
     def test_a_lane_closed_record_holds_while_main_is_still_red(self) -> None:

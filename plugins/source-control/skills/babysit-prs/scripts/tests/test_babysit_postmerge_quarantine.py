@@ -102,12 +102,11 @@ def bash_log(
 
 
 class QuarantineGh:
-    """The base fake plus job logs and CODEOWNERS."""
+    """The base fake plus job logs."""
 
     def __init__(self, base: Any) -> None:
         self.base = base
         self.logs: dict[int, str] = {}
-        self.codeowners: str | None = None
         # Issue numbers whose body was edited after filing.
         self.edited: set[int] = set()
 
@@ -132,9 +131,6 @@ class QuarantineGh:
             if job not in self.logs:
                 return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
             return subprocess.CompletedProcess(["gh"], 0, self.logs[job], "")
-        if "/contents/.github/CODEOWNERS" in endpoint and self.codeowners is not None:
-            self.base.calls.append(list(args))
-            return subprocess.CompletedProcess(["gh"], 0, self.codeowners, "")
         return self.base(args, **kwargs)
 
 
@@ -608,16 +604,6 @@ class AffectedSet(AffectedBase):
         self.red_dispatch(bash_log((FLAKY, False)))
         del self.fake.logs[112]
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
-
-    def test_a_codeowners_user_is_not_assigned_the_quarantine_issue(self) -> None:
-        self.fake.codeowners = (
-            "/plugins/notes/** @notes-owner\n/plugins/x/** @org/team\n"
-        )
-        self.red_dispatch(bash_log((FLAKY, False)))
-        report = self.remediate(self.check())
-        self.assertEqual(report["quarantine"]["issues"], [9001])
-        (post,) = self.posts()
-        self.assertFalse(any(a.startswith(("assignees[]=", "labels[]=")) for a in post))
 
     def test_a_repeat_sighting_is_not_commented_twice(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-12T09:00:00Z")

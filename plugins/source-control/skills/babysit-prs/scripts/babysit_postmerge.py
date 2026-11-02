@@ -29,8 +29,8 @@ reported as unattributed and passes like a green run.
 
 `remediate()` acts on failures in order: disarm the native auto-merge the
 identity armed on its own open pull requests, dequeue the identity's
-merge-queue entries, file (human-gated only when no green main clears it) or
-comment on the demotion issue, then record the telemetry
+merge-queue entries, file (human-gated, so intake admits none) or comment on
+the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
 also dispatches one full run on the branch tip whenever an unverified
@@ -147,11 +147,11 @@ DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 HUMAN_GATED_ROLE = "human-gated"
 # The record signals babysit_merge_policy `_recovered_at` clears once main is
-# green at a later commit; their records carry no human-gated label.
+# green at a later commit.
 SELF_CLEARING_SIGNALS = ("schedule", "dispatch")
 # Record text a model may read (intake triage reads every issue the lanes App
 # opens) keeps the fix-issue rule: job names, SHAs and links only.
-_RECORD_TEXT = re.compile(r"[^- A-Za-z0-9._:,/()#;@]")
+_RECORD_TEXT = re.compile(r"[^- A-Za-z0-9._:,/();]")
 DEFAULT_ROLE_LABEL = "needs-human"
 # The role marking a pull request whose only writer is the standards sync App.
 STANDARDS_SYNC_ROLE = "standards-sync"
@@ -295,6 +295,9 @@ class Failure:
     merge: AutoMerge
     run_url: str | None
     detail: str
+    # The newly failing checks the detail names, as `_Context.regressions`
+    # returns them: a job name, or `<job>: <gate title>`.
+    checks: tuple[str, ...] = ()
 
     @property
     def marker(self) -> str:
@@ -2460,6 +2463,7 @@ def _judge(
                         merge,
                         ctx.sighting(run),
                         f"{detail}; newly failing: {', '.join(sorted(new))}",
+                        tuple(sorted(new)),
                     )
                 )
             else:
@@ -3411,13 +3415,15 @@ def _quarantined_suite(body: Any) -> str | None:
     return match[1] if match and _SUITE_RE.fullmatch(match[1]) else None
 
 
-def _record_detail(detail: str) -> str:
-    """`detail` with each newly failing check cut to its job name (a gate's
-    annotation title is free text) and any other character dropped."""
-    head, sep, checks = detail.partition("; newly failing: ")
-    if sep:
-        checks = ", ".join(sorted({c.split(": ", 1)[0] for c in checks.split(", ")}))
-    return _RECORD_TEXT.sub("", head + sep + checks)
+def _record_detail(failure: Failure) -> str:
+    """The failure's detail as a record states it: each newly failing check
+    cut to its job name (a gate's annotation title is free text), and any
+    character outside the fix-issue rule dropped."""
+    if not failure.checks:
+        return _RECORD_TEXT.sub("", failure.detail)
+    head = failure.detail.partition("; newly failing: ")[0]
+    jobs = sorted({c.split(": ", 1)[0] for c in failure.checks})
+    return _RECORD_TEXT.sub("", f"{head}; newly failing: {', '.join(jobs)}")
 
 
 def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
@@ -3428,14 +3434,23 @@ def _issue_body(failure: Failure, also: Iterable[AutoMerge] = ()) -> str:
             failure.marker,
             "",
             f"The post-merge check found a `{failure.signal}` failure after an unattended merge. The",
-            "unattended merge path stays at rung off while any demotion record is open. Fix main",
-            "first, then close every open demotion record directly (not through a pull request's",
-            "closing keyword); a new sighting of the same failure reopens its record.",
+            "unattended merge path stays at rung off while this record holds.",
+            *(
+                [
+                    "It clears itself once a full run passes on main at a later commit: fix main.",
+                ]
+                if failure.signal in SELF_CLEARING_SIGNALS
+                else [
+                    "Only a person's direct close (not through a pull request's closing keyword)",
+                    "clears it.",
+                ]
+            ),
+            "A new sighting of the same failure reopens it.",
             "",
             f"- Pull request: {merge.url or f'#{merge.number}'}",
             f"- Merge commit: `{merge.merge_commit}`",
             f"- Failing run: {failure.run_url or 'none'}",
-            f"- Detail: {_record_detail(failure.detail)}",
+            f"- Detail: {_record_detail(failure)}",
             *(
                 [
                     f"- Also charged by this run: {others}",
@@ -3458,7 +3473,7 @@ def _body_line(failure: Failure) -> str:
     """The record body line naming the sighting, as `_issue_body` writes it."""
     if failure.run_url:
         return f"- Failing run: {failure.run_url}"
-    return f"- Detail: {_record_detail(failure.detail)}"
+    return f"- Detail: {_record_detail(failure)}"
 
 
 def _lines(text: Any) -> set[str]:
@@ -3703,13 +3718,12 @@ def remediate(
                         f"title=Post-merge {failure.signal} failure after #{failure.merge.number}: unattended merging demoted",
                         "-f",
                         f"body={body}",
-                        # A full-run record clears itself once main is green
-                        # at a later commit; any other needs a person's close.
-                        *(
-                            []
-                            if failure.signal in SELF_CLEARING_SIGNALS
-                            else ["-f", f"labels[]={role_label}"]
-                        ),
+                        # The lanes App's issue starts intake triage on its
+                        # own; the human-gated label keeps admission off it
+                        # (admit.mjs STOP_HOLDS), so it never becomes lane
+                        # work.
+                        "-f",
+                        f"labels[]={role_label}",
                     ],
                     "file the demotion issue",
                 )

@@ -1090,18 +1090,24 @@ the rules that only tighten in
   `CLAUDE_LANES_REPO_DISABLED` must each read exactly `false`. A read error, or a repository-level
   variable named `CLAUDE_LANES_DISABLED` that shadows the org one, refuses.
 - **Demotion issue.** A failed post-merge check files an issue whose body starts with
-  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A canary, revert or read-back record
-  carries the `needs-human` label; a red-main record (signal `schedule` or `dispatch`) carries no
-  label, since it clears itself (below), and no record is sent to intake triage: the fix issues
-  carry the work. A record the lanes App files still starts intake on its own, so its detail
-  names each check by job name only and it carries no revert command.
-  It holds the rung at `off` until a human closes it directly. A close through a pull request's or
+  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->`. A record is a state marker, never lane
+  work: no record is sent to intake triage, since the fix issues carry the work, and its text keeps
+  the fix-issue rule (each newly failing check by job name only, never a gate's annotation title or
+  a revert command). `post-merge-demotion-alert.yml` files a red-main record (signal `schedule` or
+  `dispatch`) with no label, since it clears itself (below), and the next green scheduled run
+  closes it as completed; it labels a canary or revert record `needs-human`, since only a person's
+  close clears one. `babysit_postmerge.py --remediate` labels every record it files `needs-human`:
+  the lanes App's issue starts intake triage on its own, and that label keeps admission off it.
+  A fix or quarantine issue not delivered to intake triage gets `needs-human` too.
+  It holds the rung at `off` until it clears: a human's direct close clears any record. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
   force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  clear time, read a week at a time from the record, oldest first, up to about a year and stopping
+  at the first week that clears it, so newer runs never move it and a record cleared long ago reads
+  one week. Canary,
   revert and read-back records stay human-close. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
@@ -1118,7 +1124,9 @@ the rules that only tighten in
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
-  labeled as a record of its signal is. That record does not hold the rung off.
+  labeled as a record of its signal is: a full-run one carries no label, since its fix issues fix
+  main, and a canary one is labeled `needs-human` on purpose, since a canary files no fix issue and
+  nothing else clears it. That record does not hold the rung off.
   With a new record of either kind, the alert files one fix issue per newly failing check, at
   most 5 per run (an overflow line on the record says when more failed), first line
   `<!-- post-merge-fix check=<name> -->`, in fixed text only (the failing job's name, the SHA, the run
@@ -3692,7 +3700,7 @@ and reports by run and attempt.
    green when it passed. The culprit is the one merge that is red while its parent is green (the
    last green run for the oldest). A range of one merge always pins it. Two such merges, or none
    (a merge with no full run of its own breaks the chain), pin no culprit: the report names the
-   untested merges, and a person picks from the post-merge record.
+   untested merges, and no revert is planned: the fix issues fix main forward.
 3. **Who reverts.** The bot may revert the culprit only when every guard holds; otherwise no
    revert is planned and the fix issues fix main forward. The guards: the lanes App
    (`merge.agent-identity`) put it in the merge queue, so an owner or other human merge never
@@ -3710,7 +3718,7 @@ and reports by run and attempt.
 | Key | Default | What it sets |
 |---|---|---|
 | `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
-| `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
+| `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 plans no revert for any culprit (fix forward). |
 | `max-culprit-age-hours` | 24 | Hours since the culprit merged past which no revert is planned; 1 to 168. |
 | `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
 | `remedy` | `rollback` | `rollback` applies rules 3 and 4. `fail-forward` plans no revert: the report's decision is `human`, it names the remedy as the reason, and a person or a fix pull request repairs `main`. |

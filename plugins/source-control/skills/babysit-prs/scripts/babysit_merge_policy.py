@@ -1694,15 +1694,20 @@ RED_MAIN_RECORD = re.compile(
 # The holds a red-main record's later green lifts: how it was closed, never
 # what its edit history or a failed read says.
 RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
-# Green full runs on main of one event created since a record, a page at a
-# time: the whole window is read, so its earliest run stays put as newer runs
-# arrive, and other events never take its slots.
+# Green full runs on main of one event created in one span after a record, a
+# page at a time: each span is read whole, so its earliest run stays put as
+# newer runs arrive, and other events never take its slots. Spans are read
+# oldest first and stop at the first that clears the record, so a record
+# that cleared long ago reads one span however many runs came since.
 GREEN_RUNS = (
     "repos/{}/{}/actions/workflows/pr-require-checks.yml/runs"
     "?branch=main&event={}&status=success&created={}&per_page=100&page={}"
 )
 GREEN_EVENTS = ("schedule", "workflow_dispatch")
 GREEN_PAGES = 5
+GREEN_SPAN = timedelta(days=7)
+# Spans read before giving up (holding the record), about a year.
+GREEN_SPANS = 53
 
 
 @dataclass(frozen=True)
@@ -1837,12 +1842,12 @@ class _GreenMain:
             raise PolicyReadError(f"{endpoint}: {status}")
         return answer
 
-    def _window(self, since: str) -> list[dict[str, Any]]:
+    def _window(self, since: str, until: str) -> list[dict[str, Any]]:
         """Every green schedule and workflow_dispatch full run on main
-        created at or after `since`; more than `GREEN_PAGES` pages of either
-        raises, so the earliest is never a guess."""
+        created from `since` to `until`; more than `GREEN_PAGES` pages of
+        either raises, so the earliest is never a guess."""
         found: list[dict[str, Any]] = []
-        created = quote(f">={since}", safe=":")
+        created = quote(f"{since}..{until}", safe=":")
         for event in GREEN_EVENTS:
             for page in range(1, GREEN_PAGES + 1):
                 answer = self._read(
@@ -1858,19 +1863,31 @@ class _GreenMain:
                 )
         return found
 
-    def listed(self, since: datetime) -> list[dict[str, Any]]:
+    def listed(self, since: datetime) -> Iterator[dict[str, Any]]:
         """The green full runs on main created since `since`, oldest first,
-        kept as newer-green.bash and `babysit_postmerge._Context.superseded`
-        keep them: attempt 1, this repository's main, and a schedule or the
-        lane's github-actions[bot] dispatch (a person dispatching until a run
-        passes is no recovery)."""
-        stamp = since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        one `GREEN_SPAN` at a time up to now, kept as newer-green.bash and
+        `babysit_postmerge._Context.superseded` keep them: attempt 1, this
+        repository's main, and a schedule or the lane's github-actions[bot]
+        dispatch (a person dispatching until a run passes is no recovery).
+        More than `GREEN_SPANS` spans raises."""
+        now = datetime.now(UTC)
+        for span in range(GREEN_SPANS):
+            start = since + span * GREEN_SPAN
+            if start > now:
+                return
+            yield from self._span(start, start + GREEN_SPAN)
+        raise PolicyReadError(f"green runs: more than {GREEN_SPANS} spans")
+
+    def _span(self, start: datetime, end: datetime) -> list[dict[str, Any]]:
+        """`listed`'s runs created from `start` to `end`, read once."""
+        stamp = start.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        until = end.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         if stamp not in self.runs:
             repo = f"{self.owner}/{self.name}"
             self.runs[stamp] = sorted(
                 (
                     run
-                    for run in self._window(stamp)
+                    for run in self._window(stamp, until)
                     if run.get("conclusion") == "success"
                     and run.get("run_attempt") == 1
                     and run.get("head_branch") == "main"
