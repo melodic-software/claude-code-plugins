@@ -21,6 +21,7 @@ Launch the `security-reviewer` agent with:
 - **Scope**: the changed files and their security context
 - **Focus**: specific concerns (e.g. "this handles user-uploaded file paths")
 - **Input**: the review diff base (SKILL.md "Shared inputs") or specific file paths
+- **Findings path**: per SKILL.md "Shared inputs" "Reviewer handback"; read the P1–P5 report from that file before folding it
 
 The agent covers per-ecosystem injection/XSS/deserialization/path-traversal checks, the OWASP Top 10, security headers, and auth-specific checks (see the agent definition for the full baseline).
 

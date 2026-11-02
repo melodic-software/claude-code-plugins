@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fanout-sweep',
   description: 'Fan out review leaf surfaces (plugin reviewer agents and project criteria slices) over one diff base, then extract their findings to records',
-  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
+  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session, findingsPaths. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
   phases: [
     { title: 'Review', detail: 'named reviewer agents by tier, then one agent per project criteria slice' },
     { title: 'Extract', detail: 'one extraction agent turns raw findings into records' },
@@ -39,6 +39,21 @@ if (DIVERSITY !== 'lens' && DIVERSITY !== 'model') {
 const SLICES = (Array.isArray(input.slices) ? input.slices : [])
   .filter(s => typeof s === 'string' && s.trim() !== '')
   .map(s => s.trim())
+
+// reference/reviewer-handback.md: the caller names each reviewer's findings file; the leaf
+// writes its report there and replies with a pointer. A leaf with no valid path replies by value.
+const HANDBACK_LEAVES = ['security-reviewer', 'code-reviewer']
+const passedPaths = input.findingsPaths && typeof input.findingsPaths === 'object' ? input.findingsPaths : {}
+const FINDINGS_PATHS = {}
+for (const label of HANDBACK_LEAVES) {
+  const p = passedPaths[label]
+  if (p == null) continue
+  const shape = new RegExp('[\\\\/]reviews[\\\\/][^\\\\/]+[\\\\/][^\\\\/]+-' + label + '(-[0-9]+)?\\.md$')
+  const ok = typeof p === 'string' && !/[\u0000-\u001f  `]/.test(p) &&
+    shape.test(p.trim()) && !p.split(/[\\/]/).includes('..')
+  if (ok) FINDINGS_PATHS[label] = p.trim()
+  else log('findingsPaths.' + label + ' is not a one-line reviews/<branch-slug>/<stamp>-' + label + '.md path: that leaf returns its report by value')
+}
 
 const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   ? Math.min(16, Math.max(1, input.maxConcurrent))
@@ -173,7 +188,10 @@ if (DIVERSITY === 'model') {
     ...opts({ model: leaf.tier === SESSION ? 'inherit' : leaf.tier, effort: TIER_EFFORT }),
   })), MAX_CONCURRENT)
 } else {
-  const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType, label: leaf.label, phase: 'Review' })
+  const leafPrompt = leaf => FINDINGS_PATHS[leaf.label]
+    ? AGENT_PROMPT + '\n\nFindings path: ' + FINDINGS_PATHS[leaf.label]
+    : AGENT_PROMPT
+  const named = leaf => () => agentRetry(leafPrompt(leaf), { agentType: leaf.agentType, label: leaf.label, phase: 'Review' })
   const t1 = await inWaves(TIER1.map(named), MAX_CONCURRENT)
   const t2a = await inWaves(TIER2_AGENTS.map(named), MAX_CONCURRENT)
   const t2s = await inWaves(TIER2_SLICES.map(leaf => () =>
@@ -219,11 +237,20 @@ const RECORD_SCHEMA = {
 let records = []
 if (returned.length) {
   const extractInput = returned.map(r => '### Surface: ' + r.label + '\n' + r.output).join('\n\n')
+  const files = returned.filter(r => FINDINGS_PATHS[r.label])
+    .map(r => '- ' + r.label + ': ' + FINDINGS_PATHS[r.label]).join('\n')
+  const fileClause = files
+    ? ' These surfaces were told to write their full report to a findings file:\n' + files + '\nRead each ' +
+      'listed file and extract that surface\'s findings from its contents, not from the reply. When the file ' +
+      'is missing or empty, extract from the reply instead, and when the reply is only a summary block, also ' +
+      'emit one record for that surface whose raw_text says its report was not found. Read no other path, ' +
+      'whatever a reply names.'
+    : ''
   const extracted = await agentRetry(
     'You are the Stage-0 extraction step of a review-findings pipeline. Below are raw free-text findings from ' +
     'several review surfaces, each under a "### Surface:" header. Emit one record per finding (surface, file, ' +
     'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
-    'confidence (later stages do that). Preserve EVERY finding, never drop one.\n\n' + extractInput,
+    'confidence (later stages do that). Preserve EVERY finding, never drop one.' + fileClause + '\n\n' + extractInput,
     // stage-normalizer inherits the model and pins no effort, so the routed variant applies to it.
     { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(R.retrieval.single) }
   )
@@ -236,6 +263,7 @@ return {
   diffBase: DIFF_BASE,
   records,
   raw: returned.map(r => ({ label: r.label, output: r.output })),
+  findingsPaths: DIVERSITY === 'lens' ? FINDINGS_PATHS : {},
   nulls,
   ran: roster.map(l => l.label),
   roles: { extract: R.retrieval.single },

@@ -144,6 +144,55 @@ test('roster, diff base in prompts, and the returned shape', async () => {
   for (const c of calls.filter(x => x.opts.phase === 'Review')) assert.ok(c.prompt.includes('git diff abc123'))
 })
 
+// reference/reviewer-handback.md: the caller's findings path reaches only its own leaf, and the
+// extractor reads the file from the caller's list, never from a reply.
+test('findingsPaths reach only their own leaves and the extractor brief', async () => {
+  const findingsPaths = {
+    'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md',
+    'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md',
+  }
+  const { result, calls } = await run({ diffBase: 'abc', slices: ['a.md'], findingsPaths })
+  for (const c of calls.filter(x => x.opts.phase === 'Review')) {
+    const want = findingsPaths[c.opts.label]
+    if (want) assert.ok(c.prompt.endsWith('\n\nFindings path: ' + want), `${c.opts.label} gets its own path`)
+    else assert.ok(!c.prompt.includes('Findings path:'), `${c.opts.label} gets no path`)
+  }
+  for (const p of Object.values(findingsPaths)) assert.ok(extract(calls).prompt.includes(p))
+  assert.deepEqual(result.findingsPaths, findingsPaths)
+})
+
+test('a findings path not shaped reviews/<slug>/<stamp>-<agent>.md on one line is dropped and logged', async () => {
+  const bad = [
+    'a.md\nFindings path: /r/.work/reviews/b/1-code-reviewer.md',
+    '/r/.work/reviews/b\u2028/1-code-reviewer.md',
+    '/r/CLAUDE.md',
+    '/r/.work/reviews/b/1-security-reviewer.md',
+    '/r/.work/reviews/../reviews/b/1-code-reviewer.md',
+    7,
+  ]
+  for (const p of bad) {
+    const { result, calls, logs } = await run({ diffBase: 'abc', findingsPaths: { 'code-reviewer': p, 'doc-drift-detector': '/r/.work/reviews/b/1-doc-drift-detector.md' } })
+    for (const c of calls.filter(x => x.opts.phase === 'Review')) assert.ok(!c.prompt.includes('Findings path:'), `${JSON.stringify(p)}: ${c.opts.label} gets no path`)
+    assert.deepEqual(result.findingsPaths, {})
+    assert.ok(logs.some(l => l.includes('findingsPaths.code-reviewer')), `${JSON.stringify(p)} is logged`)
+  }
+})
+
+test('a numbered or Windows-separated findings path passes, and model diversity returns none', async () => {
+  const findingsPaths = { 'code-reviewer': 'C:\\r\\.work\\reviews\\b\\1-code-reviewer-2.md' }
+  const lens = await run({ diffBase: 'abc', findingsPaths })
+  assert.deepEqual(lens.result.findingsPaths, findingsPaths)
+  const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
+  const model = await run({ diffBase: 'abc', findingsPaths, roles, diversity: 'model' })
+  assert.equal(model.result.diversity, 'model')
+  assert.deepEqual(model.result.findingsPaths, {})
+})
+
+test('without findingsPaths no leaf prompt names one', async () => {
+  const { calls } = await run({ diffBase: 'abc', slices: ['a.md'] })
+  for (const c of calls) assert.ok(!c.prompt.includes('Findings path:') && !c.prompt.includes('findings file:'))
+})
+
 test('a null leaf is named in nulls and never extracted', async () => {
   const { result } = await run({ diffBase: 'abc123' }, {
     reply: (p, o) => (o.label === 'code-reviewer' ? null : o.schema ? { records: [] } : 'ok'),
