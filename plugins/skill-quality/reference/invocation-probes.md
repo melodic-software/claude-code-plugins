@@ -40,7 +40,7 @@ bash plugins/skill-quality/scripts/measure-invocation.sh compare \
 
 # Emit plugin-eval cases for a live run
 bash plugins/skill-quality/scripts/measure-invocation.sh emit-plugin-eval \
-  plugins/skill-quality/probes /tmp/invocation-eval-cases
+  plugins/skill-quality/probes plugins/skill-quality/probe-evals
 ```
 
 From a session, `/skill-quality:check measure-invocation` is the same script.

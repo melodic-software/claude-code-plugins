@@ -283,6 +283,23 @@ else
   fail "emit-plugin-eval should exit 2 for a missing competitor plugin and write nothing (rc=$rc): $out"
 fi
 
+outside="$(mktemp -d)"
+out="$(run emit-plugin-eval "$TMP/probes-cross" "$outside/evals" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -qF 'must sit inside' <<<"$out" && [[ ! -e "$outside/evals" ]]; then
+  pass "emit-plugin-eval refuses an out dir outside the repo root when a probe has rivals"
+else
+  fail "emit-plugin-eval should exit 2 for an out dir outside the repo root (rc=$rc): $out"
+fi
+mkdir -p "$outside/kept"
+out="$(run emit-plugin-eval "$TMP/probes-cross" "$outside/kept" 2>&1)"
+if [[ -d "$outside/kept" ]]; then
+  pass "emit-plugin-eval leaves an empty out dir it did not create"
+else
+  fail "emit-plugin-eval removed an out dir it did not create"
+fi
+rm -rf "${outside:?}"
+
 jq '.skills = []' "$TMP/score.json" >"$TMP/empty.json"
 if run compare "$TMP/score.json" "$TMP/empty.json" >/dev/null 2>&1; then
   fail "compare over mismatched skill sets should exit non-zero"

@@ -207,7 +207,7 @@ cmd_validate() {
     plugin="$(jq -r '.plugin // empty' "$f")"
     if [[ -n "$plugin" ]]; then
       while IFS= read -r competitor; do
-        warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; list same-plugin competitors only, so a rewrite in another plugin cannot move this score"
+        warn "$f ($skill): competitor '$competitor' is not from plugin '$plugin'; a rewrite in that plugin moves this probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival)"
       done < <(jq -r --arg p "$plugin:" '.competitors[]? | select((type == "string" and startswith($p)) | not) | tostring' "$f")
     fi
     if ! jq -e '.queries | type == "array" and length > 0' "$f" >/dev/null; then
@@ -582,9 +582,19 @@ cmd_emit() {
     done
   done
   ((missing)) && exit 2
+  local made=0
+  [[ -d "$out" ]] || made=1
   mkdir -p "$out" || return 2
-  local out_abs
+  local out_abs root_abs
   out_abs="$(cd "$out" && pwd -P)" || return 2
+  root_abs="$(cd "$root" && pwd -P)" || return 2
+  for f in "${files[@]}"; do
+    if [[ -n "$(rival_plugins "$f")" && "$out_abs" != "$root_abs"/* ]]; then
+      printf 'Error: emit-plugin-eval: %s lists cross-plugin rivals, so <out-dir> must sit inside %s; the CLI loads a case'"'"'s plugins only from inside the run target\n' "$f" "$root_abs" >&2
+      ((made)) && rmdir "$out" 2>/dev/null
+      exit 2
+    fi
+  done
   for f in "${files[@]}"; do
     local skill plugin leaf plugins_line=""
     skill="$(jq -r '.skill' "$f")"
