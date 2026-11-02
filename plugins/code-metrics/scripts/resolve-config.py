@@ -8,12 +8,11 @@ whole):
 
   0. bundled defaults           scripts/config-defaults.json
   1. user-global                ~/.claude/code-metrics.yaml
-  2. team                       <repo>/docs/conventions/code-metrics.yaml, or
-                                <repo>/.claude/code-metrics.yaml when that is absent
+  2. team                       <repo>/docs/conventions/code-metrics.yaml
   3. local overlay              <repo>/.claude/code-metrics.local.yaml
 
-The team layer is one file: with both present the docs/conventions file is the
-whole layer and a warning says the .claude file is ignored.
+The team file earlier releases read from the repository's .claude directory
+is not read; /code-metrics:setup check reports it and apply moves its keys.
 
 An invalid layer never stops the run. A file outside the YAML subset is named
 and read as absent. A value of the wrong shape (a scalar where a list or a
@@ -242,26 +241,14 @@ def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
     ]
 
 
-def surface_layer_paths(
-    home: str, root: str, warnings: list[str]
-) -> list[tuple[str, str]]:
-    """The plugin's own three layers; the team layer prefers the docs home.
+def surface_layer_paths(home: str, root: str) -> list[tuple[str, str]]:
+    """The plugin's own three layers; the team layer is the docs file alone.
 
     `docs/conventions/code-metrics.yaml` is the team layer (ADR 0064). The
-    older `.claude/code-metrics.yaml` is read only when the docs file is
-    absent, so a repository configured by an earlier release keeps its values.
+    older team file in the repository's `.claude` directory is never read.
     """
     paths = layer_paths(home, root, SURFACE)
-    legacy = paths[1][1]
-    docs = os.path.join(root, "docs", "conventions", f"{SURFACE}.yaml")
-    if os.path.isfile(docs):
-        if os.path.isfile(legacy):
-            warnings.append(
-                f"{legacy} is ignored: {docs} exists and is the whole team layer. "
-                "The older file is kept only for code-metrics releases that read it; "
-                "delete it once none does, which completes the move to the docs file"
-            )
-        paths[1] = ("team", docs)
+    paths[1] = ("team", os.path.join(root, "docs", "conventions", f"{SURFACE}.yaml"))
     return paths
 
 
@@ -581,7 +568,7 @@ def main(argv: list[str]) -> int:
                 return 2
         ecosystem_files: dict[str, list[tuple[str, str]]] = {}
     else:
-        layer_files = surface_layer_paths(args.home, root, warnings)
+        layer_files = surface_layer_paths(args.home, root)
         with open(args.defaults, encoding="utf-8") as handle:
             lane_names = list((json.load(handle).get("lanes") or {}).keys())
         ecosystem_files = {

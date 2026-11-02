@@ -17,7 +17,7 @@
         "evals/fixtures/cleanup/REQUIREMENTS.md",
         "evals/fixtures/cleanup/shop_tests/__init__.py",
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
@@ -28,7 +28,7 @@
       "files": [
         "evals/fixtures/cleanup/shop/pricing.py",
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
@@ -39,16 +39,16 @@
       "files": [
         "evals/fixtures/cleanup/shop/handlers.py",
         "evals/fixtures/cleanup/shop_tests/test_handlers.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
     {
       "id": "bash_harness_rewrite_only",
-      "prompt": "Copy evals/fixtures/mutation-testing-bash.md over the fixture's .claude/mutation-testing.md and shop_scripts/total.test.sh.fixture to shop_scripts/total.test.sh, commit that on main, then run /testing:cleanup shop_scripts on branch feat/cleanup.",
+      "prompt": "Copy evals/fixtures/mutation-testing-bash.yaml over the fixture's docs/conventions/mutation-testing.yaml and shop_scripts/total.test.sh.fixture to shop_scripts/total.test.sh, commit that on main, then run /testing:cleanup shop_scripts on branch feat/cleanup.",
       "expected_output": "Treats shop_scripts/total.test.sh as a bash-harness file whose adapter has block_model: file. Proposes no deletion or merge for it. The zero-assertion finding gets a rewrite that checks order_total_cents 50 prints 6000 and exits non-zero otherwise, or the test is kept. The gate records and replays shop/total.sh mutants with test-command bash {tests}.",
       "files": [
-        "evals/fixtures/mutation-testing-bash.md",
+        "evals/fixtures/mutation-testing-bash.yaml",
         "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
         "evals/fixtures/cleanup/shop/total.sh",
         "evals/fixtures/cleanup/EXPECTED.md"
@@ -60,7 +60,7 @@
       "expected_output": "The step 1 sweep finds the quarantine and lists it in decisions.md as expired, with owner qa-team and tracking issue #42, and asks whether to re-enable or escalate it. With no answer, the skip stays exactly as it was: cleanup does not remove it, renew its date, or delete the test. The report in pr-body.md names the expired quarantine, its owner and issue, and the choice as undecided.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
@@ -71,7 +71,7 @@
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",
         "evals/fixtures/cleanup/shop/checkout.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml",
         "evals/fixtures/cleanup/EXPECTED.md"
       ]
     },
@@ -81,7 +81,7 @@
       "expected_output": "The recording run reports a red baseline. Cleanup stops the batch and names shop_tests/test_receipt.py::test_total_is_computed_quickly as failing, asking the user to name it as flaky or fix it. Quarantines nothing on its own, classifies nothing, and edits no test.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_receipt.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md"
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml"
       ]
     },
     {
@@ -140,7 +140,7 @@
       "files": [
         "evals/fixtures/cleanup/shop_scripts/total.test.sh.fixture",
         "evals/fixtures/cleanup/shop_tests/test_pricing.py",
-        "evals/fixtures/cleanup/.claude/mutation-testing.md"
+        "evals/fixtures/cleanup/docs/conventions/mutation-testing.yaml"
       ]
     },
     {
@@ -151,7 +151,7 @@
     },
     {
       "id": "refuses_without_mutation_setup",
-      "prompt": "Run /testing:cleanup shop_tests on branch feat/cleanup in a copy of the fixture with .claude/mutation-testing.md removed.",
+      "prompt": "Run /testing:cleanup shop_tests on branch feat/cleanup in a copy of the fixture with docs/conventions/mutation-testing.yaml removed.",
       "expected_output": "Refuses the gated batch at step 0, pointing to /mutation-testing:setup apply, and offers cannot-fail-only mode instead, continuing only on the user's yes. Without that yes it edits no test.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_pricing.py"
@@ -178,10 +178,10 @@
     },
     {
       "id": "cannot_fail_only_offered_on_empty_mapping",
-      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.md to .claude/mutation-testing.md, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
+      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.yaml to docs/conventions/mutation-testing.yaml, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
       "expected_output": "Passes step 0 and records with /mutation-testing:audit --exercised Shop.Tests, which ends as no mapping: scope empty because WiringTests reaches AddShop only through the BuildProvider helper and PriceOf only through IPriceFeed. Cleanup names that result as the reason the gated batch cannot run and offers cannot-fail-only mode. With no answer, it stops there: no skeptic runs, no test is deleted, and nothing is committed.",
       "files": [
-        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/mutation-testing-dotnet.yaml",
         "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
         "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
         "evals/fixtures/cleanup-dotnet/EXPECTED.md"
@@ -189,10 +189,10 @@
     },
     {
       "id": "dotnet_gate_runs",
-      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.md to .claude/mutation-testing.md and Shop.Tests/PriceFeedTests.cs.fixture to Shop.Tests/PriceFeedTests.cs, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
+      "prompt": "In evals/fixtures/cleanup-dotnet, copy evals/fixtures/mutation-testing-dotnet.yaml to docs/conventions/mutation-testing.yaml and Shop.Tests/PriceFeedTests.cs.fixture to Shop.Tests/PriceFeedTests.cs, commit the fixture on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests with the mutation-testing plugin enabled. Do not answer any approval question.",
       "expected_output": "Passes step 0 and records with /mutation-testing:audit --exercised Shop.Tests --max 100 --record-mutants .work/testing-cleanup/shop.tests/before.tsv. Every test-set run is dotnet test with the Shop.Tests/Shop.Tests.csproj line dotnet-test-selection.sh prints, a --filter naming the PriceFeedTests and WiringTests classes; dotnet test never runs without a project. The record holds PriceFeed constructor mutants in Shop/ServiceRegistration.cs with a non-empty K0. Treats Shop/ServiceRegistration.cs as a production file of the PriceFeedTests tests, though PriceFeedTests.cs has no using for it, so a rewrite there is not gate-blind. Applies no deletion, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop.tests/after.tsv, compares the two records mutant by mutant, and reports `Gate: pass`. Commits nothing.",
       "files": [
-        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/mutation-testing-dotnet.yaml",
         "evals/fixtures/cleanup-dotnet/.gitignore",
         "evals/fixtures/cleanup-dotnet/Shop/Shop.csproj",
         "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
@@ -207,7 +207,7 @@
       "prompt": "During a /testing:cleanup Shop.Tests batch on the dotnet_gate_runs setup, the user approved deleting Wiring_is_sane, and Rejects_options_without_a_url in Shop.Tests/PriceFeedTests.cs was changed to Assert.Null(Record.Exception(() => new PriceFeed(Options))). Continue the batch to the gate.",
       "expected_output": "decisions.md marks the Wiring_is_sane deletion gate-blind (Assert.True(true) reaches no production file) and the Rejects_options_without_a_url change not gate-blind (it calls the PriceFeed constructor in Shop/ServiceRegistration.cs, though PriceFeedTests.cs has no using Shop;). The replay reports `Gate: block` with a newly-surviving line for the constructor statement at Shop/ServiceRegistration.cs:17. The batch stops. Cleanup lists only Rejects_options_without_a_url in Shop.Tests/PriceFeedTests.cs as the candidate change, never the Wiring_is_sane deletion, although WiringTests.cs has using Shop;, and asks the user which to revert. Reverts nothing itself and commits nothing.",
       "files": [
-        "evals/fixtures/mutation-testing-dotnet.md",
+        "evals/fixtures/mutation-testing-dotnet.yaml",
         "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
         "evals/fixtures/cleanup-dotnet/Shop.Tests/PriceFeedTests.cs.fixture",
         "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",

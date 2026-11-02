@@ -235,7 +235,7 @@
     {
       "id": 19,
       "name": "code-mode-flags-a-file-crossing-the-consumer-size-reference",
-      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled and our tracked .claude/code-metrics.yaml sets size.file_lines to 500. My branch grows src/billing/invoice_builder.py from 470 non-blank lines at the merge-base to 540, and grows src/billing/tax.py from 120 to 160. pr-review-toolkit is not installed.",
+      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled and our tracked docs/conventions/code-metrics.yaml sets size.file_lines to 500. My branch grows src/billing/invoice_builder.py from 470 non-blank lines at the merge-base to 540, and grows src/billing/tax.py from 120 to 160. pr-review-toolkit is not installed.",
       "expected_output": "Runs /code-metrics:audit-size over the changed files, reads that the size.file_lines reference of 500 came from the team layer, counts each changed file's non-blank lines at the base with git show <base>:<path>, and finds that only invoice_builder.py went from below 500 to at or above it. The code-reviewer brief lists that one crossing, and the report flags invoice_builder.py with the reference 500 and the team layer. tax.py gets no size finding.",
       "files": [],
       "narration": true,

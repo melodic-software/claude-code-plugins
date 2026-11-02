@@ -75,16 +75,30 @@ assert_row "reference from the team layer" "$out" "reference file_lines +500 \(l
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 assert_row "committed team file passes" "$out" "PASS  layer team tracked +committed"
 
-# 2b. A repository with only the older .claude file: that file is the team
-#     layer, and a WARN row names the move.
-legacy_repo="$(mktemp -d)"
-mkdir -p "$legacy_repo/.claude"
-printf 'size:\n  file_lines: 420\n' >"$legacy_repo/.claude/code-metrics.yaml"
-out="$(bash "$SCRIPT" --repo-root "$legacy_repo" --home "$home")"
-rm -rf "$legacy_repo"
-assert_row "the older team file still parses" "$out" "PASS  layer team +$legacy_repo/.claude/code-metrics.yaml parses"
-assert_row "the older team file location warns" "$out" "WARN  layer team location +.*setup apply moves its keys"
-assert_row "reference from the older team file" "$out" "reference file_lines +420 \(layer: team\)"
+# 2b. A repository with only the retired .claude file: the team layer is
+#     absent, the reference is the bundled default, and a WARN row names the
+#     move.
+retired_repo="$(mktemp -d)"
+mkdir -p "$retired_repo/.claude"
+printf 'size:\n  file_lines: 420\n' >"$retired_repo/.claude/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$retired_repo" --home "$home")"
+rm -rf "$retired_repo"
+assert_row "a retired team file alone leaves the team layer absent" "$out" "INFO  layer team +absent"
+assert_row "the retired team file location warns" "$out" "WARN  layer team location +.*is not read; .*setup apply moves its keys"
+assert_row "the retired team file supplies no reference" "$out" "reference file_lines +1000 \(layer: bundled default\)"
+# 2c. With the repository at the home directory, that path is the user-global
+#     layer: it is read, and no row calls it retired.
+home_repo="$(mktemp -d)"
+mkdir -p "$home_repo/.claude"
+printf 'size:\n  file_lines: 430\n' >"$home_repo/.claude/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$home_repo" --home "$home_repo")"
+rm -rf "$home_repo"
+assert_row "a home-root user-global file is read" "$out" "reference file_lines +430 \(layer: user-global\)"
+if grep -q "layer team location" <<<"$out"; then
+  fail "a home-root user-global file is not called retired" "no layer team location row" "$(printf '%s' "$out" | head -c 600)"
+else
+  pass "a home-root user-global file is not called retired"
+fi
 
 # 3. An ignored (and therefore uncommittable) team file is a FAIL and the exit
 #    code says so; a local overlay that is not ignored warns with the

@@ -408,10 +408,11 @@ class DiscoveredLayerTests(unittest.TestCase):
             root = Path(tmp) / "repo"
             (home / ".claude" / "ecosystems").mkdir(parents=True)
             (root / ".claude" / "ecosystems").mkdir(parents=True)
+            (root / "docs" / "conventions").mkdir(parents=True)
             (home / ".claude" / "code-metrics.yaml").write_text(
                 "size:\n  file_lines: 700\n", encoding="utf-8"
             )
-            (root / ".claude" / "code-metrics.yaml").write_text(
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
                 "complexity:\n  cyclomatic:\n    reference: 12\n", encoding="utf-8"
             )
             (root / ".claude" / "code-metrics.local.yaml").write_text(
@@ -457,16 +458,16 @@ class DiscoveredLayerTests(unittest.TestCase):
                 args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
             )
 
-    def _team_files(self, root: Path, docs: str | None, legacy: str | None) -> None:
+    def _team_files(self, root: Path, docs: str | None, retired: str | None) -> None:
         if docs is not None:
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
                 docs, encoding="utf-8"
             )
-        if legacy is not None:
+        if retired is not None:
             (root / ".claude").mkdir(parents=True)
             (root / ".claude" / "code-metrics.yaml").write_text(
-                legacy, encoding="utf-8"
+                retired, encoding="utf-8"
             )
 
     def test_the_team_layer_reads_the_docs_conventions_file(self) -> None:
@@ -484,7 +485,7 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_files"], [f"{root.as_posix()}/docs/conventions/code-metrics.yaml"]
             )
 
-    def test_the_claude_file_is_still_read_when_the_docs_file_is_absent(self) -> None:
+    def test_a_claude_file_alone_leaves_the_team_layer_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             self._team_files(root, None, "size:\n  file_lines: 630\n")
@@ -492,15 +493,15 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
             self.assertEqual(
-                d["_provenance"]["size.file_lines"], {"value": 630, "layer": "team"}
+                d["_provenance"]["size.file_lines"],
+                {"value": 1000, "layer": "bundled default"},
             )
-            self.assertEqual(
-                d["_files"], [f"{root.as_posix()}/.claude/code-metrics.yaml"]
-            )
+            self.assertNotIn("team", d["_layers"].values())
+            self.assertEqual(d["_files"], [])
+            self.assertEqual(d["_warnings"], [])
 
-    def test_with_both_files_the_docs_file_is_the_whole_team_layer(self) -> None:
-        # Location precedence, not a key merge: a key only the .claude file
-        # sets does not apply, and one warning names both paths.
+    def test_with_both_files_only_the_docs_file_is_read(self) -> None:
+        # A key only the .claude file sets does not apply.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             self._team_files(
@@ -513,11 +514,9 @@ class DiscoveredLayerTests(unittest.TestCase):
             d = json.loads(result.stdout)
             self.assertEqual(d["size"]["file_lines"], 640)
             self.assertEqual(d["complexity"]["cyclomatic"]["reference"], 20)
-            warnings = [w for w in result.stderr.splitlines() if "warning" in w]
-            self.assertEqual(len(warnings), 1, result.stderr)
-            self.assertIn("docs/conventions/code-metrics.yaml", warnings[0])
-            self.assertIn(".claude/code-metrics.yaml", warnings[0])
-            self.assertIn("code-metrics.yaml is ignored", warnings[0])
+            self.assertEqual(
+                d["_files"], [f"{root.as_posix()}/docs/conventions/code-metrics.yaml"]
+            )
 
     def test_all_layers_absent_is_the_bundled_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
