@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-evidence-no-secrets-check
+description: "Evidence step with no check to run, MB:plugins/prototype/context/discipline.md 'Evidence step' as run by explore-directions step 5: the scaffold repository has no secrets or machine-data check, so closing out the /shipments run pushes nothing and the durable note records the mockup's local path and not pushed: <reason>. The mockup sits untracked in mockup-run/, as in ed-graft-reply-records-and-deletes, so the case grades the no-check path, not the outside-the-repository reason."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The agent records the single-winner reply (variant B, Cards; A and C skipped with their reasons) in docs/decisions/ui-shipments.md, runs no git push, and records in that note the mockup's local path (mockup-run/explore-directions.html) and a not pushed: <reason> line. Nothing is pushed to any branch."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions Here is my reply on the /shipments variants (the mockup is at mockup-run/explore-directions.html):\n\nscreen: /shipments\ndirection: B\nskip: A because the table hides the delivery date\nskip: C because the map crowds out the parcel list\nstate: empty shows the no-parcels message and a track-a-parcel action\ntest-ids: B: shipments-parcel-card, shipments-empty\nnext-target: returns panel\n\nRecord the decision and close out the run."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
