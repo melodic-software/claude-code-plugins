@@ -373,6 +373,7 @@ jobs:
         .github/workflows/pr-unblock.yml
         .github/workflows/pr-verify.yml
         .github/workflows/release-publish-plugins.yml
+        .github/workflows/upstream-apply-changelog.yml
         .github/workflows/work-resolve-issue.yml
         .github/workflows/work-unblock.yml
         plugins/review/skills/security-review/**

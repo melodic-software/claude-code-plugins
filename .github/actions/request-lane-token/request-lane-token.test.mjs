@@ -685,7 +685,45 @@ for (const [name, inputs] of [
 test("check mode refuses an issue number before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ISSUE_NUMBER: "77" });
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, or dispatcher run id/);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
+  assert.equal(run.body, null);
+});
+
+const RELEASE_LANE = { LANE: "upstream-apply-changelog", ACTIVITY: "apply-changelog-branches", PR_NUMBER: "" };
+
+test("a release is sent as release, a string, with no pr_number or issue_number", () => {
+  const run = request({ ...RELEASE_LANE, RELEASE: "2.1.312" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), { lane: "upstream-apply-changelog", activity: "apply-changelog-branches", release: "2.1.312" });
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+for (const value of ["2.1", "2.1.312.1", "v2.1.312", "02.1.312", "2.01.312", "2.1.0312", "2.1.3a", "2.1.312 ", "12345.1.1", "1.1.1234567"]) {
+  test(`a malformed release (${JSON.stringify(value)}) fails red before the broker request`, () => {
+    const run = request({ ...RELEASE_LANE, RELEASE: value });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::the release must be one MAJOR\.MINOR\.PATCH/);
+    assert.equal(run.body, null);
+  });
+}
+
+for (const [name, inputs] of [
+  ["a PR number", { PR_NUMBER: "42" }],
+  ["an issue number", { ISSUE_NUMBER: "77" }],
+  ["a dispatcher run id", { DISPATCHER_RUN_ID: "38155572048" }],
+]) {
+  test(`a release with ${name} fails red before the broker request`, () => {
+    const run = request({ ...RELEASE_LANE, RELEASE: "2.1.312", ...inputs });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::a release goes without a PR number, issue number or dispatcher run id/);
+    assert.equal(run.body, null);
+  });
+}
+
+test("check mode refuses a release before the broker request", () => {
+  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", RELEASE: "2.1.312" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, release, or dispatcher run id/);
   assert.equal(run.body, null);
 });
 

@@ -21,6 +21,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `lane`, `activity` | Sent to the broker; the lane must be the caller workflow's file stem |
 | `pr-number` | `token` mode: the gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
 | `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id` |
+| `release` | `token` mode: the Claude Code release an `upstream-apply-changelog.yml` job works, one `MAJOR.MINOR.PATCH`; sent as `release`, a string, when set, which the broker needs from that caller and refuses from any other. Anything else fails red. Never with `pr-number`, `issue-number` or `dispatcher-run-id` |
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues`, `actions` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer. `actions` is `read` or empty; empty expects no `actions` permission |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
@@ -44,7 +45,7 @@ run, and mints nothing ([Check mode](#check-mode)).
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
 2. Requests an OIDC token for `audience` and masks it.
 3. Sends a `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
-   `{"lane", "activity", "pr_number"?, "issue_number"?, "dispatcher_run_id"?}`. It retries, up to
+   `{"lane", "activity", "pr_number"?, "issue_number"?, "release"?, "dispatcher_run_id"?}`. It retries, up to
    three times and each with a fresh OIDC token, only two 503s that come before the broker reserves
    the job's mint, as GitHub's
    [rate-limit guidance](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#exceeding-the-rate-limit)
@@ -135,7 +136,7 @@ controls that job, so this adds nothing it could not already do.
 ## Check mode
 
 With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`; a
-`pr-number`, `issue-number`, effect or grant fails it red, so the read file's check job never carries the write
+`pr-number`, `issue-number`, `release`, effect or grant fails it red, so the read file's check job never carries the write
 path's inputs. It posts to `broker-url`, retrying a 503 `github-unavailable` or `github-rate-limited` as in step 3, with its final `/token` replaced by `/check` (a URL
 that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
 whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red

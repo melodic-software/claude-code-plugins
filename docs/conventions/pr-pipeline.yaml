@@ -1548,6 +1548,8 @@ merge:
         class: gate
       - glob: ".github/workflows/release-publish-plugins.yml"
         class: gate
+      - glob: ".github/workflows/upstream-apply-changelog.yml"
+        class: gate
       - glob: ".github/workflows/work-resolve-issue.yml"
         class: gate
       - glob: ".github/workflows/work-unblock.yml"

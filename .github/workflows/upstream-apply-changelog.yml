@@ -360,6 +360,7 @@ jobs:
     if: ${{ !cancelled() && needs.model.outputs.sealed-length != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    cache-mode: read
     permissions:
       contents: read # check out main
     outputs:
@@ -474,6 +475,7 @@ jobs:
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    cache-mode: read
     permissions:
       contents: read # check out main
       id-token: write # prove to the token broker which workflow this is
@@ -528,7 +530,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
-          kill-switch-ok: "true"
+          kill-switch-ok: true
 
       - name: Download the plan and the branches
         if: steps.lane-token.outputs.token != ''
@@ -576,7 +578,7 @@ jobs:
     if: >-
       ${{ !cancelled() && needs.scan.outputs.clean == 'true'
       && (needs.push-branches.result == 'success' || needs.push-branches.result == 'skipped')
-      && needs.push-branches.outputs.skip-reason != 'kill-switch' }}
+      && needs.push-branches.outputs.skip-reason == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -628,7 +630,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
-          kill-switch-ok: "true"
+          kill-switch-ok: true
 
       - name: Download the plan
         if: steps.lane-token.outputs.token != ''
