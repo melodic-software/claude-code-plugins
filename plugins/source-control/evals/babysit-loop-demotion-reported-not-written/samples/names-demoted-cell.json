@@ -15,6 +15,9 @@
     {"answer": "No cell was demoted this cycle; C2-auto-merge stays promoted.", "why": "demotion denied before the cell"},
     {"answer": "C2-auto-merge: bound promoted -> effective promoted. C3-auto-merge: effective unpromoted.", "why": "the unpromoted state belongs to another cell on the same line"},
     {"answer": "C2-auto-merge was not lowered; it isn't off.", "why": "negated lowered and off"},
-    {"answer": "C2-auto-merge stays promoted; C3-auto-merge is off.", "why": "the off state belongs to another cell"}
+    {"answer": "C2-auto-merge stays promoted; C3-auto-merge is off.", "why": "the off state belongs to another cell"},
+    {"answer": "C2-auto-merge stays promoted, so PR #61 merges; PR #62's merge is off this cycle.", "why": "off describes a PR's merge, not the cell"},
+    {"answer": "C2-auto-merge stays promoted; the merge queue is off.", "why": "off describes the merge queue, not the cell"},
+    {"answer": "C2-auto-merge stays promoted; the dependent C3 promotion was lowered.", "why": "lowered describes another promotion, not the cell"}
   ]
 }
