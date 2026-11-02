@@ -61,7 +61,8 @@
 //   is emitted against every promotable cell.
 // - reverted-merge: an autonomous C2/C3 merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
-//   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
+//   <sha>` (git revert); one event at each date a revert of the merge is seen, so a revert found
+//   later with an earlier date adds an event rather than moving a published one. A merged PR
 //   titled revert... with neither form is listed in unresolvedReverts for a human to read, as is
 //   a named target that is not a merged pull request or a SHA no commit has, so a bad reference
 //   cannot stop a publish. Every revert counts, whoever merged or enqueued the revert PR (a
@@ -654,7 +655,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const cellsOf = (r) => (r.cls ? [`${r.cls}-auto-merge`] : CELLS);
   const bySha = new Map(tracked.map((r) => [r.sha, r]));
 
-  // Reverts, from merged PR bodies and default-branch commit messages; earliest per target.
+  // Reverts, from merged PR bodies and default-branch commit messages; every date per target.
   const own = repo.toLowerCase();
   const revertsOf = (text) => {
     const targets = [];
@@ -681,7 +682,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   for (const commit of commits) {
     for (const target of revertsOf(commit.commit?.message)) reverts.push({ ...target, at: commit.commit?.committer?.date });
   }
-  const firstRevert = new Map();
+  const revertDates = new Map();
   for (const revert of reverts) {
     if (!inWindow(revert.at)) continue;
     if (revert.invalid !== undefined) {
@@ -703,9 +704,10 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
         continue;
       }
     }
-    if (!firstRevert.has(number) || Date.parse(revert.at) < Date.parse(firstRevert.get(number))) firstRevert.set(number, revert.at);
+    if (!revertDates.has(number)) revertDates.set(number, []);
+    revertDates.get(number).push(revert.at);
   }
-  for (const [number, at] of firstRevert) {
+  for (const [number, dates] of revertDates) {
     let target;
     try {
       target = record(number);
@@ -716,7 +718,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     }
     if (target.autonomous && (["C2", "C3"].includes(target.cls) || target.cls === null)) {
       target.reverted = true;
-      for (const cell of cellsOf(target)) addEvent(cell, "reverted-merge", at);
+      for (const at of dates) for (const cell of cellsOf(target)) addEvent(cell, "reverted-merge", at);
     }
   }
 
