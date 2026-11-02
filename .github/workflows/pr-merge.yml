@@ -301,6 +301,7 @@ jobs:
         if: >-
           steps.post-merge.conclusion == 'success'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/post-merge-report/
@@ -532,6 +533,7 @@ jobs:
         id: scan-upload-2
         if: >-
           steps.dispatch.outputs.run-id != ''
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/dispatched.json
@@ -651,6 +653,7 @@ jobs:
         id: scan-upload-3
         if: >-
           !cancelled() && steps.rerun.outputs.recorded == 'true'
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/rerun.json
@@ -796,6 +799,7 @@ jobs:
         id: scan-upload-4
         if: >-
           !cancelled() && steps.alert.outputs.run-id != ''
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/alerted.json
@@ -1712,6 +1716,7 @@ jobs:
         id: scan-upload
         if: >-
           always() && steps.gate.outcome != 'skipped'
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/gate-cursor/cursor.json
@@ -1752,6 +1757,7 @@ jobs:
         if: >-
           always() && steps.head-refs.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/head-refs/head-refs.json
@@ -1791,6 +1797,7 @@ jobs:
         if: >-
           always() && steps.lane-records.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/lane-records/lane-records.json
@@ -1837,6 +1844,7 @@ jobs:
         if: >-
           always() && steps.carry.outputs.carried == 'true'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -1935,6 +1943,7 @@ jobs:
         if: >-
           always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-merge-sweep.json
@@ -1959,6 +1968,7 @@ jobs:
         if: >-
           always() && steps.gate.outcome != 'skipped' && steps.mode.outputs.report-only == 'false' && steps.gate.outputs.rate-limited != 'true'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-merge-summary.json
@@ -2070,6 +2080,7 @@ jobs:
         if: >-
           always() && steps.gate.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/verify-listing.json
@@ -2187,9 +2198,9 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    # Above the sum of its steps' timeouts (31, workflow.test.mjs checks it),
+    # Above the sum of its steps' timeouts (35, workflow.test.mjs checks it),
     # with a minute left for the steps that name none.
-    timeout-minutes: 32
+    timeout-minutes: 36
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -2489,6 +2500,7 @@ jobs:
         if: >-
           always() && steps.arm.outcome != 'skipped' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: |
@@ -2533,6 +2545,7 @@ jobs:
         if: >-
           always() && steps.carry.outputs.kept == 'true'
         continue-on-error: true
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/pr-merge-carried.json
@@ -2867,6 +2880,7 @@ jobs:
         id: scan-upload
         if: >-
           steps.dispatch.outputs.run-id != ''
+        timeout-minutes: 2
         uses: ./.base/.github/actions/scan-upload # zizmor: ignore[self-repository]
         with:
           path: ${{ runner.temp }}/dispatched.json
