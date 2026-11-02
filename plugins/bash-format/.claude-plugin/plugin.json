@@ -16,6 +16,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "bash_format_enabled": {
       "type": "boolean",

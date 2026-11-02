@@ -13,8 +13,12 @@
     "zones",
     "context-degradation",
     "session",
-    "hooks"
+    "hooks",
+    "skill"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "context_guard_hooks_enabled": {
       "type": "boolean",

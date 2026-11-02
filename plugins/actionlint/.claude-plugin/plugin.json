@@ -15,6 +15,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "actionlint_enabled": {
       "type": "boolean",

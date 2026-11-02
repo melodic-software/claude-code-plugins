@@ -17,6 +17,9 @@
     "linter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "biome_format_enabled": {
       "type": "boolean",

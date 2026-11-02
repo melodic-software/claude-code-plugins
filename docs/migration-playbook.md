@@ -838,7 +838,9 @@ For each skill/hook/agent being migrated:
 10. **Version.** Set an explicit semver `version` in `plugin.json`. A later bump that changes behavior a
    consumer depends on records the change in the plugin's changelog. See "Version pinning and update
    delivery" above.
-11. **Publish.** Add the entry to `.claude-plugin/marketplace.json`. The plugin `source` is the
+11. **Publish.** Set `keywords` and `metadata.category` (from [catalog-taxonomy.md](catalog-taxonomy.md))
+    in `plugin.json`, add an entry with `name` and `source` to `.claude-plugin/marketplace.json`, and run
+    `node scripts/generate-marketplace.mjs`, which writes the entry's `category` and `tags`. The plugin `source` is the
     `./`-prefixed relative path (e.g. `./plugins/<name>`). Bare names fail `claude plugin validate --strict`
     even with `metadata.pluginRoot` set, despite the marketplaces-doc example to the contrary (verified
     2026-06-23). Then run `claude plugin validate --strict <repo-root>` to validate the **catalog manifest

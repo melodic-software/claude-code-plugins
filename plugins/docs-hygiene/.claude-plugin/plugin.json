@@ -16,8 +16,14 @@
     "derivability",
     "progressive-disclosure",
     "context-engineering",
-    "refactoring"
+    "refactoring",
+    "skill",
+    "compress",
+    "audit"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "compress_articles": {
       "type": "string",

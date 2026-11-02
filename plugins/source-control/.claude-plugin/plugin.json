@@ -21,6 +21,9 @@
     "delivery",
     "skill"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "pr_body_linkage_gate_enabled": {
       "type": "boolean",

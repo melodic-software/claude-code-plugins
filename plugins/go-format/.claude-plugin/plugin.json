@@ -14,6 +14,9 @@
     "formatter",
     "hook"
   ],
+  "metadata": {
+    "category": "development"
+  },
   "userConfig": {
     "go_format_enabled": {
       "type": "boolean",

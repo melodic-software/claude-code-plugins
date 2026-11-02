@@ -20,6 +20,9 @@
     "telemetry",
     "topology"
   ],
+  "metadata": {
+    "category": "autonomy"
+  },
   "userConfig": {
     "lane_stop_gate_enabled": {
       "type": "boolean",

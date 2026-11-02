@@ -18,6 +18,9 @@
     "routing",
     "skill"
   ],
+  "metadata": {
+    "category": "presentation"
+  },
   "userConfig": {
     "account_tools_enabled": {
       "type": "boolean",
