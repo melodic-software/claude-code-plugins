@@ -725,11 +725,14 @@ jobs:
           # completion exists only while the other lane is running), and
           # maintenance-reconcile-lost-runs re-runs one red only on a pending
           # or missing review, at attempt 1, after its PENDING_BACKOFF_MINUTES.
-          # Should both re-run it, the started_at check below ends this job on
-          # an attempt that started after the lanes finished; what overlap
-          # remains is two POSTs inside check-then-act gaps, which GitHub
-          # would refuse while the first re-run is going (UNVERIFIED) rather
-          # than start a third attempt.
+          # Should both re-run it, the started_at check below ends this job,
+          # for a review-lane upstream, on an attempt that started after the
+          # lanes finished (a pr-unblock run with a full status page skips that
+          # check). What overlap remains is two POSTs inside check-then-act
+          # gaps, which GitHub would refuse while the first re-run is going
+          # (UNVERIFIED) rather than start a third attempt. Should both land,
+          # the extra attempt has no record of its own, so pr-verify refuses
+          # it: the head is stranded for a person, never let through.
           # Any other failure is read three times, then fails.
           # A path read again (the poll below) is sent as a conditional GET
           # with the ETag of its last 200; a 304 (gh exits 1 on it) gives that
@@ -897,15 +900,17 @@ jobs:
           # Bot author whose id is the App's) is left while the kill switch is
           # on, for every upstream: its re-run would fail on the switch and
           # spend attempt 2, the only re-run the lost-run reconciler makes. Left
-          # at attempt 1, the reconciler re-runs it once the switch is off, by
-          # the red it holds (its Switch, Stop, Review or Pending kind). A later
+          # at attempt 1, the reconciler re-runs it once the switch is off when
+          # its red matches one of its kinds (Switch, Stop, Review, Pending); a
+          # red that mixes their notes, such as a pending review beside a
+          # pr-unblock stop, matches none and waits for a person. A later
           # attempt is re-run as any other: this job's record covers attempt 2
           # and up (check-trusted-trigger.mjs ciStatusRerunRecorder), and a red
           # on the switch there is named for a person by the reconciler. An
           # unread switch counts as on, and an unread author as the App's, as
           # ci-status reads it: no re-run is safer than a spent attempt.
           if [[ $attempt == 1 && $LANES_PROCEED != true ]] &&
-            jq -e --arg id "$APP_SENDER_ID" '(.user.id | type) != "number"
+            jq -e --arg id "$APP_SENDER_ID" '(.user.id | type) != "number" or (.user.type | type) != "string"
               or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)' <<<"$pr" >/dev/null; then
             echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
             exit 0

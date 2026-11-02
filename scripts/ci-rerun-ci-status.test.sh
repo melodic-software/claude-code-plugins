@@ -665,12 +665,15 @@ done
 STUB_PR="$(lanes_pr)"
 LANES_PROCEED=true APP_SENDER_ID=$LANES_APP expect "switch off: a lanes App PR is re-run" 0 "Re-running ci-status (job 77)"
 check_reran 1 "switch off: a lanes App PR gets its job id and record"
-LANES_PROCEED=false APP_SENDER_ID='' expect "no App id: no PR reads as the lanes App's, as in ci-status" 0 "Re-running ci-status (job 77)"
+LANES_PROCEED=false APP_SENDER_ID='' expect "no App id: a readable author is not held, as in ci-status" 0 "Re-running ci-status (job 77)"
 check_reran 1 "no App id: re-run"
 # An author that does not read counts as the App's, as ci-status reads it.
 STUB_PR='{"state":"open","head":{"sha":"'$HEAD'"}}'
 LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': an unreadable author is held as the App's" 0 "is not re-run; the lost-run reconciler"
 check_reran 0 "an unreadable author: no job id or record"
+STUB_PR="$(lanes_pr | jq -c '.user.type = null')"
+LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': an unreadable author type is held as the App's" 0 "is not re-run; the lost-run reconciler"
+check_reran 0 "an unreadable author type: no job id or record"
 # Only attempt 1 is held: at a later attempt the re-run goes ahead, recorded.
 STUB_PR="$(lanes_pr)" STUB_RUNS="$(runs "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)")" STUB_RUN_SEQ="$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)"
 LANES_PROCEED=false APP_SENDER_ID=$LANES_APP expect "proceed 'false': a lanes App PR's ci-status at attempt 2 is re-run" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 3."

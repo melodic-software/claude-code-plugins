@@ -43,9 +43,8 @@ name: maintenance-reconcile-lost-runs
 # failed the same way only on a `pr-unblock/*` status is re-run the same way
 # once no such status fails the head (the lane that stopped cleared it); a
 # status post starts no run, and a failed re-run of it is only a warning.
-# So is any pull request's that failed only on reviews still running or not
-# yet started, once both hosted reviews' newest runs on the head completed at
-# least PENDING_BACKOFF_MINUTES ago (rerun-ci-status's re-run was lost or held).
+# Any pull request's ci-status that failed only on reviews still running or
+# not yet started is re-run the same way once both reviews have finished.
 #
 # A hosted review run a kill switch stopped, on a head whose newest
 # pr-require-checks run failed only in ci-status with its note of that stop, is

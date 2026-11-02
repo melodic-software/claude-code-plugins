@@ -2269,7 +2269,7 @@ test("a ci-status a running or missing review failed is re-run once both reviews
   }
 });
 
-test("a lanes App PR's pending-review ci-status is a Pending re-run, not a Switch one, and names no person", async (t) => {
+test("a pending-only red on a lanes App PR is a Pending re-run", async (t) => {
   const log = t.mock.method(console, "log", () => {});
   await withLaneList(async (env) => {
     const { code, outputs, failedJobReruns } = await reconcile({ pulls: [lanePr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns()], env });
@@ -2289,6 +2289,10 @@ test("the pending backoff ends exactly PENDING_BACKOFF_MINUTES after the last re
   assert.deepEqual(ready.failedJobReruns, [101]);
   const early = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), ...reviewRuns({ updated: at(edge - 1000) })] });
   assert.deepEqual(early.failedJobReruns, []);
+  // The last review to finish sets the edge: one lane at it, the other inside it.
+  const [code, security] = reviewRuns({ updated: at(edge) });
+  const mixed = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: pendingJobs() }), code, { ...security, updated_at: at(edge - 1000) }] });
+  assert.deepEqual(mixed.failedJobReruns, []);
 });
 
 test("a pending-review ci-status is not re-run inside the backoff, while a review runs or never ran, at attempt 2, or beside another failure", async () => {

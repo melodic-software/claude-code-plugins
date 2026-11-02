@@ -453,11 +453,14 @@ export const pendingReviewNoted = (annotations) => {
 // rerun-ci-status's `timeout-minutes: 15` (reconcile.test.mjs pins it), so its
 // own re-run has had the time to land. Under its `queue: max` concurrency that
 // job may still start later, so this narrows the race without closing it. A
-// late rerun-ci-status does not re-run again: its started_at check ends it on
-// a ci-status attempt that started after the lanes finished. What overlap
-// remains is two POSTs inside check-then-act gaps (its `"completed $attempt"`
-// re-read, act's lostNow attempt check), which GitHub would refuse while the
-// first re-run is going (UNVERIFIED) rather than start a third attempt.
+// late rerun-ci-status after a review lane does not re-run again: its
+// started_at check ends it on a ci-status attempt that started after the lanes
+// finished (a pr-unblock upstream with a full status page skips that check).
+// What overlap remains is two POSTs inside check-then-act gaps (its
+// `"completed $attempt"` re-read, act's lostNow attempt check), which GitHub
+// would refuse while the first re-run is going (UNVERIFIED) rather than start
+// a third attempt. Should both land, the extra attempt has no record of its
+// own, so pr-verify refuses it: the head is stranded, never let through.
 export const PENDING_BACKOFF_MINUTES = 20;
 // True when the newest status of a `pr-unblock/*` context on the head, by
 // github-actions[bot], is failure or error: ci-status's own read. Statuses
