@@ -147,6 +147,21 @@ describe("prerequisites-fleet", { skip: !posix && "the claude stub is a POSIX sh
     assert.equal(await f.run("p2", { CLAUDE_PROJECT_DIR: projB }), "");
   });
 
+  test("a plugin a managed policy disables is not probed, and an unreadable managed file probes nothing", async () => {
+    const f = fleet({ plugins: [gated("alpha"), gated("beta")] });
+    const dir = tempDir("prereq-fleet-managed-");
+    const policy = path.join(dir, "managed-settings.json");
+    writeFileSync(policy, JSON.stringify({ enabledPlugins: { "alpha@mkt": false } }));
+    const input = JSON.stringify({ session_id: "m1" });
+    const env = { PATH: path.join(f.config, "bin"), HOME: f.config };
+    const ownRoot = path.join(f.config, "plugins", "cache", "mkt", "harness-ops", "1.0.0");
+    const message = await main({ env, input, ownRoot, managed: [policy] });
+    assert.doesNotMatch(message, /alpha:/);
+    assert.match(message, /^beta: /);
+    writeFileSync(policy, "{ not json");
+    assert.equal(await main({ env, input: JSON.stringify({ session_id: "m2" }), ownRoot, managed: [policy] }), "");
+  });
+
   test("the hook prints one systemMessage document and exits 0", () => {
     const f = fleet({ plugins: [gated("alpha")] });
     // Run the script itself from a copy placed as harness-ops in the fake cache.

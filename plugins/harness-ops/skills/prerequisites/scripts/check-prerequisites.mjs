@@ -95,12 +95,14 @@ export function rootsFromListing(rows, project) {
 }
 
 // { read, roots } from enabledPlugins in the settings files and installed_plugins.json.
-export function rootsFromSettings(config, project) {
-  // User, then project, then local: a later scope's true/false wins.
+// managed: managed settings files, applied last so a managed true/false wins.
+export function rootsFromSettings(config, project, managed = []) {
+  // User, then project, then local, then managed: a later scope's true/false wins.
   const files = [path.join(config, "settings.json"), path.join(config, "settings.local.json")];
   if (project) {
     files.push(path.join(project, ".claude", "settings.json"), path.join(project, ".claude", "settings.local.json"));
   }
+  files.push(...managed);
   const state = {};
   let read = false;
   for (const file of files) {

@@ -8,8 +8,8 @@
 //
 //   prerequisites-fleet.mjs        (SessionStart hook input on stdin)
 //
-// Enabled plugins come from enabledPlugins in the user and project settings plus
-// installed_plugins.json, the settings path of check-prerequisites.mjs; never from
+// Enabled plugins come from enabledPlugins in the user, project and managed settings (managed
+// wins; a managed file it cannot parse probes nothing) plus installed_plugins.json, the settings path of check-prerequisites.mjs; never from
 // `claude plugin list`, which would start a nested claude on every session start. The config
 // directory is the prefix of this install's own path (plugin-options.mjs resolveInstall), else
 // CLAUDE_CONFIG_DIR or ~/.claude for a --plugin-dir checkout.
@@ -113,7 +113,6 @@ function runProbe({ root, env }, input) {
 // main(ctx) -> the systemMessage text, or "" when no plugin has a notice.
 export async function main({ env = process.env, input = "", ownRoot = OWN_ROOT, managed } = {}) {
   const config = configDir(ownRoot, env);
-  const { roots } = rootsFromSettings(config, env.CLAUDE_PROJECT_DIR || "");
   let managedFiles = managed;
   if (managedFiles === undefined) {
     try {
@@ -122,6 +121,16 @@ export async function main({ env = process.env, input = "", ownRoot = OWN_ROOT, 
       return "";
     }
   }
+  // A managed policy this row cannot read could disable a plugin, so it probes nothing.
+  for (const file of managedFiles.filter((f) => existsSync(f))) {
+    try {
+      const plugins = JSON.parse(readFileSync(file, "utf8"))?.enabledPlugins ?? {};
+      if (!Object.values(plugins).every((v) => typeof v === "boolean")) return "";
+    } catch {
+      return "";
+    }
+  }
+  const { roots } = rootsFromSettings(config, env.CLAUDE_PROJECT_DIR || "", managedFiles);
   const plan = planProbes(roots, config, managedFiles, env);
   const results = await Promise.all(plan.map((probe) => runProbe(probe, input)));
   return results.flat().join("\n");

@@ -166,11 +166,13 @@ and `toolchain`) ships `check-prerequisites` and names that. No hook installs an
 
 Both session-start notices need harness-ops enabled. Without it, no notice says `node` is missing,
 and a missing hook dependency is reported only at the point of use, by `hook::require`. The
-runner finds enabled plugins from `enabledPlugins` in the user and project settings plus
-`installed_plugins.json`, never by running `claude plugin list`, which would start a nested
-`claude` on every session start; it reads kill switches from `pluginConfigs` in the user and
-managed settings files. It does not see plugins loaded with `--plugin-dir`, `enabledPlugins` in
-managed settings, options set only through `--settings`, or server-managed policy.
+runner finds enabled plugins from `enabledPlugins` in the user, project and managed settings
+files (a managed value wins, and a managed file it cannot parse makes it probe nothing) plus
+`installed_plugins.json`, taking the current project's install record by the scope rule of
+`claude plugin list`, never by running it, which would start a nested `claude` on every session
+start; it reads kill switches from `pluginConfigs` in the user and managed settings files. It does
+not see plugins loaded with `--plugin-dir`, options set only through `--settings`, or
+server-managed policy.
 
 Both rows run synchronously, because their notices are for the user: an async hook's
 `systemMessage` goes to Claude on the next turn and is not shown to the user
