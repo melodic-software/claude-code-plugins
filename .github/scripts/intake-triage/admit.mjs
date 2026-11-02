@@ -759,7 +759,7 @@ const workSections = (prose, text, workHeadings) => {
 // as "shorten their retention" or "set a retention policy". An unlisted verb
 // still counts, so the cost hold fails closed.
 const LOWERING =
-  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delet\w*|disable[sd]?|disabling|cut|cuts|cutting|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
+  /\b(?:shorten\w*|reduc\w*|lower\w*|drop\w*|remov\w*|delete[sd]?|deleting|disable[sd]?|disabling|cut|cuts|cutting|bound|bounds|bounded|bounding|trim\w*|turn(?:s|ed|ing)? off|cancel\w*|retir\w*|set(?:s|ting)? (?:an? |the )(?:[\w-]+ ){0,2}polic(?:y|ies))\b/i;
 const CHARGING =
   /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|runs?|running|bump\w*|doubl\w*|expand\w*|spin(?:s|ning)? up|spun up|allocate[sd]?|allocating|allocations?|configure[sd]?|configuring|keep|keeps|keeping|kept|sign(?:s|ed|ing)? up|opt(?:s|ed|ing)? in|set(?:s|ting)?(?! (?:an? |the )(?:[\w-]+ ){0,2}polic))\b/i;
 // A billing account admission reads as a charge beside the shared words, in
