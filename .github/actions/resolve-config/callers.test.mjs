@@ -7739,7 +7739,7 @@ test("every job that runs or reads untrusted head content has a read-only Action
     "intake-triage.yml": ["refine-issue", "refine-issue-subscription"],
     "pr-review-main.yml": ["review", "review-subscription", "review-fallback"],
     "pr-verify.yml": ["check-intent", "check-intent-subscription", "check-intent-fallback"],
-    "upstream-apply-changelog.yml": ["model", "scan", "push-branches"],
+    "upstream-apply-changelog.yml": ["model", "scan", "push-branches", "publish"],
   };
   for (const [file, names] of Object.entries(readOnly)) {
     const { jobs } = workflow(file);
