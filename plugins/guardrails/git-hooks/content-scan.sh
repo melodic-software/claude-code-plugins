@@ -42,8 +42,8 @@ MAX_BYTES=1048576
 # Where scan_tool records a failure: nowhere until content_scan_init, since
 # checks_init runs wrapped tools before CHECKS_TMP exists.
 scan_error=/dev/null
-# A merge's parents past the first, which the pre-push entry sets: a file
-# whose blob one of them holds brings nothing the merge itself adds.
+# A merge's parents past the first, which each entry sets: a file whose blob
+# one of them holds brings nothing the merge itself adds.
 other_parents=()
 
 # The scan's text tools, here and in check-lib.sh and the pattern libraries,

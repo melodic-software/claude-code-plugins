@@ -3,6 +3,44 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.2] - 2026-11-02
+
+### Fixed
+
+- `check-security-binding.mjs` evaluation mode now counts a contrary event in a cell's promotion epoch when its `discovered` time is at or after the cell's `ratified_at`, even if its `at` is earlier. Before, an event with a backdated `at`, such as a revert's committer date, was dropped as pre-epoch. An event with no `discovered` is still assigned by its `at`. An event dated before `ratified_at` whose `discovered` does not parse now counts as contrary, so the check fails closed.
+
+## [3.1.1] - 2026-11-02
+
+### Fixed
+
+- The shared `hook-utils.sh` Bash command parser keeps a `#` right after the closing `)` of an
+  array assignment, an extglob, `$(…)`, `$((…))`, `<(…)` or `>(…)`, or after a closing backtick,
+  in its word, as Bash does, instead of reading it as a comment that hid the rest of the line.
+  Those frames now stay open across `;`, `|`, `&` and newlines inside them, a `case` pattern's
+  `)` no longer closes one, and `case` or `esac` inside arithmetic is read as a variable name.
+- A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
+  ends at the closing backtick, as in Bash; an escaped backtick does not close it, and outside a
+  comment or quote it opens or closes a nested substitution whose commands are read.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end, and a pattern word that starts with `$(…)`, a backtick or `@(…)` is
+  the first pattern word. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- `((…) )` and `$((…) )`, which Bash re-reads as nested subshells, are read as commands with
+  real redirections, not as arithmetic. The parentheses of a `[[ … =~ … ]]` regex are regex
+  text, not an array assignment.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
+- For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
+  without it, the parser now reports the commands of both readings, and `HOOK_HEREDOC_BODIES`
+  lists each here-doc body once, in source order.
+
+## [3.1.0] - 2026-11-02
+
+### Changed
+
+- A demoted promotion cell is promoted again from run evidence, with no person ratifying it again and no binding update. `check-security-binding.mjs` evaluation mode reads a `re-earned` event (`{cell, event: "re-earned", at, since}`) for the cell itself: when its `since` is at or after the `at` and the `discovered` time of every contrary event in the cell's epoch, its prerequisites' included, and its `at` is at or after `since`, the cell resolves effective promoted. A malformed re-earn, or a contrary event whose `at` or `discovered` does not parse, keeps the cell unpromoted, and a prerequisite's re-earn never revives a dependent.
+
 ## [3.0.2] - 2026-11-02
 
 ### Changed

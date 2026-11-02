@@ -1,0 +1,142 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call at all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "\"\"\"Migrate accounts from v1 to v2.\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport gzip, shutil\nimport json\nimport os.path\nfrom pathlib import Path\n\nfrom bfk import store\nfrom . import text\n"
+          }
+        }
+      ],
+      "why": "standard library, the package and a relative import"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "tests/test_migrate.py",
+            "content": "import unittest\nimport tempfile\n\nfrom bfk.migrate import migrate\n"
+          }
+        }
+      ],
+      "why": "a unittest test module"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "\"\"\"Split names.\n\nimport the records one by one, from oldest to newest.\n\"\"\"\n"
+          }
+        }
+      ],
+      "why": "prose in a docstring that starts with import"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/notes.md",
+            "content": "import requests\n"
+          }
+        }
+      ],
+      "why": "not a Python file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os, sys, json as j\n"
+          }
+        }
+      ],
+      "why": "a list of standard-library modules"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import argparse\nimport orjson\n"
+          }
+        }
+      ],
+      "why": "a third-party JSON library"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "from rich.console import Console\n"
+          }
+        }
+      ],
+      "why": "a third-party from-import"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "tests/test_migrate.py",
+            "content": "import pytest\n\nfrom bfk.migrate import migrate\n"
+          }
+        }
+      ],
+      "why": "pytest in a test module"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import json\nimport yaml as y\n"
+          }
+        }
+      ],
+      "why": "aliased third-party import"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os, requests\n"
+          }
+        }
+      ],
+      "why": "standard-library module, then a third-party one"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "bfk/migrate.py",
+            "content": "import os.path as osp, json, yaml\n"
+          }
+        }
+      ],
+      "why": "third-party module last in a longer list"
+    }
+  ]
+}

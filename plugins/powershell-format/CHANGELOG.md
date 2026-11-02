@@ -3,6 +3,14 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-11-02
+
+### Fixed
+
+- On a merge commit, the pre-commit check now reports findings only on the lines that the merge's
+  conflict resolution adds. A finding on a line the merged branch already holds no longer blocks the
+  merge. Outside a merge, the check still reports findings on every line the commit adds.
+
 ## [0.14.1] - 2026-11-02
 
 ### Fixed

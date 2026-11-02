@@ -191,16 +191,17 @@ const GITHUB_UNAVAILABLE = {
   body: { error: "unavailable", reason: "github-unavailable", detail: "GET /repos/melodic-software/claude-code-plugins failed with status 403" },
 };
 const ISSUE_LANE = { LANE: "work-resolve-issue", ACTIVITY: "resolve-issue", PR_NUMBER: "", ISSUE_NUMBER: "77" };
-// The brief's backoff: 60 s, 120 s and 240 s, each with up to 20 s of jitter,
-// at most 8 minutes of waiting in all.
-const BACKOFF = [60, 120, 240];
+// The outage posture's element 1 (docs/outage-posture-audit.md): at most 3
+// requests, capped backoff with full jitter (0-20 s, then 0-40 s), and at most
+// 60 s of waiting in all.
+const BACKOFF = [20, 40];
 const JITTER = 20;
-const BUDGET = 480;
+const BUDGET = 60;
 
 function assertBackoff(sleeps, count) {
   assert.equal(sleeps.length, count, `sleeps: ${sleeps}`);
   sleeps.forEach((s, i) => {
-    assert.ok(s >= BACKOFF[i] && s <= BACKOFF[i] + JITTER, `sleep ${i + 1} is ${s}`);
+    assert.ok(s >= 0 && s <= BACKOFF[i], `sleep ${i + 1} is ${s}`);
   });
   assert.ok(sleeps.reduce((a, b) => a + b, 0) <= BUDGET);
 }
@@ -215,11 +216,11 @@ test("a 503 github-unavailable is retried after backoff, with a fresh OIDC token
   assert.doesNotMatch(run.stdout, /::error::/);
 });
 
-test("a 503 github-unavailable on every attempt fails red after three retries", () => {
+test("a 503 github-unavailable on every attempt fails red after three requests", () => {
   const run = request(ISSUE_LANE, GITHUB_UNAVAILABLE);
   assert.equal(run.status, 1);
-  assert.equal(run.auth.length, 4);
-  assertBackoff(run.sleeps, 3);
+  assert.equal(run.auth.length, 3);
+  assertBackoff(run.sleeps, 2);
   assert.equal(
     run.output,
     "failure-reason=lane-token-denied: the broker answered 503 with reason github-unavailable: GET /repos/melodic-software/claude-code-plugins failed with status 403\n",
@@ -227,19 +228,19 @@ test("a 503 github-unavailable on every attempt fails red after three retries", 
 });
 
 test("a Retry-After header longer than the backoff sets the wait", () => {
-  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 200\r\n\r\n" }, {});
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 45\r\n\r\n" }, {});
   assert.equal(run.status, 0, run.stdout);
-  assert.deepEqual(run.sleeps, [200]);
+  assert.deepEqual(run.sleeps, [45]);
 });
 
 test("a Retry-After with a leading zero is read as decimal seconds", () => {
-  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 090\r\n\r\n" }, {});
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nRetry-After: 045\r\n\r\n" }, {});
   assert.equal(run.status, 0, run.stdout);
-  assert.deepEqual(run.sleeps, [90]);
+  assert.deepEqual(run.sleeps, [45]);
 });
 
-test("a Retry-After past the 8-minute budget fails red at once", () => {
-  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nretry-after: 600\r\n\r\n" }, {});
+test("a Retry-After past the 1-minute budget fails red at once", () => {
+  const run = request(ISSUE_LANE, { ...GITHUB_UNAVAILABLE, headers: "HTTP/2 503\r\nretry-after: 61\r\n\r\n" }, {});
   assert.equal(run.status, 1);
   assert.equal(run.auth.length, 1);
   assert.deepEqual(run.sleeps, []);
@@ -263,7 +264,7 @@ const rateLimited = (retryAfter) => ({
 });
 
 // GitHub: with a retry-after header, do not retry until that many seconds
-// have passed. Below the 60 s ladder step, so the ladder would wait longer.
+// have passed. Above the 0-20 s first backoff step, so the backoff would wait less.
 test("a 503 github-rate-limited waits its Retry-After plus jitter, not the backoff ladder", () => {
   const run = request(ISSUE_LANE, rateLimited(30), {});
   assert.equal(run.status, 0, run.stdout);
@@ -273,30 +274,40 @@ test("a 503 github-rate-limited waits its Retry-After plus jitter, not the backo
   assert.match(run.output, /^mint-id=5550001-1$/m);
 });
 
-test("a 503 github-rate-limited on every attempt fails red after three retries", () => {
-  const run = request(ISSUE_LANE, rateLimited(30));
+test("a 503 github-rate-limited on every attempt fails red after three requests, its waits within the budget", () => {
+  const run = request(ISSUE_LANE, rateLimited(20));
   assert.equal(run.status, 1);
-  assert.equal(run.auth.length, 4);
-  assert.equal(run.sleeps.length, 3);
+  assert.equal(run.auth.length, 3);
+  assert.equal(run.sleeps.length, 2);
+  assert.ok(run.sleeps.every((s) => s >= 20), `sleeps: ${run.sleeps}`);
+  assert.ok(run.sleeps.reduce((a, b) => a + b, 0) <= BUDGET, `sleeps: ${run.sleeps}`);
   assert.match(run.output, /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos/m);
 });
 
-// GitHub's guidance without a retry-after header: wait at least one minute.
-test("a 503 github-rate-limited with no Retry-After waits a minute plus jitter", () => {
+// GitHub's guidance without a retry-after header: wait at least one minute,
+// the whole budget, so no jitter fits.
+test("a 503 github-rate-limited with no Retry-After waits a minute", () => {
   const run = request(ISSUE_LANE, { ...rateLimited(30), headers: "HTTP/2 503\r\n\r\n" }, {});
   assert.equal(run.status, 0, run.stdout);
-  assert.equal(run.sleeps.length, 1);
-  assert.ok(run.sleeps[0] >= 60 && run.sleeps[0] <= 60 + JITTER, `sleep is ${run.sleeps[0]}`);
+  assert.deepEqual(run.sleeps, [60]);
 });
 
-test("a github-rate-limited wait that ends inside the 8-minute budget is taken, its jitter cut to fit", () => {
-  const run = request(ISSUE_LANE, rateLimited(470), {});
+test("a second github-rate-limited answer whose wait would pass the budget is not waited", () => {
+  const run = request(ISSUE_LANE, { ...rateLimited(30), headers: "HTTP/2 503\r\n\r\n" }, rateLimited(1), {});
+  assert.equal(run.status, 1);
+  assert.equal(run.auth.length, 2);
+  assert.deepEqual(run.sleeps, [60]);
+  assert.match(run.output, /reason github-rate-limited: .*, past the 1-minute retry budget$/m);
+});
+
+test("a github-rate-limited wait that ends inside the 1-minute budget is taken, its jitter cut to fit", () => {
+  const run = request(ISSUE_LANE, rateLimited(50), {});
   assert.equal(run.status, 0, run.stdout);
   assert.equal(run.sleeps.length, 1);
-  assert.ok(run.sleeps[0] >= 470 && run.sleeps[0] <= BUDGET, `sleep is ${run.sleeps[0]}`);
+  assert.ok(run.sleeps[0] >= 50 && run.sleeps[0] <= BUDGET, `sleep is ${run.sleeps[0]}`);
 });
 
-test("a github-rate-limited Retry-After past the 8-minute budget fails at once, naming the limit and its reset", () => {
+test("a github-rate-limited Retry-After past the 1-minute budget fails at once, naming the limit and its reset", () => {
   const before = Math.floor(Date.now() / 1000);
   const run = request(ISSUE_LANE, rateLimited(BUDGET + 1), {});
   const afterRun = Math.ceil(Date.now() / 1000);
@@ -304,7 +315,7 @@ test("a github-rate-limited Retry-After past the 8-minute budget fails at once, 
   assert.equal(run.auth.length, 1);
   assert.deepEqual(run.sleeps, []);
   const match =
-    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 8-minute retry budget$/m.exec(
+    /^failure-reason=lane-token-denied: the broker answered 503 with reason github-rate-limited: GET \/repos\/melodic-software\/claude-code-plugins failed with status 403; GitHub's secondary rate limit \(core\) resets at (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ), past the 1-minute retry budget$/m.exec(
       run.output,
     );
   assert.ok(match, run.output);

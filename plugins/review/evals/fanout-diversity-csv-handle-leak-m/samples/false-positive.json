@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/import-csv.js:10 | code-reviewer | A wrong header throws before file.close(), so each bad upload leaks its file handle. | Close the handle in a finally block |\n| 2 | SUGGESTION | low | src/import-all.js:8 | code-reviewer | Reading the uploads one at a time is slow for a large batch. | Read them in parallel with a limit |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/import-csv.js:10 | code-reviewer | A wrong header throws before file.close(), so each bad upload leaks its file handle. | Close the handle in a finally block |\n| 2 | CRITICAL | medium | src/import-csv.js:9 | architecture-guardian | The header check is exact and case-sensitive, so a file headed SKU,QTY,PRICE is now rejected. | Normalize the header before comparing |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the second CRITICAL finding makes neither not_defects claim, and only those listed wrong claims are counted"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/import-csv.js:10 | code-reviewer | A wrong header throws before file.close(), so each bad upload leaks its file handle. | Close the handle in a finally block |\n| 2 | IMPORTANT | medium | src/import-all.js:10 | architecture-guardian | importAll now stops at the first bad file, so one malformed upload blocks the whole nightly run. | Catch each file's error |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the importAll claim is IMPORTANT, and only CRITICAL findings count"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/import-csv.js:10 | code-reviewer | A wrong header throws before file.close(), so each bad upload leaks its file handle. | Close the handle in a finally block |\n| 2 | CRITICAL | medium | src/import-csv.js:13 | architecture-guardian | rows.length leaves out the header row, so every valid CSV now reports one row fewer than before. | Restore the old count |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
       "why": "a CRITICAL finding claims a valid CSV's row count changed"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | low | src/import-csv.js:13 | code-reviewer | main subtracted the header with length - 1 and the branch returns rows.length, so a valid sku,qty,price CSV now reports a different row count. | Restore the old count |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims a valid CSV's row count changed; the low Confidence is ignored"
     }
   ]
 }

@@ -1,0 +1,226 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call at all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "var token = Environment.GetEnvironmentVariable(\"TARNQUILL_FORGE_TOKEN\");\n"
+          }
+        }
+      ],
+      "why": "token from the environment"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\":\ncase \"--forge-token\":\n    return Usage(\"pass the token in TARNQUILL_FORGE_TOKEN, not a flag\");\n"
+          }
+        }
+      ],
+      "why": "rejects the flag with a pointer to the variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\" || args[i].StartsWith(\"--token=\")) { Console.Error.WriteLine(\"use TARNQUILL_FORGE_TOKEN\"); return 2; }\n"
+          }
+        }
+      ],
+      "why": "rejects the flag, comparison only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--title\":\n    title = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "another option reads args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "private static readonly string[] Refused = { \"--token\", \"--forge-token\" };\n"
+          }
+        }
+      ],
+      "why": "a list of refused flags"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\")\n{\n    Console.Error.WriteLine(\"use TARNQUILL_FORGE_TOKEN\");\n    return 2;\n}\nif (args[i] == \"--title\")\n{\n    title = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman-style rejection, then another option reads args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\":\n    return Usage(\"--token is not supported; set TARNQUILL_FORGE_TOKEN\");\ncase \"--title\":\n    if (i + 1 >= args.Length) return Usage(\"--title needs a value\");\n    title = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "rejected flag, then a guarded option that reads args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args.Contains(\"--token\") || args.Contains(\"--forge-token\"))\n{\n    Console.Error.WriteLine(\"use TARNQUILL_FORGE_TOKEN\");\n    return 2;\n}\nvar issue = args[0];\n"
+          }
+        }
+      ],
+      "why": "rejects the flag in a block, then reads a positional argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (a is \"--token\") return Fail(\"use TARNQUILL_FORGE_TOKEN\");\nissue = args[0];\n"
+          }
+        }
+      ],
+      "why": "one-line rejection, then reads a positional argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\":\n    token = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "switch case reads the token from the next argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\") token = args[++i];\n"
+          }
+        }
+      ],
+      "why": "if on one line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "var token = Option(args, \"--token\") ?? Environment.GetEnvironmentVariable(\"TARNQUILL_FORGE_TOKEN\");\n"
+          }
+        }
+      ],
+      "why": "option with env fallback still takes the token"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "var tokenOption = new Option<string>(\"--token\", \"forge token\");\n"
+          }
+        }
+      ],
+      "why": "System.CommandLine option"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--forge-token\": token = args[++i]; break;\n"
+          }
+        }
+      ],
+      "why": "the forge-token spelling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\")\n{\n    token = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman-style if reads the next argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\" when i + 1 < args.Length:\n    token = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "guarded case label"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "case \"--token\":\n    if (i + 1 >= args.Length) return Usage(\"--token needs a value\");\n    token = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "bounds guard before the read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "content": "if (args[i] == \"--token\")\n{\n    if (i + 1 >= args.Length) { Console.Error.WriteLine(\"missing value\"); return 2; }\n    token = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman block with a bounds guard"
+    }
+  ]
+}

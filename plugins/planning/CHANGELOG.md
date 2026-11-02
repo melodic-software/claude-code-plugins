@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.139.4] - 2026-11-02
+
+### Changed
+
+- `draft-goal-condition`: the workflow-row caveat no longer restates where the `ultracode` keyword starts a workflow or which plans reach dynamic workflows. It points at the new `reference/workflow-row.md`, which keeps each as a routing decision with its pointer, as-of date (2026-11-02) and recheck trigger, so the skill still routes when the docs pages cannot be fetched (#12357). Measured on `dg-workflow-keyword-unattended` before and after: 1, 1, 1 both, all runs VALID. The `xhigh` condition on `/effort ultracode` stays in the skill body: its move did not pass the preregistered measurement. A new case, `dg-standing-setting-xhigh`, covers it.
+
+## [0.139.3] - 2026-11-02
+
+### Fixed
+
+- **`round.py import-ledger` says "seeded 1 question" when it seeds one.** It printed
+  "seeded 1 questions"; the noun now agrees with the count.
+
 ## [0.139.2] - 2026-11-02
 
 ### Changed

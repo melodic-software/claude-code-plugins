@@ -1,5 +1,37 @@
 # Changelog for the PR pipeline convention
 
+## [8.39.1] - 2026-11-02
+
+### Changed
+
+- The main-run review (`pr-review-main.yml`) no longer reviews a head again when both lanes already have a verdict the merge gate binds there: pr-require-checks completes several times on one head, and each completion started both model reviews. The trigger job reads each lane's verdict artifacts, their runs and the head's record check runs, and decides with the gate's own predicate, counting a verdict only when its run's main commit has main's current review criteria (`criteria.txt`, which the copy steps also read); a verdict judged under other criteria, a failed or cancelled review, another head of the same tree, or any failed read reviews again. No review leg or record job starts for a pull request that changes no lane source, or for a head already reviewed.
+
+## [8.39.0] - 2026-11-02
+
+### Changed
+
+- "Not settled yet" records the direction from the merge-flow friction audit: holds our own actors place converge on `do-not-merge`, and only the review lanes' critical-security and cost holds and the trust-path holds stay person-only. No lane behavior changes.
+
+- The `close-cleared` job runs on every completed scheduled full run on main, whatever it concluded. It closes each open, never-edited schedule or dispatch record that a later green full run on main cleared by the merge gate's own rule (`_recovered_at`): attempt 1, a schedule or a `github-actions[bot]` dispatch, created after the record, at a commit ahead of its SHA and on main. Before, only the triggering green scheduled attempt 1 could clear a record, so records that a dispatched green run had cleared stayed open.
+
+## [8.38.2] - 2026-11-02
+
+### Changed
+
+- `enable-auto-merge` holds when more than 1000 pull requests are open into main, where it used to
+  end red. It arms, disarms and notes nothing, prints a notice and a step summary line, and ends
+  green, and the next run reads the listing again.
+- `request-lane-token` sends at most 3 requests to the broker and waits at most 60 seconds in all,
+  down from 4 requests and 8 minutes. A `github-unavailable` retry waits a random 0 to 20 seconds,
+  then 0 to 40, or a longer `Retry-After`. A `github-rate-limited` wait that does not fit the
+  60 seconds fails red at once, naming the limit and its reset, as a wait past 8 minutes did before.
+
+## [8.38.1] - 2026-11-02
+
+### Fixed
+
+- The issue lane's security-word stop no longer holds an issue for a word that lies wholly inside a known name: a skill id or principle name listed in `.github/scripts/work-resolve-issue/known-names.json` (starting with `attack-the-premise` and `review:security-review`), written exactly as listed as a whole identifier. A word that runs past a listed name's edge, and any security word or credential mention elsewhere in the reason, still holds. A listed name joins at least two parts with `-`, `_` or `:` and holds no secret noun.
+
 ## [8.38.0] - 2026-11-02
 
 ### Changed

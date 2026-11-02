@@ -14,7 +14,7 @@
     "harness-ops:inventory",
     "harness-ops:known-issues",
     "harness-ops:lanes",
-    "harness-ops:morning-brief",
+    "work-items:morning-brief",
     "harness-ops:observability",
     "harness-ops:plugins",
     "harness-ops:plugins-audit",

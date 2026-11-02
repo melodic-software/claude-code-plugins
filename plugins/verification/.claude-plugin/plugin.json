@@ -1,11 +1,11 @@
 {
   "name": "verification",
-  "version": "0.18.2",
   "description": "Outcome-verification stage: prove a change achieved its intended outcome (`/verification:confirm`: a mechanical build/test/lint prerequisite gate, then intent-match + evidence + verdict with the criterion auto-detected by change type), and verify measurable-improvement claims against a planning-time baseline (`/verification:measure`), never fabricating numbers.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "0.18.2",
   "license": "MIT",
   "keywords": [
     "verification",
@@ -14,8 +14,12 @@
     "baseline",
     "measurement",
     "evidence",
-    "skill"
+    "skill",
+    "measure"
   ],
+  "metadata": {
+    "category": "verification"
+  },
   "userConfig": {
     "proof_level": {
       "type": "string",

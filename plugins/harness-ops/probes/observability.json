@@ -15,7 +15,7 @@
     "harness-ops:known-issues",
     "harness-ops:lanes",
     "harness-ops:machine-profile",
-    "harness-ops:morning-brief",
+    "work-items:morning-brief",
     "harness-ops:plugins",
     "harness-ops:plugins-audit",
     "harness-ops:prerequisites",

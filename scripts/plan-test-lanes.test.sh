@@ -137,14 +137,14 @@ plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.
 is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
 check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
 
-# 45 suites of 40 s beside a (100 s): 1900 suite-seconds, capped at 7 legs.
+# 79 suites of 40 s beside a (100 s): 3260 suite-seconds, capped at 12 legs.
 # Weighed by the larger of its suite-seconds and three times a, a's leg would
 # draw short suites until its other two workers ran 100 s each, as long as a
 # itself: 300s/6, no room for a slow run. Weighed by its suite-seconds plus two
 # thirds of three times a, it stops at 180s/3 and the other legs take the rest.
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
 many=()
-for i in $(seq -w 1 45); do
+for i in $(seq -w 1 79); do
   mk "plugins/n/n$i.test.sh" "true"
   printf 'plugins/n/n%s.test.sh 40\n' "$i" >>"$repo/scripts/suite-seconds.txt"
   many+=("plugins/n/n$i.test.sh")
@@ -152,7 +152,7 @@ done
 plan -- plugins/a/a.test.sh "${many[@]}"
 rm -rf "${repo:?}/plugins/n"
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-grep -q 'bash: 46 suite(s), 1900 suite-seconds, 7 leg(s): 180s/3 ' "$ERR"
+grep -q 'bash: 80 suite(s), 3260 suite-seconds, 12 leg(s): 180s/3 ' "$ERR"
 check "the longest suite's leg keeps room: its other workers finish well before it" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
@@ -259,19 +259,20 @@ check "an unlisted Python suite never weighs less than the 5 s default" $?
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
 rm -f "$repo/plugins/u/test_u.py"
 
-# 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
-# Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,
-# then u joins t (95), v joins q (100) and w joins s (110).
+# 1650 suite-seconds would take ceil(1650/180) = 10 legs; test-python stops at 9.
+# Longest first onto the least-loaded leg: p, r, s, t, u, v, w, x and y open the
+# nine legs, then m joins y (120) and q joins x (130).
 cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
-for s in r s t u v w; do mk "plugins/$s/test_$s.py" "assert True"; done
-printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 110" "plugins/t/test_t.py 95" \
-  "plugins/u/test_u.py 90" "plugins/v/test_v.py 80" "plugins/w/test_w.py 60" >>"$repo/scripts/suite-seconds.txt"
+for s in r s t u v w x y m; do mk "plugins/$s/test_$s.py" "assert True"; done
+printf '%s\n' "plugins/r/test_r.py 190" "plugins/s/test_s.py 180" "plugins/t/test_t.py 170" \
+  "plugins/u/test_u.py 160" "plugins/v/test_v.py 150" "plugins/w/test_w.py 140" \
+  "plugins/x/test_x.py 130" "plugins/y/test_y.py 120" "plugins/m/test_m.py 110" >>"$repo/scripts/suite-seconds.txt"
 plan -- .python-version
-for s in r s t u v w; do rm -rf "${repo:?}/plugins/$s"; done
+for s in r s t u v w x y m; do rm -rf "${repo:?}/plugins/$s"; done
 cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
-is "$(key python_legs)" "[0,1,2,3,4]" &&
-  grep -q 'python: 8 suite(s), 925 suite-seconds, 5 leg(s): 200s/1 190s/1 170s/2 180s/2 185s/2' "$ERR"
-check "test-python packs by suite-seconds onto at most 5 legs, longest first to the least-loaded leg" $?
+is "$(key python_legs)" "[0,1,2,3,4,5,6,7,8]" &&
+  grep -q 'python: 11 suite(s), 1650 suite-seconds, 9 leg(s): 200s/1 190s/1 180s/1 170s/1 160s/1 150s/1 140s/1 230s/2 230s/2' "$ERR"
+check "test-python packs by suite-seconds onto at most 9 legs, longest first to the least-loaded leg" $?
 
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false
@@ -358,13 +359,13 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 # --- wider than the selection ------------------------------------------------
 
 plan -- .github/workflows/pr-require-checks.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
+is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 7 &&
   is "$(key windows_jobs)" "[]"
-check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 7 legs, and test-windows from the selection" $?
+check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 12 legs, and test-windows from the selection" $?
 
 plan -- .github/actions/download-full-history/action.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]" && is "$(key windows_jobs)" '["win-a","win-b"]'
 check "the local action every lane runs plans every lane whole" $?
 
 plan -- .github/actions/other/action.yml
@@ -377,8 +378,8 @@ check "a pr-test-platforms.yml change runs every Windows step and no pr-require-
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_legs)" "[0,1,2,3,4,5,6]"
-check "the whole tree plans the runner's whole corpus on 7 legs" $?
+  is "$(key bash_legs)" "[0,1,2,3,4,5,6,7,8,9,10,11]"
+check "the whole tree plans the runner's whole corpus on 12 legs" $?
 
 # --- a diff base ---------------------------------------------------------------
 

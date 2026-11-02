@@ -7441,10 +7441,11 @@ test("every composite action npm ci is bounded by timeout and skips audit and fu
   assert.ok(installs >= 2, `only ${installs} composite npm ci lines found`);
 });
 
-// #10061: no job timeout-minutes is raised to fit an install bound.
-test("check-catalog keeps its 3-minute job bound with the install step under it", () => {
+// #10061: no job timeout-minutes is raised to fit an install bound. #9398: the
+// 6-minute timeout is the 3-minute work budget plus the runner tail.
+test("check-catalog keeps its 6-minute job bound with the install step under it", () => {
   const job = workflow("pr-require-checks.yml").jobs["check-catalog"];
-  assert.equal(job["timeout-minutes"], 3);
+  assert.equal(job["timeout-minutes"], 6);
   assert.equal(job.steps.find((step) => step.name === "Install the locked root toolchain")["timeout-minutes"], 2);
 });
 
@@ -7865,4 +7866,34 @@ test("pr-run-activity-read.yml: issue-fields logs the API budget only when it ch
   assert.equal(runs("success"), true);
   assert.equal(runs(""), false, "the checkout skipped: no claim and no prune list");
   assert.equal(runs("failure"), false);
+});
+
+// A finished work-resolve-issue run starts the sweep: from main and this
+// repository only, whatever it concluded, unless it ran no job.
+test("work-unblock.yml: a finished work-resolve-issue run in this repository sweeps, a skipped or fork run does not", () => {
+  const doc = workflow("work-unblock.yml");
+  assert.deepEqual(doc.on.workflow_run, { workflows: ["work-resolve-issue"], types: ["completed"] });
+  const job = doc.jobs["label-unblocked"];
+  const runs = ({ event = "workflow_run", ref = "refs/heads/main", head = "melodic-software/claude-code-plugins", conclusion = "success", sender = "Bot" } = {}) =>
+    evaluate(job.if, {
+      "github.event.workflow_run.head_repository.full_name": head,
+      "github.event.workflow_run.conclusion": conclusion,
+      "github.event.sender.type": sender,
+      "github.event_name": event,
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.ref": ref,
+    });
+  for (const conclusion of ["success", "failure", "cancelled", "timed_out"]) assert.equal(runs({ conclusion }), true, conclusion);
+  assert.equal(runs({ conclusion: "skipped" }), false, "a run from a label other than agent-ready ran no job");
+  assert.equal(runs({ head: "someone/fork" }), false, "a fork's run");
+  assert.equal(runs({ ref: "refs/heads/feature" }), false);
+  assert.equal(runs({ event: "issues", sender: "Bot" }), false, "a bot's close still skips");
+  assert.equal(runs({ event: "issues", sender: "User" }), true);
+  const config = job.steps.find((step) => step.id === "config");
+  const resolves = (event, who, kill = "true") =>
+    evaluate(config.if, { "steps.kill.outputs.proceed": kill, "steps.who.outputs.proceed": who, "github.event_name": event });
+  assert.equal(resolves("workflow_run", ""), true, "the sweep has no closer to check");
+  assert.equal(resolves("issues", ""), false);
+  assert.equal(resolves("issues", "true"), true);
+  assert.equal(resolves("workflow_run", "", "false"), false, "the kill switch stops it");
 });

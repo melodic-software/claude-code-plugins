@@ -1,11 +1,11 @@
 {
   "name": "docs-hygiene",
-  "version": "2.3.2",
   "description": "Documentation-hygiene toolkit: compress (trim markdown with a semantic-diff check), audit-noise (classify markdown noise), extract-ssot (deduplicate into a single source of truth), audit-encapsulation (citations into skill-private files), rename-references (stale references after renames), audit-derivability (does a doc earn its existence), audit-progressive-disclosure (load tiers), write-for-agents and write-for-humans (authoring). Setup checks markdownlint-cli2.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "2.3.2",
   "license": "MIT",
   "keywords": [
     "documentation",
@@ -16,8 +16,14 @@
     "derivability",
     "progressive-disclosure",
     "context-engineering",
-    "refactoring"
+    "refactoring",
+    "skill",
+    "compress",
+    "audit"
   ],
+  "metadata": {
+    "category": "maintenance"
+  },
   "userConfig": {
     "compress_articles": {
       "type": "string",

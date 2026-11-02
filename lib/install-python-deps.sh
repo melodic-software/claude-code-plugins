@@ -2,7 +2,7 @@
 # SessionStart hook: install the plugin's hash-locked Python packages (requirements.txt) into
 # ${CLAUDE_PLUGIN_DATA} on demand, so its skills run against them and nothing fetches a package
 # while a skill runs (docs/contracts/on-demand-dependencies, Python). A no-op once the set
-# loads. A failed install is a user notice with the repair line, never a silent skip; the model
+# loads, and one that starts no process while pydeps.py's ready stamp holds. A failed install is a user notice with the repair line, never a silent skip; the model
 # hears nothing here, since pydeps.py run prints the same repair line when a skill runs.
 # Always exits 0: a failed install must not block the session. The plugin's wording (its name,
 # the Pythons it supports, the skills that need the packages) is in install-python-deps.conf.
@@ -50,9 +50,72 @@ launcher_listed() {
 # such an alias too, and it runs, so it is only asked to list.
 candidates=(python3.13 python3.12 python3 python)
 case "${OSTYPE:-}" in
-msys* | cygwin*) candidates+=(py) ;;
-*) ;;
+  msys* | cygwin*) candidates+=(py) ;;
+  *) ;;
 esac
+
+# as_posix <path> -> REPLY: a drive-letter path (C:\x or C:/x) in this shell's POSIX form under Git Bash or Cygwin,
+# by builtins alone: cygpath would cost a process start. The drive mounts at /c/ or /cygdrive/c/, whichever exists:
+# OSTYPE does not tell them apart, since Git Bash can report cygwin. Fails when neither exists. Any other path is
+# returned as is.
+as_posix() {
+  REPLY="$1"
+  case "${OSTYPE:-}" in
+    msys* | cygwin*)
+      REPLY="${REPLY//\\//}"
+      if [[ "$REPLY" =~ ^([A-Za-z]):(/.*)?$ ]]; then
+        local drive="${BASH_REMATCH[1],,}" rest="${BASH_REMATCH[2]}"
+        if [[ -d "/$drive" ]]; then
+          REPLY="/$drive$rest"
+        elif [[ -d "/cygdrive/$drive" ]]; then
+          REPLY="/cygdrive/$drive$rest"
+        else
+          return 1
+        fi
+      fi
+      ;;
+    *) ;;
+  esac
+}
+
+# stamp_holds -> 0 when pydeps.py's ready stamp (written after a successful install with an interpreter found on
+# PATH) still describes this session: the same plugin root, every candidate name resolving to the same file, none of
+# those files, requirements.txt, pydeps.py or pydeps.json newer than the stamp, and the installed set present.
+# Files are compared by identity (-ef), not spelling: one file can be named through a symlink, another mount, an 8.3
+# short name, another letter case, or without its .exe. Builtins only (hash fills BASH_CMDS the way command -v looks
+# up a name, without a subshell), so a session start whose set is ready starts no process. Anything else falls
+# through to the full path, which probes and rebuilds.
+stamp_holds() {
+  ((BASH_VERSINFO[0] >= 4)) || return 1
+  local stamp lines name got i=3 f
+  as_posix "$data" || return 1
+  stamp="$REPLY/python/.hook-ready"
+  [[ -f "$stamp" ]] || return 1
+  mapfile -t lines <"$stamp" || return 1
+  lines=("${lines[@]%$'\r'}")
+  ((${#lines[@]} == 3 + ${#candidates[@]})) && [[ "${lines[0]}" == 'pydeps-hook-ready 1' ]] || return 1
+  as_posix "${lines[1]}" || return 1
+  [[ "$REPLY/scripts/pydeps.py" -ef "$ROOT/scripts/pydeps.py" ]] || return 1
+  as_posix "${lines[2]}" || return 1
+  [[ -d "$REPLY" ]] || return 1
+  for name in "${candidates[@]}"; do
+    [[ "${lines[i]%%=*}" == "$name" ]] || return 1
+    as_posix "${lines[i]#*=}" || return 1
+    got=""
+    hash -- "$name" 2>/dev/null && got="${BASH_CMDS[$name]-}"
+    if [[ -n "$REPLY" || -n "$got" ]]; then
+      [[ -n "$REPLY" && -n "$got" && "$REPLY" -ef "$got" ]] || return 1
+      [[ "$got" -nt "$stamp" ]] && return 1
+    fi
+    i=$((i + 1))
+  done
+  for f in requirements.txt scripts/pydeps.py scripts/pydeps.json; do
+    [[ "$ROOT/$f" -nt "$stamp" ]] && return 1
+  done
+  return 0
+}
+stamp_holds && exit 0
+
 py=""
 for candidate in "${candidates[@]}"; do
   resolved="$(command -v "$candidate" 2>/dev/null)" || continue
@@ -76,19 +139,19 @@ fi
 repair_line() {
   local parts=("$(command -v "$py")" "$ROOT/scripts/pydeps.py" install --data-dir "$data") line="" part
   case "${OSTYPE:-}" in
-  msys* | cygwin*)
-    for part in "${parts[@]}"; do
-      [[ "$part" == /* ]] && part="$(cygpath -w "$part" 2>/dev/null || printf '%s' "$part")"
-      line+=" '${part//\'/\'\'}'"
-    done
-    printf '&%s' "$line"
-    ;;
-  *)
-    for part in "${parts[@]}"; do
-      line+=" '${part//\'/\'\\\'\'}'"
-    done
-    printf '%s' "${line# }"
-    ;;
+    msys* | cygwin*)
+      for part in "${parts[@]}"; do
+        [[ "$part" == /* ]] && part="$(cygpath -w "$part" 2>/dev/null || printf '%s' "$part")"
+        line+=" '${part//\'/\'\'}'"
+      done
+      printf '&%s' "$line"
+      ;;
+    *)
+      for part in "${parts[@]}"; do
+        line+=" '${part//\'/\'\\\'\'}'"
+      done
+      printf '%s' "${line# }"
+      ;;
   esac
 }
 
@@ -98,15 +161,15 @@ repair_line() {
 # return the unconverted path.
 to_native() {
   case "${OSTYPE:-}" in
-  msys* | cygwin*)
-    [[ "$1" == /* ]] || {
-      printf '%s' "$1"
-      return 0
-    }
-    local converted
-    converted="$(cygpath -m "$1" 2>/dev/null)" && [[ -n "$converted" ]] && printf '%s' "$converted"
-    ;;
-  *) printf '%s' "$1" ;;
+    msys* | cygwin*)
+      [[ "$1" == /* ]] || {
+        printf '%s' "$1"
+        return 0
+      }
+      local converted
+      converted="$(cygpath -m "$1" 2>/dev/null)" && [[ -n "$converted" ]] && printf '%s' "$converted"
+      ;;
+    *) printf '%s' "$1" ;;
   esac
 }
 

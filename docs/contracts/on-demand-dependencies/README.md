@@ -1,7 +1,7 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 2.3.0
-Last updated: 2026-10-04
+Version: 2.4.0
+Last updated: 2026-11-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
 manifest and lockfile, install from them on demand into the plugin's data directory, and fail
@@ -121,6 +121,18 @@ and does nothing when the set already loads (Rule P3). pip refuses the install w
 requirement, transitive ones included, is unpinned or unhashed, or a wheel's hash differs from the
 lock ([pip secure installs](https://pip.pypa.io/en/stable/topics/secure-installs/)).
 
+**Ready stamp:** while the reference's ready stamp holds, the hook skips the install and the load
+probe and starts no process, since starting Python and importing the set take most of the hook's
+run time on Windows. After a successful install with an interpreter found through a PATH
+candidate, `pydeps.py` writes `<plugin data dir>/python/.hook-ready` atomically, recording the
+plugin root, the installed directory and what each of the hook's candidate names resolves to. An
+interpreter only the py launcher listed writes no stamp. The hook checks the stamp with shell
+builtins alone, and any of these sends it down the full path: another plugin root, a candidate
+name resolving to another file, a resolved interpreter file, `requirements.txt`, `pydeps.py` or
+`pydeps.json` newer than the stamp, or the installed directory missing. The root and the
+candidates are compared as files (`-ef`), not as path strings, so a symlink, another mount, an 8.3
+short name, another letter case or a dropped `.exe` still matches the same file.
+
 **Nothing else fetches.** No skill body, script or hook other than the install hook runs
 `uv run`, `uvx`, `pip install` or `--with-requirements`. A skill runs its scripts against the
 installed set through a launcher that puts the install directory on `PYTHONPATH` and never
@@ -148,7 +160,9 @@ or script runs it on its own.
   distribution and import names differ, `opencv-python-headless` and `cv2`) and imports them with
   the install as the only third-party path (`PYTHONPATH` set to it, `-S` so no ambient
   `site-packages`), so an ambient copy never passes for the locked set. The launcher runs scripts
-  the same way. A directory that is present but no longer loads is rebuilt.
+  the same way. A directory that is present but no longer loads is rebuilt. The probe runs on the
+  hook's full path, in the install the repair line runs, and in `check`; while the ready stamp
+  (Rule P2) holds, the hook trusts the stamp instead.
 - **Floor:** the component states its Python floor and the hook looks for an interpreter at or
   above it, so a host with an older Python gets Rule P4's notice, not a failed install.
 
@@ -164,6 +178,17 @@ with no installed set prints the same line and exits 2. Neither falls back to an
 packages, installs on its own, or reports a partial result as complete. In an interactive session
 the agent offers to run the repair line and runs it on the user's yes, per
 [When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
+
+A stamped set that breaks surfaces when a skill runs, not at session start. The launcher drops the
+ready stamp and prints the repair line both for a missing set and when a script exits non-zero
+while the stamp is present, since a set that stops importing fails the script; the script's own
+exit code stands. `check` drops the stamp when a row fails. Either way the next session start
+probes and rebuilds. Two cases outlive the stamp's checks, since the hook cannot learn which
+interpreter a name runs without starting it: a candidate symlink repointed to an interpreter file
+older than the stamp, and a version-manager shim (pyenv, asdf, mise) whose selected version
+changed, which leaves the shim's path and file time as they were. In both, the hook keeps trusting
+the stamp until the first skill run, which finds no set for the new interpreter, prints the repair
+line and drops the stamp.
 
 ## Exceptions
 

@@ -111,7 +111,7 @@ make_plugin() {
     done
     user_config=", \"userConfig\": {$user_config}"
   fi
-  printf '{"name": "%s", "version": "0.1.0", "description": "fixture"%s}\n' \
+  printf '{"version": "0.1.0",\n"name": "%s",\n"description": "fixture"%s}\n' \
     "$plugin" "$user_config" >"$TMP/plugins/$plugin/.claude-plugin/plugin.json"
 }
 
@@ -1541,10 +1541,10 @@ fi
 # displayName fails; each title and description shape warns on its own line.
 OPT_DOC='docs/contracts/plugin-option-naming/README.md'
 
-# write_manifest <plugin> <extra-json-members> -- written verbatim after name.
+# write_manifest <plugin> <extra-json-members> -- written verbatim after description.
 write_manifest() {
   mkdir -p "$TMP/plugins/$1/.claude-plugin"
-  printf '{"name": "%s", "version": "0.1.0", "description": "fixture"%s}\n' "$1" "$2" \
+  printf '{"version": "0.1.0",\n"name": "%s",\n"description": "fixture"%s}\n' "$1" "$2" \
     >"$TMP/plugins/$1/.claude-plugin/plugin.json"
 }
 
@@ -1724,7 +1724,7 @@ reset_fixture
 write_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
 long="$(printf 'a%.0s' {1..501})"
 write_manifest longfix ''
-printf '{"name": "longfix", "version": "0.1.0", "description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
+printf '{"version": "0.1.0",\n"name": "longfix",\n"description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
 write_manifest okfix ''
 out="$(run_fixture)"
 if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultEnabled' &&
@@ -1733,6 +1733,31 @@ if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultE
   ok "\$schema, defaultEnabled, a description over 500 fail, and a conforming manifest passes"
 else
   fail "claude.ai manifest limits should fail as stated: $out"
+fi
+
+# --- 8g. "version" never touches "description". ------------------------------
+# A nested "description" (a userConfig option's) next to "version" is not the
+# manifest's own, so it does not count; neither does a nested manifest (an eval
+# fixture), which is never released.
+reset_fixture
+mkdir -p "$TMP/plugins/adjfix/.claude-plugin" "$TMP/plugins/samefix/.claude-plugin" "$TMP/plugins/nestfix/.claude-plugin" \
+  "$TMP/plugins/gapfix/evals/case/.claude-plugin"
+printf '{\n  "name": "evalfix",\n  "version": "0.1.0",\n  "description": "fixture"\n}\n' \
+  >"$TMP/plugins/gapfix/evals/case/.claude-plugin/plugin.json"
+printf '{\n  "name": "adjfix",\n  "version": "0.1.0",\n  "description": "fixture"\n}\n' \
+  >"$TMP/plugins/adjfix/.claude-plugin/plugin.json"
+printf '{"name": "samefix", "version": "0.1.0", "description": "fixture"}\n' \
+  >"$TMP/plugins/samefix/.claude-plugin/plugin.json"
+printf '{\n  "name": "nestfix",\n  "userConfig": {"opt": {"type": "string",\n    "description": "nested"}},\n  "version": "0.1.0",\n  "license": "MIT",\n  "description": "fixture"\n}\n' \
+  >"$TMP/plugins/nestfix/.claude-plugin/plugin.json"
+write_manifest gapfix ''
+out="$(run_fixture)"
+if grep -qF -- '- plugins/adjfix/.claude-plugin/plugin.json: "version" (line 3) and "description" (line 4) touch' <<<"$out" &&
+  grep -qF -- '- plugins/samefix/.claude-plugin/plugin.json: "version" (line 1) and "description" (line 1) touch' <<<"$out" &&
+  ! grep -qE '(nestfix|gapfix).*touch' <<<"$out"; then
+  ok "a manifest whose version and description lines touch fails; one with a line between them, or a nested one, passes"
+else
+  fail "touching version and description lines should fail, and only those: $out"
 fi
 
 # write_skill <relative-path> <content>

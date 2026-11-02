@@ -900,7 +900,7 @@ second comment for that instance. The unit is the writer identity, not the lane 
 instances of one lane legitimately hold N sentinel-identified comments on that lane's telemetry
 item, one each, and no instance ever edits another's.
 `harness-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
-(`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
+(`/work-items:morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
 script, so each lane **inlines** the small `gh api` upsert and the coupling to `harness-ops` stays
 one-directional. An inlined upsert is bound by the `@path`-as-body rule in `/harness-ops:lanes`,
 section "Never pass a body as an `@path` string", and encodes that rule mechanically in its own
@@ -1350,7 +1350,7 @@ GitHub state the lane already reads: labels, claims, and the PR hold. No agent r
 agent's summary; each lane's own telemetry comment is its report of record. The commands below take
 `R=<owner>/<repo>`.
 
-**Read a lane.** `/harness-ops:morning-brief` reads every lane's telemetry comment. To read one
+**Read a lane.** `/work-items:morning-brief` reads every lane's telemetry comment. To read one
 directly, find the `Lane telemetry: <lane>` issue and print its sentinel comments, one per instance:
 
 ```bash
@@ -1460,8 +1460,8 @@ a checklist of its own:
 
 | Rule | Mechanism that meets it |
 |---|---|
-| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier), confirmed by a live run on Claude Code 2.1.314 (#8991) and rerunnable with `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case. A routine's comments post as the account owner's GitHub login, so the reader finds them by sentinel marker, never by author |
-| Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
+| Bookmark per source | `/work-items:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier), confirmed by a live run on Claude Code 2.1.314 (#8991) and rerunnable with `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case. A routine's comments post as the account owner's GitHub login, so the reader finds them by sentinel marker, never by author |
+| Failed read reported as unreadable | `/work-items:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../../conventions/pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
 | Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234. Not met for local lanes: each reads config it can edit, and §4 "Lane-editable config and the four sandbox conditions" names what makes a deny rule hold |

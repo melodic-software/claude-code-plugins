@@ -154,7 +154,7 @@ reader applies.
 | `pr-require-checks` | each verify result |
 | `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
-| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
+| `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran), which each finished `work-resolve-issue` run that ran a job also starts, so a freed slot admits the next deferred issue at once; labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
@@ -1103,11 +1103,12 @@ the rules that only tighten in
   issue (over the cap or outside the charset), which labels it `needs-human`; it labels a canary or revert record
   `needs-human`, since only a person's close clears one. `babysit_postmerge.py --remediate` labels
   every record it files `needs-human`: the lanes App's issue starts intake triage on its own, and
-  that label keeps admission off it. On a green attempt 1 of a scheduled full run on main, the
+  that label keeps admission off it. On each completed scheduled full run on main, the
   alert's `close-cleared` job closes as completed each open schedule or dispatch record, demotion
-  or post-merge-failure, that either filer opened before that run was created, at a commit behind
-  its head, and that was never edited; closing it is the record's state only, and the merge gate
-  still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
+  or post-merge-failure, that either filer opened, that was never edited, and that a later green
+  full run on main cleared by the merge gate's own rule (`_recovered_at`: attempt 1, a schedule or
+  a github-actions[bot] dispatch, created after the record, at a commit ahead of its SHA and on
+  main); closing it is the record's state only, and the merge gate still decides whether it holds. A fix or quarantine issue not delivered to intake triage gets
   `needs-human`, and the record does when a failing check got no fix issue, whether over the cap,
   outside the charset, or not filed; a fix issue reopened on a
   repeat failure keeps whatever labels it has, so one labeled `needs-human` stays with a person.
@@ -1260,8 +1261,14 @@ the rules that only tighten in
   completion through `workflow_run`, so its definition is main's, gates the trigger as pr-verify
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
-  token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
-  git would call binary is shown as text, and a patch that still holds a binary file gets no
+  token and a model that may only Read its data directory. A head both lanes already reviewed,
+  where the merge gate's own predicate (`_main_bound`) binds each lane on what the trigger job
+  reads, is not reviewed again, and no leg starts for a pull request with no lane source. A verdict
+  counts there only when its run's main commit has no diff from main's tip over what the review
+  reads from main (`.github/scripts/pr-review-main/criteria.txt`, which the copy steps also read),
+  so a verdict judged under other criteria reviews again; a failed or cancelled review, another
+  head of the same tree, or a failed read, fetch or diff reviews again. The diff is
+  `git diff --text`, so a file git would call binary is shown as text, and a patch that still holds a binary file gets no
   verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
   boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
   order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
@@ -3480,8 +3487,8 @@ intake with the cutoff past that pull request. Each pass reads its issues in one
 most 50 issues a call); a read that fails admits as though no such pull request merged.
 
 work-unblock's `label-unblocked` job runs one at a time across the repository (one `concurrency:`
-group, queued, never cancelled), so a burst of closes or a close run beside the hourly sweep cannot
-each admit the full room. An `agent-ready` label added moments before may still be missing from
+group, queued, never cancelled), so a burst of closes or finished issue runs, or a close run beside
+the hourly sweep, cannot each admit the full room. An `agent-ready` label added moments before may still be missing from
 the issues listing, so a run right after another may read the room as one admission too wide.
 
 Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read
@@ -3927,6 +3934,16 @@ list. The config reader reads the synced copy from the base SHA's
   rejects any value until a second repository adopts.
 - The post-merge failure remedy, revert or fail forward, is the per-repository `red-main.remedy`
   key ([Red main](#red-main)), not a choice by change type.
+- Holds converge on one label. `ci-status` enforces holds in seven places
+  ([Review-lane holds](#review-lane-holds)), and in a 2026-11-01 sample holds, not code, made 17 of 24 red
+  pull request runs and 10 of 12 red merge groups red
+  ([#12284 audit](https://github.com/melodic-software/claude-code-plugins/issues/12284#issuecomment-6582114885)).
+  The direction: a hold our own actors place is `do-not-merge`, read once per run; only the
+  review lanes' critical-security and cost holds and the trust-path holds stay person-only. The
+  slices are tracked as #12445 (pr-merge wakes per pull request), #12446 (fold own-actor holds),
+  #12447 (review requirement off ci-status's first pass), #12448 (per-completion run fan-out),
+  #12449 (queue-time hold read once), #12456 (parent close-out) and #12438 (duplicate ruleset
+  `pull_request` rule).
 
 ## Versioning
 

@@ -1,11 +1,11 @@
 {
   "name": "review",
-  "version": "3.0.0",
   "description": "Code-review toolkit: nine agents, read-only over the reviewed code, plus orchestration skills for the quality gate and fan-out, a pull-request change digest with an interactive view (/review:explain-change), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "4.0.1",
   "license": "MIT",
   "keywords": [
     "review",
@@ -15,19 +15,19 @@
     "quality-gate",
     "ci",
     "agents",
-    "skill"
+    "skill",
+    "doc-drift",
+    "ci-audit",
+    "fanout"
   ],
+  "metadata": {
+    "category": "quality"
+  },
   "userConfig": {
     "connected_page_guard_enabled": {
       "type": "boolean",
       "title": "Connected-page guard",
       "description": "Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page.",
-      "default": true
-    },
-    "ratchet_offer": {
-      "type": "boolean",
-      "title": "Ratchet offers",
-      "description": "Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml).",
       "default": true
     },
     "downstream_probe": {

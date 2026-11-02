@@ -1,11 +1,11 @@
 {
   "name": "desktop-notification",
-  "version": "0.10.7",
   "description": "Alert you when Claude Code needs input: an audible terminal bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
+  "version": "0.10.8",
   "license": "MIT",
   "keywords": [
     "notification",
@@ -15,6 +15,9 @@
     "osc9",
     "hook"
   ],
+  "metadata": {
+    "category": "claude-code"
+  },
   "userConfig": {
     "desktop_notification_enabled": {
       "type": "boolean",
