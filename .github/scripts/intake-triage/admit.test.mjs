@@ -810,8 +810,7 @@ describe("decide", () => {
     });
   });
 
-  // rule-admit.sh's fixed checks: its charge words, read from one definition,
-  // and its body-edited-after-the-verdict refusal.
+  // The charge words, read from their one definition in charge-words.json.
   describe("a charge word in what the issue will do", () => {
     const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
 
@@ -893,8 +892,7 @@ describe("decide", () => {
       assert.equal(await read(() => Promise.reject(new Error("GET /repos/o/r failed"))), false);
     });
 
-    // rule-admit.test.sh shows the script reads the same file.
-    test("reads the patterns from the one definition rule-admit.sh reads", () => {
+    test("reads the patterns from their one definition in charge-words.json", () => {
       const shared = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
       const { code, cost, costPrivate } = chargePattern();
       assert.deepEqual([code.source, cost.source, costPrivate.source], [shared.code, shared.cost, shared.cost_private].map((p) => new RegExp(p).source));

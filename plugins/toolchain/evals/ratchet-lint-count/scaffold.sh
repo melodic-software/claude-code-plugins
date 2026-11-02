@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Builds a small JavaScript repository whose no-console rule has 14 existing violations,
-# a counting script, and a CI workflow whose required job is `build`. No ratchet exists yet.
+# Builds a small JavaScript repository whose in-house no-console check has 14 existing violations
+# across 7 files, a per-file counting script, and a CI workflow whose required job is `build`. The
+# check is a repository script with no baseline file and no autofix. No ratchet exists yet.
 set -euo pipefail
 
 git init -q -b main .
@@ -19,24 +20,20 @@ done
 
 cat >lint-count.sh <<'EOF'
 #!/usr/bin/env bash
-# Counts no-console violations under src/ and prints violations=<n>.
+# The repository's own no-console check, run in counting mode. It has no baseline file and no
+# autofix. Prints one `<path> violations=<n>` line per file with a violation and exits 0.
 # Exits 2 when src/ is missing, so a broken checkout never reads as zero.
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 [[ -d src ]] || { echo "lint-count: src/ not found" >&2; exit 2; }
-count="$(grep -rhoE 'console\.(log|warn|error)\(' src | wc -l | tr -d ' ')"
-printf 'violations=%s\n' "$count"
+for file in src/*.js; do
+  count="$(grep -cE 'console\.(log|warn|error)\(' "$file" || true)"
+  if [[ "$count" -gt 0 ]]; then
+    printf '%s violations=%s\n' "$file" "$count"
+  fi
+done
 EOF
 chmod +x lint-count.sh
-
-cat >.eslintrc.json <<'EOF'
-{
-  "root": true,
-  "rules": {
-    "no-console": "warn"
-  }
-}
-EOF
 
 cat >.github/workflows/ci.yml <<'EOF'
 name: ci
@@ -67,8 +64,9 @@ cat >CONTRIBUTING.md <<'EOF'
 # Contributing
 
 The only status check required for merge is the `build` job in `.github/workflows/ci.yml`.
-`docs-preview` is informational.
+`docs-preview` is informational. `bash lint-count.sh` is our in-house no-console check; it has no
+baseline file and no autofix.
 EOF
 
 git add .
-git commit -q -m "store app with a no-console rule at warning severity"
+git commit -q -m "store app with an in-house no-console check"

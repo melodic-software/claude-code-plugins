@@ -2413,6 +2413,17 @@ test("pr-run-activity-read.yml: the posted check carries the lane record's class
   assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
 });
 
+// Both lane check runs carry the lane-outcome record itself, so limit-stop.mjs
+// reads one JSON shape from read and write activities alike.
+test("pr-run-activity read and write: the posted check carries the lane-outcome record", () => {
+  for (const file of ["pr-run-activity-read.yml", "pr-run-activity-write.yml"]) {
+    const { jobs } = workflow(file);
+    assert.equal(jobs.run.outputs.record, "${{ steps.lane-record.outputs.record }}", file);
+    const post = jobs.report.steps.find((s) => s.uses === "./.base/.github/actions/report-check-run");
+    assert.equal(post.with["lane-outcome"], "${{ needs.run.outputs.record }}", file);
+  }
+});
+
 // A caller whose handoff job read only that the first call posted no check
 // passes fallback handoff; the run job's input check must let it through.
 test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-key, handoff or fallback, and nothing else", () => {

@@ -986,34 +986,10 @@
       "findings_substrings": [],
       "credential_roots": "/home/runner"
     },
-    "rule-admission-valid.json": {
-      "exit": 0,
-      "findings_substrings": [],
-      "credential_roots": "/home/runner"
-    },
-    "rule-admission-invalid.json": {
+    "admission-retired-key.json": {
       "exit": 1,
       "findings_substrings": [
-        "admission.rule_admission[1].id: duplicate rule id \"R1\"",
-        "admission.rule_admission[1].work_class: \"C3\" is not one of C1 | C2",
-        "admission.rule_admission[2].proposed_class: \"work-class: read-only\" is already bound by another rule",
-        "admission.rule_admission[3]: unknown key \"verified\"",
-        "admission.rule_admission[3].id: must match R<n>",
-        "admission.rule_admission[3].proposed_class: must be a \"work-class: <name>\" label"
-      ],
-      "credential_roots": "/home/runner"
-    },
-    "rule-admission-human-gated-only.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "admission.rule_admission: dispatch_posture human-gated-only gates every dispatch, so no rule may admit"
-      ],
-      "credential_roots": "/home/runner"
-    },
-    "rule-admission-gated-class.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "admission.rule_admission[1]: work_class C2 resolves to human-gated for provenance agent on tracker-vcs-event in admission.rules; a rule cannot admit what the decision table gates"
+        "admission: unknown key \"rule\u005fadmission\" (additionalProperties: false)"
       ],
       "credential_roots": "/home/runner"
     },

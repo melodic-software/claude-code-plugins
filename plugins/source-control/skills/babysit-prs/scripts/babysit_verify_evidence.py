@@ -157,11 +157,15 @@ holds the live count or more and a kept entry expires within it, the pages
 around the kept entries near expiry are read again and decide every id they
 span, an id they omit by its own read (`Reader._near_expiry`), at a few pages
 a group whatever the repository's total and at most `NEAR_EXPIRY_PAGE_CAP` a
-listing. They are read on an exact count too: an entry deleted early can stand
+listing's incremental reads, and as many again for its whole listings'
+top-ups. They are read on an exact count too: an entry deleted early can stand
 in for a FAIL the pages skipped. An over-count those pages do not settle goes
 to the one whole listing, an exact count they do not settle fails the
 listing (as transient when only `NEAR_EXPIRY_PAGE_CAP` or
-`NEAR_EXPIRY_ID_READ_CAP` left it so, so a later Reader may list), a count they leave short goes to a whole listing with no wait, and a
+`NEAR_EXPIRY_ID_READ_CAP` left it so, so a later Reader may list), a count
+they leave short is a page-boundary skip in the fresh pages and is read
+again after a wait while the caps left cover another such read (else a whole
+listing), and a
 page or id read still failing on a 5xx after `LISTING_WAITS` fails it as
 transient. Such a listing
 could hide a FAIL by leaving it out, so it is kept only when it holds exactly
@@ -411,22 +415,23 @@ LISTING_PAGE_SIZE = 100
 # line whose `listed` exceeds `total_count`. Twice the largest lead seen
 # (judgment on that data).
 EARLY_DELETION_LEAD = timedelta(hours=2)
-# The most pages `Reader._near_expiry` reads for one listing, its incremental
-# read and top-up together; past it an over-count stands and goes to the one
+# The most pages `Reader._near_expiry` reads for one listing's incremental
+# reads, and again for its whole listings' top-ups (`_complete_listing` resets
+# both caps); past it an over-count stands and goes to the one
 # whole listing, and an exact count fails the listing. On the 2026-11-01
 # carry behind #11903's refusal it read 12 pages; twice that (judgment on
 # that data), at `LISTING_PAGE_SECONDS` a page, stays well inside
 # verify-cap.mjs's 120 s limit and a fifth of that day's 133-page whole
 # listing.
 NEAR_EXPIRY_PAGE_CAP = 24
-# The most artifacts `Reader._near_expiry` reads by id for one listing, its
-# incremental read and top-up together: each id its pages did not show is
+# The most artifacts `Reader._near_expiry` reads by id for one listing's
+# incremental reads, and again for its top-ups: each id its pages did not show is
 # dropped only on a 404 or an expired record. It drops at most the listing's
 # surplus over the live count, which was 31 to 34 in the three over-counts
 # behind #11903's refusal; the largest (judgment on that data). Past it an
 # over-count stands and an exact count fails the listing. Both caps reset
-# with each listing the Reader reads, as after `refresh()`;
-# pr-require-checks.yml's cold_cost counts them once.
+# with each listing the Reader reads, as after `refresh()`, and again before
+# its whole listings; pr-require-checks.yml's cold_cost counts them twice.
 NEAR_EXPIRY_ID_READ_CAP = 34
 # The `cause` a `LISTING_MISS_PREFIX` line names when the caps above alone
 # leave an exact count unsettled: refused, but not noted for the job.
@@ -463,10 +468,10 @@ LATE_PASS_PREFIX = "babysit-late-pass"
 class _CountMissed:
     """`Reader._incremental`'s answer when its pages read whole but do not
     hold the live count: `COUNT_MISSED` (fewer), the one case read again on
-    the same base, or `COUNT_OVER` (more, or any count once the pages near
-    expiry were read again, except a top-up's exact count left short), which
-    goes to the whole listings, since no wait removes an entry GitHub no
-    longer counts."""
+    the same base, or `COUNT_OVER` (more, a top-up's over-count left short,
+    or an incremental count left short once the near-expiry caps cannot
+    cover another read), which goes to the whole listings, since no wait
+    removes an entry GitHub no longer counts."""
 
 
 # Fewer than the live count: the pages skipped an artifact, which another
@@ -1483,6 +1488,9 @@ class Reader:
         it when the caller's limit cut the whole listings' timeout and too
         little of it is left for another wait (`LISTING_WAITS`)."""
         self._whole_paged = False
+        # The whole listings' top-ups get near-expiry caps of their own, so
+        # incremental reads that spent theirs leave the top-ups theirs.
+        self._near_expiry_reads = self._artifact_reads = 0
         cap, bound = listing_cap()
         callers = cap < LISTING_TIMEOUT_SECONDS
         if callers and cap <= 0:
@@ -1604,12 +1612,12 @@ class Reader:
         gives None, since an entry deleted early may stand in for a FAIL. The
         result must hold exactly the first page's `total_count` artifacts,
         GitHub's live count: fewer gives `COUNT_MISSED`, which
-        `_current_listing` reads again on the same base after a wait, and
-        more, or any count once the pages near expiry were read (a top-up's
-        exact count left short aside, which another whole listing can
-        restore), gives `COUNT_OVER`, which goes to the whole listings (one,
-        after an over-count), since no wait removes an entry GitHub no
-        longer counts; either prints one
+        `_current_listing` reads again on the same base after a wait (after
+        the pages near expiry were read, only while the caps left cover
+        another such read), and more, or a top-up's over-count left short,
+        gives `COUNT_OVER`, which goes to the whole listings (one, after an
+        over-count), since no wait removes an entry GitHub no longer counts;
+        either prints one
         `LISTING_MISS_PREFIX` line on stderr naming `stage`, the counts and
         the pages read. No base, an entry or page of another shape, a missing
         `Date`, or any failed read gives None (`_page_transient` says whether
@@ -1620,6 +1628,8 @@ class Reader:
         and sets `_near_expiry_spent` when only the caps, or the deadline
         running out during those reads, left it so."""
         self._page_transient = self._near_expiry_spent = False
+        spent = (self._near_expiry_reads, self._artifact_reads)
+        started = _listing_clock()
         if base is not None and not all(_listed_entry(a) for a in base[1]):
             return None
         base = base or self._incremental_base()
@@ -1726,11 +1736,31 @@ class Reader:
             file=sys.stderr,
             flush=True,
         )
-        # Once the pages near expiry were read, no wait on this base settles
-        # the count: the base still holds what they dropped. A top-up's exact
-        # count left short goes to another whole listing, which can restore a
-        # skip outside those pages.
-        if over or len(listing) > total or (near and stage != "top-up"):
+        if len(listing) > total:
+            return COUNT_OVER
+        # Short once the pages near expiry were read: they dropped only ids
+        # GitHub answered gone, so the fresh pages skipped an artifact at a
+        # page boundary (#10486), which a read after a wait can restore, as
+        # for any short count. It is read again only while the caps left
+        # cover another read like this one, and a caller's limit still fits
+        # that read, the longest wait and one whole listing; else a whole
+        # listing. A top-up's exact count left short goes to another whole
+        # listing, which can restore a skip outside those pages.
+        if stage == "incremental" and (over or near):
+            pages = self._near_expiry_reads - spent[0]
+            ids = self._artifact_reads - spent[1]
+            cap = listing_cap()[0]
+            took = _listing_clock() - started
+            if (
+                NEAR_EXPIRY_PAGE_CAP - self._near_expiry_reads < pages
+                or NEAR_EXPIRY_ID_READ_CAP - self._artifact_reads < ids
+                or (
+                    cap < LISTING_TIMEOUT_SECONDS
+                    and cap < took + max(INCREMENTAL_WAITS) + listing_seconds(total)
+                )
+            ):
+                return COUNT_OVER
+        elif over:
             return COUNT_OVER
         return COUNT_MISSED
 
@@ -4286,43 +4316,80 @@ def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     branch head now (`merge_policy.settle_shared`, the lane room's rule, kept
     but never read again), as the lane's agent identity in the config there.
     With `idle`, the report is an earlier tick's, and it must also pass
-    `postmerge.idle_refusal`. Changed check code refuses before any read.
-    Prints `{"reuse", "reason"}`; exit 0 when it stands, else 1, and the
-    caller runs the check."""
+    `postmerge.idle_refusal`, its parts read cheapest first: changed check
+    code and the report's own refusals (`idle_report_refusal`) refuse before
+    any read, the verifying runs (two reads) before `settle_shared`, and the
+    quarantine issues and pins after it. The report checks run again last,
+    so their clock is never earlier than it was with the room's rule first.
+    Prints `{"reuse", "reason", "outcome"}`, `outcome` being how
+    `settle_shared` settled (None when it did not run); exit 0 when it
+    stands, else 1, and the caller runs the check."""
     shared = postmerge.read_shared(path)
     reason: str | None = "post-merge answer missing or unreadable"
+    outcome: dict[str, str | None] = {}
     if not merge_policy.check_code_unchanged(code_sha):
         reason = "post-merge answer code-changed"
     elif shared is not None:
         try:
-            default = merge_policy._default_branch(repo, shared=True)
-            config = merge_policy._default_branch_config(repo, default)
-            if not config.agent_identity:
-                reason = "no agent identity"
-            else:
-                _, reason = merge_policy.settle_shared(
-                    repo,
-                    shared,
-                    default=default,
-                    base_sha=config.base_sha,
-                    identity=config.agent_identity,
-                    code_unchanged=True,
-                    runs_unchanged=lambda answer, branch: (
-                        postmerge.pending_runs_unchanged(repo, answer, branch)
-                    ),
-                )
-                if reason is None and idle:
-                    refusal = postmerge.idle_refusal(
-                        repo,
-                        shared,
-                        default,
-                        confirm_wait_minutes=config.confirm_wait_minutes,
-                    )
-                    reason = refusal and f"idle tick {refusal}"
+            reason = _settle_reason(repo, shared, idle=idle, outcome=outcome)
         except (RuntimeError, ValueError, OSError) as exc:
             reason = f"unreadable: {exc}"
-    print(json.dumps({"reuse": reason is None, "reason": reason}))
+    print(
+        json.dumps(
+            {"reuse": reason is None, "reason": reason, "outcome": outcome or None}
+        )
+    )
     return 0 if reason is None else 1
+
+
+def _settle_reason(
+    repo: str,
+    shared: merge_policy.SharedPostMerge,
+    *,
+    idle: bool,
+    outcome: dict[str, str | None],
+) -> str | None:
+    """`_settle`'s refusal for a readable report, `outcome` filled by
+    `settle_shared` when it runs. Raises what the reads raise."""
+
+    def idle_tick(refusal: str | None) -> str | None:
+        return refusal and f"idle tick {refusal}"
+
+    if idle and (refused := idle_tick(postmerge.idle_report_refusal(shared))):
+        return refused
+    default = merge_policy._default_branch(repo, shared=True)
+    config = merge_policy._default_branch_config(repo, default)
+    if not config.agent_identity:
+        return "no agent identity"
+    if idle and (
+        refused := idle_tick(
+            postmerge.idle_runs_refusal(
+                repo,
+                shared,
+                default,
+                confirm_wait_minutes=config.confirm_wait_minutes,
+            )
+        )
+    ):
+        return refused
+    _, reason = merge_policy.settle_shared(
+        repo,
+        shared,
+        default=default,
+        base_sha=config.base_sha,
+        identity=config.agent_identity,
+        code_unchanged=True,
+        runs_unchanged=lambda answer, branch: (
+            postmerge.pending_runs_unchanged(repo, answer, branch)
+        ),
+        outcome=outcome,
+    )
+    if reason is not None or not idle:
+        return reason
+    return idle_tick(
+        postmerge.idle_marks_refusal(repo, shared)
+        or postmerge.idle_report_refusal(shared)
+    )
 
 
 # GitHub refuses a comment body over 65536 characters; the findings are cut

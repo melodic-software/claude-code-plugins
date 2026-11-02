@@ -1403,6 +1403,11 @@ export function verdictHold(records, repo, branch = "main") {
   return pass ? null : "pr-verify has not passed this head";
 }
 
+// The annotation title of a verifier hold (verdictHold, linkHold,
+// evidenceHold), so a reader of the job's annotations tells a pr-verify
+// refusal from a body hold, member veto or hold path in the same step.
+export const VERIFIER_TITLE = "pr-verify hold";
+
 // The refusals of babysit_verify_evidence.py a pass decides: verdictHold and
 // linkHold judge the pass here, and an approval lifts them as it lifts this.
 const PASS_REFUSALS = Object.freeze(["verify:missing", "verify:spec-changed", "verify:untrusted-spec"]);
@@ -1673,6 +1678,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (widened && lifters.length) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
+    // The verifier's holds, recorded under their own annotation title
+    // (VERIFIER_TITLE): they share this step with the body and member holds.
+    const verifier = [];
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
       // An approval lifts the verifier hold whole, the link with it.
@@ -1682,11 +1690,11 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       } else if (!unverified && approved.length === 0) {
         // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
         // so only a new head or an approval recovers it.
-        reasons.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
+        verifier.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       } else if (approved.length) {
         console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
-        reasons.push(
+        verifier.push(
           `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
         );
       }
@@ -1697,16 +1705,19 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       } else if (approved.length) {
         console.log(`#${number}: no pr-verify FAIL hold: ${approved.join(", ")} approved this head, which lifts '${escape(failed)}'.`);
       } else {
-        reasons.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
+        verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       }
     }
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${escape(reason)}.`);
     }
+    for (const reason of verifier) {
+      console.log(`::error title=${VERIFIER_TITLE}::#${number}: ${escape(reason)}.`);
+    }
     if (!reasons.length) {
       console.log(`#${number}: no body hold, no member veto and no hold path.`);
     }
-    return reasons.length ? 1 : 0;
+    return reasons.length || verifier.length ? 1 : 0;
   } catch (error) {
     console.log(`::error::merge-holds: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
     return 2;

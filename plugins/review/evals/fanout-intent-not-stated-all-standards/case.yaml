@@ -1,0 +1,17 @@
+schema_version: "1.1"
+name: fanout-intent-not-stated-all-standards
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: intent-not-stated-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'Intent: not stated'
+  - name: spec-reads-none
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:\\n| )*### Spec(?:\\n| )*none(?:\\n| )*### Standards)'
+  - name: defect-under-standards
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*\.work/reviews/[^"]*\.md")(?=.*## By axis(?:(?!\\n## ).)*### Standards(?:(?!\\n## ).)*(?:[Ii]sWeekend|[Ww]eekend|WEEKEND|[Ss]unday|SUNDAY))'
