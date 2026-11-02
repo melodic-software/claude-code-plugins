@@ -96,7 +96,8 @@
 // agent-ready and asks a listed human to re-file the work, and on the rest
 // admission's refusal reaches a person.
 //
-// On `schedule` it sweeps instead: every issue closed since the last
+// On `schedule`, and on `workflow_run` after a work-resolve-issue run
+// finishes, it sweeps instead: every issue closed since the last
 // successful scheduled run that ran its labeling step began (less
 // SWEEP_MARGIN_MIN, at most LOOKBACK_HOURS back; the full window when that
 // cannot be shown) goes through the same rules, so an issue a bot closed (a
@@ -238,12 +239,13 @@
 // Environment:
 //   GH_TOKEN              the lane App token (issues: write)
 //   GITHUB_REPOSITORY      owner/repo
-//   GITHUB_EVENT_NAME      `issues` (a close) or `schedule` (the sweep); a
-//                          close of an issue labeled SWEEP_LABEL runs the
-//                          sweep too
+//   GITHUB_EVENT_NAME      `issues` (a close), or `schedule` or
+//                          `workflow_run` (a finished work-resolve-issue run)
+//                          for the sweep; a close of an issue labeled
+//                          SWEEP_LABEL runs the sweep too
 //   GITHUB_EVENT_PATH      the event payload; on `issues` only its action,
 //                          sender and issue number, labels and close time
-//                          are read; on `schedule` it is not read
+//                          are read; on a sweep event it is not read
 //   KILL_SWITCH            `proceed` from the kill-switch step; anything else stops
 //   TRUSTED_ACTORS_PATH    trusted-actors.json from the default branch tip
 //   ACTOR_ID               who closed the issue; must be a listed human
@@ -2175,10 +2177,12 @@ export async function main({ env = process.env, github, actions, jobLog, now = D
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
-    const scheduled = env.GITHUB_EVENT_NAME === "schedule";
+    // A finished work-resolve-issue run sweeps as the schedule does: its
+    // payload is not read, and its sender is usually the lanes App.
+    const scheduled = env.GITHUB_EVENT_NAME === "schedule" || env.GITHUB_EVENT_NAME === "workflow_run";
     const event = scheduled ? {} : JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
     if (!scheduled && (env.GITHUB_EVENT_NAME !== "issues" || event.action !== "closed" || !NUMBER.test(String(event.issue?.number)))) {
-      throw new Error("this runs only on an issue closing or on the schedule");
+      throw new Error("this runs only on an issue closing, on the schedule or after a work-resolve-issue run");
     }
     if (env.KILL_SWITCH !== "proceed") {
       console.log("label-unblocked: the lanes kill switch stops this run; nothing read or labeled");

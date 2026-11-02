@@ -282,8 +282,9 @@ class, each with its `remedy:` lines: actionable, with its here and elsewhere co
 the one `converge` remedy; in linked worktrees; blocked. Under a `by origin:` heading come the
 pre-existing and newly created counts, with the per-step lines only when the run created any. A
 digest from before the class split shows the machine-wide count, this project's count under it when
-a root resolved, and one `converge` remedy) and its `by project path:` lines naming each path's record
-count and up to three ids (`+K more` past that); the self-update note when this plugin's install record moved during the run; the stale project
+a root resolved, and one `converge` remedy) and its `by project path:` lines naming each present path's record
+count and up to three ids (`+K more` past that), with the paths that are not present counted on one
+line; the self-update note when this plugin's install record moved during the run; the stale project
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, with the slowest step,
 the seconds outside the named steps and the clock's resolution each on its own line under it; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, a requested fast-forward that

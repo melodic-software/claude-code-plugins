@@ -57,7 +57,7 @@ file and every reader in the same change, and this document changes with it.
 }
 ```
 
-Every entry carries all eight fields:
+Every entry carries the first seven fields; `check` is optional:
 
 | Field | Meaning |
 | --- | --- |
@@ -68,7 +68,7 @@ Every entry carries all eight fields:
 | `detect` | How the checker finds it. The shape depends on `kind` (next table). |
 | `degrade` | What stops working without it, and what still works. The checker prints it. |
 | `install` | Hints keyed by package manager or `docs`. The checker prints them and never runs them. Key order is not a preference. |
-| `check` | The skill a person runs to re-check, such as `/<plugin>:check`. |
+| `check` | Optional. A skill a person runs to re-check, such as `/<plugin>:check`. `check` mode and `report` print it; hook notices never do ([Hook notices](#hook-notices)). |
 
 `need` and `for` together give the absence class. `required` for `plugin` means the plugin cannot
 work without it; hook plugins use that for `node`. `required` for `skill:x` means skill `x` stops
@@ -151,18 +151,25 @@ prerequisites: node was not found on PATH, so no prerequisite was checked. Insta
 
 ## Hook notices
 
-Two notices cover a hook's dependencies. Both name `/<plugin>:check`, never `/<plugin>:setup`,
+Two notices cover a hook's dependencies. A missing hook dependency's notice ends with a command
+that runs the plugin's own checker in `check` mode, the plugin root already resolved, because the
+Bash tool's environment has no plugin variables: `diagnose with: node "<root>/lib/prerequisites.mjs"
+check "<root>"`, where `<root>` is the absolute plugin root. `check` mode is the per-plugin entry point and prints each failure's `degrade` and `install` text;
+`report` prints the fleet table. The command passes no `--data-dir`, so a hook's `python-pkg` or
+`node-pkg` entry that only the plugin data directory holds reports `unverified` there.
+
+The node notice still names `/harness-ops:check`, passed by harness-ops' row, while the waves that
+delete the per-plugin `check` and `check-prerequisites` skills run; an entry's `check` may still
+name one of those skills until its wave drops the field. Neither notice names `/<plugin>:setup`,
 because `setup` is manual-only (the
-[philosophy](../../plugin-philosophy.md#setup-is-explicit-and-repeatable) explains the split). A
-plugin whose `check` skill already means something else (`instruction-placement`, `skill-quality`
-and `toolchain`) ships `check-prerequisites` and names that. No hook installs anything except the
+[philosophy](../../plugin-philosophy.md#setup-is-explicit-and-repeatable) explains the split). No hook installs anything except the
 `SessionStart` install hook of
 [on-demand dependencies Rule P2](../on-demand-dependencies/README.md#rule-p2-install-from-a-hook-never-while-a-skill-runs-spec).
 
 | Notice | Fires | How |
 | --- | --- | --- |
 | `node` is missing | `SessionStart` except on compaction, once per session | harness-ops carries the fleet's one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. A POSIX shell (bash, or dash as `/bin/sh` on Debian and Ubuntu) takes the first and leaves at `${PPID:+exit}`, because every POSIX shell sets `PPID`; PowerShell, the default shell on Windows without Git Bash, has no `sh`, skips to the second. Both stubs share a latch keyed by session id in the temp directory, so a session sees one notice. The stubs still take a kill-switch option as the last argument; harness-ops' row passes none. |
-| Another hook dependency is missing | `SessionStart` except on compaction, for an entry whose `for` names a hook, via harness-ops' runner of each `session_probe` plugin's `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry: `degrade`, the `docs` install link and `check`. An entry that names only a skill never notifies at session start. |
+| Another hook dependency is missing | `SessionStart` except on compaction, for an entry whose `for` names a hook, via harness-ops' runner of each `session_probe` plugin's `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry, `degrade` and the install map, and ends with the checker command. An entry that names only a skill never notifies at session start. |
 
 Both session-start notices need harness-ops enabled. Without it, no notice says `node` is missing,
 and a missing hook dependency is reported only at the point of use, by `hook::require`. The
