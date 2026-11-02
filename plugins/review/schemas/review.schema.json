@@ -17,7 +17,7 @@
       "description": "Per setting, whether the team chose the value or it was filled at the plugin default. The writer owns it; it is not a setting."
     },
     "ratchet_offer": {
-      "description": "When true, /review:audit-enforceability adds a Ratchet offer section to each proposal stub whose rung reports a violation count: once the rule exists, a non-zero count goes to /toolchain:ratchet and a zero count lands the rule. False leaves the section out.",
+      "description": "Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml).",
       "type": "boolean",
       "default": true
     },

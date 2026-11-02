@@ -4,7 +4,6 @@ The skills of `plugins/review`. Each one is driven with `<plugin-dir>` set to `p
 
 ## Parts
 
-- `audit-enforceability`: Propose the cheapest deterministic rung for each review finding.
 - `check`: Report whether node resolves and the connected-page Artifact guard is registered. Never installs.
 - `code-review`: Org CI code-review lane command for a GitHub pull request.
 - `explain-change`: Change digest for a pull request, markdown record plus an interactive view.
