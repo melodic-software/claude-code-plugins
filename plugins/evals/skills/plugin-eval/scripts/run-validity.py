@@ -68,7 +68,16 @@ one line per check, detail lines indented under it:
                       Code persists a large tool result the session already
                       received, and a Bash pipeline of cat, head, wc, grep and
                       sed -n reading only there, with no redirect, other
-                      operator or unquoted expansion. The run's score was
+                      operator or unquoted expansion; so is a Read, Grep or
+                      Glob aimed only at or under the plugin's directory
+                      (suite.root or a suite.plugins path) in a run whose
+                      trace has a result line that is not an error and none
+                      that is, when no tool_used grader of its case names that
+                      tool and the case is not an invocation probe, as when a
+                      negative control's broken copy searches itself for the
+                      text it lacks. A run with only such a denial is not
+                      denial-free, and a Glob pattern holding .. never
+                      qualifies. The run's score was
                       taken under such a denial, so compare it only with
                       runs denied the same way. Otherwise a
                       with-arm denial aimed at or under the plugin's
@@ -1086,13 +1095,25 @@ def glob_root(pattern):
     return pattern if match is None else os.path.dirname(pattern[: match.start()])
 
 
+def glob_reads(path, pattern, paths):
+    """The directories a Glob searches: paths, plus the pattern's own root
+    (glob_root) when the call names a path and the pattern is rooted. None when
+    the pattern is not a string or holds "..", which can climb out of the search
+    root, as a segment or inside braces ({..,x})."""
+    if not isinstance(pattern, str) or ".." in pattern:
+        return None
+    if path is not None and rooted(pattern):
+        return paths + (glob_root(pattern),)
+    return paths
+
+
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
     the paths it targets: a Bash call's rooted arguments, else the target path, a
     path-less Glob's pattern root (glob_root) or None, the tool's name, the
     tool_use_id, the (tool, target) pair that names the same call in another run,
-    the paths it only reads: a Read, Grep or Glob's paths, a read-only Bash
-    pipeline's path operands (bash_read_paths), else None)."""
+    the paths it only reads: a Read or Grep's paths, a Glob's (glob_reads), a
+    read-only Bash pipeline's path operands (bash_read_paths), else None)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -1122,6 +1143,8 @@ def denials(run):
             paths = (path if isinstance(path, str) else None,)
         if name == BASH_TOOL:
             reads = bash_read_paths(tool_input.get(BASH_COMMAND))
+        elif name == GLOB_TOOL:
+            reads = glob_reads(path, tool_input.get(GLOB_PATTERN), paths)
         else:
             reads = paths if name in TOOL_RESULTS_READERS else None
         out.append(
@@ -1178,10 +1201,12 @@ def inside(path, roots):
     )
 
 
-def same_as_clean(run, found, runs, roots):
+def same_as_clean(run, found, runs, roots, searched=frozenset()):
     """True when a denied run scores the same as every denial-free run of its case
     in the same arm, the case has at least one, every sibling in that arm has a
-    readable trace, and no with-arm denial is aimed inside the plugin."""
+    readable trace, and no with-arm denial is aimed inside the plugin. A run in
+    searched, denied a search of its plugin copy (own_copy_denial), is not
+    denial-free."""
     if run.arm == "with" and any(
         inside(path, roots) for _, paths, _, _, _, _ in found[run] for path in paths
     ):
@@ -1192,7 +1217,9 @@ def same_as_clean(run, found, runs, roots):
     if any(r not in found for r in siblings):
         return False
     score = run.row.get(RUN_SCORE)
-    clean = [r.row.get(RUN_SCORE) for r in siblings if not found[r]]
+    clean = [
+        r.row.get(RUN_SCORE) for r in siblings if not found[r] and r not in searched
+    ]
     return (
         is_number(score)
         and bool(clean)
@@ -1290,6 +1317,45 @@ def own_results_denial(run, denial):
     return all(in_tool_results(p, projects) for p in reads)
 
 
+def finished(run):
+    """True when the trace holds a result line marked not an error, and none
+    marked one."""
+    return not trace_errored(run) and any(
+        line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is False
+        for line in run.trace or []
+    )
+
+
+def graded_tools(case):
+    """The tools the case's tool_used graders name."""
+    tools = (
+        as_dict(g.get(GRADER_CONFIG)).get(CONFIG_TOOL)
+        for g in as_list(case.get(CASE_GRADER_DEFS))
+        if g.get(GRADER_TYPE) == FIRE_GRADER_TYPE
+    )
+    return {t for t in tools if isinstance(t, str)}
+
+
+def own_copy_denial(run, denial, roots, root):
+    """True when the denial is a Read, Grep or Glob whose every target path is at
+    or under the run's plugin copy (suite.root or a suite.plugins path), the
+    run finished, and no tool_used grader of its case names the tool. A negative control's broken copy sends the session searching its own
+    files for the text it lacks; the denial withholds only what the copy holds.
+    A Bash call, a Skill call, a denial naming no tool, a path above or outside
+    the copy, no rooted path, an unfinished run, a tool a grader counts, or an
+    invocation-probe case, whose graded decision may follow the call and which
+    probe_denial judges, never qualifies."""
+    reads, name = denial[5], denial[2]
+    return (
+        name in TOOL_RESULTS_READERS
+        and bool(reads)
+        and all(any(under(p, r) for r in roots) for p in reads)
+        and name not in graded_tools(run.case)
+        and finished(run)
+        and not is_probe(run.case, root)
+    )
+
+
 def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
@@ -1338,16 +1404,30 @@ def probe_split(case, runs, found, root):
 def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
     every = {r: denials(r) for r in traced}
-    # Plugin-data denials and reads of the session's own tool results are
-    # environment: they warn and never count toward a FAIL, so every other rule
-    # judges a run on the denials left.
+    # Plugin-data denials, reads of the session's own tool results and searches
+    # of the run's own plugin copy warn and never count toward a FAIL, so every
+    # other rule judges a run on the denials left.
     data = {r: [d for d in every[r] if own_data_denial(r, d)] for r in traced}
     results = {
         r: [d for d in every[r] if d not in data[r] and own_results_denial(r, d)]
         for r in traced
     }
+    own_copy = {
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r]
+            and d not in results[r]
+            and own_copy_denial(r, d, roots, root)
+        ]
+        for r in traced
+    }
     found = {
-        r: [d for d in every[r] if d not in data[r] and d not in results[r]]
+        r: [
+            d
+            for d in every[r]
+            if d not in data[r] and d not in results[r] and d not in own_copy[r]
+        ]
         for r in traced
     }
     denied = [r for r in traced if every[r]]
@@ -1356,7 +1436,7 @@ def check_denials(runs, roots, root):
         for r in denied
         if not found[r]
         or probe_denial(r, found, runs, root)
-        or same_as_clean(r, found, runs, roots)
+        or same_as_clean(r, found, runs, roots, {s for s in traced if own_copy[s]})
         or in_every_run(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
@@ -1371,6 +1451,11 @@ def check_denials(runs, roots, root):
     if read_back:
         summary += "; %s of the session's own tool results, not counted" % plural(
             read_back, "denied read"
+        )
+    searched = sum(len(own_copy[r]) for r in denied)
+    if searched:
+        summary += "; %s of the run's own plugin copy, not counted" % plural(
+            searched, "denied read"
         )
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     probe_cases = []
@@ -1388,8 +1473,10 @@ def check_denials(runs, roots, root):
             " run of its case was denied in both arms, none inside the plugin; and"
             " any named call other than Skill aimed only under the run's own"
             " plugin-data directory, or a Read, Grep, Glob or read-only Bash pipeline"
-            " aimed only at the session's own tool-results directory, which never"
-            " counts toward a"
+            " aimed only at the session's own tool-results directory, or a Read,"
+            " Grep or Glob no grader counts, outside an invocation probe, aimed only"
+            " at or under the plugin copy in a finished run, which never counts"
+            " toward a"
             " FAIL; a run's score was taken under such a denial, so compare it only"
             " with runs denied the same way): %s"
             % ", ".join(warned_cases)
