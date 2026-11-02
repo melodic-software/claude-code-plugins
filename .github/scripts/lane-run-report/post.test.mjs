@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
+import { SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import {
   escapeCell,
@@ -15,7 +16,6 @@ import {
   main,
   marker,
   render,
-  SECONDARY_WAIT_SECONDS,
   secondaryWait,
   templatePath,
 } from "./post.mjs";
@@ -302,16 +302,18 @@ test("a secondary limit named only in the body waits the default, and a second r
   const out = await runWith({ GITHUB_STEP_SUMMARY: summary }, github);
   assert.equal(out.code, 0);
   assert.equal(calls, 2);
-  assert.deepEqual(out.waits, [SECONDARY_WAIT_SECONDS * 1000]);
+  assert.deepEqual(out.waits, [SIGNALS.fallbackSeconds * 1000]);
   assert.ok(readFileSync(summary, "utf8").startsWith(`${MARKER}\n`));
 });
 
-test("secondaryWait leaves a primary limit, other statuses and an unexplained 403 alone, and caps a long retry-after", () => {
+test("secondaryWait leaves a primary limit, other statuses, an unexplained 403 and a retry-after past the cap alone", () => {
   assert.equal(secondaryWait(refusal(403, "status=403 x-ratelimit-remaining=0 x-ratelimit-reset=1 x-ratelimit-resource=core retry-after=5 body=\"\"")), undefined);
   assert.equal(secondaryWait(refusal(404, "status=404 retry-after=5")), undefined);
   assert.equal(secondaryWait(refusal(403, 'status=403 x-ratelimit-remaining=9 body="Resource not accessible by integration"')), undefined);
   assert.equal(secondaryWait(new Error("boom")), undefined);
-  assert.equal(secondaryWait(refusal(429, "status=429 x-ratelimit-remaining=9 retry-after=9999")), MAX_WAIT_SECONDS);
+  assert.equal(secondaryWait(refusal(429, "status=429 x-ratelimit-remaining=9 retry-after=9999")), undefined);
+  assert.equal(secondaryWait(refusal(429, `status=429 x-ratelimit-remaining=9 retry-after=${MAX_WAIT_SECONDS}`)), MAX_WAIT_SECONDS);
+  assert.equal(secondaryWait(refusal(403, 'status=403 x-ratelimit-remaining=9 body="abuse detection mechanism"')), SIGNALS.fallbackSeconds);
 });
 
 test("a path renders as a template: known words stay, the repository is {repo}, anything else is *", () => {

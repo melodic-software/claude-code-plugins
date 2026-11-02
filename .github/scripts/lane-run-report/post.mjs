@@ -9,7 +9,7 @@
 // shared RUNNER_TEMP with one, so every row is checked again, and a forged
 // outcome or commit renders as unknown or none, and no count the run job
 // carried is shown. A secondary rate limit's refusal is retried once after its
-// retry-after (SECONDARY_WAIT_SECONDS when absent, at most MAX_WAIT_SECONDS,
+// retry-after (a minute when absent, when it is at most MAX_WAIT_SECONDS,
 // https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
 // A failure to post warns with GitHub's answer, writes the report to the job
 // summary instead, and never fails the job.
@@ -23,7 +23,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, detailSuffix } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { REST_PATH_WORDS } from "../../actions/log-api-budget/rate-guard.mjs";
+import { REST_PATH_WORDS, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 import { upsert } from "../lib/upsert-comment.mjs";
 
 export const MAX_ROWS = 50;
@@ -31,19 +31,22 @@ const METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const PATH = /^\/[A-Za-z0-9/_.-]{1,200}$/;
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const OUTCOMES = new Set(["success", "failure", "cancelled", "skipped"]);
-export const SECONDARY_WAIT_SECONDS = 60;
 // Well inside the report job's 10-minute timeout.
 export const MAX_WAIT_SECONDS = 300;
 
 // The seconds to wait before one more try when GitHub's refusal is a secondary
 // rate limit (a 403 or 429 naming it, or carrying retry-after, with primary
-// quota left), else undefined. A primary limit's reset can be an hour away.
+// quota left), else undefined. The client's rate latch stops every call until
+// that time (rate-guard.mjs SIGNALS, the minute when no time is given), so a
+// wait past MAX_WAIT_SECONDS is not taken: its retry could never be sent. A
+// primary limit's reset can be an hour away.
 export function secondaryWait(error) {
   const detail = typeof error?.detail === "string" ? error.detail : "";
-  if (![403, 429].includes(error?.status) || /x-ratelimit-remaining=0\b/.test(detail)) return undefined;
+  if (!SIGNALS.statuses.includes(error?.status) || /x-ratelimit-remaining=0\b/.test(detail)) return undefined;
   const after = /retry-after=([0-9]{1,6})\b/.exec(detail);
-  if (!after && !/secondary rate limit/i.test(detail)) return undefined;
-  return Math.min(after ? Number(after[1]) : SECONDARY_WAIT_SECONDS, MAX_WAIT_SECONDS);
+  if (!after && !SIGNALS.secondary.test(detail)) return undefined;
+  const wait = after ? Number(after[1]) : SIGNALS.fallbackSeconds;
+  return wait <= MAX_WAIT_SECONDS ? wait : undefined;
 }
 
 // The read runner's fallback input to the leg named in the marker; the first
