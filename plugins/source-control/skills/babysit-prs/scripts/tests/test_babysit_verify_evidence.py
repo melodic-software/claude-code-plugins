@@ -3653,9 +3653,14 @@ def timed_out() -> RuntimeError:
             return error
 
 
+class CutBody(str):
+    """A listing body gh printed cut short while exiting 0."""
+
+
 class FlakyListing(FakeGitHub):
     """Fails the artifact listing with each of `errors` in turn: a string is
-    gh's stderr on exit 1, an exception is raised from `gh_capture`."""
+    gh's stderr on exit 1, a `CutBody` is its stdout on exit 0, an exception
+    is raised from `gh_capture`."""
 
     def __init__(self, errors: list[str | BaseException]):
         fake = passing()
@@ -3673,6 +3678,8 @@ class FlakyListing(FakeGitHub):
                 error = self.errors.pop(0)
                 if isinstance(error, BaseException):
                     raise error
+                if isinstance(error, CutBody):
+                    return subprocess.CompletedProcess(args, 0, error, "")
                 return subprocess.CompletedProcess(args, 1, "", error)
         return super().__call__(args, **kwargs)
 
@@ -3698,8 +3705,12 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         # A page body cut short: Go's JSON decoder error, as gh printed it in
         # pr-merge run 40819274416 (skip step, 2026-10-29T04:59:05Z).
         "unexpected end of JSON input",
+        # A page body cut short while gh exits 0 (babysit_gh._run_pages).
+        "page 2 is not JSON",
     )
     NOT_TRANSIENT: tuple[str | BaseException, ...] = (
+        # A rate limit stays a rate limit when gh also printed a parse error.
+        "unexpected end of JSON input\ngh: API rate limit exceeded (HTTP 403)",
         "gh: Not Found (HTTP 404)",
         "gh: Bad credentials (HTTP 401)",
         "gh: Validation Failed (HTTP 422)",
@@ -3751,15 +3762,24 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(fake.listings(), 3)
         self.assertEqual(sleeps, [2.0, 4.0])
 
-    def test_a_whole_listing_cut_short_is_read_once_more_at_most(self) -> None:
-        # Each cut-short read may have paged every artifact: two whole reads,
-        # never three, then the refusal.
+    def test_a_whole_listing_cut_short_every_time_refuses_after_three_reads(
+        self,
+    ) -> None:
+        # ci-status run 41475913026 refused #12404 after two cut-short reads;
+        # a cut short is read again after every wait, as a 5xx is.
         fake = FlakyListing(["unexpected end of JSON input"] * 3)
         evidence, sleeps = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertIn("unexpected end of JSON input", evidence.detail or "")
-        self.assertEqual(fake.listings(), 2)
-        self.assertEqual(sleeps, [2.0])
+        self.assertEqual(fake.listings(), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
+
+    def test_two_cut_short_reads_then_a_listing_reads_the_verdict(self) -> None:
+        fake = FlakyListing(["unexpected end of JSON input"] * 2)
+        evidence, sleeps = self.judge(fake)
+        self.assertIsNone(evidence.refusal)
+        self.assertEqual(fake.listings(), 3)
+        self.assertEqual(sleeps, [2.0, 4.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
         """Three 502s, the clock reading `clock` in turn, a 60s listing timeout
@@ -3836,6 +3856,34 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
             pages = ve.Reader(REPO, "main", now=NOW)._read_listing()
         self.assertEqual(len(pages), self.PAGES)
         self.assertEqual(len(sent), self.PAGES)
+
+    def test_a_page_body_cut_short_reads_the_listing_again(self) -> None:
+        # gh exits 0 with page 2's body cut short on the first listing only.
+        sent: list[str] = []
+
+        def send(args, *, timeout_seconds, env_overrides, binary):
+            sent.append(args[1])
+            named = re.search(r"[?&]page=(\d+)", args[1])
+            page = int(named[1]) if named else 1
+            link = (
+                "<https://api.github.com/repositories/1/actions/artifacts"
+                f'?per_page=100&page={page + 1}>; rel="next"'
+                if page < 3
+                else ""
+            )
+            body = json.dumps({"total_count": 3, "artifacts": [{"id": page}]})
+            if page == 2 and len(sent) == 2:
+                body = body[:20]
+            return subprocess.CompletedProcess(args, 0, body, ""), {"link": link}
+
+        with (
+            mock.patch.object(gh, "_send", side_effect=send),
+            mock.patch.object(ve, "_listing_sleep") as sleep,
+        ):
+            pages = ve.Reader(REPO, "main", now=NOW)._read_listing()
+        self.assertEqual([p["artifacts"][0]["id"] for p in pages], [1, 2, 3])
+        self.assertEqual(len(sent), 5)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [2.0])
 
 
 class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
@@ -5132,6 +5180,24 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         _, evidence = self.judge(fake)
         self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(fake.listings(), 4)
+
+    def test_a_whole_listing_cut_short_after_its_waits_is_noted(self) -> None:
+        # Each later Reader in the job would page the whole listing again.
+        for detail in (
+            "unexpected end of JSON input",
+            "page 2 is not JSON",
+            CutBody('{"total_count": 1, "art'),
+        ):
+            with self.subTest(detail):
+                self.failed.unlink(missing_ok=True)
+                fake = FlakyListing([detail] * 6)
+                _, evidence = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 3)
+                self.assertTrue(self.failed.exists())
+                _, evidence = self.judge(fake)
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+                self.assertEqual(fake.listings(), 3)
 
     def test_a_whole_listing_failure_not_the_callers_is_noted(self) -> None:
         # A timeout of the whole cap's own budget (60 s for five artifacts),

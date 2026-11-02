@@ -1652,7 +1652,9 @@ class ReadDemotionBatched(unittest.TestCase):
 
     def test_a_hold_keeps_the_newest_clear_as_the_floor(self) -> None:
         # The hold, its reason and its records are the first holding record's,
-        # in either order; the clear is the newest among the cleared records.
+        # in either order; the clear is the newest among the cleared records,
+        # all of them before the holding record was opened.
+        opened_later = self.OPEN | {"createdAt": "2026-10-12T13:00:00Z"}
         cases = {
             "open after the cleared ones": (4, (1, 2, 3, 4), "12:03"),
             "open before the cleared ones": (1, (1,), "12:04"),
@@ -1661,7 +1663,7 @@ class ReadDemotionBatched(unittest.TestCase):
             with self.subTest(name):
                 fake = RecordsFake(
                     {
-                        n: demotion_record(n, **(self.OPEN if n == held else {}))
+                        n: demotion_record(n, **(opened_later if n == held else {}))
                         for n in range(1, 5)
                     }
                 )
@@ -1670,6 +1672,55 @@ class ReadDemotionBatched(unittest.TestCase):
                     self.read(fake),
                     policy.Demotion(True, f"#{held} open", records, None, newest),
                 )
+
+    def test_a_clear_after_the_hold_began_does_not_raise_the_floor(self) -> None:
+        # Merge M, then record #3 citing it opens and holds, then #2 clears:
+        # the floor stays at #1's clear, before #3 opened, so M is still judged.
+        records = {n: demotion_record(n) for n in range(1, 4)}
+        records[3] |= self.OPEN | {"createdAt": "2026-10-12T12:01:30Z"}
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(
+                True,
+                "#3 open",
+                (1, 2, 3),
+                None,
+                policy.datetime.fromisoformat("2026-10-12T12:01:00Z"),
+            ),
+        )
+        # With every clear after the hold began, the floor keeps the
+        # enabling commit.
+        records[3] |= {"createdAt": "2026-10-12T12:00:30Z"}
+        self.assertEqual(
+            self.read(RecordsFake(records)),
+            policy.Demotion(True, "#3 open", (1, 2, 3)),
+        )
+
+    def test_any_failure_after_a_hold_keeps_the_hold(self) -> None:
+        # A failure that is not a read error keeps the hold once it is found,
+        # and before the hold still escapes, as the early return let it.
+        records = {n: demotion_record(n) for n in range(1, 6)}
+        records[2] |= self.OPEN
+        real = policy._record_hold
+
+        def broken_at(number: int) -> Any:
+            def judge(issue: Any, human: Any) -> Any:
+                if issue["number"] == number:
+                    raise RuntimeError("unexpected shape")
+                return real(issue, human)
+
+            return judge
+
+        with mock.patch.object(policy, "_record_hold", broken_at(4)):
+            self.assertEqual(
+                self.read(RecordsFake(records)),
+                policy.Demotion(True, "#2 open", (1, 2)),
+            )
+        with (
+            mock.patch.object(policy, "_record_hold", broken_at(1)),
+            self.assertRaises(RuntimeError),
+        ):
+            self.read(RecordsFake(records))
 
     def test_a_read_failure_after_a_hold_keeps_the_hold_with_no_clear(self) -> None:
         records = {n: demotion_record(n) for n in range(1, 31)}
@@ -3882,7 +3933,7 @@ class Assess(unittest.TestCase):
                 promotion=lambda start: seen.append(start) or PROMOTED,
             )
             # The restarted window holds the rung's cells unpromoted until a
-            # human re-ratifies them after the demotion: the merge refuses.
+            # publisher re-earns them after the demotion: the merge refuses.
             restarted = policy.Promotion(
                 dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
             )

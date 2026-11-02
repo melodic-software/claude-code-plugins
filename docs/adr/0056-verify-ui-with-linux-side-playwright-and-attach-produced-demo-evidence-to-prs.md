@@ -247,6 +247,14 @@ Consequences: a measured browser eval needs an MCP-driven harness
 choices stand, and any catch rate or other measured figure states which path, CLI or MCP, it
 covers. These runs did not touch Claude in Chrome; the live test below did.
 
+The harness is `plugins/testing/evals/browser-mcp-probe`: a case-local plugin declares
+`@playwright/mcp` 0.0.83, which the root `package.json` locks on the same `playwright` build as
+`@playwright/cli` 0.1.22, and the lane starts it with its `allow-real-servers` input. Every
+measured browser row of this rubric (a catch rate, a vision verdict on a lane screenshot) covers
+that MCP path, not the `playwright-cli` default: the default stays measured only by hand outside
+`claude plugin eval`. The MCP server runs outside the eval's sandbox, so the case's
+`evals-hidden-from-browser` grader reports whether the eval directory is still hidden from it.
+
 ### Claude in Chrome from WSL, live test
 
 Run with the user present on Claude Code 2.1.296, WSL2 kernel 6.18.33.2-microsoft-standard-WSL2
