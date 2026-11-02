@@ -6,7 +6,8 @@
 // position's row (qnav-row), no overlapping text, like rows aligned, icons on their text line (icon-line), the toast's
 // place, the phone tab bar, choice and confirm controls above the fold, and icon-only buttons with the icon centered
 // on the button within 0.5 px (icon-center).
-//   node plugins/planning/shared/tests/align.js
+//   node plugins/planning/shared/tests/align.js                (every size)
+//   ALIGN_PART=a node plugins/planning/shared/tests/align.js   (the sizes of part a in PARTS)
 //   ALIGN_VIEWS=chat,focus-q1-short ALIGN_SIZES=390x844,1440x900 node plugins/planning/shared/tests/align.js
 // Screenshots of failing states go to a temp folder whose path is printed. Exits 1 on any failure.
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -17,7 +18,10 @@ const path = require("node:path");
 const zlib = require("node:zlib");
 const { loadPlaywright, suite, settled } = require("./browser_harness");
 
-const SIZES = [[390, 844], [768, 1024], [1024, 768], [1440, 900], [2560, 1440]];
+// Each size sits in one part, and align-<part>.test.sh runs that part (ALIGN_PART), so every size runs in exactly one
+// wrapper; main() refuses a run while a part has no wrapper or a size sits in two parts.
+const PARTS = { a: [[390, 844], [768, 1024]], b: [[1024, 768], [1440, 900]], c: [[2560, 1440]] };
+const SIZES = Object.values(PARTS).flat();
 const THEMES = ["dark", "light"];
 const MAX_DETAIL = 6;
 const list = v => (v || "").split(",").map(x => x.trim()).filter(Boolean);
@@ -125,7 +129,19 @@ async function seed(s, A) {
     device: "phone", browser: "safari", viewport: { w: 390, h: 844 }, visualViewport: { w: 390, h: 508, scale: 1 }, errors: ["api slow-down: HTTP 429: Wait a moment"] } }, eli);
 }
 
+/** Why the parts cannot run every size exactly once: a part with no wrapper, a size in two parts, an unknown part. */
+function partsProblem(part) {
+  const missing = Object.keys(PARTS).filter(p => !fs.existsSync(path.join(__dirname, `align-${p}.test.sh`)));
+  if (missing.length) return `PARTS names part(s) with no align-<part>.test.sh: ${missing.join(", ")}`;
+  if (new Set(SIZES.map(String)).size !== SIZES.length) return "a size sits in more than one part of PARTS";
+  if (part && !PARTS[part]) return `ALIGN_PART names no part of PARTS: ${part}; known: ${Object.keys(PARTS).join(", ")}`;
+  return "";
+}
+
 async function main() {
+  const part = process.env.ALIGN_PART || "";
+  const problem = partsProblem(part);
+  if (problem) { console.log(`FAIL: ${problem}`); return 1; }
   const pw = loadPlaywright();
   if (!pw) { console.log("SKIP: align.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
   let browser;
@@ -133,7 +149,7 @@ async function main() {
   const t0 = Date.now();
   const s = suite("align"), shots = fs.mkdtempSync(path.join(os.tmpdir(), "align-shots-"));
   const sizes = list(process.env.ALIGN_SIZES).map(x => x.split("x").map(Number));
-  const CFG = { sizes: sizes.length ? sizes : SIZES, views: list(process.env.ALIGN_VIEWS) };
+  const CFG = { sizes: sizes.length ? sizes : part ? PARTS[part] : SIZES, views: list(process.env.ALIGN_VIEWS) };
   const results = [], details = [];
   try {
     const A = await s.start("align"), E = await s.start("empty"), C = await s.start("crowd");
