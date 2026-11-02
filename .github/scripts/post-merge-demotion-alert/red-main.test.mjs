@@ -235,51 +235,49 @@ test("a pinned lane merge under every limit auto-reverts", () => {
 });
 
 test("an owner merge never auto-reverts", () => {
-  assert.equal(decideFor(laneMerge({ enqueuer: "kyle-sexton" })).decision, "human");
-  assert.equal(decideFor(laneMerge({ enqueuer: "" })).decision, "human");
+  assert.equal(decideFor(laneMerge({ enqueuer: "kyle-sexton" })).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge({ enqueuer: "" })).decision, "fix-forward");
 });
 
 test("a revert is never reverted", () => {
-  assert.equal(decideFor(laneMerge({ message: 'Revert "fix(x): y (#101)" (#102)' })).decision, "human");
-  assert.equal(decideFor(laneMerge({ message: "revert: y (#102)\n\nThis reverts commit abcdef1." })).decision, "human");
-  assert.equal(decideFor(laneMerge({ labels: ["auto-revert"] })).decision, "human");
+  assert.equal(decideFor(laneMerge({ message: 'Revert "fix(x): y (#101)" (#102)' })).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge({ message: "revert: y (#102)\n\nThis reverts commit abcdef1." })).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge({ labels: ["auto-revert"] })).decision, "fix-forward");
   assert.equal(isRevert("feat: reverse the list (#103)"), false);
 });
 
 test("only a culprit merged under 24 hours ago auto-reverts", () => {
   assert.equal(decideFor(laneMerge({ mergedAt: "2026-10-19T12:30:00Z" })).decision, "auto-revert");
-  assert.equal(decideFor(laneMerge({ mergedAt: "2026-10-19T12:00:00Z" })).decision, "human");
-  assert.equal(decideFor(laneMerge({ mergedAt: "" })).decision, "human");
+  assert.equal(decideFor(laneMerge({ mergedAt: "2026-10-19T12:00:00Z" })).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge({ mergedAt: "" })).decision, "fix-forward");
 });
 
 test("at most 3 auto-reverts a day", () => {
   assert.equal(decideFor(laneMerge(), { revertsToday: 2 }).decision, "auto-revert");
-  assert.equal(decideFor(laneMerge(), { revertsToday: 3 }).decision, "human");
+  assert.equal(decideFor(laneMerge(), { revertsToday: 3 }).decision, "fix-forward");
 });
 
 test("one auto-revert per culprit", () => {
-  assert.equal(decideFor(laneMerge(), { culpritDecided: true }).decision, "human");
+  assert.equal(decideFor(laneMerge(), { culpritDecided: true }).decision, "fix-forward");
 });
 
-test("a suspected platform fault or a revert that does not apply goes to a person", () => {
-  assert.equal(decideFor(laneMerge(), { platformFault: "canary record #9 is open" }).decision, "human");
-  assert.equal(decideFor(laneMerge(), { revertApplies: false }).decision, "human");
-  assert.equal(decideFor(laneMerge(), { revertApplies: null }).decision, "human");
+test("a suspected platform fault or a revert that does not apply fixes forward", () => {
+  assert.equal(decideFor(laneMerge(), { platformFault: "canary record #9 is open" }).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge(), { revertApplies: false }).decision, "fix-forward");
+  assert.equal(decideFor(laneMerge(), { revertApplies: null }).decision, "fix-forward");
 });
 
-test("under fail-forward even a lane merge under every limit goes to a person, named by the remedy", () => {
+test("under fail-forward even a lane merge under every limit fixes forward, named by the remedy", () => {
   const verdict = decideFor(laneMerge(), { config: resolveRedMain({ remedy: "fail-forward" }) });
-  assert.equal(verdict.decision, "human");
+  assert.equal(verdict.decision, "fix-forward");
   assert.equal(verdict.reasons.length, 1);
   assert.match(verdict.reasons[0], /fail-forward/);
 });
 
-test("a person's revert is a draft labeled needs-human; the bot's goes through the merge queue", () => {
-  const human = plannedRevert(laneMerge(), "human", "https://example.test/run");
-  assert.equal(human.draft, true);
-  assert.deepEqual(human.labels, ["auto-revert", "needs-human"]);
+test("a failed guard plans no revert; the bot's goes through the merge queue", () => {
+  assert.equal(plannedRevert(laneMerge(), "fix-forward", "https://example.test/run"), null);
   const bot = plannedRevert(laneMerge(), "auto-revert", "https://example.test/run");
-  assert.equal(bot.draft, false);
+  assert.deepEqual(bot.labels, ["auto-revert"]);
   assert.equal(bot.command, `git revert --no-edit ${A}`);
   assert.equal(bot.title, "revert: fix(x): y");
   assert.match(bot.merge, /merge queue/);
