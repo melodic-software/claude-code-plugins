@@ -1090,7 +1090,6 @@ none of them depends on the sandbox:
 - the trusted internal bot list binds only from the target repository's default branch
 - the binding's local overlay accepts only lease, auth and `docs` keys, which keeps the overlay from
   reshaping team state but does not stop a lane editing the team binding itself
-- rule admission reads its security binding from outside the repository
 
 Pointer: when judging whether a deny rule stops a lane writing a file, fetch [Configure sandboxing](https://code.claude.com/docs/en/sandboxing#configure-sandboxing)
 and [How permissions interact with sandboxing](https://code.claude.com/docs/en/permissions#how-permissions-interact-with-sandboxing)

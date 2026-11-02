@@ -264,12 +264,8 @@ machine and changes no label but that one.
    edit applies no other label, so the item ends with no role label, and the objection window of
    triage workflow step 5, which only an autonomous-eligible label edit triggers, does not apply.
    `list-frontier --autonomous` lists it again, and an attended `/work-items:work` run can pick it
-   from there. The issue lane and the work loop's label path do not admit it: they admit only on the
-   autonomous-eligible role label. The one path that can still take it unattended is the work loop's
-   rule admission
-   ([`../work-loop/reference/rule-admission.md`](../work-loop/reference/rule-admission.md)), when a
-   security binding enables it and an owner's C2 rule matches the item; that dispatch runs under the
-   rule's `human-merge` hold. A person who wants a lane to take it on the label path applies the
+   from there. The issue lane and the work loop do not admit it: they admit only on the
+   autonomous-eligible role label. A person who wants a lane to take it applies the
    autonomous-eligible role label to it directly: with no role label and no trusted marker,
    `/work-items:attend-queue` does not list it. Any pull request that closes it is still held for a
    maintainer by its `Decision defaulted` line.
@@ -283,7 +279,7 @@ Decision defaulted: <the recommendation>, veto before merge
 Basis: <verified, file:line or URL | judgment>
 Label test failed: no irreversible act, consent, secret, or undecided design choice is needed.
 Recommendation: <link to the RECOMMENDED line or the Decision recorded. comment>
-Next: an attended `/work-items:work` run can pick this item up; no autonomous lane takes it on the label path until a person applies <the autonomous-eligible role label>.
+Next: an attended `/work-items:work` run can pick this item up; no autonomous lane takes it until a person applies <the autonomous-eligible role label>.
 Re-apply the label to object; the sweep then leaves this item alone.
 ```
 
