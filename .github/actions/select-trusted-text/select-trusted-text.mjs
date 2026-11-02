@@ -17,44 +17,45 @@ const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const APP_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
-const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      closingIssuesReferences(first: 100, after: $after) {
+const CLOSING_FIELD = `closingIssuesReferences(first: 100, after: $after) {
         nodes { number repository { nameWithOwner } }
         pageInfo { hasNextPage endCursor }
-      }
-    }
-  }
-}`;
-const TITLE_RENAMES = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], first: 100, after: $after) {
+      }`;
+const RENAMES_FIELD = `timelineItems(itemTypes: [RENAMED_TITLE_EVENT], first: 100, after: $after) {
         nodes {
           ... on RenamedTitleEvent {
             actor { __typename ... on User { databaseId } ... on Bot { databaseId } }
           }
         }
         pageInfo { hasNextPage endCursor }
-      }
+      }`;
+const prQuery = (...fields) => `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      ${fields.join("\n      ")}
     }
   }
 }`;
+const CLOSING_ISSUES = prQuery(CLOSING_FIELD);
+const TITLE_RENAMES = prQuery(RENAMES_FIELD);
+// Both connections' first pages in one request; later pages of each are read
+// through its own query above.
+const CLOSING_AND_RENAMES = prQuery(CLOSING_FIELD, RENAMES_FIELD);
 const MAX_GRAPHQL_PAGES = 50;
+
+const prPage = (github, query, repository, prNumber, after) => {
+  const [owner, name] = repository.split("/");
+  return github("POST", "/graphql", { query, variables: { owner, name, number: Number(prNumber), after } });
+};
 
 // Every node of one PR connection (`closingIssuesReferences` or
 // `timelineItems`), page by page; a page with no node list or more than the
-// cap throws.
-async function prConnection(github, query, field, repository, prNumber) {
-  const [owner, name] = repository.split("/");
+// cap throws. `first`, when given, is an answer already holding page one.
+async function prConnection(github, query, field, repository, prNumber, first) {
   const nodes = [];
   let after = null;
   for (let page = 1; page <= MAX_GRAPHQL_PAGES; page += 1) {
-    const answer = await github("POST", "/graphql", {
-      query,
-      variables: { owner, name, number: Number(prNumber), after },
-    });
+    const answer = page === 1 && first !== undefined ? first : await prPage(github, query, repository, prNumber, after);
     const connection = answer?.data?.repository?.pullRequest?.[field];
     if (!Array.isArray(connection?.nodes)) {
       throw new Error(`${field} could not be read`);
@@ -70,9 +71,9 @@ async function prConnection(github, query, field, repository, prNumber) {
 
 // Who renamed the PR's title, one entry per rename, oldest first: the actor's
 // { __typename, databaseId }, or null when GitHub cannot name it. pr-verify's
-// resolve-pr.mjs reads renames through this too.
-export async function titleRenamers(github, repository, prNumber) {
-  const renames = await prConnection(github, TITLE_RENAMES, "timelineItems", repository, prNumber);
+// resolve-pr.mjs reads renames through this too. `first` as prConnection's.
+export async function titleRenamers(github, repository, prNumber, first) {
+  const renames = await prConnection(github, TITLE_RENAMES, "timelineItems", repository, prNumber, first);
   return renames.map((event) => event?.actor ?? null);
 }
 
@@ -158,12 +159,16 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   await keep("review", await paginate(github, `${base}/pulls/${prNumber}/reviews`));
   await keep("review-comment", await paginate(github, `${base}/pulls/${prNumber}/comments`));
 
+  // A trusted PR's title may be kept, so its renames' first page comes in the
+  // closing issues' request; it is checked only when the title is weighed.
+  const firstPages = await prPage(github, prTrusted ? CLOSING_AND_RENAMES : CLOSING_ISSUES, repository, prNumber, null);
   const references = await prConnection(
     github,
     CLOSING_ISSUES,
     "closingIssuesReferences",
     repository,
     prNumber,
+    firstPages,
   );
   for (const reference of references) {
     // Only issues in the PR's own repository: an issue elsewhere sits under
@@ -194,7 +199,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   // everyone who renamed it.
   let titleKept = prKept;
   if (prKept) {
-    const renamers = await titleRenamers(github, repository, prNumber);
+    const renamers = await titleRenamers(github, repository, prNumber, firstPages);
     titleKept = renamers.every((actor) => isListed(ids, { id: actor?.databaseId }));
     if (!titleKept) {
       dropped["edited-by-untrusted"] += 1;
