@@ -3653,9 +3653,14 @@ def timed_out() -> RuntimeError:
             return error
 
 
+class CutBody(str):
+    """A listing body gh printed cut short while exiting 0."""
+
+
 class FlakyListing(FakeGitHub):
     """Fails the artifact listing with each of `errors` in turn: a string is
-    gh's stderr on exit 1, an exception is raised from `gh_capture`."""
+    gh's stderr on exit 1, a `CutBody` is its stdout on exit 0, an exception
+    is raised from `gh_capture`."""
 
     def __init__(self, errors: list[str | BaseException]):
         fake = passing()
@@ -3673,6 +3678,8 @@ class FlakyListing(FakeGitHub):
                 error = self.errors.pop(0)
                 if isinstance(error, BaseException):
                     raise error
+                if isinstance(error, CutBody):
+                    return subprocess.CompletedProcess(args, 0, error, "")
                 return subprocess.CompletedProcess(args, 1, "", error)
         return super().__call__(args, **kwargs)
 
@@ -5176,7 +5183,11 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
 
     def test_a_whole_listing_cut_short_after_its_waits_is_noted(self) -> None:
         # Each later Reader in the job would page the whole listing again.
-        for detail in ("unexpected end of JSON input", "page 2 is not JSON"):
+        for detail in (
+            "unexpected end of JSON input",
+            "page 2 is not JSON",
+            CutBody('{"total_count": 1, "art'),
+        ):
             with self.subTest(detail):
                 self.failed.unlink(missing_ok=True)
                 fake = FlakyListing([detail] * 6)
