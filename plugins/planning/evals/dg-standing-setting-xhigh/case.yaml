@@ -16,6 +16,6 @@ graders:
     arm: with-only
   - name: xhigh-gates-standing-setting
     type: regex
-    pattern: '^(?=[^\n]*(?:ultracode|standing setting|/effort))[^\n]*(?:(?<!n[''’]t )(?<!not )(?<!no )\b(?:requires?|required|needs?|only)\b[^\n]{0,80}\bx-?high\b|\b(?:unavailable|not available|isn[''’]t available|won[''’]t be available|won[''’]t work|doesn[''’]t work|can[''’]t (?:use|turn|enable))\b[^\n]{0,120}\bx-?high\b|\bx-?high\b[^\n]{0,120}\b(?:unavailable|not available|isn[''’]t available|won[''’]t work|doesn[''’]t work)\b|\b(?:without|lacks?|lacking)\s+(?:an?\s+|the\s+)?`?x-?high`?[^\n]{0,120}\b(?:unavailable|not available|won[''’]t|can[''’]t|doesn[''’]t|isn[''’]t)\b)'
+    pattern: '^(?=[^\n]*(?:ultracode|standing setting|/effort))[^\n]*(?:(?<!n[''’]t )(?<!not )(?<!no )\b(?:requires?|required|needs?|only)\b[^\n]{0,80}\bx-?high\b|\b(?:unavailable|not available|isn[''’]t available|won[''’]t be available|won[''’]t work|doesn[''’]t work)\b[^\n]{0,120}\bx-?high\b|\bx-?high\b[^\n]{0,120}\b(?:unavailable|not available|isn[''’]t available|won[''’]t work|doesn[''’]t work)\b|\b(?:without|lacks?|lacking)\s+(?:an?\s+|the\s+)?`?x-?high`?[^\n]{0,120}\b(?:won[''’]t (?:work|take effect|turn on)|isn[''’]t available|not available|unavailable|can[''’]t be (?:used|enabled|turned on))\b)'
     flags: mi
     arm: both
