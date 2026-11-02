@@ -263,6 +263,9 @@ When the dependency graph reads more clearly visually, optionally also emit a se
 topology view to the OS temp directory, never beside `library-topology.md`, which stays the record.
 Rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
+Resolve `medium` first per
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md)
+"Other optional views": `terminal` skips the view.
 
 ### Phase 5: Discussion Rounds
 

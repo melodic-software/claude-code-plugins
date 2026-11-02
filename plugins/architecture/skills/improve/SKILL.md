@@ -1,6 +1,6 @@
 ---
 description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening|boundaries|conventions]"
+argument-hint: "[deepening|boundaries|conventions] [--medium <value>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix
 ---
 
-**Arguments.** `[deepening|boundaries|conventions]`. e.g., boundaries
+**Arguments.** `[deepening|boundaries|conventions] [--medium <value>]`. e.g., boundaries. `--medium` sets where the deepening report goes (`actions/deepening.md`, Phase 2).
 
 ## Repository context. Gather first
 

@@ -1,6 +1,6 @@
 ---
 description: "Audits a repository's existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) and reports which mechanisms no longer earn their keep; security-class items cap at flag-for-human. Read-only. Use when the user asks whether their CI, hooks or gates are overengineered or still earn their keep. Not for proposing new automation."
-argument-hint: "[--unattended] [layer ...]"
+argument-hint: "[--unattended] [--medium <value>] [layer ...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit the enforcement surface for mechanisms no longer earning their carry cost
 ---
 
-**Arguments.** `[--unattended] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all)
+**Arguments.** `[--unattended] [--medium <value>] [layer ...]`. Layer: agent-hooks|agent-instructions|repo-hooks|vcs-hooks|ci-lanes|gate-scripts|satellite-workflows|branch-protection|forge-apps|external-integrations|all (default: all). `--medium` governs only the rendered-view offer ([report-template.md](context/report-template.md), Layer 3).
 
 ## Repository context. Gather first
 
