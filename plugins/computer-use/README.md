@@ -21,12 +21,12 @@ session succeed, and making its failures legible.
 The computer-use tool descriptions already document the mechanics: the actions, the allowlist
 gate, the permission tiers, the ladder that prefers a dedicated MCP over Chrome over screen
 control. **This plugin restates none of that**, on purpose: a standing instruction that repeats
-what the surface already says is a per-session tax for zero gain.
+what the surface already says costs context tokens every session and adds nothing.
 
 What it carries instead is the material that is not derivable from the tool surface and is not
 documented upstream:
 
-- **The idle timer does not see Claude.** Synthesized input does not reset the OS idle timer, so
+- **Claude's input does not reset the idle timer.** Synthesized input does not reset the OS idle timer, so
   a long session hits the screensaver or display-sleep timeout no matter how much Claude is
   clicking, and cannot recover itself once it does. Measured, not inferred.
 - **Screenshot quality is a fixed pixel budget, not a scale factor**, so the intuitive fixes

@@ -60,7 +60,7 @@ looks for what is wrong in it.
 | (none) | Rotate: self-select the next lane from the tracked lane config, hunt it, report |
 | `<path\|feature\|diff>` | Hunt exactly that scope. No rotation |
 | `--lane <name>` | Hunt the named lane's globs |
-| `--track` | File the verified findings as raw intake through the `work-items` seam |
+| `--track` | File the verified findings as raw intake through the `work-items` plugin |
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
 | `--unattended` | Nobody is present: run none of the scanned code, and file rather than fix |
 

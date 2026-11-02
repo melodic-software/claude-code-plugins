@@ -54,8 +54,8 @@ first-class use, and the audit may honestly return clean.
 | `/discipline:reuse-or-replace` | Anti-fragmentation. Reuse the established way or openly replace it, never silently stand up a second parallel way |
 | `/discipline:scrutinize-dont-coast` | Adversarial self-scrutiny. Stop coasting on your own recent output; re-examine it through a fresh-context pass and remediate with the user |
 
-The shared method, re-anchor, audit the work in flight, correct forward,
-report, lives once at plugin scope in
+The shared method (re-anchor, audit the work in flight, correct forward,
+report) lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
 
