@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/debugging/schemas/debugging.schema.json",
   "title": "Debugging team config",
-  "description": "Schema for a repository's docs/conventions/debugging.yaml: the team layer of the debugging plugin's settings. Keys are read by /debugging:debug and listed in plugins/debugging/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for debugging.yaml in a repository's convention home (default docs/conventions): the team layer of the debugging plugin's settings. Keys are read by /debugging:debug and listed in plugins/debugging/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
