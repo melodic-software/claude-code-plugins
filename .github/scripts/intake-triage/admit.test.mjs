@@ -1060,9 +1060,13 @@ describe("decide", () => {
       });
 
       test("a spend guard the work lowers or raises, with no cost word", () => {
-        for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the quota."]) {
+        for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the spending quota.", "Raise the cap on spend to $500."]) {
           assert.equal(inBody(`- [ ] ${item}`), "a spend guard", item);
         }
+      });
+
+      test("a lane cap or budget that does not limit spend reads as no charge", () => {
+        assert.deepEqual(workCharges({ title: "", body: "The lane runs past its turn cap." }, chargePattern(), false, RULES["task-list"]), []);
       });
     });
 
@@ -1083,6 +1087,12 @@ describe("decide", () => {
 
       test("a title that drops a billing alert", () => {
         admitted(issueOf({ title: "chore: drop the billing alert" }));
+      });
+
+      test("a lane cap or budget that does not limit spend", () => {
+        for (const item of ["Raise the verify cap to 3.", "Add a retry cap to the fetch helper.", "Keep the round cap at 3.", "Lower the API budget threshold in rate-limits.json."]) {
+          admitted(issueOf({ body: `## Done when\n\n- [ ] ${item}` }));
+        }
       });
     });
 

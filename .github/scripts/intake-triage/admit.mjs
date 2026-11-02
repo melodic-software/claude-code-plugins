@@ -767,9 +767,11 @@ const CHARGING =
 // every clause the cost words count in.
 const ADMIT_CHARGES = /\bazure\b/gi;
 const SAFEGUARD = /\b(?:spend(?:ing)?[- ](?:limits?|caps?)|caps?|budgets?|quotas?)\b/i;
-// The charge a clause that lowers or raises a SAFEGUARD reads as when it names
-// no cost word: changing a guard on spend is the owner's call either way.
+// The charge a clause that lowers or raises a guard on money (SPEND_LIMIT)
+// reads as when it names no cost word: changing one is the owner's call either
+// way. A lane's verify, round, turn or API cap is not one.
 const SPEND_GUARD = "a spend guard";
+const SPEND_LIMIT = /\b(?:spend(?:ing)?|billing|costs?|budget|dollar)[- ](?:limits?|caps?|budgets?|quotas?)\b|\b(?:limits?|caps?|budgets?|quotas?) (?:on|for) (?:spend\w*|billing|costs?)\b|\$\s?\d/i;
 const TOWARD = /\b(?:for|with|in favou?r of|instead of|in place of|over to)\b/i;
 const clauseCharges = (clause, charges, isPublic) => [...chargeWordsIn(clause, charges, isPublic), ...[...clause.matchAll(ADMIT_CHARGES)].map((m) => m[0].toLowerCase())];
 // A clause whose charge words the work only lowers: a LOWERING verb, no
@@ -807,7 +809,7 @@ export function workCharges({ title, body }, charges, isPublic, taskList) {
         .filter((clause) => !lowersOnly(clause, charges, isPublic))
         .flatMap((clause) => {
           const words = clauseCharges(clause, charges, isPublic);
-          return words.length === 0 && SAFEGUARD.test(clause) && (LOWERING.test(clause) || CHARGING.test(clause)) ? [SPEND_GUARD] : words;
+          return words.length === 0 && SPEND_LIMIT.test(clause) && (LOWERING.test(clause) || CHARGING.test(clause)) ? [SPEND_GUARD] : words;
         }),
     ),
   ];
