@@ -3,6 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.0] - 2026-11-02
+
+### Changed
+
+- `/work-items:triage` no longer requires a work class for the autonomous-eligible role. A delegable, decision-defaulted or multi-surface stub outcome applies `agent-ready` with or without a `work-class:` label, and the five-label preflight before those outcomes is gone. The one pairing ban left: `work-class: untrusted-provenance` or `provenance: signal` is never paired with `agent-ready`.
+- A triage lane that may not write `work-class:` labels now applies `agent-ready` to a delegable outcome instead of human-gating it with a proposed class.
+- The triage `sweep` no longer skips a human-gated item for carrying `work-class: structural` or no `work-class:` label.
+- `/work-items:attend-queue` flips an escalated item to `agent-ready` whatever its work class, and with none. Only `work-class: untrusted-provenance` or `provenance: signal` still blocks the plain flip.
+
+### Removed
+
+- Triage's "Lane barred from recording a class" branch.
+- Attend-queue's "No recorded class: stamp, then flip" rule and the rule that `work-class: structural` is reclassified before the flip.
+
+## [6.0.1] - 2026-11-02
+
+### Changed
+
+- The GitHub adapter of the work-item tracker wraps its `gh` calls with this repository's api-budget library when it runs in one of this repository's CI jobs, so each call's rate-limit reading reaches the job-end api-budget notice. Outside a CI job, and in an installed plugin where the library is absent, nothing changes.
+
+### Fixed
+
+- `list-items` and `list-frontier` on the GitHub adapter no longer exit 3 in a Claude Code cloud session, whose GitHub proxy refuses GraphQL. They read the REST issues endpoint instead, and call the `dependencies/blocked_by` endpoint only for an issue whose dependency summary counts a blocker. A `/work-items:work-loop` cycle in a cloud session now reaches admission, with the same blocker counts a local session gets.
+
 ## [6.0.0] - 2026-11-02
 
 ### Changed

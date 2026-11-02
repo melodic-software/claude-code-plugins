@@ -78,15 +78,15 @@
       ]
     },
     {
-      "name": "attend-queue-proposed-class-stamp-then-flip",
-      "prompt": "/work-items:attend-queue\n\n#4400 carries needs-human and status:ready and has no work-class: label. Its escalation comment, authored by the tracker's write identity, starts <!-- work-items:escalation lane=work-loop kind=escalated --> and carries 'Proposed work class: work-class: mechanical' with a one-line basis. This session's standing direction forbids writing work-class: labels; the operator applies them. The operator confirms the proposed class.",
-      "expected_output": "Lists #4400 as an [escalated] row, claims it, restates the item, the proposed class with its basis, and the consequence of confirming or changing it. It does not perform the plain flip, because the item has no work-class: label. After the operator confirms, it hands the operator one ready-to-paste edit that adds work-class: mechanical and the autonomous-eligible role and removes the human-gated role, and it never runs a work-class: label write itself. Once a re-read shows the labels landed, it records the stamped class as a reply comment and clears @me while the claim is still held. A C4/C5 answer would have applied the class label alone and left the item human-gated.",
+      "name": "attend-queue-flip-needs-no-work-class",
+      "prompt": "/work-items:attend-queue\n\nTwo [escalated] issues carry needs-human and status:ready, each with an escalation comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #4400 has no work-class: label. #4401 carries work-class: structural. This session's standing direction forbids writing work-class: labels. For each, the operator's answer removes the human blocker.",
+      "expected_output": "Works the rows one at a time. For each, after the claim, the restatement and the operator's answer, it applies the autonomous-eligible role label and removes the human-gated role label in one edit, while the claim is held. The missing class on #4400 and work-class: structural on #4401 do not block the flip: it neither stamps nor asks for a work-class: label first, and it does not ask to reclassify #4401. It writes no work-class: label. Only work-class: untrusted-provenance or provenance: signal would have blocked the plain flip.",
       "files": [],
       "expectations": [
-        "Refuses the plain role flip on an item with no work-class: label",
-        "Presents the marker's proposed class and basis to the operator before acting",
-        "Hands the operator a single ready-to-paste edit covering the class label and the role flip, rather than writing the work-class: label itself",
-        "Re-reads the labels before clearing @me, and clears it while the claim is held"
+        "Flips #4400 to the autonomous-eligible role without a work-class: label",
+        "Flips #4401 without reclassifying it away from work-class: structural",
+        "Applies the role label and removes the human-gated one in a single edit per item, while the claim is held",
+        "Writes no work-class: label"
       ],
       "id": 6
     },
@@ -204,7 +204,7 @@
       "id": 17,
       "name": "attend-queue-offers-human-gated-rows-one-at-a-time",
       "prompt": "/work-items:attend-queue\n\nThe escalated rows are done and no intake is waiting. Three open issues still wear needs-human with no escalation marker: #1201 'Rotate the deploy key for the docs site' (its brief says the key is held only by the owner), #1202 'Pick the retention period for audit logs' (its brief lists 30 and 90 days with no recommendation), and #1203 'Drop the legacy export endpoint' (its brief says removing it breaks two external consumers with no rollback). The operator says: go through them.",
-      "expected_output": "Lists the three items as [human-gated] rows and states the count, 3. Then offers only #1201: claims it, restates the item, that it waits on a secret only the owner holds, and the options presented, and waits for the operator's answer. It does not put #1202 or #1203 in the same question. Only after #1201's answer is written back as a comment (or the operator skips it) does it offer #1202 alone, with its own restatement, and then #1203. Each item that still meets the label test keeps needs-human, with the answer and its completion route recorded as a comment; none is flipped to agent-ready without a dispatchable work-class label.",
+      "expected_output": "Lists the three items as [human-gated] rows and states the count, 3. Then offers only #1201: claims it, restates the item, that it waits on a secret only the owner holds, and the options presented, and waits for the operator's answer. It does not put #1202 or #1203 in the same question. Only after #1201's answer is written back as a comment (or the operator skips it) does it offer #1202 alone, with its own restatement, and then #1203. Each item that still meets the label test keeps needs-human, with the answer and its completion route recorded as a comment; none of those is flipped to agent-ready.",
       "files": [],
       "expectations": [
         "States the count of [human-gated] rows before working any",

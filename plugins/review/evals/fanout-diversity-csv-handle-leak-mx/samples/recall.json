@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | high | src/import-csv.js:10 | code-reviewer | The try/finally is gone, so a CSV with the wrong header throws before file.close() and its handle stays open. importAll catches the error and moves to the next upload, so a batch of bad files leaks one handle each until open fails with EMFILE. | Close the handle in a finally block |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the wrong-header input and the leaked handle at IMPORTANT"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/csv-header-check\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | medium | src/import-csv.js:3 | code-reviewer | HEADER is hard-coded; consider reading the expected columns from config. | Move HEADER to config |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "names the changed lines at SUGGESTION, without the bad input or the leaked handle"
+    }
+  ]
+}

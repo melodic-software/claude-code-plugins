@@ -1,0 +1,10 @@
+fixture: stock-race
+source_case: none
+defect:
+  location: src/inventory.js:14
+  summary: "reserve now awaits confirmSku between reading the stock level and writing it back, so the check and the write no longer run as one step"
+  failure: "two checkouts that reserve the last unit of a SKU at the same time both read 1 before either writes, both pass the check and both set the stock to 0, so one unit is sold twice with no error"
+axis: standards
+not_defects:
+  - "callers must change to await reserve (it was already async on main, and checkout already awaits it)"
+  - "src/warehouse.js or src/checkout.js changed on this branch (only src/inventory.js changed)"

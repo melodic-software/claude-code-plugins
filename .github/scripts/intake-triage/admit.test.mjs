@@ -2227,6 +2227,26 @@ describe("unrunnableCriteria", () => {
     ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
     ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
     ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],
+    // Items the lane stopped on (#12229) and the corpus replay found (#11959, #10221, #12072).
+    ["a result attributed in a comment (#12229)", "The startup gap is attributed by source in a comment.", /comment instead/],
+    ["a result posted as a labeled comment (#11959)", "The eval runs with 12 cases, and its result is posted as a `Probe result:` comment.", /comment instead/],
+    [
+      "a split into sub-issues (#12229)",
+      "Each bullet above is either split into a sub-issue with a measured before figure or struck with a measured reason.",
+      /tracker write/,
+    ],
+    ["an issue split into sub-issues (#10221)", "The issue is split into sub-issues with blocked-by edges before any run.", /tracker write/],
+    ["a sub-issue filed per group (#12072)", "One sub-issue of #7292 is filed per plugin that still has findings.", /tracker write/],
+    ["an imperative to file a follow-up issue", "File a follow-up issue for the wording.", /tracker write/],
+    ["an imperative to open an issue", "Open an issue for each failing plugin.", /tracker write/],
+    ["an imperative to file issues", "File issues for the remaining findings.", /tracker write/],
+    ["an imperative to open sub-issues", "Open sub-issues for slices 2 and 3.", /tracker write/],
+    ["a conditional result recorded in a comment on this issue", "When the eval finishes, its output is recorded in a comment on this issue.", /comment instead/],
+    ["a bot's results posted as a comment on this issue", "The bot's results are posted as a comment on this issue.", /comment instead/],
+    ["a breakdown by lane in a comment", "Token spend is broken down by lane in a comment.", /comment instead/],
+    ["an attribution by hook in a comment", "The startup gap is attributed by hook in a comment.", /comment instead/],
+    ["a conditional labeled comment on this issue", "Once the probe runs, its result is posted as a `Probe result:` comment on this issue.", /comment instead/],
+    ["a conditional breakdown in a comment on this issue", "When the run ends, token spend is broken down by lane in a comment on this issue.", /comment instead/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -2287,6 +2307,21 @@ describe("unrunnableCriteria", () => {
     ["plugin-eval named in docs", "The `/evals:plugin-eval` section names the cost ceiling."],
     ["a subject-first comment a script posts", "A comment on this issue names each refused item."],
     ["a named script's result posted as a comment on this issue", "work-unblock's result is posted as a comment on this issue."],
+    ["a result attributed in a code comment", "The startup gap is attributed by source in a comment above the function."],
+    ["a result written as a code comment in a file", "The script's output is written as a comment in the generated file."],
+    ["a doc that says work is split into sub-issues", "`SKILL.md` says a large issue is split into sub-issues."],
+    ["a conditional follow-up issue (#9886)", "If the result contradicts the doc, a follow-up issue is filed for the wording."],
+    ["a script that splits into sub-issues", "Each oversized item is split into sub-issues by refine.mjs."],
+    ["an issue form", "The intake template is opened as an issue form with the new field."],
+    ["a sub-issue closed by a PR (#10232)", "Every slice sub-issue is closed by a merged PR."],
+    ["a script filing an issue (#10195)", "The detection script's test shows one unread release files one issue."],
+    // Review findings on #12248: an "Open issues" noun phrase, and a comment an automation posts.
+    ["an Open issues noun phrase", "Open issues labeled `stale` are listed in the weekly digest."],
+    ["an Open issue count", "Open issue count is shown in the summary table."],
+    ["Open issues a sweep skips", "Open issues with the `needs-decision` label are skipped by the sweep."],
+    ["a conditional result posted as a comment", "When intake refuses an issue, its result is posted as a comment."],
+    ["a workflow's findings posted as a comment", "The admission workflow's findings are posted as a comment."],
+    ["a result a lane posts as a comment", "Its result is posted as a comment by the intake lane."],
   ];
   for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {
