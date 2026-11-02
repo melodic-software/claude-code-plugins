@@ -3,6 +3,13 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-11-02
+
+### Added
+
+- A custom check the custom-check clamp caps now carries `clamped_from`, the severity it computed before the cap, beside `severity` in the result and in `latest.json`. A result the clamp leaves alone has no `clamped_from`, and the clamp drops one a custom script emitted itself. The note stays.
+- `/machine-health:setup apply review-check=<check-id>` records the owner's review of one custom check in `approvals.json` (`reviewed_checks`, written by `Set-ApprovalState -Action review-check`), and the audit then leaves that check's CRIT at CRIT. `unreview-check=<check-id>` withdraws the review. Only a custom check the overlay registers can be reviewed; a wildcard, `all` or a list of ids is refused. An audit run never writes a review, and an unreviewed custom check is clamped as before.
+
 ## [0.25.0] - 2026-11-01
 
 ### Added

@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-11-02
+
+### Changed
+
+- **The `/testing:cleanup` eval fixtures hold the mutation-testing config at `docs/conventions/mutation-testing.yaml`** ([#12290](https://github.com/melodic-software/claude-code-plugins/issues/12290)), the team file mutation-testing now reads. The bash-harness and .NET variants are `mutation-testing-bash.yaml` and `mutation-testing-dotnet.yaml`, and the eval prompts copy them to that path.
+
 ## [2.0.4] - 2026-11-01
 
 ### Fixed
