@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/display-name.ts:3 | code-reviewer | A JSDoc line saying callers must check for a signed-in user first would help a later caller. | Add a doc comment |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/display-name.ts:4 | code-reviewer | If a future caller passed null past the type checker, displayName would throw a TypeError reading profile; the compiler guards this today. | Note the precondition in a doc comment |\n| 2 | SUGGESTION | low | src/header.ts:8 | code-reviewer | The greeting could be localized. | Localize the greeting |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: every finding is SUGGESTION, including the null note; high Confidence does not raise a Tier"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/display-name.ts:4 | code-reviewer | The null check is gone, so displayName(null) throws a TypeError reading `profile` for a signed-out visitor. | Restore the Guest fallback |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "an IMPORTANT finding raises the decoy, which headerLabel's sign-in check and strict mode rule out"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/display-name.ts:4 | code-reviewer | A signed-in user with no profile now makes displayName throw reading nickname. | Guard user.profile |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: an IMPORTANT finding fails recall; the low Confidence is ignored"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/display-name-type\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/display-name.ts:4 | code-reviewer | An empty-string nickname counts as missing, so a user who cleared their nickname is shown their full name. | Check for undefined instead of falsy |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: any IMPORTANT finding fails, even one about behavior main already had that makes no not_defects claim"
     }
   ]
 }

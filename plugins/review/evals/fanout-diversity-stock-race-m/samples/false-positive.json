@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | Two concurrent reservations of the last unit both pass the check across the awaited confirmSku and both write 0, overselling it. | Check the stock after the await |\n| 2 | SUGGESTION | low | src/warehouse.js:10 | code-reviewer | recordReservation ignores the response status. | Check res.ok |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only CRITICAL finding is the planted defect"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | Two concurrent reservations of the last unit both pass the check across the awaited confirmSku and oversell it. | Check the stock after the await |\n| 2 | IMPORTANT | medium | src/checkout.js:6 | architecture-guardian | This branch changes checkout to reserve items one at a time, which slows large carts. | Reserve in parallel |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "the claim that src/checkout.js changed is IMPORTANT, and only CRITICAL findings count"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | checkout awaits reserve for each item, but the await on confirmSku inside reserve lets a second checkout read the same stock level, so two checkouts both take the last unit. | Re-check the stock after the await |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the finding is the planted race; it mentions checkout's await of reserve but does not claim callers must change"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/inventory.js:14 | code-reviewer | Two concurrent reservations of the last unit both pass the check and oversell it. | Check the stock after the await |\n| 2 | CRITICAL | medium | src/inventory.js:9 | architecture-guardian | reserve became async, so every caller that does not await it now gets a pending promise instead of the new stock level. | Await reserve in every caller |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
       "why": "a CRITICAL finding claims callers break because reserve became async"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/warehouse-confirm\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | medium | src/warehouse.js:5 | architecture-guardian | This branch makes confirmSku throw for an unstocked SKU, which now aborts checkouts that used to succeed. | Revert the warehouse change |\n\n## Surfaces\n\nRan: [architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims src/warehouse.js changed on this branch"
     }
   ]
 }
