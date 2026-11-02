@@ -95,7 +95,9 @@ jobs:
       # A dispatch, and any re-run of one, must come from a listed human; the
       # broker checks the same, so this only keeps the model from running for
       # nothing. Actor-only mode takes no schedule event, so a re-run of a
-      # scheduled run stops here: dispatch the release instead.
+      # scheduled run stops here: dispatch the release instead. Any re-run,
+      # partial or full, also skips the model job (its run_attempt check), so
+      # a retry of the model is a new dispatch.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true' && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
@@ -162,7 +164,8 @@ jobs:
   # removed from the working tree first (R13).
   model:
     needs: gate
-    if: needs.gate.outputs.proceed == 'true'
+    # The first attempt only: a re-run never runs the model again.
+    if: needs.gate.outputs.proceed == 'true' && github.run_attempt == '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     cache-mode: read
