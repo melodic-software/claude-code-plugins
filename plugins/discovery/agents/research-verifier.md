@@ -121,7 +121,10 @@ carries a sweep word. It matches ID tokens, not meaning, so what it cannot see i
 that cites the wrong claim for what its line says, or a decision that leans on a claim past a
 recorded qualifier. The rule is in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md),
-"Restatements cite; they do not restate".
+"Restatements cite; they do not restate". A slice-root synthesis that adds no claims of its own is
+the exception: that check reads only the root's own sidecars, so it never saw the root's pointers
+to sub-slice claims. There, check each pointer's label against the sub-slice sidecar that declares
+the claim, and each index pointer line for a sweep word (`every`, `all`, `none`, `only`), yourself.
 
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)

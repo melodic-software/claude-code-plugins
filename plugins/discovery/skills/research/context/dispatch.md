@@ -252,12 +252,21 @@ accepted nothing records `accepted: 0` and opens its Summary with
 `Inconclusive: no claim accepted.` Any failure sends the synthesis back for rewriting, not the
 sub-slice for re-dispatch.
 
-**A synthesis that adds no claims needs no verifier.** When the slice-root index writes no claim
-of its own (no `RESEARCH-*.md` sidecar at the root, or only `claims: []`) and cites each
-sub-slice claim by its `id:` with that claim's label, every claim it carries already has its
-sub-slice's verdict, and a verifier would grade only the pointers. Write
-`verification: skipped (cost)` into it and say in its outcome-gate result that it adds no claims.
-A root that adds one claim, a cross-topic conclusion included, takes the verifier as above.
+**A synthesis that adds no claims takes the verifier on row 12 only.** When the slice-root index
+writes no claim of its own (no `RESEARCH-*.md` sidecar at the root, or only `claims: []`) and
+cites each sub-slice claim by its `id:` with that claim's label, every claim it carries already
+has its sub-slice's verdict, so rows 4, 7 and 14 have nothing of the root's own to grade. Its
+pointers still do: a Settled line that drops a `HIGH (single source)` label, or widens a claim
+with a sweep word, is the drift row 12 exists to catch, and no script sees it at the root. The
+restatement check reads only the sidecars in the directory it is given and never recurses into a
+sub-slice, so over a root holding `claims: []` it finds no ID to look for and passes without
+reading a pointer, and over a root with no sidecar it exits 2. Acceptance-gate step 5 therefore
+grades the sub-slices, each before synthesis, and is not run on a claim-free root, in either
+shape. Dispatch the verifier on the root with `Rows: 12`, and say in the brief that no
+restatement check covered the root's pointers, so their labels and sweep words are the
+verifier's to check against the sub-slice sidecars. Write its `verification_line` into the root
+index and say in its outcome-gate result that it adds no claims. A root that adds one claim, a
+cross-topic conclusion included, takes the verifier on every verifier-owned row as above.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

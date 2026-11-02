@@ -171,8 +171,9 @@ against the artifact on disk, applies project fit, and writes both results back 
 artifact's index **before** surfacing anything. An engine earns no weaker boundary than a
 subagent. The verifier is `discovery:research-verifier`; its dispatch, the `verification:` write-back and the `skipped (cost)` path
 are the verifier block in SKILL.md. On the N-topic path the synthesized root index also goes to a fresh verifier for every verifier-owned row, the accepted-claim count included,
-before it is surfaced, per [dispatch.md](dispatch.md)'s fan-out section, unless it adds no claims
-of its own (that section's "A synthesis that adds no claims needs no verifier"). A claim a topic index
+before it is surfaced, per [dispatch.md](dispatch.md)'s fan-out section, or for row 12 alone when it
+adds no claims of its own (that section's "A synthesis that adds no claims takes the verifier on row
+12 only"). A claim a topic index
 flags keeps its `single source` flag in the synthesis and in anything surfaced from it.
 
 **Grade each run off disk first.** Run the acceptance gate against the sub-slice assigned to each
