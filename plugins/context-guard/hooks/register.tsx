@@ -22,7 +22,8 @@ const ACTION_TEXT: Record<Action, string> = {
 type Action = (typeof ACTIONS)[number]
 type Rule = { action: Action; text?: string }
 type Threshold = Rule & { at: number }
-type Settings = { bands: Bands; margin: number; actions: Partial<Record<Zone, Rule>>; thresholds: Threshold[] }
+// notices: the band shapes readBands found malformed, each falling back to the shipped bands.
+type Settings = { bands: Bands; notices: string[]; margin: number; actions: Partial<Record<Zone, Rule>>; thresholds: Threshold[] }
 type Config = {
   enabled: boolean
   lines: boolean
@@ -94,6 +95,9 @@ type State = {
   settings: Settings
   zonesText: string | null
   zonesKey: string | undefined
+  zonesToast: boolean
+  // Each malformed zones.json text already toasted this session.
+  zonesToasted: Set<string>
 }
 
 // plugin.json declares no number bounds, because the engine refuses the whole module for a value
@@ -151,7 +155,7 @@ const asRule = (value: unknown): Rule | undefined => {
 // zones.json: the bands as the resolver reads them, plus the mod's keys; an absent or invalid key
 // means its default, so a file written for the resolver alone keeps working.
 export const parseSettings = (zones: string | null): Settings => {
-  const { bands } = readBands(zones)
+  const { bands, notices } = readBands(zones)
   let z: Record<string, unknown> = {}
   try {
     const parsed: unknown = zones === null ? {} : JSON.parse(zones)
@@ -174,7 +178,7 @@ export const parseSettings = (zones: string | null): Settings => {
     })
     .filter((t): t is Threshold => t !== undefined)
     .sort((a, b) => a.at - b.at)
-  return { bands, margin: Number.isFinite(margin) && margin >= 0 && margin < 100 ? margin : 5, actions, thresholds }
+  return { bands, notices, margin: Number.isFinite(margin) && margin >= 0 && margin < 100 ? margin : 5, actions, thresholds }
 }
 
 const newSession = (restate: Session['restate']): Session => ({
@@ -325,7 +329,11 @@ const withLines = <T extends { context?: readonly string[] }>($: EngineInterface
 
 const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || undefined
 
-// zones.json, re-read only when it appears, disappears or its mtime moves.
+const zonesToastText = (path: string, notices: string[]) =>
+  `${path}: shipped defaults replace malformed ${notices.join(' and ')} · /context-guard:setup check`
+
+// zones.json, re-read only when it appears, disappears or its mtime moves. A malformed text is
+// toasted to the person once per distinct content; Claude gets no line about it.
 async function loadSettings($: EngineInterface, st: State, home: string | undefined) {
   if (home === undefined) return st.settings
   const path = `${home}/.claude/${CONTRACT_DIR}/zones.json`
@@ -336,6 +344,11 @@ async function loadSettings($: EngineInterface, st: State, home: string | undefi
     st.settings = parseSettings(text)
     st.zonesText = text
     st.zonesKey = key
+    const { notices } = st.settings
+    if (st.zonesToast && text !== null && notices.length > 0 && !st.zonesToasted.has(text)) {
+      st.zonesToasted.add(text)
+      $.ui.toast(zonesToastText(path, notices))
+    }
   }
   return st.settings
 }
@@ -734,6 +747,8 @@ export const register: Register = (on, options) => {
     settings: parseSettings(null),
     zonesText: null,
     zonesKey: undefined,
+    zonesToast: cfg.enabled && cfg.toast,
+    zonesToasted: new Set(),
   }
 
   on('session.start', async ($, e, next) => {
