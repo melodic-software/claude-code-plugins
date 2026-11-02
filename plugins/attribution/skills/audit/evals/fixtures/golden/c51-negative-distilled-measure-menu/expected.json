@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 5 Distilled-product architectures)",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k13"
+  },
+  "notes": {
+    "shape": "A distilled reference file: a header naming the page it distills with a pointer, an as-of date and a trigger, then a menu that condenses the page's list of measures into terse bullets, then local guidance.",
+    "carve_outs": "Distilled-product architecture applies: the file declares itself a distillation of a named page, with the pointer record at its head.",
+    "rubric": "Not graded under the carve-out. Had it been, C1 would be weak (no shared sentence survives the condensing) and C3 would FAIL on the header record.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.047, jaccard 0.017, longest matched span 12 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.082, longest span 9 words).",
+    "carries": "A condensed list under a distilling header, below both fingerprint limbs. It pairs with the next case, drawn from the same page."
+  }
+}

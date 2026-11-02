@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 2 Conforming stamped records)",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k12"
+  },
+  "notes": {
+    "shape": "A paragraph whose middle sentence is a light edit of the source's guard sentence, wrapped in local advice and version history, followed by a record that names the paragraph's refusal cases as its claim.",
+    "carve_outs": "Conforming stamped record applies: the record's claim names the refusal cases, its basis is the anchored section plus the changelog entries, and it carries a date and a trigger.",
+    "rubric": "Not graded under the carve-out. Had it been, C1 and C2 would hold on the guard sentence and C3 would FAIL on the record.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.190, jaccard 0.151, longest matched span 26 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.081, longest span 10 words).",
+    "carries": "A light-edit copy covered by a record two lines below it. A run that flags it scores the copy and not its record."
+  }
+}

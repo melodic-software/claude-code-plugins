@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 5 Distilled-product architectures)",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k15"
+  },
+  "notes": {
+    "shape": "Catalog entries that each take one sign from a credited wiki page, quote its watch phrases, and add the catalog's own rule id, detectability, applicability, script or rubric split and routing between rules.",
+    "carve_outs": "Distilled-product architecture applies: the file's attribution section names the page and its license, and its drift record carries the pointer, date and trigger.",
+    "rubric": "Not graded under the carve-out. Had it been, C4 would FAIL: the classification, the script and rubric split and the routing are local and would be lost behind a link.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.024, jaccard 0.013, longest matched span 9 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.044, longest span 9 words).",
+    "carries": "A distilling catalog whose quoted phrase lists match its source, below both fingerprint limbs once quotations are set aside."
+  }
+}

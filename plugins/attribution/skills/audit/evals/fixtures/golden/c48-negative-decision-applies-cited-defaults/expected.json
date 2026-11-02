@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k10"
+  },
+  "notes": {
+    "shape": "A decision record that restates an administrator page's default behavior, applies it to the owner's machines and lanes, accepts the resulting risk, and cites both sections with an as-of date and a product version.",
+    "carve_outs": "None needed; the criteria clear it.",
+    "rubric": "C1 and C2 hold on the restated default. C3 FAILS: the Basis names both anchored sections at the point of use with a date and a version. C4 FAILS: the decision, the accepted risk and where it lands in this repository are local judgment a link could not carry.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.256, jaccard 0.201, longest matched span 45 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.088, longest span 7 words).",
+    "carries": "An attributed restatement embedded in a decision. A run that flags it reads the upstream facts and not the decision they serve."
+  }
+}

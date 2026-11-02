@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 2 Conforming stamped records)",
+    "rubric": "copy",
+    "rubric_version": 5,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k07"
+  },
+  "notes": {
+    "shape": "A section that restates one frontmatter row with light edits, directly followed by a pointer record naming that row, its as-of date and a recheck trigger that lists the restated rules.",
+    "carve_outs": "Conforming stamped record applies on one reading: the record beside the section names the row and covers each rule the section restates.",
+    "rubric": "Where graded: C1 and C2 hold; C3 FAILS, because the adjacent record's pointer, date and trigger cover exactly what the section restates. One failing criterion clears it.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.273, jaccard 0.190, longest matched span 38 words; the separation rule fires. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.021, longest span 6 words).",
+    "carries": "A near-verbatim restatement with its record directly under it. A run that flags it has ignored a record because it sits after the text rather than before it."
+  }
+}

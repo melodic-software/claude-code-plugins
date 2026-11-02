@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous: CLEARED (carve-outs named: 1 Conforming pointer or record)",
+    "rubric": "restated-fact",
+    "rubric_version": 1,
+    "nomination": "evals/nominations/2026-11-02-larger-sample.json k18"
+  },
+  "notes": {
+    "shape": "An agent definition whose verification paragraph states an external runtime's turn-limit behavior as a Claim, with a Basis naming the anchored row, an As-of date and a recheck trigger that names each stated fact.",
+    "carve_outs": "Conforming pointer or record applies: claim, basis, as-of and trigger are whole and cover every fact the paragraph states.",
+    "rubric": "Not graded under the carve-out. Had it been, R4 would FAIL on the record.",
+    "measured": "fingerprint.mjs at k=5 against its source.md: containment 0.034, jaccard 0.022, longest matched span 9 words; the separation rule does not fire. Case and source each stay below both limbs against the real passage's file and its real source (highest containment 0.072, longest span 12 words).",
+    "carries": "A restated fact carried in a whole record inside an agent definition. A run that flags it has read the facts and not the record around them."
+  }
+}
