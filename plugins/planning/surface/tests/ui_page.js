@@ -590,6 +590,40 @@ async page => { // the question page itself: choices, chips, banners, header and
     const card = await page.evaluate(() => ({head: !!document.getElementById("roundRestate"), idx: !!document.getElementById("roundIndex")}));
     ok("#11858: the later question shows the Held line without the round's header or index", !card.head && !card.idx, JSON.stringify(card));
   }
+  if (PHASE === 25) { // #12103: Q21's basis carries a Flips if: line, Q2's none; the page then answers Q21 in its own words
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q21");
+    const why = await page.$eval("#why", el => el.textContent).catch(() => "");
+    ok("#12103: the recommendation block shows the basis's flip condition, and Why leaves that line out", (await text("#flipIf")) === "Flips if: the team moves release talk to a chat channel" && /release calendar/.test(why) && !/Flips if/.test(why), await text("#flipIf") + " | " + why);
+    await pick("Q2");
+    ok("#12103: a recommendation whose basis states no flip shows Flips if: not stated", (await text("#flipIf")) === "Flips if: not stated", await text("#flipIf"));
+    await post({id: "Q21", kind: "own", text: "owner mails it, day before"}); await page.waitForTimeout(500);
+  }
+  if (PHASE === 26) { // #12103: the shell read Q21's answer back and posted a restatement
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q21");
+    const rb = await page.evaluate(() => { const r = document.getElementById("readback"); return r ? {inAnswer: !!r.closest("section.answer"), text: r.textContent.replace(/\s+/g, " ").trim(), btn: !!r.querySelector("[data-confirmreading]")} : null; });
+    ok("#12103: Claude's read-back shows beside the answer it reads back, with Confirm reading", !!rb && rb.inAnswer && /^Claude read your answer as Understood as: the release owner emails the team the day before the freeze\./.test(rb.text) && rb.btn, JSON.stringify(rb));
+    await page.click("[data-confirmreading]"); await page.waitForTimeout(700);
+    const ev = (await events()).pop();
+    ok("#12103: Confirm reading posts confirm-reading on Q21, and the read-back then reads confirmed", ev.kind === "confirm-reading" && ev.id === "Q21" && /You confirmed this reading/.test(await text("#readback")) && !(await page.$("[data-confirmreading]")), JSON.stringify(ev) + " | " + await text("#readback"));
+    await page.click("#sumBtn"); await page.waitForTimeout(300);
+    const n = (await events()).length;
+    await page.fill("#offText", "Q99"); await page.click('[data-understand="off"]'); await page.waitForTimeout(300);
+    ok("#12103: Change these refuses a number the page has no question for", (await events()).length === n && /No question Q99 on this page/.test(await text("#restate")), await text("#restate"));
+    await page.fill("#offText", "3 and Q5"); await page.click('[data-understand="off"]'); await page.waitForTimeout(700);
+    const off = (await events()).pop();
+    ok("#12103: Change these posts the question numbers to change", off.kind === "confirm-understanding" && off.alt === "off" && off.text === "Change Q3, Q5" && off.contentRev === 1, JSON.stringify(off));
+  }
+  if (PHASE === 27) { // #12103: the shell restated again; the same control confirms
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.click("#sumBtn"); await page.waitForTimeout(300);
+    await page.click('[data-understand="confirm"]'); await page.waitForTimeout(700);
+    const cu = (await events()).pop();
+    ok("#12103: Confirm posts confirm-understanding on the newest restatement", cu.kind === "confirm-understanding" && cu.alt === "confirm" && cu.contentRev === 2 && /^Confirmed/.test(await text("#uDone")), JSON.stringify(cu) + " | " + await text("#uDone"));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");
