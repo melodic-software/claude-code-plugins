@@ -9,6 +9,7 @@ import base64
 import contextlib
 import hashlib
 import io
+import json
 import os
 import re
 import shutil
@@ -338,6 +339,20 @@ class ReadyStamp(unittest.TestCase):
 
     def test_an_interpreter_only_the_launcher_listed_writes_no_stamp(self):
         self.install_as(sys.executable)   # not on PATH, as a python.exe that only py -0p lists
+        self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
+        self.assertFalse(self.stamp.exists())
+
+    def test_an_interpreter_named_outside_the_hooks_candidates_writes_no_stamp(self):
+        # A plugin allowing 3.14 chooses python3.14, which the hook never checks, so a change to it could not
+        # invalidate a stamp.
+        config_path = self.root / 'scripts' / 'pydeps.json'
+        config = json.loads(config_path.read_text(encoding='utf-8'))
+        config.pop('python_min', None)
+        config['pythons'] = sorted({f'{sys.version_info[0]}.{sys.version_info[1]}', '3.14'})
+        config_path.write_text(json.dumps(config), encoding='utf-8')
+        python314 = self.bin / 'python3.14'
+        python314.symlink_to(sys.executable)
+        self.install_as(python314)
         self.assertEqual(len([p for p in (self.data / 'python').iterdir() if p.is_dir()]), 1)
         self.assertFalse(self.stamp.exists())
 

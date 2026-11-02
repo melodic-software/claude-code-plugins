@@ -353,10 +353,11 @@ def main(argv=None):
     except Broken as e:
         sys.stderr.write(f'{PLUGIN}: {e}\nRepair with: {repair_line(data)}\n')
         return 1
-    # Only the plugin's own lock, and only an interpreter the hook can see on PATH: one the py launcher listed is
-    # chosen by a listing the hook does not read, so no stamp, and the hook keeps its full path.
+    # Only the plugin's own lock, and only an interpreter found through a name the hook checks: one the py launcher
+    # listed, or one named outside HOOK_CANDIDATES (python3.14 for a plugin allowing 3.14), could change without
+    # the hook seeing it, so no stamp, and the hook keeps its full path.
     if (a.requirements.resolve() == REQUIREMENTS and tuple(a.probe) == PROBE
-            and chosen in {_which(name) for name in CANDIDATES} - {None}):
+            and chosen in {_which(name) for name in HOOK_CANDIDATES} - {None}):
         write_ready_stamp(data, env_dir(data, a.requirements))
     return 0
 
