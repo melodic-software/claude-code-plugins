@@ -138,10 +138,11 @@ test('credentials.ci naming a variable the driver has no key source for is refus
 
 const CI = ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN'];
 
-test('attended clears every CI credential and requires "none", whatever is set', () => {
-  const { env, keySource } = buildLaunch({ pluginDir: '/p', credentials: CI }, { ANTHROPIC_API_KEY: 'fake', CLAUDE_CODE_OAUTH_TOKEN: 'fake' });
+test('attended clears the API key, passes the person\'s own OAuth token through, and requires "none"', () => {
+  // The config an attended verb builds: no --unattended, no CI names.
+  const { env, keySource } = buildLaunch({ pluginDir: '/p' }, { ANTHROPIC_API_KEY: 'fake', CLAUDE_CODE_OAUTH_TOKEN: 'fake' });
   assert.equal('ANTHROPIC_API_KEY' in env, false);
-  assert.equal('CLAUDE_CODE_OAUTH_TOKEN' in env, false);
+  assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'fake');
   assert.equal('CLAUDE_CODE_SUBPROCESS_ENV_SCRUB' in env, false);
   assert.equal(keySource, 'none');
 });
@@ -537,6 +538,7 @@ export const TuiTest = { ephemeral: () => ({
     key: opts.env.ANTHROPIC_API_KEY ?? null, scrub: opts.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB ?? null,
   })),
   state: async () => ({ exited: null, exit_signal: null }),
+  type: async () => writeFileSync(${JSON.stringify(seen)} + '.holder', process.env.ANTHROPIC_API_KEY ?? 'unset'),
   close: async () => {},
   closeQuiet: async () => {},
 }) };
@@ -550,6 +552,8 @@ export const TuiTest = { ephemeral: () => ({
     const got = JSON.parse(readFileSync(seen, 'utf8'));
     assert.equal(got.key, 'fake-ci');
     assert.equal(got.scrub, '1');
+    assert.equal(await main(['type', 'x', '--session', name]), 0);
+    assert.equal(readFileSync(`${seen}.holder`, 'utf8'), 'unset', 'the holder drops the key once claude has it');
     assert.equal(await main(['stop', '--session', name]), 0);
   } finally {
     if (saved === undefined) delete process.env.ANTHROPIC_API_KEY;

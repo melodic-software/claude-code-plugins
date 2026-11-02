@@ -99,11 +99,13 @@ export const UNSET_VARS = [
 // UNVERIFIED: that CLAUDE_CODE_OAUTH_TOKEN, a claude.ai subscription token, reports "none" as the
 // signed-in login does; until the owner's #11386 spike leg records it, a token that reports any
 // other source is refused. The CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row and "What the subprocess
-// environment scrub removes" (same page) keep a kept credential out of hooks, Bash and MCP servers.
+// environment scrub removes" (same page) remove a kept credential from the environment hooks, Bash
+// and MCP servers inherit; whether plugin code can still read it elsewhere is #8651's S7 probe.
 // As of: 2026-11-02. Recheck trigger: the spike records the token's apiKeySource, or the scrub's
 // table changes which variables it removes.
 const NO_KEY = 'none';
 const CI_KEY_SOURCES = { ANTHROPIC_API_KEY: 'ANTHROPIC_API_KEY', CLAUDE_CODE_OAUTH_TOKEN: NO_KEY };
+const CI_NAMES = Object.keys(CI_KEY_SOURCES);
 const CONFIG = join(HERE, '..', 'config', 'defaults.json');
 
 /** The variable names committed config lists under `credentials.ci`; each must be one CI_KEY_SOURCES knows. */
@@ -116,8 +118,9 @@ export function ciCredentials(file = CONFIG) {
 
 /**
  * The Claude Code command line, environment and the apiKeySource Ready accepts; pure, so it tests
- * with no packages installed. Attended, every credential variable is cleared and the source must be
- * "none". Unattended, the one `config.credentials` variable that is set is kept, the scrub keeps it
+ * with no packages installed. Attended, the API-key, gateway and provider variables are cleared and
+ * the source must be "none"; CLAUDE_CODE_OAUTH_TOKEN, the person's own login, passes through as it
+ * always has. Unattended, the one `config.credentials` variable that is set is kept, the scrub keeps it
  * from the processes Claude Code starts, and two set at once is refused before anything runs.
  */
 export function buildLaunch(config, env) {
@@ -499,6 +502,8 @@ async function serve(opts) {
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
+  // claude has its copy; the holder keeps no credential for the rest of the session.
+  for (const name of CI_NAMES) delete process.env[name];
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
   const server = net.createServer((conn) => {

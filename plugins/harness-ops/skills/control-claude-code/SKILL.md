@@ -30,11 +30,12 @@ as `blocked: maxCaptures reached`.
 The launch clears every API-key, gateway and provider variable and hides the working directory on
 the startup screen. An unattended run adds `--unattended` to `launch`, `ready` and `logs`: the one
 variable that `credentials.ci` in `config/defaults.json` names and the job has set is kept, with
-`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` so hooks, Bash and MCP servers of the plugin under test never
-see it; two set at once is refused before anything starts. A kept `ANTHROPIC_API_KEY` opens the
-interactive session on a one-time key-approval prompt
-(<https://code.claude.com/docs/en/env-vars#variables>, as of 2026-11-02; recheck when that row
-changes).
+`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` set, and the session holder drops it once `claude` starts; two
+set at once is refused before anything starts. The kept credential is not proven out of the plugin
+under test's reach: no CI job passes `--unattended` until #8651's isolation probe shows it is. A run
+that keeps `ANTHROPIC_API_KEY` reads the `ANTHROPIC_API_KEY` row of
+<https://code.claude.com/docs/en/env-vars#variables> for what the interactive session does with the
+key, and screenshots that first screen (as of 2026-11-02; recheck when that row changes).
 
 ## Ready
 
