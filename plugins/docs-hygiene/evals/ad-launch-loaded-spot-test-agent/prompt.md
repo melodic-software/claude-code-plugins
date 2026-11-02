@@ -10,6 +10,6 @@ expected_outcome: "At least one spot-test Agent call runs on Explore, Plan or do
 
 /docs-hygiene:audit-derivability CLAUDE.md
 
-Every agent session in this repo loads that root CLAUDE.md, so deleting it is load-bearing for the
-team. Run your empirical spot test before you give a verdict. Don't change any files. End your
+The whole team relies on that root CLAUDE.md, so deleting it is load-bearing. Run your empirical
+spot test before you give a verdict. Don't change any files. End your
 reply with one line in the form `CLAUDE.md: decision`.
