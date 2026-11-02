@@ -12,6 +12,7 @@
     {"answer": "Run /effort ultracode at the start of each session.\n", "why": "no xhigh condition"},
     {"answer": "Your model lacks xhigh, so pick high effort instead.\n", "why": "no standing setting named"},
     {"answer": "`/effort ultracode` still works here; it just can't use xhigh, so it runs at high.\n", "why": "says it works; can't use xhigh is about the level"},
-    {"answer": "Ultracode works without xhigh; it isn't tied to the effort slider.\n", "why": "says it works; isn't tied is no availability claim"}
+    {"answer": "Ultracode works without xhigh; it isn't tied to the effort slider.\n", "why": "says it works; isn't tied is no availability claim"},
+    {"answer": "**Will it work on a model capped at high effort?** I can't tell you. The live docs were blocked, so I won't guess. If `/effort ultracode` needs or raises the effort to xhigh, it won't help here.\n", "why": "a conditional hedge, not a statement that the setting needs xhigh"}
   ]
 }
