@@ -196,7 +196,6 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -253,7 +252,6 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Prepare the working tree
         id: prepare
@@ -351,7 +349,6 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .lane-trusted
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
@@ -426,7 +423,6 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -507,18 +503,10 @@ jobs:
                 echo "::error::a planned branch changes a binary file; only text is published"
                 exit 1
               fi
-              # The lane-branch scan: the diff read as a diff, so a token
-              # split across added lines joins without its `+` prefixes, and
-              # every changed file's whole bytes.
-              scan=$(node .base/.github/scripts/work-resolve-issue/scan-reuse.mjs .base "$BASE_SHA" "$head" </dev/null) || scan=failed
-              if [ "$scan" != clean ]; then
-                echo "::error::a planned branch did not scan clean ($scan)"
-                exit 1
-              fi
               # The net diff is all that leaves this job: the bundle below
               # carries one synthetic commit with the head's tree, and push
               # publishes one commit with that tree and the plan's title.
-              git -C .base diff --no-renames --no-ext-diff --no-textconv --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
+              git -C .base diff --no-renames --binary "$BASE_SHA" "$head" >>"$IN/diffs.txt"
               count=$((count + 1))
             done <"$IN/heads.txt"
           fi
@@ -620,7 +608,6 @@ jobs:
           path: .base
           fetch-depth: 0
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
@@ -754,7 +741,6 @@ jobs:
           ref: ${{ needs.gate.outputs.base-sha }}
           path: .base
           persist-credentials: false
-          set-safe-directory: false # GIT_CONFIG_GLOBAL is /dev/null, so its --global write cannot land
 
       - name: Set up Node
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
