@@ -1194,6 +1194,16 @@ jobs:
             echo "::warning::$unmapped changed file(s) map to no suite; the plan runs the whole corpus of each one's language."
             printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
+      # A merge group's hold step emits this job's notices itself. Elsewhere
+      # this step does, and on a pull request it names detect-changes, which
+      # lists the files through actions/github-script, a client no counter sees.
+      - name: Log the API budget at the end
+        if: always() && github.event_name != 'merge_group'
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: ${{ github.event_name == 'pull_request' && 'detect-changes:pulls/files' || '' }}
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -2893,6 +2903,14 @@ jobs:
         if: needs.select-tests.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
 
+      # A docs-only diff checks nothing out, so there is no action to load.
+      - name: Log the API budget at the end
+        if: always() && hashFiles('.github/actions/log-api-budget/action.yml') != ''
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
   # schema and quality lint, the invocation probes, the detector/eval crosswalk
@@ -3579,6 +3597,12 @@ jobs:
             exit 1
           fi
           scripts/run-plugin-tests.sh --jobs 3 --suites-from "$RUNNER_TEMP/leg-suites.txt"
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # THE PYTHON SUITES THE CHANGE SELECTS, one pytest process per module, on one
   # to four legs of about 180 suite-seconds (one module at a time). Every module
@@ -3725,6 +3749,12 @@ jobs:
             [ "$suite_rc" = 0 ] || rc=1
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
@@ -3907,6 +3937,12 @@ jobs:
         with:
           path: ~/.npm
           key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # A pull request that hand-edits a file the standards sync-manifest manages
   # fails. A standards-sync pull request (melodic-standards-sync[bot], head
@@ -3939,6 +3975,16 @@ jobs:
           fetch-depth: 0
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+      # The guard's calls (setup-node's manifest read, and its github-script
+      # reads in merge-group, Dependabot and sync mode) go through clients no
+      # counter sees, so the step names it.
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+          outside: check-managed-files
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3975,6 +4021,12 @@ jobs:
             exit 0
           fi
           scripts/check-cant-fail-scan.sh
+      - name: Log the API budget at the end
+        if: always()
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   ci-status:
     needs:
