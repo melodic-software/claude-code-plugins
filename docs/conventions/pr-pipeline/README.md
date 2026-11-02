@@ -2416,12 +2416,12 @@ head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
 the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, compared as the
-pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
-the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
+pr-merge lane decides lane authorship. Any other author's passing or hold-only run is skipped
+before the model runs, with the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges every
 trusted actor's: a `User` or `Bot` whose account id is on the trusted-actor list (never matched
 by login), whose pull requests the pr-merge lane adopts (Eligibility, above); any other author's
-is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it
+passing or hold-only run is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
