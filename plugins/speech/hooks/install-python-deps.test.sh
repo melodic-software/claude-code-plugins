@@ -366,7 +366,7 @@ chmod +x "$WORK/drive/bin/"*
 {
   printf 'pydeps-hook-ready 1\nC:\\plugin\nC:\\data\\python\\0123456789ab-cpython-399\n'
   for name in python3.13 python3.12 python3 python; do
-    printf '%s=C:\\bin\\%s\n' "$name" "$name"
+    printf '%s=C:%sbin%s%s\n' "$name" "\\" "\\" "$name"
   done
   printf 'py=\n'
 } >"$WORK/drive/data/python/.hook-ready"
