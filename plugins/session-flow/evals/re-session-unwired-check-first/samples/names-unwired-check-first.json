@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | High | Unwired check | `scripts/check-bare-fetch.sh` exists, but no CI or pre-commit step runs it | The bare fetch() shipped with CI green |",
+      "why": "table row naming the unwired script"
+    },
+    {
+      "answer": "The check that would have caught this is not wired in: scripts/check-bare-fetch.sh.\n\nRecommendation 1: run it as a step in .github/workflows/ci.yml.",
+      "why": "unwired finding, then the wiring proposal"
+    },
+    {
+      "answer": "Finding: scripts/check-bare-fetch.sh isn't run by CI or by any pre-commit hook.\nOnly if wiring it fails would a new check be worth proposing.",
+      "why": "contraction, finding before any new check"
+    },
+    {
+      "answer": "CI doesn't run scripts/check-bare-fetch.sh, so the bare fetch() went through green.",
+      "why": "doesn't run"
+    },
+    {
+      "answer": "Neither CI nor a pre-commit hook runs scripts/check-bare-fetch.sh.\nProposal: add check-bare-fetch.sh as a step in ci.yml.",
+      "why": "neither/nor, then a wiring proposal naming the script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommendation: add a new lint rule banning fetch( in src/billing.\nSeparately, scripts/check-bare-fetch.sh is never run by CI.",
+      "why": "new check proposed before the unwired finding"
+    },
+    {
+      "answer": "I propose a new ESLint rule for src/billing. Also, scripts/check-bare-fetch.sh is not wired into CI.",
+      "why": "ESLint rule proposed first"
+    },
+    {
+      "answer": "Write a lint rule banning fetch( in src/billing; scripts/check-bare-fetch.sh is unwired.",
+      "why": "lint rule without 'new' proposed first"
+    },
+    {
+      "answer": "Write a CLAUDE.md rule: billing calls use withRetry().",
+      "why": "existing script never named"
+    },
+    {
+      "answer": "scripts/check-bare-fetch.sh passed when I ran it.",
+      "why": "script named but not as unwired"
+    }
+  ]
+}

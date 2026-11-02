@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | An empty reviews list now raises ZeroDivisionError, so Cable tray breaks the product page. | Restore the early return |\n| 2 | SUGGESTION | low | ratings.py:2 | code-reviewer | Consider a type hint for reviews. | Add a type hint |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "the only CRITICAL finding is the planted defect"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/ratings\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | ratings.py:2 | code-reviewer | An empty reviews list now raises ZeroDivisionError. | Restore the early return |\n| 2 | CRITICAL | medium | ratings.py:2 | architecture-guardian | Products with reviews now get an average rounded to a whole number instead of one decimal place. | Revert |\n\n## Surfaces\n\nRan: [code-reviewer@high, architecture-guardian@high]. Returned no result: [].",
+      "why": "a CRITICAL finding claims the non-empty average changed"
+    }
+  ]
+}

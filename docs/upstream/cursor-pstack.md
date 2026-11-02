@@ -32,7 +32,7 @@ rows. Row links point at whole skill directories where a verdict rests on more t
 the trigger reaches `references/`, playbooks and `scripts/`. `scripts/check-upstream-drift.sh`
 computes the changed paths.
 
-**Adaptation posture.** Every entry is a reauthor: not a fork and not a vendored copy. We keep the
+**Adaptation posture.** Every entry is a reauthor, not a fork and not a vendored copy. We keep the
 substance where it earns its place, fit it to this marketplace's conventions, and write the prose
 ourselves. The `playbooks` plugin's boris pack is the deliberate contrast: it keeps an upstream copy
 so drift can be detected against it.
@@ -404,9 +404,9 @@ automation pack and the Claude Code harness page. A unit with a row above names 
 - [`principle-foundational-thinking`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-foundational-thinking): `planning:design`, `planning:plan`
 - [`principle-guard-the-context-window`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-guard-the-context-window): nothing taken (covered by `playbooks:fable-5` and `session-flow:orchestrate`)
 - [`principle-laziness-protocol`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-laziness-protocol): `implementation:implement`, `architecture:improve`
-- [`principle-make-operations-idempotent`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-make-operations-idempotent): `planning:devils-advocate`, `review:code-reviewer`
+- [`principle-make-operations-idempotent`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-make-operations-idempotent): `planning:devils-advocate`, `review:code-reviewer`, loop-lane convention
 - [`principle-migrate-callers-then-delete-legacy-apis`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-migrate-callers-then-delete-legacy-apis): `implementation:implement`, `playbooks:fable-5`
-- [`principle-minimize-reader-load`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-minimize-reader-load): `architecture:improve`
+- [`principle-minimize-reader-load`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-minimize-reader-load): `architecture:improve`, `review:code-reviewer`
 - [`principle-model-the-domain`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-model-the-domain): `implementation:implement`, `review:code-reviewer`, `architecture:improve`
 - [`principle-never-block-on-the-human`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-never-block-on-the-human): `playbooks:fable-5`
 - [`principle-outcome-oriented-execution`](https://github.com/cursor/plugins/tree/88d47514b82e7c44f00f2b2a72ff6dd12158038c/pstack/skills/principle-outcome-oriented-execution): `planning:plan`, `implementation:implement`

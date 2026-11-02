@@ -52,14 +52,25 @@ Produce every count with a command or script whose output goes into the report (
    | Naming | <desc> | <desc> | Yes/No |
    | Structure | <desc> | <desc> | Yes/No |
 
+   ### What limits the number
+   Commands:   <the command each run used, and its scan root>
+   Limiter:    <what holds each metric at its after value: the tool's counting rule, the files in scope, a floor the code needs> | unknown
+   Ruled out:  <another explanation for the delta: the command output that excludes it> | unknown
+   Handed off: no
+
    ### Trade-offs
    <more files? more indirection? harder to debug?>
    ```
 
+   A code-metric compare fills `Limiter:` and `Ruled out:` itself, and its `Handed off:` line reads `no`, because `/performance:verify` re-derives runtime claims only. The reason: a number with no known limit cannot be trusted, since the same drop in a count comes from simpler code and from a narrower scan.
+   - **`Limiter:`** names what holds each reported metric at its after value, such as the tool's counting rule, the files the scan covered, or a floor like the one branch a function needs; the test is that the `Commands:` line shows both runs used the same command over the same scan root.
+   - **`Ruled out:`** names at least one other thing the delta could reflect (files moved out of the scan root, generated or vendored code entering or leaving the count, a different tool version or configuration between the runs, code moved rather than removed), each with the command output that excludes it.
+
 4. **Verdict:**
-   - **CONFIRMED**: measurable metrics improved AND no significant trade-offs
+   - **CONFIRMED**: measurable metrics improved AND no significant trade-offs, with `Limiter:` and `Ruled out:` both filled
    - **MIXED**: some improved, some degraded (document both)
    - **NOT CONFIRMED**: metrics neutral or worse despite the claim
+   - **INCONCLUSIVE**: `Limiter:` or `Ruled out:` reads `unknown` (an `unknown` line only blocks CONFIRMED; MIXED and NOT CONFIRMED stand without either line), or the pair meets the INCONCLUSIVE rule in the table above
    - Quality changes without measurable impact may still be valid. Back them with qualitative examples, not assertions
 
 ## Measuring a "better tested" claim

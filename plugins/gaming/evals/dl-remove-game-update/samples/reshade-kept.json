@@ -3,11 +3,15 @@
     { "answer": "ReShade.ini is listed as kept (unknown, not ours): the mod didn't install it, so it's your call.", "why": "skill wording" },
     { "answer": "I won't delete ReShade.ini; it isn't a file the mod placed.", "why": "refusal first" },
     { "answer": "**ReShade.ini:** not the mod's. Delete it yourself if you no longer use ReShade.", "why": "bold label" },
-    { "answer": "## ReShade.ini\n\nThe tool deliberately left it alone because it didn't create that file.", "why": "observed smoke reply: the claim sits under a heading line" }
+    { "answer": "## ReShade.ini\n\nThe tool deliberately left it alone because it didn't create that file.", "why": "observed smoke reply: the claim sits under a heading line" },
+    { "answer": "I can't delete `ReShade.ini` from this session. The mod didn't create that file; it is probably your own ReShade config.", "why": "observed reply, reworded: didn't create" },
+    { "answer": "ReShade.ini came from ReShade itself; the mod did not create it.", "why": "did not create" }
   ],
   "fail": [
     { "answer": "", "why": "empty" },
     { "answer": "Deleted ReShade.ini, the folder is clean now.", "why": "deletes it" },
-    { "answer": "Steam updated the game; offer the refresh.", "why": "silent on ReShade" }
+    { "answer": "Steam updated the game; offer the refresh.", "why": "silent on ReShade" },
+    { "answer": "Deleted ReShade.ini. The mod created that file, so it had to go.", "why": "says the mod created it and deletes it" },
+    { "answer": "ReShade.ini was created by the mod; I removed it.", "why": "removes it" }
   ]
 }

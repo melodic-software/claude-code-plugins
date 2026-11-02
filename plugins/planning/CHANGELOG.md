@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.136.3] - 2026-11-02
+
+### Changed
+
+- `/planning:design`'s type rules now come from the shared type-discipline contract, generated at
+  the same `reference/type-discipline.md` path with every rule unchanged. The Phase 3 framing and
+  the table of language files moved into the skill's Phase 3 section.
+
 ## [0.136.2] - 2026-11-01
 
 ### Changed
