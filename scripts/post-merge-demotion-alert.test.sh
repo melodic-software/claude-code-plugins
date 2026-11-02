@@ -2133,32 +2133,34 @@ if [[ "$RC" -eq 0 && "$(closed)" == 7 && -n "$comment_line" ]] &&
 else
   fail "close comment: rc=$RC log='$LOG' out='$OUT'"
 fi
-# A failed or incomplete read closes nothing.
-FAIL_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not read github-actions%5Bbot%5D's open records: none of them closed"* ]]; then
-  ok "close-cleared closes nothing when the open-record listing fails"
-else
-  fail "close on failed listing: rc=$RC log='$LOG' out='$OUT'"
-fi
-FAIL_LANE_READ=1 LANE_ISSUES="[$(rec 11 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
-  run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$OUT" == *"could not read melodic-automation-lanes%5Bbot%5D's open records: none of them closed"* ]]; then
-  ok "close-cleared closes none of a filer's records when that filer's listing fails, and still closes the other's"
-else
-  fail "close on one failed listing: rc=$RC closed='$(closed)' out='$OUT'"
-fi
-ANCESTRY=fail PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/comments$' <<<"$LOG"; then
-  ok "close-cleared closes no record when the compare read fails"
-else
-  fail "close on failed compare: rc=$RC log='$LOG'"
-fi
-FAIL_GRAPHQL=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- post-merge-failure sha=$OTHER signal=schedule -->")]"
-if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
-  ok "close-cleared closes no record when its edit history cannot be read"
-else
-  fail "close on failed graphql: rc=$RC log='$LOG' out='$OUT'"
-fi
+# A failed or incomplete read closes nothing, for each kind of record the job closes.
+for kind in post-merge-failure babysit-merge-demotion; do
+  FAIL_READ=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"could not read github-actions%5Bbot%5D's open records: none of them closed"* ]]; then
+    ok "close-cleared closes no $kind record when the open-record listing fails"
+  else
+    fail "$kind close on failed listing: rc=$RC log='$LOG' out='$OUT'"
+  fi
+  FAIL_LANE_READ=1 LANE_ISSUES="[$(rec 11 $BEFORE "<!-- $kind sha=$OTHER signal=dispatch -->")]" PIPELINE="$PIPE" \
+    run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && "$(closed)" == 7 && "$OUT" == *"could not read melodic-automation-lanes%5Bbot%5D's open records: none of them closed"* ]]; then
+    ok "close-cleared closes none of a filer's $kind records when that filer's listing fails, and still closes the other's"
+  else
+    fail "$kind close on one failed listing: rc=$RC closed='$(closed)' out='$OUT'"
+  fi
+  ANCESTRY=fail PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" ]] && ! grep -q '/comments$' <<<"$LOG"; then
+    ok "close-cleared closes no $kind record when the compare read fails"
+  else
+    fail "$kind close on failed compare: rc=$RC log='$LOG'"
+  fi
+  FAIL_GRAPHQL=1 PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "<!-- $kind sha=$OTHER signal=schedule -->")]"
+  if [[ "$RC" -eq 0 && -z "$(closed)" && "$OUT" == *"#7 was edited or could not be read: left open"* ]]; then
+    ok "close-cleared closes no $kind record when its edit history cannot be read"
+  else
+    fail "$kind close on failed graphql: rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
 for marker in "<!-- post-merge-failure sha=$OTHER signal=canary -->" "<!-- babysit-merge-demotion sha=$OTHER signal=revert -->" \
   "<!-- post-merge-fix check=lint -->" "<!-- post-merge-failure sha=${OTHER:0:12} signal=schedule -->"; do
   PIPELINE="$PIPE" run_close "[$(rec 7 $BEFORE "$marker")]"
