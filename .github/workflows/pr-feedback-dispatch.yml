@@ -902,16 +902,16 @@ jobs:
           # spend attempt 2, the only re-run the lost-run reconciler makes. Left
           # at attempt 1, the reconciler re-runs it once the switch is off when
           # its red matches one of its kinds (Switch, Stop, Review, Pending); a
-          # red that mixes their notes, such as a pending review beside a
-          # pr-unblock stop, matches none and waits for a person. A later
+          # red that mixes a pending review with a pr-unblock stop matches
+          # neither of those kinds and waits for a person. A later
           # attempt is re-run as any other: this job's record covers attempt 2
           # and up (check-trusted-trigger.mjs ciStatusRerunRecorder), and a red
           # on the switch there is named for a person by the reconciler. An
           # unread switch counts as on, and an unread author as the App's, as
           # ci-status reads it: no re-run is safer than a spent attempt.
           if [[ $attempt == 1 && $LANES_PROCEED != true ]] &&
-            jq -e --arg id "$APP_SENDER_ID" '(.user.id | type) != "number" or (.user.type | type) != "string"
-              or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)' <<<"$pr" >/dev/null; then
+            jq -e --arg id "$APP_SENDER_ID" 'try ((.user.id | type) != "number" or (.user.type | type) != "string"
+              or ($id | test("^[1-9][0-9]*$")) and .user.type == "Bot" and .user.id == ($id | tonumber)) catch true' <<<"$pr" >/dev/null; then
             echo "::notice::the lanes kill switch is on or unread, so ci-status on lanes App #$PR_NUMBER is not re-run; the lost-run reconciler re-runs it once the switch is off."
             exit 0
           fi
