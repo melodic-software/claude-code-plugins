@@ -9,7 +9,7 @@ graders:
   - name: eight-plus-candidates
     type: llm
     focus: last_message
-    criteria: "The writer asked for rhymes for 'release'. Count the distinct rhyme candidates the reply offers: words or phrases put forward for the writer to use. PASS only if it offers at least eight, however they are laid out: one per list line or table row, several per line or row, or inline and comma-separated. Count each distinct candidate once, and do not judge how well it rhymes. Header rows, bold tier headings and tier labels (such as Perfect, Family, Additive or Mosaic) are not candidates, and neither is a word the reply names only to reject it, as an identity such as 'police' or 'lease'; every word or phrase the reply offers counts, even a weak rhyme. FAIL if it offers seven or fewer."
+    criteria: "The writer asked for a rhyme for 'release' to end a chorus line and offered 'police' and 'lease', which are identities, not rhymes. PASS if the reply offers at least eight distinct rhyme candidates, however they are laid out: one per list line, several per list line or table row, or inline in a sentence. Count each distinct candidate once; a repeat, a tier or section label, a table header, and a word named only to rule it out (such as 'police' or 'lease' rejected as identities) do not count. FAIL if fewer than eight distinct candidates remain. Judge only the count; tiers, labels, the identity verdict and whether one candidate is crowned are graded elsewhere."
   - name: no-single-winner
     type: llm
     focus: last_message

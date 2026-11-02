@@ -14,7 +14,7 @@ graders:
   - name: eight-plus-candidates
     type: llm
     focus: last_message
-    criteria: "The writer asked for rhymes for 'window'. Count the distinct rhyme candidates the reply offers: words or phrases put forward for the writer to use. PASS only if it offers at least eight, however they are laid out: one per list line or table row, several per line or row, or inline and comma-separated. Count each distinct candidate once, and do not judge how well it rhymes. Header rows, bold tier headings and tier labels (such as Family, Additive, Assonance or Mosaic) are not candidates, and neither is a word the reply names only to reject it, for example as an identity; every word or phrase the reply offers counts, even a weak rhyme. FAIL if it offers seven or fewer."
+    criteria: "The writer asked for a rhyme for 'window' to end line 4 of a verse. PASS if the reply offers at least eight distinct rhyme candidates, however they are laid out: one per list line, several per list line or table row, or inline in a sentence. Count each distinct candidate once; a repeat, a tier or section label, a table header, and a word named only to rule it out (such as 'window' itself as an identity) do not count. FAIL if fewer than eight distinct candidates remain. Judge only the count; tiers, labels and whether one candidate is crowned are graded elsewhere."
   - name: no-single-winner
     type: llm
     focus: last_message
