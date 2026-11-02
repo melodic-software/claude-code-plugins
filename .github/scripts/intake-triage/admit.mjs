@@ -9,7 +9,7 @@
 // risk), or a hold label other than one this run's triage applied on a
 // flagless verdict, which it refuses, and the
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
-// words rule-admit.sh refuses (chargePattern) in what the issue will do
+// words (chargePattern) in what the issue will do
 // (workCharges), and on an edit that moved one into code (revisionWraps),
 // whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
@@ -639,8 +639,8 @@ export function issuePushRefusals() {
 }
 
 let chargeWords;
-// The charge-word patterns rule-admit.sh matches too, {code, cost,
-// costPrivate}, and the headings only admission reads, {workHeadings}, read
+// The charge-word patterns, {code, cost, costPrivate}, and the headings
+// that say what an issue will do, {workHeadings}, read
 // once from their one definition in the default branch's checkout beside this
 // script.
 export function chargePattern() {
