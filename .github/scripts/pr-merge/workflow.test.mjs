@@ -542,6 +542,12 @@ test("pr-merge takes a pr input, runs every 30 minutes and names a PR-scoped run
   const arm = job("enable-auto-merge");
   assert.match(arm, /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \|\| inputs\.pr \}\}\n/);
   assert.equal((arm.match(/\n {10}DISPATCH_PR: \$\{\{ inputs\.pr \}\}\n/g) ?? []).length, 2);
+  // The broker mints a verdict wake only for the pull request it names, and
+  // only github-actions[bot]'s run names one.
+  assert.equal(
+    (arm.match(/\n {10}pr-number: \$\{\{ github\.actor_id == '41898282' && inputs\.pr \|\| '' \}\}\n/g) ?? []).length,
+    1,
+  );
   // Its room: the last sweep's report, read into the place the arm step reads.
   const last = /- name: Read the post-merge report the last sweep kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
   assert.ok(last, "a PR-scoped run reads the last sweep's post-merge report");

@@ -2360,6 +2360,11 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          # A verdict wake (github-actions[bot]'s PR-scoped dispatch) names
+          # its pull request: the broker mints for that run only when the
+          # pull request is an open lanes App one on main. Any other run,
+          # a person's hand-started PR-scoped run included, names none.
+          pr-number: ${{ github.actor_id == '41898282' && inputs.pr || '' }}
           superseded-ok: true
           kill-switch-ok: true
 
