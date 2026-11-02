@@ -28,7 +28,7 @@
     "ratchet_break_glass": {
       "type": "boolean",
       "title": "Ratchet break glass",
-      "description": "When on, /toolchain:ratchet writes break_glass true into a ceilings file that has no break_glass key, so a per-file counter honors an inline exception carrying a reason, an expiry and an approver. Off (default) writes false, so a repository opts in to break glass. The ceilings file's break_glass key wins over this option.",
+      "description": "When on, /toolchain:ratchet writes break_glass true into a ceilings file lacking the key, so a per-file counter honors inline exceptions with a reason, expiry and approver. Defaults to false, which writes false. The file's own break_glass key wins over this option.",
       "default": false
     }
   }
