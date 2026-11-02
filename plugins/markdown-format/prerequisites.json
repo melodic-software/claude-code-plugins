@@ -1,4 +1,7 @@
 {
+  "session_probe": {
+    "run_if_unset_or_true": "MARKDOWN_FORMAT_ENABLED"
+  },
   "requires": [
     {
       "id": "markdownlint-cli2",

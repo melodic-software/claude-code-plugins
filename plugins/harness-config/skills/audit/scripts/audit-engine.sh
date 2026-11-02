@@ -1370,14 +1370,36 @@ done < <(jqs -r '.plugins[]? | [.plugin, .status, (.path // "")] | @tsv' <<<"$IN
 # A permissions.ask rule prompts even in auto mode and is auto-denied under
 # dontAsk, so recommending the git push ask-gates to a repo that runs an
 # unattended lane would stall or break that lane's own pushes. The signal is
-# babysit_loop_merge resolving above human-only in the team-tracked
-# .claude/source-control.md: raises bind from that layer only
-# (source-control's config-resolution.md), and a file that adopts loop-lane
-# keys without the merge key resolves to the c2-mechanical baseline.
+# babysit_loop_merge resolving above human-only in the team layer:
+# docs/conventions/source-control.yaml, else, for one release, the
+# .claude/source-control.md H2. Raises bind from that layer only
+# (source-control's config-resolution.md), and a team layer that adopts
+# loop-lane keys in either file without the merge key resolves to the
+# c2-mechanical baseline. A YAML the shared parser rejects makes the team
+# layer unreadable: no signal, and the legacy file is not read past it.
 UNATTENDED_LANE=""
-SC_TEAM="$PROJECT_ROOT/.claude/source-control.md"
-if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
-  IFS=$'\t' read -r lane_adopted lane_rung < <(awk '
+SC_TEAM_YAML_REL="docs/conventions/source-control.yaml"
+SC_TEAM_REL=".claude/source-control.md"
+SC_TEAM_YAML="$PROJECT_ROOT/$SC_TEAM_YAML_REL"
+SC_TEAM="$PROJECT_ROOT/$SC_TEAM_REL"
+lane_adopted=0
+lane_rung=""
+lane_file=""
+lane_read_legacy=1
+if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM_YAML" ]]; then
+  if lane_records="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_SUBSET" "$SC_TEAM_YAML" 2>/dev/null)"; then
+    IFS=$'\t' read -r lane_adopted lane_rung < <(awk -F'\t' '
+      index($1, "babysit_loop_") == 1 { adopted = 1 }
+      $1 == "babysit_loop_merge" && val == "" { val = substr($0, length($1) + 2) }
+      END { printf "%s\t%s\n", adopted ? 1 : 0, val }
+    ' <<<"$lane_records")
+    [[ -n "$lane_rung" ]] && lane_file="$SC_TEAM_YAML_REL"
+  else
+    lane_read_legacy=0
+  fi
+fi
+if [[ -n "$PROJECT_ROOT" && $lane_read_legacy -eq 1 && -z "$lane_rung" && -f "$SC_TEAM" ]]; then
+  IFS=$'\t' read -r md_adopted lane_rung < <(awk '
     {
       sub(/\r$/, "")
     }
@@ -1392,18 +1414,21 @@ if [[ -n "$PROJECT_ROOT" && -f "$SC_TEAM" ]]; then
     }
     END { printf "%s\t%s\n", adopted ? 1 : 0, val }
   ' "$SC_TEAM")
-  lane_source="babysit_loop_merge: $lane_rung"
-  if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
-    lane_rung="c2-mechanical"
-    lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
-  fi
-  case "$lane_rung" in
-  c2-mechanical | c3-autonomous | full-autonomy)
-    UNATTENDED_LANE="$lane_source in the team-tracked .claude/source-control.md declares an unattended-push lane"
-    ;;
-  *) ;;
-  esac
+  [[ "$md_adopted" == "1" ]] && lane_adopted=1
+  [[ -n "$lane_rung" ]] && lane_file="$SC_TEAM_REL"
 fi
+lane_source="babysit_loop_merge: $lane_rung"
+if [[ -z "$lane_rung" && "$lane_adopted" == "1" ]]; then
+  lane_rung="c2-mechanical"
+  lane_source="loop-lane keys with no babysit_loop_merge (baseline c2-mechanical)"
+  lane_file="$SC_TEAM_YAML_REL or $SC_TEAM_REL"
+fi
+case "$lane_rung" in
+c2-mechanical | c3-autonomous | full-autonomy)
+  UNATTENDED_LANE="$lane_source in the team-tracked $lane_file declares an unattended-push lane"
+  ;;
+*) ;;
+esac
 ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under dontAsk, so it blocks an unattended lane's pushes"
 
 # --- Category B: permissions -------------------------------------------------

@@ -56,7 +56,7 @@ fi
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, and an `if` would narrow the .gitattributes-driven file
 # set (#3411). `async` could race the next Edit of the file.
-# The SessionStart node-notice row is pinned fleet-wide by scripts/node-notice-rows.test.sh.
+# harness-ops reports a missing node fleet-wide (scripts/node-notice-rows.test.sh).
 # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
 EXPECTED_ROW='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","EOL_NORMALIZER_ENABLED","--skip-unless-stdin-contains","file_path","${CLAUDE_PLUGIN_ROOT}/hooks/eol-normalizer.sh"]'
 expect "hooks.json: no PostToolUse row" "0" "$(jq '[.hooks.PostToolUse // [] | .[]] | length' "$HOOKS_JSON")"
