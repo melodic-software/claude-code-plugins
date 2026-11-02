@@ -366,7 +366,7 @@
         "markers": []
       },
       "component": {
-        "plugin": "harness-ops",
+        "plugin": "work-items",
         "skill": "morning-brief",
         "kind": "skill"
       },
@@ -3399,7 +3399,7 @@
         "class": "builtin-tool"
       },
       "component": {
-        "plugin": "harness-ops",
+        "plugin": "work-items",
         "skill": "morning-brief",
         "kind": "skill"
       },
@@ -3831,7 +3831,7 @@
         "class": "builtin-command"
       },
       "component": {
-        "plugin": "harness-ops",
+        "plugin": "work-items",
         "skill": "morning-brief",
         "kind": "skill"
       },
