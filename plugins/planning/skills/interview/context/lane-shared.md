@@ -213,8 +213,9 @@ frontier now; hold only the questions that pending async work can change.
 
 The watcher exits with one JSON line: `{"seq", "timedOut", "note", "events", "dataDir", "next"}`.
 What the wake notification carries is recorded in [`surface.md`](surface.md) "Wake payload:
-verification record" (pointer, as-of 2026-10-11, recheck trigger there). Read the task's output file
-for the JSON: on exit 0, take the last line that starts with `{`. With `timedOut` true and no events, re-arm
+verification record" (pointer, as-of 2026-10-11, recheck trigger there). On exit 0, Read
+`'<data_dir>/.watch-wake.json'`: its one line is the JSON (a nonzero exit writes none, so the file
+still holds the previous wake's). With `timedOut` true and no events, re-arm
 the `watch` command. Otherwise handle the events in `seq` order, write `ops.json`, and run the
 watcher's `next` line as one background Bash call: it applies `ops.json` and re-arms. With nothing
 to write, re-arm `watch` alone.
