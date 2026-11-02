@@ -668,7 +668,9 @@ Copy the per-case predicted fire/quiet bits into a report JSON matching
 A probe with competitors in other plugins gets a `plugins:` line in each
 case, listing the target plugin and those plugins relative to the case
 directory, so the run loads the rivals too; keep the cases where they were
-emitted.
+emitted. The CLI loads a case's plugins only from inside the run target, so
+run those cases against the directory that holds plugins/, with
+`--eval-dir plugins/<plugin>/<this-dir>`.
 EOF
 }
 
