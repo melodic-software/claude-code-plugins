@@ -580,6 +580,7 @@ class RunValidityTest(unittest.TestCase):
         outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": err, "content": text}
                 for i, (err, text) in enumerate(results)]
         trace = self.dir / name
+        trace.parent.mkdir(parents=True, exist_ok=True)
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps({"type": "assistant", "message": {"content": uses}}) + "\n"
@@ -652,21 +653,49 @@ class RunValidityTest(unittest.TestCase):
             " to start (%s)" % trace,
             proc.stdout,
         )
+        self.assertIn(
+            "harness failure: 1 run never started or had no sandbox, so the score"
+            " measures the harness, not the skill",
+            proc.stdout.splitlines()[-1],
+        )
+        self.assertIn("check permission denials: PASS", proc.stdout)
 
     def test_a_bash_result_reporting_a_read_only_file_system_is_invalid(self):
-        # The #12422 positive control: a run with turns whose Bash write fails.
+        # The #12422 positive control: a run with turns whose write to its own
+        # workspace or TMPDIR fails. The trace sits at <sandbox>/out/trace.jsonl.
+        tmp = self.dir / "sb-tmp" / "tmp" / "claude-1000" / "t"
         for name, results in (
-            ("ro-error.jsonl", [(True, "touch: cannot touch './made-by-bash': Read-only file system")]),
-            ("ro-output.jsonl", [(True, "Exit code 1\nv42\ntouch: cannot touch '/r/tmp/t': READ-ONLY FILE SYSTEM")]),
+            ("sb-rel/out/trace.jsonl",
+             [(True, "touch: cannot touch './made-by-bash': Read-only file system")]),
+            ("sb-tmp/out/trace.jsonl",
+             [(True, "Exit code 1\nv42\ntouch: cannot touch '%s': READ-ONLY FILE SYSTEM" % tmp)]),
+            ("sb-bare/out/trace.jsonl",
+             [(True, "/bin/bash: line 1: %s: Read-only file system"
+               % (self.dir / "sb-bare" / "tmp" / "cwd-6a70"))]),
         ):
             proc, trace = self.bash_trace(name, results)
             self.assertVerdict(proc, "INVALID", 1)
             self.assertIn(
                 "  case measurable-criterion, without-arm run 1: a Bash call hit a"
-                " read-only file system (%s)" % trace,
+                " read-only file system in the run's workspace or TMPDIR (%s)" % trace,
                 proc.stdout,
                 name,
             )
+
+    def test_a_read_only_write_outside_the_run_sandbox_passes(self):
+        # The sandbox mounts paths outside the run read-only by design: a failed
+        # install into a system prefix is the skill's run, not a broken sandbox.
+        for name, text in (
+            ("sb-pip/out/trace.jsonl",
+             "ERROR: Could not install packages due to an OSError: [Errno 30]"
+             " Read-only file system: '/usr/local/lib/python3.12/site-packages/x'"),
+            ("sb-mkdir/out/trace.jsonl",
+             "mkdir: cannot create directory \u2018/usr/share/x\u2019: Read-only file system"),
+            ("no-sandbox-ro.jsonl",
+             "touch: cannot touch '/tmp/claude-eval-x/tmp/t': Read-only file system"),
+        ):
+            proc, _ = self.bash_trace(name, [(True, text)])
+            self.assertIn("check session started: PASS", proc.stdout, name)
 
     def test_a_successful_bash_result_quoting_read_only_passes(self):
         proc, _ = self.bash_trace(
@@ -716,12 +745,6 @@ class RunValidityTest(unittest.TestCase):
             " command failed (%s)" % trace,
             proc.stdout,
         )
-        self.assertIn(
-            "harness failure: 1 run never started or had no sandbox, so the score"
-            " measures the harness, not the skill",
-            proc.stdout.splitlines()[-1],
-        )
-        self.assertIn("check permission denials: PASS", proc.stdout)
 
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
         trace = self.dir / "denied.jsonl"

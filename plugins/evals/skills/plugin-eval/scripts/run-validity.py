@@ -46,9 +46,10 @@ one line per check, detail lines indented under it:
                       trace holds assistant messages ran in a forked session (a
                       slash-invoked `context: fork` skill) and passes. Any run
                       fails whose failed Bash result reports a read-only file
-                      system,
-                      or whose user line's local-command-stderr shows a skill's
-                      pre-computed command failing
+                      system at a relative path or under the run's sandbox (its
+                      workspace and TMPDIR), or whose user line's
+                      local-command-stderr shows a skill's pre-computed command
+                      failing
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -251,9 +252,18 @@ SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
 TRACE_USER = "user"
 PRE_COMMAND_STDERR = "local-command-stderr"
 PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
-# In a Bash result, lowercased, when the run's workspace or TMPDIR is not writable
-# (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422).
-READ_ONLY_TEXT = "read-only file system"
+# A path a failed write reports as read-only, before the phrase ("cannot touch
+# '<p>': Read-only file system", "line 1: <p>: Read-only file system") or after it
+# ("[Errno 30] Read-only file system: '<p>'"). In a Bash result it means the run's
+# workspace or TMPDIR is not writable when the path is relative or under the run's
+# sandbox (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422); the
+# sandbox mounts other paths read-only by design.
+_QUOTED = r"[\"'\u2018]([^\"'\u2019\n]+)[\"'\u2019]"
+READ_ONLY_TARGET = re.compile(
+    r"(?:%s|([^\s:\"'\u2018\u2019]+)):\s*read-only file system"
+    r"|read-only file system:\s*(?:%s|(\S+))" % (_QUOTED, _QUOTED),
+    re.IGNORECASE,
+)
 # A run with at least this many Bash calls, every one failed with no output, had no
 # working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
@@ -713,12 +723,34 @@ def has_output(content):
     return isinstance(content, str) and bool(EXIT_LINE.sub("", content.strip()))
 
 
+def read_only_targets(content):
+    """Each path a tool_result's text reports as on a read-only file system."""
+    if isinstance(content, list):
+        return [
+            p
+            for b in content
+            for p in read_only_targets(b if isinstance(b, str) else as_dict(b).get("text"))
+        ]
+    if not isinstance(content, str):
+        return []
+    return [next(g for g in m.groups() if g) for m in READ_ONLY_TARGET.finditer(content)]
+
+
+def in_run_sandbox(path, sandbox):
+    """True when a path is relative, so under the run's cwd (its workspace), or
+    under its sandbox, which holds the workspace and TMPDIR. A relative path after
+    a cd elsewhere is misread as the workspace."""
+    return not rooted(path) or (sandbox is not None and under(path, sandbox))
+
+
 def shell_failure(run):
     """Why the run had no working shell, or None: a failed Bash result reporting
-    a read-only file system or the sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
+    a read-only file system in the run's workspace or TMPDIR, or the sandbox not
+    starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
     output. A failed call that printed output ran, so the shell worked. A denied
     call never reached the shell, so it counts toward none; check_denials judges
     it."""
+    sandbox = sandbox_dir(run)
     bash_ids, failed_ids = set(), set()
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -733,9 +765,15 @@ def shell_failure(run):
                     continue
                 if block.get(RESULT_ERROR) is not True:
                     continue
+                if any(
+                    in_run_sandbox(p, sandbox)
+                    for p in read_only_targets(block.get(CONTENT))
+                ):
+                    return (
+                        "a Bash call hit a read-only file system in the run's"
+                        " workspace or TMPDIR"
+                    )
                 text = json.dumps(block.get(CONTENT))
-                if READ_ONLY_TEXT in text.lower():
-                    return "a Bash call hit a read-only file system"
                 if SANDBOX_FAILURE_TEXT in text:
                     return "the shell sandbox failed to start"
                 if not has_output(block.get(CONTENT)):
