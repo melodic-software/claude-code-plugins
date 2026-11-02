@@ -7727,6 +7727,26 @@ class SharedPostMergeAnswer(unittest.TestCase):
         )
         self.assertEqual(result.details["postMergeShared"], "used")
 
+    def test_a_demoted_answer_with_a_clear_re_reads_a_changed_record(self) -> None:
+        # Its floor came from another record's clear, which a reopen or an
+        # edit since can move, so the change check still runs.
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {"number": 3, "user": {"login": OPERATOR}, "state": "open"}
+        ]
+        self.flight()
+        demoted = policy.Demotion(
+            True,
+            "#5 open",
+            (3, 5),
+            cleared_at=policy.datetime.fromisoformat("2026-10-12T12:00:00Z"),
+        )
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(),
+            shared=self.shared(gate(), demotion=demoted),
+        )
+        self.assertEqual(result.details["postMergeShared"], "unused:demotion-changed")
+
     def test_an_unbound_answer_is_not_used(self) -> None:
         late = policy.datetime.now(policy.UTC) - policy.timedelta(minutes=31)
         other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")

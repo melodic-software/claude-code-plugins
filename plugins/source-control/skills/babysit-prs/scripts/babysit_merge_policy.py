@@ -6223,7 +6223,11 @@ def shared_refusal(
                     return f"new-merge:#{merge.number}"
         except PolicyReadError:
             return "merged-unreadable"
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+    # A hold with no clear leaves the floor at the enabling commit, which no
+    # record change moves; a hold that carries a clear does not.
+    if (
+        not shared.demotion.active or shared.demotion.cleared_at is not None
+    ) and _demotion_changed(owner, name, shared, identity):
         return "demotion-changed"
     return None
 
