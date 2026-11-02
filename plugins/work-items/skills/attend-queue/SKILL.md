@@ -205,6 +205,14 @@ never compress this restatement away.
   Edit the body before `agent-ready` is added, which alone admits the item: the issue lane fails
   a run on an issue whose title or body changed after that label was last added, so a body edit
   after it needs `agent-ready` removed and added again before the lane can run.
+  **A provenance-removal hold is not cleared by the flip.** When the escalated question names a
+  provenance label (`work-class: untrusted-provenance` or `provenance: signal`) whose latest
+  removal came from an actor below `write`, the role-label flip alone sends the item back to a
+  fresh escalation on the work loop's next cycle. If the answer is that the item is trusted, a
+  person with `write` applies that provenance label again and then removes it, before the flip.
+  This session may make that edit only when its own identity holds `write`. If the answer is
+  that the item is untrusted, they apply the label again and leave it on, and the item stays
+  human-gated.
 - **`[escalated]` rows on a pull request**. Answer the same way, as a comment on the pull
   request, but leave its body alone: the body update above is for issues. When the answer removes
   the human blocker, remove the human-gated role label alone.
