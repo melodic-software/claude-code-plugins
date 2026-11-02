@@ -5,8 +5,8 @@
 //            per-day cap (read-only GITHUB_TOKEN with actions: read)
 //   push     checks each planned branch and recreates it through the Git Data
 //            API as lanes App commits (mutate-branch token)
-//   publish  opens one PR per pushed branch and files each handoff once
-//            (publish-artifact token)
+//   publish  opens one PR per pushed branch and files the release's handoffs
+//            as one issue (publish-artifact token)
 // The plan and the bundle come from the model job, so every field is data:
 // names are held to fixed shapes and every commit to its plugin's paths.
 import { execFileSync } from "node:child_process";
@@ -26,6 +26,58 @@ export const startedArtifact = (release, runId) => `upstream-apply-changelog-sta
 export const doneArtifact = (release) => `upstream-apply-changelog-done-${release}`;
 export const alreadyProcessed = (artifacts) => (artifacts?.total_count ?? 0) > 0;
 export const handoffMarker = (key) => `<!-- upstream-apply-changelog key=${key} -->`;
+export const releaseMarker = (release) => `<!-- upstream-apply-changelog release=${release} -->`;
+const ISSUE_BODY_MAX = 65536; // GitHub's issue body limit
+const TRUNCATED = "Handoff bodies are truncated proportionally to fit GitHub's 65536-character issue body limit.";
+const KIND = /^[a-z][a-z-]{0,39}$/;
+
+const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
+const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
+
+// One checklist item per handoff, its body indented under it, within `budget`
+// characters: when the bodies do not fit, each is cut in proportion to its
+// length and a line says so.
+export function renderItems(handoffs, budget) {
+  const indent = (text) => text.replace(/^(?=.)/gm, "  ");
+  const item = (h, body) => {
+    const kind = KIND.test(h.kind ?? "") ? h.kind : "handoff";
+    return `- [ ] ${kind}: ${h.title}\n\n${body ? `${body}\n\n` : ""}  ${handoffMarker(h.key)}\n`;
+  };
+  const bodies = handoffs.map((h) => indent(h.body));
+  const full = handoffs.map((h, i) => item(h, bodies[i])).join("\n");
+  if (full.length <= budget) return full;
+  const fixed = handoffs.map((h) => item(h, "")).join("\n").length + TRUNCATED.length + 2;
+  const room = budget - fixed - handoffs.length * 2;
+  if (room < 0) throw new Error("the handoff checklist does not fit in one issue body");
+  const total = bodies.reduce((sum, b) => sum + b.length, 0);
+  const cut = bodies.map((b) => b.slice(0, Math.floor((b.length * room) / total)).trimEnd());
+  return `${TRUNCATED}\n\n${handoffs.map((h, i) => item(h, cut[i])).join("\n")}`;
+}
+
+// Files a release's handoffs as one issue, found again by its release marker
+// in any state. An open issue missing some keys gets them appended in one
+// update; a closed one is left alone.
+export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
+  if (!handoffs.length) return "no handoffs; nothing filed";
+  const marker = releaseMarker(release);
+  const q = encodeURIComponent(`repo:${repo} is:issue in:body "upstream-apply-changelog release=${release}"`);
+  const found = await api(`/search/issues?q=${q}&per_page=20`);
+  const issue = (found?.items ?? []).find((i) => typeof i.body === "string" && i.body.includes(marker));
+  if (!issue) {
+    const head = `${marker}\n\n`;
+    const body = head + renderItems(handoffs, ISSUE_BODY_MAX - head.length);
+    await api(`/repos/${repo}/issues`, { method: "POST", body: { title: releaseTitle(release, handoffs.length), body } });
+    return `filed ${handoffs.length} handoffs as one issue`;
+  }
+  if (issue.state !== "open") return `the release issue #${issue.number} is closed; nothing filed`;
+  const have = new Set(keysIn(issue.body));
+  const missing = handoffs.filter((h) => !have.has(h.key));
+  if (!missing.length) return `the release issue #${issue.number} already holds every handoff`;
+  const base = `${issue.body.trimEnd()}\n\n`;
+  const body = base + renderItems(missing, ISSUE_BODY_MAX - base.length);
+  await api(`/repos/${repo}/issues/${issue.number}`, { method: "PATCH", body: { title: releaseTitle(release, have.size + missing.length), body } });
+  return `appended ${missing.length} handoffs to the release issue #${issue.number}`;
+}
 
 function output(name, value) {
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`);
@@ -264,7 +316,6 @@ async function publish(env) {
   // push's heads output: each branch it pushed or found at the planned tree.
   const heads = JSON.parse(env.HEADS || "{}");
   let opened = 0;
-  let filed = 0;
   for (const b of plan.branches) {
     const ref = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
     if (!SHA.test(heads[b.branch] ?? "") || ref?.object?.sha !== heads[b.branch]) {
@@ -279,18 +330,8 @@ async function publish(env) {
     await api(`/repos/${repo}/pulls`, { method: "POST", body: { title: b.pr.title, body: b.pr.body, head: b.branch, base: "main" } });
     opened++;
   }
-  for (const h of plan.handoffs) {
-    const marker = handoffMarker(h.key);
-    const q = encodeURIComponent(`repo:${repo} is:issue in:body "${h.key}"`);
-    const found = await api(`/search/issues?q=${q}&per_page=20`);
-    if ((found?.items ?? []).some((i) => typeof i.body === "string" && i.body.includes(marker))) {
-      console.log(`handoff ${h.key} is already filed`);
-      continue;
-    }
-    await api(`/repos/${repo}/issues`, { method: "POST", body: { title: h.title, body: `${h.body}\n\n${marker}\n` } });
-    filed++;
-  }
-  console.log(`opened ${opened} pull requests and filed ${filed} handoffs`);
+  console.log(`opened ${opened} pull requests`);
+  console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, api }));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

@@ -118,5 +118,6 @@ always false: the marker moves in the ledger pull request once every row is in a
 `status` is `stopped` (no rows were derived; `stop_reason` is `cap-exceeded`, `no-range` or
 `range-not-computed`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
-rule in [decisions.md](decisions.md). PR bodies follow the consuming repository's pull request
+rule in [decisions.md](decisions.md). The workflow groups a release's handoffs into one issue, a
+checklist item per handoff. PR bodies follow the consuming repository's pull request
 template.

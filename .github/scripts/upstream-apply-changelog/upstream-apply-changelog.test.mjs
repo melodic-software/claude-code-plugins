@@ -9,7 +9,11 @@ import {
   alreadyProcessed,
   branchFor,
   checkRawLog,
+  fileReleaseHandoffs,
+  handoffMarker,
   newestRelease,
+  releaseMarker,
+  renderItems,
   readCommits,
   releasesFromStatus,
   replayCommits,
@@ -159,4 +163,98 @@ test("the planned commits are read oldest first with their files, and a merge co
   git("commit", "-qm", "side");
   git("merge", "-q", "--no-edit", "main");
   assert.throws(() => readCommits(dir, base, git("rev-parse", "HEAD")), /merge commit/);
+});
+
+const REPO = "o/r";
+const REL = "2.1.300";
+const handoff = (n, over = {}) => ({ key: `changelog:${REL}..${REL}:adopt:plugins/x/${n}.sh`, kind: "adopt", title: `adopt ${n}`, body: `body ${n}\nline two`, ...over });
+// A fake API: answers the search with `items` and records every call.
+const issueApi = (items = []) => {
+  const calls = [];
+  const api = async (path, opts = {}) => {
+    calls.push({ path, method: opts.method ?? "GET", body: opts.body });
+    return path.startsWith("/search/issues") ? { items } : {};
+  };
+  return { api, calls, writes: () => calls.filter((c) => c.method !== "GET") };
+};
+
+test("no handoffs files nothing and makes no call", async () => {
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], api: f.api });
+  assert.equal(f.calls.length, 0);
+});
+
+test("one handoff files one release issue with the release marker and its keyed checklist item", async () => {
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  const [w] = f.writes();
+  assert.equal(f.writes().length, 1);
+  assert.equal(w.path, `/repos/${REPO}/issues`);
+  assert.equal(w.method, "POST");
+  assert.equal(w.body.title, `Claude Code v${REL} changelog: 1 handoff`);
+  assert.ok(w.body.body.startsWith(`${releaseMarker(REL)}\n`));
+  assert.ok(w.body.body.includes("- [ ] adopt: adopt 1\n\n  body 1\n  line two\n\n  "));
+  assert.ok(w.body.body.includes(handoffMarker(handoff(1).key)));
+});
+
+test("several handoffs go into one issue, one checklist item each, in plan order", async () => {
+  const f = issueApi();
+  const hs = [handoff(1), handoff(2, { kind: "security" }), handoff(3)];
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
+  assert.equal(f.writes().length, 1);
+  const { title, body } = f.writes()[0].body;
+  assert.equal(title, `Claude Code v${REL} changelog: 3 handoffs`);
+  assert.equal(body.match(/^- \[ \] /gm).length, 3);
+  assert.ok(body.includes("- [ ] security: adopt 2"));
+  const at = hs.map((h) => body.indexOf(handoffMarker(h.key)));
+  assert.ok(at.every((i) => i > 0) && at[0] < at[1] && at[1] < at[2]);
+});
+
+test("bodies over the issue limit are cut in proportion, every key kept, and a line says so", async () => {
+  const f = issueApi();
+  const hs = [handoff(1, { body: "a".repeat(50000) }), handoff(2, { body: "b".repeat(25000) })];
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
+  const { body } = f.writes()[0].body;
+  assert.ok(body.length <= 65536);
+  assert.match(body, /truncated proportionally/);
+  for (const h of hs) assert.ok(body.includes(handoffMarker(h.key)));
+  const a = body.match(/a+/g).reduce((m, s) => Math.max(m, s.length), 0);
+  const b = body.match(/b{100,}/g)[0].length;
+  assert.ok(Math.abs(a / b - 2) < 0.01);
+  assert.equal(renderItems(hs.slice(0, 1).map((h) => ({ ...h, body: "x" })), 1000).includes("truncated"), false);
+});
+
+test("a release issue holding every key gets no write", async () => {
+  const hs = [handoff(1), handoff(2)];
+  const body = `${releaseMarker(REL)}\n\n${renderItems(hs, 65536)}`;
+  const f = issueApi([{ number: 7, state: "open", body }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, api: f.api });
+  assert.equal(f.writes().length, 0);
+});
+
+test("an open release issue missing a key gets the missing item appended in one update", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const f = issueApi([{ number: 7, state: "open", body }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, `/repos/${REPO}/issues/7`);
+  assert.equal(writes[0].method, "PATCH");
+  assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: 2 handoffs`);
+  assert.ok(writes[0].body.body.startsWith(body.trimEnd()));
+  assert.equal(writes[0].body.body.split(handoffMarker(handoff(1).key)).length, 2);
+  assert.ok(writes[0].body.body.includes(handoffMarker(handoff(2).key)));
+});
+
+test("a closed release issue gets no write, even when it lacks a key", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const f = issueApi([{ number: 7, state: "closed", body }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], api: f.api });
+  assert.equal(f.writes().length, 0);
+});
+
+test("an issue for another release does not count as this release's issue", async () => {
+  const f = issueApi([{ number: 7, state: "open", body: `${releaseMarker("2.1.30")}\n` }]);
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], api: f.api });
+  assert.equal(f.writes()[0].method, "POST");
 });

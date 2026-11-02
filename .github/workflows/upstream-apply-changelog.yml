@@ -11,7 +11,8 @@ name: upstream-apply-changelog
 #     commits change only plugins/<plugin>/ and .changes/<plugin>/ through the
 #     Git Data API, so GitHub authors and signs every commit as the lanes App;
 #   publish (publish-artifact: pull-requests and issues write, contents read)
-#     opens one pull request per pushed branch and files each handoff once.
+#     opens one pull request per pushed branch and files the release's
+#     handoffs as one issue.
 # The broker never grants contents and pull-requests write in one mint, nor
 # merge or actions, so no job here can merge.
 #
@@ -607,7 +608,8 @@ jobs:
 
   # publish-artifact: pull-requests and issues write, contents read. Opens a
   # pull request for each branch at the head push-branches left that has none, and files
-  # each handoff whose key no issue carries; then records the release done.
+  # the release's handoffs as one issue, appending keys an open one lacks; then
+  # records the release done.
   publish:
     needs: [gate, scan, push-branches]
     if: >-
