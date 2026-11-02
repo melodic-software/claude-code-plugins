@@ -49,7 +49,7 @@ for (const label of HANDBACK_LEAVES) {
   const p = passedPaths[label]
   if (p == null) continue
   const shape = new RegExp('[\\\\/]reviews[\\\\/][^\\\\/]+[\\\\/][^\\\\/]+-' + label + '(-[0-9]+)?\\.md$')
-  const ok = typeof p === 'string' && !/[\u0000-\u001f  `]/.test(p) &&
+  const ok = typeof p === 'string' && !/[\u0000-\u001f\u2028\u2029`]/.test(p) &&
     shape.test(p.trim()) && !p.split(/[\\/]/).includes('..')
   if (ok) FINDINGS_PATHS[label] = p.trim()
   else log('findingsPaths.' + label + ' is not a one-line reviews/<branch-slug>/<stamp>-' + label + '.md path: that leaf returns its report by value')
