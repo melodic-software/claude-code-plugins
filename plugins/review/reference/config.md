@@ -1,6 +1,7 @@
 # review settings
 
-The keys the review plugin's skills read, one row each. A key is set per user through the
+The review plugin's keys, one row each, with the skill that reads each one; `ratchet_offer` is
+kept but no skill reads it. A key is set per user through the
 plugin's `userConfig` option of the same name and per repository in
 `docs/conventions/review.yaml`, validated by
 [`schemas/review.schema.json`](../schemas/review.schema.json). No `~/.claude` file, `.claude/`
@@ -8,7 +9,7 @@ file or local overlay sets these keys. `/review:setup apply` writes the reposito
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
-| `ratchet_offer` | `true`, `false` | `true` | `/review:audit-enforceability` (step 5): passes `--ratchet-offer on` or `off` to the stub writer |
+| `ratchet_offer` | `true`, `false` | `true` | Unused: no skill in this plugin reads it. To keep ratchet offers off, set `ratchet_offer` on the corrections plugin (its plugin option or `docs/conventions/corrections.yaml`). |
 | `downstream_probe` | `run`, `report` | `run` | `/review:quality-gate` downstream mode (Step 2): `run` writes the safety-fact probe in a temporary directory outside the tree and runs it; `report` states the probe without running it. Level rule: policy floor, `report` in any layer wins; the repository value is read from the default branch |
 | `fanout_diversity` | `lens`, `model` | `lens` | `/review:fanout` run-everything step 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 

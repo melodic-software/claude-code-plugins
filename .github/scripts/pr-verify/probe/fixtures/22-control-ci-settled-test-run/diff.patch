@@ -1,0 +1,58 @@
+diff --git a/plugins/sample-kit/scripts/semver.mjs b/plugins/sample-kit/scripts/semver.mjs
+index 3c4d5e6..7f8a9b0 100644
+--- a/plugins/sample-kit/scripts/semver.mjs
++++ b/plugins/sample-kit/scripts/semver.mjs
+@@ -8,9 +8,33 @@ function split(version) {
+ export function compareVersions(a, b) {
+   const [coreA, preA] = split(a);
+   const [coreB, preB] = split(b);
+   for (let i = 0; i < 3; i += 1) {
+     if (coreA[i] !== coreB[i]) return coreA[i] < coreB[i] ? -1 : 1;
+   }
+-  if (preA === preB) return 0;
+-  return preA < preB ? -1 : 1;
++  return comparePrerelease(preA, preB);
++}
++
++// SemVer 2.0.0 section 11: no prerelease ranks above any prerelease;
++// identifiers compare left to right, numeric below text, and a shorter
++// list that matches every shared identifier ranks lower.
++function comparePrerelease(preA, preB) {
++  if (preA === preB) return 0;
++  if (preA === "") return 1;
++  if (preB === "") return -1;
++  const idsA = preA.split(".");
++  const idsB = preB.split(".");
++  for (let i = 0; i < Math.min(idsA.length, idsB.length); i += 1) {
++    const order = compareIdentifier(idsA[i], idsB[i]);
++    if (order !== 0) return order;
++  }
++  return idsA.length === idsB.length ? 0 : idsA.length < idsB.length ? -1 : 1;
++}
++
++function compareIdentifier(x, y) {
++  const numX = /^\d+$/.test(x);
++  const numY = /^\d+$/.test(y);
++  if (numX && numY) return Number(x) === Number(y) ? 0 : Number(x) < Number(y) ? -1 : 1;
++  if (numX) return -1;
++  if (numY) return 1;
++  return x === y ? 0 : x < y ? -1 : 1;
+ }
+diff --git a/plugins/sample-kit/scripts/semver.test.mjs b/plugins/sample-kit/scripts/semver.test.mjs
+index 1a2b3c4..5d6e7f8 100644
+--- a/plugins/sample-kit/scripts/semver.test.mjs
++++ b/plugins/sample-kit/scripts/semver.test.mjs
+@@ -18,3 +18,13 @@ test("orders release versions", () => {
+   assert.equal(compareVersions("1.2.0", "1.10.0"), -1);
+   assert.equal(compareVersions("2.0.0", "2.0.0"), 0);
+ });
++
++test("orders prerelease versions as SemVer 2.0.0 section 11 does", () => {
++  const chain = ["1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2", "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0"];
++  for (let i = 0; i < chain.length - 1; i += 1) {
++    assert.equal(compareVersions(chain[i], chain[i + 1]), -1, `${chain[i]} < ${chain[i + 1]}`);
++    assert.equal(compareVersions(chain[i + 1], chain[i]), 1, `${chain[i + 1]} > ${chain[i]}`);
++  }
++  assert.equal(compareVersions("1.0.0-rc.10", "1.0.0-rc.2"), 1);
++  assert.equal(compareVersions("1.0.0-rc.1", "1.0.0-rc.1"), 0);
++});
