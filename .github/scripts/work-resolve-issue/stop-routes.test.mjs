@@ -227,6 +227,7 @@ test("an ending reason that names a large token count keeps its route", () => {
     "host-only: the startup payload is 1.5M tokens",
     "host-only: the run spent 1500000 tokens",
     "manual-external: 76,888 tokens headless vs 45,141 interactive",
+    "host-only: the startup footprint is 76,888 tokens headless",
   ]) {
     assert.equal(runCode(reason), reason.split(":")[0], reason);
     assert.equal(securityWord(reason), "", reason);
@@ -240,6 +241,8 @@ test("an ending reason that names a large token count keeps its route", () => {
     "host-only: 1500000 tokens were uploaded to a gist",
     "host-only: 76,888 tokens; an attacker read the output",
     "host-only: needs the token to be rotated",
+    "host-only: 1,500 tokens were sent to a third-party endpoint",
+    "host-only: 2,048 tokens are in the public run log",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }
