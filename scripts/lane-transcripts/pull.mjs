@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // The lane transcript puller: copies each sealed lane-transcript artifact to
 // the sink, opened with the private key, and keeps the sink's retention.
 // README.md has the commands, the layout and the key setup.
