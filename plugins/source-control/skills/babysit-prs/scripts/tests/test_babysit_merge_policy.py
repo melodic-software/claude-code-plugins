@@ -2704,8 +2704,28 @@ class RealResolver(unittest.TestCase):
             self.seen()["argv"][-2:], ["--credential-roots", "/srv/probe-creds"]
         )
 
+    def bound_and_sidecar(self, age: timedelta) -> str:
+        """Set the age bound to 24 hours and write the publisher's sidecar for
+        the source, generated `age` ago; return its `generated_at`."""
+        import hashlib
+
+        settings = json.loads(self.settings.read_text(encoding="utf-8"))
+        options = settings["pluginConfigs"]["source-control@mkt"]["options"]
+        options["promotion_evidence_max_age_hours"] = "24"
+        self.settings.write_text(json.dumps(settings), encoding="utf-8")
+        generated = (policy.datetime.now(policy.UTC) - age).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+        digest = hashlib.sha256(self.source.read_bytes()).hexdigest()
+        (self.ops / "evidence.meta.json").write_text(
+            json.dumps({"generated_at": generated, "sha256": digest}),
+            encoding="utf-8",
+        )
+        return generated
+
     def test_a_demotion_restarts_the_window_at_its_creation(self) -> None:
         start = policy.datetime(2026, 10, 11, 7, 0, 0, 500000, tzinfo=policy.UTC)
+        self.bound_and_sidecar(timedelta(hours=1))
         result = self.read(window_start=start)
         self.assertIsNone(result.reason)
         seen = self.seen()
@@ -2721,6 +2741,17 @@ class RealResolver(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_a_re_earn_from_stale_evidence_promotes_nothing(self) -> None:
+        start = policy.datetime(2026, 10, 11, 7, 0, 0, tzinfo=policy.UTC)
+        generated = self.bound_and_sidecar(timedelta(hours=25))
+        result = self.read(window_start=start)
+        self.assertEqual(
+            result.reason,
+            f"promotion_evidence_source {self.source} is stale: generated_at "
+            f"{generated} is older than promotion_evidence_max_age_hours 24",
+        )
+        self.assertFalse(result.promoted("C2"))
 
     def test_a_surface_in_a_sibling_worktree_refuses(self) -> None:
         result = self.read(worktrees=lambda c: [str(self.checkout), str(self.ops)])
@@ -2849,6 +2880,36 @@ class ReadPromotion(unittest.TestCase):
             payload,
             writable=lambda p: policy._lane_writable(p) if str(p) == absent else False,
         )
+        self.assertIsNone(result.reason)
+        self.assertTrue(result.promoted("C3"))
+
+    def test_the_age_bound_checks_only_its_settings_file(self) -> None:
+        # The bound is a number of hours, never judged as a local path; a
+        # settings file holding it that the lane can write lets the lane make
+        # old evidence count, so it refuses.
+        bound_file = "/etc/claude-code/managed-settings.d/30-age.json"
+        payload = {
+            "failClosedReason": None,
+            "options": {
+                o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+                for o in policy.PROMOTION_OPTIONS
+            }
+            | {
+                "promotion_evidence_max_age_hours": {
+                    "value": "24",
+                    "scope": "managed",
+                    "file": bound_file,
+                }
+            },
+            "cells": self.CELLS,
+        }
+        result, _ = self.run_resolver(
+            payload, writable=lambda p: str(p) == bound_file
+        )
+        self.assertEqual(
+            result.reason, "settings-lane-writable:promotion_evidence_max_age_hours"
+        )
+        result, _ = self.run_resolver(payload, writable=lambda p: False)
         self.assertIsNone(result.reason)
         self.assertTrue(result.promoted("C3"))
 

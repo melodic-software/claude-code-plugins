@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -230,12 +231,24 @@ process.stdout.write(${JSON.stringify(stdout)});
   return path;
 }
 
+// The publisher's sidecar for the evidence file as it reads now, generated `ageHours` ago.
+const sidecar = join(ops, "evidence.meta.json");
+function writeSidecar(ageHours = 0, overrides = {}) {
+  const sha256 = createHash("sha256").update(readFileSync(surfaces.evidence, "utf8")).digest("hex");
+  const generated_at = new Date(Date.now() - ageHours * 3_600_000).toISOString();
+  writeFileSync(sidecar, JSON.stringify({ generated_at, through: generated_at, sha256, prev_sha256: null, ...overrides }));
+  return generated_at;
+}
+const BOUND = { promotion_evidence_max_age_hours: "24" };
+const RESTART = { args: { "window-start": "2026-10-11T07:00:00Z" } };
+
 test("--window-start hands the checker a copy with one gate-failure per cell at that instant", cli, () => {
   const record = join(ops, "record.json");
   const prior = { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-10-01T00:00:00Z" };
   writeFileSync(surfaces.evidence, JSON.stringify([prior]));
+  writeSidecar();
   try {
-    const result = runWith(recordingStub(GOOD_OUTPUT, record), {}, { args: { "window-start": "2026-10-11T07:00:00Z" } });
+    const result = runWith(recordingStub(GOOD_OUTPUT, record), BOUND, RESTART);
     assert.equal(result.failClosedReason, null);
     const seen = JSON.parse(readFileSync(record, "utf8"));
     assert.notEqual(seen.evidence, surfaces.evidence);
@@ -268,6 +281,77 @@ test("--window-start over an unreadable or non-array source fails closed", cli, 
     assertFailClosed(runWith(checker, {}, args), /promotion_evidence_source .* is not a JSON array/);
   } finally {
     writeFileSync(surfaces.evidence, "[]");
+  }
+});
+
+test("a re-earn read from a stale events file fails closed naming the file, its generated_at and the bound", cli, () => {
+  // The checker prints C2 promoted after the restart: a cell re-ratified after the demotion.
+  const checker = recordingStub(GOOD_OUTPUT, join(ops, "unused.json"));
+  writeFileSync(surfaces.evidence, JSON.stringify([{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-01T00:00:00Z" }]));
+  try {
+    const stale = writeSidecar(25);
+    const result = runWith(checker, BOUND, RESTART);
+    assertFailClosed(result, new RegExp(`^promotion_evidence_source ${escapeRe(surfaces.evidence)} is stale: generated_at ${escapeRe(stale)} is older than promotion_evidence_max_age_hours 24$`));
+    writeSidecar(23);
+    const fresh = runWith(checker, BOUND, RESTART);
+    assert.equal(fresh.failClosedReason, null);
+    assert.equal(fresh.cells["C2-auto-merge"].effective, "promoted");
+  } finally {
+    writeFileSync(surfaces.evidence, "[]");
+  }
+});
+
+test("a re-earn without a usable age bound or sidecar fails closed", cli, () => {
+  const checker = recordingStub(GOOD_OUTPUT, join(ops, "unused.json"));
+  writeSidecar();
+  assertFailClosed(runWith(checker, {}, RESTART), /^promotion_evidence_max_age_hours not set in managed or user settings/);
+  for (const bad of ["", "0", "-1", "1.5", "24h"]) {
+    assertFailClosed(runWith(checker, { promotion_evidence_max_age_hours: bad }, RESTART), /promotion_evidence_max_age_hours/);
+  }
+  writeSidecar(0, { sha256: "0".repeat(64) });
+  assertFailClosed(runWith(checker, BOUND, RESTART), /does not hold the sha256 of promotion_evidence_source/);
+  for (const generated of [undefined, "2026-10-11", "not a date"]) {
+    writeSidecar(0, { generated_at: generated });
+    assertFailClosed(runWith(checker, BOUND, RESTART), /has no ISO 8601 generated_at/);
+  }
+  writeSidecar(-1);
+  assertFailClosed(runWith(checker, BOUND, RESTART), /has a generated_at .* in the future$/);
+  writeSidecar();
+  writeSettings(operatorOptions(checker, BOUND));
+  assertFailClosed(runHelper({ ...RESTART, helper: seam({ owned: [sidecar] }) }), new RegExp(`^lane-writable:${escapeRe(sidecar)}$`));
+  rmSync(sidecar);
+  assertFailClosed(runWith(checker, BOUND, RESTART), /has no readable sidecar .*evidence\.meta\.json/);
+});
+
+test("without --window-start or a re-earned event the age bound is not read", cli, () => {
+  writeSidecar(1000);
+  const result = runWith(stub(GOOD_OUTPUT));
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
+  rmSync(sidecar);
+});
+
+test("without --window-start a re-earned event read from a stale events file fails closed", cli, () => {
+  // A contrary event lifted by a re-earn in the same file, with no demotion record to restart at.
+  const reearned = [
+    { cell: "C2-auto-merge", event: "gate-failure", at: "2026-10-01T00:00:00Z", discovered: "2026-10-01T00:00:00Z" },
+    { cell: "C2-auto-merge", event: "re-earned", at: "2026-10-20T00:00:00Z", since: "2026-10-01T00:00:00Z" },
+  ];
+  writeFileSync(surfaces.evidence, JSON.stringify(reearned));
+  try {
+    const checker = stub(GOOD_OUTPUT);
+    const stale = writeSidecar(1000);
+    assertFailClosed(runWith(checker, BOUND), new RegExp(`^promotion_evidence_source ${escapeRe(surfaces.evidence)} is stale: generated_at ${escapeRe(stale)} is older than promotion_evidence_max_age_hours 24$`));
+    assertFailClosed(runWith(checker), /^promotion_evidence_max_age_hours not set in managed or user settings/);
+    writeSidecar(23);
+    const fresh = runWith(checker, BOUND);
+    assert.equal(fresh.failClosedReason, null);
+    assert.equal(fresh.cells["C2-auto-merge"].effective, "promoted");
+    rmSync(sidecar);
+    assertFailClosed(runWith(checker, BOUND), /has no readable sidecar .*evidence\.meta\.json/);
+  } finally {
+    writeFileSync(surfaces.evidence, "[]");
+    rmSync(sidecar, { force: true });
   }
 });
 

@@ -98,6 +98,7 @@ whether a deployment meets the requirement; this file states it and certifies no
 | `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
 | `promotion_evidence_checker` | (the program it runs) | file: the `check-security-binding.mjs` that decides promoted |
 | `promotion_evidence_credential_roots` (optional) | `--credential-roots <path,path,...>`, only when set | the probe host's trusted credential locations |
+| `promotion_evidence_max_age_hours` (needed after a demotion) | (not passed; the helper reads it under `--window-start` or when the events file holds a `re-earned` event) | how old the events file's `generated_at` may be when a re-earn is read from it |
 
 The checker's `Usage:` comment, and its `usage:` error message, list its arguments (the autonomy
 plugin's `check-security-binding.mjs`, shipped with `/autonomy:setup`).
@@ -204,7 +205,9 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is the operator's
-deployment choice. The resolver does not read the sidecar.
+deployment choice. The resolver reads the sidecar only under `--window-start` or when the events
+file holds a `re-earned` event
+([`promotion_evidence_max_age_hours`](#promotion_evidence_max_age_hours)).
 
 The post-merge check dispatches its full run under the lane identity. Where the permission that
 dispatch needs also lets that identity delete a red run before the publisher reads it, either the
@@ -238,6 +241,33 @@ The value is a comma-separated list. The paths name the probe host, not the lane
 exist where the lane runs, so the helper judges each entry as text and never resolves it. What
 must be unwritable is the settings file that holds the value: an agent that can edit it can add a
 root the probe never covered.
+
+### `promotion_evidence_max_age_hours`
+
+The age bound for a re-earn, a whole number of hours from 1 to 999999. After a demotion record the
+merge gate passes `--window-start`, and every cell that then resolves promoted was re-ratified
+after the demotion. If the publisher has stopped, no newer contrary event can reach such a cell, so
+under `--window-start` the helper reads the sidecar beside the events file (the events file's real
+path with a trailing `.json` replaced by `.meta.json`, so `evidence.json` → `evidence.meta.json`)
+and fails closed, keeping a demoted cell demoted, when:
+
+- the bound is unset, empty or not such a number;
+- the sidecar is missing, unreadable, lane-writable, or holds a `sha256` other than the events
+  file's;
+- its `generated_at` is not an ISO 8601 instant with an offset, is more than five minutes in the
+  future, or is older than the bound. The stale reason names the events file, its `generated_at`
+  and the bound.
+
+Without `--window-start`, a `re-earned` event in the events file can still lift a contrary event
+the file holds, with no demotion record for the gate to restart at, so when the events file reads
+as a JSON array holding any `re-earned` event the helper applies the same sidecar and bound test
+and fails closed on the same conditions. With neither, it enforces neither the bound nor the
+sidecar. The bound is still
+read on every call, though: a value that is not a JSON string fails every read closed, and the
+merge gate refuses a settings file holding it that the lane can write. Set the bound above
+the publisher's interval, so one late run does not hold a re-earned cell down. As with the
+credential roots, what must be unwritable is the settings file that holds the value: an agent that
+can raise the bound can make old evidence count.
 
 ## Value shape
 
@@ -273,6 +303,9 @@ not sit under an ephemeral base (any `tmp`, `temp` or `shm` segment, in any case
 for the same reason), and must not be inside the checkout or a worktree root. The checks are lexical, with no symlink
 resolution. A root that contains the checkout is allowed: a hosted runner's home holds its
 checkout. A bad entry fails closed under a reason naming it.
+
+`promotion_evidence_max_age_hours` holds a number of hours, not a path; its section above gives its
+shape and when it is read.
 
 ## Deployment requirements by host
 
@@ -315,7 +348,9 @@ Residuals no row closes, named so an operator does not read the table as coverin
   lane starts them with. The helper limits only the checker's environment, so a preload such as
   `NODE_OPTIONS` still reaches the helper itself, and a lane that can write the install can change
   the gate.
-- The events file's freshness is instructed (publication requirements, above), not checked.
+- The events file's freshness is checked only for a re-earn after a demotion record
+  ([`promotion_evidence_max_age_hours`](#promotion_evidence_max_age_hours)). Elsewhere it is
+  instructed (publication requirements, above), not checked.
 
 Pointer records for the upstream behavior these rows rely on. Each names the topic; the linked
 section states the behavior.
