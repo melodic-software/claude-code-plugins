@@ -243,6 +243,8 @@ test("an ending reason that names a large token count keeps its route", () => {
     "host-only: needs the token to be rotated",
     "host-only: 1,500 tokens were sent to a third-party endpoint",
     "host-only: 2,048 tokens are in the public run log",
+    "host-only: 2,048 tokens, now in the public run log",
+    "host-only: 1,500 tokens. They were sent to a third-party endpoint",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
   }

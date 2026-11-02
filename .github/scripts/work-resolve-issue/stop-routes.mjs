@@ -114,13 +114,14 @@ const CAPABILITY = new RegExp(
 // A token count of a thousand or more ("76,888 tokens", "1500000 tokens",
 // "120k tokens") is a measure, not a credential, so after an ending code its
 // "tokens" names no secret. Fail closed: the count is a measure only when
-// "tokens" ends the clause or a measurement word follows it ("76,888 tokens
-// headless"), so "1,500 tokens were sent to ..." holds. A small count ("3
-// tokens leaked") still holds, and a count releases nothing in a reason that
-// also says what was done with tokens (TOKEN_HANDLING): "rotate the 1,200
-// tokens" holds.
+// "tokens" ends the reason or a parenthesis, or a measurement word follows
+// it ("76,888 tokens headless"), so "1,500 tokens were sent to ..." and
+// "2,048 tokens, now in the public log" hold. A small count ("3 tokens
+// leaked") still holds, and a count releases nothing in a reason that also
+// says what was done with tokens (TOKEN_HANDLING): "rotate the 1,200 tokens"
+// holds.
 const TOKEN_COUNT =
-  /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:$|[).,;:])|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
+  /(?<![\w.,])(?:\d{1,3}(?:,\d{3})+|\d{4,}|\d+(?:\.\d+)?[kKM])\s?tokens?\b(?=\s*(?:$|\))|\s+(?:headless|interactive|vs|versus|per|spent|used|total|budget|startup|payload|context|prompt|cached|saved|more|fewer|less)\b)/g;
 const TOKEN_HANDLING = /\b(?:rotat|revok|leak|expos|upload|paste|print|commit|push|dump|reveal|email|cop(?:y|ie[ds])|gist|screenshot)|\b(?:post(?:ed|s)?|shar(?:e|ed|es|ing)|logged|visible|shown|reus\w*|stol\w*)\b/i;
 const withoutCounts = (text) => (TOKEN_HANDLING.test(text) ? text : text.replace(TOKEN_COUNT, " "));
 // The only words a reason that names a secret noun may hold beside its
