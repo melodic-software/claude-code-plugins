@@ -1,15 +1,21 @@
+<!-- GENERATED from docs/contracts/type-discipline/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
+
 # Type discipline
 
-Read during Phase 3 (Type Modeling). Nothing in the rules depends on which statically typed language is in use. Idioms
-for one language sit in that language's own file under `type-discipline/`, and Phase 3 opens such a
-file only after detecting the language.
+The rules for choosing a type, the same whether a design is being drawn up, code is being written
+or a change is being reviewed. Nothing in the rules depends on which statically typed language is
+in use. Each skill or agent that reads this file says where its own language idioms live, if it has any.
+
+This file is copied into plugins by `scripts/sync-shared-copies.sh`, its text unchanged under a
+generated header, so it contains no relative markdown links. `scripts/shared-copies.txt` lists the
+copies.
 
 ## Rules
 
-Phase 3 meets each of these situations while it fills `type-inventory.md`. Find the row that
-matches and make its decision.
+Find the row that matches the situation and make its decision.
 
-| The design has | Decide | Reason |
+| The situation | Decide | Reason |
 |---|---|---|
 | A shape that a schema, an API description, a migration or a generated client already defines | Derive the type from that artifact | Any hand-kept duplicate falls out of step with it |
 | Data with no type yet: queue messages, request bodies, database rows, environment variables, files, replies from other services | Convert it into a domain type at its entry point, in a single parse that rejects bad input on the spot with an error naming that input | Everything downstream receives the domain type and trusts it, so nothing repeats the parse's checks |
@@ -19,11 +25,5 @@ matches and make its decision.
 | Code that branches over a sum type | Branch in a form that stops compiling at every site that leaves a newly added variant unhandled; no catch-all default that quietly absorbs variants it does not know | A catch-all conceals exactly the sites the new variant has to reach |
 | A fact the checker cannot see | Change the model, or add the check that proves the fact. Never assert an unproven type with a cast, a non-null assertion or a suppression comment | Silencing the checker does not remove the error; it moves it from compile time to run time |
 
-## Language files
-
-| Language | File | Loaded when |
-|---|---|---|
-| TypeScript | [`type-discipline/typescript.md`](type-discipline/typescript.md) | the repository has a `tsconfig.json`, or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files |
-
-A language with no file here uses the rules above with that language's own sum types, narrowing and
-exhaustiveness check.
+A language with no idioms file of its own uses these rules with that language's own sum types,
+narrowing and exhaustiveness check.

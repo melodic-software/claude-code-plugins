@@ -94,6 +94,9 @@ docs/contracts/enforcement-ladder/README.md plugins/harness-config/skills/audit-
 docs/contracts/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
 docs/contracts/enforcement-ladder/README.md plugins/corrections/skills/codify/reference/enforcement-ladder.md
 docs/contracts/standards/README.md plugins/improvement/reference/standards-contract.md
+docs/contracts/type-discipline/README.md plugins/planning/skills/design/reference/type-discipline.md
+docs/contracts/type-discipline/README.md plugins/implementation/reference/type-discipline.md
+docs/contracts/type-discipline/README.md plugins/review/context/type-discipline.md
 docs/contracts/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
 docs/contracts/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
