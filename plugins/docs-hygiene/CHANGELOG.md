@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.3.2] - 2026-11-02
+
+### Changed
+
+- Shared `prerequisites.mjs` synced where this plugin carries it (#6633): a manifest may declare an optional `session_probe`, which opts the plugin into harness-ops' session-start probe.
+
 ## [2.3.1] - 2026-11-02
 
 ### Changed

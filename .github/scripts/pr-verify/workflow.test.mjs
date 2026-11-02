@@ -115,23 +115,36 @@ const upstreamRun = (overrides = {}) => ({
 });
 
 // upload-fail-index's "Split the names" step, run with a stand-in gh that
-// answers the run's artifacts read with `held` (or fails), returning its exit
-// status and the outputs it wrote.
+// answers the run's artifacts read with `held`, after failing its first
+// `failFirst` reads (all of them with `fail`), and a stand-in sleep that
+// records each wait, returning its exit status, the outputs it wrote, the
+// reads made and the waits.
 const ACTION = readFileSync(new URL("../../actions/upload-fail-index/action.yml", import.meta.url), "utf8");
-const splitNames = (names, held, { total, fail = false } = {}) => {
+const splitNames = (names, held, { total, fail = false, failFirst = 0 } = {}) => {
   const script = /\n {6}run: \|\n([\s\S]*?)\n {4}- name: /.exec(ACTION)[1].replace(/^ {8}/gm, "");
   const dir = tempDir("upload-fail-index-");
   const bin = path.join(dir, "bin");
   mkdirSync(bin);
   const body = JSON.stringify({ total_count: total ?? held.length, artifacts: held.map((name) => ({ name })) });
-  writeFileSync(path.join(bin, "gh"), fail ? "#!/bin/sh\nexit 1\n" : `#!/bin/sh\ncat <<'JSON'\n${body}\nJSON\n`, { mode: 0o755 });
+  const reads = path.join(dir, "reads");
+  const waits = path.join(dir, "waits");
+  writeFileSync(reads, "");
+  writeFileSync(waits, "");
+  const failing = fail ? 99 : failFirst;
+  writeFileSync(
+    path.join(bin, "gh"),
+    `#!/bin/sh\necho x >>'${reads}'\n[ "$(wc -l <'${reads}')" -gt ${failing} ] || exit 1\ncat <<'JSON'\n${body}\nJSON\n`,
+    { mode: 0o755 },
+  );
+  writeFileSync(path.join(bin, "sleep"), `#!/bin/sh\necho "$1" >>'${waits}'\n`, { mode: 0o755 });
   const out = path.join(dir, "out");
   writeFileSync(out, "");
   const run = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", script], {
     env: { PATH: `${bin}:${process.env.PATH}`, NAMES: names.join("\n"), RETENTION: "90", GITHUB_OUTPUT: out, REPO: "o/r", RUN_ID: "1", GH_TOKEN: "t" },
     encoding: "utf8",
   });
-  return { status: run.status, outputs: readFileSync(out, "utf8") };
+  const lines = (file) => readFileSync(file, "utf8").split("\n").filter(Boolean);
+  return { status: run.status, outputs: readFileSync(out, "utf8"), reads: lines(reads).length, waits: lines(waits) };
 };
 
 test("a FAIL index never replaces or keeps a name its run already holds", () => {
@@ -144,9 +157,21 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
   assert.doesNotMatch(rerun.outputs, /^n\d+=/m);
   // Another name the run holds (the verdict's own) uploads every index.
   assert.equal(splitNames(names, ["pr-verify-41-x-fail"]).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
-  // A read that fails or does not hold its count uploads nothing.
-  assert.notEqual(splitNames(names, [], { fail: true }).status, 0);
-  assert.notEqual(splitNames(names, [names[0]], { total: 2 }).status, 0);
+  // A read that fails or does not hold its count, three times, uploads nothing.
+  const failed = splitNames(names, [], { fail: true });
+  assert.notEqual(failed.status, 0);
+  assert.deepEqual([failed.reads, failed.waits], [3, ["5", "10"]]);
+  assert.doesNotMatch(failed.outputs, /^n\d+=/m);
+  const short = splitNames(names, [names[0]], { total: 2 });
+  assert.notEqual(short.status, 0);
+  assert.deepEqual([short.reads, short.waits], [3, ["5", "10"]]);
+  // A read that fails twice and then holds its count uploads every index.
+  const third = splitNames(names, [], { failFirst: 2 });
+  assert.equal(third.status, 0);
+  assert.deepEqual([third.reads, third.waits], [3, ["5", "10"]]);
+  assert.equal(third.outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
+  // A retried read that then shows a held name still fails the step.
+  assert.notEqual(splitNames(names, [names[1]], { failFirst: 1 }).status, 0);
   assert.doesNotMatch(ACTION, /overwrite/);
   assert.equal((ACTION.match(/uses: actions\/upload-artifact@/g) ?? []).length, 13);
   assert.equal((ACTION.match(/if: \$\{\{ steps\.slots\.outputs\.n\d+ != '' \}\}/g) ?? []).length, 13);
