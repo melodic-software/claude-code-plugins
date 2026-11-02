@@ -254,14 +254,18 @@ PRE_COMMAND_STDERR = "local-command-stderr"
 PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
 # A path a failed write reports as read-only, before the phrase ("cannot touch
 # '<p>': Read-only file system", "line 1: <p>: Read-only file system") or after it
-# ("[Errno 30] Read-only file system: '<p>'"). In a Bash result it means the run's
-# workspace or TMPDIR is not writable when the path is relative or under the run's
-# sandbox (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422); the
-# sandbox mounts other paths read-only by design.
+# ("[Errno 30] Read-only file system: '<p>'", Node's "EROFS: read-only file
+# system, mkdir '<p>'"). An unquoted word before the phrase is a path only when
+# it is whole and not an errno name or "Error". In a Bash result it means the
+# run's workspace or TMPDIR is not writable when the path is relative or under the
+# run's sandbox (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422);
+# the sandbox mounts other paths read-only by design.
 _QUOTED = r"[\"'\u2018]([^\"'\u2019\n]+)[\"'\u2019]"
 READ_ONLY_TARGET = re.compile(
-    r"(?:%s|([^\s:\"'\u2018\u2019]+)):\s*read-only file system"
-    r"|read-only file system:\s*(?:%s|(\S+))" % (_QUOTED, _QUOTED),
+    r"(?:%s|(?<![^\s:])(?!(?-i:E[A-Z0-9]+):|errno:|error:)([^\s:\"'\u2018\u2019]+))"
+    r":\s*read-only file system"
+    r"|read-only file system:\s*(?:%s|(\S+))"
+    r"|read-only file system,\s*\w+\s+%s" % (_QUOTED, _QUOTED, _QUOTED),
     re.IGNORECASE,
 )
 # A run with at least this many Bash calls, every one failed with no output, had no

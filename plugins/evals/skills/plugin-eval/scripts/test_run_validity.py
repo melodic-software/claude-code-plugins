@@ -672,6 +672,11 @@ class RunValidityTest(unittest.TestCase):
             ("sb-bare/out/trace.jsonl",
              [(True, "/bin/bash: line 1: %s: Read-only file system"
                % (self.dir / "sb-bare" / "tmp" / "cwd-6a70"))]),
+            ("sb-bare-rel/out/trace.jsonl",
+             [(True, "/bin/bash: line 1: made-by-bash: Read-only file system")]),
+            ("sb-node/out/trace.jsonl",
+             [(True, "Error: EROFS: read-only file system, open '%s'"
+               % (self.dir / "sb-node" / "home" / "cwd" / "x"))]),
         ):
             proc, trace = self.bash_trace(name, results)
             self.assertVerdict(proc, "INVALID", 1)
@@ -693,6 +698,10 @@ class RunValidityTest(unittest.TestCase):
              "mkdir: cannot create directory \u2018/usr/share/x\u2019: Read-only file system"),
             ("no-sandbox-ro.jsonl",
              "touch: cannot touch '/tmp/claude-eval-x/tmp/t': Read-only file system"),
+            ("sb-npm/out/trace.jsonl",
+             "npm error code EROFS\nnpm error rofs EROFS: read-only file system,"
+             " mkdir '/usr/lib/node_modules/x'"),
+            ("sb-os-error/out/trace.jsonl", "Error: Read-only file system (os error 30)"),
         ):
             proc, _ = self.bash_trace(name, [(True, text)])
             self.assertIn("check session started: PASS", proc.stdout, name)
