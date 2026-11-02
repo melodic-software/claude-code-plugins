@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Deterministic URL extraction from a discovery snapshot (ladder rungs 1-2).
+"""Deterministic URL extraction from a discovery snapshot.
 
 Input: an immutable discovery snapshot (llms.txt, sitemap.xml, or sitemap.md)
-plus the base URL it was fetched from. Output: discovery-output/v1 JSON — the
-normalized, deduplicated, sorted URL set with rung provenance. See
-link-map-format.md for the contract.
+plus the base URL it was fetched from, or a forge's tree listing plus a
+repository seed and include/exclude globs (rung repo-tree). Output:
+discovery-output/v1 JSON — the normalized, deduplicated, sorted URL set with
+rung provenance. See link-map-format.md for the contract.
 
 Same denominator discipline as the node extractor: the set of URLs that must
 be classified comes from this script over snapshot bytes, never from an
@@ -30,8 +31,14 @@ import xml.etree.ElementTree as ET
 from typing import NoReturn
 from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from repo_tree_adapters import ADAPTERS  # noqa: E402
+
 SCHEMA = "discovery-output/v1"
-RUNGS = ("llms-txt", "sitemap-xml", "sitemap-md")
+RUNGS = ("llms-txt", "sitemap-xml", "sitemap-md", "repo-tree")
+
+REPO_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+PINNED_SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
 
 TRACKING_PARAMS_RE = re.compile(r"^(utm_.*|gclid|fbclid)$")
 
@@ -149,6 +156,83 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
     return urls
 
 
+def glob_regex(pattern: str):
+    """Path glob: '**' spans directories, '*' and '?' stay inside one segment."""
+    out, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            out.append("[^/]")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out) + r"\Z")
+
+
+def extract_repo_tree_urls(data: bytes, args) -> tuple:
+    """Raw URLs for the listed blobs the globs keep, plus the repository record."""
+    adapter = ADAPTERS[args.forge]
+    for flag, value in (("--owner", args.owner), ("--repo", args.repo)):
+        if not value or not REPO_NAME_RE.match(value) or value in (".", ".."):
+            fail(2, f"{flag} {value!r} is not a repository name.")
+    if not args.ref or not PINNED_SHA_RE.match(args.ref):
+        fail(
+            2,
+            f"--ref {args.ref!r} is not a full commit SHA; a repository "
+            f"seed is pinned so the listing and every fetch read one revision.",
+        )
+    if not args.include:
+        fail(2, "repo-tree needs at least one --include glob.")
+    try:
+        listing = json.loads(data)
+        paths = adapter.blob_paths(listing)
+    except ValueError as exc:  # json.JSONDecodeError and ListingError
+        fail(2, f"tree listing {args.snapshot!r} is unusable: {exc}")
+    includes = [glob_regex(g) for g in args.include]
+    excludes = [glob_regex(g) for g in args.exclude]
+    kept = [
+        p
+        for p in paths
+        if any(r.match(p) for r in includes) and not any(r.match(p) for r in excludes)
+    ]
+    for glob, regex in zip(args.include, includes):
+        if not any(regex.match(p) for p in kept):
+            fail(
+                2,
+                f"--include {glob!r} matched no blob in {args.snapshot!r} "
+                f"(after excludes {args.exclude}); a glob that selects "
+                f"nothing under-discovers behind a clean gate.",
+            )
+    urls = []
+    for path in kept:
+        normalized = normalize_url(
+            adapter.resource_url(args.owner, args.repo, args.ref, path)
+        )
+        if normalized is None:
+            fail(3, f"adapter {args.forge!r} built no http(s) URL for {path!r}.")
+        urls.append(normalized)
+    seed = normalize_url(adapter.seed_url(args.owner, args.repo, args.ref))
+    repository = {
+        "forge": args.forge,
+        "owner": args.owner,
+        "repo": args.repo,
+        "ref": args.ref,
+        "seed_url": seed,
+        "include": list(args.include),
+        "exclude": list(args.exclude),
+    }
+    return urls, adapter.base_url(args.owner, args.repo, args.ref), repository
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="parse_discovery.py",
@@ -157,6 +241,13 @@ def main(argv=None) -> int:
     parser.add_argument("snapshot", nargs="?", help="path to the discovery snapshot")
     parser.add_argument("--rung", choices=RUNGS)
     parser.add_argument("--base-url", help="URL the snapshot was fetched from")
+    repo_tree = parser.add_argument_group("repo-tree rung")
+    repo_tree.add_argument("--forge", choices=sorted(ADAPTERS), default="github")
+    repo_tree.add_argument("--owner")
+    repo_tree.add_argument("--repo")
+    repo_tree.add_argument("--ref", help="full commit SHA the listing was read at")
+    repo_tree.add_argument("--include", action="append", default=[], metavar="GLOB")
+    repo_tree.add_argument("--exclude", action="append", default=[], metavar="GLOB")
     parser.add_argument("--out", default="-")
     parser.add_argument(
         "--normalize-url",
@@ -174,14 +265,22 @@ def main(argv=None) -> int:
         sys.stdout.buffer.write((normalized + "\n").encode("utf-8"))
         return 0
 
-    if not args.snapshot or not args.rung or not args.base_url:
+    repo_rung = args.rung == "repo-tree"
+    if not args.snapshot or not args.rung or not (args.base_url or repo_rung):
         fail(
             2,
             "snapshot, --rung, and --base-url are required "
-            "(unless using --normalize-url).",
+            "(unless using --normalize-url; repo-tree takes --owner, --repo, "
+            "--ref and --include instead of --base-url).",
         )
+    if repo_rung and args.base_url:
+        fail(2, "repo-tree builds its base URL from the repository seed; drop --base-url.")
 
-    if normalize_url(args.base_url) is None:
+    if not repo_rung and (
+        args.owner or args.repo or args.ref or args.include or args.exclude
+    ):
+        fail(2, f"--owner/--repo/--ref/--include/--exclude apply to repo-tree, not {args.rung}.")
+    if not repo_rung and normalize_url(args.base_url) is None:
         fail(2, f"--base-url {args.base_url!r} is not a valid http(s) URL.")
 
     try:
@@ -196,7 +295,10 @@ def main(argv=None) -> int:
             f"artifact is a failed fetch, not an empty site.",
         )
 
-    if args.rung == "sitemap-xml":
+    base_url, repository = args.base_url, None
+    if repo_rung:
+        urls, base_url, repository = extract_repo_tree_urls(data, args)
+    elif args.rung == "sitemap-xml":
         urls = extract_sitemap_xml_urls(data)
     else:  # llms-txt, sitemap-md: both are markdown-ish text
         try:
@@ -221,10 +323,12 @@ def main(argv=None) -> int:
             "sha256": sha256_hex(data),
             "byte_length": len(data),
         },
-        "base_url": args.base_url,
+        "base_url": base_url,
         "url_count": len(unique),
         "urls": unique,
     }
+    if repository is not None:
+        output["repository"] = repository
     payload = (json.dumps(output, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if args.out == "-":
         sys.stdout.buffer.write(payload)
