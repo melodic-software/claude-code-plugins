@@ -14,8 +14,13 @@ bump: patch
 - A comment, a quote of any kind, a here-doc delimiter or a here-doc body inside backticks now
   ends at the closing backtick, as in Bash, so ``echo `#`; git reset --hard`` is blocked; an
   escaped backtick does not close it, and outside a comment or quote it opens or closes a nested
-  substitution whose commands are checked. A case pattern spelled `case` no longer opens a case
-  statement.
+  substitution whose commands are checked.
+- Case statements follow Bash's pattern-position rules: a pattern spelled `case` opens nothing,
+  `esac` after `|` is a pattern, `case x in esac` closes on one line, and `\;;` is a word and a
+  `;`, not a clause end. Inside an extglob or arithmetic a `#`, `<` or `>` is literal text.
+- A here-doc takes its body only at a newline on the level where it was read, so one read
+  before a `$(…)`, backtick, `a=(…)` or `@(…)` that spans lines takes its body after the line
+  where that construct closes; a syntax error inside `a=(…)` cancels the line's here-docs.
 - For `!(x)#` and `f@()#`, where the `#` is literal with `shopt -s extglob` and a comment
   without it, the parser now reports the commands of both readings, so a command after the `#`
   is checked either way. `HOOK_HEREDOC_BODIES` still lists each here-doc body once, in source

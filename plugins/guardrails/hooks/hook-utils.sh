@@ -4488,16 +4488,20 @@ hook::_bps_close_word() {
     # `;;`, `;&` or `;;&`, where only `esac` is a reserved word, as bash's
     # PST_CASEPAT), and `c` is a clause body. An unquoted `case` in command
     # position opens one, an unquoted `esac` in command position closes the
-    # innermost one, and a pattern's `)` pops no `(` frame below it. Inside
-    # arithmetic (innermost frame `r`) both are variable names.
+    # innermost one, and a pattern's `)` pops no `(` frame below it. In a
+    # pattern position `esac` is reserved only before any pattern word (`cps`),
+    # so `a|esac)` is a pattern, as POSIX grammar rule 4 has it. Only a command
+    # context (no frame, or innermost `s` `b` `c`) has keywords at all: inside
+    # arithmetic, an array assignment or an extglob both are plain words.
     _bps_w=${pstk//0/}
     if [[ "$_bps_w" == *i ]]; then
       pstk=${pstk%i*}j${pstk##*i}
     elif [[ "$_bps_w" == *j ]]; then
-      [[ "$word" == 'in' ]] && ((!_bps_q)) && pstk=${pstk%j*}C${pstk##*j}
-    elif [[ "$_bps_w" == *[Cp] ]]; then
-      [[ "$_bps_w" == *C && "$word" == 'esac' ]] && ((!_bps_q && !${#seg[@]})) && pstk=${pstk%C*}
-    elif ((!_bps_q)) && [[ "$_bps_w" != *r ]] &&
+      [[ "$word" == 'in' ]] && ((!_bps_q)) && pstk=${pstk%j*}C${pstk##*j} && cps=1
+    elif [[ "$_bps_w" == *C ]]; then
+      if [[ "$word" == 'esac' ]] && ((!_bps_q && cps)); then pstk=${pstk%C*}; fi
+      cps=0
+    elif ((!_bps_q)) && [[ -z "$_bps_w" || "$_bps_w" == *[sbc] ]] &&
       [[ "$word" == 'case' || ("$word" == 'esac' && "$_bps_w" == *c) ]]; then
       _bps_last=1
       for _bps_w in ${seg[@]+"${seg[@]}"}; do
@@ -4534,6 +4538,37 @@ hook::_bps_bt_closes() {
   [[ "${chars[$1]}" == '`' && "$pstk" == *b* ]] || return 1
   while ((_bps_k >= 0)) && [[ "${chars[_bps_k]}" == '\' ]]; do ((_bps_k--)); done
   ((($1 - 1 - _bps_k) % 2 == 0))
+}
+
+# Keep only the pending here-docs whose level (hd_level, the substitution-like
+# frames open when each was read) is no deeper than the current one: a
+# here-doc opened inside a `$(…)`, backtick, `a=(…)` or `@(…)` that closed
+# before its newline never gets a body from the lines after it. Dynamic scope,
+# like hook::_bps_close_word.
+# shellcheck disable=SC2154  # every unassigned name here is a local of hook::bash_parse_segments_uncached
+hook::_bps_hd_drop_deeper() {
+  local _bps_l=${pstk//[^sb1gr]/} _bps_x
+  local -a _bps_d=() _bps_s=() _bps_q=() _bps_v=()
+  for ((_bps_x = 0; _bps_x < ${#hd_delims[@]}; _bps_x++)); do
+    ((${#hd_level[_bps_x]} <= ${#_bps_l})) || continue
+    _bps_d+=("${hd_delims[_bps_x]}")
+    _bps_s+=("${hd_strip[_bps_x]}")
+    _bps_q+=("${hd_quoted[_bps_x]}")
+    _bps_v+=("${hd_level[_bps_x]}")
+  done
+  hd_delims=(${_bps_d[@]+"${_bps_d[@]}"})
+  hd_strip=(${_bps_s[@]+"${_bps_s[@]}"})
+  hd_quoted=(${_bps_q[@]+"${_bps_q[@]}"})
+  hd_level=(${_bps_v[@]+"${_bps_v[@]}"})
+}
+
+# Drop every pending here-doc: the line holds a syntax error, so bash reads no
+# body for it and runs the lines after it as commands.
+hook::_bps_hd_clear() {
+  hd_delims=()
+  hd_strip=()
+  hd_quoted=()
+  hd_level=()
 }
 
 # Hand the finished segment to the callback and start the next one. A pending
@@ -4676,28 +4711,34 @@ hook::bash_parse_segments_uncached() {
   # Pending heredoc delimiters (FIFO), their `<<-` tab-strip flags and quoted
   # flags. A heredoc body is the command's stdin, not commands — recorded when
   # `<<` is seen and skipped wholesale at the command-line newline.
-  local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=()
-  # One frame per open construct, innermost last: `1` a `(` that continues a
-  # word (an array assignment `a=(…)` or an extglob `@(…)`), `s` the `(` of a
+  local -a hd_delims=() hd_strip=() hd_quoted=() hd_level=() hd_bodies=()
+  # One frame per open construct, innermost last: `1` the `(` of an array
+  # assignment `a=(…)`, `g` the `(` of an extglob `@(…)`, `s` the `(` of a
   # substitution (`$(…)`, `$((…))`, `<(…)`, `>(…)`), `b` a backtick
   # substitution, `a` a `(` whose reading depends on extglob (a bare `!(…)` or
   # `f@()`), `i` `j` `C` `c` a `case` statement in each state of its parse
   # (hook::_bps_close_word), `p` the optional `(` before a case pattern, `r`
-  # arithmetic (the second `(` of `$((` or `((`), `0` any other `(`. Every `(`, `)` and
-  # backtick still splits, so no text leaves a segment; bash keeps the closing
-  # `)` or backtick of `1` `s` `b` in its word, so a `#` right after it
-  # (`hash_at`) is literal, not a comment. A `)` on a case frame is a case
-  # pattern's and pops nothing. `bt_hd` counts the here-docs pending when the
-  # open backtick began.
+  # arithmetic (the second `(` of `$((` or `((`), `0` any other `(`. Every
+  # `(`, `)` and backtick still splits, so no text leaves a segment; bash keeps
+  # the closing `)` or backtick of `1` `g` `s` `b` in its word, so a `#` right
+  # after it (`hash_at`) is literal, not a comment. A `)` on a case frame is a
+  # case pattern's and pops nothing. Inside `g` and `r` a `#` is literal, and
+  # inside `g` `r` `1` a `<` or `>` redirects nothing. A here-doc's level is the
+  # `s` `b` `1` `g` `r` frames open when it was read: bash reads each of those
+  # constructs as its own level, so a body comes only at a newline on the
+  # here-doc's own level (a subshell or case body is not a new level). `cps` is 1 in a case
+  # pattern position before its first word; `semi_at` is the index of the last
+  # `;` read as an operator.
   local pstk="" wpar j hash_at=-1 sub_at=-1 amb_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
-  local amb_seen=0 bt_hd=0 __hu_bps_rest __hu_bps_e __hu_bps_k
+  local amb_seen=0 cps=0 semi_at=-2 __hu_bps_rest __hu_bps_e __hu_bps_k
   local -a __hu_bps_hb=()
   # The extglob-on reading of the text after an ambiguous `)#`: the caller's
   # open frames and pending here-docs carry over, and byte 0 is the `#` that
   # continues the word.
   if ((ext)); then
-    pstk=${__hu_bps_pstk//a/1}
-    bt_hd=$__hu_bps_bthd
+    pstk=${__hu_bps_pstk//a/g}
+    cps=$__hu_bps_cps
+    hd_level=(${__hu_bps_hdl[@]+"${__hu_bps_hdl[@]}"})
     hash_at=0
     hd_delims=(${__hu_bps_hdd[@]+"${__hu_bps_hdd[@]}"})
     hd_strip=(${__hu_bps_hds[@]+"${__hu_bps_hds[@]}"})
@@ -4815,7 +4856,8 @@ hook::bash_parse_segments_uncached() {
     '#')
       # Unquoted `#` starts a shell comment to EOL only at a word boundary (no
       # word currently being assembled). Mid-word `#` (`x#y`) stays literal.
-      if ((have || i == hash_at)); then
+      j=${pstk//0/}
+      if ((have || i == hash_at)) || [[ "$j" == *[gr] ]]; then
         word+="#"
         wq_plain=1
         have=1
@@ -4828,7 +4870,8 @@ hook::bash_parse_segments_uncached() {
           # whole command, so that one pass already reads every later
           # ambiguous `)#` the extglob-on way.
           amb_seen=1
-          local __hu_bps_pstk=$pstk __hu_bps_bthd=$bt_hd
+          local __hu_bps_pstk=$pstk __hu_bps_cps=$cps
+          local -a __hu_bps_hdl=(${hd_level[@]+"${hd_level[@]}"})
           local -a __hu_bps_hdd=(${hd_delims[@]+"${hd_delims[@]}"})
           local -a __hu_bps_hds=(${hd_strip[@]+"${hd_strip[@]}"})
           local -a __hu_bps_hdq=(${hd_quoted[@]+"${hd_quoted[@]}"})
@@ -4848,6 +4891,18 @@ hook::bash_parse_segments_uncached() {
       fi
       ;;
     '>' | '<')
+      # Inside an extglob or arithmetic a `<` or `>` is pattern or operator
+      # text, and inside an array assignment only `<(` or `>(` means anything.
+      j=${pstk//0/}
+      if [[ "$j" == *[gr] || ("$j" == *1 && "${chars[i + 1]-}" != '(') ]]; then
+        # In an array assignment it is a syntax error, which cancels the
+        # line's here-docs, so the lines after it are commands.
+        [[ "$j" == *1 ]] && hook::_bps_hd_clear
+        word+="$c"
+        wq_plain=1
+        have=1
+        continue
+      fi
       # Redirection: bash removes the operator and its target word from
       # argv (redirections may appear anywhere in a simple command), so
       # `git reset --hard>/tmp/out` still runs reset --hard. Both halves are
@@ -4926,6 +4981,7 @@ hook::bash_parse_segments_uncached() {
           esac
         done
         hd_delims+=("$delim")
+        hd_level+=("${pstk//[^sb1gr]/}")
         hd_strip+=("$hstrip")
         hd_quoted+=("$hquoted")
         # The opener is a redirection whose target is the delimiter. A pending
@@ -4999,7 +5055,7 @@ hook::bash_parse_segments_uncached() {
             for ((j = i + 1; j < n; j++)); do
               [[ "${chars[j]}" == ' ' || "${chars[j]}" == $'\t' ]] || break
             done
-            wpar=1
+            wpar=g
             [[ "$word" == '!' || "${chars[j]-}" == ')' ]] && ((!ext)) && wpar=a
           fi
         fi
@@ -5008,7 +5064,7 @@ hook::bash_parse_segments_uncached() {
         # First, so an `esac` right before the `)` closes its case frame.
         ((have)) && hook::_bps_close_word
         case "${pstk: -1}" in
-        1 | s) hash_at=$((i + 1)) ;;
+        1 | g | s) hash_at=$((i + 1)) ;;
         a) amb_at=$((i + 1)) ;;
         *) ;;
         esac
@@ -5022,33 +5078,42 @@ hook::bash_parse_segments_uncached() {
         b | c | i | j) ;;
         *) pstk=${pstk%?} ;;
         esac
-      elif [[ "$c" == ';' || "$c" == '&' ]] && ((i > 0)) &&
-        [[ "${chars[i - 1]}" == ';' && "${pstk//0/}" == *c ]]; then
-        # `;;`, `;&` and `;;&` end a clause; a pattern position follows.
+        ((${#hd_delims[@]})) && hook::_bps_hd_drop_deeper
+      elif [[ "$c" == ';' || "$c" == '&' ]] && ((semi_at == i - 1)) &&
+        [[ "${pstk//0/}" == *c ]]; then
+        # `;;`, `;&` and `;;&` end a clause; a pattern position follows. The
+        # first `;` must itself be an operator: `\;;` is a word and a `;`.
         pstk=${pstk%c*}C${pstk##*c}
+        cps=1
       elif [[ "$c" == '`' ]]; then
         if [[ "$pstk" == *b* ]]; then
-          # Here-docs opened inside the substitution take their bodies from it,
-          # never from the lines after it.
           pstk=${pstk%b*}
           hash_at=$((i + 1))
-          hd_delims=(${hd_delims[@]+"${hd_delims[@]:0:bt_hd}"})
-          hd_strip=(${hd_strip[@]+"${hd_strip[@]:0:bt_hd}"})
-          hd_quoted=(${hd_quoted[@]+"${hd_quoted[@]:0:bt_hd}"})
+          ((${#hd_delims[@]})) && hook::_bps_hd_drop_deeper
         else
           pstk+=b
-          bt_hd=${#hd_delims[@]}
         fi
       fi
+      [[ "$c" == ';' ]] && semi_at=$i
+      # `;` `&` `|` inside an array assignment are a syntax error, as above.
+      [[ "$c" == [\;\&\|] && "${pstk//0/}" == *1 ]] && hook::_bps_hd_clear
       ((have)) && hook::_bps_close_word
       hook::_bps_flush_segment
       # A command-line newline ends the line that introduced any pending
       # heredocs; their bodies (up to and including each delimiter line) are
       # stdin, so consume them without tokenizing. Delimiters match in FIFO
       # order; `<<-` strips leading tabs from body lines before comparing.
+      # Only here-docs read on this newline's level take a body here; one read
+      # outside a `$(…)`, backtick, `a=(…)` or `@(…)` takes its body after the
+      # line where that construct closes.
       if [[ "$c" == $'\n' ]] && ((${#hd_delims[@]})); then
-        local hidx line lc d strip hstart hclosed hbt=0
-        for ((hidx = 0; hidx < ${#hd_delims[@]} && !hbt; hidx++)); do
+        local hidx line lc d strip hstart hclosed hbt=0 hlev=${pstk//[^sb1gr]/}
+        local -a hkeep=()
+        for ((hidx = 0; hidx < ${#hd_delims[@]}; hidx++)); do
+          if ((hbt)) || [[ "${hd_level[hidx]}" != "$hlev" ]]; then
+            hkeep+=("$hidx")
+            continue
+          fi
           d="${hd_delims[hidx]}"
           strip="${hd_strip[hidx]}"
           hstart=$((i + 1))
@@ -5075,9 +5140,17 @@ hook::bash_parse_segments_uncached() {
           done
           hd_bodies+=("$hstart $((i + 1)) ${hd_quoted[hidx]} $hclosed $d")
         done
-        hd_delims=()
-        hd_strip=()
-        hd_quoted=()
+        local -a hd_d2=() hd_s2=() hd_q2=() hd_l2=()
+        for hidx in ${hkeep[@]+"${hkeep[@]}"}; do
+          hd_d2+=("${hd_delims[hidx]}")
+          hd_s2+=("${hd_strip[hidx]}")
+          hd_q2+=("${hd_quoted[hidx]}")
+          hd_l2+=("${hd_level[hidx]}")
+        done
+        hd_delims=(${hd_d2[@]+"${hd_d2[@]}"})
+        hd_strip=(${hd_s2[@]+"${hd_s2[@]}"})
+        hd_quoted=(${hd_q2[@]+"${hd_q2[@]}"})
+        hd_level=(${hd_l2[@]+"${hd_l2[@]}"})
       fi
       ;;
     *)

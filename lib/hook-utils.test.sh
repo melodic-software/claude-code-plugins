@@ -4076,6 +4076,14 @@ bps_segments_are 'the extglob-on reading keeps a pending here-doc body out of co
     "echo \`cat <<'\`; git reset --hard #'\`" 'echo' 'cat' 'git reset --hard'
   bps_segments_are 'a here-doc opened inside backticks takes no body after them' \
     $'echo `cat <<E`\ngit reset --hard\nE' 'echo' 'cat' 'git reset --hard' 'E'
+  bps_segments_are 'an esac after | in a case pattern is a pattern word' \
+    'echo $(case x in a|esac) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in a' 'esac' ':' 'esac' '#' 'git reset --hard'
+  bps_segments_are 'an esac right after in closes the case' \
+    'echo $(case x in esac)#; git reset --hard' 'echo $' 'case x in esac' '#' 'git reset --hard'
+  bps_segments_are 'an escaped ; before a ; is a word, not a clause end' \
+    'echo $(case x in x) \;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard' \
+    'echo $' 'case x in x' ';' 'case y in y' ':' 'esac' 'z' ':' 'esac' '#' 'git reset --hard'
   bps_segments_are 'an escaped backtick inside backticks opens a nested substitution' \
     'echo `echo \`git reset --hard\``' 'echo' 'echo' 'git reset --hard'
   bps_segments_are 'a # right after a nested substitution is literal' \
@@ -4102,6 +4110,8 @@ bps_heredocs_are() {
 }
 bps_heredocs_are 'a here-doc both extglob readings see is listed once' \
   $'cat <<EOF; !(x)#; :\nbody\nEOF\necho done' '20 29 0 1 EOF'
+bps_heredocs_are 'a here-doc read before a backtick takes its body after the backtick line' \
+  $'cat <<A; echo `:\ngit reset --hard`\nA' '35 36 0 1 A'
 bps_heredocs_are 'here-docs from both extglob readings come in source order' \
   $'!(x)#\'\ncat <<B\nb\nB\n\' ; cat <<C\nc\nC' '15 19 0 1 B' '31 34 0 1 C'
 bps_segments_are 'a quote inside backticks ends at the closing backtick' \
@@ -4118,6 +4128,89 @@ bps_segments_are 'substitution inside an array assignment stays a segment' \
 # shellcheck disable=SC2016  # the parameter expansion is the command text under test
 bps_segments_are '( inside an open ${...} opens no word-continuing frame' \
   'echo ${x#*(}; case x in x)#y' 'echo ${x#*' '}' 'case x in x'
+
+# --- Oracle table: whatever bash runs, the parser must hand to the callback ---
+# Each row puts a tricky word inside an opener, closes the opener, then appends
+# `echo HIT >&2` after a `#` or a newline. Bash itself, with extglob off and on,
+# decides whether HIT runs; when either mode runs it, some segment the parser
+# reports must be `echo HIT`. A row that is a syntax error in both modes is
+# skipped. Expectations come from the bash running the test, never from here.
+# bps_oracle <command>: 0 when either mode runs HIT, 2 when both modes report a
+# syntax error, else 1.
+bps_oracle() {
+  local m out ran=1 serr=0
+  for m in +O -O; do
+    out=$(bash "$m" extglob -c "$1" 2>&1 >/dev/null </dev/null)
+    [[ $'\n'"$out"$'\n' == *$'\nHIT\n'* ]] && ran=0
+    [[ "$out" == *'syntax error'* ]] && serr=$((serr + 1))
+  done
+  ((ran == 0)) && return 0
+  ((serr == 2)) && return 2
+  return 1
+}
+# shellcheck disable=SC2016  # the substitutions are the command text under test
+{
+  # Openers as prefix and closer pairs: `$(`, `$((`, `<(`, a backtick, `a=(`
+  # and `@(`; a case pattern position (after `in` on its line or the next,
+  # after `|`, `;;`, `;&`, `;;&` and `(`); a case closed right after the word
+  # or one clause on; a clause body, alone and before a nested case.
+  bps_or_pre=('echo $(' 'echo $((' 'cat <(' 'echo `' 'a=(' 'echo @('
+    'echo $(case x in ' $'echo $(case x in\n' 'echo $(case x in a|'
+    'echo $(case x in a) :;; ' 'echo $(case x in a) :;& ' 'echo $(case x in a) :;;& '
+    'echo $(case x in (' 'echo $(case x in ' 'echo $(case x in a) :;; '
+    'echo $(case x in a) ' 'echo $(case x in a) ')
+  bps_or_post=(')' '))' ')' '`' ')' ')'
+    ') :;; esac)' ') :;; esac)' ') :;; esac)'
+    ') :;; esac)' ') :;; esac)' ') :;; esac)'
+    ') :;; esac)' ')' ')'
+    ';; esac)' ' case y in y) :;; esac;; z) :;; esac)')
+  bps_or_words=('case' 'esac' 'in' '\;;' '\)' '\`' '")"' '#' '<<E')
+  # Where the word sits: alone, as an argument, before a newline inside the
+  # opener, and before a newline and the trailing command inside the opener.
+  bps_or_before=('' ': ' '' '')
+  bps_or_after=('' '' $'\n:' $'\necho HIT >&2\n')
+  # What comes before the opener: nothing, or a here-doc still pending.
+  bps_or_leads=('' 'cat <<E; ')
+  bps_or_tails=('#; echo HIT >&2' $'\necho HIT >&2')
+}
+# bps_oracle_row <command>: count the row; when bash runs HIT, fail unless the
+# parser reports an `echo HIT` segment.
+bps_oracle_row() {
+  local rc=0 s seen=0
+  bps_or_n=$((bps_or_n + 1))
+  bps_oracle "$1" || rc=$?
+  if ((rc == 2)); then
+    bps_or_skip=$((bps_or_skip + 1))
+    return 0
+  fi
+  ((rc == 0)) || return 0
+  bps_or_ran=$((bps_or_ran + 1))
+  bps_all=()
+  hook::bash_parse_segments "$1" bps_collect_all
+  for s in ${bps_all[@]+"${bps_all[@]}"}; do
+    [[ "$s" == 'echo HIT' ]] && seen=1
+  done
+  ((seen)) && return 0
+  bps_or_bad=$((bps_or_bad + 1))
+  fail "bash_parse_segments oracle: bash runs HIT but the parser hides it: $(printf '%q' "$1")"
+}
+bps_or_n=0 bps_or_ran=0 bps_or_skip=0 bps_or_bad=0 bps_or_t0=$SECONDS
+for ((bps_or_k = 0; bps_or_k < ${#bps_or_pre[@]}; bps_or_k++)); do
+  for ((bps_or_p = 0; bps_or_p < ${#bps_or_before[@]}; bps_or_p++)); do
+    for bps_or_w in "${bps_or_words[@]}"; do
+      for bps_or_t in "${bps_or_tails[@]}"; do
+        for bps_or_l in "${bps_or_leads[@]}"; do
+          bps_oracle_row "$bps_or_l${bps_or_pre[bps_or_k]}${bps_or_before[bps_or_p]}$bps_or_w${bps_or_after[bps_or_p]}${bps_or_post[bps_or_k]}$bps_or_t"
+        done
+      done
+    done
+  done
+done
+if ((bps_or_ran == 0)); then
+  fail "bash_parse_segments oracle: no row ran HIT in bash, so the table checks nothing"
+elif ((bps_or_bad == 0)); then
+  ok "bash_parse_segments oracle: $bps_or_n rows, $bps_or_ran run HIT in bash, $bps_or_skip syntax errors skipped, none hidden ($((SECONDS - bps_or_t0)) s)"
+fi
 
 # ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).
 bps_acd_cmd='git commit -m $'"'"'hello\nworld'"'"

@@ -649,6 +649,14 @@ run "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard (pattern spelle
   "echo \$(case x in x) :;; case) :;; esac)#; git reset --hard" 2
 run "echo \$(case x in⏎case) :;; esac)#; git reset --hard (pattern spelled case after a newline, blocked)" \
   $'echo $(case x in\ncase) :;; esac)#; git reset --hard' 2
+run "echo \$(case x in a|esac) :;; esac)#; git reset --hard (esac after | is a pattern, blocked)" \
+  "echo \$(case x in a|esac) :;; esac)#; git reset --hard" 2
+run "echo \$(case x in esac)#; git reset --hard (esac right after in closes the case, blocked)" \
+  "echo \$(case x in esac)#; git reset --hard" 2
+run "\\;; before a nested case is a word and a ; (blocked)" \
+  "echo \$(case x in x) \\;; case y in y) :;; esac;; z) :;; esac)#; git reset --hard" 2
+run "cat <<A; echo \`:⏎git reset --hard\`⏎A (here-doc body comes after the backtick line, blocked)" \
+  $'cat <<A; echo `:\ngit reset --hard`\nA' 2
 # Every quoted or delimited reader ends at the closing backtick.
 run "echo \`\$'\`; git reset --hard #'\` (ANSI-C quote inside backticks, blocked)" \
   "echo \`\$'\`; git reset --hard #'\`" 2
