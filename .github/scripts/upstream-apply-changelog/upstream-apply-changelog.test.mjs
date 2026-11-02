@@ -77,16 +77,29 @@ test("a valid plan passes and a stopped plan keeps its handoffs and publishes no
   assert.equal(validatePlan(plan(), ctx).branches.length, 1);
   // ci-mode.md: cap exceeded is status stopped with one docs-conformance handoff.
   const conformance = { key: "changelog:2.1.300..2.1.300:docs-conformance:plugins/harness-ops/skills/changelog/SKILL.md", title: "t", body: "b" };
-  assert.deepEqual(validatePlan(plan({ status: "stopped", handoffs: [conformance] }), ctx), {
+  assert.deepEqual(validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", handoffs: [conformance] }), ctx), {
     status: "stopped",
+    stop_reason: "cap-exceeded",
     branches: [],
     handoffs: [conformance],
   });
+  assert.equal(validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx).stop_reason, "range-not-computed");
+  assert.equal(validatePlan(plan(), ctx).stop_reason, null);
   assert.throws(
-    () => validatePlan(plan({ status: "stopped", handoffs: [{ ...conformance, key: "changelog:2.1.1..2.1.1:docs-conformance:x" }] }), ctx),
+    () => validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", handoffs: [{ ...conformance, key: "changelog:2.1.1..2.1.1:docs-conformance:x" }] }), ctx),
     /handoffs\[0\]\.key/,
   );
-  assert.throws(() => validatePlan(plan({ status: "stopped", range: "2.1.299..2.1.299" }), ctx), /range/);
+  assert.throws(() => validatePlan(plan({ status: "stopped", stop_reason: "cap-exceeded", range: "2.1.299..2.1.299" }), ctx), /range/);
+});
+
+test("a stopped plan without a known stop_reason is refused, naming the field and not the value", () => {
+  const SECRET = "zzPLANTEDzz";
+  for (const stop_reason of [undefined, null, "", SECRET]) {
+    assert.throws(
+      () => validatePlan(plan({ status: "stopped", stop_reason }), ctx),
+      (e) => /stop_reason/.test(e.message) && !e.message.includes(SECRET),
+    );
+  }
 });
 
 test("a plan for another release, base or branch name is refused", () => {
@@ -156,6 +169,16 @@ test("the publish text holds every pull request and issue string publish can pos
   assert.ok(posted.body.includes("truncated proportionally"));
   assert.ok(text.includes(renderItems(v.handoffs, Number.POSITIVE_INFINITY)));
   assert.equal(publishText(validatePlan(plan({ handoffs: [] }), ctx), "2.1.300").includes(releaseMarker("2.1.300")), false);
+});
+
+test("a stopped plan's publish text holds the issue it posts, stop line included, even with no handoffs", async () => {
+  const v = validatePlan(plan({ status: "stopped", stop_reason: "range-not-computed", handoffs: [] }), ctx);
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: "2.1.300", handoffs: v.handoffs, stop: v.stop_reason, api: f.api });
+  const posted = f.writes()[0].body;
+  const text = publishText(v, "2.1.300");
+  assert.ok(text.includes(posted.title) && text.includes(posted.body));
+  assert.ok(posted.body.includes("stop_reason `range-not-computed`"));
 });
 
 test("a commit outside its plugin, or writing a link or submodule, is refused", () => {
@@ -471,6 +494,55 @@ test("an outsider's issue carrying the release marker is ignored and a new issue
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, `/repos/${REPO}/issues`);
   assert.equal(writes[0].method, "POST");
+});
+
+test("a stopped plan with no handoffs still files one issue that names its stop_reason", async () => {
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [], stop: "range-not-computed", api: f.api });
+  const writes = f.writes();
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].path, `/repos/${REPO}/issues`);
+  assert.equal(writes[0].body.title, `Claude Code v${REL} changelog: 0 handoffs`);
+  assert.ok(writes[0].body.body.startsWith(`${releaseMarker(REL)}\n\n`));
+  assert.ok(writes[0].body.body.includes(`Claude Code v${REL} stopped (stop_reason \`range-not-computed\`)`));
+});
+
+test("a stopped plan's handoff issue opens with the stop line above its checklist", async () => {
+  const f = issueApi();
+  await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: f.api });
+  const { body } = f.writes()[0].body;
+  const stopAt = body.indexOf("stop_reason `cap-exceeded`");
+  assert.ok(stopAt > 0 && stopAt < body.indexOf("- [ ] adopt: adopt 1"));
+  assert.ok(body.includes(handoffMarker(handoff(1).key)));
+});
+
+test("a stopped plan whose closed release issue lacks a key fails with no write", async () => {
+  const body = `${releaseMarker(REL)}\n\n${renderItems([handoff(1)], 65536)}`;
+  const f = issueApi([{ user: APP, number: 7, state: "closed", body }]);
+  await assert.rejects(
+    fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1), handoff(2)], stop: "cap-exceeded", api: f.api }),
+    /#7 is closed and lacks 1 handoffs/,
+  );
+  assert.equal(f.writes().length, 0);
+});
+
+test("a stopped plan whose release issue already holds every key succeeds with no write, open or closed", async () => {
+  const hs = [handoff(1), handoff(2)];
+  const body = `${releaseMarker(REL)}\n\n${renderItems(hs, 65536)}`;
+  for (const state of ["open", "closed"]) {
+    const f = issueApi([{ user: APP, number: 7, state, body }]);
+    await fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: hs, stop: "cap-exceeded", api: f.api });
+    assert.equal(f.writes().length, 0);
+  }
+});
+
+test("a stopped plan whose issue filing fails rejects, so publish fails and the release is retried", async () => {
+  const f = issueApi();
+  const failing = async (path, opts = {}) => {
+    if (opts.method === "POST") throw new Error("POST /repos/o/r/issues answered 502");
+    return f.api(path, opts);
+  };
+  await assert.rejects(fileReleaseHandoffs({ repo: REPO, release: REL, handoffs: [handoff(1)], stop: "cap-exceeded", api: failing }), /answered 502/);
 });
 
 test("a key marker in an outsider's comment does not count as filed", async () => {

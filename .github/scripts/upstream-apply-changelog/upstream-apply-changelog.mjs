@@ -34,7 +34,12 @@ export const releaseMarker = (release) => `<!-- upstream-apply-changelog release
 const ISSUE_BODY_MAX = 65536; // GitHub's issue body limit
 const TRUNCATED = "Handoff bodies are truncated proportionally to fit GitHub's 65536-character issue body limit.";
 const KIND = /^[a-z][a-z-]{0,39}$/;
+// ci-mode.md: the two reasons a plan stops before deriving any row.
+const STOP_REASONS = new Set(["cap-exceeded", "range-not-computed"]);
 
+const stopLine = (release, stop) =>
+  `The plan for Claude Code v${release} stopped (stop_reason \`${stop}\`): no changelog row was derived and no branch was opened. ` +
+  "The release is marked done once this issue holds its handoffs, so later runs do not take it again.";
 const releaseTitle = (release, n) => `Claude Code v${release} changelog: ${n} handoff${n === 1 ? "" : "s"}`;
 const keysIn = (body) => [...body.matchAll(/<!-- upstream-apply-changelog key=(\S+) -->/g)].map((m) => m[1]);
 
@@ -58,9 +63,10 @@ export function renderItems(handoffs, budget) {
   return `${TRUNCATED}\n\n${handoffs.map((h, i) => item(h, cut[i])).join("\n")}`;
 }
 
-// The new release issue's title and body, as publish posts them.
-export function releaseIssue(release, handoffs) {
-  const head = `${releaseMarker(release)}\n\n`;
+// The new release issue's title and body, as publish posts them; a stopped
+// plan's issue opens with its stop_reason.
+export function releaseIssue(release, handoffs, stop = null) {
+  const head = `${releaseMarker(release)}\n\n${stop ? `${stopLine(release, stop)}\n\n` : ""}`;
   return { title: releaseTitle(release, handoffs.length), body: head + renderItems(handoffs, ISSUE_BODY_MAX - head.length) };
 }
 
@@ -69,8 +75,8 @@ export function releaseIssue(release, handoffs) {
 // handoff items untruncated, as an append or a comment posts them.
 export function publishText(plan, release) {
   const parts = plan.branches.flatMap((b) => [b.pr.title, b.pr.body]);
-  if (plan.handoffs.length) {
-    const issue = releaseIssue(release, plan.handoffs);
+  if (plan.handoffs.length || plan.stop_reason) {
+    const issue = releaseIssue(release, plan.handoffs, plan.stop_reason);
     parts.push(issue.title, issue.body, renderItems(plan.handoffs, Number.POSITIVE_INFINITY));
   }
   return `${parts.join("\n\n")}\n`;
@@ -81,8 +87,11 @@ export function publishText(plan, release) {
 // markers in its body and the App's comments: anyone can type a marker. An
 // open issue missing some keys gets them appended in one update, or in one
 // comment when the body would pass the limit; a closed one is left alone.
-export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
-  if (!handoffs.length) return "no handoffs; nothing filed";
+// A stopped plan (`stop` is its stop_reason) is marked done once this
+// returns, so it files the issue even with no handoffs, and a closed issue
+// missing a key throws instead.
+export async function fileReleaseHandoffs({ repo, release, handoffs, stop = null, api }) {
+  if (!handoffs.length && !stop) return "no handoffs; nothing filed";
   const marker = releaseMarker(release);
   const app = LANES_APP_LOGIN.replace(/\[bot\]$/, "");
   const q = encodeURIComponent(`repo:${repo} is:issue author:app/${app} in:body "upstream-apply-changelog release=${release}"`);
@@ -91,15 +100,18 @@ export async function fileReleaseHandoffs({ repo, release, handoffs, api }) {
     (i) => i?.user?.login === LANES_APP_LOGIN && typeof i.body === "string" && i.body.includes(marker),
   );
   if (!issue) {
-    await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs) });
+    await api(`/repos/${repo}/issues`, { method: "POST", body: releaseIssue(release, handoffs, stop) });
     return `filed ${handoffs.length} handoffs as one issue`;
   }
-  if (issue.state !== "open") return `the release issue #${issue.number} is closed; nothing filed`;
+  if (issue.state !== "open" && !stop) return `the release issue #${issue.number} is closed; nothing filed`;
   const comments = await listComments(api, repo, issue.number);
   const own = comments.filter((c) => c?.user?.login === LANES_APP_LOGIN && typeof c.body === "string");
   const have = new Set([issue.body, ...own.map((c) => c.body)].flatMap(keysIn));
   const missing = handoffs.filter((h) => !have.has(h.key));
   if (!missing.length) return `the release issue #${issue.number} already holds every handoff`;
+  if (issue.state !== "open") {
+    throw new Error(`the release issue #${issue.number} is closed and lacks ${missing.length} handoffs; the stopped release is not marked done`);
+  }
   const base = `${issue.body.trimEnd()}\n\n`;
   const items = renderItems(missing, Number.POSITIVE_INFINITY);
   if (base.length + items.length > ISSUE_BODY_MAX) {
@@ -213,8 +225,11 @@ export function validatePlan(plan, { release, baseSha }) {
   if (plan.range !== `${release}..${release}`) fail("range is not this run's release");
   if (plan.base_sha !== baseSha) fail("base_sha is not the commit the run checked out");
   // A stopped plan derived no rows, so it publishes no branch; its handoffs
-  // (ci-mode.md: cap exceeded carries a docs-conformance one) are still filed.
-  const branches = status === "stopped" ? [] : Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
+  // (ci-mode.md: cap exceeded carries a docs-conformance one) are still
+  // filed, under an issue line naming its stop_reason.
+  const stopped = status === "stopped";
+  const stop_reason = !stopped ? null : STOP_REASONS.has(plan.stop_reason) ? plan.stop_reason : fail("stop_reason is neither cap-exceeded nor range-not-computed");
+  const branches = stopped ? [] : Array.isArray(plan.branches) ? plan.branches : fail("branches is not a list");
   const handoffs = Array.isArray(plan.handoffs) ? plan.handoffs : fail("handoffs is not a list");
   const seen = new Set();
   branches.forEach((b, i) => {
@@ -240,7 +255,7 @@ export function validatePlan(plan, { release, baseSha }) {
     if (typeof h.title !== "string" || !h.title || h.title.length > 256 || /[\r\n]/.test(h.title)) fail(`${at}.title is bad`);
     if (typeof h.body !== "string" || h.body.length > 60000) fail(`${at}.body is bad`);
   });
-  return { status, branches, handoffs };
+  return { status, stop_reason, branches, handoffs };
 }
 
 // Every path the raw diff changes, either side of a rename, must sit under
@@ -474,10 +489,10 @@ async function publish(env) {
     opened++;
   }
   console.log(`opened ${opened} pull requests`);
-  console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, api }));
-  // Its handoffs are filed, but the release was never applied: fail so the
-  // done marker is not uploaded and the next run takes the release again.
-  if (plan.status === "stopped") throw new Error(`the plan for Claude Code ${release} stopped; its handoffs are filed and the release is not marked done`);
+  // A stopped plan is the same on every run for its release, so once its
+  // issue holds every handoff publish succeeds and the release is marked
+  // done; a filing that fails throws, and the next run takes it again.
+  console.log(await fileReleaseHandoffs({ repo, release, handoffs: plan.handoffs, stop: plan.stop_reason, api }));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

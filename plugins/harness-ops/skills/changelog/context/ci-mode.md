@@ -128,5 +128,8 @@ always false: the marker moves in the ledger pull request once every row is in a
 `range-not-computed`) or `planned` (rows were derived; `branches` and `handoffs` may each be empty).
 Handoff bodies carry item ids and the required sentence, never changelog text, matching the ledger
 rule in [decisions.md](decisions.md). The workflow groups a release's handoffs into one issue, a
-checklist item per handoff. PR bodies follow the consuming repository's pull request
+checklist item per handoff. A stopped plan is the same on every run for its release, so the
+workflow files its issue even with no handoffs, opens the issue with a line naming the
+`stop_reason`, and marks the release done once that issue holds every handoff key; a filing that
+fails leaves the release for the next run. PR bodies follow the consuming repository's pull request
 template.

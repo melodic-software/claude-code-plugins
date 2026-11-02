@@ -724,7 +724,8 @@ jobs:
   # publish-artifact: pull-requests and issues write, contents read. Opens a
   # pull request for each branch at the head push-branches left that has none, and files
   # the release's handoffs as one issue, appending keys an open one lacks; then
-  # records the release done.
+  # records the release done. A stopped plan files its issue, naming its
+  # stop_reason, and is recorded done once that issue holds every handoff key.
   publish:
     needs: [gate, scan, push-branches]
     if: >-
@@ -851,7 +852,7 @@ jobs:
           [ "$status" = 204 ] || echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
 
       # The gate's done marker: a later run skips this release even when its
-      # plan made no branch.
+      # plan made no branch or stopped.
       - name: Upload the done marker
         if: steps.publish.outcome == 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
