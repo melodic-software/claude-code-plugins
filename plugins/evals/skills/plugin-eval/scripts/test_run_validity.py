@@ -1245,6 +1245,13 @@ class RunValidityTest(unittest.TestCase):
             ('ls %s; python3 "%s" "$X"' % (data, script), ran),
             ('ls %s %s; python3 "%s"' % (data, script, script), ran),
             ('ls %s; cat /etc/hosts' % data, ran),
+            # A part that works in the cwd: a relative path, a bare file name, a
+            # command with no rooted argument, or a redirect into a cwd file.
+            ('ls %s; cat skills/s/SKILL.md' % data, ran),
+            ('ls %s; cat SKILL.md' % data, ran),
+            ('ls %s; make' % data, ran),
+            ('ls %s; python3 "%s" > notes' % (data, script), ran),
+            ('ls %s | head skills/s/SKILL.md' % data, ran),
         ):
             proc = self.denied_in_sandbox([("Bash", {"command": command})], allowed=allowed)
             self.assertDenials(proc, "FAIL")

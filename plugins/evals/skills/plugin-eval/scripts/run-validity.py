@@ -291,6 +291,9 @@ KEEPS_ASSIGNMENT = (None, ";", "\n", "&&")
 # takes the next word as its operand, dropped only when it is /dev/null.
 REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
 DEV_NULL = "/dev/null"
+# An argument word with no slash, glob or operator (release, 30): a subcommand or
+# value, not a path, when no redirect operator precedes it.
+BARE_WORD = re.compile(r"\A\w[\w.,:@%+-]*\Z")
 # A denied compound Bash call whose plugin part a later call ran alone: the
 # operators that separate its commands, the ones that keep it from qualifying,
 # and the commands dropped around that part (cd anywhere; after it, ls, echo or
@@ -915,8 +918,8 @@ def check_plugins_loaded(runs, plugins, root=None):
     """A with-arm run whose init line reports a plugin_errors entry for a suite
     plugin, or leaves one out of its loaded plugins, ran without the plugin
     under test, so its score measures the bare model. A suite plugin inside a
-    case's dir is that case's own helper, which claude plugin eval loads only
-    for that case, so it is checked only in that case's runs. A with-arm run
+    case's dir counts as that case's own helper and is required only in that
+    case's runs (reading-results.md, plugins loaded, records why). A with-arm run
     whose init plugins list cannot be read is a warning."""
     if not plugins:
         return PASS, "no suite.plugins entry to check", [], None
@@ -1542,9 +1545,12 @@ def own_data_compound(run, denial, data):
     names only rooted paths under the run's own plugin-data directory, which is
     denied whatever the case does, and every rooted path its other commands name
     was also named by a Bash call of the same run that was not denied, so none of
-    them caused the denial; a bare word in another command is an argument, not a
-    path. A command that does not parse, or a word UNRESOLVED matches outside a
-    file-less redirect, never qualifies."""
+    them caused the denial; a BARE_WORD argument in another command, not a
+    redirect's file, is an argument, not a path. Any other part bash_paths cannot
+    place (a relative path with a slash, a command with no rooted argument such as
+    make) never qualifies, except a BASH_READERS command after a pipe with no file
+    operand, which reads only the pipe. A command that does not parse, or a word
+    UNRESOLVED matches outside a file-less redirect, never qualifies."""
     if not data or denial[2] != BASH_TOOL:
         return False
     try:
@@ -1554,19 +1560,33 @@ def own_data_compound(run, denial, data):
     words = shell_words(command) if isinstance(command, str) else None
     if not words:
         return False
-    parts = {}
-    for text, _, simple in words:
+    parts, target = {}, False
+    for text, lead, simple in words:
         if not REDIRECT.fullmatch(text) and any(
             UNRESOLVED.search(v) for v in SHELL_SPLIT.split(text) if v
         ):
             return False
-        parts.setdefault(simple, []).append(text)
+        every, kept = parts.setdefault(simple, ([], []))
+        every.append(text)
+        if lead or target or not BARE_WORD.match(text):
+            kept.append(text)
+        target = REDIRECT.fullmatch(text) is not None
     if len(parts) < 2:
         return False
-    paths = [bash_paths(shlex.join(texts)) for texts in parts.values()]
-    if not any(p and None not in p and all(under(x, data) for x in p) for p in paths):
+    paths = {key: bash_paths(shlex.join(every)) for key, (every, _) in parts.items()}
+    own = {
+        key for key, p in paths.items() if None not in p and all(under(x, data) for x in p)
+    }
+    if not own:
         return False
-    others = {x for p in paths for x in p if x and not under(x, data)}
+    for key, (every, kept) in parts.items():
+        if (
+            key not in own
+            and None in bash_paths(shlex.join(kept))
+            and not (key is None and segment_read_paths(every) == [])
+        ):
+            return False
+    others = {x for p in paths.values() for x in p if x and not under(x, data)}
     return others <= allowed_bash_paths(run, denial[3])
 
 
