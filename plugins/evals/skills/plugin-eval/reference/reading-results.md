@@ -96,7 +96,12 @@ above the plugin's directory, or with no absolute path or no known plugin direct
 - Any other denial, in either arm, is a warning only when its case has denial-free runs in that arm
   and its run scored the same as each; otherwise it is a FAIL.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
-  in a forked session, and the gate lists it under `session started` without failing it.
+  in a forked session, and the gate lists it under `session started` without failing it. Any run
+  fails there whose trace holds a user message with a `local-command-stderr` reading `Shell command
+  failed for pattern` (a skill's pre-computed command failed), or a failed Bash result reporting a
+  read-only file system at a relative path or under the run's sandbox, in any case: the run's
+  workspace or `TMPDIR` was not writable, so the score measures the sandbox, not the skill. A
+  read-only path elsewhere is the sandbox working as designed and does not fail the check.
 - `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
   `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
   plugin under test. The detail names the plugin and the error type, such as

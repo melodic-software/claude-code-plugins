@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.14.11] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [0.14.10] - 2026-11-02
 
 ### Fixed

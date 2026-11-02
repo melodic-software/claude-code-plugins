@@ -491,6 +491,57 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def test_a_zero_turn_run_whose_pre_computed_command_failed_is_invalid(self):
+        # The #12422 shape: a slash command's pre-computed line fails in the
+        # session's read-only tmp, and the session ends before its first turn.
+        stderr = (
+            "<local-command-stderr>Shell command failed for pattern \"!`echo ok`\":"
+            " [stderr]\n/bin/bash: line 1: /tmp/claude-1000/cwd-6a70: Read-only"
+            " file system</local-command-stderr>"
+        )
+        trace = self.dir / "pre-command.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": stderr}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"x"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(
+            tracePath=str(trace), turns=0, costUsd=0
+        )
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("1 run never started or had no sandbox", proc.stdout)
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: a skill's pre-computed"
+            " command failed (%s)" % trace,
+            proc.stdout,
+        )
+
+    def test_a_forked_run_whose_tool_result_quotes_the_pre_command_failure_passes(self):
+        quoted = {"type": "tool_result", "tool_use_id": "t1", "content": (
+            "<local-command-stderr>Shell command failed for pattern</local-command-stderr>"
+        )}
+        trace = self.dir / "quoted.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": [quoted]}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":0}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["with"][0].update(tracePath=str(trace), turns=0)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check session started: PASS", proc.stdout)
+
     def test_a_mention_of_the_sandbox_failure_outside_a_failed_bash_result_passes(self):
         text = "Sandbox is required but failed to initialize"
         trace = self.dir / "mentions.jsonl"
@@ -529,6 +580,7 @@ class RunValidityTest(unittest.TestCase):
         outs = [{"type": "tool_result", "tool_use_id": "b%d" % i, "is_error": err, "content": text}
                 for i, (err, text) in enumerate(results)]
         trace = self.dir / name
+        trace.parent.mkdir(parents=True, exist_ok=True)
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
             + json.dumps({"type": "assistant", "message": {"content": uses}}) + "\n"
@@ -607,6 +659,101 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout.splitlines()[-1],
         )
         self.assertIn("check permission denials: PASS", proc.stdout)
+
+    def test_a_bash_result_reporting_a_read_only_file_system_is_invalid(self):
+        # The #12422 positive control: a run with turns whose write to its own
+        # workspace or TMPDIR fails. The trace sits at <sandbox>/out/trace.jsonl.
+        tmp = self.dir / "sb-tmp" / "tmp" / "claude-1000" / "t"
+        for name, results in (
+            ("sb-rel/out/trace.jsonl",
+             [(True, "touch: cannot touch './made-by-bash': Read-only file system")]),
+            ("sb-tmp/out/trace.jsonl",
+             [(True, "Exit code 1\nv42\ntouch: cannot touch '%s': READ-ONLY FILE SYSTEM" % tmp)]),
+            ("sb-bare/out/trace.jsonl",
+             [(True, "/bin/bash: line 1: %s: Read-only file system"
+               % (self.dir / "sb-bare" / "tmp" / "cwd-6a70"))]),
+            ("sb-bare-rel/out/trace.jsonl",
+             [(True, "/bin/bash: line 1: made-by-bash: Read-only file system")]),
+            ("sb-node/out/trace.jsonl",
+             [(True, "Error: EROFS: read-only file system, open '%s'"
+               % (self.dir / "sb-node" / "home" / "cwd" / "x"))]),
+        ):
+            proc, trace = self.bash_trace(name, results)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm run 1: a Bash call hit a"
+                " read-only file system in the run's workspace or TMPDIR (%s)" % trace,
+                proc.stdout,
+                name,
+            )
+
+    def test_a_read_only_write_outside_the_run_sandbox_passes(self):
+        # The sandbox mounts paths outside the run read-only by design: a failed
+        # install into a system prefix is the skill's run, not a broken sandbox.
+        for name, text in (
+            ("sb-pip/out/trace.jsonl",
+             "ERROR: Could not install packages due to an OSError: [Errno 30]"
+             " Read-only file system: '/usr/local/lib/python3.12/site-packages/x'"),
+            ("sb-mkdir/out/trace.jsonl",
+             "mkdir: cannot create directory \u2018/usr/share/x\u2019: Read-only file system"),
+            ("no-sandbox-ro.jsonl",
+             "touch: cannot touch '/tmp/claude-eval-x/tmp/t': Read-only file system"),
+            ("sb-npm/out/trace.jsonl",
+             "npm error code EROFS\nnpm error rofs EROFS: read-only file system,"
+             " mkdir '/usr/lib/node_modules/x'"),
+            ("sb-os-error/out/trace.jsonl", "Error: Read-only file system (os error 30)"),
+        ):
+            proc, _ = self.bash_trace(name, [(True, text)])
+            self.assertIn("check session started: PASS", proc.stdout, name)
+
+    def test_a_successful_bash_result_quoting_read_only_passes(self):
+        proc, _ = self.bash_trace(
+            "ro-grep.jsonl", [(False, "records.md:66: cwd-6a70: Read-only file system")]
+        )
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_read_only_mention_outside_a_bash_result_passes(self):
+        trace = self.dir / "ro-read.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"r1",'
+            '"name":"Read","input":{"file_path":"/x/records.md"}}]}}\n'
+            '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"r1",'
+            '"content":"cwd-6a70: Read-only file system"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":3}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=3)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertIn("check session started: PASS", proc.stdout)
+
+    def test_a_run_with_turns_whose_pre_computed_command_failed_is_invalid(self):
+        stderr = (
+            "<local-command-stderr>Shell command failed for pattern \"!`echo ok`\":"
+            " [stderr]</local-command-stderr>"
+        )
+        trace = self.dir / "pre-command-turns.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5","tools":["Skill"]}\n'
+            + json.dumps({"type": "user", "message": {"content": stderr}}) + "\n"
+            + '{"type":"assistant","message":{"content":[{"type":"text","text":"x"}]}}\n'
+            '{"type":"result","subtype":"success","is_error":false,"num_turns":2}\n',
+            encoding="utf-8",
+        )
+        result = self.write(self.clean())
+        data = load(result)
+        data["cases"][1]["arms"]["without"][0].update(tracePath=str(trace), turns=2)
+        result.write_text(json.dumps(data), encoding="utf-8")
+        proc = self.run_script(result, "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm run 1: a skill's pre-computed"
+            " command failed (%s)" % trace,
+            proc.stdout,
+        )
 
     def test_a_denial_seen_only_as_a_tool_result_is_counted(self):
         trace = self.dir / "denied.jsonl"

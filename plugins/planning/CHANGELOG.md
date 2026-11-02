@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.140.0] - 2026-11-02
+
+### Added
+
+- `/planning:interview restate`: one paragraph of goal, problem and done for the topic, built from the Brief, the answered register rows and the conversation, deciding nothing new. In an interactive session it waits for an explicit yes, and no setting turns that wait off. That yes confirms the paragraph only, never the Step 3 confirmation gate (#12476).
+- `/planning:interview` grilling steps: a goal stated with no reason gets a "why" question, and the answer goes on the Intent line; the quality bar is recommended from evidence when the user cannot judge it; an answer that conflicts with the code, a constraint or an earlier answer is named before it is recorded; a fact the user states is checked against the code; a cheap read-only run settles a fact the system can show; and a request to document the repository's language goes to `/domain-driven-design:curate-language` (#12476).
+- `answer_audit_rounds` key in `<home>/planning.yaml` (default `2`, `0` never): after that many rounds accepted whole, the interview points at `/planning:audit-answers` once (#12476).
+- Probe topics: a team lists subjects every interview probes under `## Probe topics` in `<home>/planning.md`, and the interview asks about each one the task touches (#12476).
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
+- `question_pacing` and `answer_audit_rounds` resolve through the bound convention home: default, `userConfig` (`question_pacing` only), `<home>/planning.yaml`, then `<home>/planning.local.yaml` (`reference/config.md` "Convention-home keys"; #12476).
+
+### Removed
+
+- The end-of-round index table, in the terminal and on the page. Rounds keep their topic headers, and a reply may still answer by exception or by topic. The `interview-round-topic-groups-index` eval case is now `interview-round-topic-groups` and fails a round that closes with a summary table (#12476).
+
 ## [0.139.4] - 2026-11-02
 
 ### Changed

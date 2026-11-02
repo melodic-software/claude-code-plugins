@@ -8,7 +8,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, bodyUnpushablePaths, deferredAhead, refineDue, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -440,7 +440,11 @@ describe("decide", () => {
     assert.match(result.reasons.join("; "), /author.*Size large/);
   });
 
-  test("admits an issue whose title and body name a path under .github/ or docs/conventions/", () => {
+  // The title names the subject, so it is not read; a body that asks to edit
+  // a path the issue lane cannot push is refused (bodyUnpushablePaths).
+  test("admits an issue whose title names a protected path, and refuses one whose body prose asks to edit one", () => {
+    const titled = decide(facts({ issue: issueOf({ title: "fix .github/workflows/x.yml and docs/conventions/pr-pipeline.yaml" }) }));
+    assert.deepEqual(titled, { verdict: "admit", reasons: [] });
     const result = decide(
       facts({
         issue: issueOf({
@@ -449,7 +453,10 @@ describe("decide", () => {
         }),
       }),
     );
-    assert.deepEqual(result, { verdict: "admit", reasons: [] });
+    assert.deepEqual(result, {
+      verdict: "refuse",
+      reasons: ["its body or a criterion names .github/workflows/x.yml, .claude/settings.json, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
+    });
   });
 
   test("admits a Feature with no parent", () => {
@@ -631,7 +638,7 @@ describe("decide", () => {
   // run for a criterion that names one ends at patch-protected-path.
   describe("a criterion naming a path the issue lane cannot push", () => {
     const withCriteria = (...lines) => issueOf({ body: ["## Problem", "", "Basis: `.github/workflows/a.yml:3`", "", "## Done when", "", ...lines].join("\n") });
-    const pushReason = (path) => `a criterion names ${path}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
+    const pushReason = (path) => `its body or a criterion names ${path}, which the issue lane cannot push (patch-protected-path); a builder session takes it`;
 
     const refused = [
       // #9398's criterion.
@@ -816,7 +823,7 @@ describe("decide", () => {
 
     test("refuses and holds for a person, naming each word once", () => {
       for (const [issue, words] of [
-        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku"],
+        [issueOf({ body: `${BODY}\n\nMove the job to larger runners and a paid Azure SKU. Larger runners are faster.` }), "larger runners, sku, azure"],
         [issueOf({ title: "chore: raise the Actions spending limit" }), "spending limit"],
       ]) {
         const result = decide(facts({ issue }));
@@ -836,8 +843,8 @@ describe("decide", () => {
       for (const [body, words] of [
         ["This needs a plan or seat change.", "seat"],
         ["This needs a paid subscription purchase.", "subscription"],
-        ["Create a new Azure subscription for the lane.", "subscription"],
-        ["Reduce the Azure subscription usage.", "subscription"],
+        ["Create a new Azure subscription for the lane.", "subscription, azure"],
+        ["Add an Azure storage account for the lane.", "azure"],
         ["Upgrade the Claude subscription to a higher plan.", "subscription"],
         ["Buy a new Claude subscription for the lane.", "subscription"],
         ["The lane raises Copilot subscription usage-based pricing.", "subscription"],
@@ -943,7 +950,7 @@ describe("decide", () => {
       const inBody = (body) => word({ issue: issueOf({ body }) });
 
       test("the title", () => {
-        assert.equal(word({ issue: issueOf({ title: "chore: drop the billing alert" }) }), "billing");
+        assert.equal(word({ issue: issueOf({ title: "chore: raise the billing cap" }) }), "billing");
       });
 
       test("a task item and its deeper lines", () => {
@@ -987,7 +994,7 @@ describe("decide", () => {
       test("the real use of each word", () => {
         for (const [item, found] of [
           ["Raise the billing cap.", "billing"],
-          ["Runs are billed per job.", "billed"],
+          ["Switch to runs billed per job.", "billed"],
           ["Raise the spending limit.", "spending limit"],
           ["Take the subscription upgrade.", "subscription"],
           ["Run a pass on the subscription tier we buy.", "subscription"],
@@ -1008,6 +1015,84 @@ describe("decide", () => {
 
       test("names each word once across the title and body", () => {
         assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
+      });
+
+      // The phrasings the cost-hold review found admitted by a raising-verb
+      // allowlist: a verb outside any list, a noun phrase, a split sentence.
+      test("a charge in a clause that does not lower it, whatever its verb", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: set artifact retention to 400 days" }) }), "retention");
+        assert.equal(word({ issue: issueOf({ title: "ci: larger runners for e2e" }) }), "larger runners");
+        for (const [item, found] of [
+          ["Bump the Actions spending limit to $200.", "spending limit"],
+          ["Double the log retention.", "retention"],
+          ["Change retention to 400 days.", "retention"],
+          ["Spin up an Azure VM for the e2e job.", "azure"],
+          ["Larger runners for the build job.", "larger runners"],
+          ["Run the e2e job on larger runners.", "larger runners"],
+          ["Larger runners. Move the e2e job there.", "larger runners"],
+          ["Drop the old job and move the build to larger runners.", "larger runners"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
+
+      test("raising retention and adding an Azure resource still charge", () => {
+        assert.equal(inBody("- [ ] Raise retention to 400 days."), "retention");
+        assert.equal(inBody("- [ ] Add an Azure storage account."), "azure");
+      });
+
+      // The phrasings the review found a lowering verb let through: a verb
+      // aimed at a guard on spend, and a move onto a charge.
+      test("a lowering verb that removes a spend guard or moves onto a charge", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: remove the Actions spending limit" }) }), "spending limit");
+        for (const [item, found] of [
+          ["Disable the spending limit on the lanes account.", "spending limit"],
+          ["Drop the Actions spending limit.", "spending limit"],
+          ["Turn off the spending limits on all 12 accounts.", "spending limits"],
+          ["Disable the spending limit on the Azure account.", "spending limit, azure"],
+          ["Cut over the e2e job to larger runners.", "larger runners"],
+          ["Cut over to Azure.", "azure"],
+          ["Retire the standard runners in favor of larger runners.", "larger runners"],
+          ["Drop the old runner for larger runners.", "larger runners"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found, item);
+        }
+      });
+
+      test("a spend guard the work lowers or raises, with no cost word", () => {
+        for (const item of ["Turn off the budget cap.", "Delete the spend cap.", "Raise the spending quota.", "Raise the cap on spend to $500."]) {
+          assert.equal(inBody(`- [ ] ${item}`), "a spend guard", item);
+        }
+      });
+
+      test("a lane cap or budget that does not limit spend reads as no charge", () => {
+        assert.deepEqual(workCharges({ title: "", body: "The lane runs past its turn cap." }, chargePattern(), false, RULES["task-list"]), []);
+      });
+    });
+
+    // Owner decision 2026-10-31 Q1: the check reads what the issue will do,
+    // not background text, so a charge word counts only where the work
+    // creates, raises, extends or enables something that bills.
+    describe("stays quiet on a charge word the work does not take on", () => {
+      const admitted = (issue) => assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
+
+      test("a title that shortens retention (#8295)", () => {
+        admitted(issueOf({ title: "fix(lanes): secret-scan lane artifacts before upload and shorten their retention" }));
+      });
+
+      test("a criterion that bounds a check by the artifact retention (#7479), or sets a retention policy", () => {
+        admitted(issueOf({ body: "## Done when\n\n- [ ] Bound the check to merges newer than the artifact retention, with a reason for why older merges are settled." }));
+        admitted(issueOf({ body: "## Done when\n\n- [ ] Set a retention policy so nothing grows unbounded." }));
+      });
+
+      test("a title that drops a billing alert", () => {
+        admitted(issueOf({ title: "chore: drop the billing alert" }));
+      });
+
+      test("a lane cap or budget that does not limit spend", () => {
+        for (const item of ["Raise the verify cap to 3.", "Add a retry cap to the fetch helper.", "Keep the round cap at 3.", "Lower the API budget threshold in rate-limits.json."]) {
+          admitted(issueOf({ body: `## Done when\n\n- [ ] ${item}` }));
+        }
       });
     });
 
@@ -2198,8 +2283,8 @@ describe("unrunnableCriteria", () => {
     ["a Windows host run", "Run `/machine-health:audit` on a Windows 11 host and confirm 27 results.", /host/],
     ["a macOS machine", "Install the plugin on a macOS machine and see the banner.", /host/],
     ["a WSL box", "The hook fires from a WSL2 box.", /host/],
-    ["a paid eval", "Run a paid eval of the skill and record the delta.", /paid eval/],
-    ["a plugin eval run", "Run `claude plugin eval` on the suite and the delta is positive.", /paid eval/],
+    ["a paid eval", "Run a paid eval of the skill and record the delta.", /model eval run/],
+    ["a plugin eval run", "Run `claude plugin eval` on the suite and the delta is positive.", /model eval run/],
     ["N consecutive runs", "Run the lane 20 consecutive runs without a failure.", /repeated run/],
     ["consecutive runs pass", "Twenty consecutive runs pass on main.", /repeated run/],
     ["a measurement over time", "Monitor the queue for two weeks and confirm no backlog.", /over time/],
@@ -2207,15 +2292,15 @@ describe("unrunnableCriteria", () => {
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
     ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
     // Done-when items from the concise-skills rollout issues (#6584, #6602, #6615).
-    ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /paid eval/],
-    ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /paid eval/],
+    ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /model eval run/],
+    ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /model eval run/],
     [
       "before and after trigger rates",
       "The PR body carries the before and after trigger rates from held-out probes (`measure-invocation.sh emit-plugin-eval`, run with `--ablation none` on each target model).",
-      /paid eval/,
+      /model eval run/,
     ],
-    ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /paid eval/],
-    ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /paid eval/],
+    ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /model eval run/],
+    ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /model eval run/],
     // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
     ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
     ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
@@ -2448,11 +2533,37 @@ describe("host-run work", () => {
     assert.equal(decide(facts({ issue: queued(CANARY), events: addedBy(HUMAN) })).hold, undefined);
   });
 
+  // Owner direction 2026-11-02: model usage under the subscriptions and the
+  // accounts' promotional API credits is not cost, since a spending limit
+  // stops work and never bills, so an eval run is host work.
+  test("an eval-run item goes to the host queue with no hold", () => {
+    for (const line of ["- [ ] Run `claude plugin eval` on the suite and the delta is positive.", "- [ ] Run `measure-invocation.sh` on the new probes and paste the output.", "- [ ] Run a paid eval of the skill and record the delta."]) {
+      const [found] = unrunnableCriteria(line, "- [ ] ", HOSTS).found;
+      assert.notEqual(found.kind, PAID_EVAL, line);
+      const result = decide(facts({ issue: hostRun(line) }));
+      assert.equal(result.verdict, "refuse", line);
+      assert.equal(result.hold, undefined, line);
+      assert.equal(result.hostRun, true, line);
+      assert.match(result.reasons.join("; "), /the host queue \(`host-run`\)/, line);
+    }
+  });
+
   // Billing is an owner stop reason (docs/contracts/loop-lane/README.md, when
-  // work stops for the owner), so a paid eval keeps the person hold; any other
-  // unrunnable kind, an off-allowlist page included, goes to the host queue.
-  test("a paid-eval item keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
-    const PAID = "- [ ] Run a paid eval of the skill and record the delta.";
+  // work stops for the owner), so an eval that names a billing account keeps
+  // the person hold; any other unrunnable kind, an off-allowlist page
+  // included, goes to the host queue.
+  test("an eval item naming a billing account keeps the person hold and adds no host-run; an off-allowlist page goes to host-run", () => {
+    const PAID = "- [ ] Run `claude plugin eval` on the suite in Azure and record the delta.";
+    assert.equal(unrunnableCriteria(PAID, "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
+    assert.equal(unrunnableCriteria("- [ ] Run `claude plugin eval` on larger runners and record the delta.", "- [ ] ", HOSTS).found[0].kind, PAID_EVAL);
+    // Another provider bills an account the subscriptions and credits do not cover.
+    for (const line of [
+      "- [ ] Run claude plugin eval on the suite through Amazon Bedrock and record the delta.",
+      "- [ ] Run claude plugin eval on the suite with CLAUDE_CODE_USE_VERTEX=1 and record the delta.",
+      "- [ ] Run claude plugin eval --provider foo on the suite and record the delta.",
+    ]) {
+      assert.equal(unrunnableCriteria(line, "- [ ] ", HOSTS).found[0].kind, PAID_EVAL, line);
+    }
     for (const [why, input] of [
       ["paid eval alone", { issue: hostRun(PAID) }],
       ["paid eval beside a host item", { issue: hostRun(`${HOST_ONLY}\n${PAID}`) }],
@@ -3158,5 +3269,132 @@ describe("isSplitParent, split by hand", () => {
   });
   test("a recurring issue is never a split parent, even with every item cited", async () => {
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);
+  });
+});
+
+// An issue deferred for an open pull request or a person's hold waits on that,
+// not on room, so it takes no place ahead of a newer issue.
+describe("deferredAhead", () => {
+  const newer = { created_at: "2026-10-20T08:00:00Z" };
+  const item = (number, labels) => ({ number, labels: labels.map((name) => ({ name })) });
+  const search = (items, total = items.length) => async (method, path) => {
+    assert.equal(method, "GET");
+    assert.ok(path.startsWith("/search/issues?"), path);
+    return { total_count: total, incomplete_results: false, items };
+  };
+  const pullsFor = (open) => async (number) => open[number] ?? [];
+
+  test("an older issue deferred for room alone is ahead", async () => {
+    assert.equal(await deferredAhead(search([item(3, [READY, DEFERRED])]), "o/r", newer, pullsFor({})), true);
+  });
+
+  test("an older deferred issue with an open pull request, a hold or no status: ready is not ahead", async () => {
+    for (const [why, older, open] of [
+      ["an open pull request", item(3, [READY, DEFERRED]), { 3: [9] }],
+      ["needs-human", item(3, [READY, DEFERRED, "needs-human"]), {}],
+      ["do-not-merge", item(3, [READY, DEFERRED, "do-not-merge"]), {}],
+      ["untrusted provenance", item(3, [READY, DEFERRED, UNTRUSTED_CLASS]), {}],
+      ["no status: ready", item(3, [DEFERRED]), {}],
+    ]) {
+      assert.equal(await deferredAhead(search([older]), "o/r", newer, pullsFor(open)), false, why);
+    }
+    assert.equal(await deferredAhead(search([]), "o/r", newer, pullsFor({})), false, "no older deferred issue");
+  });
+
+  test("a room-deferred issue behind ones that are not is still ahead", async () => {
+    const older = [item(2, [READY, DEFERRED, "needs-human"]), item(3, [READY, DEFERRED]), item(4, [READY, DEFERRED])];
+    assert.equal(await deferredAhead(search(older), "o/r", newer, pullsFor({ 3: [9] })), true);
+  });
+
+  test("older deferred issues past the ones read, a failed pull read or an incomplete answer count as ahead", async () => {
+    const held = Array.from({ length: DEFERRED_AHEAD_READS }, (_, n) => item(n + 1, [READY, DEFERRED, "needs-human"]));
+    assert.equal(await deferredAhead(search(held, DEFERRED_AHEAD_READS + 1), "o/r", newer, pullsFor({})), true);
+    const failing = async () => {
+      throw new Error("timeline read failed");
+    };
+    assert.equal(await deferredAhead(search([item(3, [READY, DEFERRED])]), "o/r", newer, failing), true);
+    assert.equal(await deferredAhead(async () => ({ total_count: 0, incomplete_results: true, items: [] }), "o/r", newer, pullsFor({})), true);
+  });
+});
+
+// On a first triage, intake's refinement may fill in missing criteria, so
+// admission waits for it rather than parking the issue.
+describe("a refine due on a first triage", () => {
+  const NO_TASKS = "## Problem\n\nThe README says eighteen skills; it has nineteen.";
+  const NO_SPEC =
+    "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
+  const FRESH = { ...VERDICT, writtenAt: "2026-10-20T09:00:00Z" };
+  const thin = (comments = [], extra = {}) => {
+    const issue = issueOf({ body: NO_TASKS, ...extra });
+    return facts({ issue, verdict: FRESH, spec: { ...humanSpec(issue, comments), commentCount: comments.length } });
+  };
+  const refinement = { body: `${REFINE_MARKER}\n${bodyVersion(NO_TASKS)}\n**Refinement.**`, author: APP_ACTOR, editor: null, lastEditedAt: null };
+
+  test("a human-written body with no task list waits at status: ready for the refinement", () => {
+    const result = decide(thin());
+    assert.equal(result.verdict, "wait");
+    assert.deepEqual(result.pulls, []);
+    assert.equal(result.reasons.length, 1);
+    assert.ok(result.reasons[0].startsWith(NO_SPEC), result.reasons[0]);
+  });
+
+  test("the same body refuses once refined, on the sweep, beside another refusal, or written by someone else", () => {
+    assert.deepEqual(decide(thin([refinement])), { verdict: "refuse", reasons: [NO_SPEC] });
+    const sweep = thin();
+    assert.deepEqual(decide({ ...sweep, verdict: VERDICT }), { verdict: "refuse", reasons: [NO_SPEC] });
+    const duplicate = decide(thin([], { labels: [{ name: READY }, { name: "duplicate" }] }));
+    assert.equal(duplicate.verdict, "refuse");
+    assert.ok(duplicate.reasons.includes(NO_SPEC));
+    const outsider = thin();
+    assert.equal(decide({ ...outsider, spec: { ...outsider.spec, author: USER(OUTSIDER) } }).verdict, "refuse");
+  });
+
+  test("refineDue is false for a body with a task list, near the comment limit, or another task-list prefix", () => {
+    const spec = (body, commentCount = 0) => ({ ...written(USER(HUMAN), { body }), comments: [], commentCount });
+    assert.equal(refineDue(spec(NO_TASKS), humans, APP, "- [ ] "), true);
+    assert.equal(refineDue(spec(`${NO_TASKS}\n\n- [ ] Line 3 says nineteen.`), humans, APP, "- [ ] "), false);
+    assert.equal(refineDue(spec(NO_TASKS, 98), humans, APP, "- [ ] "), true);
+    assert.equal(refineDue(spec(NO_TASKS, 99), humans, APP, "- [ ] "), false);
+    assert.equal(refineDue(spec(NO_TASKS), humans, APP, "* [ ] "), false);
+  });
+});
+
+// A protected path the body's prose names is work the issue lane cannot push,
+// so admission refuses it as it does one a criterion names.
+describe("bodyUnpushablePaths", () => {
+  const names = issuePushRefusals();
+  const workflows = new Set(["pr-require-checks.yml"]);
+  const paths = (body) => bodyUnpushablePaths(body, "- [ ] ", names, workflows);
+
+  test("a protected path named in the body's prose counts", () => {
+    assert.deepEqual(paths("## Fix\n\nRaise the timeout in .github/workflows/pr-require-checks.yml to 5 minutes."), [".github/workflows/pr-require-checks.yml"]);
+    assert.deepEqual(paths("## Scope\n\nUpdate `pr-require-checks.yml` and .github/CODEOWNERS."), [".github/workflows/pr-require-checks.yml", ".github/CODEOWNERS"]);
+  });
+
+  test("an evidence line, a line citation, a code fence, a negated mention and a task item do not count", () => {
+    for (const body of [
+      "Basis: `.github/workflows/a.yml:3`",
+      "See .github/workflows/a.yml for the caller.",
+      "The step at .github/workflows/a.yml:40 calls the script.",
+      "```\n.github/workflows/a.yml\n```",
+      "No file under .github/workflows is edited.",
+      "No file under `.github/workflows`\nis edited.",
+      "- [ ] Raise the timeout in .github/workflows/a.yml.",
+    ]) {
+      assert.deepEqual(paths(body), [], body);
+    }
+  });
+
+  test("a soft-wrapped sentence reads as one, and a blank line ends it", () => {
+    assert.deepEqual(paths("Raise the timeout in\n.github/workflows/pr-require-checks.yml to 5 minutes."), [".github/workflows/pr-require-checks.yml"]);
+    assert.deepEqual(paths("Raise the timeout in .github/CODEOWNERS.\n\nNo file under .github/workflows is edited."), [".github/CODEOWNERS"]);
+  });
+
+  test("decide refuses an issue whose body prose names one, with no hold", () => {
+    const issue = issueOf({ body: `## Fix\n\nRaise the timeout in .github/workflows/pr-require-checks.yml.\n\n## Done when\n\n- [ ] The job times out at 5 minutes.` });
+    assert.deepEqual(decide(facts({ issue })), {
+      verdict: "refuse",
+      reasons: ["its body or a criterion names .github/workflows/pr-require-checks.yml, which the issue lane cannot push (patch-protected-path); a builder session takes it"],
+    });
   });
 });

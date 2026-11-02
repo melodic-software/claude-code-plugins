@@ -44,7 +44,12 @@ one line per check, detail lines indented under it:
                       no working shell. A failed call that printed output ran in a
                       working shell, whatever its exit code. A 0-turn run whose
                       trace holds assistant messages ran in a forked session (a
-                      slash-invoked `context: fork` skill) and passes
+                      slash-invoked `context: fork` skill) and passes. Any run
+                      fails whose failed Bash result reports a read-only file
+                      system at a relative path or under the run's sandbox (its
+                      workspace and TMPDIR), or whose user line's
+                      local-command-stderr shows a skill's pre-computed command
+                      failing
     plugins loaded    every suite.plugins plugin, named by its
                       .claude-plugin/plugin.json (else its directory), is in
                       each with-arm run's init plugins list with no
@@ -242,6 +247,27 @@ TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_err
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
+# A user line's local-command-stderr when a slash-invoked skill's pre-computed
+# (!`command`) line failed (Claude Code 2.1.316, #12422).
+TRACE_USER = "user"
+PRE_COMMAND_STDERR = "local-command-stderr"
+PRE_COMMAND_FAILURE_TEXT = "Shell command failed for pattern"
+# A path a failed write reports as read-only, before the phrase ("cannot touch
+# '<p>': Read-only file system", "line 1: <p>: Read-only file system") or after it
+# ("[Errno 30] Read-only file system: '<p>'", Node's "EROFS: read-only file
+# system, mkdir '<p>'"). An unquoted word before the phrase is a path only when
+# it is whole and not an errno name or "Error". In a Bash result it means the
+# run's workspace or TMPDIR is not writable when the path is relative or under the
+# run's sandbox (Claude Code 2.1.316 with TMPDIR under /tmp or /var/tmp, #12422);
+# the sandbox mounts other paths read-only by design.
+_QUOTED = r"[\"'\u2018]([^\"'\u2019\n]+)[\"'\u2019]"
+READ_ONLY_TARGET = re.compile(
+    r"(?:%s|(?<![^\s:])(?!(?-i:E[A-Z0-9]+):|errno:|error:)([^\s:\"'\u2018\u2019]+))"
+    r":\s*read-only file system"
+    r"|read-only file system:\s*(?:%s|(\S+))"
+    r"|read-only file system,\s*\w+\s+%s" % (_QUOTED, _QUOTED, _QUOTED),
+    re.IGNORECASE,
+)
 # A run with at least this many Bash calls, every one failed with no output, had no
 # working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
@@ -701,12 +727,34 @@ def has_output(content):
     return isinstance(content, str) and bool(EXIT_LINE.sub("", content.strip()))
 
 
+def read_only_targets(content):
+    """Each path a tool_result's text reports as on a read-only file system."""
+    if isinstance(content, list):
+        return [
+            p
+            for b in content
+            for p in read_only_targets(b if isinstance(b, str) else as_dict(b).get("text"))
+        ]
+    if not isinstance(content, str):
+        return []
+    return [next(g for g in m.groups() if g) for m in READ_ONLY_TARGET.finditer(content)]
+
+
+def in_run_sandbox(path, sandbox):
+    """True when a path is relative, so under the run's cwd (its workspace), or
+    under its sandbox, which holds the workspace and TMPDIR. A relative path after
+    a cd elsewhere is misread as the workspace."""
+    return not rooted(path) or (sandbox is not None and under(path, sandbox))
+
+
 def shell_failure(run):
-    """Why the run had no working shell, or None: a failed Bash result reporting the
-    sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing
-    with no output. A failed call that printed output ran, so the shell worked. A
-    denied call never reached the shell, so it counts toward neither; check_denials
-    judges it."""
+    """Why the run had no working shell, or None: a failed Bash result reporting
+    a read-only file system in the run's workspace or TMPDIR, or the sandbox not
+    starting, or every one of at least MIN_BASH_CALLS Bash calls failing with no
+    output. A failed call that printed output ran, so the shell worked. A denied
+    call never reached the shell, so it counts toward none; check_denials judges
+    it."""
+    sandbox = sandbox_dir(run)
     bash_ids, failed_ids = set(), set()
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -714,13 +762,23 @@ def shell_failure(run):
                 bash_ids.add(block.get(USE_ID))
             elif (
                 block.get(BLOCK_TYPE) == TOOL_RESULT
-                and block.get(RESULT_ERROR) is True
                 and block.get(RESULT_USE_ID) in bash_ids
             ):
                 if is_denial(block):
                     bash_ids.discard(block.get(RESULT_USE_ID))
                     continue
-                if SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT)):
+                if block.get(RESULT_ERROR) is not True:
+                    continue
+                if any(
+                    in_run_sandbox(p, sandbox)
+                    for p in read_only_targets(block.get(CONTENT))
+                ):
+                    return (
+                        "a Bash call hit a read-only file system in the run's"
+                        " workspace or TMPDIR"
+                    )
+                text = json.dumps(block.get(CONTENT))
+                if SANDBOX_FAILURE_TEXT in text:
                     return "the shell sandbox failed to start"
                 if not has_output(block.get(CONTENT)):
                     failed_ids.add(block.get(RESULT_USE_ID))
@@ -814,14 +872,46 @@ def assistant_messages(run):
     return sum(1 for line in run.trace or [] if line.get(LINE_TYPE) == TRACE_ASSISTANT)
 
 
+def user_texts(line):
+    """A user line's own text: its string content or its text blocks, never a
+    tool_result, which may quote a file the session read."""
+    if line.get(LINE_TYPE) != TRACE_USER:
+        return []
+    content = as_dict(line.get(MESSAGE)).get(CONTENT)
+    if isinstance(content, str):
+        return [content]
+    return [
+        b.get("text")
+        for b in as_list(content)
+        if b.get(BLOCK_TYPE) == "text" and isinstance(b.get("text"), str)
+    ]
+
+
+def pre_command_failed(run):
+    """True when a user line of the run's trace carries a skill's pre-computed
+    command failing in its local-command-stderr."""
+    return any(
+        PRE_COMMAND_STDERR in text and PRE_COMMAND_FAILURE_TEXT in text
+        for line in run.trace or []
+        for text in user_texts(line)
+    )
+
+
 def check_started(runs):
     """A run at 0 turns that check_errors passes, or one whose trace shows the
     sandbox failing to start, scored a session that never ran or had no shell.
     A 0-turn run whose trace holds assistant messages ran in a forked session
-    (a slash-invoked `context: fork` skill), which the turn count leaves out."""
+    (a slash-invoked `context: fork` skill), which the turn count leaves out.
+    Any run whose trace shows a skill's pre-computed command failing fails."""
     details, failed, forked = [], set(), []
     for r in runs:
-        if (
+        if pre_command_failed(r):
+            details.append(
+                "%s: a skill's pre-computed command failed (%s)"
+                % (r.where, r.trace_path)
+            )
+            failed.add(r)
+        elif (
             is_number(r.row.get(RUN_TURNS))
             and r.row[RUN_TURNS] == 0
             and r.row.get(RUN_ERROR) is None

@@ -116,7 +116,10 @@
 #     1.1 ms per spelling, 2.6 to 3.7 s measured at 16,384 characters. A
 #     change to that length or to the guard set changes this bound. Everything
 #     else counts as before, including double-quoted text, ANSI-C `$'...'` and
-#     unquoted heredoc bodies. The discount is taken only where it is proved.
+#     unquoted heredoc bodies: bash runs each substitution in such a body, and
+#     the library parses each one into segments every guard judges as it
+#     judges the same command at top level. The discount is taken only where
+#     it is proved.
 #     The scan runs only on a command already past the cap, and from the
 #     first place bash, hook::bash_parse_segments and that scan could read the
 #     rest differently, the rest counts whole: a backtick outside a span;
