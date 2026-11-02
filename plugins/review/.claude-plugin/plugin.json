@@ -24,12 +24,6 @@
       "description": "Runs the PreToolUse hook that denies an Artifact publish of an HTML page whose content security policy names a loopback connect-src. On by default. Turn off to allow publishing such a page.",
       "default": true
     },
-    "ratchet_offer": {
-      "type": "boolean",
-      "title": "Ratchet offers",
-      "description": "Unused: no skill in this plugin reads it. To keep ratchet offers off, set ratchet_offer on the corrections plugin (its plugin option or docs/conventions/corrections.yaml).",
-      "default": true
-    },
     "downstream_probe": {
       "type": "string",
       "title": "Downstream probe",

@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default ratchet_offer downstream_probe=report",
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default fanout_diversity downstream_probe=report",
             "description": "Write the review settings"
           }
         }
@@ -31,7 +31,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" ratchet_offer=true downstream_probe=report",
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" fanout_diversity=lens downstream_probe=report",
             "description": "Write the review settings"
           }
         }

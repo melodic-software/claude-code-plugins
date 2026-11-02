@@ -1,17 +1,17 @@
 {
   "pass": [
     {
-      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: report\nratchet_offer: true\nprovenance:\n  ratchet_offer: default\n  downstream_probe: chosen (default run)\n",
-      "why": "writer output for --default ratchet_offer downstream_probe=report"
+      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: report\nfanout_diversity: lens\nprovenance:\n  downstream_probe: chosen (default run)\n  fanout_diversity: default\n",
+      "why": "writer output for --default fanout_diversity downstream_probe=report"
     }
   ],
   "fail": [
     {
-      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: report\nratchet_offer: true\nprovenance:\n  ratchet_offer: chosen (default true)\n  downstream_probe: chosen (default run)\n",
+      "answer": "# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json\nwritten_against: review@2.0.7\ndownstream_probe: report\nfanout_diversity: lens\nprovenance:\n  downstream_probe: chosen (default run)\n  fanout_diversity: chosen (default lens)\n",
       "why": "accepted default recorded as chosen"
     },
     {
-      "answer": "downstream_probe: report\nratchet_offer: true\n",
+      "answer": "downstream_probe: report\nfanout_diversity: lens\n",
       "why": "no record"
     }
   ]

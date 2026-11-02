@@ -1,15 +1,13 @@
 # review settings
 
-The review plugin's keys, one row each, with the skill that reads each one; `ratchet_offer` is
-kept but no skill reads it. A key is set per user through the
-plugin's `userConfig` option of the same name and per repository in
+The review plugin's keys, one row each, with the skill that reads each one. A key is set per
+user through the plugin's `userConfig` option of the same name and per repository in
 `docs/conventions/review.yaml`, validated by
 [`schemas/review.schema.json`](../schemas/review.schema.json). No `~/.claude` file, `.claude/`
 file or local overlay sets these keys. `/review:setup apply` writes the repository file.
 
 | Key | Values | Default | Reader |
 |---|---|---|---|
-| `ratchet_offer` | `true`, `false` | `true` | Unused: no skill in this plugin reads it. To keep ratchet offers off, set `ratchet_offer` on the corrections plugin (its plugin option or `docs/conventions/corrections.yaml`). |
 | `downstream_probe` | `run`, `report` | `run` | `/review:quality-gate` downstream mode (Step 2): `run` writes the safety-fact probe in a temporary directory outside the tree and runs it; `report` states the probe without running it. Level rule: policy floor, `report` in any layer wins; the repository value is read from the default branch |
 | `fanout_diversity` | `lens`, `model` | `lens` | `/review:fanout` run-everything step 5 and its fallback: `lens` runs one reviewer agent per concern; `model` sends one review prompt to each distinct fan-out model tier of the role map. Level rule: later layer; the repository layer is skipped when the reviewed change set edits `docs/conventions/review.yaml` |
 
@@ -24,7 +22,7 @@ A skill resolves each key lowest layer first, and the later layer wins:
 3. The key in the repository's `docs/conventions/review.yaml`, read with
    `skills/setup/scripts/setup-apply.mjs --check`, which validates the whole file against the
    schema. A missing file or key leaves this layer unset; a key that is present but invalid (an
-   empty value, `null`, a quoted string, a list such as `[]`) is an invalid layer, not an unset
+   empty value, `null`, an empty quoted string, a list such as `[]`) is an invalid layer, not an unset
    one. A WARN on one key's value (including a key set twice under names that differ only by
    surrounding spaces) makes this layer invalid for that key only: the reader exits 1 and still
    prints a PASS line for every other key, which this layer then sets. A key the schema does not
@@ -36,7 +34,7 @@ A skill resolves each key lowest layer first, and the later layer wins:
    be read, or a committed entry that is not a regular file).
 
 The skill reports one line naming the resolved value and the layer that supplied it, for example
-`ratchet_offer: false (docs/conventions/review.yaml)`. A value outside the key's values in either
+`fanout_diversity: model (docs/conventions/review.yaml)`. A value outside the key's values in either
 layer, or a repository file the reader cannot parse, is named with its file or option, the key and
 the value, and that layer is dropped: a valid higher layer still wins, otherwise the key's default,
 never a lower layer's value (ADR 0064 Decision 7). The run continues either way.
@@ -61,6 +59,6 @@ ancestor of it. Otherwise the repository layer is skipped and the report line sa
 **Older releases.** A plugin release without a key has no option for it, and its schema does not
 list the key, so its reader reports the repository key as unknown. A reader that ignores an
 unknown key keeps the file's other keys; an older reader drops the whole repository layer, and
-each key then resolves as it does for an invalid layer: `ratchet_offer` takes its default,
+each key then resolves as it does for an invalid layer: `fanout_diversity` takes its default,
 never the lower userConfig value, and `downstream_probe` still takes `report` from userConfig. A
 repository shared with users on an older release should add a key only once they have updated.
