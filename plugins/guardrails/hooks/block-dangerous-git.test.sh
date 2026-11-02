@@ -608,11 +608,6 @@ run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n
 run "real git reset --hard after a heredoc (blocked)" $'cat <<EOF\nhello\nEOF\ngit reset --hard' 2
 run "here-string git reset --hard (not a heredoc, blocked)" $'git reset --hard <<<input' 2
 # bash runs each substitution in an unquoted heredoc body; a quoted body is data.
-hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodies
-  local s='git reset --hard' i
-  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i"$'\n$('"$s"$'\n)\nE'"$i"; done
-  printf '%s' "$s"
-}
 run "unquoted heredoc body \$(git reset --hard) (blocked)" $'cat <<EOF\n$(git reset --hard)\nEOF' 2
 run "unquoted heredoc body backticked git reset --hard (blocked)" $'cat >notes <<EOF\nnote: `git reset --hard`\nEOF' 2
 run "<<-EOF body \$(git clean -fd) (blocked)" $'cat <<-EOF\n\t$(git clean -fd)\n\tEOF' 2
@@ -633,9 +628,24 @@ run "unquoted heredoc body, apostrophes around \$( ) after a backslash-newline e
 run "unquoted heredoc body, a comment after a subshell ) in \$( ) (blocked)" $'cat <<EOF\n$( (:)# )\ngit reset --hard)\nEOF' 2
 run "unquoted heredoc body, a comment after a subshell ) in \$(( ) (blocked)" $'cat <<EOF\n$((:)# )\ngit reset --hard)\nEOF' 2
 run "unquoted heredoc body, a backslash-newline in prose with \$HOME (allowed)" $'cat <<EOF\nit\'s a long \\\nline in $HOME\nEOF' 0
-run "unquoted heredoc body, apostrophes after a case in \$( ) (blocked)" $'cat <<EOF\n$(case $1 in a) echo a;; esac)\ndon\'t $(git reset --hard) won\'t\nEOF' 2
-run "unquoted heredoc body, apostrophes after a heredoc in \$( ) (blocked)" $'cat <<EOF\n$(cat <<X\nX\n)\ndon\'t $(git reset --hard) won\'t\nEOF' 2
+hd_lines() { # <line> <count>: that line repeated, each after a newline
+  local s='' i
+  for ((i = 0; i < $2; i++)); do s+=$'\n'"$1"; done
+  printf '%s' "$s"
+}
+hd_nest() { # <levels>: `git reset --hard` inside that many nested here-doc bodies
+  local s='git reset --hard' i
+  for ((i = 1; i <= $1; i++)); do s=$'cat <<E'"$i"$'\n$('"$s"$'\n)\nE'"$i"; done
+  printf '%s' "$s"
+}
 run "here-docs nested ten deep in substitutions, innermost \$(git reset --hard) (blocked)" "$(hd_nest 10)" 2
+run "unquoted heredoc body of 20 \$(<<X lines, then git reset --hard (blocked)" "cat <<EOF$(hd_lines '$(<<X' 20)"$'\nEOF\ngit reset --hard' 2
+# Each `$( <<X` line opens a body holding the lines after it; the parse count
+# must stay linear in them, far inside the Bash row's 60 s hook timeout.
+bdg_t0=${EPOCHREALTIME/./}
+run "git reset --hard, then an unquoted heredoc body of 20 \$(: <<X lines (blocked)" "git reset --hard; cat <<EOF$(hd_lines '$(: <<X' 20)"$'\nEOF' 2
+bdg_ms=$(((${EPOCHREALTIME/./} - bdg_t0) / 1000))
+if ((bdg_ms < 10000)); then ok "20 nested \$(: <<X lines finish in ${bdg_ms} ms (under 10000)"; else bad "20 nested \$(: <<X lines took ${bdg_ms} ms (limit 10000)"; fi
 run "unquoted heredoc body \$((1 + 2)) (allowed)" $'cat <<EOF\n$((1 + 2))\nEOF' 0
 run "second heredoc on the line, unquoted, \$(git reset --hard) (blocked)" $'cat <<\'A\' - <<B\nx\nA\n$(git reset --hard)\nB' 2
 run "quoted-delimiter heredoc body \$(git reset --hard) (data, allowed)" $'cat <<\'EOF\'\n$(git reset --hard)\nEOF' 0

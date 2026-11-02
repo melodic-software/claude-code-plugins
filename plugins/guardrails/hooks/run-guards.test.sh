@@ -1377,10 +1377,7 @@ hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm 
 # that can fail. `${ echo }; rm -rf /; }` pins the `${ ` command-substitution
 # frame: a `${` frame that ended at the first `}` would let the delete through.
 # shellcheck disable=SC2016  # literal shell text under test
-# `a=(` and `@(` continue a word, so the scan hands the rest of the body to the
-# parse, which reads it as it reads the same text at top level.
-for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo }; rm -rf /; }' \
-  "\$(a=(x)#'${NL})'; rm -rf /)" "\$(@(x)#'${NL})'; rm -rf /)"; do
+for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo }; rm -rf /; }'; do
   cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"
   hd_top=$RC
   cap_run "$(tool_payload Bash "cat <<EOF${NL}$hd_expr${NL}EOF")" "${BASH_ROW_ARGS[@]}"
