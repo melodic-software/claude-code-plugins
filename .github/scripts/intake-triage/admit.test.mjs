@@ -881,7 +881,10 @@ describe("decide", () => {
       }
     });
 
-    test("admissionFacts counts a repository public only when its visibility reads public", async () => {
+    // Element 4 of the outage posture (docs/outage-posture-audit.md): a failed
+    // visibility read is no evidence the repository is private, so it throws
+    // and no verdict is written, instead of tightening the cost checks.
+    test("admissionFacts counts a repository public only when its visibility reads public, and a failed read throws", async () => {
       const read = async (answer) => {
         const fake = fakeGitHub();
         const github = async (method, path, body) => (method === "GET" && path === "/repos/o/r" ? answer() : fake.github(method, path, body));
@@ -889,7 +892,7 @@ describe("decide", () => {
       };
       assert.equal(await read(() => ({ visibility: "public" })), true);
       assert.equal(await read(() => ({ visibility: "internal" })), false);
-      assert.equal(await read(() => Promise.reject(new Error("GET /repos/o/r failed"))), false);
+      await assert.rejects(read(() => Promise.reject(new Error("GET /repos/o/r failed"))), /GET \/repos\/o\/r failed/);
     });
 
     test("reads the patterns from their one definition in charge-words.json", () => {
@@ -1454,6 +1457,11 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     }
     if (path.startsWith(`${base}/comments`)) {
       return comments;
+    }
+    // admissionFacts' visibility read: a private repository, so the cost
+    // checks apply in full.
+    if (path === "/repos/o/r") {
+      return { visibility: "private" };
     }
     throw new Error(`unexpected ${method} ${path}`);
   };

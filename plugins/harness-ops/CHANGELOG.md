@@ -3,6 +3,24 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.6.0] - 2026-11-02
+
+### Changed
+
+- `control-claude-code` screenshots and videos never capture the live screen: the driver masks the signed-in account, organization, login method, session id, working directory, home paths, cost, token counts and usage-limit lines (the hub's new `## Mask`), redraws the masked screen in a second terminal and captures that, and writes the text it drew beside each capture as `<path>.txt`. A frame that does not redraw exactly fails the capture with nothing written. `cli/account.mjs` prints the signed-in email and organization for drive's mask post-check.
+- The driver's new `plugins <changed files>` verb names the plugin each changed file sits in, and the hub launches one session per changed plugin in turn. `config/defaults.json` sets `maxEntryPoints: 6`, the entry points a run drives; `plugins` lists at most that many plugins and names the rest blocked.
+- The index's `sources` now cover hook scripts, skill `reference/` and `scripts/`, and agents.
+
+## [5.5.0] - 2026-11-02
+
+### Added
+
+- `control-claude-code` takes `--unattended` on `launch`, `ready` and `logs`. It keeps the one CI credential variable that `credentials.ci` in `config/defaults.json` names (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`), sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, and the session holder unsets it once `claude` starts (its `/proc` environment still holds it); whether the plugin under test can still read it is left to #8651's isolation probe. Ready accepts that credential's `apiKeySource`, and the driver refuses to start when both variables are set. Attended runs are unchanged: the API-key, gateway and provider variables are cleared and Ready requires `none`.
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: the R2 key pair pattern now finds a 32-hex and a 64-hex word on one line in time linear in the line, so a large one-line JSON file no longer takes minutes to scan. It matches exactly what it matched before.
+
 ## [5.4.0] - 2026-11-02
 
 ### Added

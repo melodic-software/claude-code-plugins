@@ -194,12 +194,11 @@ async function contextOf(api, run, notes) {
 
 // Each kept thread's opening comment: where it points and what it says.
 async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
-  const [issueComments, reviews, reviewComments, threads] = await Promise.all([
-    api.listIssueComments(pr),
-    api.listReviews(pr),
-    api.listReviewComments(pr),
-    api.listThreads(pr),
-  ]);
+  // Serial reads: the outage posture's element 6 (docs/outage-posture-audit.md).
+  const issueComments = await api.listIssueComments(pr);
+  const reviews = await api.listReviews(pr);
+  const reviewComments = await api.listReviewComments(pr);
+  const threads = await api.listThreads(pr);
   const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null;
   return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, issueComments, triggers })
     .slice(0, MAX_FINDINGS)

@@ -152,45 +152,62 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
-test("the diff is split into parts one read returns whole, and a longer line gets no verdict", () => {
+test("the diff is split into parts one read returns whole, and a longer line folds", () => {
   const diff = step("Write the diff");
   const awk = diff.match(/LC_ALL=C (awk -v dir=.*?' "\$dir\.patch")/s)[1];
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-split-"));
   try {
-    const run = (text) => {
+    const run = (text, env = {}) => {
       rmSync(path.join(dir, "diff"), { recursive: true, force: true });
       mkdirSync(path.join(dir, "diff"));
       writeFileSync(path.join(dir, "diff.patch"), text);
-      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, dir: path.join(dir, "diff"), PART_BYTES: "10", PART_LINES: "2" } });
+      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, dir: path.join(dir, "diff"), PART_BYTES: "10", PART_LINES: "2", LONG_LINE_BYTES: "40", ...env } });
     };
+    const read = () =>
+      readdirSync(path.join(dir, "diff"))
+        .sort()
+        .map((p) => readFileSync(path.join(dir, "diff", p)));
     // 5 lines of 4 bytes: 2 lines per part at most, so 3 parts, in order.
     assert.equal(run("aaa\nbbb\nccc\nddd\neee\n").status, 0);
     const parts = readdirSync(path.join(dir, "diff")).sort();
     assert.deepEqual(parts, ["part-001.patch", "part-002.patch", "part-003.patch"]);
     assert.equal(parts.map((p) => readFileSync(path.join(dir, "diff", p), "utf8")).join(""), "aaa\nbbb\nccc\nddd\neee\n");
-    // A 13-byte line is longer than a 10-byte part.
-    assert.notEqual(run("aaaaaaaaaaaa\n").status, 0);
+    // A line over LONG_LINE_BYTES continues on `\ continued: ` lines of at
+    // most that many bytes, never cut inside a UTF-8 character, and every
+    // byte comes back when the folds are joined.
+    const long = `+${"x".repeat(50)}${"\u00e9\u20ac".repeat(20)}\n ${"y".repeat(39)}\n`;
+    assert.equal(run(long, { PART_BYTES: "1000", PART_LINES: "100" }).status, 0);
+    const folded = Buffer.concat(read());
+    const lines = folded.toString("utf8").split("\n").slice(0, -1);
+    assert.ok(lines.length > 4);
+    for (const line of lines) {
+      assert.ok(Buffer.byteLength(line) <= 40, line);
+      assert.doesNotThrow(() => new TextDecoder("utf-8", { fatal: true }).decode(Buffer.from(line)));
+    }
+    assert.ok(lines.slice(1, -1).every((line) => line.startsWith("\\ continued: ")));
+    assert.equal(folded.toString("utf8").replaceAll("\n\\ continued: ", ""), long);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("a diff with a line past the review's cap gets no verdict", async () => {
-  const diff = step("Write the diff");
-  const { LONG_LINE_BYTES } = await import("./write-verdict.mjs");
-  assert.match(diff, new RegExp(`LONG_LINE_BYTES: "${LONG_LINE_BYTES}"`));
-  const awk = diff.match(/LC_ALL=C (awk -v max=.*?' "\$DATA\/diff\.patch")/s)[1];
-  const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-long-"));
-  try {
-    const run = (line) => {
-      writeFileSync(path.join(dir, "diff.patch"), `diff --git a/x b/x\n@@ -1 +1 @@\n${line}\n`);
-      return spawnSync("bash", ["-c", `LC_ALL=C ${awk}`], { env: { ...process.env, DATA: dir, LONG_LINE_BYTES: String(LONG_LINE_BYTES) } }).status;
-    };
-    assert.equal(run(`+${"x".repeat(1000)}`), 0);
-    assert.notEqual(run(`+${"x".repeat(2500)}`), 0);
-    assert.notEqual(run(` ${"y".repeat(LONG_LINE_BYTES + 1)}`), 0);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
+test("a diff with a line past the review's cap is folded, and every byte of it reaches a whole read", async () => {
+  const { LONG_LINE_BYTES, longestLine } = await import("./write-verdict.mjs");
+  assert.match(step("Write the diff"), new RegExp(`LONG_LINE_BYTES: "${LONG_LINE_BYTES}"`));
+  const patch = `diff --git a/x b/x\n@@ -1,2 +1,2 @@\n-${"o".repeat(4000)}\n+${"x".repeat(4000)}\n ${"\u00e9".repeat(1500)}\n`;
+  const readParts = (data) =>
+    readdirSync(path.join(data, "diff"), { recursive: true })
+      .filter((p) => p.endsWith(".patch"))
+      .sort()
+      .map((p) => readFileSync(path.join(data, "diff", p), "utf8"));
+  for (const job of LEGS) {
+    const result = runDiff(patch, { job, maxBytes: "300000", after: readParts });
+    assert.equal(result.status, 0, job);
+    assert.doesNotMatch(result.output, /stop=/, job);
+    assert.match(result.output, /^chunks=1$/m, job);
+    const texts = result.after;
+    assert.ok(longestLine(texts) <= LONG_LINE_BYTES, job);
+    assert.equal(texts.join("").replaceAll("\n\\ continued: ", ""), patch, job);
   }
 });
 
@@ -397,9 +414,6 @@ test("a diff the review cannot read whole stops green and names its reason for t
     assert.match(four.output, /^chunks=4$/m, job);
     assert.deepEqual(four.parts, ["chunk-1", "chunk-1/part-001.patch", "chunk-2", "chunk-2/part-001.patch", "chunk-3", "chunk-3/part-001.patch", "chunk-4", "chunk-4/part-001.patch"], job);
     assert.match(four.stdout, /^::notice title=pr-review-main chunks::lane=claude-security-review pr=7 chunks=4 bytes=200,200,200,200 manifest_paths=4$/m, job);
-    const longLine = runDiff(`diff --git a/x b/x\n@@ -1 +1 @@\n+${"x".repeat(1801)}\n`, { job, maxBytes: "300000" });
-    assert.equal(longLine.status, 0, job);
-    assert.match(longLine.output, /^stop=long-line$/m, job);
     // A failed write-diff.py is no designed stop: the step fails, unnamed.
     const failed = runDiff(small, { job, pythonFails: true });
     assert.notEqual(failed.status, 0, job);
@@ -508,7 +522,7 @@ test("the record job posts each stop as a neutral verdict=none record, from a cl
   const block = stepsOf("record").find((s) => s.name === "Record the stops").block;
   // A stop run uploads no artifact, so the step never waits on the download.
   assert.doesNotMatch(block, /steps\.download/);
-  assert.match(block, /\^\(too-large\|binary\|long-line\|chunk-failed\)\$/);
+  assert.match(block, /\^\(too-large\|binary\|chunk-failed\)\$/);
   for (const [lane, prefix] of [["claude-review", "CODE"], ["claude-security-review", "SECURITY"]]) {
     for (const kind of ["stop", "head"]) {
       assert.equal(input(block, `${prefix}_${kind.toUpperCase()}`), `\${{ needs.review.outputs.${lane}-${kind} || needs.review-subscription.outputs.${lane}-${kind} || needs.review-fallback.outputs.${lane}-${kind} }}`);
@@ -1233,6 +1247,10 @@ test("one lane handed on beside one that reviewed routes only the handed-on lane
     assert.equal(status, 0, job);
     assert.deepEqual(matrix.include.map((row) => [row.lane, row.reason]), [["claude-review", "credit-stop"]], job);
   }
+});
+
+test("the prompt says a folded line is the line before it, so a finding's line number holds", () => {
+  assert.match(prompt, /`\\ continued:`: each is the rest of the line before it, takes that line's side, and\n\s*adds no line to the file's line numbers/);
 });
 
 test("the prompt says a rename-only entry is unseen and a change that references a moved path is a finding", () => {

@@ -425,7 +425,6 @@ plugins/review/context/*.md
 plugins/review/reference/*.md
 plugins/review/skills/*/SKILL.md
 plugins/review/skills/*/context/*.md
-plugins/review/skills/audit-enforceability/evals/fixtures/*.md
 plugins/ruff-format/README.md
 plugins/ruff-format/CHANGELOG.md
 plugins/ruff-format/skills/*/SKILL.md

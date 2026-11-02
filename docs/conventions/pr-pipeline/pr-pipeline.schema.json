@@ -272,7 +272,7 @@
           "minimum": 1,
           "maximum": 168,
           "default": 24,
-          "description": "Hours since the culprit merged past which it goes to a person instead of an auto-revert."
+          "description": "Hours since the culprit merged past which it is fixed forward instead of auto-reverted."
         },
         "confirm-wait-minutes": {
           "type": "integer",

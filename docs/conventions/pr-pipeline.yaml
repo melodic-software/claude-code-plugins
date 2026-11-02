@@ -1006,7 +1006,8 @@ wip:
   # defers it).
   pause-from: "2026-10-22T00:00:00Z"
 
-# The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
+# The red-main revert rule (owner decision 2026-10-20; a failed guard fixes
+# forward, owner 2026-11-02 "(c) All to lanes" on #11022). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched
 # pr-require-checks run on main fails: red is confirmed only when the one
 # re-run of the failed jobs fails again in the same job, and the culprit is
@@ -1017,10 +1018,10 @@ red-main:
   # else. It stays true for 3 days of reports with no wrong blame before any
   # revert merges; this version has no revert path either way.
   dry-run: true
-  # Auto-reverts in any 24 hours, dry-run decisions included; past it a person
-  # gets the culprit. 3 is judgment: no source gives a value.
+  # Auto-reverts in any 24 hours, dry-run decisions included; past it the
+  # culprit is fixed forward. 3 is judgment: no source gives a value.
   daily-cap: 3
-  # A culprit merged longer ago than this goes to a person, since later merges
+  # A culprit merged longer ago than this is fixed forward, since later merges
   # may build on it. 24 is judgment, as daily-cap.
   max-culprit-age-hours: 24
   # Minutes the job waits for the re-run of a full run pr-merge dispatched,
@@ -1029,8 +1030,8 @@ red-main:
   # (16) plus queue time.
   confirm-wait-minutes: 40
   # rollback: the revert rule above decides who reverts the culprit.
-  # fail-forward: no revert is planned; a person or a fix pull request
-  # repairs main (owner decision W-51, 2026-10-21).
+  # fail-forward: no revert is planned; the fix issues repair main (owner
+  # decision W-51, 2026-10-21).
   remedy: rollback
 
 # PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an

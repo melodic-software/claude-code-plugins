@@ -82,8 +82,11 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
 const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
-// The jobs as JOBS_FILE lists them.
-export const shapeJobs = (runId, jobs) => ({ run_id: Number(runId), jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null })) });
+// The jobs as JOBS_FILE lists them, each with the job page the verifier cites.
+export const shapeJobs = (runId, jobs) => ({
+  run_id: Number(runId),
+  jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null, url: typeof job?.html_url === "string" ? job.html_url : null })),
+});
 
 // The file this script writes the jobs it read whole into, in RUNNER_TEMP
 // (outside the workspace the model reads); null when RUNNER_TEMP is unset.
@@ -290,20 +293,24 @@ export const errorLines = (log) =>
 // unapproved or labeled; the verdict a judgment writes lifts no hold path and
 // no label. A read that fails, a job or step list cut short, or any other
 // error is false.
-// `read` lets one resolution share one jobs read (latestJobs).
-export async function heldOnly(github, readLog, repository, runId, number, read) {
+// The check is two halves: heldShape reads only the run's jobs, so it runs
+// before the commit's pull requests are read, and heldOnly reads the
+// ci-status log against the pull request's number.
+// `read` is the resolution's one jobs read (latestJobs). Returns the ci-status
+// job's id and its failed step names, or null.
+async function heldShape(read) {
   try {
-    const listed = await (read ?? (() => latestJobs(github, repository, runId)))();
+    const listed = await read();
     const jobs = listed?.jobs;
     if (!Array.isArray(jobs) || listed.total_count !== jobs.length) {
-      return false;
+      return null;
     }
     const ci = jobs.filter((job) => job?.name === "ci-status");
     if (ci.length !== 1 || ci[0].conclusion !== "failure" || !Number.isSafeInteger(ci[0].id)) {
-      return false;
+      return null;
     }
     if (jobs.some((job) => job !== ci[0] && !["success", "skipped", "neutral"].includes(job?.conclusion))) {
-      return false;
+      return null;
     }
     const steps = Array.isArray(ci[0].steps) ? ci[0].steps : [];
     const failed = steps.filter((step) => step?.conclusion !== "success" && step?.conclusion !== "skipped");
@@ -314,14 +321,22 @@ export async function heldOnly(github, readLog, repository, runId, number, read)
       new Set(names).size !== names.length ||
       !steps.some((step) => step?.name === AGGREGATE_STEP && step.conclusion === "success")
     ) {
-      return false;
+      return null;
     }
-    const errors = errorLines(await readLog(ci[0].id));
+    return { ciId: ci[0].id, names };
+  } catch {
+    return null;
+  }
+}
+
+async function heldOnly(readLog, { ciId, names }, number) {
+  try {
+    const errors = errorLines(await readLog(ciId));
     const reasons = errors.filter((line) => line !== STEP_EXIT);
     const person = reasons.filter((line) => personHoldLine(line, number));
     const label = reasons.filter((line) => line === DO_NOT_MERGE_LINE);
     return (
-      errors.length - reasons.length === failed.length &&
+      errors.length - reasons.length === names.length &&
       person.length + label.length === reasons.length &&
       (person.length > 0) === names.includes(HOLD_STEP) &&
       label.length === (names.includes(CONTRACT_STEP) ? 1 : 0)
@@ -347,7 +362,7 @@ export const DRAFT_STEP = "Note a draft";
 // ci-status notes), so anything else (a read that fails, a job list cut short,
 // no one ci-status job, the step not listed once, or no such conclusion)
 // throws: no state is read from a missing step.
-// `read` as heldOnly's.
+// `read` as heldShape's.
 export async function draftRun(github, repository, runId, read) {
   const listed = await (read ?? (() => latestJobs(github, repository, runId)))();
   const jobs = listed?.jobs;
@@ -696,6 +711,15 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   ) {
     return skip("not-a-passing-run");
   }
+  // One read of the run's jobs serves heldShape, draftRun and, through
+  // keepJobs, upstream-jobs.mjs. A failed run whose jobs are not a hold's
+  // shape skips before the commit's pull requests are read.
+  let jobs;
+  const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
+  const shape = run.conclusion === "failure" && typeof readLog === "function" ? await heldShape(readJobs) : null;
+  if (run.conclusion === "failure" && shape === null) {
+    return skip("not-a-passing-run");
+  }
   const head = run.head_sha;
   const associated = await pullsOfCommit(github, repository, head);
   const pulls = associated.filter(
@@ -727,11 +751,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
     return skip("author-not-lane-or-owner");
   }
-  // One read of the run's jobs serves heldOnly, draftRun and, through
-  // keepJobs, upstream-jobs.mjs.
-  let jobs;
-  const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
-  if (run.conclusion === "failure" && !(typeof readLog === "function" && (await heldOnly(github, readLog, repository, upstreamRunId, pull.number, readJobs)))) {
+  if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
   }
   // An unreadable draft state throws, as any other failed read here does: the

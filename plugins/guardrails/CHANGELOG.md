@@ -3,6 +3,27 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.84.2] - 2026-11-02
+
+### Fixed
+
+- The pre-commit and pre-push content checks and the hardcoded-path hook no longer block the home
+  directory of the `runner` user on GitHub-hosted Linux runners, or a path under it. Every hosted
+  runner uses that home directory, so it does not identify a person or a machine. A merge commit that
+  brings in a file containing it now passes. A longer segment such as `runner2`, and any other user
+  home on the same line, still blocks.
+
+## [0.84.1] - 2026-11-02
+
+### Fixed
+
+- **A shared git-hook install stages every copy that starts with a shebang as `100755`.**
+  `install.mjs copy --scope shared` staged the check lib and shebang assets at `100644` and wrote
+  them `0644` on disk, which a consumer's hygiene check rejects. Copies with a shebang are now
+  executable on disk and in the index, every other copy is `100644`, and a rerun repairs a copy
+  whose exec bit is wrong
+  ([#9426](https://github.com/melodic-software/claude-code-plugins/issues/9426)).
+
 ## [0.84.0] - 2026-11-02
 
 ### Changed

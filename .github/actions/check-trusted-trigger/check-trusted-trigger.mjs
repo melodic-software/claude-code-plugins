@@ -151,7 +151,7 @@ const ATTEMPT_TIMEOUT_MS = 20_000;
 // anywhere in the raw text (so a `#` inside a string hides none), and whose
 // request names no operationName. A document can hold several operations and the
 // request pick one by name, so anything less than all three may run a mutation.
-const graphqlQuery = (url, init) => {
+export const graphqlQuery = (url, init) => {
   if (!String(url).endsWith("/graphql") || typeof init.body !== "string") {
     return false;
   }
