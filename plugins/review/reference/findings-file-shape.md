@@ -42,6 +42,16 @@ tier: <small|medium|large>
 
 <the same findings regrouped under one `### <dimension>` heading per Stage-0 category present, rows in merged-rank order with their rank numbers unchanged>
 
+## By axis
+
+### Spec
+
+<every finding whose axis is spec, rows in merged-rank order with their rank numbers and the Surface(s) column unchanged; `none` when there is no such finding>
+
+### Standards
+
+<every other finding, in the same row shape; `none` when there is no such finding>
+
 ## Unparsed
 
 <raw text of any finding Stage 0 could not parse, never dropped>
@@ -53,7 +63,9 @@ Ran: [...]. Returned no result: [...] (with cause when known).
 
 **`date:` MUST be the instant the file is written**, not the date of the commit under review, not a scan date, not a template constant. `review:fanout` writes the same UTC instant its file name carries. The consumer leans on this: with no digest to compare (a pre-0.20.0 record), `date:` is the only evidence that a same-named file is a NEWER file rather than the one already consumed ([`fix-pass-mode.md`](../skills/fanout/context/fix-pass-mode.md) "Step 1"). A producer that declares a constant `date:` makes its files indistinguishable by age, which is why that comparison subtracts only on a strictly older candidate and keeps everything else. The file name must also end in `.md`, which is what makes it visible to the consumer's scan at all.
 
-`date`, `tier`, the `## By dimension` breakdown, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required **of `review:fanout`'s own writer**, where they keep the report honest about coverage and never silently drop a finding. They are not the admission test: a third-party producer that omits them is still consumed, on the terms in [`fix-pass-mode.md`](../skills/fanout/context/fix-pass-mode.md) "Step 1: Build the merge set". Emit them anyway. A detector that does contributes its coverage to the merged report instead of a blank. The breakdown exists because a merged rank can mask one dimension failing badly while the others pass; the fix action parses `## Findings`, `## Unparsed`, `## Surfaces`, and `tier:`, unioning the last two across producers, but not the breakdown, so the breakdown alone is presentation-additive.
+`date`, `tier`, the `## By dimension` breakdown, the `## By axis` breakdown, the `## Unparsed` appendix, and the `## Surfaces` reconciliation line are required **of `review:fanout`'s own writer**, where they keep the report honest about coverage and never silently drop a finding. They are not the admission test: a third-party producer that omits them is still consumed, on the terms in [`fix-pass-mode.md`](../skills/fanout/context/fix-pass-mode.md) "Step 1: Build the merge set". Emit them anyway. A detector that does contributes its coverage to the merged report instead of a blank. The dimension breakdown exists because a merged rank can mask one dimension failing badly while the others pass; the fix action parses `## Findings`, `## Unparsed`, `## Surfaces`, and `tier:`, unioning the last two across producers, but not the breakdown, so the breakdown alone is presentation-additive.
+
+**`## By axis`** lists every finding in `## Findings` exactly once, under `### Spec` or `### Standards`, by the axis rule in [`findings-normalization.md`](../skills/fanout/context/findings-normalization.md) "Axis assignment". `### Spec` comes first so a gap against the change's stated purpose is not buried under many standards findings. Rows keep their merged-rank order, their rank numbers and their `Surface(s)` cell, so the agreement between surfaces shows under both headings. A heading with no finding reads `none`. The fix action does not parse `## By axis`, as it does not parse `## By dimension`.
 
 **Cell-escaping rule (required, the fix action parses this table):** inside `Finding` and `Action` cells, escape literal `|` as `\|` and replace newlines with spaces. Reviewer text routinely contains pipes (TypeScript unions, shell pipelines); unescaped, a row splits into phantom columns and the fix action misreads it.
 
