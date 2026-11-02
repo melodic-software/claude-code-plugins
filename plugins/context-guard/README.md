@@ -372,7 +372,7 @@ The `userConfig` options:
 | `zone_report_mode` | `automatic` (default) or `operator`, only with `model_notices` on; see [Operator mode](#operator-mode). |
 | `zone_line_data` | What a line carries beside its zone: `percent`, `tokens`, `window` (default `zone`). |
 | `context_guard_band` | The band row (default `false`); `/context-guard band on` turns it on for one session. |
-| `context_guard_toast` | The toast at a zone crossing (default `true`); the transcript line stays when it is off. |
+| `context_guard_toast` | The toast at a zone crossing and the malformed-`zones.json` toast (default `true`); the crossing's transcript line stays when it is off. |
 
 Settings outside `userConfig`:
 
@@ -382,6 +382,13 @@ Settings outside `userConfig`:
 | `approach_margin` | `zones.json` | 5 points | How early the approach line comes; 0 turns approach lines off. |
 | `actions`, `thresholds` | `zones.json` | none | An extra sentence at a zone, and extra boundaries. |
 | Snapshot file a status line can read | `~/.claude/context-guard/context/<session_id>.json` | on | Written whenever the plugin is enabled; no option stops it. It carries the zone and the bands in force; see [Published zone](#published-zone-for-status-lines). |
+
+When `zones.json` is malformed (the file does not parse, or a band shape fails validation), each
+malformed shape falls back to the shipped defaults. `/context-guard:setup check` reports it in
+full. The module also shows the person one toast that names the file and the malformed shape
+(`percent`, `token_bands` or both). That toast comes once per distinct file content: saving the same
+text again shows no second toast, and a new malformed edit shows one more. Claude gets no line
+about it. `context_guard_toast` turns the toast off.
 
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
@@ -430,7 +437,7 @@ reads it from.
 | `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `zone_line_data` | string | `"zone"` | `CLAUDE_PLUGIN_OPTION_ZONE_LINE_DATA` | Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone. |
 | `context_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-guard band on. |
-| `context_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_TOAST` | Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it. On by default; off, only the transcript line remains. |
+| `context_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_TOAST` | Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it, and when zones.json is malformed. On by default; off, only the crossing's transcript line remains. |
 
 ### How to set these
 

@@ -559,6 +559,51 @@ test('zones.json: invalid additions fall back to the defaults', async ($, on) =>
   expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('smart', 'acceptable'), crossing('dumb')])
 })
 
+// ---- Malformed zones.json: one toast to the person per distinct content ----------------------
+
+const ZONES_TOAST = (notices: string) => `${ZONES}: shipped defaults replace malformed ${notices} · /context-guard:setup check`
+const INVERTED = { smart_max_used_percentage: 80, acceptable_max_used_percentage: 60 }
+
+test('malformed zones.json: a file that does not parse toasts the file and its notices once, Claude gets no line, and the shipped bands apply', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, '{ not json')
+  expect((await walk($, w, [30, 40, 60])).flat()).toEqual([crossing('acceptable')])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent and token_bands'), TOAST('smart', 'acceptable')])
+})
+
+test('malformed zones.json: a band shape that fails validation toasts its notice, and the shipped edge decides the crossing', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, INVERTED)
+  expect((await walk($, w, [30, 55])).flat()).toEqual([crossing('acceptable')])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent'), TOAST('smart', 'acceptable')])
+})
+
+test('malformed zones.json: the same text again gives no second toast, and a new malformed edit gives one more', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, '{ not json', 1)
+  await walk($, w, [30, 31])
+  zonesFile(w, '{ not json', 2)
+  await walk($, w, [32])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent and token_bands')])
+  zonesFile(w, INVERTED, 3)
+  await walk($, w, [33, 34])
+  expect(w.toasts).toEqual([ZONES_TOAST('percent and token_bands'), ZONES_TOAST('percent')])
+})
+
+test('malformed zones.json: a valid file gives no zones toast, and its own edges apply', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { smart_max_used_percentage: 30, acceptable_max_used_percentage: 60, approach_margin: 0 })
+  expect((await walk($, w, [10, 20, 31])).flat()).toEqual([crossing('acceptable')])
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+})
+
+test('malformed zones.json: context_guard_toast false gives no toast, and the shipped bands still apply', { options: { context_guard_toast: false } }, async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, '{ not json')
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect(w.toasts).toEqual([])
+})
+
 test('line data: percent, tokens and window are carried when configured', { options: { zone_line_data: 'zone, percent, tokens, window' } }, async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60])).flat()).toEqual([
