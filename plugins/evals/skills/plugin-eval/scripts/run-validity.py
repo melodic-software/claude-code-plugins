@@ -36,6 +36,14 @@ one line per check, detail lines indented under it:
                       working shell, whatever its exit code. A 0-turn run whose
                       trace holds assistant messages ran in a forked session (a
                       slash-invoked `context: fork` skill) and passes
+    plugins loaded    every suite.plugins plugin, named by its
+                      .claude-plugin/plugin.json (else its directory), is in
+                      each with-arm run's init plugins list with no
+                      plugin_errors entry; a with-arm run that lacks one, or
+                      reports a load error for one, ran without the plugin
+                      under test and is a FAIL naming the plugin and the
+                      error. A with-arm run with no trace, no init line or no
+                      plugins list on it is a warning
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -123,6 +131,8 @@ SUITE = "suite"
 SUITE_ROOT = "root"  # suite.root, the directory case dirs are relative to
 SUITE_ABLATION = "ablation"  # suite.ablation
 SUITE_PLUGINS, PLUGIN_PATH = "plugins", "path"  # suite.plugins[].path
+PLUGIN_MANIFEST = (".claude-plugin", "plugin.json")  # under a suite.plugins path
+MANIFEST_NAME = "name"
 CASES = "cases"
 CASE_NAME = "name"
 CASE_DIR = "dir"  # cases[].dir, relative to suite.root
@@ -207,6 +217,12 @@ MAX_TURNS_ERROR = re.compile(
 )
 TRACE_ERRORS = "errors"  # on the result line
 TRACE_TOOLS = "tools"  # on the init line: the tools the session could call
+# On the init line: plugins[] {name, path} loaded, and plugin_errors[] {plugin,
+# type, message, path?}, absent when no plugin failed (Agent SDK SDKSystemMessage).
+# A name may carry an @marketplace suffix.
+TRACE_PLUGINS, LOADED_NAME, LOADED_PATH = "plugins", "name", "path"
+TRACE_PLUGIN_ERRORS = "plugin_errors"
+ERROR_PLUGIN, ERROR_TYPE, ERROR_MESSAGE, ERROR_PATH = "plugin", "type", "message", "path"
 # Tools emit-plugin-eval's README removes from a probe run with --disallow-tools.
 # The init line names the Agent tool Task.
 PROBE_REMOVED_TOOLS = ("Read", "Glob", "Grep", "Agent", "Task")
@@ -723,6 +739,125 @@ def check_started(runs):
             " in a forked session its trace holds" % plural(len(forked), "run")
         )
     return PASS, summary, forked, None
+
+
+def suite_plugins(suite, base):
+    """(name, path) of each suite.plugins entry, the name read from its
+    .claude-plugin/plugin.json, else the directory's own name."""
+    plugins = []
+    for plugin in as_list(suite.get(SUITE_PLUGINS)):
+        path = resolve(plugin.get(PLUGIN_PATH), base)
+        if not path:
+            continue
+        path, name = os.path.normpath(path), None
+        try:
+            with open(os.path.join(path, *PLUGIN_MANIFEST), encoding="utf-8") as handle:
+                name = as_dict(json.load(handle)).get(MANIFEST_NAME)
+        except (OSError, ValueError):
+            pass
+        if not isinstance(name, str) or not name:
+            name = os.path.basename(path)
+        plugins.append((name, path))
+    return plugins
+
+
+def init_line(run):
+    """The run's (system, init) trace line, or {}."""
+    return next(
+        (
+            line
+            for line in run.trace or []
+            if (line.get(LINE_TYPE), line.get(LINE_SUBTYPE)) == TRACE_INIT
+        ),
+        {},
+    )
+
+
+def names_plugin(entry, name_key, path_key, plugin):
+    """True when a trace entry's name (bare or name@marketplace) or path is plugin's."""
+    name, path = plugin
+    label, entry_path = entry.get(name_key), entry.get(path_key)
+    return (isinstance(label, str) and (label == name or label.startswith(name + "@"))) or (
+        isinstance(entry_path, str)
+        and bool(entry_path)
+        and os.path.normpath(entry_path) == path
+    )
+
+
+def load_error(error):
+    return "%s: %s" % (error.get(ERROR_TYPE) or "error", error.get(ERROR_MESSAGE) or "no message")
+
+
+def check_plugins_loaded(runs, plugins):
+    """A with-arm run whose init line reports a plugin_errors entry for a suite
+    plugin, or leaves one out of its loaded plugins, ran without the plugin
+    under test, so its score measures the bare model. A with-arm run whose
+    init plugins list cannot be read is a warning."""
+    if not plugins:
+        return PASS, "no suite.plugins entry to check", [], None
+    details, failed, causes, unread = [], 0, set(), []
+    for r in (r for r in runs if r.arm == "with"):
+        init = init_line(r)
+        if not isinstance(init.get(TRACE_PLUGINS), list):
+            unread.append(r)
+            continue
+        loaded, errors = as_list(init[TRACE_PLUGINS]), as_list(init.get(TRACE_PLUGIN_ERRORS))
+        problems = []
+        for plugin in plugins:
+            name = plugin[0]
+            own = [e for e in errors if names_plugin(e, ERROR_PLUGIN, ERROR_PATH, plugin)]
+            for error in own:
+                problems.append("plugin %s failed to load: %s" % (name, load_error(error)))
+                causes.add("%s (%s)" % (name, error.get(ERROR_TYPE) or "error"))
+            if not any(names_plugin(p, LOADED_NAME, LOADED_PATH, plugin) for p in loaded):
+                # A load error filed under another name, such as a missing
+                # dependency's, may be why this plugin is absent.
+                others = [e for e in errors if e not in own]
+                listed = "; ".join(
+                    "%s %s" % (e.get(ERROR_PLUGIN), load_error(e)) for e in others
+                )
+                problems.append(
+                    "plugin %s is not among the loaded plugins%s"
+                    % (name, "; plugin_errors: " + listed if others else "")
+                )
+                if not own:
+                    types = ", ".join(
+                        "%s %s" % (e.get(ERROR_PLUGIN), e.get(ERROR_TYPE) or "error")
+                        for e in others
+                    )
+                    causes.add(
+                        "%s (not loaded%s)"
+                        % (name, "; plugin_errors: " + types if others else "")
+                    )
+        if problems:
+            failed += 1
+            details += ["%s: %s (%s)" % (r.where, p, r.trace_path) for p in problems]
+    unread_details = [
+        "%s: no init plugins list (%s)" % (r.where, r.trace_path or "no trace")
+        for r in unread
+    ]
+    if failed:
+        count = plural(failed, "with-arm run")
+        unread_note = (
+            "; %s with no readable init plugins list" % plural(len(unread), "with-arm run")
+            if unread
+            else ""
+        )
+        return (
+            FAIL,
+            "the plugin under test did not load in %s%s" % (count, unread_note),
+            details + unread_details,
+            "the plugin under test did not load in %s: %s"
+            % (count, ", ".join(sorted(causes))),
+        )
+    if unread:
+        return (
+            WARN,
+            "%s with no readable init plugins list" % plural(len(unread), "with-arm run"),
+            unread_details,
+            "plugins loaded unread in %s" % plural(len(unread), "run"),
+        )
+    return PASS, "every with-arm run loaded %s" % ", ".join(n for n, _ in plugins), [], None
 
 
 def check_rows(cases, runs_wanted, arms):
@@ -1498,7 +1633,8 @@ def main(argv=None):
         lines.append(
             "traces: %d of %d tracePaths do not resolve (the run needs --keep-temp, and its"
             " directories must still exist); permission denials, probe tools and the"
-            " trace model are unchecked for those runs" % (len(unresolved), len(runs))
+            " trace model are unchecked for those runs, and plugins loaded warns for"
+            " each with-arm run among them" % (len(unresolved), len(runs))
         )
         lines += [
             "  %s: %s" % (r.where, r.trace_path or "no tracePath") for r in unresolved
@@ -1507,6 +1643,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
+        ("plugins loaded", check_plugins_loaded(runs, suite_plugins(suite, base))),
         ("permission denials", check_denials(runs, plugin_roots, root)),
         ("skill fired", check_fired(cases, runs, root, frozenset(args.measured_fire))),
         ("probe tools", check_probe_tools(runs, root)),

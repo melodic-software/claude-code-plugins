@@ -65,6 +65,10 @@ above the plugin's directory, or with no absolute path or no known plugin direct
   and its run scored the same as each; otherwise it is a FAIL.
 - A run at 0 turns whose trace holds assistant messages ran a slash-invoked `context: fork` skill
   in a forked session, and the gate lists it under `session started` without failing it.
+- `plugins loaded` fails a with-arm run whose trace init line has a `plugin_errors` entry for a
+  `suite.plugins` plugin, or leaves that plugin out of its `plugins` list. That run ran without the
+  plugin under test. The detail names the plugin and the error type, such as
+  `dependency-unsatisfied`. A with-arm run whose init line has no `plugins` list is a warning.
 - An invocation probe's denial of a named call other than Skill is a warning when it follows the
   graded Skill call, or the run held a should-not-fire case whose denial-free runs all held; the
   gate prints each probe case's fire counts with and without denials.
