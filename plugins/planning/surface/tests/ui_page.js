@@ -569,16 +569,14 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q20");
     const held = await page.$("#roundHeld") ? await text("#roundHeld") : null;
-    const idx = await page.evaluate(() => { const s = document.getElementById("roundIndex"), h = document.getElementById("qhead");
-      return s ? {after: !!h && !!(h.compareDocumentPosition(s) & Node.DOCUMENT_POSITION_FOLLOWING), head: [...s.querySelectorAll("th")].map(c => c.textContent), rows: [...s.querySelectorAll("tbody tr")].map(r => [...r.cells].map(c => c.textContent.replace(/\s+/g, " ").trim()))} : null; });
     if (PHASE === 21) {
-      ok("#11858: the round index closes the round's first question, one row with its recommendation, basis and main alternative", !!idx && idx.after && idx.head.join() === "Q,Recommendation,Basis,Main alternative" && JSON.stringify(idx.rows) === JSON.stringify([["Q20Freeze conflict", "Keep the Wednesday ship.", "Judgment", "(a) Move the rollout window"]]), JSON.stringify(idx));
+      const heads = await page.$$eval("#dscroll h4", hs => hs.map(h => h.textContent.trim()));
+      ok("#12476: the round's first question carries its header card and no round index", heads.length > 0 && !heads.includes("Round index"), JSON.stringify(heads));
       ok("#11858: with nothing held the round header has no Held line", held === null, held);
     } else if (PHASE === 22) {
       ok("#11858: the round header's Held line names Q20 and what it waits on", /^Held: Q20\s*Freeze conflict waiting on the freeze calendar$/.test(held || ""), held);
-      ok("#11858: a held question leaves the round index, so a round of only held questions shows none", idx === null, JSON.stringify(idx));
     } else {
-      ok("#11858: under single pacing the page shows no round index, with nothing held", idx === null && held === null, JSON.stringify(idx) + " | " + held);
+      ok("#11858: under single pacing the page shows nothing held", held === null, held);
     }
   }
   if (PHASE === 24) { // #11858: still single pacing; the shell added Q21 to Q20's round 4, then held Q12 (round 3) and Q20
@@ -587,8 +585,8 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q21");
     const held = await page.$("#roundHeld") ? await text("#roundHeld") : null;
     ok("#11858: under single pacing a later question of the round carries the Held line, naming an earlier round's hold and its own round's, in id order", /^Held: Q12\s*Rollout gate waiting on the error-log baseline; Q20\s*Freeze conflict waiting on the freeze calendar$/.test(held || ""), held);
-    const card = await page.evaluate(() => ({head: !!document.getElementById("roundRestate"), idx: !!document.getElementById("roundIndex")}));
-    ok("#11858: the later question shows the Held line without the round's header or index", !card.head && !card.idx, JSON.stringify(card));
+    const head = await page.evaluate(() => !!document.getElementById("roundRestate"));
+    ok("#11858: the later question shows the Held line without the round's header", !head, JSON.stringify(head));
   }
   if (PHASE === 25) { // #12103: Q21's basis carries a Flips if: line, Q2's none; the page then answers Q21 in its own words
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
