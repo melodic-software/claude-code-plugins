@@ -602,6 +602,17 @@ run "git push origin main >push.log (redirect target dropped, allowed)" "git pus
 run "cat <(git reset --hard) (process substitution, blocked)" "cat <(git reset --hard)" 2
 run "diff <(git status) <(git reset --hard) (second substitution, blocked)" "diff <(git status) <(git reset --hard)" 2
 run "cat <(git status) (safe substitution, allowed)" "cat <(git status)" 0
+# Bash keeps the ) of a word-continuing ( in its word, so a # right after it is literal.
+run "a=(x)#; git reset --hard (array assignment, blocked)" "a=(x)#; git reset --hard" 2
+run "@(x)#; git reset --hard (extglob, blocked)" "@(x)#; git reset --hard" 2
+run "@(a|b)#; git reset --hard (extglob alternation, blocked)" "@(a|b)#; git reset --hard" 2
+run "f@()#' then a later line (function definition comment, blocked)" $'f@()#\'\n{ :; }\ngit reset --hard' 2
+run "a=(x y) git reset --hard (command after an array assignment, blocked)" "a=(x y) git reset --hard" 2
+run "a=(\$(git reset --hard)) (substitution inside an array assignment, blocked)" "a=(\$(git reset --hard))" 2
+run "f@() { git reset --hard; }; f@ (function name ending in @, blocked)" "f@() { git reset --hard; }; f@" 2
+run "!(git reset --hard) (negated subshell, blocked)" "!(git reset --hard)" 2
+run "echo \${x#*(}; case x in x) git reset --hard;; esac (literal ( in \${…}, blocked)" \
+  "echo \${x#*(}; case x in x) git reset --hard;; esac" 2
 run "heredoc body with git reset (stdin, not a command, allowed)" $'cat >notes <<EOF\ngit reset --hard\nEOF' 0
 run "quoted-delimiter heredoc with git push --force (allowed)" $'cat <<\'EOF\'\ngit push --force\nEOF' 0
 run "tab-indented heredoc <<- body (allowed)" $'cat <<-EOF\n\tgit reset --hard\n\tEOF' 0

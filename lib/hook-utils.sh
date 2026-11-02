@@ -4627,6 +4627,12 @@ hook::bash_parse_segments_uncached() {
   # flags. A heredoc body is the command's stdin, not commands — recorded when
   # `<<` is seen and skipped wholesale at the command-line newline.
   local -a hd_delims=() hd_strip=() hd_quoted=() hd_bodies=()
+  # One digit per open `(` since the last `;` `&` `|` or newline: 1 when it
+  # continues a word (an array assignment `a=(…)` or an extglob `@(…)`), 0
+  # otherwise. Every `(` and `)` still splits, so no text leaves a segment;
+  # bash keeps a 1's `)` in its word, so a `#` right after it (`hash_at`) is
+  # literal, not a comment.
+  local pstk="" wpar j hash_at=-1 dbrace="\${" wpar_re='^[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?\+?=$'
 
   for ((i = 0; i < n; i++)); do
     c="${chars[i]}"
@@ -4716,9 +4722,10 @@ hook::bash_parse_segments_uncached() {
     '#')
       # Unquoted `#` starts a shell comment to EOL only at a word boundary (no
       # word currently being assembled). Mid-word `#` (`x#y`) stays literal.
-      if ((have)); then
+      if ((have || i == hash_at)); then
         word+="#"
         wq_plain=1
+        have=1
       else
         while ((i + 1 < n)) && [[ "${chars[i + 1]}" != $'\n' ]]; do
           ((i++))
@@ -4846,6 +4853,29 @@ hook::bash_parse_segments_uncached() {
       fi
       ;;
     ';' | '&' | '|' | '(' | ')' | '`' | $'\n')
+      # Not an extglob: a bare `!` (the negation keyword), `f@()` (a function
+      # definition when extglob is off), or a `(` inside an open `${…}`.
+      if [[ "$c" == '(' ]]; then
+        wpar=0
+        if ((have)); then
+          if [[ "$word" =~ $wpar_re ]]; then
+            wpar=1
+          elif [[ "$word" == *[@?*+!] && "$word" != '!' &&
+            ! ("$word" == *"$dbrace"* && "${word##*"$dbrace"}" != *'}'*) ]]; then
+            for ((j = i + 1; j < n; j++)); do
+              [[ "${chars[j]}" == ' ' || "${chars[j]}" == $'\t' ]] || break
+            done
+            [[ "${chars[j]-}" == ')' ]] || wpar=1
+          fi
+        fi
+        pstk+="$wpar"
+      elif [[ "$c" == ')' ]]; then
+        [[ "$pstk" == *1 ]] && hash_at=$((i + 1))
+        pstk=${pstk%?}
+      elif [[ "$c" != '`' && ! ("$c" == '|' && "$pstk" == *1) ]]; then
+        # A `|` inside an extglob is its alternation, not a pipe.
+        pstk=""
+      fi
       ((have)) && hook::_bps_close_word
       hook::_bps_flush_segment
       # A command-line newline ends the line that introduced any pending
