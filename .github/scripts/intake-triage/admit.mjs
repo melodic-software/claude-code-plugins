@@ -755,7 +755,7 @@ const workSections = (prose, text, workHeadings) => {
 // not background text). A charge word in any other clause, such as "shorten
 // their retention" or "set a retention policy", names no charge.
 const CHARGING =
-  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increas\w*|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|(?:runs?|running) on)\b/i;
+  /\b(?:buy|buys|buying|bought|purchas\w*|pay|pays|paying|add|adds|adding|added|creat\w*|provision\w*|deploy\w*|enabl\w*|turn(?:s|ed|ing)? on|rais\w*|increase[sd]?|increasing|extend\w*|lengthen\w*|upgrad\w*|take|takes|taking|mov(?:e|es|ed|ing)|switch\w*|migrat\w*|adopt\w*|subscrib\w*|needs?|requires?|uses?|using|(?:runs?|running) on)\b/i;
 // A billing account admission reads as a charge beside the shared words.
 const ADMIT_CHARGES = /\bazure\b/gi;
 // A clause ends at a sentence end, or at a line break before a blank line or
