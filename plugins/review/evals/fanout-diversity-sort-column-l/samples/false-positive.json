@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-sort\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/routes/products.js:15 | code-reviewer | An unknown sort value falls back to name silently; a 400 for it would tell the client its sort was ignored. | Consider rejecting unknown sort values |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "no finding has CRITICAL in its Tier column"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "---\ntype: review-findings\nbranch: feat/product-sort\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | CRITICAL | high | src/routes/products.js:17 | security-reviewer | req.query.sort is interpolated into ORDER BY, so ?sort=name;DROP TABLE products runs attacker SQL. | Use a parameter for the sort |\n\n## Surfaces\n\nRan: [code-reviewer@high, security-reviewer@high]. Returned no result: [].",
+      "why": "a CRITICAL finding makes the wrong claim that sort is injectable into ORDER BY"
+    }
+  ]
+}

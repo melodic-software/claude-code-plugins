@@ -1578,6 +1578,117 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("check probe tools: PASS", proc.stdout)
 
+    def plugin_load(self, plugins, errors=None, init_plugins=True):
+        """The clean result with one suite plugin whose plugin.json names it
+        playgrounds, every with-arm run's init line listing plugins as loaded
+        and errors, unless None, as its plugin_errors; with init_plugins False,
+        the init line carries no plugins list."""
+        result = self.clean()
+        manifest = self.dir / "playgrounds-dir" / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({"name": "playgrounds"}), encoding="utf-8")
+        result["suite"]["plugins"] = [{"path": str(manifest.parent.parent)}]
+        init = {"type": "system", "subtype": "init", "model": "claude-opus-5-5",
+                "tools": ["Skill"]}
+        if init_plugins:
+            init["plugins"] = plugins
+        if errors is not None:
+            init["plugin_errors"] = errors
+        trace = self.dir / "plugins.jsonl"
+        trace.write_text(
+            json.dumps(init)
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "success", "is_error": False})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        for case in data["cases"]:
+            case["arms"]["with"][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1"), trace
+
+    UNSATISFIED = {
+        "plugin": "playgrounds@inline",
+        "type": "dependency-unsatisfied",
+        "message": "playground@claude-plugins-official is not installed",
+    }
+
+    def test_a_with_run_whose_plugin_failed_to_load_is_invalid(self):
+        proc, trace = self.plugin_load([{"name": "other", "path": "/x"}], [self.UNSATISFIED])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check plugins loaded: FAIL (the plugin under test did not load in 3 with-arm runs)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: plugin playgrounds failed to"
+            " load: dependency-unsatisfied: playground@claude-plugins-official is not"
+            " installed (%s)" % trace,
+            proc.stdout,
+        )
+        self.assertIn(
+            "the plugin under test did not load in 3 with-arm runs:"
+            " playgrounds (dependency-unsatisfied)",
+            proc.stdout.splitlines()[-1],
+        )
+
+    def test_a_with_run_missing_its_plugin_is_invalid(self):
+        for errors in (None, [], [dict(self.UNSATISFIED, plugin="playground@claude-plugins-official")]):
+            with self.subTest(errors=errors):
+                proc, _ = self.plugin_load([{"name": "other", "path": "/x"}], errors)
+                self.assertVerdict(proc, "INVALID", 1)
+                self.assertIn(
+                    "case measurable-criterion, with-arm run 1: plugin playgrounds is not"
+                    " among the loaded plugins",
+                    proc.stdout,
+                )
+                verdict = proc.stdout.splitlines()[-1]
+                if errors:
+                    self.assertIn(
+                        "; plugin_errors: playground@claude-plugins-official"
+                        " dependency-unsatisfied: playground@claude-plugins-official"
+                        " is not installed (",
+                        proc.stdout,
+                    )
+                    self.assertIn(
+                        "playgrounds (not loaded; plugin_errors:"
+                        " playground@claude-plugins-official dependency-unsatisfied)",
+                        verdict,
+                    )
+                else:
+                    self.assertIn("playgrounds (not loaded)", verdict)
+
+    def test_a_with_run_that_loaded_its_plugin_passes(self):
+        other_error = dict(self.UNSATISFIED, plugin="unrelated@market")
+        for errors in (None, [other_error]):
+            with self.subTest(errors=errors):
+                proc, _ = self.plugin_load(
+                    [{"name": "playgrounds@inline", "path": "/sandbox/playgrounds"}], errors
+                )
+                self.assertVerdict(proc, "VALID", 0)
+                self.assertIn(
+                    "check plugins loaded: PASS (every with-arm run loaded playgrounds)",
+                    proc.stdout,
+                )
+
+    def test_a_suite_with_no_plugins_passes_plugins_loaded(self):
+        proc = self.run_script(self.write(self.clean()), "--runs", "1")
+        self.assertIn("check plugins loaded: PASS (no suite.plugins entry", proc.stdout)
+
+    def test_a_with_run_with_no_init_plugins_list_warns(self):
+        proc, trace = self.plugin_load([], init_plugins=False)
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "check plugins loaded: WARN (3 with-arm runs with no readable init plugins list)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "  case measurable-criterion, with-arm run 1: no init plugins list (%s)" % trace,
+            proc.stdout,
+        )
+
     def capped_probe(
         self,
         tool="Skill",

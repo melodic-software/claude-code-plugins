@@ -1,0 +1,8 @@
+fixture: return-promise
+source_case: none
+defect: none
+axis: none
+not_defects:
+  - "loadProfile now returns a pending promise, so the caller gets a Promise instead of the user (loadProfile is still async, its return adopts findUser's promise, and src/routes/profile.js awaits it)"
+  - "a rejected lookup is no longer caught or now goes unhandled (loadProfile has no try block, so the await caught nothing on main, and the route's try block still receives the rejection)"
+  - "src/routes/profile.js or findUser changed on this branch (only loadProfile in src/users.js changed)"
