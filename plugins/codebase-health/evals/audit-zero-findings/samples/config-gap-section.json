@@ -11,6 +11,18 @@
     {
       "answer": "5. Config gap observations: none beyond the default documentation globs.",
       "why": "numbered list"
+    },
+    {
+      "answer": "## 5. Settings worth saving for future runs\n- Documentation check: README.md against `package.json`, `src/**` and `test/**`.",
+      "why": "reworded heading: settings worth saving"
+    },
+    {
+      "answer": "**Config worth persisting**: add `docs/**/*.md` as a documentation primary source via /codebase-health:setup apply.",
+      "why": "bold: config worth persisting"
+    },
+    {
+      "answer": "### Coverage gaps worth adding\n- `src/**` held claims but is not a configured primary source.",
+      "why": "heading: coverage gaps worth adding"
     }
   ],
   "fail": [
@@ -25,6 +37,18 @@
     {
       "answer": "## Drift patterns\n\nNone.",
       "why": "section missing"
+    },
+    {
+      "answer": "No settings worth saving this run.",
+      "why": "prose, negated, no heading"
+    },
+    {
+      "answer": "## Settings\n\nNothing worth saving.",
+      "why": "heading without 'worth', the phrase sits in prose"
+    },
+    {
+      "answer": "## Settings worth reviewing\n\n- engines.node",
+      "why": "worth reviewing is not the persist offer"
     }
   ]
 }

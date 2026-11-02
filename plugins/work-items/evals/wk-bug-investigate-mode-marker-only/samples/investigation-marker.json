@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Posted on #9:\n\n<!-- work-items:investigation outcome=causes-ranked -->\n**Outcome:** causes-ranked. **Repro evidence:** two runs, both exit 1 with `upstream 502`.",
+      "why": "marker with the causes-ranked outcome"
+    },
+    {
+      "answer": "The comment opens with `<!-- work-items:investigation outcome=causes-ranked -->`, then the four parts.",
+      "why": "quotes the marker line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Neither cause is confirmed, so I escalate #9 to the human queue.",
+      "why": "no marker comment"
+    },
+    {
+      "answer": "Posted <!-- work-items:investigation outcome=cause-named --> naming the retry as the cause.",
+      "why": "claims a confirmed cause"
+    }
+  ]
+}

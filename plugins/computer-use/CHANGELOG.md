@@ -3,6 +3,12 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.13] - 2026-11-01
+
+### Changed
+
+- The `diagnose` description summarizes what the skill resolves in fewer words. Every quoted trigger phrase and the Not-for clause are unchanged, and held-out triggering measured the same on Opus 5.5 and Sonnet 5.5.
+
 ## [0.1.12] - 2026-11-01
 
 ### Fixed

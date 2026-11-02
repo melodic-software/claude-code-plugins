@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.12] - 2026-11-01
+
+### Changed
+
+- `curate-language` has a shorter description (587 to 506 characters) with the same triggers, branches and exclusions. Measured with no loss of triggering on Opus 5.5 and Sonnet 5.5.
+
 ## [0.4.11] - 2026-11-01
 
 ### Changed

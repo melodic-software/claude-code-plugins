@@ -3,6 +3,63 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.0.1] - 2026-11-01
+
+### Fixed
+
+- The README note about installed mods no longer says a mod can always approve a call these
+  hooks blocked. That now depends on the setup, so the note links to where hooks run in the mod
+  chain and to the precedence among rules, hooks and mods, with an as-of date and a recheck
+  trigger.
+
+### Security
+
+- The babysit-loop telemetry upsert reads its body file only when it resolves under `--body-dir` (or a `CLAUDE_PLUGIN_DATA` that names source-control): a symlink or an outside path exits 3 before any read, so a prompt-injected path can no longer post a credential file as a public comment. The reference now passes `--body-dir "${CLAUDE_PLUGIN_DATA}"`.
+- The body is scanned with the shared leak scan before any API call and withheld whole on a hit (exit 3), naming the rule and never the match. The upsert now needs node.
+- An unset lane instance falls back to a random id kept in the body dir instead of the hostname, which the public marker published. Comments written under a hostname marker are no longer found, so the next cycle starts a new one; the old comment keeps the hostname it already published.
+- A `lane_instance` the leak scan reads as a fleet or private hostname exits 3 before any API call, naming the instance rather than the body; unset it so the stored random id is used.
+
+- The babysit-loop telemetry upsert now accepts a `--body-dir` only when it is this plugin's data dir (its last segment names source-control) and never `/`, the home dir or an ancestor of it. The body path is canonicalized with `realpath`, opened once and re-checked through `/proc` on Linux.
+- The leak scan also withholds a body naming a home path or a private or fleet hostname, and recognizes npm, Google API, Pulumi and Azure storage keys, URL credentials, JWTs, Docker registry auth, base64-encoded PEM blocks and netrc passwords.
+- A symlinked or malformed stored lane instance is refused without echoing it. The skill gives the data dir as an absolute path, since its reference file reaches Bash unsubstituted.
+- The data-dir name is checked again after `realpath`, so a symlink named for the plugin that points elsewhere is refused, and the home-dir check reads the account's passwd entry, so an overridden `HOME` cannot disable it. A machine path or hostname is reported as such, with no rotation advice, and a path under a GitHub-hosted runner's home dir is not withheld. URL credentials need a password of 6 or more characters that is not a placeholder (`$` and `*` allowed), and base64-encoded PEM blocks and netrc passwords are caught too.
+- netrc passwords are caught in the `default` entry and on a `password` line of their own.
+
+## [5.0.0] - 2026-11-01
+
+### Changed
+
+- The babysit loop's rung partition admits C4 (structural) pull requests at `c3-autonomous`, `full-autonomy` and the typed `autopilot` + `--merge c3-this-run` widening, against the `C3-auto-merge` promotion cell, so the cell's blocking AI review is the gate and no human review or merge is required once it is effective-promoted. `c2-mechanical` still admits C2 alone. C5 (untrusted provenance) stays the one class no rung, config key or argument admits. The former C4 diff veto is now a diff-class check: the diff can raise a pull request's recorded class, never lower it, and a diff whose class cannot be read still fails closed. A C4 pull request in the eligible set can draw the pre-escalation resolver dispatch (#9668, #12068).
+
+### Fixed
+
+- `/source-control:babysit-prs` binds a review lane's second attempt after the first attempt's lane job ended before reporting an outcome (the `NO_OUTCOME` class), when the lane posted nothing on the head between the two attempts' starts and the first attempt left no completion record. Pull requests caught in the 2026-11-01 review-lane outage were held as `rerun-not-allowed` even after a clean re-run. The merge gate does not start this re-run: a defect in the lane fails every run until its fix ships, and a re-run before then would spend the one allowed attempt.
+
+## [4.12.1] - 2026-11-01
+
+### Changed
+
+- `babysit_merge_policy.CARRY_REFUSES` builds each skill `scripts/` glob from the skill's `plugin:skill` name; the globs it holds are unchanged. The `ci --ci` reference's sample context file uses a plain script path for its `feedback_lines` example.
+
+## [4.12.0] - 2026-11-01
+
+### Added
+
+- `dossier_branch_prefix`, a team setting in `docs/conventions/source-control.yaml` with default
+  `dossier/`: the prefix of an owning work item's dossier branch, `dossier/<key>-<slug>`, one per
+  owning item. `parse-branch-issue.test.sh` now checks that a `dossier/<N>-<slug>` branch yields
+  `<N>`.
+
+### Fixed
+
+- **babysit-prs**: the pr-verify verdict reader re-reads the pages around kept artifact-listing entries near expiry even when the listing holds exactly GitHub's live count. An entry GitHub deleted early could stand in for a FAIL the listing skipped, so the count matched and the FAIL was left out. A count those reads cannot settle now refuses instead of allowing; a 5xx that outlasts its waits, a count left unsettled only by the near-expiry read caps, or a listing whose time runs out after those reads began, refuses as transient and is not noted for the job; the last two print a `babysit-listing-miss` line with `cause` `near-expiry-cap` or `near-expiry-deadline`.
+
+## [4.11.3] - 2026-11-01
+
+### Fixed
+
+- The babysit loop's skill, references and config-resolution reference name untrusted provenance (C5) as the one work-class hold no rung, config key or invocation argument lifts, pointing at the unattended merge gate's trust hold (`trust_refusal`), instead of an unconditional C4/C5 floor. C4 is described as outside the rungs, which admit classes up to C3. The babysit-prs safety reference no longer says a C4 pull request carries the body hold line: the work lane writes it for untrusted provenance, not for C4 (#9668).
+
 ## [4.11.2] - 2026-11-01
 
 ### Fixed

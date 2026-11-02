@@ -19,6 +19,18 @@
     {
       "answer": "Claude's own input does **not** reset it.",
       "why": "SKILL.md wording"
+    },
+    {
+      "answer": "Why being busy did not matter: Windows doesn't count Claude's clicks and typing as activity, so the long job looked like an empty desk.",
+      "why": "neutralized observed reply: doesn't count Claude's clicks"
+    },
+    {
+      "answer": "Windows does not register synthesized input as activity.",
+      "why": "does not register synthesized input"
+    },
+    {
+      "answer": "The OS won't see Claude's typing at all.",
+      "why": "won't see Claude's typing"
     }
   ],
   "fail": [
@@ -32,6 +44,14 @@
     },
     {
       "answer": "Claude's clicks keep the machine awake, so this must be something else.",
+      "why": "the opposite claim"
+    },
+    {
+      "answer": "Windows doesn't count the screensaver as a lock.",
+      "why": "doesn't count, but not about Claude's input"
+    },
+    {
+      "answer": "Claude's clicks count as activity, so the timer resets.",
       "why": "the opposite claim"
     }
   ]

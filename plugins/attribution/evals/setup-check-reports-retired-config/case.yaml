@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: setup-check-reports-retired-config
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'retirements-checked'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-retirements\.sh(?!(?:[^"\\]|\\.)*?--clean\b)'
+    min: 1
+    arm: 'with-only'
+  - name: 'names-retired-file'
+    type: 'regex'
+    pattern: 'provenance\.json[^\n]{0,160}?(?<!\bno )(?<!nothing to )\b(?:retired (?:config|file|convention|team|name)|migrat(?:e|es|ed|ion|ing)|FAIL|leftover|never reads?|no longer reads?)\b|(?<!\bno )(?<!nothing to )\b(?:FAIL|migrat(?:e|es|ed|ion|ing)|leftover)\b[^\n]{0,160}?provenance\.json'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-write-config'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?attribution(?:\.local)?\.(?:ya?ml|json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit-config'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?attribution(?:\.local)?\.(?:ya?ml|json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-write-config'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?attribution(?:\.local)?\.(?:ya?ml|json)(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'

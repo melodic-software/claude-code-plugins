@@ -1885,6 +1885,100 @@ class LostRerunTests(Base):
         )
 
 
+def no_outcome_line(lane: str) -> dict[str, Any]:
+    """publish-review's failure line (ci-workflows publish.cjs `fail`) for a
+    lane job that ended before it reported an outcome, as check run
+    124930676685 recorded it."""
+    return dict(
+        OTHER_FAILURE,
+        title="",
+        message=f"{lane}: failure-class=no-outcome:"
+        " the review job ended before it reported an outcome",
+    )
+
+
+def no_outcome(
+    lane: str = "claude-review", annotations: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    first = attempt(
+        lane,
+        S,
+        1,
+        [no_outcome_line(lane)] if annotations is None else annotations,
+        "failure",
+    )
+    first["run_started_at"] = FIRST_STARTED
+    return first
+
+
+class NoOutcomeRerunTests(Base):
+    """Attempt 2 after an attempt 1 whose lane job ended before it reported an
+    outcome binds only when that lane posted nothing on the head."""
+
+    def test_second_attempt_after_an_unposted_no_outcome_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                item = run(lane, S, attempts=[no_outcome(lane), rerun_ok(lane)])
+                result = self.bind([item])
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_a_no_outcome_whose_lane_posted_does_not_bind(self) -> None:
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:45:00Z",
+            "edit": UNEDITED,
+            "body": "Summary\n\n`claude-lane: claude-review`",
+        }
+        posted = thread(created="2026-01-01T00:50:00Z")
+        for comments, threads in (
+            ([*both_markers(), mark], []),
+            ([*both_markers(), summary], []),
+            (both_markers(), [posted]),
+        ):
+            with self.subTest(comments=len(comments), threads=len(threads)):
+                item = run("claude-review", S, attempts=[no_outcome(), rerun_ok()])
+                result = self.bind([item], comments, threads)
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_no_outcome_that_recorded_a_review_does_not_bind(self) -> None:
+        done = record("claude-review", S, "findings=0 inline=0 scope=whole")
+        first = no_outcome(annotations=[no_outcome_line("claude-review"), done])
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_another_lanes_no_outcome_line_does_not_count(self) -> None:
+        first = no_outcome(annotations=[no_outcome_line("claude-security-review")])
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_an_unreadable_start_does_not_bind(self) -> None:
+        first = no_outcome()
+        first["run_started_at"] = None
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_a_no_outcome_is_not_allowed(self) -> None:
+        second = no_outcome()
+        second.update(run_attempt=2, run_started_at="2026-01-01T01:00:00Z")
+        second["jobs"][0]["run_attempt"] = 2
+        third = rerun_ok()
+        third["run_attempt"] = 3
+        third["jobs"][0]["run_attempt"] = 3
+        item = run("claude-review", S, attempts=[no_outcome(), second, third])
+        result = self.bind([item])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_gate_does_not_rerun_a_no_outcome(self) -> None:
+        # Binding only: a no-outcome from a lane defect fails every run until
+        # the fix ships, so a gate re-run would spend the one allowed attempt.
+        job = no_outcome()["jobs"][0]
+        self.assertEqual(ev.rerun_classes("claude-review", job), frozenset())
+        self.assertNotIn(ev.NO_OUTCOME, ev.GATE_RERUN_CLASSES)
+
+
 # The caller workflows' `Report the kill switch` notice
 # (pr-review-hosted.yml, pr-review-security-hosted.yml).
 KILL_NOTICE = {

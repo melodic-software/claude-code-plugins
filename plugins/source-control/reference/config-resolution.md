@@ -237,6 +237,17 @@ reads the file itself, through a script where the key names one below.
   the base repository's default branch. The reader runs every step when the key is missing, the
   base is another branch, or the list cannot be trusted. Semantics and the report:
   [ready-for-review.md](../skills/pull-request/reference/ready-for-review.md#read-which-pre-flip-steps-run).
+- `dossier_branch_prefix`: the prefix of a dossier branch, default `dossier/`. A dossier branch
+  holds an owning work item's docs, exploration notes and draft plan. Its shape is
+  `dossier/<key>-<slug>`: `<key>` is the bound tracker adapter's `branch_ref` for the item (`42` on
+  GitHub, `ENG-123` on Linear), and `<slug>` is the kebab-case title, as in the work branch
+  `/work-items:work` names. One dossier per owning item: a parent or spec container gets its own,
+  and a child item adds its own only when it needs one. Resolution, lowest first: the default,
+  then `dossier_branch_prefix` in `docs/conventions/source-control.yaml`. No `userConfig` option.
+  `/work-items:work` reads it when it names an item's dossier branch. With a tracker bound, the
+  adapter's branch grammar reads `<key>` back from the branch name. Without one, the built-in
+  grammar of `parse-branch-issue.sh` reads a numeric `<key>` under the default prefix, and a
+  tracker key needs a `branch_issue_pattern` that captures it.
 
 ## Review-bot triage rubric (`docs/conventions/source-control.md`)
 
@@ -412,8 +423,8 @@ raise supplied by any of them is ignored and reported.
 **The one named exception: the typed pair `autopilot` + `--merge c3-this-run`.** Per the loop-lane
 convention's "one named, explicit paired-argument exception" (§1), an invocation whose own argument
 line types both the literal `autopilot` tier keyword and the explicit raise argument
-`--merge c3-this-run` widens *that single invocation's* merge dimension up to and including C3,
-still bounded by the C5 hold (below). Either token alone does nothing to the
+`--merge c3-this-run` widens *that single invocation's* merge dimension to the C3 rung (C2 through
+C4), still bounded by the C5 hold (below). Either token alone does nothing to the
 merge dimension: `autopilot` is a merge-inert tier keyword, so a saved invocation or template
 carrying it acquires no merge authority, and `c3-this-run` without the typed `autopilot` tier is
 reported and ignored. The pair is not a config value and is never persisted: the next invocation
@@ -452,11 +463,11 @@ keyword or any other layer never substitutes for tracked adoption: with the tier
 no tracked adoption, merges stay `human-only` and the lane reports why.
 
 **Promotion-evidence gate.** A tracked rung is a ceiling, not autonomous-merge permission:
-before the rung partition admits a C2 or C3 PR, the lane resolves `C2-auto-merge` /
-`C3-auto-merge` effective state through the trusted promotion-evidence gate, fail-closing to
-unpromoted when evidence is unavailable or unqualified
+before the rung partition admits a C2, C3 or C4 PR, the lane resolves `C2-auto-merge` /
+`C3-auto-merge` effective state through the trusted promotion-evidence gate (C4 takes the
+`C3-auto-merge` cell), fail-closing to unpromoted when evidence is unavailable or unqualified
 (`${CLAUDE_PLUGIN_ROOT}/skills/babysit-loop/reference/promotion-evidence-resolution.md`).
-Until that gate returns a qualified read, C2/C3 classes stay off the merge-eligible set regardless of
+Until that gate returns a qualified read, C2-C4 classes stay off the merge-eligible set regardless of
 `babysit_loop_merge`; operators keep `--merge human-only` on launch lines.
 
 **C5 hold.** Untrusted provenance is the one work class that holds a merge: no rung, no config
@@ -469,9 +480,11 @@ partition derives C5 from the pull request, not the class stamped on the item it
 provenance "dominates every other property" (`work-classes.md`, `C5`): a cross-repository head, or
 a failed trust test (`authorAssociation` other than `OWNER`/`MEMBER` and no
 `babysit_loop_trusted_internal_bot_logins` match, per the trust-signal section below), each failing
-closed to C5 when its field is unavailable. The rungs admit classes up to C3, and the partition
-compares the pull request's own class to the rung (the C4 diff veto: a diff that no longer matches
-its recorded class fails closed), so a C4 pull request sits outside every current rung. **Never derive C5 by testing the PR author's login against
+closed to C5 when its field is unavailable. C4 is not a hold: it partitions like C3, admitted at
+`c3-autonomous` and `full-autonomy` against the `C3-auto-merge` cell. The partition compares the
+pull request's own class to the rung (the diff-class check: the diff can raise the recorded class,
+never lower it, and a diff whose class cannot be read fails closed), so `c2-mechanical` excludes a
+C4 diff whatever its item's stamp. **Never derive C5 by testing the PR author's login against
 `babysit_watched_owners`.** That key is a repository-owner allowlist, not a trusted-author list, so on an organization-owned
 repository it would classify every internally authored PR as C5.
 
@@ -524,7 +537,7 @@ the two, and every rule below is fail-closed:
   nowhere else.** The value is never forwarded as `--self-logins`, `--extra-bot-logins`, discovery
   scope, or any write or resolution authority, and a trust match never establishes C2; it only
   removes the categorical C5 bar. The PR still needs a close-linked item with a recorded
-  classification, and still faces the C4 diff veto, the rung comparison, and every other withholding
+  classification, and still faces the diff-class check, the rung comparison, and every other withholding
   in the partition.
 
 ## babysit-prs repository-policy keys

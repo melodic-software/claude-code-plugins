@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": [
-        {"tool": "Write", "input": {"file_path": "/tmp/eval/.work/running-retros/20261013T120000Z-running-retro-build-fix.md", "content": "---\nsession_id: abc\n---\n## Checkpoint\n- Edited dist/ instead of src/ twice. Route: /session-flow:retro codify.\n"}}
+        {"tool": "Write", "input": {"file_path": "/tmp/eval/.work/running-retros/20261013T120000Z-running-retro-build-fix.md", "content": "---\nsession_id: abc\n---\n## Checkpoint\n- Edited dist/ instead of src/ twice. Route: /corrections:codify.\n"}}
       ],
       "why": "the ledger, which mentions CLAUDE.md-worthy learnings in its content"
     },

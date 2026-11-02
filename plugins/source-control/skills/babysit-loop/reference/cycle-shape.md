@@ -135,7 +135,8 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    A PR is merge-eligible when its item's class sits within the effective rung **and** its promotable
    cell is **effective-promoted** (**Promotion-evidence gate (trusted seam, fail-closed)**.
    [reference/promotion-evidence-resolution.md](promotion-evidence-resolution.md)): C2 at
-   `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (no rung admits C4 or C5). Before
+   `c2-mechanical`, C2 through C4 at `c3-autonomous`, C1 through C4 at `full-autonomy` (C4 against the `C3-auto-merge`
+   cell, so its blocking AI review is the gate; no rung admits C5). Before
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
@@ -182,9 +183,10 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `human-only` (including the no-tracked-adoption default), or under a non-merge-capable tier,
    the eligible set is empty; the widening does not apply without tracked adoption either
    (config-resolution.md, "Baseline activation is tracked adoption").
-   **C5 hold and C4 veto:** a PR that is C5 (untrusted-provenance) is NEVER in the eligible set,
-   at any rung, under any invocation argument; a PR that is C4 (structural) is outside every rung,
-   which admit classes up to C3. Both are checked before the rung comparison above. **Both are
+   **C5 hold and diff-class check:** a PR that is C5 (untrusted-provenance) is NEVER in the
+   eligible set, at any rung, under any invocation argument; a PR that is C4 (structural) partitions
+   like C3, so `c2-mechanical` excludes it and the C3 rungs admit it once `C3-auto-merge` is
+   effective-promoted. Both are checked before the rung comparison above. **Both are
    tests on the PR, not lookups of the linked item's stamp**:
    `work-classes.md` assigns a class from the risk-property bundle. Blast radius, reversibility,
    provenance, and "the bundle, not the task's surface description, is what assigns a class".
@@ -193,10 +195,11 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      head repository is not the base (`isCrossRepository: true`, or `headRepositoryOwner` differing
      from the base owner). **Trust test:** C5 unless one arm positively passes, `authorAssociation` `OWNER`/`MEMBER`, or a structural bot (`[bot]` login suffix or provider `Bot` type) listed in the TARGET repository's team-tracked, default-branch `babysit_loop_trusted_internal_bot_logins` (grammar, binding, fail-closed empty set: config-resolution reference, "the C5 trust test's one reviewed widening").
      A listing never bypasses the fork test (a listed bot on a cross-repository head is still C5) and never weakens the dependency hold-merge invariant, which wins on intersection. Never test the author login against `babysit_watched_owners`: a repository-owner allowlist, never a trusted-author list. A fork PR closing an internally classified C2/C3 issue is still C5: the class travels with the code's provenance, not the issue it closes.
-   - **C4, the diff's blast radius.** The stamp admits; the diff can still veto. A PR whose actual
-     change is a refactor, migration, or contract change is C4 however its item is stamped, and a
-     PR whose shape no longer matches its recorded class **fails closed** to escalation rather than
-     to the stamp.
+   - **Diff-class check, the diff's blast radius.** The diff can raise the PR's class, never lower
+     it: the rung comparison uses the higher of the stamp and the class the diff shows. A PR whose
+     actual change is a refactor, migration, or contract change is C4 however its item is stamped,
+     so a C2-stamped C4 diff leaves `c2-mechanical`'s eligible set. A PR whose diff class cannot be
+     read **fails closed** to escalation rather than to the stamp.
    - **The verdict authorizes a head SHA, not the PR.** This partition class-checked the snapshot
      head's diff, so eligibility is pinned to that SHA: the merge-capable invocation carries the
      partitioned head as its merge gate's `--expected-head` pin, and the gate's head-match refusal
@@ -204,7 +207,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      review-finding fix, not only the pre-escalation resolver's) moves the head off the pin; the
      pinned gate refuses the merge, and the invocation ends by reporting the new head instead of
      re-pinning (babysit-prs Autopilot step 3's lane-pin exception, `babysit-prs/reference/safety.md`). The
-     lane then re-partitions the post-push head (provenance, C4-diff, rung), and only a
+     lane then re-partitions the post-push head (provenance, diff class, rung), and only a
      still-eligible PR gets a fresh merge-capable invocation pinned to the new head.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [--unattended]
    [scope]` grammar in its single-PR scope form (`owner/repo#N`), always with `--unattended`

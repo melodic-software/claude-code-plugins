@@ -97,7 +97,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; and the lane telemetry upsert refuses to post, since its leak scan runs on node.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

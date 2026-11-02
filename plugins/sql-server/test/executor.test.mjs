@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { describe, it } from 'node:test';
-import { APP_NAME, TRANCOUNT_CHECK, createTediousExecutor } from '../src/executor.mjs';
+import { APP_NAME, TRANCOUNT_CHECK, createTediousExecutor, writeBatch } from '../src/executor.mjs';
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -388,5 +388,84 @@ describe('list_objects and describe_object', () => {
     const fake = fakeTedious({ answer: (request, connection) => connection.respond([]) });
     const { executor } = setup({ fake });
     await assert.rejects(executor.describeObject({ database: 'app', schema: 'dbo', name: 'missing' }), /no table or view named dbo\.missing/);
+  });
+});
+
+describe('the guarded write batch', () => {
+  it('holds BEGIN, the statement, the row-count check and COMMIT or ROLLBACK in one batch', () => {
+    const batch = writeBatch('DELETE FROM t WHERE id = 1;', 1);
+    const lines = batch.split('\n');
+    assert.equal(lines[1], 'BEGIN TRANSACTION;');
+    assert.equal(lines[2], 'DELETE FROM t WHERE id = 1;');
+    assert.equal(lines[3], 'SET @affected = @@ROWCOUNT;', 'the count is read straight after the statement');
+    assert.equal(lines[4], 'IF @affected = 1');
+    assert.match(batch, /BEGIN COMMIT TRANSACTION;/);
+    assert.match(batch, /BEGIN ROLLBACK TRANSACTION;/);
+  });
+
+  it('refuses an expected row count that is not a non-negative integer', () => {
+    for (const expectedRows of [-1, 2.5, '1', Number.NaN]) assert.throws(() => writeBatch('DELETE FROM t;', expectedRows), /non-negative integer/);
+  });
+
+  it('runs inside the per-call guards and returns the committed row count', async () => {
+    const fake = fakeTedious({ answer: (request, connection) => connection.respond([{ committed: true, affected: 2 }]) });
+    const { executor, state } = setup({ fake });
+    const result = await executor.write({ database: 'app', sql: 'DELETE FROM t WHERE id < 3;', expectedRows: 2 });
+    assert.deepEqual(result, { committed: true, rowCount: 2 });
+    const { log } = state.connections[0];
+    assert.match(log[0].sql, /^IF @@TRANCOUNT > 0 ROLLBACK;/);
+    assert.equal(log[1].sql, writeBatch('DELETE FROM t WHERE id < 3;', 2));
+    assert.equal(log.at(-1).sql, TRANCOUNT_CHECK);
+  });
+
+  it('reports a rolled-back batch as an error naming both counts', async () => {
+    const fake = fakeTedious({ answer: (request, connection) => connection.respond([{ committed: false, affected: 5 }]) });
+    const { executor } = setup({ fake });
+    await assert.rejects(executor.write({ database: 'app', sql: 'DELETE FROM t;', expectedRows: 1 }), /rolled back: the statement affected 5 rows, not the expected 1/);
+  });
+
+  it('reports an unknown outcome when the batch returns no verdict', async () => {
+    const fake = fakeTedious({ answer: (request, connection) => connection.respond([]) });
+    const { executor } = setup({ fake });
+    await assert.rejects(executor.write({ database: 'app', sql: 'DELETE FROM t;', expectedRows: 1 }), /returned no verdict/);
+  });
+
+  it('closes the connection when a transaction is still open after the batch', async () => {
+    const fake = fakeTedious({ answer: (request, connection) => connection.respond([{ committed: true, affected: 1 }]) });
+    fake.state.trancount = 1;
+    const { executor, state } = setup({ fake });
+    await executor.write({ database: 'app', sql: 'DELETE FROM t;', expectedRows: 1 });
+    assert.equal(state.connections[0].closed, true);
+  });
+});
+
+describe('preview_write', () => {
+  const answer = (request, connection) => {
+    if (/sys\.triggers/.test(request.sql)) {
+      connection.respond([{ table: 'dbo.lines', name: 'tr_lines_audit', event: 'DELETE', insteadOf: false, disabled: false }]);
+    } else {
+      connection.respond([
+        { depth: 0, table: 'dbo.orders', foreignKey: null, references: null, onDelete: null, onUpdate: null },
+        { depth: 1, table: 'dbo.lines', foreignKey: 'fk_lines_orders', references: 'dbo.orders', onDelete: 'CASCADE', onUpdate: 'NO_ACTION' },
+      ]);
+    }
+  };
+
+  it('returns the target, the cascades it reaches and the triggers on each table', async () => {
+    const { executor, state } = setup({ fake: fakeTedious({ answer }) });
+    const result = await executor.previewWrite({ database: 'app', schema: 'dbo', name: 'orders' });
+    assert.equal(result.table, 'dbo.orders');
+    assert.deepEqual(result.cascades.map((row) => row.foreignKey), ['fk_lines_orders']);
+    assert.deepEqual(result.triggers.map((row) => row.name), ['tr_lines_audit']);
+    assert.equal(result.truncated, false);
+    assert.deepEqual(state.connections[0].log[1].parameters, {
+      schema: { type: 'NVarChar', value: 'dbo' },
+      name: { type: 'NVarChar', value: 'orders' },
+    });
+  });
+
+  it('refuses a table it cannot see', async () => {
+    const { executor } = setup({ fake: fakeTedious({ answer: (request, connection) => connection.respond([]) }) });
+    await assert.rejects(executor.previewWrite({ database: 'app', name: 'missing' }), /no table named missing that this login can see/);
   });
 });

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "firecrawl:firecrawl", "args": "scrape https://blog.example.invalid/2026/10/leaving-twitter"}}],
+      "why": "a different skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "discovery:read-docs", "args": "https://blog.example.invalid/2026/10/leaving-twitter"}}],
+      "why": "a skill whose name contains read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "x:read", "args": "https://blog.example.invalid/2026/10/leaving-twitter"}}],
+      "why": "qualified name"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "read"}}],
+      "why": "bare name"
+    }
+  ]
+}

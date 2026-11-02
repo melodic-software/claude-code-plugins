@@ -1,5 +1,33 @@
 # Changelog: evals
 
+## [0.14.0] - 2026-11-01
+
+### Added
+
+- `convert-evals-json.py` writes a deterministic grader instead of an `llm` judge when an expectation's whole wording is a mechanical check: the case's own skill invoked or one of the plugin's skills not invoked (`tool_used` on Skill), a backticked command run or not run (`tool_used` on Bash, its words in order), a backticked literal or `/<plugin>:<skill>` named in the reply (`regex`), or a file written at a path when the case can create files (`file_exists`). Each gets pass and fail samples that `/evals:validate` grades offline. Any qualifier, placeholder, slash command or other plugin's skill keeps the expectation an `llm` judgment.
+
+## [0.13.7] - 2026-11-01
+
+### Fixed
+
+- `plugin-eval`'s short-`TMPDIR` advice now points at a directory on disk (`$HOME/.ev` when that
+  stays within 24 characters) instead of `/run/user/<uid>/ev`, and says why: that tmpfs is small,
+  and kept `--keep-temp` sandboxes can fill it, failing every eval on the host and breaking the
+  session sockets stored there
+  ([#11727](https://github.com/melodic-software/claude-code-plugins/issues/11727)).
+
+- `plugin-eval`: the read-only `.git` and session tmp record now names its cause, the run sandbox's write deny on `/tmp` covering a run root there, measured on Claude Code 2.1.316, in place of the unbisected guess. The sandbox-start reference adds it as a second reason to run with `TMPDIR` outside the system temp directory.
+
+## [0.13.6] - 2026-11-01
+
+### Changed
+
+- The case-authoring checklist says a case whose skill must write under the workspace's `.claude/` cannot be measured past that write, and that a settings case seeds its settings in the workspace; the Denials section of reading-results lists both set-aside denial kinds.
+
+### Fixed
+
+- `run-validity.py` treats a denied `Read`, `Grep` or `Glob` whose every target path is under the session's own `<sandbox>/config/projects/*/*/tool-results/` as environment: a warning that never counts toward a failure, counted apart in the summary. Claude Code saves a large tool result there and the model reads it back, and the run's config directory is denied, so long outputs made outcome passes read INVALID whatever the case did. A Bash call, a write, another path in the config directory (user `settings.json` included), or another sandbox's results still fail.
+
 ## [0.13.5] - 2026-11-01
 
 ### Fixed

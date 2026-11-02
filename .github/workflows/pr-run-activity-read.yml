@@ -240,7 +240,8 @@ on:
     outputs:
       head-sha:
         description: >-
-          The run job's head-sha output: the PR head its trigger gate passed. Set
+          The run job's head-sha output: the PR head its trigger gate passed,
+          empty when that head is not the caller's (a supersede). Set
           before any head code ran, but the run job's runner is hostile and can
           forge it, so no caller may trust it for a decision; take the head from
           a job that ran no head code (pr-unblock's fix-ci-context or
@@ -566,7 +567,7 @@ jobs:
     # ci-status, pr-merge, apply-patch, or a workflow_run trigger).
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
-      head-sha: ${{ steps.gate.outputs.head-sha }}
+      head-sha: ${{ steps.gated-head.outputs.superseded != 'true' && steps.gate.outputs.head-sha || '' }}
       pr-number: ${{ steps.gate.outputs.pr-number }}
       gate-reason: >-
         ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason
@@ -751,6 +752,8 @@ jobs:
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
           run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
+          # Or a listed human's review comment, relayed (ADR 0088).
+          run-dispatcher-relay: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-comment-relay.yml' || '' }}
           # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
           dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
@@ -769,22 +772,24 @@ jobs:
 
       # The caller's head-sha came from a job that ran no head code, and its
       # context, patch and check are bound to it. A trigger gate that read
-      # another head (the PR moved since) fails the run here, before the head
-      # is checked out; the report job then posts failure on the caller's head.
+      # another head (the PR moved since) supersedes the run here, before the
+      # head is checked out: every later step is skipped and the run's head-sha
+      # stays empty, so the report job takes a trigger decline's skip.
       - name: Assert the gated head is the caller's
+        id: gated-head
         if: steps.gate.outputs.proceed == 'true' && inputs.head-sha != ''
         env:
           CALLER_HEAD: ${{ inputs.head-sha }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
         run: |
           if [ "$HEAD_SHA" != "$CALLER_HEAD" ]; then
-            echo "::error::the PR head the trigger gate read is not the head the caller gated; a later dispatch reads the new head"
-            exit 1
+            echo "::notice::superseded: the PR head moved; a later dispatch reads the new head"
+            echo "superseded=true" >>"$GITHUB_OUTPUT"
           fi
 
       - name: Assert the base is on the default branch
         id: trusted-base
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true' && steps.gated-head.outputs.superseded != 'true'
         uses: ./.base/.github/actions/check-trusted-base # zizmor: ignore[self-repository]
         with:
           base-sha: ${{ steps.gate.outputs.base-sha }}
@@ -1803,15 +1808,15 @@ jobs:
               .join(' ');
             core.setOutput('text', text.replace(/\s+/g, ' ').slice(0, 500));
 
-      # One lane record per run, naming the credential the leg ran on. A
-      # handoff records nothing; the fallback call records the run under a
-      # name that says why it ran, and a credit-stop or no-key call records
-      # that reason as fallback-reason. An issue run keeps the lane's own name.
+      # One lane record per leg, naming the credential the leg ran on. A leg
+      # that hands off records itself with handoff true; the fallback call
+      # records the run under a name that says why it ran, and a credit-stop
+      # or no-key call records that reason as fallback-reason. An issue run
+      # keeps the lane's own name.
       - name: Record the launcher's lane outcome
         id: lane-record
         if: >-
-          always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
+          always() && steps.key-present.outputs.present != 'false'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
@@ -1842,6 +1847,7 @@ jobs:
           fallback-reason: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
           max-turns: ${{ steps.config.outputs.max-turns }}
           known-failure-class: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          handoff: ${{ steps.act-key.outputs.handoff == 'true' || steps.act-token.outputs.handoff == 'true' }}
 
       - name: Run the script activity
         id: act-script
@@ -1987,6 +1993,12 @@ jobs:
           LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
           LANE_API_STATUS: ${{ steps.act-error.outputs.status }}
           LANE_ERROR_TEXT: ${{ steps.act-error.outputs.text }}
+          # The secret NAME the leg ran on (run-claude-cli's credential, never
+          # the value) and the closed fallback reason, both as the lane record
+          # takes them; each is left out of lane.json when empty, and
+          # report-outcome re-checks both before its marker names them.
+          LANE_CREDENTIAL: ${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential || steps.act-fallback.outputs.credential }}
+          LANE_FALLBACK: ${{ inputs.fallback == 'credit-stop' && 'credit-stop' || inputs.fallback == 'no-key' && 'no-key' || '' }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json" "$OUT_DIR/lane.json"
@@ -1996,8 +2008,10 @@ jobs:
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
             --arg max_turns "$LANE_MAX_TURNS" --arg turns "$LANE_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
+            --arg credential "${LANE_CREDENTIAL-}" --arg fallback "${LANE_FALLBACK-}" \
             '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, turns: $turns, resume: $resume, stale: $stale,
-              failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
+              failed: $failed, "api-error-status": $status, "error-text": $error_text}
+              + ({credential: $credential, fallback: $fallback} | with_entries(select(.value != "")))' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's
       # replies or a dependency-review skill's verdict, and in issue mode the
@@ -3489,7 +3503,8 @@ jobs:
       # run head posts failure on it. Any other value or a mismatched PR
       # number posts failure on the trusted head, never on the run's SHA. With no trusted head nothing is posted
       # and the step fails. An empty run head (the run stopped before its
-      # trigger gate passed) never posts failure, which babysit would read as
+      # trigger gate passed, or the gate read a head other than the caller's,
+      # a supersede) never posts failure, which babysit would read as
       # a merge blocker: after the broker-check job's refusal, which includes
       # its own kill switch read (a trusted decision no run job output can
       # write, and one a switch flipped mid-run cannot change here), it keeps

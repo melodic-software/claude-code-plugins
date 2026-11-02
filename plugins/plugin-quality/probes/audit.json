@@ -72,7 +72,7 @@
       "id": "neg-train-01",
       "split": "train",
       "expect_trigger": false,
-      "request": "Lint the SKILL.md under plugins/foo/skills/bar and tell me if the frontmatter passes before I publish it."
+      "request": "Lint the SKILL.md under skills/bar in plugins/foo and tell me if the frontmatter passes before I publish it."
     },
     {
       "id": "neg-train-02",
