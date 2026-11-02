@@ -28,3 +28,6 @@ bump: minor
   the lower value still binds.
 - The merge gate's skip key now includes `docs/conventions/source-control.yaml`, so a change to it
   re-runs a skipped refusal.
+- A change to `docs/conventions/source-control.yaml` now holds for a person, as the `.claude/**`
+  row held `.claude/source-control.md`: the hold floor gains a `gate` row for it, so a pull request
+  that only adds a trusted bot login there no longer merges unattended.

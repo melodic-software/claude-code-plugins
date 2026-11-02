@@ -1178,7 +1178,9 @@ the rules that only tighten in
     what agents may do unattended or what later reviews judge against: `**/.claude/**` and
     `**/.claude-lane/**` whole (settings, hooks and the scripts settings registers, skills, agents,
     commands, rules, output styles and memory, under owner decision Q11, which supersedes the
-    2026-10-22 direction for rules), `docs/conventions/instruction-exception-register/**` and
+    2026-10-22 direction for rules), `docs/conventions/source-control.yaml` (the babysit loop's
+    team layer, trusted bot logins included, read before `.claude/source-control.md`),
+    `docs/conventions/instruction-exception-register/**` and
     `docs/conventions/untrusted-content/**` (the security review's criteria), `**/.mcp.json`, `**/CLAUDE.md`, `**/CLAUDE.local.md`,
     `**/AGENTS.md`, `REVIEW.md` and `docs/standards/**`. On a pull
     request a person on the trusted-actor list opened, a `gate` path only that person's own

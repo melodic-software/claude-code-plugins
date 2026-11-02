@@ -346,6 +346,10 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
     ("**/.claude/**", "gate"),
+    # The team layer the babysit loop reads before `.claude/source-control.md`
+    # (`babysit_repo_config.fetch_repo_config`), trusted bot logins included,
+    # so it keeps the hold the `.claude/**` row gave that file.
+    ("docs/conventions/source-control.yaml", "gate"),
     ("**/.claude-lane/**", "gate"),
     ("**/.mcp.json", "gate"),
     ("**/CLAUDE.md", "gate"),
@@ -415,6 +419,7 @@ _NO_AUTHOR_LIFT = frozenset(
     {
         "**/.claude/**",
         "**/.claude-lane/**",
+        "docs/conventions/source-control.yaml",
         "**/.mcp.json",
         "**/CLAUDE.md",
         "**/CLAUDE.local.md",
