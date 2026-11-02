@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
@@ -809,8 +810,7 @@ describe("decide", () => {
     });
   });
 
-  // rule-admit.sh's fixed checks: its charge words, read from one definition,
-  // and its body-edited-after-the-verdict refusal.
+  // The charge words, read from their one definition in charge-words.json.
   describe("a charge word in what the issue will do", () => {
     const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
 
@@ -892,8 +892,7 @@ describe("decide", () => {
       assert.equal(await read(() => Promise.reject(new Error("GET /repos/o/r failed"))), false);
     });
 
-    // rule-admit.test.sh shows the script reads the same file.
-    test("reads the patterns from the one definition rule-admit.sh reads", () => {
+    test("reads the patterns from their one definition in charge-words.json", () => {
       const shared = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
       const { code, cost, costPrivate } = chargePattern();
       assert.deepEqual([code.source, cost.source, costPrivate.source], [shared.code, shared.cost, shared.cost_private].map((p) => new RegExp(p).source));
@@ -1498,6 +1497,16 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), CLAIMED);
   });
 
+  test("mirrors the labels it leaves into the Work status field after its last label write", async () => {
+    const fake = fakeGitHub();
+    const mirrorStatus = async (number, change) => fake.calls.push({ method: "MIRROR", path: String(number), body: labelsAfter(change.had, change.add, change.remove) });
+    assert.equal((await admit({ ...goArgs(fake), mirrorStatus })).outcome, "admitted");
+    const done = fake.calls.filter((call) => call.method !== "GET" && call.path !== "/graphql");
+    assert.equal(done.filter((call) => call.method === "MIRROR").length, 1, "the capped claim is not mirrored on the way to agent-ready");
+    assert.equal(done.at(-1).method, "MIRROR");
+    assert.ok(done.at(-1).body.includes(AGENT_READY) && !done.at(-1).body.includes(DEFERRED), JSON.stringify(done.at(-1).body));
+  });
+
   // A manual re-dispatch skips intake-reenter, so the parked status comes off here.
   test("adds agent-ready and lifts a parked status: confirmed beside status: ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });
@@ -1533,6 +1542,12 @@ describe("admit", () => {
     test("two issues fit a room of two, and an entry before the race window does not count", async () => {
       assert.equal((await go(fakeGitHub({ racers: [entered(8, AGENT_READY, 1)] }), { status: { ...open, admission_room: 2 } })).outcome, "admitted");
       assert.equal((await go(fakeGitHub({ racers: [entered(8, AGENT_READY, 1), entered(9, DEFERRED, 2)] }), { status: { ...open, admission_room: 2 } })).outcome, "deferred");
+      const mirrored = [];
+      const mirrorStatus = async (number, change) => mirrored.push(labelsAfter(change.had, change.add, change.remove));
+      const raced = await admit({ ...goArgs(fakeGitHub({ racers: [entered(8, AGENT_READY, 1), entered(9, DEFERRED, 2)] }), { status: { ...open, admission_room: 2 } }), mirrorStatus });
+      assert.equal(raced.outcome, "deferred");
+      assert.equal(mirrored.length, 1, "a claim the race keeps is mirrored once, on its deferred exit");
+      assert.ok(mirrored[0].includes(DEFERRED) && !mirrored[0].includes(AGENT_READY), JSON.stringify(mirrored));
       assert.equal((await go(fakeGitHub({ racers: [entered(8, DEFERRED, RACE_WINDOW_MS / 60_000 + 5)] }), { status: ROOM_ONE })).outcome, "admitted");
     });
 

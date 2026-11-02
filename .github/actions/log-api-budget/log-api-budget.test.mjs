@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import zlib from "node:zlib";
 import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
 import { apiLimits, createRateLimitLatch, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
@@ -355,6 +356,35 @@ test("the action emits each named token, the call count as an api-calls notice t
     });
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=github-token-calls=unknown\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
+  }));
+
+test("outside names the job-token steps no counted client sees in an api-uncounted notice after api-calls, skipping a bad name", () =>
+  withDir((dir) => {
+    const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
+    writeFileSync(join(dir, "summary"), "");
+    writeFileSync(join(dir, "output"), "");
+    const out = execFileSync("bash", ["-c", run], {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        ...RUNNER,
+        RUNNER_TEMP: dir,
+        TMPDIR: dir,
+        GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
+        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+        GITHUB_OUTPUT: join(dir, "output"),
+        TOKENS: "github-token",
+        OUTSIDE: "detect-changes:pulls/files\nbad;name check-managed-files",
+      },
+    });
+    assert.equal(
+      out,
+      "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n" +
+        "::warning::api-budget: skipped an outside step name with other characters\n" +
+        "::notice title=api-uncounted::github-token detect-changes:pulls/files check-managed-files\n" +
+        "::notice title=api-routes::github-token rest=0\n",
+    );
+    assert.match(readFileSync(join(dir, "summary"), "utf8"), /^api-uncounted github-token detect-changes:pulls\/files check-managed-files$/m);
   }));
 
 test("ci-status ends with the same api-budget and api-calls notices the action writes", () =>
@@ -1213,8 +1243,7 @@ test("ci-status emits the api-calls notice beside its api-budget notice", () => 
 // pr-feedback-dispatch.yml's post-verify-notes and rerun-ci-status jobs post
 // no other notice, so without these lines their calls go unattributed.
 // post-verify-notes' notice covers its artifact listing and verify-notes.mjs's
-// calls, which go through the rate guard; `gh run download` goes through the
-// gh wrapper but is not `gh api`, so it leaves none.
+// calls, which go through the rate guard, and its verdict download.
 const FEEDBACK = new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url);
 
 // The job's steps, from `  <job>:` to the next job.
@@ -1268,29 +1297,99 @@ test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an
     unlock(dir);
   }));
 
+// One stored (uncompressed) entry, the zip GitHub's artifact download answers.
+// A `link` entry carries the Unix symlink mode, so unzip restores it as a link.
+function storedZip(name, text, link = false) {
+  const file = Buffer.from(name);
+  const data = Buffer.from(text);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(link ? 0x031e : 20, 4);
+  if (link) central.writeUInt32LE(0o120777 * 0x10000, 38);
+  for (const [header, at] of [
+    [local, 4],
+    [central, 6],
+  ]) {
+    header.writeUInt16LE(20, at);
+    header.writeUInt16LE(0x21, at + 8);
+    header.writeUInt32LE(zlib.crc32(data), at + 10);
+    header.writeUInt32LE(data.length, at + 14);
+    header.writeUInt32LE(data.length, at + 18);
+    header.writeUInt16LE(file.length, at + 22);
+  }
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + file.length, 12);
+  end.writeUInt32LE(local.length + file.length + data.length, 16);
+  return Buffer.concat([local, file, data, central, file, end]);
+}
+
+// Runs the download step against a gh that answers only the calls `answers`
+// names (`api -i <route>`, a header block then the body) and fails any other,
+// `gh run download` included.
+function downloadStep(dir, answers) {
+  const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
+  const body = /\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(`${step}\n`)[1].replace(/^ {10}/gm, "");
+  for (const sub of [".base/.github/actions/log-api-budget", "bin", "rt", "answers"]) {
+    mkdirSync(join(dir, sub), { recursive: true });
+  }
+  copyFileSync(LIB, join(dir, ".base/.github/actions/log-api-budget/api-budget.bash"));
+  const cases = Object.entries(answers).map(([route, answer], i) => {
+    writeFileSync(join(dir, "answers", String(i)), Buffer.concat([Buffer.from(head({ used: 41 + i })), Buffer.from(answer)]));
+    return `[[ $# == 3 && $1 == api && $2 == -i && $3 == '${route}' ]] && exec cat '${join(dir, "answers", String(i))}'\n`;
+  });
+  writeFileSync(join(dir, "bin/gh"), `#!/usr/bin/env bash\n${cases.join("")}echo "args: $*" >&2\nexit 9\n`);
+  chmodSync(join(dir, "bin/gh"), 0o755);
+  return spawnSync("bash", ["-e", "-c", body], {
+    cwd: dir,
+    encoding: "utf8",
+    env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), TMPDIR: dir, RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
+  });
+}
+
+const LISTING = "repos/o/r/actions/runs/77/artifacts?per_page=100";
+
 test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artifact listing and decides as before", () =>
   withDir((dir) => {
-    const step = jobText("post-verify-notes").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
-    const body = /\n {8}run: \|\n((?: {10}[^\n]*\n|\n)+)/.exec(`${step}\n`)[1].replace(/^ {10}/gm, "");
-    for (const sub of [".base/.github/actions/log-api-budget", "bin", "rt"]) {
-      mkdirSync(join(dir, sub), { recursive: true });
-    }
-    copyFileSync(LIB, join(dir, ".base/.github/actions/log-api-budget/api-budget.bash"));
-    // A gh that answers `api -i <artifacts route> --jq <filter>` with a header block and no FAIL name.
-    writeFileSync(
-      join(dir, "bin/gh"),
-      `#!/usr/bin/env bash\n[[ $1 == api && $2 == -i && $3 == repos/o/r/actions/runs/77/artifacts* && $4 == --jq ]] || { echo "args: $*" >&2; exit 9; }\n` +
-        `printf '${head({ used: 41 }).replace(/\r/g, "\\r").replace(/\n/g, "\\n")}'\n`,
-    );
-    chmodSync(join(dir, "bin/gh"), 0o755);
-    const result = spawnSync("bash", ["-e", "-c", body], {
-      cwd: dir,
-      encoding: "utf8",
-      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), TMPDIR: dir, RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
-    });
+    const result = downloadStep(dir, { [LISTING]: JSON.stringify({ artifacts: [{ id: 5, name: "pr-verify-data", expired: false }] }) });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "::notice::run 77 uploaded no verdict; nothing to post\n");
     assert.equal(state(join(dir, "rt"), "github-token"), "200 5000 4959 41 1792748042 core repos/{repo}/actions/runs/{n}/artifacts\n");
+  }));
+
+// The listing names the verdict's artifact id, so the step downloads that
+// artifact in one call and never lists the run's artifacts a second time, as
+// `gh run download --name` does.
+test("pr-feedback-dispatch.yml: post-verify-notes downloads the listed verdict by its id, with no second listing", () =>
+  withDir((dir) => {
+    const name = `pr-verify-42-${"a".repeat(40)}-pass`;
+    const verdict = '{"verdict":"pass"}\n';
+    const listing = { artifacts: [{ id: 556, name, expired: true }, { id: 5, name: "pr-verify-data", expired: false }, { id: 555, name, expired: false }] };
+    const result = downloadStep(dir, { [LISTING]: JSON.stringify(listing), "repos/o/r/actions/artifacts/555/zip": storedZip("verdict.json", verdict) });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(join(dir, "rt/verdict/verdict.json"), "utf8"), verdict);
+    assert.equal(readFileSync(join(dir, "out"), "utf8"), `name=${name}\n`);
+    assert.equal(
+      state(join(dir, "rt"), "github-token"),
+      "200 5000 4959 41 1792748042 core repos/{repo}/actions/runs/{n}/artifacts\n200 5000 4958 42 1792748042 core repos/{repo}/actions/artifacts/{n}/{x}\n",
+    );
+  }));
+
+test("pr-feedback-dispatch.yml: post-verify-notes writes a symlink verdict member as a regular file holding the link text", () =>
+  withDir((dir) => {
+    const name = `pr-verify-42-${"a".repeat(40)}-pass`;
+    const secret = join(dir, "secret.txt");
+    writeFileSync(secret, "SECRET\n");
+    const listing = { artifacts: [{ id: 555, name, expired: false }] };
+    const result = downloadStep(dir, { [LISTING]: JSON.stringify(listing), "repos/o/r/actions/artifacts/555/zip": storedZip("verdict.json", secret, true) });
+    assert.equal(result.status, 0, result.stderr);
+    const out = join(dir, "rt/verdict/verdict.json");
+    assert.equal(lstatSync(out).isFile(), true);
+    assert.equal(readFileSync(out, "utf8"), secret);
   }));
 
 test("the gh wrapper routes each traced request by its URL", () =>

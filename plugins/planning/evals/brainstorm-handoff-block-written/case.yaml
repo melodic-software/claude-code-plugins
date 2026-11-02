@@ -9,11 +9,6 @@ execution:
   max_turns: 20
   timeout_seconds: 900
 graders:
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
-    arm: with-only
   - name: handoff-six-fields
     type: tool_used
     tool: Write

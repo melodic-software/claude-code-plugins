@@ -217,6 +217,55 @@ class RunValidityTest(unittest.TestCase):
             proc.stdout,
         )
 
+    def one_arm_case(self, text, without):
+        """Run the clean result with measurable-criterion's case.yaml holding
+        text and its without-arm replaced by without (None drops the key)."""
+        result = self.clean()
+        case = result["cases"][1]
+        if without is None:
+            del case["arms"]["without"]
+        else:
+            case["arms"]["without"] = without
+        case_yaml = self.dir / "suite" / case["dir"] / "case.yaml"
+        case_yaml.write_text(text, encoding="utf-8")
+        return self.run_script(self.write(result), "--runs", "1")
+
+    HISTORY = "name: m\ncontext:\n  history_file: turn-1.jsonl\n"
+
+    def test_a_history_file_case_with_no_without_arm_is_single_arm_by_design(self):
+        for text in (self.HISTORY, "name: m\ncontext: {history_file: turn-1.jsonl}\n"):
+            proc = self.one_arm_case(text, None)
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check row count: WARN (1 row per arm as --runs 1 asked; runsPerCase"
+                " reads 3 and is not used; single-arm by design (context.history_file, no without-arm recorded), so no delta:"
+                " measurable-criterion)",
+                proc.stdout,
+                text,
+            )
+            self.assertIn("1 case single-arm by design, with no delta", proc.stdout)
+
+    def test_a_missing_without_arm_without_history_file_still_fails(self):
+        for text in (
+            "name: m\ncontext:\n  add_dirs: [resources]\n",
+            "name: m\n# history_file: x\n",
+        ):
+            proc = self.one_arm_case(text, None)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "  case measurable-criterion, without-arm: 0 rows, --runs asked for 1",
+                proc.stdout,
+                text,
+            )
+
+    def test_a_history_file_case_with_an_empty_without_arm_still_fails(self):
+        proc = self.one_arm_case(self.HISTORY, [])
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "  case measurable-criterion, without-arm: 0 rows, --runs asked for 1",
+            proc.stdout,
+        )
+
     def test_a_case_yaml_with_no_scaffold_script_is_unaffected(self):
         for text in (
             "name: m\ncontext:\n  add_dirs: [resources]\n",
@@ -1075,6 +1124,10 @@ class RunValidityTest(unittest.TestCase):
         for calls in (
             [("Read", {"file_path": lease})],
             [("Bash", {"command": "cat " + lease})],
+            # A redirect naming no file is not a cwd-relative path.
+            [("Bash", {"command": "ls -la %s 2>&1" % lease})],
+            [("Bash", {"command": "cat %s 2>/dev/null" % lease})],
+            [("Bash", {"command": "cat %s > /dev/null" % lease})],
             [("Write", {"file_path": lease, "content": "x"}),
              ("Read", {"file_path": self.own_data("other", "last-audit.md")})],
         ):
@@ -1114,6 +1167,9 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
             # A Bash call with one path inside plugin data and one outside.
             ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
+            # A redirect to a real file still names a path.
+            ([("Bash", {"command": "cat %s > out.txt" % lease})], None),
+            ([("Bash", {"command": "cat %s 2> /etc/x" % lease})], None),
             # Another sandbox's plugin data is not this run's.
             ([("Read", {"file_path": str(self.dir.joinpath(
                 "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),
@@ -1166,8 +1222,7 @@ class RunValidityTest(unittest.TestCase):
         sandbox = self.dir / "claude-eval-ab"
         saved = self.own_results("tool-results", "a.txt")
         for calls, trace_at in (
-            # Only Read, Grep and Glob qualify: Bash and a write do not.
-            ([("Bash", {"command": "cat " + saved})], None),
+            # Only reads qualify: a write does not.
             ([("Write", {"file_path": saved, "content": "x"})], None),
             # Elsewhere in the session or project directory, or at another depth.
             ([("Read", {"file_path": self.own_results("memory", "a.md")})], None),
@@ -1188,6 +1243,76 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": saved})], ("claude-eval-ab",)),
         ):
             proc = self.denied_in_sandbox(calls, *([trace_at] if trace_at else []))
+            self.assertDenials(proc, "FAIL")
+
+    def test_a_bash_read_of_the_sessions_own_tool_results_is_a_warning(self):
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        other = self.own_results("tool-results", "toolu_02Example.txt")
+        for command in (
+            "cat " + saved,
+            "cat -n %s %s | head -n 60" % (saved, other),
+            "head -c 2000 '%s'" % saved,
+            "wc -l " + saved,
+            "sed -n '120,180p' " + saved,
+            "sed -n /Balancing/p %s | wc -c" % saved,
+            "grep -ci autonomy " + saved,
+            "grep -n -B 3 -A40 'a | b' %s | head -60" % saved,
+            "grep -nE \"^[a-z]+.*{2}$\" " + saved,
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+            self.assertIn("1 denied read of the session's own tool results, not counted",
+                          proc.stdout)
+
+    def test_the_slice_c_bash_read_backs_read_valid(self):
+        # The two denials that left audit-prompting-postures one valid case of three.
+        saved = self.own_results("tool-results", "toolu_01Example.txt")
+        for context in ("40", "22"):
+            command = 'grep -n -A%s "Balancing autonomy and safety" %s | head -60' % (
+                context, saved)
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
+            self.assertDenials(proc, "WARN")
+
+    def test_a_bash_call_that_writes_or_reads_beyond_tool_results_still_fails(self):
+        saved = self.own_results("tool-results", "a.txt")
+        for command in (
+            # A write there, by redirect, tee, sed or another command.
+            "cat %s > %s.bak" % (saved, saved),
+            "grep x %s >> %s" % (saved, saved),
+            "cat %s | tee %s" % (saved, saved),
+            "sed -i s/a/b/ " + saved,
+            "sed -n 'w %s' %s" % (saved, saved),
+            "rm " + saved,
+            "cp %s %s.bak" % (saved, saved),
+            # A read outside it, or of a path the shell resolves.
+            "cat %s /etc/hosts" % saved,
+            "grep -f /etc/hosts " + saved,
+            "head -n 5 < " + saved,
+            "cat %s | grep x /etc/hosts" % saved,
+            "cat " + self.own_results("memory", "a.md"),
+            "cat $HOME/" + saved,
+            "cat %s/../../memory/a.md" % self.own_results("tool-results"),
+            "cat " + self.own_results("tool-results", "*.txt"),
+            "cat tool-results/a.txt",
+            # Another command beside the read, or one it runs.
+            "cat %s; curl example.com" % saved,
+            "cat %s && cat %s" % (saved, saved),
+            "cat %s\nrm %s" % (saved, saved),
+            "grep \"$(rm %s)\" %s" % (saved, saved),
+            "grep `id` " + saved,
+            "grep --color=never x " + saved,
+            # An unquoted expansion adds operands, or bash quotes it differently.
+            "grep {x,/etc/hosts} " + saved,
+            "grep -h x /etc/* " + saved,
+            "sed -n /a/p /etc/host? " + saved,
+            "grep $'\\'' ;touch x; \\' " + saved,
+            "grep a\\ b " + saved,
+            # A recursive grep with no operand reads the working directory.
+            "cat %s | grep -r secret" % saved,
+            # No path at all.
+            "cat",
+        ):
+            proc = self.denied_in_sandbox([("Bash", {"command": command})])
             self.assertDenials(proc, "FAIL")
 
     def test_skill_text_quoting_the_denial_is_not_a_denial(self):

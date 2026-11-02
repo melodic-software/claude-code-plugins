@@ -77,93 +77,31 @@ trust-before-scale floor. A cap never changes a disposition: an over-cap
 `autonomous-eligible` item stays enqueued for a later drain run. It is deferred, not
 rejected and not re-gated.
 
-## Rule admission (C1/C2)
+## Intake admission charge terms
 
-The table above decides a disposition once an item has a class; a person stamps that class by
-applying the autonomous-eligible label and a `work-class:` label. Owner-written rules in the
-binding's optional `admission.rule_admission[]` let a no-model evaluator admit an issue to C2
-without that label, from the intake-triage lane's proposed class; C1 rules are accepted but admit
-nothing yet (below). Each entry is
-`{id, work_class, proposed_class}`: `id` is `R<n>`, `work_class` is `C1` or `C2`, and
-`proposed_class` is the `work-class:` label the lane must propose. The evaluator writes no label;
-an admit is recorded as `admitted-by-rule: <id>@<binding sha>`.
+Intake admission refuses an issue whose stated work names a charge term, matched as whole words
+outside fenced code blocks and inline code spans, which name jobs and files, not charges; a
+backslash-escaped backtick opens no span. The charge terms: billing, billed, spending limit,
+subscription (but not a subscription login, usage of the subscribed model vendor's subscription,
+or a measured pass run on the subscription, which are model usage, not cost; a change to or
+purchase of that subscription, and another vendor's subscription usage, still refuse), SKU,
+retention, a larger or self-hosted runner, seat, Codespaces, a paid plan, top-up, auto-renew,
+auto-reload, extra usage. A hosted runner and macOS minutes refuse unless the repository's
+visibility reads public, where the forge's standard hosted runner minutes are free. Work that adds
+or raises a charge waits for the owner unless an owner-recorded decision already covers it, and
+that check is a person's, not intake admission's.
 
-Precedence, top-down, first hit decides:
-
-1. `needs-human` present → refuse.
-2. Trust-surface hit → refuse: the `area: security` label, or a deny-list term in the title or
-   body (hook, guard or guardrail, permission, allow or deny list, workflow, the CI configuration
-   directory, ruleset, CODEOWNERS, secret, token, credential, pin, SHA, checksum, admission,
-   work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
-   ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
-   too: a false positive fails closed.
-3. Cost hit → refuse, terms matched as whole words in the title or body outside fenced code
-   blocks and inline code spans, which name jobs and files, not charges; a backslash-escaped
-   backtick opens no span. Intake admission reads narrower and adds a check of its own, below this
-   list. A charge term always
-   refuses: billing, billed, spending limit, subscription (but not a subscription login, usage of the
-   subscribed model vendor's subscription, or a measured pass run on the subscription, which are model usage, not cost; a change to or
-   purchase of that subscription, and another vendor's subscription usage, still refuse), SKU, retention, a larger or self-hosted runner, seat, Codespaces,
-   a paid plan, top-up, auto-renew, auto-reload, extra usage. A hosted runner and macOS minutes refuse unless the repository's visibility reads
-   public, where the forge's standard hosted runner minutes are free. A spend word (cost,
-   spend, spending, pricing, paid, quota) refuses
-   unless that occurrence sits in a phrase naming the subscribed model vendor or its product
-   (vendor or product name, up to three closed qualifiers such as API, key, eval or model, then
-   the spend word), and the issue names none of a closed list of other charge sources (the
-   forge and its paid features, cloud, hosting and payment providers, other model vendors,
-   storage, runners, domains, and the generic provider, vendor, service and plan). Spend on the
-   model subscription or the fixed API credit adds no charge, and every other charge waits
-   (owner decision 2026-10-24). Both lists are closed and live in the evaluator script: a spend
-   word that no vendor phrase claims refuses, whatever provider it names. Work
-   that adds or raises a charge waits for the owner unless an owner-recorded decision already
-   covers it, and that check is a person's, not the evaluator's.
-4. Any `work-class:` label present → refuse, label left untouched.
-5. A rule matches → admit; otherwise refuse.
-
-Intake admission applies the same charge terms, without the spend words, to what the issue will
-do rather than to its background: the title and the body's task items and sections under a heading
-the definition's `work_headings` names, each up to the next heading at its level or shallower
-(`#` headings only), or the whole body when it has neither. A charge named only under another
-heading on such a body does not refuse there, and no comment is read. The evaluator keeps reading
-the whole title and body.
+Intake admission applies the charge terms to what the issue will do rather than to its
+background: the title and the body's task items and sections under a heading the definition's
+`work_headings` names, each up to the next heading at its level or shallower (`#` headings only),
+or the whole body when it has neither. A charge named only under another heading on such a body
+does not refuse there, and no comment is read.
 
 Because code is not read, intake also holds an issue, for the owner, when an edit moved a charge
 term from prose into code: a comparison of adjacent revisions of the body, and of title renames,
 for a term the text still holds in code. The hold names the edit and the term. A deleted revision,
 or a history past one page, holds too. A history that fails to read, or a body edited between the
 two reads, refuses without a hold: no person answers it, and intake dispatched again judges it anew.
-
-A rule matches only when every term of the shared predicate holds, each read from provider
-metadata or lane output, never from text an agent controls:
-
-- the tracker's author association names the issue author a repository owner or org member;
-- every comment is from an owner or member, or is the lane comment;
-- exactly one lane comment exists (the CI workflow identity's comment carrying the intake-triage
-  lane marker), its run was not escalated, and the issue body was not edited after it;
-- no `provenance: signal`, `area: security`, `do-not-merge`, `work-map`, `status:` or `wayfind:`
-  label;
-- the lane comment's second line is `Proposed work class: <proposed_class>` for the rule's
-  `proposed_class`.
-
-Untrusted text can only refuse: the title and body scan is a deny list, and the proposed class is
-model output, so it admits only beside the author and comment tests issue text cannot change.
-
-Rule admission never bypasses the binding's own gates. The evaluator admits nothing, and the
-validator reports the binding invalid, unless `dispatch_posture` is `autonomous-enabled` and the
-decision table resolves each rule's class to `autonomous-eligible` for `tracker-vcs-event` under
-every provenance (`human`, `agent` and `system`), since provenance is not trusted (see the accepted
-risk below).
-
-Only C2 admits today. A rule-admitted C2 is human-merged: its PR carries
-`Hold: a human merges this`, so it never takes a gate-proven C2 auto-merge rung until that rung's
-promotion evidence exists. C1 rule admission is not yet enabled: C1 needs a no-push constraint,
-and the work skill always pushes, so nothing enforces no-push mechanically. A C1 rule stays valid
-in the binding but refuses every issue until a mechanical no-push exists.
-
-Accepted risk: author association does not separate a person from an agent. Agents file issues
-under the operator's token, so an agent-filed issue reads as owner-authored and passes the
-author test. The owner accepts this: the agent already acts with the operator's authority, the
-trust-surface scan and the lane's proposal still apply, and every rule-admitted PR is human-merged.
 
 ## Binding and fail-closed behavior
 

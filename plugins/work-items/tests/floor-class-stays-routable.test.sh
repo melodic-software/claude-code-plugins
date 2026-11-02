@@ -95,7 +95,7 @@ assert_flags 'the unconditional pre-fix flip' \
 Next section.'
 
 assert_flags 'a file with no flip transition at all' \
-  '- **`[ratify]` rows**. Present the classification and record the outcome.'
+  '- **`[held]` rows**. Restate the brief and leave the next step to the operator.'
 
 # Near miss: the floor classes are named in the file, but outside the transition.
 # Reachability depends on the rule being stated where the flip is instructed.

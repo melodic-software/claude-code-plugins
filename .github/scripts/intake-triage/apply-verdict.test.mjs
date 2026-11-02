@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { labelsAfter } from "../../actions/resolve-config/write-status.mjs";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -1372,6 +1374,27 @@ describe("run", () => {
     assert.match(result.summary, /- Reasons comment: not written \(/);
   });
 
+  test("a hold that landed after the first read is in the labels the Work status field mirrors", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    let reads = 0;
+    const github = async (method, path, body) => {
+      const answer = await fake.github(method, path, body);
+      if (method === "GET" && path === "/repos/o/r/issues/7" && (reads += 1) === 2) {
+        return { ...answer, labels: [...answer.labels, { name: OUTSIDE_ACTOR_LABEL }] };
+      }
+      return answer;
+    };
+    const mirrored = [];
+    const mirrorStatus = async (number, change) => mirrored.push(labelsAfter(change.had, change.add, change.remove));
+    await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} });
+    assert.equal(reads, 2, "the refusal re-read the labels");
+    assert.ok(mirrored[0].includes(OUTSIDE_ACTOR_LABEL) && mirrored[0].includes("needs-human"), JSON.stringify(mirrored));
+  });
+
   // security-outside-actor/flag.mjs adds needs-human as github-actions[bot] on
   // GITHUB_TOKEN, so its label can land inside this run's window.
   test("the outside-actor flag's needs-human, landing after this run started, keeps the hold", async () => {
@@ -1661,8 +1684,11 @@ describe("run", () => {
         }
         return fake.github(method, path, body);
       };
-      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      const mirrored = [];
+      const mirrorStatus = async (number, change) => mirrored.push(labelsAfter(change.had, change.add, change.remove));
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} });
       assert.ok(result.reasonsError, "the run fails");
+      assert.deepEqual(mirrored, [[]], "the mirror sees only status: ready come off");
       const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
       assert.deepEqual(
         labelWrites.map(({ method, path }) => `${method} ${path}`),
@@ -1725,6 +1751,16 @@ describe("run", () => {
     const done = writes(fake.calls).map(({ method, path }) => `${method} ${path}`);
     const removal = done.indexOf("DELETE /repos/o/r/issues/7/labels/needs-triage");
     assert.ok(removal > done.indexOf("POST /repos/o/r/issues/7/labels"), done.join("\n"));
+  });
+
+  test("mirrors the labels it leaves into the Work status field after its label writes", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
+    const mirrorStatus = async (number, change) => fake.calls.push({ method: "MIRROR", path: String(number), body: labelsAfter(change.had, change.add, change.remove) });
+    assert.equal((await run({ env: ENV, github: fake.github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} })).outcome, "ready");
+    const done = writes(fake.calls);
+    const mirrored = done.findIndex((call) => call.method === "MIRROR");
+    assert.ok(mirrored > done.findLastIndex((call) => call.path.includes("/labels")), JSON.stringify(done));
+    assert.ok(!done[mirrored].body.includes("needs-triage") && done[mirrored].body.includes("status: ready"), JSON.stringify(done[mirrored].body));
   });
 
   test("posts the reasons on the issue when it sets needs-decision", async () => {
