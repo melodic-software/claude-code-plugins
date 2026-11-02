@@ -3,12 +3,24 @@
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | low | src/pagination.js:7 | code-reviewer | A test for a single partial page, pageNumbers(1), would pin the lower bound of the new loop. | Add a test |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "the only finding is a SUGGESTION, so no finding raises the decoy at IMPORTANT or CRITICAL"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | SUGGESTION | high | src/pagination.js:7 | code-reviewer | Worth confirming the <= bound does not add an extra page; a test for pageNumbers(20) would show it. | Add a test |\n| 2 | SUGGESTION | medium | src/pagination.js:1 | code-reviewer | PAGE_SIZE could come from the caller. | Accept a page size |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: every finding is SUGGESTION, so none is IMPORTANT or CRITICAL; high Confidence does not raise a Tier"
     }
   ],
   "fail": [
     {
       "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/pagination.js:7 | code-reviewer | The loop bound changed from < to <=, so pageNumbers(41) now returns four pages and the last link points past the end. | Restore the < bound |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
       "why": "an IMPORTANT finding raises the decoy: the loop starts at 1, so <= pageCount pushes exactly pageCount pages"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | medium | src/pagination.js:1 | architecture-guardian | PAGE_SIZE is hard-coded at 20, so a listing that shows 50 items a page gets the wrong page links. | Accept a page size |\n\n## Surfaces\n\nRan: [architecture-guardian@high]. Returned no result: [].",
+      "why": "decoy: any IMPORTANT finding fails, even one that makes no not_defects claim"
+    },
+    {
+      "answer": "---\ntype: review-findings\nbranch: refactor/page-numbers\ntier: small\n---\n\n## Findings\n\n| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n| 1 | IMPORTANT | low | src/pagination.js:7 | code-reviewer | The loop now starts at page = 1, so the first page link is skipped. | Start the loop at 0 |\n\n## Surfaces\n\nRan: [code-reviewer@high]. Returned no result: [].",
+      "why": "decoy: an IMPORTANT finding fails recall; the low Confidence is ignored"
     }
   ]
 }
