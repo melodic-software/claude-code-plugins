@@ -5,6 +5,18 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.4] - 2026-11-02
+
+### Changed
+
+- Point the fork, model-resolution and `${CLAUDE_EFFORT}` claims in the audit skill and its agent at their upstream sections, with as-of dates and recheck triggers.
+
+## [0.18.3] - 2026-11-01
+
+### Changed
+
+- The `audit` invocation probe `neg-train-01` words its sample skill location without a cross-plugin skill path; it keeps the same words, so its listing-overlap score is unchanged.
+
 ## [0.18.2] - 2026-11-01
 
 ### Changed

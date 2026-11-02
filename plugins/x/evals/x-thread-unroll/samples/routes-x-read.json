@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "x:read", "args": "https://x.com/fakehandle/status/1234567890123456789"}}],
+      "why": "qualified name with args"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "read"}}],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call: the likely no-plugin run"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "firecrawl:firecrawl", "args": "scrape https://x.com/fakehandle/status/1234567890123456789"}}],
+      "why": "wrong skill"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "x:reader"}}],
+      "why": "a different skill whose name starts with read"
+    }
+  ]
+}

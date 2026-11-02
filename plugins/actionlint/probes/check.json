@@ -1,0 +1,134 @@
+{
+  "skill": "actionlint:check",
+  "plugin": "actionlint",
+  "skill_dir": "plugins/actionlint/skills/check",
+  "ranking_note": "Authored from the current descriptions at base commit 725ee9f101 and frozen with no description rewrite (Plan B: cases and probes only); protocol per /playbooks:skill-authoring ## Measurement. actionlint:setup is excluded as a competitor because it is user-invoked only (disable-model-invocation: true). Competitors are bash-format:check and markdown-format:check (the same hook-prerequisite check for another plugin), harness-ops:prerequisites (missing tools across the whole enabled fleet) and toolchain:lint (running a linter, which check never does). check owns the read-only report on whether actionlint and node resolve for the actionlint hook, so install requests and lint runs are negatives. Hook-notice probes paraphrase the notice as text in the request.",
+  "competitors": [
+    "bash-format:check",
+    "markdown-format:check",
+    "harness-ops:prerequisites",
+    "toolchain:lint"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "At startup I got a line saying actionlint isn't on the hook PATH. Can you see what's actually there without changing anything?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I trust that my workflow YAML got linted on commit, confirm the actionlint binary and node can both be found here."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the actionlint plugin's tooling present on this machine? Just look, don't fix."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My commits touching .github/workflows never get any actionlint output. Is that because its prerequisites aren't resolving?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a pass/fail rundown of what the actionlint hook depends on in this environment."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "There was a hook error about node not being found for actionlint when the session opened. Diagnose it read-only."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can the actionlint pre-commit entry actually run here, or is a tool absent? Report only."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick preflight: will GitHub Actions workflow linting work in this container, given what's on PATH?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The session notice pointed me at the actionlint diagnosis. What does it find?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm not sure workflow lint is happening at all in this repo. Verify the actionlint setup's binaries resolve before I assume it ran."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install actionlint on this machine for me with whatever package manager I have."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint .github/workflows/release.yml and fix whatever problems it reports."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "A hook says shfmt is missing. Is shellcheck there too?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List every tool my enabled plugins expect that this machine doesn't have."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a GitHub Actions workflow that runs our test suite on every pull request."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why did the deploy job in yesterday's CI run fail? Pull the logs and tell me."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "markdownlint-cli2 wasn't found by a hook at startup; check whether it resolves."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Register the actionlint pre-commit entry in this clone as a shared hook for the whole team."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the linters over my staged changes and tell me what's wrong."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain what a GitHub Actions matrix strategy does and when to use one."
+    }
+  ]
+}

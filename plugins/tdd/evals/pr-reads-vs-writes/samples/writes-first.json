@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Cover the writes first: CreateAccount, ChangeEmail and CloseAccount can corrupt data.",
+      "why": "writes then first"
+    },
+    {
+      "answer": "**Start with the state-changing operations.** A bug there corrupts the database.",
+      "why": "start with, bold"
+    },
+    {
+      "answer": "| Priority | Operation | Why |\n|---|---|---|\n| Priority 1 | CreateAccount (write) | data corruption risk |",
+      "why": "table row"
+    },
+    {
+      "answer": "1. Writes always get an integration test.\n2. Reads only when complex.",
+      "why": "numbered list"
+    },
+    {
+      "answer": "Prioritize CloseAccount and ChangeEmail, then CreateAccount.",
+      "why": "names the write operations"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Cover GetAccountSummary and SearchAccounts first because they get the most traffic; CreateAccount can wait.",
+      "why": "traffic-first ranking"
+    },
+    {
+      "answer": "Test all five operations equally; each one deserves the same coverage.",
+      "why": "no priority"
+    },
+    {
+      "answer": "Start with GetAccountSummary and SearchAccounts for the traffic, then add the writes before release.",
+      "why": "traffic-first; writes come later"
+    },
+    {
+      "answer": "Use SUMIF to total the paid invoices.",
+      "why": "answer to a different question"
+    }
+  ]
+}

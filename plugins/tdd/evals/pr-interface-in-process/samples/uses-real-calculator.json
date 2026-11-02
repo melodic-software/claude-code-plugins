@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Construct OrderService with a real DiscountCalculator and assert on the order total.",
+      "why": "real DiscountCalculator"
+    },
+    {
+      "answer": "Keep the concrete class and pass it in: `var sut = new OrderService(new DiscountCalculator());`",
+      "why": "concrete class and a constructor call"
+    },
+    {
+      "answer": "| Option | Verdict |\n|---|---|\n| Use the actual implementation | Yes |",
+      "why": "table row"
+    },
+    {
+      "answer": "- Test through the **real calculator**; it has no I/O to isolate.",
+      "why": "bold list item"
+    },
+    {
+      "answer": "**No.** Extracting `IDiscountCalculator` only so the tests can mock it is a bad trade here.\n\n**Why not**\n\n1. **It's an in-process dependency, not something the outside world sees.** Khorikov's rule is to mock only *unmanaged out-of-process* dependencies: things like an SMTP server, a message bus or a third-party API, whose side effects other systems can observe. `DiscountCalculator` has no I/O, no shared state and nothing observable outside the process. How `OrderService` uses it is an implementation detail.\n\n2. **Mocking it makes the tests brittle.** A mocked calculator means tests that assert \"`OrderService` called `Calculate` with X and got Y.\" Those tests check how `OrderService` gets its answer, not whether the answer is right. Refactor that relationship (inline some logic, split the calculator, change a method signature) and they fail even though order totals are still correct. That's a false positive, and it's the worst failure on Khorikov's \"resistance to refactoring\" pillar.\n\n3. **The tests lose coverage.** With a stubbed calculator, the `OrderService` tests no longer check real pricing. A bug in how the two classes work together, such as passing the wrong subtotal or applying the discount twice, gets through.\n\n4. **An interface with one implementation is clutter.** It doesn't separate anything meaningful. It's an extra file and an extra hop when navigating code, and its only reason to exist is the tests. Khorikov calls this code pollution.\n\n**What to do instead**\n\n- **Use the real `DiscountCalculator` in the `OrderService` tests.** It's pure and fast, so nothing is lost. Assert on the outputs and state `OrderService` produces, like the order total and line items. Don't assert on the calls it makes.\n- **Test `DiscountCalculator` directly with output-based tests:** input → expected price, parameterized over the pricing rules. This is the cheapest and most robust kind of test, and it's the right place to cover discount edge cases in detail.\n- **If building the calculator in tests is awkward** (lots of config, say), fix that with a test data builder or factory. Adding an interface doesn't solve that problem.\n\n**When an interface would make sense:** if the calculator later starts calling an external pricing or promotions service, mock that outbound call at the system edge. Even then, keep the pure pricing logic concrete and in-process. You'd also want an abstraction if you really end up with several implementations, like per-region strategies. Having a test that wants a mock isn't, by itself, a reason to add one.",
+      "why": "observed with-plugin smoke reply: real `DiscountCalculator` in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Yes, extract it and use `new Mock<IDiscountCalculator>()` in the OrderService tests.",
+      "why": "mock of the interface"
+    },
+    {
+      "answer": "Filter column A to paid and read the status bar total.",
+      "why": "answer to a different question"
+    }
+  ]
+}

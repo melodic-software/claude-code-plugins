@@ -1884,6 +1884,204 @@ class LostRerunTests(Base):
             ev.lane_posted("claude-review", S, FIRST_STARTED, None, [], [])
         )
 
+    def test_a_marker_rewritten_during_attempt_one_does_not_bind(self) -> None:
+        # The producer edits one marker in place, so its creation predates
+        # attempt 1; attempt 1's rewrite shows only as an edit, and attempt
+        # 2's own rewrite, when it posts, comes after attempt 2's start.
+        for edits in (
+            ["2026-01-01T00:40:00Z"],
+            ["2026-01-01T02:30:00Z", "2026-01-01T00:40:00Z"],
+        ):
+            with self.subTest(edits=edits):
+                comments = edited_markers(*((at, S) for at in edits))
+                result = self.bind([self.lane_run(lost(), rerun_ok())], comments, [])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_marker_edits_outside_attempt_one_do_not_hold(self) -> None:
+        comments = edited_markers(
+            ("2026-01-01T02:30:00Z", S), ("2026-01-01T00:05:00Z", S)
+        )
+        result = self.bind([self.lane_run(lost(), rerun_ok())], comments, [])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_an_unprovable_marker_edit_counts_as_posted(self) -> None:
+        # Edit record missing, history missing, incomplete or empty, a
+        # revision unreadable or deleted.
+        late = ("2026-01-01T02:30:00Z", S)
+        cases: list[tuple[str, Any]] = [
+            ("no edit record", None),
+            ("no history", {"lastEditedAt": late[0], "editor": ACTIONS_BOT}),
+        ]
+        for name, change in (
+            ("incomplete", lambda h: h.update(totalCount=2)),
+            ("empty", lambda h: h.update(totalCount=0, nodes=[])),
+            ("no time", lambda h: h["nodes"][0].pop("editedAt")),
+            ("bad time", lambda h: h["nodes"][0].update(editedAt="x")),
+            ("deleted", lambda h: h["nodes"][0].update(deletedAt=late[0])),
+            ("no diff", lambda h: h["nodes"][0].pop("diff")),
+        ):
+            edit = edited_markers(late)[-1]["edit"]
+            change(edit["history"])
+            cases.append((name, edit))
+        for name, edit in cases:
+            with self.subTest(name):
+                comments = edited_markers(late)
+                if edit is None:
+                    del comments[-1]["edit"]
+                else:
+                    comments[-1]["edit"] = edit
+                self.assertTrue(
+                    ev.lane_posted(
+                        "claude-review", S, FIRST_STARTED, SECOND_STARTED,
+                        comments, [],
+                    )
+                )  # fmt: skip
+
+    def test_a_marker_rewritten_to_another_head_still_counts(self) -> None:
+        # Attempt 1 wrote this head; a later review rewrote it to the next.
+        comments = edited_markers(
+            ("2026-01-01T02:30:00Z", S1), ("2026-01-01T00:40:00Z", S)
+        )
+        self.assertTrue(
+            ev.lane_posted(
+                "claude-review", S, FIRST_STARTED, SECOND_STARTED, comments, []
+            )
+        )
+        other = edited_markers(
+            ("2026-01-01T02:30:00Z", S1), ("2026-01-01T00:40:00Z", S0)
+        )
+        self.assertFalse(
+            ev.lane_posted("claude-review", S, FIRST_STARTED, SECOND_STARTED, other, [])
+        )
+
+
+ACTIONS_BOT = {"__typename": "Bot", "login": "github-actions"}
+
+
+def edited_markers(*edits: tuple[str, str]) -> list[dict[str, Any]]:
+    """Both lanes' markers, claude-review's created before attempt 1 and
+    edited in place at each (time, head) of `edits`, newest first, as the
+    producer's `writeMarker` does; its body is the newest edit's."""
+    found = [m for m in both_markers() if "lane=claude-review " not in m["body"]]
+    nodes = [
+        {
+            "editedAt": at,
+            "deletedAt": None,
+            "editor": ACTIONS_BOT,
+            "diff": marker("claude-review", sha)["body"],
+        }
+        for at, sha in edits
+    ]
+    mark = marker("claude-review", edits[0][1])
+    mark["edit"] = {
+        "lastEditedAt": edits[0][0],
+        "editor": ACTIONS_BOT,
+        "history": {"totalCount": len(nodes), "nodes": nodes},
+    }
+    return [*found, mark]
+
+
+def no_outcome_line(lane: str) -> dict[str, Any]:
+    """publish-review's failure line (ci-workflows publish.cjs `fail`) for a
+    lane job that ended before it reported an outcome, as check run
+    124930676685 recorded it."""
+    return dict(
+        OTHER_FAILURE,
+        title="",
+        message=f"{lane}: failure-class=no-outcome:"
+        " the review job ended before it reported an outcome",
+    )
+
+
+def no_outcome(
+    lane: str = "claude-review", annotations: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    first = attempt(
+        lane,
+        S,
+        1,
+        [no_outcome_line(lane)] if annotations is None else annotations,
+        "failure",
+    )
+    first["run_started_at"] = FIRST_STARTED
+    return first
+
+
+class NoOutcomeRerunTests(Base):
+    """Attempt 2 after an attempt 1 whose lane job ended before it reported an
+    outcome binds only when that lane posted nothing on the head."""
+
+    def test_second_attempt_after_an_unposted_no_outcome_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                item = run(lane, S, attempts=[no_outcome(lane), rerun_ok(lane)])
+                result = self.bind([item])
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_a_no_outcome_whose_lane_posted_does_not_bind(self) -> None:
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:45:00Z",
+            "edit": UNEDITED,
+            "body": "Summary\n\n`claude-lane: claude-review`",
+        }
+        posted = thread(created="2026-01-01T00:50:00Z")
+        for comments, threads in (
+            ([*both_markers(), mark], []),
+            ([*both_markers(), summary], []),
+            (both_markers(), [posted]),
+        ):
+            with self.subTest(comments=len(comments), threads=len(threads)):
+                item = run("claude-review", S, attempts=[no_outcome(), rerun_ok()])
+                result = self.bind([item], comments, threads)
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_no_outcome_whose_lane_rewrote_its_marker_does_not_bind(self) -> None:
+        comments = edited_markers(
+            ("2026-01-01T02:30:00Z", S), ("2026-01-01T00:40:00Z", S)
+        )
+        item = run("claude-review", S, attempts=[no_outcome(), rerun_ok()])
+        result = self.bind([item], comments, [])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_no_outcome_that_recorded_a_review_does_not_bind(self) -> None:
+        done = record("claude-review", S, "findings=0 inline=0 scope=whole")
+        first = no_outcome(annotations=[no_outcome_line("claude-review"), done])
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_another_lanes_no_outcome_line_does_not_count(self) -> None:
+        first = no_outcome(annotations=[no_outcome_line("claude-security-review")])
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_an_unreadable_start_does_not_bind(self) -> None:
+        first = no_outcome()
+        first["run_started_at"] = None
+        result = self.bind([run("claude-review", S, attempts=[first, rerun_ok()])])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_a_no_outcome_is_not_allowed(self) -> None:
+        second = no_outcome()
+        second.update(run_attempt=2, run_started_at="2026-01-01T01:00:00Z")
+        second["jobs"][0]["run_attempt"] = 2
+        third = rerun_ok()
+        third["run_attempt"] = 3
+        third["jobs"][0]["run_attempt"] = 3
+        item = run("claude-review", S, attempts=[no_outcome(), second, third])
+        result = self.bind([item])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_gate_does_not_rerun_a_no_outcome(self) -> None:
+        # Binding only: a no-outcome from a lane defect fails every run until
+        # the fix ships, so a gate re-run would spend the one allowed attempt.
+        job = no_outcome()["jobs"][0]
+        self.assertEqual(ev.rerun_classes("claude-review", job), frozenset())
+        self.assertNotIn(ev.NO_OUTCOME, ev.GATE_RERUN_CLASSES)
+
 
 # The caller workflows' `Report the kill switch` notice
 # (pr-review-hosted.yml, pr-review-security-hosted.yml).

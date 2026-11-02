@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [8.32.1] - 2026-11-02
+
+### Fixed
+
+- The log-api-budget action writes each token's `api-calls` and `api-routes` notices before the per-counter `api-budget` ones, so they stay among the 10 notices of a step that become annotations; a job with two tokens and several counters (the pr-merge merge job) lost its `api-routes` lines, and with a content write its `github-token` total too.
+- pr-merge's full-run cover counts pr-require-checks.yml's scheduled and hand-started full runs of main toward the 30-minute cap and as cover of main's tip; only a github-actions[bot] dispatch still covers a lane merge for the cap bypass.
+- The cap comments in pr-merge.yml and pr-require-checks.yml name the lane-merge cap bypass, and the pr-pipeline config comment says the work-class lane hold covers untrusted provenance only.
+
+## [8.32.0] - 2026-11-01
+
+### Added
+
+- A listed human's reply on a thread the pr-unblock lane escalated now starts address-feedback within one dispatcher pass. The new unprivileged `pr-review-comment-relay.yml` (`pull_request_review_comment` `created`, `permissions: {}`, no checkout, no secret) runs for a person's comment on a lane branch of this repository, and `pr-feedback-dispatch.yml` lists it under `workflow_run.workflows`. `feedback-dispatch.mjs` reads the relay run back, requires a listed human as its actor and re-runner (never the lanes App), the PR among its `pull_requests` and a thread the lane escalated that a listed human answered (a fix request alone keeps the tick's sweep), counts only check runs started after the relay run, and names the relay run as the record's upstream. check-trusted-trigger's new `run-dispatcher-relay` input accepts that upstream by path, event and actor id in both run files; the azure-iac broker matches it (ADR 0088). A reply on a conflicted PR, where GitHub starts no review-comment run, is picked up by the review run after resolve-conflicts pushes.
+
 ## [8.31.4] - 2026-11-01
 
 ### Fixed

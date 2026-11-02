@@ -182,10 +182,17 @@ exit 0
 STUB
 chmod +x "$STUB_BIN/gh"
 export PATH="$STUB_BIN:$PATH"
+# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
+# it under the work dir without touching HOME.
+cat >"$STUB_BIN/getent" <<'GETENT'
+#!/usr/bin/env bash
+printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
+GETENT
+chmod +x "$STUB_BIN/getent"
 export STUB_LOG="$LOG"
 
 # The safe body dir the containment check keys off; BODY lives under it.
-SAFE_DIR="$TMP/safe"
+SAFE_DIR="$TMP/harness-ops"
 mkdir -p "$SAFE_DIR"
 BODY="$SAFE_DIR/body.txt"
 printf 'lane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' >"$BODY"
@@ -557,7 +564,7 @@ printf 'PRIVATE-KEY-MATERIAL\n' >"$SECRET"
 out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SECRET" --body-dir "$SAFE_DIR" 2>&1)"
 rc=$?
 assert_eq "body-file outside the safe dir rejected exit 3" 3 "$rc"
-assert_contains "containment message names the safe dir" "$out" "must resolve under the safe dir"
+assert_contains "containment message names the safe dir" "$out" "must resolve under the safe body dir"
 assert_not_contains "the secret's content is never read or echoed" "$out" "PRIVATE-KEY-MATERIAL"
 
 # A traversal body-file that escapes the safe dir via `..` is refused too
@@ -598,6 +605,80 @@ cp "$BODY" "$FOREIGN/body.txt"
 out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$FOREIGN/body.txt" --dry-run 2>&1)"
 rc=$?
 assert_eq "a foreign CLAUDE_PLUGIN_DATA is no safe body dir (exits 4)" 4 "$rc"
+
+# A credential-shaped body, from a contained file or from stdin, is withheld
+# whole before any API call and never echoed. The fake token is assembled at run
+# time so no token-shaped literal is tracked.
+FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
+LEAKY="$SAFE_DIR/leaky.txt"
+printf 'lane: triage\nnote: %s\n' "$FAKE_TOKEN" >"$LEAKY"
+: >"$LOG"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$LEAKY" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "a credential-shaped body file is withheld (exit 3)" 3 "$rc"
+assert_contains "the leak refusal names the rule and asks for rotation" "$out" "leak-scan rule 'GitHub token'; a real credential must be rotated"
+assert_not_contains "the leak refusal never prints the token" "$out" "$FAKE_TOKEN"
+assert_eq "the leak refusal makes no API call" "" "$(cat "$LOG")"
+out="$(printf 'lane: triage\nnote: %s\n' "$FAKE_TOKEN" | bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file - 2>&1)"
+rc=$?
+assert_eq "a credential-shaped stdin body is withheld too (exit 3)" 3 "$rc"
+assert_not_contains "the stdin leak refusal never prints the token" "$out" "$FAKE_TOKEN"
+assert_eq "the stdin leak refusal makes no API call" "" "$(cat "$LOG")"
+rm -f "$LEAKY"
+
+# A caller-chosen --body-dir must be the plugin's data dir: one not naming
+# harness-ops, or the home dir or an ancestor of it, is refused (exit 4).
+mkdir -p "$TMP/elsewhere"
+cp "$BODY" "$TMP/elsewhere/body.txt"
+: >"$LOG"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$TMP/elsewhere/body.txt" --body-dir "$TMP/elsewhere" 2>&1)"
+assert_eq "a --body-dir not naming harness-ops is refused (exit 4)" 4 "$?"
+out="$(STUB_PASSWD_HOME="$SAFE_DIR/user" HOME=/nonexistent-other bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+assert_eq "a --body-dir that is an ancestor of the home dir is refused (exit 4)" 4 "$?"
+assert_contains "the home-ancestor refusal names the rule" "$out" "home dir"
+assert_eq "the body-dir refusals make no API call" "" "$(cat "$LOG")"
+
+# CDPATH cannot redirect a relative body path to a same-named dir in the safe dir.
+mkdir -p "$TMP/cwd/sub" "$SAFE_DIR/sub"
+cp "$BODY" "$TMP/cwd/sub/body.txt"
+cp "$BODY" "$SAFE_DIR/sub/body.txt"
+out="$(cd "$TMP/cwd" && CDPATH="$SAFE_DIR" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file sub/body.txt --body-dir "$SAFE_DIR" 2>&1)"
+assert_eq "CDPATH cannot make an outside relative body path pass (exit 3)" 3 "$?"
+rm -rf "$SAFE_DIR/sub"
+
+# A home path in the body is withheld, naming the rule and never the path.
+# A fake home path, assembled at run time so no user path is tracked.
+FAKE_HOME="/ho""me/alice"
+printf 'lane: triage\nworktree: %s/worktrees/app\n' "$FAKE_HOME" >"$SAFE_DIR/homepath.txt"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/homepath.txt" --body-dir "$SAFE_DIR" 2>&1)"
+assert_eq "a body naming a home path is withheld (exit 3)" 3 "$?"
+assert_contains "the home-path refusal names the rule" "$out" "names a machine path or hostname (home path); remove it"
+assert_not_contains "the home-path refusal gives no rotation advice" "$out" "rotate"
+assert_not_contains "the home-path refusal never prints the path" "$out" "$FAKE_HOME"
+rm -f "$SAFE_DIR/homepath.txt"
+
+# A fleet-hostname-shaped instance in the marker is refused up front, blaming the
+# marker rather than the body, and never echoing it.
+FLEET_MARKER="lane:triage@melo-""lap-001"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "$FLEET_MARKER" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+assert_eq "a hostname-shaped marker instance is refused (exit 3)" 3 "$?"
+assert_contains "the hostname-marker refusal names the instance" "$out" "withheld from the public marker"
+assert_not_contains "the hostname-marker refusal does not blame the body" "$out" "body withheld"
+assert_not_contains "the hostname-marker refusal never prints the hostname" "$out" "melo-""lap-001"
+
+# A GitHub-hosted runner's home path reveals nothing: the scan lets it through.
+printf 'lane: triage\nlog: /ho''me/runner/work/app/app/run.log\n' >"$SAFE_DIR/runner.txt"
+printf '[]\n' >"$TMP/no-comments.json"
+out="$(STUB_COMMENTS_FILE="$TMP/no-comments.json" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/runner.txt" --body-dir "$SAFE_DIR" --dry-run 2>&1)"
+assert_eq "a hosted-runner home path is not withheld (dry run exits 0)" 0 "$?"
+rm -f "$SAFE_DIR/runner.txt"
+
+# The plugin name is checked again on the canonical dir.
+mkdir -p "$TMP/config"
+cp "$BODY" "$TMP/config/body.txt"
+ln -s "$TMP/config" "$TMP/harness-ops-x"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$TMP/harness-ops-x/body.txt" --body-dir "$TMP/harness-ops-x" 2>&1)"
+assert_eq "a --body-dir symlink named for the plugin but resolving elsewhere is refused (exit 4)" 4 "$?"
 
 # ============================================================================
 # SECURITY (defense in depth) — an oversized body is refused

@@ -202,6 +202,7 @@ export const DEFAULTS = Object.freeze({
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 
 // Why an owner PR is not adopted for a round now, or "": as fix-ci adopts one
 // (fix-ci-dispatch.mjs skipReason), no body line starting `Hold:` (the select
@@ -449,8 +450,14 @@ export async function dispatchFeedback({
   // verifyCapReader's cap refusal alone, or null.
   verifyCapped = () => null,
 }) {
+  // Each skip names the upstream run, so a relay or review run traces to its
+  // dispatch decision in one log read.
+  const upstreamOf = () => {
+    const path = WORKFLOW_PATH.test(String(upstream?.path)) ? upstream.path.slice(".github/workflows/".length) : "an unnamed workflow";
+    return `upstream ${path} run ${upstream?.id}`;
+  };
   const skip = (why) => {
-    log(`skip: ${why}`);
+    log(`skip: ${why} (${upstreamOf()})`);
     return null;
   };
   const upstreamRunId = upstream?.id;

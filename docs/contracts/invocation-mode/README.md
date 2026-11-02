@@ -28,9 +28,14 @@ of its cited page no longer matching the bullet re-derives it here):
 
 - **A `true` skill is model-invisible everywhere.** `disable-model-invocation: true` removes the
   skill from Claude's context entirely: the description never enters the listing, no other
-  skill can reach it mid-session, subagent preload is blocked, and (v2.1.196+) scheduled-task
-  prompts cannot name it. Only the human `/name` path remains. Hiding a skill from the model is
-  therefore a *total* trade, not a listing-budget optimization.
+  skill can reach it mid-session, subagent preload is blocked, and (v2.1.196+) in-product
+  scheduled-task and `/loop` prompts cannot name it. A cloud routine's prompt still can: probe
+  record, Claude Code 2.1.316, 2026-11-01
+  ([#11960](https://github.com/melodic-software/claude-code-plugins/issues/11960)), a user-invoked
+  plugin skill and a project skill each loaded from a routine prompt, with arguments and as a bare
+  `/skill`. A typed `/name` and a prompt a person or a routine writes remain. Hiding a skill from
+  the model is therefore a near-total trade, not a listing-budget optimization. Recheck: a release
+  note naming routines, scheduled tasks or `disable-model-invocation`.
 - **Surface coverage:** the Claude desktop and web apps leave user-invoked skills out of their skill list
   (upstream issue mattpocock/skills#693), so a user-invoked default would make skills invisible on
   those surfaces.
@@ -290,7 +295,7 @@ only the human can detect.
 dated: [ADR 0016](../../adr/0016-source-skill-recommendation-from-the-catalog-not-the-listing.md)
 shipped V1 manual-only for three stated reasons. None holds as an exception class. (1) *Costs no
 listing-budget description*, where the default section above rejects exactly this move: hiding a skill
-from the model is a total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
+from the model is a near-total trade, not a listing-budget optimization. (2) *Avoids a verbatim trigger
 collision with `session-flow:workflow`*, the same shape as #2969's candidate, and it dissolves the
 same way: ADR 0016 itself resolved that collision reciprocally, amending `workflow`'s
 "never present both" mandate to govern **stage** routing and cede option surfacing, and each
@@ -326,7 +331,7 @@ and blocks cross-skill reach and subagent preload, whereas a name-only entry is 
 model-invocable, and chainable. Whether any given description survives the aggregate is a
 fleet-wide budget question, owned by `harness-ops:audit-skill-visibility` and measured by the
 instrument above; it is not a reason to hide a skill, which the default section forecloses in
-terms ("hiding a skill from the model is a *total* trade, not a listing-budget optimization").
+terms ("hiding a skill from the model is therefore a near-total trade, not a listing-budget optimization").
 
 ADR 0016 is amended in place to record the revised posture; its core decision, to resolve candidates
 from the catalog rather than the listing, is untouched and is what makes this skill worth reaching.

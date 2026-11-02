@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Reads get a higher bar: test only the most complex or important ones.",
+      "why": "higher bar"
+    },
+    {
+      "answer": "- **Read operations**: test selectively. SearchAccounts has filtering logic, so it may earn one; GetAccountSummary probably not.",
+      "why": "selectively, bold list"
+    },
+    {
+      "answer": "| Reads | Lower priority, only if the query logic is complex |",
+      "why": "table row"
+    },
+    {
+      "answer": "A read bug doesn't corrupt anything, so queries come later and only the complex ones.",
+      "why": "queries later"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Test every read and every write; traffic makes GetAccountSummary the most important.",
+      "why": "no selectivity on reads"
+    },
+    {
+      "answer": "The reads get the most traffic, so bugs there hit more users; the writes run less often.",
+      "why": "traffic-first reasoning"
+    },
+    {
+      "answer": "Reads only matter later, once the writes are covered? No: the reads carry the traffic, so cover them first.",
+      "why": "bare 'only' and 'later' inside a reads-first answer"
+    },
+    {
+      "answer": "Use SUMIF to total the paid invoices.",
+      "why": "answer to a different question"
+    }
+  ]
+}

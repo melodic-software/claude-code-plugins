@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": "§1 Rhyme suggestion filter: identity check fail on both of yours, tier walk pass, mosaic present, cliche scan pass.\n\n**Identity check first.** re-LEASE, po-LICE and LEASE all put the same l in front of the same stressed ee-s. That's identity, not rhyme: the ear hears one word three times. So neither police nor lease; here is a menu instead.\n\n| Tier | Candidate | Note |\n| --- | --- | --- |\n| Perfect | *peace* | resolved, risks the cliche pairing |\n| Perfect | *grease* | the car, the road |\n| Perfect | *decrease* | slows the line down |\n| Family | *beef* | s to f, same voiceless family |\n| Family | *wreath* | s to th, a funeral shadow |\n| Additive | *east* | adds the t, a direction to drive |\n| Assonance | *seat* | the empty passenger seat |\n| Assonance | *keep* | vowel only, stays open |\n| Mosaic | *the streets* | multi-word, keeps the motion |\n| Mosaic | *on my knees* | multi-word, voiced z, a turn of feeling |\n\nWhich one depends on whether the chorus should land or stay restless. The pick is yours."
+    },
+    {
+      "answer": "1. in though\n2. thin glow\n3. winds blow\n4. win so\n5. sin oh\n6. wander\n7. been so slow\n8. in the snow"
+    },
+    {
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n| Subtractive | win so |\n| Assonance | sin oh |\n| Consonance | wander |\n| Mosaic | been so slow |\n| Mosaic | in the snow |",
+      "why": "exactly eight candidate rows under a header row"
+    },
+    {
+      "answer": "**1.** in though (family)\n**2.** thin glow (family)\n**3.** winds blow (additive)\n**4.** win so (subtractive)\n**5.** sin oh (assonance)\n**6.** wander (consonance)\n**7.** been so slow (mosaic)\n**8.** in the snow (mosaic)",
+      "why": "bold item numbers"
+    },
+    {
+      "answer": "- **Family**: in though\n- **Family**: thin glow\n- **Additive**: winds blow\n- **Subtractive**: win so\n- **Assonance**: sin oh\n- **Consonance**: wander\n- **Mosaic**: been so slow\n- **Mosaic**: in the snow",
+      "why": "a bold tier label leads each candidate bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- in though\n- thin glow\n- been so slow"
+    },
+    {
+      "answer": "The best rhyme is crescendo."
+    },
+    {
+      "answer": "Candidates: in though, thin glow, winds blow, win so, sin oh, wander, been so slow, in the snow.",
+      "why": "a single run-on line, not a labeled menu"
+    },
+    {
+      "answer": "| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n| Subtractive | win so |\n| Assonance | sin oh |\n| Consonance | wander |\n| Mosaic | been so slow |",
+      "why": "seven candidate rows; the header row is not a candidate"
+    },
+    {
+      "answer": "**Family rhymes**\n- in though\n- thin glow\n\n**Additive / subtractive**\n- winds blow\n- win so\n\n**Mosaic (multi-word)**\n- been so slow\n- in the snow",
+      "why": "six candidates; bold heading lines are not candidates"
+    },
+    {
+      "answer": "**Family and additive**\n\n| Tier | Candidate |\n| --- | --- |\n| Family | in though |\n| Family | thin glow |\n| Additive | winds blow |\n\n**Mosaic**\n\n| Tier | Candidate |\n| --- | --- |\n| Mosaic | been so slow |\n| Mosaic | in the snow |\n| Mosaic | spin and go |\n| Mosaic | kitchen glow |",
+      "why": "seven candidates plus two header rows and two bold headings"
+    },
+    {
+      "answer": "- **Family**\n  - in though\n  - thin glow\n- **Additive**\n  - winds blow\n  - win so\n- **Mosaic:**\n  - been so slow\n  - in the snow",
+      "why": "six candidates; bulleted bold tier labels are not candidates"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

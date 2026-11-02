@@ -152,6 +152,10 @@ jobs:
       max-parallel: 4
       matrix:
         unit: ${{ fromJson(needs.collect.outputs.units) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -416,6 +420,14 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
@@ -491,6 +503,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -763,6 +779,14 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
@@ -836,6 +860,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix: ${{ fromJson(needs.judge-subscription-handoffs.outputs.matrix) }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1051,6 +1079,14 @@ jobs:
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
           retention-days: 3
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'

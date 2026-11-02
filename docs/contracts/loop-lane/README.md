@@ -51,8 +51,9 @@ Merge authority is a configurable ladder with the safest rung shipped by default
 every PR except gate-proven C2-mechanical ones**. In the babysit loop's partition the exception is
 a *work-class* test, not an authorship test. There a PR qualifies only when the item classifies C2
 (mechanical), whether a bot, a human, or a worker authored it; bot authorship alone is never
-sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. The partition's
-rungs admit classes up to C3, so C4 (structural) sits outside every rung. **C5 (untrusted-provenance)
+sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. C4
+(structural) partitions like C3: the C3 rungs admit it once the `C3-auto-merge` cell is promoted,
+with its blocking AI review as the gate and no mandatory human review or merge. **C5 (untrusted-provenance)
 is the one class hold: no rung, no tracked config, and no invocation argument reaches it.**
 The pr-merge lane reads no class: it merges a pull request the lanes App opened for one closing
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
@@ -90,7 +91,7 @@ The one exception: an invocation whose own argument line explicitly types **both
 `autopilot` tier keyword **and** the dedicated raise argument `--merge c3-this-run` (each never
 inherited, never defaulted, never supplied by a config layer, never composed by a model on the
 caller's behalf), in a repository that has already adopted the baseline rung above, widens that
-single run's merge authority to cover every work class up to and including C3, still bounded by
+single run's merge authority to the C3 rung (work classes C2 through C4), still bounded by
 the C5 hold. The pair is deliberate: `autopilot` predates the exception as a
 merge-inert tier keyword, so a saved invocation, alias, or expanded template that already carries
 it must acquire no merge authority. The tier keyword alone leaves the merge rung at its
@@ -130,9 +131,8 @@ set when unset, never bypassing the fork test and never weakening a dependency-m
 The key, its grammar, and its composition rules are owned by the babysit lane's config
 reference (`plugins/source-control/reference/config-resolution.md`,
 `babysit_loop_trusted_internal_bot_logins`). C4 follows the diff's blast radius: a refactor,
-migration, or contract change is C4
-however its item is stamped, and a PR whose shape no longer matches its recorded class fails closed
-to escalation. The partition's verdict attaches to the exact head SHA it examined: any push after the
+migration, or contract change is C4 however its item is stamped. The diff can raise the recorded
+class, never lower it, and a PR whose diff class cannot be read fails closed to escalation. The partition's verdict attaches to the exact head SHA it examined: any push after the
 verdict, whether the pre-escalation resolver's or the merge-capable worker's own fix, re-derives
 the verdict on the new head before any merge, so no head merges that the partition never examined.
 
@@ -914,8 +914,8 @@ another's. The marker therefore carries a lane-instance suffix, the lane-type ma
 MARKER="<lane-marker>@<lane_instance>"
 ```
 
-`<lane_instance>` is resolved from launch config, defaulting to the sanitized lowercased machine
-hostname when unset (headless-config floor: never block on an interview, log the assumption). It
+`<lane_instance>` is resolved from launch config, defaulting to a random id made once and kept in
+the plugin data dir when unset (never the hostname, which the public marker would publish) (headless-config floor: never block on an interview, log the assumption). It
 must be **stable across restarts**, since durable state is precisely what survives a `/loop` expiry
 or a cycle-budget relaunch, and **distinct across concurrently running instances**, so two lanes on one
 machine must each be given an explicit id. It is operator-supplied text interpolated into a shell

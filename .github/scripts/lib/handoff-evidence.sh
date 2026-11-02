@@ -38,6 +38,10 @@
 # ::error line naming what stayed missing and no output, when a fact is still
 # unsettled after the last read; callers read an empty output as a failed read.
 set -euo pipefail
+# In a job, each gh call keeps its rate-limit reading for the job-end
+# api-budget notice (.github/actions/log-api-budget).
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 
 [[ $# -gt 0 ]] || {
   echo "::error::usage: handoff-evidence.sh FACT... (allowed, posted, handed-off, stale)"

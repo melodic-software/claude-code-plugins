@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://blog.example.invalid/2026/10/leaving-twitter", "prompt": "List the main reasons given"}}],
+      "why": "plain WebFetch of the page"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://blog.example.invalid/2026/10/leaving-twitter?via=threadreaderapp.com", "prompt": "Reasons"}}],
+      "why": "converter name only in a query string"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://threadreaderapp.com/thread/2026.html", "prompt": "Posts"}}],
+      "why": "Thread Reader App on a non-X URL"
+    },
+    {
+      "answer": [{"tool": "WebFetch", "input": {"url": "https://xtomd.com/", "prompt": "Convert https://blog.example.invalid/2026/10/leaving-twitter"}}],
+      "why": "xtomd for a blog page"
+    }
+  ]
+}

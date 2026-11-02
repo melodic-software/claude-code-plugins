@@ -171,8 +171,8 @@ scope; non-matching ones are inert and the report lists them as `skipped-for-tar
   exact model-scoped distinctions the catalog draws. When the ambiguous value is a documented
   family alias, the abort message also names the normalized token of the version that alias
   currently resolves to per the live model-config docs, as a suggested `--target-model` value the
-  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `opus-5-5`;
-  re-run with `--target-model opus-5-5` to confirm"). Suggesting is not guessing: the user's
+  user confirms, never a value the run proceeds on (e.g. "`opus` currently resolves to `<version>`;
+  re-run with `--target-model <version>` to confirm"). Suggesting is not guessing: the user's
   confirmation is what turns the resolution into a target. The resolved target (and how it was
   resolved) is named in the report's tier-transparency line.
 
@@ -347,8 +347,8 @@ what belongs to `harness-memory:audit`'s C6 instead.
 
 Every removal or rewrite proposal is re-judged before it reaches the report. Dispatch **fresh-context,
 non-fork** subagents, since this is a self-grade of the audit's own proposals and a fork that inherits the
-producing context would not be independent, prompted to refute: "would removing this instruction
-cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
+producing context would not be independent (pointer: when checking what a fork inherits, fetch [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
+live; as of 2026-11-01, recheck when that table changes what a fork inherits), prompted to refute: "would removing this instruction cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
 high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
 installed and set up**, e.g. the OpenAI Codex plugin, invoked per its own docs, with the
 fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not

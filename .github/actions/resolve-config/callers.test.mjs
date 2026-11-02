@@ -3368,11 +3368,20 @@ const CREDENTIALS = {
   "Azure client secret": ` abc1Q~${"x".repeat(32)}`,
   "Cloudflare API token": `${"cfut"}_${"A".repeat(40)}`,
   "upload token": `${"pgup"}_${"A".repeat(20)}`,
+  "npm token": `${"npm"}_${"Ab1".repeat(12)}`,
+  "Google API key": `${"AI"}za${"Fake_-9".repeat(5)}`,
+  "JSON Web Token": `${"eyJ"}hbGciOiJub25lIn0.${"eyJ"}zdWIiOiJGQUtFIn0.${"x".repeat(24)}`,
+  "Docker registry auth": `{"${"au"}th":"${"QUJD".repeat(5)}"}`,
+  "Azure storage account key": `Account${"Key"}=${"QUJD".repeat(11)}==`,
+  "Pulumi access token": `${"pul"}-${"0a".repeat(20)}`,
+  "base64-encoded PEM block": `${"LS0tLS1CRUdJ"}Ti${"A".repeat(24)}`,
+  "netrc password": `machine api.example.com login fakeuser pass${"word"} fakepassword1`,
 };
 const ASSIGNMENT = `password = '${["hunter2", "zz9"].join("-")}'`;
 test("leak scan: every credential format the gate names blocks and asks for rotation", async (t) => {
   const { SECRET_PATTERNS } = await import("../../../lib/publish-gate.mjs");
-  const blocking = SECRET_PATTERNS.map(([label]) => label).filter((label) => label !== "password or secret assignment");
+  // A label with two patterns (netrc password) needs one sample.
+  const blocking = [...new Set(SECRET_PATTERNS.map(([label]) => label))].filter((label) => label !== "password or secret assignment");
   assert.deepEqual(Object.keys(CREDENTIALS).toSorted(), blocking.toSorted(), "one sample per blocking label");
   for (const [label, sample] of Object.entries(CREDENTIALS)) {
     const { clean, failed } = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `x ${sample} y\n`));
@@ -4048,6 +4057,11 @@ test("scan job: the reply, run fields and patch round-trip sealed from the run j
   const stopped = await scanIn(t, { go: "false", "kill-proceed": "true", "trigger-proceed": "false", "trigger-reason": "untrusted-actor" });
   assert.equal(stopped.open.ran, false);
   assert.deepEqual([stopped.failed, stopped.outputs.reply, stopped.outputs.patch], [null, "false", "false"]);
+  // A superseded run: the trigger gate proceeded, then the moved head left
+  // head-sha empty and skipped everything after it.
+  const superseded = await scanIn(t, { go: "", "kill-proceed": "true", "trigger-proceed": "true", "trigger-reason": "ok", "gate-reason": "", "head-sha": "", "config-outcome": "skipped", "act-outcome": "skipped" });
+  assert.equal(superseded.open.ran, false);
+  assert.deepEqual([superseded.failed, superseded.outputs.reply, superseded.outputs.patch], [null, "false", "false"]);
 });
 
 // Issue mode seals its outcome files with the reply, run fields and patch.
@@ -6379,7 +6393,9 @@ function readPosted(t, step, listing, { fail = false, delays = "0 0 0 0 0" } = {
 // passed on as fallback-ready, in the step after its read.
 function assertFallbackPresence(job) {
   assert.deepEqual(stepSecrets(withoutPresenceChecks(job)), [], "no secret value");
-  const presence = job.steps.at(-1);
+  // The last step logs the job's api budget.
+  assert.equal(job.steps.at(-1).uses.split(" ")[0], "./.base/.github/actions/log-api-budget");
+  const presence = job.steps.at(-2);
   assert.equal(presence.id, "fallback");
   assert.deepEqual(presence.env, { PRESENT: "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}" });
   assert.equal(job.outputs["fallback-ready"], "${{ steps.fallback.outputs.ready }}");
@@ -6392,12 +6408,12 @@ function assertHandoffEvidenceJob(job) {
   assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
   assert.equal(checkout.with.path, ".base");
   assert.equal(checkout.with["persist-credentials"], false);
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   // A file path, not a cone directory: cone mode would check out no file.
   assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
-  assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed)+$/);
+  assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed| handed-off)+$/);
   assert.deepEqual(Object.keys(read.env).sort(), ["CALLS", "GH_TOKEN"]);
   assertFallbackPresence(job);
 }
@@ -6599,17 +6615,19 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.ok(handoff, "pr-refine.yml has a fix-docs-handoff job");
   assert.doesNotMatch(sub.if, /needs\.fix-docs\.outputs\./, "the start reads no fix-docs output");
   // The evaluator refuses any reference left unset: the start reads only these.
-  const starts = (posted, allowed, result = "success") =>
+  const starts = (posted, allowed, handedOff, result = "success") =>
     evaluate(sub.if, {
       "needs.fix-docs.result": result,
       "needs.fix-docs-handoff.outputs.posted": posted,
       "needs.fix-docs-handoff.outputs.allowed": allowed,
+      "needs.fix-docs-handoff.outputs.handed-off": handedOff,
     });
-  assert.equal(starts("false", "true"), true, "a handoff after the broker's allow");
-  assert.equal(starts("true", "true"), false, "fix-docs posted its check");
-  assert.equal(starts("false", "false"), false, "a kill switch or broker refusal");
-  assert.equal(starts("", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
-  assert.equal(starts("", "", "skipped"), false, "no fix-docs call, no fallback");
+  assert.equal(starts("false", "true", "true"), true, "a credit stop or an empty key hands off after the broker's allow");
+  assert.equal(starts("true", "true", "false"), false, "fix-docs posted its check");
+  assert.equal(starts("false", "false", "false"), false, "a kill switch or broker refusal");
+  assert.equal(starts("false", "true", "false"), false, "a supersede or trigger decline: allowed, nothing posted, but its scan job ran");
+  assert.equal(starts("", "", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
+  assert.equal(starts("", "", "", "skipped"), false, "no fix-docs call, no fallback");
   assert.deepEqual(handoff.needs, ["fix-docs-head", "fix-docs"]);
   for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
     assert.equal(evaluate(handoff.if, { "needs.fix-docs.result": result }), runs, result);
@@ -6619,17 +6637,24 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   assert.deepEqual(handoff.outputs, {
     posted: "${{ steps.posted.outputs.posted }}",
     allowed: "${{ steps.posted.outputs.allowed }}",
+    "handed-off": "${{ steps.posted.outputs.handed-off }}",
     "fallback-ready": "${{ steps.fallback.outputs.ready }}",
   });
   const step = handoff.steps[1];
   assert.equal(step.env.CALLS, "fix-docs");
-  // The one read fix-ci-unreported runs, byte for byte.
-  assert.equal(step.run, workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted").run);
-  const listing = ({ posted = false, reportRan = true, allowed = true } = {}) => ({
+  // The one read fix-ci-unreported runs, plus the handed-off fact the third
+  // calls' handoff jobs read.
+  const unreported = workflow("pr-unblock.yml").jobs["fix-ci-unreported"].steps.find((s) => s.id === "posted").run;
+  assert.equal(step.run, unreported.replace("posted allowed", "posted allowed handed-off"));
+  assert.notEqual(step.run, unreported);
+  // A handoff skips the scan and report jobs; a supersede or a trigger decline
+  // runs both, and posts nothing.
+  const listing = ({ posted = false, reportRan = true, allowed = true, scanRan = reportRan } = {}) => ({
     jobs: [
       { name: "fix-docs-head", conclusion: "success", steps: [] },
       { name: "fix-docs / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
       { name: "fix-docs / run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
+      { name: "fix-docs / scan", conclusion: scanRan ? "success" : "skipped", steps: [] },
       {
         name: "fix-docs / report",
         conclusion: reportRan ? "success" : "skipped",
@@ -6638,14 +6663,22 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
     ],
   });
   for (const [name, list, outputs] of [
-    ["fix-docs posted its check", listing({ posted: true }), { posted: "true", allowed: "true" }],
-    ["a handoff skipped the report job", listing({ reportRan: false }), { posted: "false", allowed: "true" }],
-    ["the broker allowed nothing", listing({ allowed: false }), { posted: "false", allowed: "false" }],
+    ["fix-docs posted its check", listing({ posted: true }), { posted: "true", allowed: "true", "handed-off": "false" }],
+    ["a credit stop or an empty key handed off", listing({ reportRan: false }), { posted: "false", allowed: "true", "handed-off": "true" }],
+    ["a supersede posted nothing after its scan ran", listing({ posted: false }), { posted: "false", allowed: "true", "handed-off": "false" }],
+    ["the broker allowed nothing", listing({ allowed: false }), { posted: "false", allowed: "false", "handed-off": "false" }],
   ]) {
     const read = readPosted(t, step, list);
     assert.equal(read.status, 0, name);
     assert.deepEqual(read.outputs, outputs, name);
   }
+  // End to end: a superseded fix-docs starts no second leg; a handoff does.
+  const legFrom = (list) => {
+    const { outputs } = readPosted(t, step, list);
+    return starts(outputs.posted, outputs.allowed, outputs["handed-off"]);
+  };
+  assert.equal(legFrom(listing({ posted: false })), false, "a superseded call starts no next leg");
+  assert.equal(legFrom(listing({ reportRan: false })), true, "a credit stop or an empty key starts the next leg");
   const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
@@ -6854,10 +6887,12 @@ test("pr-unblock.yml: a refused fix-ci collection runs apply-patch, whose select
 });
 
 // #8954, fix-ci's half: the run job binds the head it works on to the head
-// the caller gated, before any head code.
-test("pr-run-activity-read.yml: a trigger gate that read another head than the caller's fails the run before the head checkout", (t) => {
+// the caller gated, before any head code. A moved head is a supersede: the
+// run ends as a trigger decline's skip, not red.
+test("pr-run-activity-read.yml: a trigger gate that read another head than the caller's supersedes the run as a skip before the head checkout", (t) => {
   const steps = runSteps();
   const check = steps.find((step) => step.name === "Assert the gated head is the caller's");
+  assert.equal(check.id, "gated-head");
   assert.ok(steps.indexOf(check) > steps.findIndex((step) => step.id === "gate"));
   assert.ok(steps.indexOf(check) < steps.findIndex((step) => step.name === "Check out the PR head"));
   assert.deepEqual(check.env, { CALLER_HEAD: "${{ inputs.head-sha }}", HEAD_SHA: "${{ steps.gate.outputs.head-sha }}" });
@@ -6867,10 +6902,56 @@ test("pr-run-activity-read.yml: a trigger gate that read another head than the c
   assert.equal(runs("false", TRUSTED), false);
   const root = tempDir("gated-head-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const moved = runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
-  assert.equal(moved.status, 1);
-  assert.match(moved.stdout, /^::error::the PR head the trigger gate read is not the head the caller gated/m);
-  assert.equal(runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: TRUSTED }).status, 0);
+  const run = (env) => {
+    const output = join(root, `output-${env.HEAD_SHA}`);
+    writeFileSync(output, "");
+    const result = runStep(check, root, { ...env, GITHUB_OUTPUT: output });
+    return { ...result, outputs: outputLines(output) };
+  };
+  const moved = run({ CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
+  assert.equal(moved.status, 0, moved.stdout);
+  assert.match(moved.stdout, /^::notice::superseded: the PR head moved; a later dispatch reads the new head$/m);
+  assert.doesNotMatch(moved.stdout, /::error::/);
+  assert.deepEqual(moved.outputs, { superseded: "true" });
+  const same = run({ CALLER_HEAD: TRUSTED, HEAD_SHA: TRUSTED });
+  assert.equal(same.status, 0, same.stdout);
+  assert.deepEqual(same.outputs, {});
+  // A supersede skips every step that needs the gate to proceed: trusted-base,
+  // and through it config, go and every head step.
+  const trustedBase = steps.find((step) => step.id === "trusted-base");
+  const gated = (superseded) => atStep(trustedBase.if, { "steps.gate.outputs.proceed": "true", "steps.gated-head.outputs.superseded": superseded });
+  assert.equal(gated("true"), false);
+  assert.equal(gated(""), true);
+  // Every later step is off on a supersede: each if:, with the steps before
+  // the check succeeded, every later step skipped, and every other output
+  // empty, reads false. api-failures runs always() and touches no head.
+  const at = steps.indexOf(check);
+  const ran = new Set(steps.slice(0, at + 1).map((step) => step.id).filter(Boolean));
+  const later = steps.slice(at + 1);
+  assert.ok(later.length > 40);
+  for (const step of later) {
+    if (step.id === "api-failures") continue;
+    assert.ok(step.if, `${step.name} has no if:`);
+    const refs = [...new Set(String(step.if).match(/\b(?:steps|inputs|needs|vars|github|job)\.[\w.-]*[\w]/g) ?? [])];
+    const context = {};
+    for (const ref of refs.sort((a, b) => b.length - a.length)) {
+      const [, id, kind] = /^steps\.([\w-]+)\.(outcome|conclusion|outputs)/.exec(ref) ?? [];
+      if (kind === "outcome" || kind === "conclusion") context[ref] = ran.has(id) ? "success" : "skipped";
+      else context[ref] = { "job.status": "success", "steps.gated-head.outputs.superseded": "true", "steps.gate.outputs.proceed": "true", "steps.kill.outputs.proceed": "true" }[ref] ?? "";
+    }
+    assert.equal(atStep(step.if, context), false, `${step.name} runs on a supersede`);
+  }
+  // The run's head-sha stays empty, so the report job takes the trigger
+  // decline's empty-head path (neutral not-assessed, or no post), never failure.
+  const headSha = workflow("pr-run-activity-read.yml").jobs.run.outputs["head-sha"];
+  const runHead = (superseded) => evaluate(headSha, { "steps.gate.outputs.head-sha": OTHER, "steps.gated-head.outputs.superseded": superseded });
+  assert.equal(runHead("true"), "");
+  assert.equal(runHead(""), OTHER);
+  const head = chooseHead(t, { RUN_HEAD: runHead("true"), CALLER_HEAD: TRUSTED, API_HEAD: OTHER });
+  assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false", "not-run-reason": "not-assessed" });
+  const report = posted(head, { runResult: "success" });
+  assert.deepEqual([report.head_sha, report.conclusion, report.output.title], [TRUSTED, "neutral", "Skipped: not-assessed"]);
+  assert.deepEqual(chooseHead(t, { RUN_HEAD: "", CALLER_HEAD: TRUSTED, POST_DECLINE: "false" }).outputs, { post: "true", sha: "", forged: "false" });
   // Every fix-ci call passes the head fix-ci-context gated.
   const { jobs } = workflow("pr-unblock.yml");
   for (const id of FIX_CI_CALLS) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
@@ -7043,7 +7124,7 @@ test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue
   assert.equal(evaluate(handoff.if, { "needs.admit.outputs.proceed": "false", "needs.resolve-issue.result": "success" }), false, "unadmitted");
   assert.deepEqual(handoff.permissions, { actions: "read", contents: "read" });
   assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}", "fallback-ready": "${{ steps.fallback.outputs.ready }}" });
-  assert.equal(handoff.steps.length, 3);
+  assert.equal(handoff.steps.length, 4);
   assert.deepEqual(handoff.steps[0], workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0], "the same sparse checkout");
   assertFallbackPresence(handoff);
   assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
@@ -7696,7 +7777,7 @@ test("work-resolve-issue.yml: resolve-issue-stale reads the stale stop from the 
   assert.deepEqual(job.needs, ["admit", ...STALE_CALLS]);
   assert.deepEqual(job.permissions, { actions: "read", contents: "read" });
   const [checkout, read] = job.steps;
-  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh\n.github/actions/log-api-budget\n");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(read.run, "bash .base/.github/scripts/lib/handoff-evidence.sh stale");
   assert.equal(read.env.CALLS, STALE_CALLS.join(" "));

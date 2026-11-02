@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "§3 Critique filter: run. The melody is fixed, so this is a fit question, answered in notes, not a length question.\n\nPositional template for line 2, from the recording:\n\n```text\nline: I  left  the  porch  light  burn-  ing  ev-  ery  night  for  you\nscan: u  u     u    /      u      /      u    u    u    /      u    u\nsyl:  1  2     3    [4]    5      [6]    7    8    9    [10]   11   12\n```\n\nTwelve notes, three strong slots at 4, 6 and 10. A car line has to put a meaning carrier on each bracketed slot and keep road signs off them. Writing that line is `/songwriting:co-write` line-brainstorm's job; take this template there."
+    },
+    {
+      "answer": "Slots 4, 6 and 10 need stressable words; a noun like \"engine\" or \"headlights\" could sit on 4. The line itself is co-write's to draft."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's a line that fits the notes: \"I keep the engine running every night for you.\"",
+      "why": "writes the replacement line"
+    },
+    {
+      "answer": "Template: 1 2 3 [4] 5 [6] 7 8 9 [10] 11 12.\n\nCandidates:\n1. I leave the motor idling every night for you\n2. I park the Chevy facing east for you each night",
+      "why": "template, then fitted candidate lines"
+    }
+  ]
+}

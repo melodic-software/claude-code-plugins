@@ -3,6 +3,26 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.4] - 2026-11-01
+
+### Changed
+
+- `reference/standards-contract.md` is now at standards-contract 1.1.2. Rung 4 of the resolution ladder and setup's bootstrap step 1 now name a `CODING_STANDARDS.md` and a `CONTRIBUTING.md` at the resolution root as sources for inferring standards when no index exists.
+- `setup` lists a root `CODING_STANDARDS.md` and `CONTRIBUTING.md` among the inference sources it reads.
+
+## [2.3.3] - 2026-11-01
+
+### Security
+
+- The publish gate keeps a view local (and refuses the hosted page) when it carries an npm, Google API, Pulumi or Azure storage key, a JWT, Docker registry auth, a base64-encoded PEM block or a netrc password.
+- netrc passwords are caught in the `default` entry and on a `password` line of their own.
+
+## [2.3.2] - 2026-11-01
+
+### Changed
+
+- `security-review` names the babysit risk scripts through `/source-control:babysit-prs` rather than by a path into that plugin's skill directory.
+
 ## [2.3.1] - 2026-11-01
 
 ### Changed
