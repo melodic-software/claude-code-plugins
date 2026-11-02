@@ -105,6 +105,19 @@ Count each arm's rows for the run count, never `runsPerCase`: under `--runs 2` a
 - **Recheck trigger**: the plugin-evals page documents `runsPerCase`, or a run's `runsPerCase`
   matches its row count under `--runs`. Then update this paragraph.
 
+A case whose case.yaml sets `context.history_file` runs with-arm only from a path target even
+under `suite.ablation: with-without`: its `arms` holds no `without` key at all, and it has no
+delta. `run-validity.py` accepts that shape as single-arm by design and warns; an empty or short
+`without` list still fails the row count.
+
+- **Basis**: two `aggregate-result.json` files from path-target runs at Claude Code 2.1.316, with
+  `suite.ablation: with-without`, where every `history_file` case held 3 with-arm rows and no
+  `without` key; no docs page states the single-arm rule
+  (<https://code.claude.com/docs/en/plugin-evals#json-result>).
+- **As of**: 2026-11-01
+- **Recheck trigger**: the plugin-evals page documents how `history_file` interacts with
+  `--ablation`, or a path-target run records a `without` arm for a `history_file` case.
+
 `cases[].aggregates` carries `score` and `passRate` for the with-arm, plus `scoreWithout`,
 `passRateWithout`, and `delta` when the arms are comparable. Observed on a suite where one
 without-run lost its judge to the ceiling: `scoreWithout` and `delta` were both absent while
