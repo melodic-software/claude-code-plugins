@@ -81,6 +81,19 @@
         }
       ],
       "why": "Allman-style rejection, then another option reads args"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "old_string": "// usage\n",
+            "new_string": "case \"--token\":\n    return Usage(\"--token is not supported; set TARNQUILL_FORGE_TOKEN\");\ncase \"--title\":\n    if (i + 1 >= args.Length) return Usage(\"--title needs a value\");\n    title = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "rejected flag, then a guarded option that reads args"
     }
   ],
   "fail": [
@@ -174,6 +187,32 @@
         }
       ],
       "why": "guarded case label"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "old_string": "// usage\n",
+            "new_string": "case \"--token\":\n    if (i + 1 >= args.Length) return Usage(\"--token needs a value\");\n    token = args[++i];\n    break;\n"
+          }
+        }
+      ],
+      "why": "bounds guard before the read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs",
+            "old_string": "// usage\n",
+            "new_string": "if (args[i] == \"--token\")\n{\n    if (i + 1 >= args.Length) { Console.Error.WriteLine(\"missing value\"); return 2; }\n    token = args[++i];\n}\n"
+          }
+        }
+      ],
+      "why": "Allman block with a bounds guard"
     }
   ]
 }
