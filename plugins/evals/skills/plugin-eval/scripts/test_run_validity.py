@@ -1124,6 +1124,10 @@ class RunValidityTest(unittest.TestCase):
         for calls in (
             [("Read", {"file_path": lease})],
             [("Bash", {"command": "cat " + lease})],
+            # A redirect naming no file is not a cwd-relative path.
+            [("Bash", {"command": "ls -la %s 2>&1" % lease})],
+            [("Bash", {"command": "cat %s 2>/dev/null" % lease})],
+            [("Bash", {"command": "cat %s > /dev/null" % lease})],
             [("Write", {"file_path": lease, "content": "x"}),
              ("Read", {"file_path": self.own_data("other", "last-audit.md")})],
         ):
@@ -1163,6 +1167,9 @@ class RunValidityTest(unittest.TestCase):
             ([("Read", {"file_path": str(sandbox / "config" / "plugins" / "other" / "x")})], None),
             # A Bash call with one path inside plugin data and one outside.
             ([("Bash", {"command": "cp %s /etc/hosts" % lease})], None),
+            # A redirect to a real file still names a path.
+            ([("Bash", {"command": "cat %s > out.txt" % lease})], None),
+            ([("Bash", {"command": "cat %s 2> /etc/x" % lease})], None),
             # Another sandbox's plugin data is not this run's.
             ([("Read", {"file_path": str(self.dir.joinpath(
                 "claude-eval-zz", "config", "plugins", "data", "p", "lease"))})], None),

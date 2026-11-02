@@ -192,6 +192,12 @@ SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
 UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
 # A path that resolves against the validator's own process, matched normalized.
 OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
+# A redirect word that names no file the command reads or writes: an fd
+# duplication or close (2>&1, >&2, 2>&-) or a redirect to /dev/null, with or
+# without its fd (>/dev/null, 2>/dev/null, &>/dev/null). A bare operator (2>)
+# takes the next word as its operand, dropped only when it is /dev/null.
+REDIRECT = re.compile(r"(?:\d*|&)(?:>>?|<)(&(?:\d+|-)|/dev/null)?")
+DEV_NULL = "/dev/null"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -802,6 +808,7 @@ def rooted(path):
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
     redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
+    REDIRECT word naming no file (2>&1, 2>/dev/null) is dropped first. A
     word UNRESOLVED matches, a relative path with a slash or any later word that
     is neither rooted nor a flag (cwd-relative, so possibly the plugin), a path
     OWN_PROCESS matches, no rooted word, or a command that does not parse adds
@@ -810,6 +817,21 @@ def bash_paths(command):
         words = shlex.split(command) if isinstance(command, str) else None
     except ValueError:
         words = None
+    if not words:
+        return (None,)
+    kept, skip = [], False
+    for index, word in enumerate(words):
+        if skip:
+            skip = False
+            continue
+        redirect = REDIRECT.fullmatch(word)
+        if redirect and redirect.group(1):
+            continue
+        if redirect and words[index + 1 : index + 2] == [DEV_NULL]:
+            skip = True
+            continue
+        kept.append(word)
+    words = kept
     if not words:
         return (None,)
     values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
