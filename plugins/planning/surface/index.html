@@ -71,8 +71,8 @@ dl.terms{margin:8px 0}dl.terms dt{font-weight:600;margin-top:8px}dl.terms dd{mar
 .cons{margin-top:6px;font-size:13.5px;overflow-wrap:anywhere}
 .cons[hidden]{display:none}
 .cons summary{cursor:pointer;font-weight:600;color:var(--muted)}
-.cons ul{margin:4px 0 0;padding-left:20px}
-.cons li b{font:600 12.5px var(--mono);margin-right:6px}
+.cons ul,.cons ol{margin:4px 0 0;padding-left:20px}
+.cons li > b{font:600 12.5px var(--mono);margin-right:6px}
 .handoff{margin-top:6px;padding:6px 10px;border:1px solid var(--accent);border-radius:6px;color:var(--ink);background:var(--accent-soft);font-size:13.5px;overflow-wrap:anywhere}
 .ntoast{position:fixed;left:16px;bottom:16px;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(440px,calc(100vw - 32px));border:1px solid var(--chg);background:var(--panel);border-radius:8px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13.5px;pointer-events:none}
 .ntoast button{pointer-events:auto}
@@ -486,6 +486,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     <div class="banner" id="reBanner" hidden></div>
     <div class="handoff" id="hoBanner" role="status" hidden></div>
     <details class="cons" id="consPanel" hidden><summary id="consSum"></summary><ul id="consList"></ul></details>
+    <details class="cons" id="orderPanel" hidden><summary id="orderSum"></summary><ol id="orderList"></ol></details>
   </header>
   <div class="layout" id="layout">
     <nav class="rail" aria-label="Questions">
@@ -583,7 +584,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const LABEL = {open: "Open", accept: "Accepted", hedged: "Hedged", alt: "Alternative", own: "Own answer", defer: "Deferred", wait: "Pending research", need: "Needs your answer", sup: "Superseded", arch: "Archived", prop: "Proposed"};
   const DEC = new Set(["accept", "alt", "own", "defer", "hedged", "reopen"]);
   const SUMMARY = "__summary";
-  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, readingWindow: 180, frontierLock: "confirm", requireDepends: false};
+  const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600, settleQuiet: 10, settleBurst: 30, readingWindow: 180, frontierLock: "confirm", requireDepends: false, orderThreshold: 25};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
   const FIRST_WAKE = "approve any prompt in the terminal, or type next"; // the header's instruction while no watcher has ever polled
@@ -1157,6 +1158,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const qs = S.doc.questions || [], unchecked = qs.filter(q => (q.changedBy || []).some(isCons)).length; // a question's changedBy holds a constraint id when it was not checked against that constraint
     $("consPanel").hidden = !cons.length; $("consSum").textContent = "Constraints (" + cons.length + ")" + (unchecked ? ": " + unchecked + (unchecked === 1 ? " recommendation" : " recommendations") + " not re-checked" : qs.some(q => q.checkedAgainst) ? ": recommendations current" : "");
     setHtml($("consList"), cons.map(c => "<li><b>" + esc(c.id) + "</b>" + esc(c.text) + "</li>").join(""));
+    const order = (S.doc.answerOrder || []).filter(id => Q[id]); // the server sends it only above the orderThreshold setting
+    $("orderPanel").hidden = !order.length; $("orderSum").textContent = "Answering order (" + order.length + " open): prerequisites first, then the most dependents";
+    setHtml($("orderList"), order.map(id => "<li>" + refHtml(id) + "</li>").join(""));
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
     ac.textContent = sure ? "Understanding confirmed · " + unticked + " unticked; they become named risks unless ticked" : na + " to confirm";
@@ -1885,6 +1889,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       row("staleDepth", "Stale depth", ro("staleDepth")) +
       row("frontierLock", "Frontier lock: saving ahead of an open prerequisite (confirm, hard or off)", ro("frontierLock")) +
       row("requireDepends", "Refuse a posted question with no dependsOn", ro("requireDepends")) +
+      row("orderThreshold", "Show an answering order above this many open questions", ro("orderThreshold")) +
       row("leaseTimeout", "Watcher lease (seconds)", ro("leaseTimeout")) +
       row("settleQuiet", "Quiet window before a wake (seconds)", ro("settleQuiet")) +
       row("settleBurst", "Longest hold before a wake (seconds)", ro("settleBurst")) +
