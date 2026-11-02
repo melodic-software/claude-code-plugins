@@ -374,6 +374,33 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "single-quoted Shared → exit 0" 0 "$RC"
 
+# The GitHub-hosted runner's home is the same on every hosted runner, so it
+# names no person or machine: bare, with a child path, or quoted, it stays
+# clean, while a longer segment and a real user home on the same line flag.
+RUNNER_HOME="${SL}home${SL}runner"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${RUNNER_HOME}${SL}work${SL}repo && ls")" 2>&1)
+RC=$?
+assert_exit "runner home with a child path → exit 0" 0 "$RC"
+assert_silent "runner home → no stderr" "$OUT"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "{\"cwd\": \"${RUNNER_HOME}\"}")" 2>&1)
+RC=$?
+assert_exit "bare quoted runner home → exit 0" 0 "$RC"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "ls ${RUNNER_HOME}2${SL}x")" 2>&1)
+RC=$?
+assert_exit "runner2 segment → exit 2" 2 "$RC"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "ls ${RUNNER_HOME}-x${SL}y")" 2>&1)
+RC=$?
+assert_exit "runner-x segment → exit 2" 2 "$RC"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp ${RUNNER_HOME}${SL}a ${LINUX_HOME}")" 2>&1)
+RC=$?
+assert_exit "runner home + user home on one line → exit 2" 2 "$RC"
+assert_contains "runner home + user home → linux message" "$OUT" "Linux user path"
+assert_absent "runner home + user home → never reports the defanged copy" "$OUT" "${SL}home-runner"
+
 # Every macOS-body candidate is a Windows path, so the candidate block is empty
 # once the Windows exclusion has run. Under `pipefail` that stage reports
 # failure, and a scan that aborts there would fail OPEN rather than pass clean.
