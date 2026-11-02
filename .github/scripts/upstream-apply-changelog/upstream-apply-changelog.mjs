@@ -3,7 +3,8 @@
 // No model runs here. Subcommands:
 //   gate     picks the release, skips one already processed, applies the
 //            per-day cap (read-only GITHUB_TOKEN with actions: read)
-//   push     checks each planned branch and pushes it (mutate-branch token)
+//   push     checks each planned branch and recreates it through the Git Data
+//            API as lanes App commits (mutate-branch token)
 //   publish  opens one PR per pushed branch and files each handoff once
 //            (publish-artifact token)
 // The plan and the bundle come from the model job, so every field is data:
@@ -11,6 +12,8 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+
+import { createGitHubApi } from "../apply-patch/apply-patch.mjs";
 
 export const RELEASE = /^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,5})$/;
 const PLUGIN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -137,6 +140,47 @@ export function checkRawLog(raw, plugin) {
 }
 
 const git = (repo, args, extra = {}) => execFileSync("git", ["-C", repo, ...args], { encoding: "utf8", ...extra }).trim();
+const MAX_BLOB = 64 * 1024 * 1024;
+
+// The commits in base..head, oldest first, each as its message and the files
+// it changes: a deleted file has content null. A merge commit is refused.
+export function readCommits(repoDir, baseSha, headSha) {
+  if (git(repoDir, ["rev-list", "--min-parents=2", `${baseSha}..${headSha}`])) throw new Error("a planned branch holds a merge commit");
+  return git(repoDir, ["rev-list", "--reverse", `${baseSha}..${headSha}`])
+    .split("\n")
+    .filter(Boolean)
+    .map((sha) => ({
+      message: execFileSync("git", ["-C", repoDir, "show", "-s", "--format=%B", sha], { encoding: "utf8" }),
+      entries: git(repoDir, ["diff-tree", "-r", "--no-renames", "--raw", "--no-abbrev", "--no-commit-id", sha])
+        .split("\n")
+        .filter((line) => line.startsWith(":"))
+        .map((line) => {
+          const [meta, path] = line.split("\t");
+          const [srcMode, dstMode, , dstSha] = meta.slice(1).split(" ");
+          if (dstMode === "000000") return { path, mode: srcMode, content: null };
+          return { path, mode: dstMode, content: execFileSync("git", ["-C", repoDir, "cat-file", "blob", dstSha], { maxBuffer: MAX_BLOB }) };
+        }),
+    }));
+}
+
+// Replays the commits through the Git Data API with no author or committer,
+// so GitHub authors and signs each as the lanes App, as apply-patch does
+// (apply-patch.mjs createGitHubApi). Returns the new head, whose tree must be
+// the planned head's: what is pushed is exactly what the scan job scanned.
+export async function replayCommits(commits, { baseSha, baseTree, headTree, api }) {
+  let parent = baseSha;
+  let tree = baseTree;
+  for (const { message, entries } of commits) {
+    const blobs = [];
+    for (const { path, mode, content } of entries) {
+      blobs.push({ path, mode, type: "blob", sha: content === null ? null : await api.createBlob(Buffer.from(content).toString("base64")) });
+    }
+    if (blobs.length) tree = await api.createTree(tree, blobs);
+    parent = await api.createCommit(message, tree, [parent]);
+  }
+  if (tree !== headTree) throw new Error(`the replayed tree ${tree} is not the planned head's ${headTree}`);
+  return parent;
+}
 
 async function gate(env) {
   const repo = env.GITHUB_REPOSITORY;
@@ -181,7 +225,8 @@ async function gate(env) {
 async function push(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, BUNDLE_FILE, REPO_DIR: repoDir, GITHUB_REPOSITORY: repo } = env;
   const plan = validatePlan(JSON.parse(readFileSync(PLAN_FILE, "utf8")), { release, baseSha });
-  const pushed = [];
+  const writer = createGitHubApi({ token: env.GH_TOKEN, repository: repo, apiUrl: env.GITHUB_API_URL || "https://api.github.com" });
+  const heads = {};
   if (plan.branches.length && !existsSync(BUNDLE_FILE)) throw new Error("the plan names branches and the run left no bundle");
   for (const b of plan.branches) {
     const local = `refs/upstream-apply-changelog/${b.plugin}`;
@@ -189,34 +234,41 @@ async function push(env) {
     if (git(repoDir, ["rev-parse", local]) !== b.head_sha) throw new Error(`${b.branch} is not at its planned head`);
     if (git(repoDir, ["merge-base", baseSha, b.head_sha]) !== baseSha) throw new Error(`${b.branch} does not start at the base`);
     checkRawLog(git(repoDir, ["log", "--format=", "--raw", "--no-renames", "--no-abbrev", `${baseSha}..${b.head_sha}`]), b.plugin);
-    if (await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true })) {
-      console.log(`${b.branch} already exists; skipped`);
+    const headTree = git(repoDir, ["rev-parse", `${b.head_sha}^{tree}`]);
+    const existing = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
+    if (existing) {
+      // A re-run's branch counts only when its tip holds the planned tree.
+      const tip = existing.object?.sha;
+      const commit = SHA.test(tip ?? "") ? await api(`/repos/${repo}/git/commits/${tip}`) : null;
+      if (commit?.tree?.sha === headTree) heads[b.branch] = tip;
+      console.log(`${b.branch} already exists${heads[b.branch] ? "" : " with another tree"}; not pushed`);
       continue;
     }
-    // The token rides in an extraheader from the environment, never the URL or argv.
-    git(repoDir, ["push", `https://github.com/${repo}.git`, `${b.head_sha}:refs/heads/${b.branch}`], {
-      env: {
-        ...process.env,
-        GIT_CONFIG_COUNT: "1",
-        GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader",
-        GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${env.GH_TOKEN}`).toString("base64")}`,
-      },
+    const head = await replayCommits(readCommits(repoDir, baseSha, b.head_sha), {
+      baseSha,
+      baseTree: git(repoDir, ["rev-parse", `${baseSha}^{tree}`]),
+      headTree,
+      api: writer,
     });
-    pushed.push(b.branch);
+    await writer.createRef(`refs/heads/${b.branch}`, head);
+    heads[b.branch] = head;
   }
-  console.log(`pushed ${pushed.length} of ${plan.branches.length} branches`);
+  output("heads", JSON.stringify(heads));
+  console.log(`${Object.keys(heads).length} of ${plan.branches.length} branches are at their planned tree`);
 }
 
 async function publish(env) {
   const { RELEASE: release, BASE_SHA: baseSha, PLAN_FILE, GITHUB_REPOSITORY: repo } = env;
   const plan = validatePlan(JSON.parse(readFileSync(PLAN_FILE, "utf8")), { release, baseSha });
   const owner = repo.split("/")[0];
+  // push's heads output: each branch it pushed or found at the planned tree.
+  const heads = JSON.parse(env.HEADS || "{}");
   let opened = 0;
   let filed = 0;
   for (const b of plan.branches) {
     const ref = await api(`/repos/${repo}/git/ref/heads/${b.branch}`, { allow404: true });
-    if (ref?.object?.sha !== b.head_sha) {
-      console.log(`${b.branch} is missing or not at the planned head; no pull request`);
+    if (!SHA.test(heads[b.branch] ?? "") || ref?.object?.sha !== heads[b.branch]) {
+      console.log(`${b.branch} is missing or not at the head push left; no pull request`);
       continue;
     }
     const prs = await api(`/repos/${repo}/pulls?state=all&head=${owner}:${encodeURIComponent(b.branch)}`);

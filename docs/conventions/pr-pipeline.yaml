@@ -651,11 +651,12 @@ activities:
     # Admission waits on an issue while a sub-issue is open.
     inputs: [issue]
   apply-changelog-branches:
-    # Pushes each changelog/<plugin>/v<release> branch the upstream-apply-changelog
-    # model job's `/harness-ops:changelog apply --ci` committed, after
+    # Recreates each changelog/<plugin>/v<release> branch the
+    # upstream-apply-changelog model job's `/harness-ops:changelog apply --ci`
+    # committed, as lanes App commits through the Git Data API, after
     # checking every commit changes only plugins/<plugin>/ and
-    # .changes/<plugin>/ as regular files; skips a branch that exists. A
-    # script, no model. .github/workflows/upstream-apply-changelog.yml runs it.
+    # .changes/<plugin>/ as regular files and that the result holds the
+    # planned tree; skips a branch that exists. A script, no model. .github/workflows/upstream-apply-changelog.yml runs it.
     script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
     args: push
     effect: mutate-branch
@@ -663,8 +664,8 @@ activities:
     # Reads the plan and the bundle the model wrote.
     reads-untrusted: true
   publish-changelog-intake:
-    # Opens one pull request per pushed branch at its planned head that has
-    # none, and files each plan handoff whose key no issue carries. A script,
+    # Opens one pull request per pushed branch at the head push left that
+    # has none, and files each plan handoff whose key no issue carries. A script,
     # no model. .github/workflows/upstream-apply-changelog.yml runs it.
     script: .github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs
     args: publish

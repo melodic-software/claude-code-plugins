@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { alreadyProcessed, branchFor, releasesFromStatus, checkRawLog, newestRelease, startedInWindow, validatePlan } from "./upstream-apply-changelog.mjs";
+import {
+  alreadyProcessed,
+  branchFor,
+  checkRawLog,
+  newestRelease,
+  readCommits,
+  releasesFromStatus,
+  replayCommits,
+  startedInWindow,
+  validatePlan,
+} from "./upstream-apply-changelog.mjs";
 
 const BASE = "a".repeat(40);
 const HEAD = "b".repeat(40);
@@ -84,4 +98,65 @@ test("the status file gives the unread releases, none when up to date, and stops
   assert.deepEqual(releasesFromStatus("range: up to date\n"), []);
   assert.throws(() => releasesFromStatus("range: 2.1.1..2.1.90 (90 releases, 400 core items)\ncap: exceeded (90 releases / 400 items)\n"), /cap: exceeded/);
   assert.throws(() => releasesFromStatus("range: a..b\ncap: within budget\nreleases: v2\n"), /malformed/);
+});
+
+// A fake Git Data API: each object's sha is its index in the calls made.
+function fakeApi() {
+  const calls = [];
+  const sha = (kind) => {
+    calls.push(kind);
+    return `${kind}-${calls.length}`;
+  };
+  return {
+    calls,
+    createBlob: async (content) => sha(`blob:${content}`),
+    createTree: async (base, entries) => sha(`tree:${base}:${entries.map((e) => `${e.path}=${e.sha}`).join(",")}`),
+    createCommit: async (message, tree, parents) => sha(`commit:${message.trim()}:${tree}:${parents.join(",")}`),
+  };
+}
+
+test("the replay makes one App commit per planned commit, chained from the base, and deletes a removed file", async () => {
+  const api = fakeApi();
+  const commits = [
+    { message: "first\n", entries: [{ path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") }] },
+    { message: "second\n", entries: [{ path: "plugins/p/a.md", mode: "100644", content: null }] },
+  ];
+  const tree1 = "tree:t0:plugins/p/a.md=blob:YQ==-1-2";
+  const tree2 = `tree:${tree1}:plugins/p/a.md=null-4`;
+  const head = await replayCommits(commits, { baseSha: BASE, baseTree: "t0", headTree: tree2, api });
+  assert.equal(api.calls[2], `commit:first:${tree1}:${BASE}`);
+  assert.equal(api.calls[4], `commit:second:${tree2}:commit:first:${tree1}:${BASE}-3`);
+  assert.equal(head, `${api.calls[4]}-5`);
+});
+
+test("a replay whose tree is not the planned head's is refused before any ref is made", async () => {
+  const commits = [{ message: "m", entries: [{ path: "plugins/p/a.md", mode: "100644", content: Buffer.from("a") }] }];
+  await assert.rejects(replayCommits(commits, { baseSha: BASE, baseTree: "t0", headTree: "other", api: fakeApi() }), /not the planned head's/);
+});
+
+test("the planned commits are read oldest first with their files, and a merge commit is refused", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "uac-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const env = { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_NOSYSTEM: "1", GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+  const git = (...args) => execFileSync("git", ["-C", dir, ...args], { env, encoding: "utf8" }).trim();
+  git("init", "-q", "-b", "main");
+  writeFileSync(join(dir, "keep.md"), "k");
+  git("add", ".");
+  git("commit", "-qm", "base");
+  const base = git("rev-parse", "HEAD");
+  writeFileSync(join(dir, "new.md"), "n");
+  git("add", ".");
+  git("commit", "-qm", "add new");
+  git("rm", "-q", "keep.md");
+  git("commit", "-qm", "drop keep");
+  const commits = readCommits(dir, base, git("rev-parse", "HEAD"));
+  assert.deepEqual(commits.map((c) => c.message.trim()), ["add new", "drop keep"]);
+  assert.deepEqual(commits[0].entries.map((e) => [e.path, e.mode, String(e.content)]), [["new.md", "100644", "n"]]);
+  assert.deepEqual(commits[1].entries, [{ path: "keep.md", mode: "100644", content: null }]);
+  git("checkout", "-qb", "side", base);
+  writeFileSync(join(dir, "side.md"), "s");
+  git("add", ".");
+  git("commit", "-qm", "side");
+  git("merge", "-q", "--no-edit", "main");
+  assert.throws(() => readCommits(dir, base, git("rev-parse", "HEAD")), /merge commit/);
 });

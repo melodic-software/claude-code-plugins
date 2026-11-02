@@ -7,8 +7,9 @@ name: upstream-apply-changelog
 # then act on that plan with lanes App tokens from the token broker, which
 # mints for this file on schedule and workflow_dispatch from main only, keyed
 # on the `release` request field:
-#   push-branches (mutate-branch: contents write) pushes each branch whose
-#     commits change only plugins/<plugin>/ and .changes/<plugin>/;
+#   push-branches (mutate-branch: contents write) recreates each branch whose
+#     commits change only plugins/<plugin>/ and .changes/<plugin>/ through the
+#     Git Data API, so GitHub authors and signs every commit as the lanes App;
 #   publish (publish-artifact: pull-requests and issues write, contents read)
 #     opens one pull request per pushed branch and files each handoff once.
 # The broker never grants contents and pull-requests write in one mint, nor
@@ -468,8 +469,9 @@ jobs:
         with:
           tokens: github-token
 
-  # mutate-branch: contents write only. Pushes each planned branch that does
-  # not exist yet, after checking its commits stay inside its plugin.
+  # mutate-branch: contents write only. Recreates each planned branch that does
+  # not exist yet as lanes App commits, as apply-patch does for
+  # work-resolve-issue, after checking its commits stay inside its plugin.
   push-branches:
     needs: [gate, scan]
     if: ${{ !cancelled() && needs.scan.outputs.clean == 'true' && needs.scan.outputs.branches != '0' }}
@@ -481,6 +483,7 @@ jobs:
       id-token: write # prove to the token broker which workflow this is
     outputs:
       skip-reason: ${{ steps.lane-token.outputs.skip-reason }}
+      heads: ${{ steps.push.outputs.heads }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -540,6 +543,7 @@ jobs:
           path: ${{ runner.temp }}/plan
 
       - name: Push the branches
+        id: push
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
@@ -571,7 +575,7 @@ jobs:
           tokens: lanes-app github-token
 
   # publish-artifact: pull-requests and issues write, contents read. Opens a
-  # pull request for each branch at its planned head that has none, and files
+  # pull request for each branch at the head push-branches left that has none, and files
   # each handoff whose key no issue carries; then records the release done.
   publish:
     needs: [gate, scan, push-branches]
@@ -648,6 +652,7 @@ jobs:
           RELEASE: ${{ needs.gate.outputs.release }}
           BASE_SHA: ${{ needs.gate.outputs.base-sha }}
           PLAN_FILE: ${{ runner.temp }}/plan/plan.json
+          HEADS: ${{ needs.push-branches.outputs.heads }}
         run: node .base/.github/scripts/upstream-apply-changelog/upstream-apply-changelog.mjs publish
 
       - name: Revoke the lane token
