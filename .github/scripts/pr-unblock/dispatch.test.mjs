@@ -984,7 +984,7 @@ test("a fix-docs history read answered 502 twice is sent again and the PR dispat
 test("a fix-docs history read that keeps answering 502 skips that PR with a warning, dispatches the others, and exits 0", async () => {
   const always = Array.from({ length: 10 }, () => badGateway);
   const { api, code, lines, sent } = await mainWithHistoryAnswers(new Map([[192, always]]), [docsPull(192), docsPull(193)]);
-  assert.equal(sent.get(192), 4, "the first send and the three bounded retries");
+  assert.equal(sent.get(192), 3, "the first send and the two bounded retries");
   assert.deepEqual(dispatchedNumbers(api), ["193"]);
   assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("#192") && line.includes("502")));
   assert.ok(!lines.some((line) => line.startsWith("::error::")));
