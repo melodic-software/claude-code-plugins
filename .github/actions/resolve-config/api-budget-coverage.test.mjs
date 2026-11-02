@@ -26,15 +26,15 @@ const WORKFLOWS = new URL(".github/workflows/", ROOT);
 // Jobs that call GitHub and are not yet covered, each with the exact gap the
 // detector reports for it, so a gap that grows, shrinks or closes fails.
 const NO_LOG = "no job-end log-api-budget step";
-const LANE_JOB =
-  "no job-end log-api-budget step; check-trusted-trigger without API_BUDGET_TOKEN; resolve-config without API_BUDGET_TOKEN";
 const DECIDE_REBUILD =
   ".github/scripts/release-publish-plugins/decide-rebuild.sh does not wrap its gh calls";
 const ALLOWED = new Map([
-  // The lane jobs.
-  ["pr-run-activity-read.yml:run", LANE_JOB],
-  ["pr-run-activity-write.yml:run", LANE_JOB],
-  // No checkout to load the log-api-budget action from.
+  // The lane jobs run PR head code, after which no step loads an action or
+  // library from a checkout; logging here needs a trusted copy of the library.
+  ["pr-run-activity-read.yml:run", NO_LOG],
+  ["pr-run-activity-write.yml:run", NO_LOG],
+  // No checkout to load the log-api-budget action from, and no contents: read
+  // to check one out with.
   [
     "intake-triage.yml:redispatch-refined",
     `${NO_LOG}; step "Triage the refined issue again" calls gh without api_budget_wrap_gh`,
@@ -47,7 +47,8 @@ const ALLOWED = new Map([
     "pr-review-main.yml:record",
     `${NO_LOG}; step "Record the stops" calls gh without api_budget_wrap_gh; step "Record the counts" calls gh without api_budget_wrap_gh`,
   ],
-  // Steps whose own gh calls run unwrapped.
+  // Steps whose own gh calls run unwrapped, on the plugin release App's
+  // token, which has no api-budget token name yet.
   [
     "dependabot-fragments.yml:write",
     'step "Write the fragments and open the pull request" calls gh without api_budget_wrap_gh',
