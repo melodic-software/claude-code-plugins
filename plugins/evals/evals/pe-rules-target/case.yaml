@@ -21,7 +21,7 @@ graders:
     flags: 'i'
   - name: 'claude-md-absent'
     type: 'regex'
-    pattern: 'CLAUDE\.md\b(?:[^\n.]|\.(?=[\w/])){0,80}?\b(?:absent|(?:is|are)n[''’]t (?:loaded|present|there|read)|(?:is|are) not (?:loaded|present|read)|never (?:loads?|loaded|read)|(?:does|do)(?:n[''’]t| not) (?:load|get loaded|exist|apply)|not loaded|stripped|excluded|left out|missing|ignored|dropped)|\bno[ \t]+[`*]?CLAUDE\.md|\b(?:absent|missing|stripped|excluded)\b[^\n.]{0,60}\bCLAUDE\.md\b|\b(?:rules|instructions)\b[^\n.]{0,20}\bnever load'
+    pattern: 'CLAUDE\.md\b(?:[^\n.]|\.(?=[\w/])){0,80}?\b(?:absent|(?:is|are)n[''’]t (?:loaded|present|there|read)|(?:is|are) not (?:loaded|present|read)|never (?:loads?|loaded|read)|(?:does|do)(?:n[''’]t| not) (?:load|get loaded|exist|apply)|not loaded|stripped|removed|excluded|left out|missing|ignored|dropped)|\bno[ \t]+[`*]?CLAUDE\.md|\b(?:absent|missing|stripped|removed|excluded)\b[^\n.]{0,60}\bCLAUDE\.md\b|\b(?:rules|instructions)\b[^\n.]{0,20}\bnever load'
     flags: 'i'
   - name: 'routes-unhobble'
     type: 'regex'
