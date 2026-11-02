@@ -3986,6 +3986,44 @@ else
   fail "bash_parse_segments mid-word # stays literal through reset: got [${bps_all[*]-}], want [echo x#y git reset --hard]"
 fi
 
+# bps_segments_are <desc> <command> <segment>...: each segment's words, space-joined.
+bps_segments_are() {
+  local desc="$1" cmd="$2" got want
+  shift 2
+  bps_all=()
+  hook::bash_parse_segments "$cmd" bps_collect_all
+  got="$(printf '%s|' ${bps_all[@]+"${bps_all[@]}"})"
+  want="$(printf '%s|' "$@")"
+  if [[ "$got" == "$want" ]]; then
+    ok "bash_parse_segments: $desc"
+  else
+    fail "bash_parse_segments $desc: got [$got], want [$want]"
+  fi
+}
+
+bps_segments_are 'array assignment ) leaves a # after it literal' \
+  'a=(x)#y; git reset --hard' 'a=' 'x' '#y' 'git reset --hard'
+bps_segments_are 'extglob ) leaves a # after it literal' \
+  '@(x)#y; git reset --hard' '@' 'x' '#y' 'git reset --hard'
+bps_segments_are '# after whitespace past an array assignment is a comment' \
+  'a=(x) #; git reset --hard' 'a=' 'x'
+bps_segments_are 'subshell ) still starts a comment at a following #' \
+  '(x)#y; git reset --hard' 'x'
+bps_segments_are 'subshell ( at a word boundary still splits' \
+  'true; (git reset --hard)' 'true' 'git reset --hard'
+bps_segments_are 'extglob alternation | keeps the frame open' \
+  '@(a|b)#y; git reset --hard' '@' 'a' 'b' '#y' 'git reset --hard'
+bps_segments_are 'f@() is a function definition, so a # after it is a comment' \
+  'f@()#y; git reset --hard' 'f@'
+bps_segments_are 'bare ! before ( is negation, a subshell' \
+  '!(x)#; git reset --hard' '!' 'x'
+# shellcheck disable=SC2016  # the substitution is the command text under test
+bps_segments_are 'substitution inside an array assignment stays a segment' \
+  'a=($(git reset --hard))#y' 'a=' '$' 'git reset --hard' '#y'
+# shellcheck disable=SC2016  # the parameter expansion is the command text under test
+bps_segments_are '( inside an open ${...} opens no word-continuing frame' \
+  'echo ${x#*(}; case x in x)#y' 'echo ${x#*' '}' 'case x in x'
+
 # ANSI-C $'…' bodies decode in-process via ansi_c_decode_to (no $(printf) fork).
 bps_acd_cmd='git commit -m $'"'"'hello\nworld'"'"
 hook::bash_parse_segments "$bps_acd_cmd" bps_collect
