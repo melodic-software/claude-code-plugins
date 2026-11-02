@@ -1084,6 +1084,10 @@ assert_eq "timings: the sync steps that ran are all timed" "number number number
   "$(jq -r '.marketplaces[0].timings | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep, .cache_content_check, .post_read] | map(type) | join(" ")' <<<"$out")"
 assert_eq "timings: an already-current install and enable set leaves install_enable null" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
+assert_eq "timings: cli counts the refresh and the one update, timed within the block" "2 true" \
+  "$(jq -r '.marketplaces[0] | "\(.cli.calls) \(.cli.seconds >= 0 and .cli.seconds <= .timings.total)"' <<<"$out")"
+assert_eq "timings: the journal times each call on the line after its output" "2" \
+  "$(grep -cE '^# elapsed [0-9]+\.[0-9]{3}s, exit 0$' "$(jq -r '.run_dir' <<<"$out")/journal.log")"
 if [[ -n "${EPOCHREALTIME:-}" ]]; then
   # The run clock stops before the digest is assembled, so the total leaves out at
   # least that jq, the report write and the print, which the wall clock around the

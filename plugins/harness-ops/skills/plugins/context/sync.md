@@ -101,6 +101,10 @@ re-entry reuses the first pass's result, reads `null`, never 0. The digest's top
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
 is the part of it no block's window covers (run setup and each block's assembly into the digest).
+Each block's `cli` is `{calls, seconds}`: how many journaled `claude` calls this invocation made for
+the marketplace and their summed wall time, so `timings.total` minus `cli.seconds` is the script's
+own time. `journal.log` records each call's time on the line after its output, as
+`# elapsed <seconds>s, exit <rc>`.
 An `--only-install` re-entry times both passes: the first pass saves its run timings to
 `first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
 `timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
