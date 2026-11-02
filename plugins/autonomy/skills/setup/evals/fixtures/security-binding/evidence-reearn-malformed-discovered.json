@@ -8,12 +8,12 @@
     "cell": "C2-auto-merge",
     "event": "re-earned",
     "at": "2026-08-01T00:00:00Z",
-    "since": "2026-07-10T12:00:00Z",
-    "covers": 2
+    "since": "2026-07-10T12:00:00Z"
   },
   {
     "cell": "C2-auto-merge",
     "event": "gate-failure",
-    "at": "2026-07-05T00:00:00Z"
+    "at": "2026-07-05T00:00:00Z",
+    "discovered": "2026-07-06"
   }
 ]

@@ -14,8 +14,9 @@
 // writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
 // file renamed first. It refuses when an existing evidence.json is not a JSON array, has no
-// sidecar or does not match the sidecar's sha256, or holds a contrary event the new array lacks;
-// a re-earned event the new array lacks is carried forward instead.
+// sidecar or does not match the sidecar's sha256, holds a contrary event the new array lacks, or
+// holds an event whose `discovered` the new array changes; a re-earned event the new array lacks
+// is carried forward instead.
 //
 // Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
 // PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
@@ -88,9 +89,13 @@
 //   undo it.
 // - A cell's window runs from its first counted merge to its last.
 // - re-earned: {cell, event: "re-earned", at, since}, emitted when the cell's report() predicate
-//   passes over only the merges after `since`, the latest contrary event against the cell or a
-//   prerequisite (reEarned), and `covers`, the count of contrary events against them at or before
-//   `since`. It lets a demoted cell re-promote with no binding update.
+//   passes over only the merges after `since`, the latest `at` or `discovered` of any contrary
+//   event against the cell or a prerequisite (reEarned). It lets a demoted cell re-promote with no
+//   binding update.
+// - discovered: with `prior` (the published events, which main reads for --out), each contrary
+//   event carries {cell, event, at, discovered}: the run's `now` rounded up to a whole second the
+//   first time its key is published, else the value the prior file holds (none for an event
+//   published before the field existed). Report mode passes no prior and sets none.
 //
 // Event shape and vocabulary: the autonomy plugin's check-security-binding.mjs (/autonomy:setup),
 // CONTRARY_EVIDENCE_EVENTS and resolveEffectivePromotion; restated here, not imported, because
@@ -544,7 +549,7 @@ function demotionRecords(gh, owner, name, filers, since) {
   return out;
 }
 
-export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh }) {
+export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel = MISSED_BLOCKING_LABEL, gh = realGh, prior = null, now = new Date() }) {
   const gate = new Set(gateChecks ?? []);
   if (gate.size === 0) throw new PublishError("at least one --gate-check naming the post-merge gate is required");
   const sinceMs = instant(since, "--since");
@@ -810,6 +815,15 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   const sorted = [...events.values()].sort(byInstant);
+  if (Array.isArray(prior)) {
+    const found = isoSeconds(Math.ceil(now.getTime() / 1000) * 1000);
+    const published = new Map(prior.filter((e) => e && typeof e === "object").map((e) => [eventKey(e), e]));
+    for (const e of sorted) {
+      const before = published.get(eventKey(e));
+      if (!before) e.discovered = found;
+      else if (before.discovered !== undefined) e.discovered = before.discovered;
+    }
+  }
   return {
     repo,
     since,
@@ -889,26 +903,25 @@ function report(counted, events, reviewsMeasured) {
 // the re-earn's `at`. The same evidence gives the same event, but the prefix can change with no
 // contrary event (a pull body edited after its merge, a gate going from passed to unsettled), so
 // a later run may derive a different re-earn or none; publish() keeps the one already published.
-// `covers` counts the distinct contrary events against the cell or a prerequisite at or before
-// `since` (contraryKey); the checker recounts them, so a contrary event published later but dated
-// at or before `since` voids the re-earn. A re-earn is not contrary.
+// A contrary event's `at` is not always when it was found (a revert's committer date, a merge
+// time), so the window starts at the later of each event's `at` and its `discovered`: a contrary
+// event found after a re-earn was published starts a new window after that run, and the checker
+// voids the earlier re-earn. A re-earn is not contrary.
 const PROMOTION_DEPENDENCIES = { "C3-auto-merge": ["C2-auto-merge", "C3-ai-review-blocking"] };
-// One contrary event, whatever spelling its instant has: the checker's REEARN_COVERS_KEY.
-const contraryKey = (event) => JSON.stringify([event.cell, event.event, Date.parse(event.at)]);
+const knownAt = (event) => Math.max(Date.parse(event.at), event.discovered === undefined ? -Infinity : Date.parse(event.discovered));
 
 function reEarned(counted, contrary, reviewsMeasured) {
   const out = [];
   for (const cell of CELLS) {
     const against = [cell, ...(PROMOTION_DEPENDENCIES[cell] ?? [])];
-    const times = contrary.filter((e) => against.includes(e.cell)).map((e) => Date.parse(e.at));
+    const times = contrary.filter((e) => against.includes(e.cell)).map(knownAt);
     if (times.length === 0) continue;
     const sinceMs = Math.ceil(Math.max(...times) / 1000) * 1000;
     const after = counted.filter((r) => Date.parse(r.mergedAt) > sinceMs).sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt) || a.number - b.number);
     const later = contrary.filter((e) => Date.parse(e.at) > sinceMs);
     for (let k = 1; k <= after.length; k += 1) {
       if (!report(after.slice(0, k), later, reviewsMeasured)[cell].pass) continue;
-      const covers = new Set(contrary.filter((e) => against.includes(e.cell) && Date.parse(e.at) <= sinceMs).map(contraryKey)).size;
-      out.push({ cell, event: "re-earned", at: isoSeconds(Date.parse(after[k - 1].mergedAt)), since: isoSeconds(sinceMs), covers });
+      out.push({ cell, event: "re-earned", at: isoSeconds(Date.parse(after[k - 1].mergedAt)), since: isoSeconds(sinceMs) });
       break;
     }
   }
@@ -957,14 +970,19 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
     if (priorMeta?.sha256 !== sha256(previous)) {
       throw new PublishError(`refusing to publish: ${file} does not match the sha256 in its sidecar ${metaFile} (missing, unreadable or different)`);
     }
-    const keys = new Set(events.map(eventKey));
-    const missing = prior.filter((event) => !keys.has(eventKey(event)));
+    const byKey = new Map(events.map((event) => [eventKey(event), event]));
+    const missing = prior.filter((event) => !byKey.has(eventKey(event)));
     const dropped = missing.filter((event) => event?.event !== "re-earned");
     if (dropped.length > 0) {
       throw new PublishError(`refusing to publish: the new events drop ${dropped.length} previously published event(s): ${dropped.map(eventKey).join(", ")}`);
     }
+    const redated = prior.filter((event) => byKey.has(eventKey(event)) && byKey.get(eventKey(event)).discovered !== event?.discovered);
+    if (redated.length > 0) {
+      throw new PublishError(`refusing to publish: the new events change the discovered time of ${redated.length} published event(s): ${redated.map(eventKey).join(", ")}`);
+    }
     // A re-earn the run no longer derives (a later contrary event moved its window) is kept: the
-    // checker honors one only while no contrary event follows its `since`.
+    // checker honors one only while every in-epoch contrary event's `at` and `discovered` are at
+    // or before its `since`.
     if (missing.length > 0) events = [...events, ...missing].sort(byInstant);
   }
   const text = `${JSON.stringify(events, null, 2)}\n`;
@@ -994,6 +1012,17 @@ export function publish(outDir, derived, through, now = new Date(), { rename = r
   return meta;
 }
 
+// The published events, for their discovered times: [] when there is none yet or it cannot be
+// read as an array (publish() then refuses on its own checks).
+function publishedEvents(outDir) {
+  try {
+    const events = JSON.parse(readIfPresent(join(outDir, "evidence.json")) ?? "[]");
+    return Array.isArray(events) ? events : [];
+  } catch {
+    return [];
+  }
+}
+
 function main() {
   let values;
   try {
@@ -1017,7 +1046,10 @@ function main() {
     process.exit(2);
   }
   try {
+    const now = new Date();
     const result = collect({
+      now,
+      prior: values.out ? publishedEvents(values.out) : null,
       repo: values.repo,
       since: values.since,
       through: values.through ?? new Date().toISOString(),
@@ -1026,7 +1058,7 @@ function main() {
       aiReviewers: values["ai-reviewer"] ?? [],
       missedBlockingLabel: values["missed-blocking-label"],
     });
-    if (values.out) publish(values.out, result.events, result.through);
+    if (values.out) publish(values.out, result.events, result.through, now);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
     process.stderr.write(`publish-promotion-evidence: ${error.message}\n`);

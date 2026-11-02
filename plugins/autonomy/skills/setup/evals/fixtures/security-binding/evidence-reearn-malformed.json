@@ -8,54 +8,29 @@
     "cell": "C2-auto-merge",
     "event": "re-earned",
     "at": "2026-08-01T00:00:00Z",
-    "since": "2026-07-10",
-    "covers": 1
+    "since": "2026-07-10"
   },
   {
     "cell": "C2-auto-merge",
     "event": "re-earned",
     "at": "2026-08-01 00:00:00",
-    "since": "2026-07-10T12:00:00Z",
-    "covers": 1
-  },
-  {
-    "cell": "C2-auto-merge",
-    "event": "re-earned",
-    "at": "2026-08-01T00:00:00Z",
-    "since": "2026-08-02T00:00:00Z",
-    "covers": 1
-  },
-  {
-    "cell": "C2-auto-merge",
-    "event": "re-earned",
-    "at": "2026-08-01T00:00:00Z",
-    "covers": 1
-  },
-  {
-    "cell": "C2-auto-merge",
-    "event": "re-earned",
-    "at": "2026-08-01T00:00:00Z",
-    "since": "2026-07-10T12:00:00",
-    "covers": 1
-  },
-  {
-    "cell": "C2-auto-merge",
-    "event": "re-earned",
-    "at": "2026-08-01T00:00:00Z",
     "since": "2026-07-10T12:00:00Z"
   },
   {
     "cell": "C2-auto-merge",
     "event": "re-earned",
     "at": "2026-08-01T00:00:00Z",
-    "since": "2026-07-10T12:00:00Z",
-    "covers": "1"
+    "since": "2026-08-02T00:00:00Z"
+  },
+  {
+    "cell": "C2-auto-merge",
+    "event": "re-earned",
+    "at": "2026-08-01T00:00:00Z"
   },
   {
     "cell": "C2-auto-merge",
     "event": "re-earned",
     "at": "2026-08-01T00:00:00Z",
-    "since": "2026-07-10T12:00:00Z",
-    "covers": 1.5
+    "since": "2026-07-10T12:00:00"
   }
 ]

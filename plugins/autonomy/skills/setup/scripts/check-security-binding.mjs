@@ -55,7 +55,9 @@
 // write-back actor by design, because the binding is agent-unwritable, and the
 // demotion event files an escalation item. A demoted cell re-promotes from run
 // evidence, with no binding update: a `re-earned` event for that cell, whose
-// `since` is at or after every in-epoch contrary event (own and prerequisite)
+// `since` is at or after every in-epoch contrary event's `at` and `discovered`
+// (own and prerequisite; `discovered` is when the publisher first published
+// the event, so one found late voids an earlier re-earn whatever its `at`)
 // and whose `at` is at or after `since`, records that the operator-side
 // publisher found the cell's predicate met again over evidence counted from
 // `since`. A malformed re-earn counts for nothing, a prerequisite's re-earn
@@ -112,8 +114,6 @@ const MERGE_TOKENS = ["auto", "human"];
 const CONTRARY_EVIDENCE_EVENTS = new Set(["gate-failure", "reverted-merge", "verification-divergence"]);
 // Not contrary: the operator-side publisher's record that a cell met its predicate again.
 const REEARN_EVENT = "re-earned";
-// A re-earn's `covers` counts distinct contrary events by this key, as the publisher does.
-const REEARN_COVERS_KEY = (event, at) => JSON.stringify([event.cell, event.event, at]);
 // The isolation-probe template's substrate-class tokens. The kernel-separated
 // pair mirrors the isolation-ladder leaf's L3 substrate classes: a VM or
 // microVM, and a hosted ephemeral executor surface.
@@ -2514,30 +2514,26 @@ function resolveEffectivePromotion(binding, evidencePath) {
     for (const event of contrary) {
       const source = event.cell === cell ? "" : `${event.cell} (prerequisite cell) `;
       const at = parseIsoStrict(event.at);
+      // When the publisher first published the event; absent on events published before it
+      // recorded one. Present but malformed, it can never be shown to precede a re-earn.
+      const discovered = event.discovered === undefined ? at : parseIsoStrict(event.discovered);
+      const found = event.discovered === undefined ? "" : ` (discovered ${event.discovered})`;
       if (Number.isNaN(at)) {
         inEpoch.push(`${source}${event.event} with non-ISO or unparsable at ${JSON.stringify(event.at)} — cannot be assigned to an epoch, treated as contrary (fail-closed)`);
         inEpochTimes.push(at);
       } else if (Number.isNaN(ratifiedAt) || at >= ratifiedAt) {
-        inEpoch.push(`${source}${event.event} at ${event.at}`);
-        inEpochTimes.push(at);
+        inEpoch.push(`${source}${event.event} at ${event.at}${found}`);
+        inEpochTimes.push(Number.isNaN(discovered) ? discovered : Math.max(at, discovered));
       } else {
         preEpoch.push(`${source}${event.event} at ${event.at}`);
       }
     }
     // A re-earn lifts the demotion when the predicate was met again over evidence counted from
-    // `since`, and `since` is at or after every in-epoch contrary event (own and prerequisite).
-    // It must name this cell: a prerequisite's re-earn never revives a dependent. A contrary event
-    // with no parsable instant can never be shown to precede `since`, so it blocks every re-earn.
-    // `covers` must equal the count of distinct contrary events against this cell or a
-    // prerequisite, any epoch, at or before `since`: a contrary event published after the re-earn
-    // but dated at or before its `since` changes the count and voids it.
-    const coveredBy = (since) =>
-      new Set(
-        contrary.flatMap((event) => {
-          const at = parseIsoStrict(event.at);
-          return !Number.isNaN(at) && at <= since ? [REEARN_COVERS_KEY(event, at)] : [];
-        }),
-      ).size;
+    // `since`, and `since` is at or after every in-epoch contrary event's `at` and `discovered`
+    // (own and prerequisite): a contrary event found after the re-earn was published voids it,
+    // whatever its `at`. It must name this cell: a prerequisite's re-earn never revives a
+    // dependent. A contrary event with an unparsable `at` or `discovered` can never be shown to
+    // precede `since`, so it blocks every re-earn.
     const reearn =
       inEpoch.length === 0
         ? undefined
@@ -2549,16 +2545,14 @@ function resolveEffectivePromotion(binding, evidencePath) {
               !Number.isNaN(since) &&
               !Number.isNaN(at) &&
               at >= since &&
-              Number.isInteger(event.covers) &&
-              inEpochTimes.every((t) => !Number.isNaN(t) && since >= t) &&
-              event.covers === coveredBy(since)
+              inEpochTimes.every((t) => !Number.isNaN(t) && since >= t)
             );
           });
     if (bound === "promoted" && reearn) {
       resolved.set(cell, {
         bound,
         effective: "promoted",
-        line: `${cell}: bound promoted -> effective promoted (re-earned at ${reearn.at} over evidence since ${reearn.since}, covering ${reearn.covers} contrary event(s), at or after every in-epoch contrary event: ${inEpoch.join("; ")})`,
+        line: `${cell}: bound promoted -> effective promoted (re-earned at ${reearn.at} over evidence since ${reearn.since}, at or after every in-epoch contrary event: ${inEpoch.join("; ")})`,
       });
     } else if (bound === "promoted" && inEpoch.length > 0) {
       resolved.set(cell, {
