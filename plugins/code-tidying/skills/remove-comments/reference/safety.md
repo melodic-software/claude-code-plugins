@@ -168,8 +168,9 @@ delete them with a reshape flag to a type. The list:
 
 Two kinds of class-C comment stay under `necessary`. They are not exempt surfaces: `explanatory`
 triages them like any class-C comment, `none` deletes them, and they are held to
-`class_c_max_lines`. Each is re-checked against the code first, and one the re-check cannot verify
-is deleted.
+`class_c_max_lines`. Each stays only when verified: the adjacent code depends on the named party
+and nothing in this repository could remove the reason. The outside fact itself need not be provable
+from here; a comment the code contradicts is class A.
 
 - **Behavior an outside party forces.** The adjacent code does something only because a
   dependency, platform, vendor service, or protocol the repository cannot change requires it, and

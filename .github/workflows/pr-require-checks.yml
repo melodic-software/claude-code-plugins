@@ -1746,13 +1746,15 @@ jobs:
           # The remove-comments skill's audit action IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
           # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
-          # TODO(#issue) sanctioned-exemption. Exempt that skill's scripts + evals
+          # TODO(#issue) sanctioned-exemption. Exempt that action's scripts + evals
           # (its SKILL.md is markdown, already outside the scan's extension set).
           # The implementation eval scaffolds write a PLAN.md whose `### Phase N:
           # ... [TODO]` heading is the phase status tag the skill under test reads,
           # not a comment; the scan sees the heredoc line as a shell comment.
           exclude: >-
-            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/**
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect.sh
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/detect.test.sh
+            :(exclude)plugins/code-tidying/skills/remove-comments/scripts/lib/**
             :(exclude)plugins/code-tidying/skills/remove-comments/evals/**
             :(exclude)plugins/implementation/evals/*/scaffold.sh
 

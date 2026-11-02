@@ -112,7 +112,8 @@ route to class A and never keeps a comment the criteria would remove.
 
 Under `necessary` and `none` the keeps listed in `SKILL.md` that state a fact about the code take
 the same re-check; a contradicted keep is obsolete, and under `necessary` an outside-constraint
-keep the re-check cannot verify is deleted.
+keep stays only when verified: the adjacent code depends on the named party and nothing in this
+repository could remove the reason. The outside fact itself need not be provable from here.
 The mode still decides what is applied: `safe` applies the class-A deletion, and
 `report` proposes it.
 

@@ -46,7 +46,7 @@ lines_for() { bash "$SUT" "$1" 2>/dev/null | grep "^$2${TAB}"; }
 repo="$(repo_with - -)"
 check 'no files leaves the posture unset' \
   "comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" "$(lines_for "$repo" comment_posture)"
-check 'every key gets a line' '6' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
+check 'every key gets a line' '5' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
 
 repo="$(repo_with $'comment_posture: necessary\ncomment_edit_scope: files\n' -)"
 check 'the team posture is read' "comment_posture${TAB}necessary${TAB}$TEAM" "$(lines_for "$repo" comment_posture)"

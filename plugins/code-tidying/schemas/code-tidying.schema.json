@@ -33,11 +33,6 @@
       "type": "boolean",
       "default": true,
       "description": "Whether a function-local rename certified RENAME-ONLY applies without a test net."
-    },
-    "hard_exclusions": {
-      "enum": ["enforce", "advisory"],
-      "default": "enforce",
-      "description": "How tidy, remove-comments and batch-simplify treat the GLOBAL HARD path list: enforce drops a listed path; advisory reports it and never blocks."
     }
   }
 }

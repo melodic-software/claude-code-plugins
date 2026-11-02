@@ -45,9 +45,10 @@ the report's first lines.
 | `encode_constraints_unattended` | `${user_config.encode_constraints_unattended}` | `true`, `false` | `false` |
 | `class_c_max_lines` | `${user_config.class_c_max_lines}` | 1 to 40 | `2` |
 | `apply_local_renames` | `${user_config.apply_local_renames}` | `true`, `false` | `true` |
-| `hard_exclusions` | `${user_config.hard_exclusions}` | `enforce`, `advisory` | `enforce` |
 
-An unexpanded or empty `userConfig` value is unset. Old posture values still resolve: `strict` and
+`hard_exclusions` is `${user_config.hard_exclusions}` (`enforce`, the default, or `advisory`) from
+`userConfig` alone: tidy's exclusions reference owns its channels, and a repository lifts paths through
+its overrides file. An unexpanded or empty `userConfig` value is unset. Old posture values still resolve: `strict` and
 `balanced` read as `explanatory`, `conservative` as `explanatory` plus `safe`, `aggressive` as
 `necessary`. Old per-run tokens too: `aggressive` means `necessary` and `strip` means `none`.
 
@@ -134,7 +135,9 @@ under `none` and `necessary` its symbol is listed as open root-cause work.
 - a **comment on behavior an outside party forces**: the code does something only because a
   dependency, platform, vendor service or protocol this repository cannot change requires it, and
   the comment names that party and its limit (`# The gateway closes idle sockets at 60s, so the
-  keepalive is 45s`). Verify it in the workflow's re-check; an unverified one is deleted;
+  keepalive is 45s`). Keep it only when verified: the adjacent code depends on the named party and
+  nothing in this repository could remove the reason. The outside fact itself need not be provable
+  from here; a comment the code contradicts is class A;
 - an **issue or RFC link that explains a constraint** the code cannot state (`# Header order is
   fixed by RFC 9110 section 5.3`).
 

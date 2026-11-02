@@ -21,7 +21,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 READER="$HERE/../../../lib/parse-concern-value.sh"
 TEAM="docs/conventions/code-tidying.yaml"
 PERSONAL="docs/conventions/code-tidying.local.yaml"
-KEYS=(comment_posture comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames hard_exclusions)
+KEYS=(comment_posture comment_edit_scope encode_constraints_unattended class_c_max_lines apply_local_renames)
 
 if (($# > 1)); then
   echo "settings: usage: settings.sh [<dir>]" >&2
@@ -35,7 +35,6 @@ valid() {
   comment_edit_scope:diff | comment_edit_scope:files) return 0 ;;
   encode_constraints_unattended:true | encode_constraints_unattended:false) return 0 ;;
   apply_local_renames:true | apply_local_renames:false) return 0 ;;
-  hard_exclusions:enforce | hard_exclusions:advisory) return 0 ;;
   class_c_max_lines:*) [[ "$2" =~ ^[0-9]+$ ]] && (($2 >= 1 && $2 <= 40)) ;;
   *) return 1 ;;
   esac

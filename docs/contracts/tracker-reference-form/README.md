@@ -40,7 +40,7 @@ allowlist and pass. Do not read those as evidence the rule is lax. Read them as 
 is scoped. A skill's `SKILL.md` is likewise outside it.
 
 Two paths are excluded by configuration rather than by extension: `code-tidying`'s
-`remove-comments` **`scripts/**` and `evals/**`**. That skill's audit action is itself a comment
+`remove-comments` **detector scripts (`detect.sh`, `detect.test.sh`, `lib/**`) and `evals/**`**. That skill's audit action is itself a comment
 linter, so its fixtures and shape library must contain the banned markers as test corpus. Both
 exclusions are necessary and the pair is observable: `evals/fixtures/residue-snippet.py` carries
 a scanned extension and a rejected form, and passes only because the `evals` tree is excluded.
