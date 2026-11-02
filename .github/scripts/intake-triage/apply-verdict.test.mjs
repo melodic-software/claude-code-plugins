@@ -1727,6 +1727,16 @@ describe("run", () => {
     assert.ok(removal > done.indexOf("POST /repos/o/r/issues/7/labels"), done.join("\n"));
   });
 
+  test("mirrors the labels it leaves into the Work status field after its label writes", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "needs-triage" }] }, comments: [laneComment()] });
+    const mirrorStatus = async (number, labels) => fake.calls.push({ method: "MIRROR", path: String(number), body: labels });
+    assert.equal((await run({ env: ENV, github: fake.github, dimensionsConfig: DIMS, fieldSetters: noSetters, mirrorStatus, log: () => {} })).outcome, "ready");
+    const done = writes(fake.calls);
+    const mirrored = done.findIndex((call) => call.method === "MIRROR");
+    assert.ok(mirrored > done.findLastIndex((call) => call.path.includes("/labels")), JSON.stringify(done));
+    assert.ok(!done[mirrored].body.includes("needs-triage") && done[mirrored].body.includes("status: ready"), JSON.stringify(done[mirrored].body));
+  });
+
   test("posts the reasons on the issue when it sets needs-decision", async () => {
     const fake = fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] });
     await go(fake);

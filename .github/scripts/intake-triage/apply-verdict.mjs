@@ -96,6 +96,7 @@ import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, authorAdmitted, CONFIRMED, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -468,7 +469,7 @@ async function readFields(github, repository, number, fieldSetters) {
   return fields;
 }
 
-export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, log = console.log }) {
+export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, mirrorStatus = async () => {}, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
     return { outcome: "stopped" };
@@ -615,6 +616,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   } else {
     await removeLabels(github, base, unready);
   }
+  // The Work status field mirrors the labels this run left; admission's own
+  // label writes mirror again. The field values read above skip a match.
+  const left = labeled ? [...new Set([...labels, ...add])].filter((name) => !remove.includes(name)) : labels.filter((name) => !unready.includes(name));
+  await mirrorStatus(number, left, fields);
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
@@ -825,8 +830,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
       // Read only when admitting, so a malformed rules file stops
       // admission and not the verdict.
+      const mirrorStatus = await statusMirror({ env, github, repository });
       const admitIssue = (verdict) =>
         admit({
+          mirrorStatus,
           github,
           repository,
           number: Number(env.ISSUE_NUMBER),
@@ -860,6 +867,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         fieldSetters,
         admitIssue,
         noteSplit,
+        mirrorStatus,
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);

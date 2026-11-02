@@ -1498,6 +1498,15 @@ describe("admit", () => {
     assert.deepEqual(writes(fake.calls), CLAIMED);
   });
 
+  test("mirrors the labels it leaves into the Work status field after its last label write", async () => {
+    const fake = fakeGitHub();
+    const mirrorStatus = async (number, labels) => fake.calls.push({ method: "MIRROR", path: String(number), body: labels });
+    assert.equal((await admit({ ...goArgs(fake), mirrorStatus })).outcome, "admitted");
+    const done = fake.calls.filter((call) => call.method !== "GET" && call.path !== "/graphql");
+    assert.equal(done.at(-1).method, "MIRROR");
+    assert.ok(done.at(-1).body.includes(AGENT_READY) && !done.at(-1).body.includes(DEFERRED), JSON.stringify(done.at(-1).body));
+  });
+
   // A manual re-dispatch skips intake-reenter, so the parked status comes off here.
   test("adds agent-ready and lifts a parked status: confirmed beside status: ready", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: mechanical" }] }) });

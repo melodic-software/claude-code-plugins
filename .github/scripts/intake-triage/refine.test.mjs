@@ -355,6 +355,16 @@ describe("applyRefinement", () => {
     assert.ok(writes(fake.calls)[2].body.body.startsWith(`${REFINE_MARKER}\n${bodyVersion(issueOf().body)}\n`), "it names the body it refined");
   });
 
+  test("an exact refinement mirrors the labels it leaves into the Work status field after its label writes", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
+    const mirrored = [];
+    const mirrorStatus = async (number, labels) => mirrored.push({ number, labels, after: writes(fake.calls).length });
+    await applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(EXACT, new Set([3])), context, mirrorStatus, log: () => {} });
+    assert.equal(mirrored.length, 1);
+    assert.equal(mirrored[0].after, 2, "after the add and the removal, before the comment");
+    assert.ok(mirrored[0].labels.includes("needs-triage") && !mirrored[0].labels.includes(NEEDS_DECISION), JSON.stringify(mirrored[0].labels));
+  });
+
   for (const [name, comments] of [
     ["an earlier security flag", [laneComment(), verdictComment("- flagged: intent", `- flagged: security ${EARLIER}`)]],
     ["a cost flag", [laneComment(), verdictComment("- flagged: intent, cost")]],

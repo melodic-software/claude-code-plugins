@@ -96,6 +96,7 @@ import { selectTrustedIssueComments } from "../../actions/select-trusted-text/se
 import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
+import { statusMirror } from "../../actions/resolve-config/write-status.mjs";
 
 export { bodyVersion, REFINE_MARKER };
 const TASK = "- [ ] ";
@@ -716,10 +717,12 @@ export function movedTexts(body, taskList, moved) {
 // `humans` and `rules` decide whether an exact refinement asks for a
 // re-triage (admit.mjs hasTrustedCriteria, over the spec with this refinement
 // posted); a failed read of the spec throws before any label write.
-export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, log = console.log }) {
+export async function applyRefinement({ github, repository, number, appId, humans, rules, output, context, mirrorStatus = async () => {}, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const labels = labelNames(issue);
+  // The Work status field mirrors the labels a branch leaves (write-status.mjs).
+  const mirror = (add, remove = []) => mirrorStatus(number, [...new Set([...labels, ...add])].filter((name) => !remove.includes(name)));
   const skip = (why, redispatch = false) => {
     log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
     return { outcome: "skipped", redispatch };
@@ -743,6 +746,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, NEEDS_DECISION);
+    await mirror([NEEDS_TRIAGE], [NEEDS_DECISION]);
     await github("POST", `${base}/comments`, { body: render(output, { body: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${NEEDS_DECISION} lifted and triage asked again`);
     return { outcome: "split", redispatch: true };
@@ -775,6 +779,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (labels.includes(CONFIRMED)) {
       await removeLabel(github, base, CONFIRMED);
     }
+    await mirror([NEEDS_DECISION], [READY, CONFIRMED]);
     await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
@@ -789,6 +794,7 @@ export async function applyRefinement({ github, repository, number, appId, human
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, CONFIRMED);
+    await mirror([NEEDS_TRIAGE], [CONFIRMED]);
     await post(true);
     log(`refine: #${number} is exact; ${CONFIRMED} lifted and triage asked again`);
     return { outcome: "exact", redispatch: true };
@@ -806,6 +812,7 @@ export async function applyRefinement({ github, repository, number, appId, human
       return { outcome: "exact", redispatch: false };
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await mirror([NEEDS_TRIAGE]);
     await post(true);
     log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
     return { outcome: "exact", redispatch: true };
@@ -824,6 +831,7 @@ export async function applyRefinement({ github, repository, number, appId, human
   // needs-triage first: a failure between the two leaves a label a sweep picks up.
   await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
   await removeLabel(github, base, NEEDS_DECISION);
+  await mirror([NEEDS_TRIAGE], [NEEDS_DECISION]);
   await post(true);
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
   return { outcome: "exact", redispatch: true };
@@ -1104,7 +1112,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         } else {
           const known = new Set((context.candidates ?? []).map((item) => item.number));
           const output = validateOutput(raw(), known, context.split ?? null, context.attended ?? {});
-          const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context });
+          const mirrorStatus = await statusMirror({ env, github, repository });
+          const result = await applyRefinement({ github, repository, number, appId, humans, rules: rules(), output, context, mirrorStatus });
           writeOutputs({ redispatch: String(result.redispatch), children: "" });
         }
       } else {
