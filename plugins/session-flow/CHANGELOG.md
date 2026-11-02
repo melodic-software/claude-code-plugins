@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [5.0.1] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [5.0.0] - 2026-11-02
 
 ### Changed

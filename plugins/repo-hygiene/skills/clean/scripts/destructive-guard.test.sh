@@ -121,6 +121,7 @@ nested_cmds=(
   "echo 'git stash drop' | ssh h"
   $'bash <<\'EOF\'\ngit stash drop\nEOF'
   $'cat <<EOF | bash\ngit reset --hard\nEOF'
+  $'cat <<EOF |\n$(date)\nrm -rf ~\nEOF\nbash'
   $'ssh h <<\'EOF\'\ngit reset --hard\nEOF'
   "git --git-dir /r/.git reset --hard"
   "git --work-tree /r stash drop"

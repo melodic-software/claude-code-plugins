@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.2] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [4.0.1] - 2026-11-02
 
 ### Fixed

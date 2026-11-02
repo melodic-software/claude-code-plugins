@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.5.1] - 2026-11-02
+
+### Changed
+
+- Hook notices name the bundled checker command; `check` is optional (#12485).
+
 ## [2.5.0] - 2026-11-02
 
 ### Changed
