@@ -262,8 +262,10 @@ commentary, and a leaf that contradicts one is non-conforming.
 - **`dead-code-sweep`: `C3` is the class-level derivation; a published surface escalates the item
   to `C4`.** This is the per-item escalation rule applied: deleting a symbol on a published,
   cross-repo-consumed API surface is a contract change, so the structural-blast-radius axis fires on
-  that item and composition takes it to `C4`, while the class stays `C3`. What turns on it: `C3`
-  versus `C4` is the difference between auto-merge ever becoming eligible and human merge always.
+  that item and composition takes it to `C4`, while the class stays `C3`. What turns on it: `C4`
+  raises the verification floors (blocking AI review, three checkers with two vendor-disjoint model
+  judges) and the cost tier; both classes become auto-merge eligible only after the `C3-auto-merge`
+  promotion.
 - **`dead-code-sweep`: a green quarantine window is inductive evidence, never proof.** It shows no
   observed invocation over a bounded period under observed workloads. Exactly the paths that make
   deletion dangerous are the ones a bounded window under-samples worst: disaster recovery, annual

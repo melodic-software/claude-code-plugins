@@ -33,7 +33,9 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 ### `C4`: structural
 
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard.
-Its risk shows in the diff the review lanes read, and the class merges by a human always. A merge authority that reads no class works differently: see [Merge
+Its risk shows in the diff the review lanes read. It has no promotion cell of its own: a `C4`
+auto-merge needs an effective-promoted `C3-auto-merge` cell, the reviewed rung's cell. A merge
+authority that reads no class works differently: see [Merge
 authorities that read no class](#merge-authorities-that-read-no-class).
 
 ### `C5`: untrusted-provenance
@@ -153,7 +155,11 @@ other records a candidate term as deliberately deferred.
 | `C2` auto-merge | ≥ 20 autonomous C2 completions over ≥ 14 days with 100% deterministic-gate pass and 0 human-reverted merges |
 | `C3` auto-merge | ≥ 20 autonomous C2 merges over ≥ 14 days with 0 demotion events, plus ≥ 10 autonomous C3 completions with 100% deterministic-gate pass, 0 human-reverted merges, and 0 human-confirmed missed-blocking AI-review findings |
 | `C3` AI review advisory → blocking | ≥ 30 advisory reviews with 0 human-confirmed missed-blocking findings |
-| `C4` / `C5` merge | never promotes. No merge rung reaches these cells, and no evidence predicate exists for them |
+| `C5` merge | never promotes. No merge rung reaches this cell, and no evidence predicate exists for it |
+
+`C4` has no merge row of its own: a `C4` auto-merge needs an effective-promoted `C3-auto-merge`
+cell, so the `C3` auto-merge predicate and its demotion cascade govern it. A `C4` outcome counts
+as `C3` evidence for that cell, so a `C4` demotion event lowers it too.
 
 **Demotion evidence set** (one event suffices): any post-merge gate failure, any
 human-reverted merge, any verification divergence. Demotion cascades along

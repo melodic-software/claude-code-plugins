@@ -45,7 +45,7 @@ to the same underlying model has declared one checker.** A check cannot see that
 states the requirement and a check enforces the part it can read; the gap is recorded here rather
 than implied away.
 
-The human review the matrix makes mandatory for `C4` is not a checker slot. It is the merge gate.
+A human who merges a change is not a checker slot. Merging is the matrix's merge-policy column.
 
 ## Relational constraints
 
