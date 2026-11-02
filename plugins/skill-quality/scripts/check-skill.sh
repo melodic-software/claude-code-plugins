@@ -158,8 +158,9 @@
 #  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
 #      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
 #      blocks carrying an as-of date and a recheck trigger are exempt)
-#  30. Skill size: description above 419 chars or body above 160 lines
-#      (Pocock's measured max; his medians print as INFO), SKILL.md above the
+#  30. Skill size: description above the description_warn setting (default
+#      419; description_target, default 250, prints as INFO) or body above 160
+#      lines (Pocock's measured max; his medians print as INFO), SKILL.md above the
 #      5000-token router cap (estimated at 4 chars/token), or description or
 #      body grown vs CHECK_SKILL_BASE_REF, else the merge-base with origin
 #      (WARN; growth is skipped with an INFO when no base resolves or the skill
@@ -574,6 +575,15 @@ POCOCK_DESC_MAX=419
 POCOCK_BODY_MAX=160
 POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
+# Check 30: the description target and warn threshold are settings, resolved
+# through the config cascade (docs/contracts/config-cascade/README.md in the
+# marketplace repository): the default below, then the team layer
+# <home>/skill-quality.yaml, then the personal layer
+# <home>/skill-quality.local.yaml, a later layer winning key by key. The target
+# prints as INFO and the warn threshold WARNs above it; the field maximum,
+# DESC_FIELD_CAP, stays fixed. The warn default is Pocock's measured max.
+DESC_TARGET_DEFAULT=250
+DESC_WARN_DEFAULT=$POCOCK_DESC_MAX
 # Check 30: the router cap, a house setting of `/playbooks:skill-authoring`
 # (`## Body`, router standard): a SKILL.md stays under this many tokens. The
 # count is an estimate, whole-file codepoints divided by ROUTER_CHARS_PER_TOKEN
@@ -2538,10 +2548,11 @@ else
   note "no history references in the SKILL.md body"
 fi
 
-# --- Check 30: skill size vs Pocock's measured max and the base ref (WARN) -----
+# --- Check 30: skill size vs the size settings and the base ref (WARN) ---------
 # The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
 # `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
-# not grow a skill. WARNs on a description or body above Pocock's max, on a
+# not grow a skill. WARNs on a description above the description_warn setting
+# or a body above Pocock's max, on a
 # SKILL.md above the router cap (see the constants), and on growth of the
 # description or body against the base ref. The base ref is
 # CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
@@ -2553,10 +2564,66 @@ body_lines() { # SKILL.md text on stdin; lines after the closing frontmatter fen
     { n++ }
     END { print n + 0 }'
 }
+# The settings layers, repo-relative. <home> is the convention home the
+# repository's pointer region binds, else docs/conventions when it binds none.
+# A repository that declined a home, a root no home applies to, and a run
+# outside git read no layer, so the defaults apply.
+SETTINGS_LIB="$SCRIPT_DIR/../lib"
+SETTINGS_LAYERS=()
+if [[ "$HAVE_GIT" == 1 ]]; then
+  SETTINGS_HOME="$(bash "$SETTINGS_LIB/resolve-convention-home.sh" --root "$REPO_ROOT" 2>/dev/null)"
+  case $? in
+  0) SETTINGS_LAYERS=("$SETTINGS_HOME/skill-quality.yaml" "$SETTINGS_HOME/skill-quality.local.yaml") ;;
+  1) SETTINGS_LAYERS=("docs/conventions/skill-quality.yaml" "docs/conventions/skill-quality.local.yaml") ;;
+  3) warn "the convention-home pointer region does not resolve (see lib/resolve-convention-home.sh --explain): the description settings use their defaults" ;;
+  *) ;;
+  esac
+fi
+# skill_quality_setting <key> <default>: sets SETTING_VALUE and SETTING_LAYER.
+# A value must be a whole number from 1 to DESC_FIELD_CAP. A layer that holds
+# another value, or does not parse, is named and dropped for the key, so a valid
+# later layer still wins, else the default; an earlier layer's value never does.
+skill_quality_setting() {
+  local key="$1" rel value status
+  SETTING_VALUE="$2"
+  SETTING_LAYER="default"
+  for rel in ${SETTINGS_LAYERS[@]+"${SETTINGS_LAYERS[@]}"}; do
+    [[ -f "$REPO_ROOT/$rel" ]] || continue
+    value="$(bash "$SETTINGS_LIB/parse-concern-value.sh" --strict "$REPO_ROOT/$rel" "$key" 2>/dev/null)"
+    status=$?
+    value="${value//$'\r'/}"
+    if ((status == 0)) && [[ -z "$value" ]]; then
+      continue
+    fi
+    if ((status == 0)) && [[ "$value" =~ ^[1-9][0-9]{0,3}$ ]] && ((value <= DESC_FIELD_CAP)); then
+      SETTING_VALUE="$value"
+      SETTING_LAYER="$rel"
+      continue
+    fi
+    if ((status == 0)); then
+      warn "$rel: $key is '$value', not a whole number from 1 to $DESC_FIELD_CAP; that layer is dropped and $key resolves to $2 unless a later layer sets it"
+    else
+      warn "$rel does not parse; that layer is dropped and $key resolves to $2 unless a later layer sets it"
+    fi
+    SETTING_VALUE="$2"
+    SETTING_LAYER="default"
+  done
+}
+skill_quality_setting description_target "$DESC_TARGET_DEFAULT"
+DESC_TARGET="$SETTING_VALUE"
+DESC_TARGET_LAYER="$SETTING_LAYER"
+skill_quality_setting description_warn "$DESC_WARN_DEFAULT"
+DESC_WARN="$SETTING_VALUE"
+DESC_WARN_LAYER="$SETTING_LAYER"
+
 BODY_LINES="$(body_lines <"$SKILL_MD")"
 note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock medians $POCOCK_DESC_MEDIAN chars, $POCOCK_BODY_MEDIAN lines; max $POCOCK_DESC_MAX, $POCOCK_BODY_MAX)"
-((DESC_CP_LEN > POCOCK_DESC_MAX)) &&
-  warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
+note "description settings: target $DESC_TARGET ($DESC_TARGET_LAYER), warn above $DESC_WARN ($DESC_WARN_LAYER), fail above $DESC_FIELD_CAP (fixed)"
+if ((DESC_CP_LEN > DESC_WARN)); then
+  warn "description is $DESC_CP_LEN chars, above the description_warn setting $DESC_WARN from $DESC_WARN_LAYER (/playbooks:skill-authoring, Descriptions)"
+elif ((DESC_CP_LEN > DESC_TARGET)); then
+  note "description is $DESC_CP_LEN chars, above the description_target setting $DESC_TARGET from $DESC_TARGET_LAYER"
+fi
 ((BODY_LINES > POCOCK_BODY_MAX)) &&
   warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
 # Read from the file, not a command substitution, so trailing newlines count;
