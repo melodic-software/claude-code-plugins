@@ -79,7 +79,7 @@ changes `/status`, `/usage`, the startup banner or the usage-limit notice.
 - login method | (?<=Login method:[ \t]+)[^ \t](?:.*[^ \t])?
 - session id | (?<=Session ID:[ \t]+)[^ \t]+
 - cwd | (?<=cwd:[ \t]+)[^ \t](?:.*[^ \t])?
-- home path | (?:/home|/Users|[a-z]:\\Users)[/\\][^ \t]+
+- home path | (?:/home|/Users|[a-z]:\\Users)(?:/|\\)[^ \t]+
 - usage limit | [0-9]+% of your [^·]*limit
 - usage meter | [█▉▊▋▌▍▎▏]*[ \t]*[0-9]+% used
 - usage reset | resets [^·]*[^· \t]
